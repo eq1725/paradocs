@@ -447,3 +447,20 @@ export default function ReportPage() {
     </>
   )
 }
+
+// Enable dynamic routes with fallback
+export async function getStaticPaths() {
+  return {
+    paths: [],
+    fallback: 'blocking'
+  }
+}
+
+export async function getStaticProps({ params }: { params: { slug: string } }) {
+  return {
+    props: {
+      slug: params.slug
+    },
+    revalidate: 60 // Revalidate every 60 seconds
+  }
+}

@@ -56,15 +56,15 @@ export default function AnalyticsPage() {
       const { data: viewsData } = await supabase
         .from('reports')
         .select('view_count')
-        .eq('status', 'approved')
-      const totalViews = viewsData?.reduce((sum, r) => sum + r.view_count, 0) || 0
+        .eq('status', 'approved') as { data: { view_count: number }[] | null }
+      const totalViews = viewsData?.reduce((sum, r) => sum + (r.view_count || 0), 0) || 0
 
       // Countries count
       const { data: countries } = await supabase
         .from('reports')
         .select('country')
         .eq('status', 'approved')
-        .not('country', 'is', null)
+        .not('country', 'is', null) as { data: { country: string }[] | null }
       const uniqueCountries = new Set(countries?.map(r => r.country)).size
 
       // This month
@@ -87,7 +87,7 @@ export default function AnalyticsPage() {
       const { data: catData } = await supabase
         .from('reports')
         .select('category')
-        .eq('status', 'approved')
+        .eq('status', 'approved') as { data: { category: string }[] | null }
 
       const catCounts: Record<string, number> = {}
       catData?.forEach(r => {
@@ -119,7 +119,7 @@ export default function AnalyticsPage() {
         .from('reports')
         .select('created_at')
         .eq('status', 'approved')
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: true }) as { data: { created_at: string }[] | null }
 
       const monthCounts: Record<string, number> = {}
       const now = new Date()
@@ -147,7 +147,7 @@ export default function AnalyticsPage() {
       const { data: credData } = await supabase
         .from('reports')
         .select('credibility')
-        .eq('status', 'approved')
+        .eq('status', 'approved') as { data: { credibility: string }[] | null }
 
       const credCounts: Record<string, number> = {}
       credData?.forEach(r => {
