@@ -1,5 +1,3 @@
-'use client'
-
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
@@ -45,8 +43,7 @@ export default function ReportPage() {
         .from('reports')
         .select(`
           *,
-          phenomenon_type:phenomenon_types(*),
-          submitter:profiles(*)
+          phenomenon_type:phenomenon_types(*)
         `)
         .eq('slug', slug)
         .eq('status', 'approved')
