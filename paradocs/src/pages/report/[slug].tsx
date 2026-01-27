@@ -44,8 +44,7 @@ export default function ReportPage() {
         .from('reports')
         .select(`
           *,
-          phenomenon_type:phenomenon_types(*),
-          submitter:profiles(*)
+          phenomenon_type:phenomenon_types(*)
         `)
         .eq('slug', slug)
         .eq('status', 'approved')
