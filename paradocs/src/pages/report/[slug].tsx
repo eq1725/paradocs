@@ -1,5 +1,4 @@
-'use client'
-
+// Pages Router - do not use 'use client' with getStaticPaths/getStaticProps
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
