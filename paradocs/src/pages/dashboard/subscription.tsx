@@ -33,12 +33,15 @@ interface SubscriptionTier {
   description: string
   price_monthly: number
   price_yearly: number
-  features: Record<string, boolean | string>
+  features: Record<string, boolean>
   limits: {
-    reports_per_month: number
     saved_reports_max: number
+    collections_max: number
+    saved_searches_max: number
+    ai_queries_per_month: number
     api_calls_per_month: number
-    team_members_max: number
+    exports_per_month: number
+    collaborators_per_collection: number
   }
   is_active: boolean
   sort_order: number
@@ -91,18 +94,31 @@ const tierColors: Record<string, {
 }
 
 const featureLabels: Record<string, string> = {
-  my_reports: 'Submit Reports',
+  browse_reports: 'Browse Reports',
+  submit_reports: 'Submit Reports',
   saved_reports: 'Save Reports',
+  collections: 'Collections',
+  collection_notes: 'Collection Notes',
+  collection_tags: 'Collection Tags',
+  basic_search: 'Basic Search',
+  advanced_filters: 'Advanced Filters',
+  saved_searches: 'Saved Searches',
+  email_alerts: 'Email Alerts',
+  public_heatmap: 'Public Heatmap',
+  interactive_analytics: 'Interactive Analytics',
+  custom_visualizations: 'Custom Visualizations',
+  pattern_recognition: 'Pattern Recognition',
+  report_comparison: 'Report Comparison',
   ai_insights: 'AI Insights',
-  data_export: 'Data Export',
+  ai_similar_reports: 'Similar Reports (AI)',
+  ai_natural_language_search: 'Natural Language Search',
+  export_csv: 'CSV Export',
+  export_pdf: 'PDF Export',
+  bulk_export: 'Bulk Export',
   api_access: 'API Access',
-  alerts: 'Alert System',
-  advanced_search: 'Advanced Search',
-  custom_reports: 'Custom Reports',
-  team_members: 'Team Collaboration',
-  priority_support: 'Priority Support',
-  analytics_dashboard: 'Analytics Dashboard',
-  bulk_import: 'Bulk Import'
+  share_collections: 'Share Collections',
+  collaborate: 'Collaboration',
+  priority_support: 'Priority Support'
 }
 
 function FeatureValue({ value }: { value: boolean | string }) {
@@ -191,41 +207,34 @@ function TierCard({
       {/* Limits */}
       <div className="space-y-3 mb-6">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-400">Reports/month</span>
-          <LimitValue value={tier.limits?.reports_per_month} />
-        </div>
-        <div className="flex items-center justify-between text-sm">
           <span className="text-gray-400">Saved reports</span>
           <LimitValue value={tier.limits?.saved_reports_max} />
         </div>
-        {tier.limits?.api_calls_per_month && tier.limits.api_calls_per_month > 0 && (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-gray-400">Collections</span>
+          <LimitValue value={tier.limits?.collections_max} />
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-gray-400">AI queries/month</span>
+          <LimitValue value={tier.limits?.ai_queries_per_month} />
+        </div>
+        {tier.limits?.api_calls_per_month !== undefined && tier.limits.api_calls_per_month !== 0 && (
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-400">API calls/month</span>
             <LimitValue value={tier.limits.api_calls_per_month} />
-          </div>
-        )}
-        {tier.limits?.team_members_max && tier.limits.team_members_max > 0 && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-400">Team members</span>
-            <LimitValue value={tier.limits.team_members_max} />
           </div>
         )}
       </div>
 
       {/* Key Features */}
       <div className="space-y-2 mb-6 pt-4 border-t border-gray-700/50">
-        {Object.entries(tier.features)
-          .filter(([_, value]) => value !== false)
+        {tier.features && Object.entries(tier.features)
+          .filter(([_, value]) => value === true)
           .slice(0, 6)
-          .map(([key, value]) => (
+          .map(([key]) => (
             <div key={key} className="flex items-center gap-2 text-sm">
               <Check className="w-4 h-4 text-green-400 flex-shrink-0" />
-              <span className="text-gray-300">{featureLabels[key] || key}</span>
-              {typeof value === 'string' && value !== 'true' && (
-                <span className="text-xs text-gray-500 ml-auto capitalize">
-                  ({value.replace(/_/g, ' ')})
-                </span>
-              )}
+              <span className="text-gray-300">{featureLabels[key] || key.replace(/_/g, ' ')}</span>
             </div>
           ))}
       </div>
@@ -381,21 +390,21 @@ export default function SubscriptionPage() {
               <>
                 <div className="text-center">
                   <p className="text-2xl font-bold text-white">
-                    {usage.reports_submitted}
+                    {usage.reports_saved ?? 0}
                     <span className="text-sm text-gray-500">
-                      /{limits.reports_per_month === -1 ? '∞' : limits.reports_per_month}
-                    </span>
-                  </p>
-                  <p className="text-xs text-gray-400">Reports this month</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-white">
-                    {usage.reports_saved}
-                    <span className="text-sm text-gray-500">
-                      /{limits.saved_reports_max === -1 ? '∞' : limits.saved_reports_max}
+                      /{limits.saved_reports_max === -1 ? '∞' : limits.saved_reports_max ?? 0}
                     </span>
                   </p>
                   <p className="text-xs text-gray-400">Saved reports</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-white">
+                    {usage.ai_queries_made ?? 0}
+                    <span className="text-sm text-gray-500">
+                      /{limits.ai_queries_per_month === -1 ? '∞' : limits.ai_queries_per_month ?? 0}
+                    </span>
+                  </p>
+                  <p className="text-xs text-gray-400">AI queries this month</p>
                 </div>
               </>
             )}
@@ -406,22 +415,22 @@ export default function SubscriptionPage() {
         {usage && limits && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 pt-6 border-t border-gray-800">
             <UsageMeter
-              label="Reports Submitted"
-              current={usage.reports_submitted}
-              limit={limits.reports_per_month}
+              label="Saved Reports"
+              current={usage.reports_saved ?? 0}
+              limit={limits.saved_reports_max ?? 0}
               size="sm"
             />
             <UsageMeter
-              label="Saved Reports"
-              current={usage.reports_saved}
-              limit={limits.saved_reports_max}
+              label="AI Queries"
+              current={usage.ai_queries_made ?? 0}
+              limit={limits.ai_queries_per_month ?? 0}
               size="sm"
             />
-            {limits.api_calls_per_month > 0 && (
+            {(limits.api_calls_per_month ?? 0) > 0 && (
               <UsageMeter
                 label="API Calls"
-                current={usage.api_calls_made}
-                limit={limits.api_calls_per_month}
+                current={usage.api_calls_made ?? 0}
+                limit={limits.api_calls_per_month ?? 0}
                 size="sm"
               />
             )}
