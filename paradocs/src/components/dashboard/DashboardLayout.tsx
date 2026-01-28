@@ -4,7 +4,7 @@
  * Wrapper layout for all dashboard pages with sidebar navigation.
  */
 
-import React, { ReactNode } from 'react'
+import React, { ReactNode, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { TierBadge } from './TierBadge'
+import { Avatar } from '@/components/Avatar'
 import { supabase } from '@/lib/supabase'
 
 interface DashboardLayoutProps {
@@ -92,6 +93,47 @@ const navItems: NavItem[] = [
 export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayoutProps) {
   const router = useRouter()
   const { subscription, tierName, tierDisplayName, loading } = useSubscription()
+  const [userProfile, setUserProfile] = useState<{
+    display_name: string | null
+    username: string | null
+    avatar_url: string | null
+  } | null>(null)
+
+  // Fetch user profile for avatar display
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('display_name, username, avatar_url')
+        .eq('id', session.user.id)
+        .single()
+
+      if (data) {
+        setUserProfile(data)
+      }
+    }
+
+    fetchProfile()
+
+    // Subscribe to profile changes
+    const channel = supabase
+      .channel('profile-changes')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'profiles'
+      }, (payload) => {
+        setUserProfile(payload.new as typeof userProfile)
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -131,9 +173,11 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
           {/* User Info */}
           <div className="p-4 border-b border-gray-800">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white font-semibold">
-                {subscription?.tier?.display_name?.[0] || 'U'}
-              </div>
+              <Avatar
+                avatarUrl={userProfile?.avatar_url || null}
+                name={userProfile?.display_name || userProfile?.username || 'User'}
+                size="md"
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-white text-sm font-medium truncate">
                   {loading ? 'Loading...' : 'My Account'}
