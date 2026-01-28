@@ -17,7 +17,10 @@ import {
   Settings,
   ChevronLeft,
   LogOut,
-  Bell
+  Bell,
+  FolderOpen,
+  Search,
+  BarChart3
 } from 'lucide-react'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { TierBadge } from './TierBadge'
@@ -52,10 +55,27 @@ const navItems: NavItem[] = [
     icon: Bookmark
   },
   {
+    href: '/dashboard/collections',
+    label: 'Collections',
+    icon: FolderOpen,
+    requiredTier: ['pro', 'researcher']
+  },
+  {
+    href: '/dashboard/searches',
+    label: 'Saved Searches',
+    icon: Search,
+    requiredTier: ['pro', 'researcher']
+  },
+  {
     href: '/dashboard/insights',
     label: 'AI Insights',
-    icon: Sparkles,
-    requiredTier: ['basic', 'pro', 'enterprise']
+    icon: Sparkles
+  },
+  {
+    href: '/dashboard/analytics',
+    label: 'Analytics',
+    icon: BarChart3,
+    requiredTier: ['pro', 'researcher']
   },
   {
     href: '/dashboard/subscription',
