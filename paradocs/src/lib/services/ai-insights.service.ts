@@ -250,10 +250,12 @@ function buildPatternPrompt(pattern: DetectedPattern): string {
   prompt += `Status: ${pattern.status}\n`
   prompt += `Report Count: ${pattern.report_count}\n`
   prompt += `Confidence Score: ${(pattern.confidence_score * 100).toFixed(1)}%\n`
-  prompt += `Significance Score: ${(pattern.significance_score * 100).toFixed(1)}%\n`
+  prompt += `Significance Score: ${(pattern.significance_score * 100).toFixed(1)}%\n` 
 
-  if (pattern.center_point) {
-    prompt += `Location: ${pattern.center_point.lat.toFixed(4)}, ${pattern.center_point.lng.toFixed(4)}\n`
+  // center_point may be a PostGIS hex string or an object
+  if (pattern.center_point && typeof pattern.center_point === 'object' && 'lat' in pattern.center_point) {
+    const cp = pattern.center_point as { lat: number; lng: number }
+    prompt += `Location: ${cp.lat.toFixed(4)}, ${cp.lng.toFixed(4)}\n`
   }
 
   if (pattern.radius_km) {
