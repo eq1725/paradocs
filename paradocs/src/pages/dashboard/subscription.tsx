@@ -26,6 +26,8 @@ import { useSubscription } from '@/lib/hooks/useSubscription'
 import { supabase } from '@/lib/supabase'
 import type { TierName } from '@/lib/subscription'
 
+// TierName is imported from subscription.ts and includes: 'free' | 'pro' | 'researcher' | 'enterprise'
+
 interface SubscriptionTier {
   id: string
   name: TierName

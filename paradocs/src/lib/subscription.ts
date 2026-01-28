@@ -15,7 +15,7 @@ import { createServerClient } from './supabase'
 // TYPES
 // ============================================
 
-export type TierName = 'free' | 'pro' | 'researcher'
+export type TierName = 'free' | 'pro' | 'researcher' | 'enterprise'
 
 export interface SubscriptionTier {
   id: string
@@ -259,6 +259,51 @@ export const DEFAULT_TIERS: Record<TierName, Omit<SubscriptionTier, 'id'>> = {
       api_calls_per_month: 10000,
       exports_per_month: -1,
       collaborators_per_collection: 10
+    }
+  },
+  enterprise: {
+    name: 'enterprise',
+    display_name: 'Enterprise',
+    description: 'For organizations and media requiring comprehensive access',
+    price_monthly: 99,
+    price_yearly: 990,
+    is_active: true,
+    sort_order: 3,
+    features: {
+      browse_reports: true,
+      submit_reports: true,
+      saved_reports: true,
+      collections: true,
+      collection_notes: true,
+      collection_tags: true,
+      basic_search: true,
+      advanced_filters: true,
+      saved_searches: true,
+      email_alerts: true,
+      public_heatmap: true,
+      interactive_analytics: true,
+      custom_visualizations: true,
+      pattern_recognition: true,
+      report_comparison: true,
+      ai_insights: true,
+      ai_similar_reports: true,
+      ai_natural_language_search: true,
+      export_csv: true,
+      export_pdf: true,
+      bulk_export: true,
+      api_access: true,
+      share_collections: true,
+      collaborate: true,
+      priority_support: true
+    },
+    limits: {
+      saved_reports_max: -1,
+      collections_max: -1,
+      saved_searches_max: -1,
+      ai_queries_per_month: -1,
+      api_calls_per_month: -1,
+      exports_per_month: -1,
+      collaborators_per_collection: -1
     }
   }
 }
@@ -724,7 +769,8 @@ export function getTierColor(tierName: TierName): string {
   const colors: Record<TierName, string> = {
     free: 'gray',
     pro: 'purple',
-    researcher: 'gold'
+    researcher: 'gold',
+    enterprise: 'amber'
   }
   return colors[tierName] || 'gray'
 }
@@ -736,7 +782,8 @@ export function getTierIcon(tierName: TierName): string {
   const icons: Record<TierName, string> = {
     free: 'Compass',
     pro: 'Search',
-    researcher: 'Microscope'
+    researcher: 'Microscope',
+    enterprise: 'Building'
   }
   return icons[tierName] || 'User'
 }
@@ -748,7 +795,8 @@ export function compareTiers(tier1: TierName, tier2: TierName): number {
   const order: Record<TierName, number> = {
     free: 0,
     pro: 1,
-    researcher: 2
+    researcher: 2,
+    enterprise: 3
   }
   return order[tier1] - order[tier2]
 }
@@ -760,7 +808,8 @@ export function getUpgradePath(currentTier: TierName): TierName | null {
   const upgrades: Record<TierName, TierName | null> = {
     free: 'pro',
     pro: 'researcher',
-    researcher: null
+    researcher: 'enterprise',
+    enterprise: null
   }
   return upgrades[currentTier]
 }
