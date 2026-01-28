@@ -1,9 +1,15 @@
 import '@/styles/globals.css'
 import type { AppProps } from 'next/app'
 import Head from 'next/head'
+import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 
 export default function App({ Component, pageProps }: AppProps) {
+  const router = useRouter()
+
+  // Dashboard pages use their own DashboardLayout, so don't wrap them in the main Layout
+  const isDashboardPage = router.pathname.startsWith('/dashboard')
+
   return (
     <>
       <Head>
@@ -12,9 +18,13 @@ export default function App({ Component, pageProps }: AppProps) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <Layout>
+      {isDashboardPage ? (
         <Component {...pageProps} />
-      </Layout>
+      ) : (
+        <Layout>
+          <Component {...pageProps} />
+        </Layout>
+      )}
     </>
   )
 }
