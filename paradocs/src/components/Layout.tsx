@@ -135,17 +135,6 @@ export default function Layout({ children }: LayoutProps) {
                 Submit Report
               </Link>
 
-              {/* Dashboard button - only visible when logged in */}
-              {user && (
-                <Link
-                  href="/dashboard"
-                  className="hidden sm:flex btn btn-secondary btn-sm"
-                >
-                  <LayoutDashboard className="w-4 h-4" />
-                  Dashboard
-                </Link>
-              )}
-
               {/* User menu */}
               {!loading && (
                 user ? (
