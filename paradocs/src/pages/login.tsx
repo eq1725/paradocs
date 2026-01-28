@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import Link from 'next/link'
-import { Mail, Lock, ArrowLeft, Github, Chrome } from 'lucide-react'
+import { Mail, Lock, ArrowLeft, Chrome } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 type Mode = 'login' | 'signup' | 'forgot'
@@ -70,7 +70,7 @@ export default function LoginPage() {
     }
   }
 
-  async function handleOAuthLogin(provider: 'google' | 'github') {
+  async function handleOAuthLogin(provider: 'google') {
     setError('')
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -138,13 +138,6 @@ export default function LoginPage() {
                   >
                     <Chrome className="w-5 h-5" />
                     Continue with Google
-                  </button>
-                  <button
-                    onClick={() => handleOAuthLogin('github')}
-                    className="w-full btn btn-secondary"
-                  >
-                    <Github className="w-5 h-5" />
-                    Continue with GitHub
                   </button>
                 </div>
 
