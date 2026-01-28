@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonType } from '@/lib/database.types'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import ReportCard from '@/components/ReportCard'
+import TrendingPatternsWidget from '@/components/patterns/TrendingPatternsWidget'
 
 export default function Home() {
   const [featuredReports, setFeaturedReports] = useState<(Report & { phenomenon_type?: PhenomenonType })[]>([])
@@ -239,6 +240,13 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Trending Patterns */}
+      <section className="py-16 border-t border-white/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <TrendingPatternsWidget limit={6} showHeader={true} variant="inline" />
+        </div>
+      </section>
+
       {/* Quick Links */}
       <section className="py-16 border-t border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -261,13 +269,13 @@ export default function Home() {
                 Visualize sightings and encounters on a global interactive map.
               </p>
             </Link>
-            <Link href="/analytics" className="glass-card p-8 group">
-              <BarChart3 className="w-10 h-10 text-purple-400 mb-4" />
+            <Link href="/insights" className="glass-card p-8 group">
+              <TrendingUp className="w-10 h-10 text-purple-400 mb-4" />
               <h3 className="text-xl font-display font-semibold text-white group-hover:text-purple-400 transition-colors">
-                Data Analytics
+                Pattern Insights
               </h3>
               <p className="mt-2 text-gray-400 text-sm">
-                Discover patterns and trends across all paranormal phenomena.
+                Explore AI-detected patterns, clusters, and anomalies in the data.
               </p>
             </Link>
           </div>
