@@ -44,14 +44,15 @@ interface SubscriptionTier {
   sort_order: number
 }
 
-const tierIcons: Record<TierName, React.ElementType> = {
+const tierIcons: Record<string, React.ElementType> = {
   free: User,
   basic: Star,
   pro: Zap,
+  researcher: Zap,
   enterprise: Building
 }
 
-const tierColors: Record<TierName, {
+const tierColors: Record<string, {
   bg: string
   border: string
   highlight: string
@@ -74,6 +75,12 @@ const tierColors: Record<TierName, {
     border: 'border-purple-800/50',
     highlight: 'bg-purple-900/30',
     button: 'bg-purple-600 hover:bg-purple-500'
+  },
+  researcher: {
+    bg: 'bg-emerald-950/30',
+    border: 'border-emerald-800/50',
+    highlight: 'bg-emerald-900/30',
+    button: 'bg-emerald-600 hover:bg-emerald-500'
   },
   enterprise: {
     bg: 'bg-amber-950/30',
@@ -113,7 +120,10 @@ function FeatureValue({ value }: { value: boolean | string }) {
   )
 }
 
-function LimitValue({ value }: { value: number }) {
+function LimitValue({ value }: { value: number | undefined }) {
+  if (value === undefined || value === null) {
+    return <span className="text-gray-500">-</span>
+  }
   if (value === -1) {
     return <span className="text-green-400">Unlimited</span>
   }
@@ -131,8 +141,8 @@ function TierCard({
   onSelect: (tierId: string) => void
   loading: boolean
 }) {
-  const Icon = tierIcons[tier.name]
-  const colors = tierColors[tier.name]
+  const Icon = tierIcons[tier.name] || User
+  const colors = tierColors[tier.name] || tierColors.free
   const isPopular = tier.name === 'pro'
 
   return (
@@ -182,19 +192,19 @@ function TierCard({
       <div className="space-y-3 mb-6">
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-400">Reports/month</span>
-          <LimitValue value={tier.limits.reports_per_month} />
+          <LimitValue value={tier.limits?.reports_per_month} />
         </div>
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-400">Saved reports</span>
-          <LimitValue value={tier.limits.saved_reports_max} />
+          <LimitValue value={tier.limits?.saved_reports_max} />
         </div>
-        {tier.limits.api_calls_per_month > 0 && (
+        {tier.limits?.api_calls_per_month && tier.limits.api_calls_per_month > 0 && (
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-400">API calls/month</span>
             <LimitValue value={tier.limits.api_calls_per_month} />
           </div>
         )}
-        {tier.limits.team_members_max > 0 && (
+        {tier.limits?.team_members_max && tier.limits.team_members_max > 0 && (
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-400">Team members</span>
             <LimitValue value={tier.limits.team_members_max} />
