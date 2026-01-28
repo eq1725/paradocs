@@ -14,7 +14,7 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
 })
 
-const MODEL = 'claude-3-5-sonnet-20241022'
+const MODEL = 'claude-sonnet-4-20250514'
 const MAX_TOKENS = 1024
 const CACHE_VALIDITY_HOURS = 24
 
