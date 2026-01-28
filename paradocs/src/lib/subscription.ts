@@ -2,6 +2,11 @@
  * Subscription Management Library
  *
  * Handles subscription tiers, feature access, and usage tracking.
+ *
+ * Tier Structure:
+ * - Free (Explorer): Basic browsing, 25 saved reports, 5 AI queries/month
+ * - Pro (Investigator): Collections, saved searches, analytics, 50 AI queries/month
+ * - Researcher: Unlimited everything, API access, collaboration, 500 AI queries/month
  */
 
 import { createServerClient } from './supabase'
@@ -10,7 +15,7 @@ import { createServerClient } from './supabase'
 // TYPES
 // ============================================
 
-export type TierName = 'free' | 'basic' | 'pro' | 'enterprise'
+export type TierName = 'free' | 'pro' | 'researcher'
 
 export interface SubscriptionTier {
   id: string
@@ -22,27 +27,61 @@ export interface SubscriptionTier {
   features: TierFeatures
   limits: TierLimits
   is_active: boolean
+  is_default?: boolean
   sort_order: number
 }
 
 export interface TierFeatures {
-  my_reports: boolean
+  // Core features
+  browse_reports: boolean
+  submit_reports: boolean
+
+  // Saved reports & collections
   saved_reports: boolean
-  personal_analytics: 'basic' | 'full'
-  ai_insights: boolean | 'view_only' | 'priority'
-  alerts: boolean | 'email' | 'all'
-  data_export: boolean | 'bulk'
+  collections: boolean
+  collection_notes: boolean
+  collection_tags: boolean
+
+  // Search & alerts
+  basic_search: boolean
+  advanced_filters: boolean
+  saved_searches: boolean
+  email_alerts: boolean
+
+  // Analytics & visualization
+  public_heatmap: boolean
+  interactive_analytics: boolean
+  custom_visualizations: boolean
+  pattern_recognition: boolean
+  report_comparison: boolean
+
+  // AI features
+  ai_insights: boolean
+  ai_similar_reports: boolean
+  ai_natural_language_search: boolean
+
+  // Export & API
+  export_csv: boolean
+  export_pdf: boolean
+  bulk_export: boolean
   api_access: boolean
-  custom_reports: boolean
-  team_members: boolean
-  priority_support: boolean | 'dedicated'
+
+  // Collaboration
+  share_collections: boolean
+  collaborate: boolean
+
+  // Support
+  priority_support: boolean
 }
 
 export interface TierLimits {
-  reports_per_month: number  // -1 = unlimited
-  saved_reports_max: number  // -1 = unlimited
-  api_calls_per_month: number
-  team_members_max: number
+  saved_reports_max: number          // -1 = unlimited
+  collections_max: number            // -1 = unlimited
+  saved_searches_max: number         // -1 = unlimited
+  ai_queries_per_month: number       // -1 = unlimited
+  api_calls_per_month: number        // -1 = unlimited
+  exports_per_month: number          // -1 = unlimited
+  collaborators_per_collection: number // -1 = unlimited
 }
 
 export interface UserSubscription {
@@ -61,40 +100,174 @@ export interface UsageStats {
   user_id: string
   period_start: string
   period_end: string
-  reports_submitted: number
   reports_saved: number
+  collections_created: number
+  saved_searches_created: number
+  ai_queries_made: number
   api_calls_made: number
   exports_made: number
-  ai_insights_viewed: number
 }
 
 export interface SubscriptionWithUsage {
   subscription: UserSubscription
   usage: UsageStats
   limits: TierLimits
-  canSubmitReport: boolean
   canSaveReport: boolean
+  canCreateCollection: boolean
+  canCreateSavedSearch: boolean
+  canUseAI: boolean
   canUseApi: boolean
+  canExport: boolean
+}
+
+// ============================================
+// DEFAULT TIER DEFINITIONS
+// ============================================
+
+export const DEFAULT_TIERS: Record<TierName, Omit<SubscriptionTier, 'id'>> = {
+  free: {
+    name: 'free',
+    display_name: 'Explorer',
+    description: 'Perfect for casual browsing and discovery',
+    price_monthly: 0,
+    price_yearly: 0,
+    is_active: true,
+    is_default: true,
+    sort_order: 0,
+    features: {
+      browse_reports: true,
+      submit_reports: true,
+      saved_reports: true,
+      collections: false,
+      collection_notes: false,
+      collection_tags: false,
+      basic_search: true,
+      advanced_filters: false,
+      saved_searches: false,
+      email_alerts: false,
+      public_heatmap: true,
+      interactive_analytics: false,
+      custom_visualizations: false,
+      pattern_recognition: false,
+      report_comparison: false,
+      ai_insights: true,
+      ai_similar_reports: false,
+      ai_natural_language_search: false,
+      export_csv: false,
+      export_pdf: false,
+      bulk_export: false,
+      api_access: false,
+      share_collections: false,
+      collaborate: false,
+      priority_support: false
+    },
+    limits: {
+      saved_reports_max: 25,
+      collections_max: 0,
+      saved_searches_max: 0,
+      ai_queries_per_month: 5,
+      api_calls_per_month: 0,
+      exports_per_month: 0,
+      collaborators_per_collection: 0
+    }
+  },
+  pro: {
+    name: 'pro',
+    display_name: 'Investigator',
+    description: 'For serious researchers who need powerful tools',
+    price_monthly: 9,
+    price_yearly: 90,
+    is_active: true,
+    sort_order: 1,
+    features: {
+      browse_reports: true,
+      submit_reports: true,
+      saved_reports: true,
+      collections: true,
+      collection_notes: true,
+      collection_tags: true,
+      basic_search: true,
+      advanced_filters: true,
+      saved_searches: true,
+      email_alerts: true,
+      public_heatmap: true,
+      interactive_analytics: true,
+      custom_visualizations: false,
+      pattern_recognition: false,
+      report_comparison: false,
+      ai_insights: true,
+      ai_similar_reports: true,
+      ai_natural_language_search: false,
+      export_csv: true,
+      export_pdf: true,
+      bulk_export: false,
+      api_access: false,
+      share_collections: false,
+      collaborate: false,
+      priority_support: false
+    },
+    limits: {
+      saved_reports_max: -1,
+      collections_max: 10,
+      saved_searches_max: 5,
+      ai_queries_per_month: 50,
+      api_calls_per_month: 0,
+      exports_per_month: 50,
+      collaborators_per_collection: 0
+    }
+  },
+  researcher: {
+    name: 'researcher',
+    display_name: 'Researcher',
+    description: 'Full access for academic and professional research',
+    price_monthly: 19,
+    price_yearly: 190,
+    is_active: true,
+    sort_order: 2,
+    features: {
+      browse_reports: true,
+      submit_reports: true,
+      saved_reports: true,
+      collections: true,
+      collection_notes: true,
+      collection_tags: true,
+      basic_search: true,
+      advanced_filters: true,
+      saved_searches: true,
+      email_alerts: true,
+      public_heatmap: true,
+      interactive_analytics: true,
+      custom_visualizations: true,
+      pattern_recognition: true,
+      report_comparison: true,
+      ai_insights: true,
+      ai_similar_reports: true,
+      ai_natural_language_search: true,
+      export_csv: true,
+      export_pdf: true,
+      bulk_export: true,
+      api_access: true,
+      share_collections: true,
+      collaborate: true,
+      priority_support: true
+    },
+    limits: {
+      saved_reports_max: -1,
+      collections_max: -1,
+      saved_searches_max: -1,
+      ai_queries_per_month: 500,
+      api_calls_per_month: 10000,
+      exports_per_month: -1,
+      collaborators_per_collection: 10
+    }
+  }
 }
 
 // ============================================
 // FEATURE KEYS
 // ============================================
 
-export type FeatureKey =
-  | 'my_reports'
-  | 'saved_reports'
-  | 'personal_analytics'
-  | 'ai_insights'
-  | 'alerts'
-  | 'data_export'
-  | 'api_access'
-  | 'custom_reports'
-  | 'team_members'
-  | 'priority_support'
-  | 'analytics_dashboard'
-  | 'advanced_search'
-  | 'bulk_import'
+export type FeatureKey = keyof TierFeatures
 
 // ============================================
 // SERVER-SIDE FUNCTIONS
@@ -114,7 +287,11 @@ export async function getSubscriptionTiers(): Promise<SubscriptionTier[]> {
 
   if (error) {
     console.error('Error fetching subscription tiers:', error)
-    return []
+    // Return default tiers as fallback
+    return Object.values(DEFAULT_TIERS).map((tier, index) => ({
+      ...tier,
+      id: tier.name
+    })) as SubscriptionTier[]
   }
 
   return data as SubscriptionTier[]
@@ -134,6 +311,11 @@ export async function getTierByName(name: TierName): Promise<SubscriptionTier | 
 
   if (error) {
     console.error('Error fetching tier:', error)
+    // Return default tier as fallback
+    const defaultTier = DEFAULT_TIERS[name]
+    if (defaultTier) {
+      return { ...defaultTier, id: name } as SubscriptionTier
+    }
     return null
   }
 
@@ -196,7 +378,8 @@ export async function getDefaultTier(): Promise<SubscriptionTier | null> {
 
   if (error) {
     console.error('Error fetching default tier:', error)
-    return null
+    // Return hardcoded default
+    return { ...DEFAULT_TIERS.free, id: 'free' } as SubscriptionTier
   }
 
   return data as SubscriptionTier
@@ -230,14 +413,32 @@ export async function getUserUsage(userId: string): Promise<UsageStats | null> {
       .insert({
         user_id: userId,
         period_start: periodStart.toISOString().split('T')[0],
-        period_end: periodEnd.toISOString().split('T')[0]
+        period_end: periodEnd.toISOString().split('T')[0],
+        reports_saved: 0,
+        collections_created: 0,
+        saved_searches_created: 0,
+        ai_queries_made: 0,
+        api_calls_made: 0,
+        exports_made: 0
       })
       .select()
       .single()
 
     if (insertError) {
       console.error('Error creating usage record:', insertError)
-      return null
+      // Return empty usage as fallback
+      return {
+        id: '',
+        user_id: userId,
+        period_start: periodStart.toISOString().split('T')[0],
+        period_end: periodEnd.toISOString().split('T')[0],
+        reports_saved: 0,
+        collections_created: 0,
+        saved_searches_created: 0,
+        ai_queries_made: 0,
+        api_calls_made: 0,
+        exports_made: 0
+      }
     }
 
     return newUsage as UsageStats
@@ -259,18 +460,24 @@ export async function getSubscriptionWithUsage(userId: string): Promise<Subscrip
 
   const limits = subscription.tier.limits
   const currentUsage = usage || {
-    reports_submitted: 0,
     reports_saved: 0,
-    api_calls_made: 0
+    collections_created: 0,
+    saved_searches_created: 0,
+    ai_queries_made: 0,
+    api_calls_made: 0,
+    exports_made: 0
   }
 
   return {
     subscription,
     usage: usage!,
     limits,
-    canSubmitReport: limits.reports_per_month === -1 || currentUsage.reports_submitted < limits.reports_per_month,
     canSaveReport: limits.saved_reports_max === -1 || currentUsage.reports_saved < limits.saved_reports_max,
-    canUseApi: limits.api_calls_per_month === -1 || currentUsage.api_calls_made < limits.api_calls_per_month
+    canCreateCollection: limits.collections_max === -1 || currentUsage.collections_created < limits.collections_max,
+    canCreateSavedSearch: limits.saved_searches_max === -1 || currentUsage.saved_searches_created < limits.saved_searches_max,
+    canUseAI: limits.ai_queries_per_month === -1 || currentUsage.ai_queries_made < limits.ai_queries_per_month,
+    canUseApi: limits.api_calls_per_month === -1 || currentUsage.api_calls_made < limits.api_calls_per_month,
+    canExport: limits.exports_per_month === -1 || currentUsage.exports_made < limits.exports_per_month
   }
 }
 
@@ -279,7 +486,7 @@ export async function getSubscriptionWithUsage(userId: string): Promise<Subscrip
  */
 export async function incrementUsage(
   userId: string,
-  field: 'reports_submitted' | 'reports_saved' | 'api_calls_made' | 'exports_made' | 'ai_insights_viewed',
+  field: keyof Omit<UsageStats, 'id' | 'user_id' | 'period_start' | 'period_end'>,
   amount: number = 1
 ): Promise<boolean> {
   const supabase = createServerClient()
@@ -288,10 +495,12 @@ export async function incrementUsage(
   const usage = await getUserUsage(userId)
   if (!usage) return false
 
+  const currentValue = usage[field] as number
+
   const { error } = await supabase
     .from('usage_tracking')
     .update({
-      [field]: usage[field] + amount,
+      [field]: currentValue + amount,
       updated_at: new Date().toISOString()
     })
     .eq('id', usage.id)
@@ -305,7 +514,43 @@ export async function incrementUsage(
 }
 
 /**
- * Change user's subscription tier (mock implementation)
+ * Check if user can perform action based on limits
+ */
+export async function canPerformAction(
+  userId: string,
+  action: 'save_report' | 'create_collection' | 'create_saved_search' | 'use_ai' | 'use_api' | 'export'
+): Promise<{ allowed: boolean; remaining: number; limit: number }> {
+  const subWithUsage = await getSubscriptionWithUsage(userId)
+
+  if (!subWithUsage) {
+    return { allowed: false, remaining: 0, limit: 0 }
+  }
+
+  const { limits, usage } = subWithUsage
+
+  const actionMap: Record<string, { limitKey: keyof TierLimits; usageKey: keyof UsageStats }> = {
+    save_report: { limitKey: 'saved_reports_max', usageKey: 'reports_saved' },
+    create_collection: { limitKey: 'collections_max', usageKey: 'collections_created' },
+    create_saved_search: { limitKey: 'saved_searches_max', usageKey: 'saved_searches_created' },
+    use_ai: { limitKey: 'ai_queries_per_month', usageKey: 'ai_queries_made' },
+    use_api: { limitKey: 'api_calls_per_month', usageKey: 'api_calls_made' },
+    export: { limitKey: 'exports_per_month', usageKey: 'exports_made' }
+  }
+
+  const { limitKey, usageKey } = actionMap[action]
+  const limit = limits[limitKey]
+  const used = usage[usageKey] as number
+
+  if (limit === -1) {
+    return { allowed: true, remaining: -1, limit: -1 }
+  }
+
+  const remaining = Math.max(0, limit - used)
+  return { allowed: remaining > 0, remaining, limit }
+}
+
+/**
+ * Change user's subscription tier
  */
 export async function changeSubscription(
   userId: string,
@@ -383,15 +628,14 @@ export async function changeSubscription(
  * Check if a tier has access to a feature
  */
 export function hasFeature(tier: SubscriptionTier, feature: FeatureKey): boolean {
-  const value = tier.features[feature]
-  return value === true || value === 'full' || value === 'priority' || value === 'all' || value === 'bulk' || value === 'dedicated'
+  return tier.features[feature] === true
 }
 
 /**
- * Get feature access level
+ * Get all features for a tier
  */
-export function getFeatureLevel(tier: SubscriptionTier, feature: FeatureKey): string | boolean {
-  return tier.features[feature]
+export function getTierFeatures(tier: SubscriptionTier): FeatureKey[] {
+  return (Object.keys(tier.features) as FeatureKey[]).filter(key => tier.features[key])
 }
 
 /**
@@ -406,14 +650,17 @@ export function isWithinLimit(
   if (limit === -1) return true // Unlimited
 
   const usageMap: Record<keyof TierLimits, keyof UsageStats> = {
-    reports_per_month: 'reports_submitted',
     saved_reports_max: 'reports_saved',
+    collections_max: 'collections_created',
+    saved_searches_max: 'saved_searches_created',
+    ai_queries_per_month: 'ai_queries_made',
     api_calls_per_month: 'api_calls_made',
-    team_members_max: 'reports_submitted' // Not directly tracked
+    exports_per_month: 'exports_made',
+    collaborators_per_collection: 'collections_created' // Not directly tracked
   }
 
   const usageKey = usageMap[limitKey]
-  return usage[usageKey] < limit
+  return (usage[usageKey] as number) < limit
 }
 
 /**
@@ -428,14 +675,42 @@ export function getUsagePercentage(
   if (limit === -1) return 0 // Unlimited shows 0%
 
   const usageMap: Record<keyof TierLimits, keyof UsageStats> = {
-    reports_per_month: 'reports_submitted',
     saved_reports_max: 'reports_saved',
+    collections_max: 'collections_created',
+    saved_searches_max: 'saved_searches_created',
+    ai_queries_per_month: 'ai_queries_made',
     api_calls_per_month: 'api_calls_made',
-    team_members_max: 'reports_submitted'
+    exports_per_month: 'exports_made',
+    collaborators_per_collection: 'collections_created'
   }
 
   const usageKey = usageMap[limitKey]
-  return Math.min(100, Math.round((usage[usageKey] / limit) * 100))
+  return Math.min(100, Math.round(((usage[usageKey] as number) / limit) * 100))
+}
+
+/**
+ * Get remaining usage for a limit
+ */
+export function getRemainingUsage(
+  limits: TierLimits,
+  usage: UsageStats,
+  limitKey: keyof TierLimits
+): number | 'unlimited' {
+  const limit = limits[limitKey]
+  if (limit === -1) return 'unlimited'
+
+  const usageMap: Record<keyof TierLimits, keyof UsageStats> = {
+    saved_reports_max: 'reports_saved',
+    collections_max: 'collections_created',
+    saved_searches_max: 'saved_searches_created',
+    ai_queries_per_month: 'ai_queries_made',
+    api_calls_per_month: 'api_calls_made',
+    exports_per_month: 'exports_made',
+    collaborators_per_collection: 'collections_created'
+  }
+
+  const usageKey = usageMap[limitKey]
+  return Math.max(0, limit - (usage[usageKey] as number))
 }
 
 // ============================================
@@ -448,22 +723,20 @@ export function getUsagePercentage(
 export function getTierColor(tierName: TierName): string {
   const colors: Record<TierName, string> = {
     free: 'gray',
-    basic: 'blue',
     pro: 'purple',
-    enterprise: 'gold'
+    researcher: 'gold'
   }
   return colors[tierName] || 'gray'
 }
 
 /**
- * Get tier icon
+ * Get tier icon name
  */
 export function getTierIcon(tierName: TierName): string {
   const icons: Record<TierName, string> = {
-    free: 'User',
-    basic: 'Star',
-    pro: 'Zap',
-    enterprise: 'Building'
+    free: 'Compass',
+    pro: 'Search',
+    researcher: 'Microscope'
   }
   return icons[tierName] || 'User'
 }
@@ -474,9 +747,29 @@ export function getTierIcon(tierName: TierName): string {
 export function compareTiers(tier1: TierName, tier2: TierName): number {
   const order: Record<TierName, number> = {
     free: 0,
-    basic: 1,
-    pro: 2,
-    enterprise: 3
+    pro: 1,
+    researcher: 2
   }
   return order[tier1] - order[tier2]
+}
+
+/**
+ * Get upgrade path for a tier
+ */
+export function getUpgradePath(currentTier: TierName): TierName | null {
+  const upgrades: Record<TierName, TierName | null> = {
+    free: 'pro',
+    pro: 'researcher',
+    researcher: null
+  }
+  return upgrades[currentTier]
+}
+
+/**
+ * Format limit for display
+ */
+export function formatLimit(value: number): string {
+  if (value === -1) return 'Unlimited'
+  if (value === 0) return 'Not available'
+  return value.toLocaleString()
 }
