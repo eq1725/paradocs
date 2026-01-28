@@ -11,6 +11,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { Profile } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
+import { Avatar } from './Avatar'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -82,7 +83,7 @@ export default function Layout({ children }: LayoutProps) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-3 mr-8">
               <span className="text-3xl">🌌</span>
               <span className="font-display font-bold text-xl text-white">ParaDocs</span>
             </Link>
@@ -128,7 +129,7 @@ export default function Layout({ children }: LayoutProps) {
               {/* Submit button */}
               <Link
                 href="/submit"
-                className="hidden sm:flex btn btn-primary text-sm"
+                className="hidden sm:flex btn btn-primary btn-sm"
               >
                 <PlusCircle className="w-4 h-4" />
                 Submit Report
@@ -138,7 +139,7 @@ export default function Layout({ children }: LayoutProps) {
               {user && (
                 <Link
                   href="/dashboard"
-                  className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-white/10 text-white hover:bg-white/20 transition-colors"
+                  className="hidden sm:flex btn btn-secondary btn-sm"
                 >
                   <LayoutDashboard className="w-4 h-4" />
                   Dashboard
@@ -150,9 +151,11 @@ export default function Layout({ children }: LayoutProps) {
                 user ? (
                   <div className="relative group">
                     <button className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 transition-colors">
-                      <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-sm font-medium">
-                        {user.display_name?.[0] || user.username[0]}
-                      </div>
+                      <Avatar
+                        avatarUrl={user.avatar_url}
+                        name={user.display_name || user.username}
+                        size="sm"
+                      />
                     </button>
                     <div className="absolute right-0 top-full mt-2 w-48 py-2 bg-gray-900/95 backdrop-blur border border-white/10 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
                       <div className="px-4 py-2 border-b border-white/10">

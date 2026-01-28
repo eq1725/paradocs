@@ -162,6 +162,10 @@ input:disabled, textarea:disabled, select:disabled {
   @apply hover:bg-white/10 text-gray-300 hover:text-white;
 }
 
+.btn-sm {
+  @apply px-3 py-1.5 text-sm;
+}
+
 /* Loading skeleton */
 .skeleton {
   @apply bg-white/5 rounded animate-pulse;

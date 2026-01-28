@@ -16,9 +16,11 @@ import {
   Save,
   Loader2,
   AlertCircle,
-  Check
+  Check,
+  Camera
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
+import { AvatarPicker } from '@/components/AvatarPicker'
 import { supabase } from '@/lib/supabase'
 
 interface UserProfile {
@@ -188,6 +190,7 @@ export default function SettingsPage() {
           id: session.user.id,
           username: profile.username,
           display_name: profile.display_name,
+          avatar_url: profile.avatar_url,
           bio: profile.bio,
           location: profile.location,
           website: profile.website,
@@ -222,6 +225,19 @@ export default function SettingsPage() {
   return (
     <DashboardLayout title="Settings">
       <div className="max-w-3xl space-y-6">
+        {/* Avatar Settings */}
+        <SettingsSection
+          title="Avatar"
+          description="Choose a fun paranormal-themed avatar or upload your own"
+          icon={Camera}
+        >
+          <AvatarPicker
+            currentAvatarUrl={profile?.avatar_url || null}
+            userName={profile?.display_name || profile?.username || 'User'}
+            onSelect={(url) => setProfile(p => p ? { ...p, avatar_url: url } : null)}
+          />
+        </SettingsSection>
+
         {/* Profile Settings */}
         <SettingsSection
           title="Profile"
