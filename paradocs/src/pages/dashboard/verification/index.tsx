@@ -1,6 +1,6 @@
 /**
  * Expert Verification Workflow Dashboard
- * 
+ *
  * Allows moderators to review and process verification requests
  */
 
@@ -118,7 +118,7 @@ export default function VerificationDashboard() {
   async function fetchRequests() {
     setLoading(true)
     try {
-      const response = await fetch(\`/api/verification?status=\${statusFilter}\`)
+      const response = await fetch(`/api/verification?status=${statusFilter}`)
       if (response.ok) {
         const data = await response.json()
         setRequests(data.requests)
@@ -137,7 +137,7 @@ export default function VerificationDashboard() {
 
     setSubmitting(true)
     try {
-      const response = await fetch(\`/api/verification/\${selectedRequest.id}\`, {
+      const response = await fetch(`/api/verification/${selectedRequest.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -207,15 +207,16 @@ export default function VerificationDashboard() {
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
           {Object.entries(STATUS_INFO).map(([status, info]) => {
             const Icon = info.icon
+            const isActive = statusFilter === status
             return (
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
-                className={\`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap \${
-                  statusFilter === status
-                    ? \`bg-\${info.color}-500/20 text-\${info.color}-400 ring-1 ring-\${info.color}-500/50\`
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                  isActive
+                    ? 'bg-purple-500/20 text-purple-400 ring-1 ring-purple-500/50'
                     : 'bg-surface-800 text-gray-400 hover:text-white'
-                }\`}
+                }`}
               >
                 <Icon className="w-4 h-4" />
                 {info.label}
@@ -252,8 +253,8 @@ export default function VerificationDashboard() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <span className={\`p-2 rounded-lg bg-\${typeInfo?.color || 'gray'}-500/20\`}>
-                          <TypeIcon className={\`w-5 h-5 text-\${typeInfo?.color || 'gray'}-400\`} />
+                        <span className="p-2 rounded-lg bg-purple-500/20">
+                          <TypeIcon className="w-5 h-5 text-purple-400" />
                         </span>
                         <div>
                           <h3 className="font-semibold text-white">{typeInfo?.label || request.request_type}</h3>
@@ -262,7 +263,7 @@ export default function VerificationDashboard() {
                       </div>
 
                       <Link
-                        href={\`/report/\${request.report?.slug}\`}
+                        href={`/report/${request.report?.slug}`}
                         onClick={(e) => e.stopPropagation()}
                         className="inline-flex items-center gap-2 text-primary-400 hover:text-primary-300 mb-3"
                       >
@@ -290,7 +291,7 @@ export default function VerificationDashboard() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <span className={\`flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-\${statusInfo?.color || 'gray'}-500/20 text-\${statusInfo?.color || 'gray'}-400\`}>
+                      <span className="flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-amber-500/20 text-amber-400">
                         <StatusIcon className="w-3 h-3" />
                         {statusInfo?.label}
                       </span>
@@ -328,7 +329,7 @@ export default function VerificationDashboard() {
                   <div className="bg-white/5 rounded-lg p-4">
                     <h3 className="text-sm font-medium text-gray-400 mb-2">Report</h3>
                     <Link
-                      href={\`/report/\${selectedRequest.report?.slug}\`}
+                      href={`/report/${selectedRequest.report?.slug}`}
                       target="_blank"
                       className="text-primary-400 hover:text-primary-300 flex items-center gap-2"
                     >

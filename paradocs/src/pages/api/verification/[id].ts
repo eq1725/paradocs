@@ -9,7 +9,7 @@ import { createServerClient } from '@/lib/supabase'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query
-  
+
   if (!id || typeof id !== 'string') {
     return res.status(400).json({ error: 'Request ID is required' })
   }
@@ -32,14 +32,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === 'GET') {
     try {
+      const selectQuery = `
+        *,
+        report:reports(*),
+        requester:profiles!verification_requests_requester_id_fkey(id, username, display_name, avatar_url),
+        reviewer:profiles!verification_requests_reviewer_id_fkey(id, username, display_name, avatar_url)
+      `
+
       const { data: request, error } = await supabase
         .from('verification_requests')
-        .select(\`
-          *,
-          report:reports(*),
-          requester:profiles!verification_requests_requester_id_fkey(id, username, display_name, avatar_url),
-          reviewer:profiles!verification_requests_reviewer_id_fkey(id, username, display_name, avatar_url)
-        \`)
+        .select(selectQuery)
         .eq('id', id)
         .single()
 
@@ -100,12 +102,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // If approved and new credibility provided, update the report
       if (status === 'approved' && new_credibility) {
+        const moderationNote = `Verified via verification request #${id.slice(0, 8)}: ${reviewer_notes || 'Approved'}`
+
         const { error: reportUpdateError } = await supabase
           .from('reports')
           .update({
             credibility: new_credibility,
             moderated_by: user.id,
-            moderation_notes: \`Verified via verification request #\${id.slice(0, 8)}: \${reviewer_notes || 'Approved'}\`,
+            moderation_notes: moderationNote,
           })
           .eq('id', request.report_id)
 
@@ -120,7 +124,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               user_id: request.requester_id,
               points: new_credibility === 'confirmed' ? 50 : 25,
             })
-          
+
           if (repError) {
             console.error('Error updating reputation:', repError)
           }
@@ -128,7 +132,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       return res.status(200).json({
-        message: \`Verification request \${status}\`,
+        message: `Verification request ${status}`,
         request: updatedRequest,
       })
     } catch (error) {
@@ -138,5 +142,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   res.setHeader('Allow', ['GET', 'PATCH'])
-  return res.status(405).json({ error: \`Method \${req.method} not allowed\` })
+  return res.status(405).json({ error: `Method ${req.method} not allowed` })
 }

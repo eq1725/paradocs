@@ -33,14 +33,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { status = 'pending', limit = 20, offset = 0 } = req.query
 
     try {
+      const selectQuery = `
+        *,
+        report:reports(id, title, slug, category, credibility, submitted_by),
+        requester:profiles!verification_requests_requester_id_fkey(id, username, display_name),
+        reviewer:profiles!verification_requests_reviewer_id_fkey(id, username, display_name)
+      `
+
       const { data: requests, error, count } = await supabase
         .from('verification_requests')
-        .select(\`
-          *,
-          report:reports(id, title, slug, category, credibility, submitted_by),
-          requester:profiles!verification_requests_requester_id_fkey(id, username, display_name),
-          reviewer:profiles!verification_requests_reviewer_id_fkey(id, username, display_name)
-        \`, { count: 'exact' })
+        .select(selectQuery, { count: 'exact' })
         .eq('status', status)
         .order('created_at', { ascending: false })
         .range(Number(offset), Number(offset) + Number(limit) - 1)
@@ -122,5 +124,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   res.setHeader('Allow', ['GET', 'POST'])
-  return res.status(405).json({ error: \`Method \${req.method} not allowed\` })
+  return res.status(405).json({ error: `Method ${req.method} not allowed` })
 }
