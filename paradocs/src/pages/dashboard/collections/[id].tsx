@@ -28,6 +28,7 @@ import {
   Tag,
   StickyNote
 } from 'lucide-react'
+import { CollectionAISummary } from '@/components/collections'
 
 interface CollectionReport {
   id: string
@@ -267,6 +268,12 @@ export default function CollectionDetailPage() {
             </Link>
           </div>
         </div>
+
+        {/* AI Summary */}
+        <CollectionAISummary
+          collectionId={collection.id}
+          reportCount={collection.report_count}
+        />
 
         {/* Search */}
         {collection.collection_reports.length > 0 && (

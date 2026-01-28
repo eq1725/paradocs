@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase'
 import { ReportWithDetails, CommentWithUser } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG } from '@/lib/constants'
 import { formatDate, formatRelativeDate, classNames } from '@/lib/utils'
+import { SimilarReports, ReportCorrelations } from '@/components/reports'
 
 export default function ReportPage() {
   const router = useRouter()
@@ -370,6 +371,12 @@ export default function ReportPage() {
               Share
             </button>
           </div>
+        </div>
+
+        {/* AI-Powered Insights */}
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <SimilarReports reportId={report.id} />
+          <ReportCorrelations reportId={report.id} />
         </div>
 
         {/* Comments */}

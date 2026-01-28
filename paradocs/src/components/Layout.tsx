@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import {
   Search, Menu, X, Home, Compass, Map, PlusCircle,
-  BarChart3, User, LogOut, LogIn, Settings
+  BarChart3, User, LogOut, LogIn, Settings, Clock,
+  MapPinned, TrendingUp
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Profile } from '@/lib/database.types'
@@ -66,7 +67,9 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Home', href: '/', icon: Home },
     { name: 'Explore', href: '/explore', icon: Compass },
     { name: 'Map', href: '/map', icon: Map },
-    { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+    { name: 'Timeline', href: '/timeline', icon: Clock },
+    { name: 'Hotspots', href: '/hotspots', icon: MapPinned },
+    { name: 'Insights', href: '/insights', icon: TrendingUp },
   ]
 
   return (
