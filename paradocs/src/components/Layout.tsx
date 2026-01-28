@@ -6,7 +6,7 @@ import { useRouter } from 'next/router'
 import {
   Search, Menu, X, Home, Compass, Map, PlusCircle,
   BarChart3, User, LogOut, LogIn, Settings, Clock,
-  MapPinned, TrendingUp
+  MapPinned, TrendingUp, LayoutDashboard
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Profile } from '@/lib/database.types'
@@ -134,6 +134,17 @@ export default function Layout({ children }: LayoutProps) {
                 Submit Report
               </Link>
 
+              {/* Dashboard button - only visible when logged in */}
+              {user && (
+                <Link
+                  href="/dashboard"
+                  className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-white/10 text-white hover:bg-white/20 transition-colors"
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  Dashboard
+                </Link>
+              )}
+
               {/* User menu */}
               {!loading && (
                 user ? (
@@ -148,6 +159,10 @@ export default function Layout({ children }: LayoutProps) {
                         <p className="font-medium text-white">{user.display_name || user.username}</p>
                         <p className="text-xs text-gray-400">@{user.username}</p>
                       </div>
+                      <Link href="/dashboard" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
+                        <LayoutDashboard className="w-4 h-4" />
+                        Dashboard
+                      </Link>
                       <Link href={`/user/${user.username}`} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
                         <User className="w-4 h-4" />
                         Profile
@@ -222,6 +237,16 @@ export default function Layout({ children }: LayoutProps) {
                 <PlusCircle className="w-5 h-5" />
                 Submit Report
               </Link>
+              {user && (
+                <Link
+                  href="/dashboard"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg bg-white/10 text-white"
+                >
+                  <LayoutDashboard className="w-5 h-5" />
+                  Dashboard
+                </Link>
+              )}
             </div>
           </div>
         )}

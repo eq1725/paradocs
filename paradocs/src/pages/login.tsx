@@ -22,10 +22,10 @@ export default function LoginPage() {
   const [message, setMessage] = useState('')
 
   useEffect(() => {
-    // Check if already logged in
+    // Check if already logged in - redirect to dashboard
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        router.push(typeof redirect === 'string' ? redirect : '/')
+        router.push(typeof redirect === 'string' ? redirect : '/dashboard')
       }
     })
   }, [redirect, router])
@@ -55,7 +55,7 @@ export default function LoginPage() {
           password,
         })
         if (error) throw error
-        router.push(typeof redirect === 'string' ? redirect : '/')
+        router.push(typeof redirect === 'string' ? redirect : '/dashboard')
       } else if (mode === 'forgot') {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/reset-password`,
@@ -76,7 +76,7 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}${typeof redirect === 'string' ? redirect : '/'}`,
+          redirectTo: `${window.location.origin}${typeof redirect === 'string' ? redirect : '/dashboard'}`,
         },
       })
       if (error) throw error
