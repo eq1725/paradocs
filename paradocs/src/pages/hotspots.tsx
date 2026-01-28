@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import Layout from '@/components/Layout'
+// Layout wrapper is provided by _app.tsx
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import {
   MapPin,
@@ -105,7 +105,7 @@ export default function HotspotsPage() {
   const totalReports = hotspots.reduce((sum, h) => sum + h.report_count, 0)
 
   return (
-    <Layout>
+    <>
       <Head>
         <title>Hotspots | ParaDocs</title>
         <meta
@@ -416,6 +416,6 @@ export default function HotspotsPage() {
           </div>
         )}
       </div>
-    </Layout>
+    </>
   )
 }

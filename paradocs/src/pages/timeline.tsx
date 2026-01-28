@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import Layout from '@/components/Layout'
+// Layout wrapper is provided by _app.tsx
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import {
   Calendar,
@@ -124,7 +124,7 @@ export default function TimelinePage() {
   }
 
   return (
-    <Layout>
+    <>
       <Head>
         <title>Timeline | ParaDocs</title>
         <meta
@@ -386,6 +386,6 @@ export default function TimelinePage() {
           </div>
         )}
       </div>
-    </Layout>
+    </>
   )
 }

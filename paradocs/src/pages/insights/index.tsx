@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import Head from 'next/head'
-import Layout from '@/components/Layout'
+// Layout wrapper is provided by _app.tsx
 import { PatternCard, Pattern } from '@/components/patterns'
 import {
   TrendingUp,
@@ -96,7 +96,7 @@ export default function InsightsPage() {
   ]
 
   return (
-    <Layout>
+    <>
       <Head>
         <title>Pattern Insights | ParaDocs</title>
         <meta
@@ -214,6 +214,6 @@ export default function InsightsPage() {
           </div>
         </div>
       </div>
-    </Layout>
+    </>
   )
 }

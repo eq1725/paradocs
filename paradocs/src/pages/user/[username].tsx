@@ -8,7 +8,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import Link from 'next/link'
-import Layout from '@/components/Layout'
+// Layout wrapper is provided by _app.tsx
 import {
   User,
   Shield,
@@ -160,20 +160,20 @@ export default function UserProfilePage() {
 
   if (loading) {
     return (
-      <Layout>
+      <>
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
             <Loader2 className="w-8 h-8 text-primary-400 animate-spin mx-auto mb-4" />
             <p className="text-gray-400">Loading profile...</p>
           </div>
         </div>
-      </Layout>
+      </>
     )
   }
 
   if (error || !data) {
     return (
-      <Layout>
+      <>
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
             <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
@@ -184,7 +184,7 @@ export default function UserProfilePage() {
             </Link>
           </div>
         </div>
-      </Layout>
+      </>
     )
   }
 
@@ -192,7 +192,7 @@ export default function UserProfilePage() {
   const { breakdown } = reputation
 
   return (
-    <Layout>
+    <>
       <Head>
         <title>{user.display_name || user.username} | ParaDocs</title>
         <meta name="description" content={`Reputation profile for ${user.display_name || user.username}`} />
@@ -487,6 +487,6 @@ export default function UserProfilePage() {
           </div>
         </div>
       </div>
-    </Layout>
+    </>
   )
 }

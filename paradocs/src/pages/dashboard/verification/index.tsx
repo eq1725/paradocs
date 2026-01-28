@@ -7,7 +7,7 @@
 import { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import Layout from '@/components/Layout'
+// Layout wrapper is provided by _app.tsx
 import { supabase } from '@/lib/supabase'
 import {
   Shield,
@@ -173,7 +173,7 @@ export default function VerificationDashboard() {
 
   if (error && !requests.length) {
     return (
-      <Layout>
+      <>
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
             <Shield className="w-12 h-12 text-red-400 mx-auto mb-4" />
@@ -181,12 +181,12 @@ export default function VerificationDashboard() {
             <p className="text-gray-400">{error}</p>
           </div>
         </div>
-      </Layout>
+      </>
     )
   }
 
   return (
-    <Layout>
+    <>
       <Head>
         <title>Verification Dashboard | ParaDocs</title>
       </Head>
@@ -431,6 +431,6 @@ export default function VerificationDashboard() {
           </div>
         )}
       </div>
-    </Layout>
+    </>
   )
 }
