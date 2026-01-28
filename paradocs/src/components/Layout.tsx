@@ -148,11 +148,11 @@ export default function Layout({ children }: LayoutProps) {
                         <p className="font-medium text-white">{user.display_name || user.username}</p>
                         <p className="text-xs text-gray-400">@{user.username}</p>
                       </div>
-                      <Link href="/profile" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
+                      <Link href={`/user/${user.username}`} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
                         <User className="w-4 h-4" />
                         Profile
                       </Link>
-                      <Link href="/settings" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
+                      <Link href="/dashboard/settings" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
                         <Settings className="w-4 h-4" />
                         Settings
                       </Link>
