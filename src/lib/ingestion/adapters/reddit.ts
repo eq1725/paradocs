@@ -10,24 +10,34 @@ function delay(ms: number): Promise<void> {
 
 // Map subreddits to categories
 const SUBREDDIT_CATEGORIES: Record<string, string> = {
+  // UFOs & Aliens
   'UFOs': 'ufos_aliens',
   'ufo': 'ufos_aliens',
   'aliens': 'ufos_aliens',
   'UAP': 'ufos_aliens',
+  // Ghosts & Hauntings
   'Ghosts': 'ghosts_hauntings',
+  'ghosts': 'ghosts_hauntings',
   'Paranormal': 'ghosts_hauntings',
   'Thetruthishere': 'ghosts_hauntings',
   'Haunted': 'ghosts_hauntings',
+  // Cryptids
   'bigfoot': 'cryptids',
   'cryptids': 'cryptids',
   'cryptozoology': 'cryptids',
   'skinwalkers': 'cryptids',
-  'HighStrangeness': 'combination',
+  // Psychological Experiences
   'Glitch_in_the_Matrix': 'psychological_experiences',
+  'NDE': 'psychological_experiences',
+  'Tulpas': 'psychological_experiences',
+  // Consciousness Practices
   'AstralProjection': 'consciousness_practices',
   'LucidDreaming': 'consciousness_practices',
-  'NDE': 'psychological_experiences',
-  'Psychic': 'psychic_phenomena'
+  'Psychonaut': 'consciousness_practices',
+  // Psychic Phenomena
+  'Psychic': 'psychic_phenomena',
+  // Multi-category
+  'HighStrangeness': 'combination'
 };
 
 // Reddit post interface
@@ -207,9 +217,15 @@ export const redditAdapter: SourceAdapter = {
   async scrape(config: Record<string, any>, limit: number = 50): Promise<AdapterResult> {
     const rateLimitMs = config.rate_limit_ms || 2000; // Reddit rate limits
     const subreddits = config.subreddits || [
+      // From research list
+      'aliens',
+      'Tulpas',
+      'ghosts',
+      'NDE',
+      'Psychonaut',
+      // Additional high-value subreddits
       'Paranormal',
       'UFOs',
-      'Ghosts',
       'Thetruthishere',
       'cryptids',
       'HighStrangeness'
