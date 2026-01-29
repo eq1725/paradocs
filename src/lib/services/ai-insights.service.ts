@@ -248,12 +248,20 @@ function buildPatternPrompt(pattern: DetectedPattern): string {
   let prompt = `Analyze this ${typeDescriptions[pattern.pattern_type]}:\n\n`
   prompt += `Pattern Type: ${pattern.pattern_type}\n`
   prompt += `Status: ${pattern.status}\n`
-  prompt += `Report Count: ${pattern.report_count}\n`
-  prompt += `Confidence Score: ${(pattern.confidence_score * 100).toFixed(1)}%\n`
-  prompt += `Significance Score: ${(pattern.significance_score * 100).toFixed(1)}%\n`
+  prompt += `Report Count: ${pattern.report_count ?? 0}\n`
+  const confidence = typeof pattern.confidence_score === 'number' ? pattern.confidence_score : 0
+  const significance = typeof pattern.significance_score === 'number' ? pattern.significance_score : 0
+  prompt += `Confidence Score: ${(confidence * 100).toFixed(1)}%\n`
+  prompt += `Significance Score: ${(significance * 100).toFixed(1)}%\n`
 
   if (pattern.center_point) {
-    prompt += `Location: ${pattern.center_point.lat.toFixed(4)}, ${pattern.center_point.lng.toFixed(4)}\n`
+    // Handle both {lat, lng} format and GeoJSON {type: "Point", coordinates: [lng, lat]} format
+    const cp = pattern.center_point as any
+    const lat = cp.lat ?? cp.coordinates?.[1]
+    const lng = cp.lng ?? cp.coordinates?.[0]
+    if (typeof lat === 'number' && typeof lng === 'number') {
+      prompt += `Location: ${lat.toFixed(4)}, ${lng.toFixed(4)}\n`
+    }
   }
 
   if (pattern.radius_km) {
@@ -322,10 +330,11 @@ function parseInsightResponse(response: string, pattern: DetectedPattern): Insig
 }
 
 function generateFallbackInsight(pattern: DetectedPattern): InsightGenerationResult {
+  const significance = typeof pattern.significance_score === 'number' ? pattern.significance_score : 0
   return {
     title: generateDefaultTitle(pattern),
     summary: generateDefaultSummary(pattern),
-    narrative: `This ${pattern.pattern_type.replace(/_/g, ' ')} encompasses ${pattern.report_count} reports with a significance score of ${(pattern.significance_score * 100).toFixed(1)}%. Further analysis is pending.`
+    narrative: `This ${pattern.pattern_type.replace(/_/g, ' ')} encompasses ${pattern.report_count ?? 0} reports with a significance score of ${(significance * 100).toFixed(1)}%. Further analysis is pending.`
   }
 }
 
