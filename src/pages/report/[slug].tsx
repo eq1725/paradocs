@@ -14,6 +14,7 @@ import { ReportWithDetails, CommentWithUser } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG } from '@/lib/constants'
 import { formatDate, formatRelativeDate, classNames } from '@/lib/utils'
 import RelatedReports from '@/components/RelatedReports'
+import MediaGallery from '@/components/MediaGallery'
 import ReportAIInsight from '@/components/reports/ReportAIInsight'
 import PatternConnections from '@/components/reports/PatternConnections'
 import EnvironmentalContext from '@/components/reports/EnvironmentalContext'
@@ -31,6 +32,7 @@ export default function ReportPage() {
 
   const [report, setReport] = useState<ReportWithDetails | null>(null)
   const [comments, setComments] = useState<CommentWithUser[]>([])
+  const [media, setMedia] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
   const [newComment, setNewComment] = useState('')
@@ -75,6 +77,13 @@ export default function ReportPage() {
         .eq('is_deleted', false)
         .order('created_at', { ascending: true })
 
+      // Load media
+      const { data: mediaData } = await supabase
+        .from('report_media')
+        .select('*')
+        .eq('report_id', reportData.id)
+        .order('is_primary', { ascending: false })
+
       // Increment view count
       await supabase
         .from('reports')
@@ -83,6 +92,7 @@ export default function ReportPage() {
 
       setReport({ ...reportData, view_count: reportData.view_count + 1 })
       setComments(commentsData || [])
+      setMedia(mediaData || [])
     } catch (error) {
       console.error('Error loading report:', error)
       router.push('/404')
@@ -251,6 +261,13 @@ export default function ReportPage() {
             )}
           </div>
         </header>
+
+        {/* Media Gallery */}
+        {media.length > 0 && (
+          <div className="mb-8">
+            <MediaGallery media={media} />
+          </div>
+        )}
 
         {/* Main content */}
         <div className="glass-card p-6 md:p-8 mb-8">

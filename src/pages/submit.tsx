@@ -6,9 +6,10 @@ import Head from 'next/head'
 import Link from 'next/link'
 import {
   ArrowLeft, ArrowRight, Check, MapPin, Calendar, Users,
-  FileText, Eye, Upload, AlertCircle
+  FileText, Eye, Upload, AlertCircle, Camera
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import ImageUpload, { UploadedFile } from '@/components/ImageUpload'
 import { PhenomenonCategory, PhenomenonType } from '@/lib/database.types'
 import { CATEGORY_CONFIG, COUNTRIES, US_STATES } from '@/lib/constants'
 import { generateSlug, classNames } from '@/lib/utils'
@@ -23,6 +24,7 @@ export default function SubmitPage() {
   const [step, setStep] = useState<Step>(1)
   const [phenomenonTypes, setPhenomenonTypes] = useState<PhenomenonType[]>([])
   const [error, setError] = useState('')
+  const [uploadedMedia, setUploadedMedia] = useState<UploadedFile[]>([])
 
   // Form data
   const [formData, setFormData] = useState({
@@ -210,6 +212,19 @@ export default function SubmitPage() {
 
       if (reportTags.length > 0) {
         await supabase.from('report_tags').insert(reportTags)
+      }
+
+      // Save uploaded media
+      if (uploadedMedia.length > 0) {
+        const mediaRecords = uploadedMedia.map((file, index) => ({
+          report_id: data.id,
+          media_type: file.type,
+          url: file.url,
+          caption: null,
+          is_primary: index === 0,
+          uploaded_by: user.id,
+        }))
+        await supabase.from('report_media').insert(mediaRecords)
       }
 
       router.push(`/submit/success?id=${data.id}`)
@@ -645,6 +660,27 @@ export default function SubmitPage() {
           {/* Step 4: Evidence & Submit */}
           {step === 4 && (
             <div className="space-y-6">
+              {/* Media Upload */}
+              {user && (
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    <Camera className="w-4 h-4 inline mr-2" />
+                    Upload Evidence (Photos, Videos, Audio)
+                  </label>
+                  <p className="text-xs text-gray-400 mb-3">
+                    Upload up to 5 files. Supported formats: JPEG, PNG, GIF, WebP, MP4, WebM, MP3, WAV
+                  </p>
+                  <ImageUpload
+                    bucket="report-media"
+                    folder={user.id}
+                    onUpload={setUploadedMedia}
+                    existingFiles={uploadedMedia}
+                    maxFiles={5}
+                    maxSizeMB={10}
+                  />
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-white mb-3">
                   Evidence Available
@@ -653,11 +689,17 @@ export default function SubmitPage() {
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={formData.hasPhotoVideo}
+                      checked={formData.hasPhotoVideo || uploadedMedia.length > 0}
                       onChange={(e) => updateForm('hasPhotoVideo', e.target.checked)}
                       className="rounded bg-white/5 border-white/20"
+                      disabled={uploadedMedia.length > 0}
                     />
-                    <span className="text-sm text-gray-300">Photos or videos available</span>
+                    <span className="text-sm text-gray-300">
+                      Photos or videos available
+                      {uploadedMedia.length > 0 && (
+                        <span className="text-primary-400 ml-1">({uploadedMedia.length} uploaded)</span>
+                      )}
+                    </span>
                   </label>
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
