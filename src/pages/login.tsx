@@ -73,10 +73,14 @@ export default function LoginPage() {
   async function handleOAuthLogin(provider: 'google' | 'github') {
     setError('')
     try {
+      // Build the callback URL with the final redirect destination
+      const finalRedirect = typeof redirect === 'string' ? redirect : '/'
+      const callbackUrl = `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(finalRedirect)}`
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}${typeof redirect === 'string' ? redirect : '/'}`,
+          redirectTo: callbackUrl,
         },
       })
       if (error) throw error
