@@ -19,3 +19,4 @@ module.exports = nextConfig
 // Rebuild trigger: 1769694308
 // Rebuild 1769694544
 // Deploy trigger 1769695045
+// Webhook trigger 1769695273
