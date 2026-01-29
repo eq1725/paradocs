@@ -114,7 +114,7 @@ export default function AcademicObservationPanel({ reportSlug, className }: Prop
 
   async function fetchAcademicData() {
     try {
-      const res = await fetch(`/api/reports/${reportSlug}/academic-data`)
+      const res = await fetch(`/api/reports/${reportSlug}/academicData`)
       if (!res.ok) throw new Error('Failed to fetch')
       const result = await res.json()
       setData(result)
