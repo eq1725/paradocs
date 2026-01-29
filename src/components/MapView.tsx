@@ -62,7 +62,7 @@ export default function MapView({
 
   // Create custom icons for each category
   const createIcon = (category: string) => {
-    const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.other
+    const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
     return L.divIcon({
       html: `<div class="w-8 h-8 rounded-full flex items-center justify-center text-lg shadow-lg" style="background: rgba(0,0,0,0.8); border: 2px solid currentColor;" class="${config.color}">${config.icon}</div>`,
       className: 'custom-marker',

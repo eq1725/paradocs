@@ -153,7 +153,7 @@ export default function ReportPage() {
     )
   }
 
-  const categoryConfig = CATEGORY_CONFIG[report.category]
+  const categoryConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
   const credibilityConfig = CREDIBILITY_CONFIG[report.credibility]
 
   return (

@@ -13,7 +13,7 @@ interface ReportCardProps {
 }
 
 export default function ReportCard({ report, variant = 'default' }: ReportCardProps) {
-  const categoryConfig = CATEGORY_CONFIG[report.category]
+  const categoryConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
   const credibilityConfig = CREDIBILITY_CONFIG[report.credibility]
 
   if (variant === 'compact') {

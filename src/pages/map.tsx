@@ -45,7 +45,7 @@ export default function MapPage() {
     }
   }
 
-  const categoryConfig = selectedReport ? CATEGORY_CONFIG[selectedReport.category] : null
+  const categoryConfig = selectedReport ? (CATEGORY_CONFIG[selectedReport.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination) : null
 
   return (
     <>
