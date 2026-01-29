@@ -3,6 +3,7 @@
  *
  * Returns structured observation data for academic/research purposes
  * Extracts key details from report and any associated academic_observations record
+ * Updated: Jan 29, 2026
  */
 
 import { NextApiRequest, NextApiResponse } from 'next'
