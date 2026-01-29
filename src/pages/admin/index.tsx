@@ -124,11 +124,18 @@ export default function AdminDashboard() {
         ? `/api/admin/ingest?source=${sourceId}`
         : '/api/admin/ingest'
 
+      // Get the current session to include the access token
+      const { data: { session } } = await supabase.auth.getSession()
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+          ...(session?.access_token && {
+            'Authorization': `Bearer ${session.access_token}`
+          })
+        },
+        credentials: 'include'
       })
 
       const data = await response.json()
