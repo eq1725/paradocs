@@ -67,7 +67,6 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Explore', href: '/explore', icon: Compass },
     { name: 'Map', href: '/map', icon: Map },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   ]
 
   return (
@@ -146,6 +145,10 @@ export default function Layout({ children }: LayoutProps) {
                         <p className="font-medium text-white">{user.display_name || user.username}</p>
                         <p className="text-xs text-gray-400">@{user.username}</p>
                       </div>
+                      <Link href="/dashboard" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
+                        <LayoutDashboard className="w-4 h-4" />
+                        Dashboard
+                      </Link>
                       <Link href="/profile" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
                         <User className="w-4 h-4" />
                         Profile
@@ -212,6 +215,16 @@ export default function Layout({ children }: LayoutProps) {
                   {item.name}
                 </Link>
               ))}
+              {user && (
+                <Link
+                  href="/dashboard"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:text-white hover:bg-white/10"
+                >
+                  <LayoutDashboard className="w-5 h-5" />
+                  Dashboard
+                </Link>
+              )}
               <Link
                 href="/submit"
                 onClick={() => setMobileMenuOpen(false)}
