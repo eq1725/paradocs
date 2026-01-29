@@ -507,12 +507,17 @@ function SavedSearchModal({
 
   const categories = [
     { value: '', label: 'All Categories' },
-    { value: 'ufo_uap', label: 'UFO/UAP' },
-    { value: 'cryptid', label: 'Cryptid' },
-    { value: 'ghost_haunting', label: 'Ghost/Haunting' },
-    { value: 'unexplained_event', label: 'Unexplained Event' },
-    { value: 'psychic_paranormal', label: 'Psychic/Paranormal' },
-    { value: 'mystery_location', label: 'Mystery Location' }
+    { value: 'ufos_aliens', label: 'UFOs & Aliens/NHIs' },
+    { value: 'cryptids', label: 'Cryptids' },
+    { value: 'ghosts_hauntings', label: 'Ghosts & Hauntings' },
+    { value: 'psychic_phenomena', label: 'Psychic Phenomena (ESP)' },
+    { value: 'consciousness_practices', label: 'Consciousness Practices' },
+    { value: 'psychological_experiences', label: 'Psychological Experiences' },
+    { value: 'biological_factors', label: 'Biological Factors' },
+    { value: 'perception_sensory', label: 'Perception & Sensory' },
+    { value: 'religion_mythology', label: 'Religion & Mythology' },
+    { value: 'esoteric_practices', label: 'Esoteric Practices' },
+    { value: 'combination', label: 'Combination' }
   ]
 
   const handleSubmit = async (e: React.FormEvent) => {

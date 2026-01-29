@@ -265,9 +265,9 @@ export default function Layout({ children }: LayoutProps) {
             <div>
               <h4 className="font-medium text-white mb-4">Explore</h4>
               <ul className="space-y-2 text-sm text-gray-400">
-                <li><Link href="/explore?category=ufo_uap" className="hover:text-white">UFO Sightings</Link></li>
-                <li><Link href="/explore?category=cryptid" className="hover:text-white">Cryptids</Link></li>
-                <li><Link href="/explore?category=ghost_haunting" className="hover:text-white">Ghosts</Link></li>
+                <li><Link href="/explore?category=ufos_aliens" className="hover:text-white">UFOs & Aliens</Link></li>
+                <li><Link href="/explore?category=cryptids" className="hover:text-white">Cryptids</Link></li>
+                <li><Link href="/explore?category=ghosts_hauntings" className="hover:text-white">Ghosts & Hauntings</Link></li>
                 <li><Link href="/map" className="hover:text-white">Interactive Map</Link></li>
               </ul>
             </div>

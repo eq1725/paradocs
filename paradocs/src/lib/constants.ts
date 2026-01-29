@@ -7,54 +7,82 @@ export const CATEGORY_CONFIG: Record<PhenomenonCategory, {
   icon: string
   description: string
 }> = {
-  ufo_uap: {
-    label: 'UFO / UAP',
+  ufos_aliens: {
+    label: 'UFOs & Aliens/NHIs',
     color: 'text-green-500',
     bgColor: 'bg-green-500/10',
     icon: '🛸',
-    description: 'Unidentified flying objects and aerial phenomena'
+    description: 'UFO sightings, close encounters, and non-human intelligence contact'
   },
-  cryptid: {
+  cryptids: {
     label: 'Cryptids',
     color: 'text-amber-500',
     bgColor: 'bg-amber-500/10',
     icon: '🦶',
-    description: 'Unknown creatures and beings'
+    description: 'Unknown creatures including Bigfoot, lake monsters, and other cryptids'
   },
-  ghost_haunting: {
+  ghosts_hauntings: {
     label: 'Ghosts & Hauntings',
     color: 'text-purple-500',
     bgColor: 'bg-purple-500/10',
     icon: '👻',
-    description: 'Spirits, apparitions, and haunted locations'
+    description: 'Apparitions, poltergeists, haunted locations, and spirit encounters'
   },
-  unexplained_event: {
-    label: 'Unexplained Events',
-    color: 'text-red-500',
-    bgColor: 'bg-red-500/10',
-    icon: '❓',
-    description: 'Strange phenomena and mysterious occurrences'
-  },
-  psychic_paranormal: {
-    label: 'Psychic / Paranormal',
+  psychic_phenomena: {
+    label: 'Psychic Phenomena (ESP)',
     color: 'text-blue-500',
     bgColor: 'bg-blue-500/10',
     icon: '🔮',
-    description: 'ESP, telepathy, and supernatural abilities'
+    description: 'Telepathy, remote viewing, clairvoyance, and precognition'
   },
-  mystery_location: {
-    label: 'Mystery Locations',
-    color: 'text-teal-500',
-    bgColor: 'bg-teal-500/10',
-    icon: '📍',
-    description: 'Anomalous places and paranormal hotspots'
+  consciousness_practices: {
+    label: 'Consciousness Practices',
+    color: 'text-indigo-500',
+    bgColor: 'bg-indigo-500/10',
+    icon: '🧘',
+    description: 'Meditation, breathwork, shamanic journeys, and altered states'
   },
-  other: {
-    label: 'Other',
+  psychological_experiences: {
+    label: 'Psychological Experiences',
+    color: 'text-pink-500',
+    bgColor: 'bg-pink-500/10',
+    icon: '💭',
+    description: 'NDEs, OBEs, lucid dreams, and anomalous psychological phenomena'
+  },
+  biological_factors: {
+    label: 'Biological Factors',
+    color: 'text-emerald-500',
+    bgColor: 'bg-emerald-500/10',
+    icon: '🧬',
+    description: 'Genetic, environmental, and physiological influences on experiences'
+  },
+  perception_sensory: {
+    label: 'Perception & Sensory',
+    color: 'text-cyan-500',
+    bgColor: 'bg-cyan-500/10',
+    icon: '👁️',
+    description: 'Anomalous perception, synesthesia, and sensory phenomena'
+  },
+  religion_mythology: {
+    label: 'Religion & Mythology',
+    color: 'text-yellow-500',
+    bgColor: 'bg-yellow-500/10',
+    icon: '✨',
+    description: 'Mystical experiences, religious visions, and mythological beings'
+  },
+  esoteric_practices: {
+    label: 'Esoteric Practices',
+    color: 'text-violet-500',
+    bgColor: 'bg-violet-500/10',
+    icon: '🔯',
+    description: 'Ritual magic, occultism, divination, and mystical systems'
+  },
+  combination: {
+    label: 'Combination',
     color: 'text-gray-500',
     bgColor: 'bg-gray-500/10',
-    icon: '🌀',
-    description: 'Other paranormal phenomena'
+    icon: '🔗',
+    description: 'Reports spanning multiple paranormal categories'
   }
 }
 

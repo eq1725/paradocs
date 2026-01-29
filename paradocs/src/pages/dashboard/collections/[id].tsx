@@ -163,15 +163,19 @@ export default function CollectionDetailPage() {
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
-      ufo_uap: 'text-blue-400 bg-blue-400/10',
-      cryptid: 'text-green-400 bg-green-400/10',
-      ghost_haunting: 'text-purple-400 bg-purple-400/10',
-      unexplained_event: 'text-orange-400 bg-orange-400/10',
-      psychic_paranormal: 'text-pink-400 bg-pink-400/10',
-      mystery_location: 'text-yellow-400 bg-yellow-400/10',
-      other: 'text-gray-400 bg-gray-400/10'
+      ufos_aliens: 'text-green-400 bg-green-400/10',
+      cryptids: 'text-amber-400 bg-amber-400/10',
+      ghosts_hauntings: 'text-purple-400 bg-purple-400/10',
+      psychic_phenomena: 'text-blue-400 bg-blue-400/10',
+      consciousness_practices: 'text-indigo-400 bg-indigo-400/10',
+      psychological_experiences: 'text-pink-400 bg-pink-400/10',
+      biological_factors: 'text-emerald-400 bg-emerald-400/10',
+      perception_sensory: 'text-cyan-400 bg-cyan-400/10',
+      religion_mythology: 'text-yellow-400 bg-yellow-400/10',
+      esoteric_practices: 'text-violet-400 bg-violet-400/10',
+      combination: 'text-gray-400 bg-gray-400/10'
     }
-    return colors[category] || colors.other
+    return colors[category] || colors.combination
   }
 
   const formatCategory = (category: string) => {

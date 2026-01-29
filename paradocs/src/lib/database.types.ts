@@ -7,13 +7,17 @@ export type Json =
   | Json[]
 
 export type PhenomenonCategory =
-  | 'ufo_uap'
-  | 'cryptid'
-  | 'ghost_haunting'
-  | 'unexplained_event'
-  | 'psychic_paranormal'
-  | 'mystery_location'
-  | 'other'
+  | 'ufos_aliens'              // UFOs and Aliens/NHIs
+  | 'cryptids'                 // Cryptids
+  | 'ghosts_hauntings'         // Ghosts and Hauntings
+  | 'psychic_phenomena'        // Psychic Phenomena (ESP)
+  | 'consciousness_practices'  // Consciousness Altering Practices
+  | 'psychological_experiences' // Psychological Experiences
+  | 'biological_factors'       // Biological Factors Influencing Experience
+  | 'perception_sensory'       // Perception and Sensory Processes
+  | 'religion_mythology'       // Comparative Religion and Mythology
+  | 'esoteric_practices'       // Esoteric Practices and Beliefs
+  | 'combination'              // Multiple categories apply
 
 export type CredibilityLevel =
   | 'unverified'
