@@ -63,3 +63,27 @@ COMMENT ON TABLE public.ingestion_jobs IS 'Tracks automated data ingestion runs 
 COMMENT ON COLUMN public.data_sources.adapter_type IS 'Type of adapter to use: nuforc, bfro, etc.';
 COMMENT ON COLUMN public.data_sources.scrape_config IS 'JSON configuration passed to the adapter';
 COMMENT ON COLUMN public.data_sources.scrape_interval_hours IS 'How often to run this adapter (in hours)';
+
+-- ============================================
+-- ADD NEW DATA SOURCES FOR ADAPTERS
+-- ============================================
+
+-- Add shadowlands data source
+INSERT INTO public.data_sources (name, slug, description, url, adapter_type, scrape_config, is_active)
+VALUES ('Shadowlands Haunted Places', 'shadowlands', 'Haunted places index from theshadowlands.net', 'https://theshadowlands.net/places', 'shadowlands', '{"rate_limit_ms": 1000, "states": ["california", "texas", "florida", "ohio", "pennsylvania", "new york", "illinois"]}', true)
+ON CONFLICT (slug) DO UPDATE SET adapter_type = 'shadowlands', scrape_config = EXCLUDED.scrape_config;
+
+-- Add ghosts of america data source
+INSERT INTO public.data_sources (name, slug, description, url, adapter_type, scrape_config, is_active)
+VALUES ('Ghosts of America', 'ghostsofamerica', 'User-submitted ghost stories from ghostsofamerica.com', 'https://www.ghostsofamerica.com', 'ghostsofamerica', '{"rate_limit_ms": 1000, "states": ["ca", "tx", "fl", "oh", "pa", "ny", "il", "ga"]}', true)
+ON CONFLICT (slug) DO UPDATE SET adapter_type = 'ghostsofamerica', scrape_config = EXCLUDED.scrape_config;
+
+-- Add reddit data source
+INSERT INTO public.data_sources (name, slug, description, url, adapter_type, scrape_config, is_active)
+VALUES ('Reddit Paranormal', 'reddit', 'Paranormal experiences from Reddit communities', 'https://reddit.com', 'reddit', '{"rate_limit_ms": 2000, "subreddits": ["Paranormal", "UFOs", "Ghosts", "Thetruthishere", "cryptids", "HighStrangeness"]}', true)
+ON CONFLICT (slug) DO UPDATE SET adapter_type = 'reddit', scrape_config = EXCLUDED.scrape_config;
+
+-- Add wikipedia data source
+INSERT INTO public.data_sources (name, slug, description, url, adapter_type, scrape_config, is_active)
+VALUES ('Wikipedia Lists', 'wikipedia', 'Structured paranormal data from Wikipedia', 'https://en.wikipedia.org', 'wikipedia', '{"rate_limit_ms": 1000, "pages": ["List_of_reported_UFO_sightings", "List_of_reportedly_haunted_locations_in_the_United_States", "List_of_cryptids"]}', true)
+ON CONFLICT (slug) DO UPDATE SET adapter_type = 'wikipedia', scrape_config = EXCLUDED.scrape_config;
