@@ -1,3 +1,4 @@
+// Report detail page - updated Jan 29, 2026
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
