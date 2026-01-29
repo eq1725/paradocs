@@ -46,8 +46,8 @@ export default function SubcategoryFilter({
           .order('name')
 
         if (types) {
-          // Group manually
-          const grouped = types.reduce((acc, type) => {
+          // Group manually - cast to PhenomenonType[] for TypeScript
+          const grouped = (types as PhenomenonType[]).reduce((acc, type) => {
             const existing = acc.find(c => c.category === type.category)
             if (existing) {
               existing.types.push(type)

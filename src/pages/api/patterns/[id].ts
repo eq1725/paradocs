@@ -25,8 +25,8 @@ export default async function handler(
     const supabase = createServerClient()
 
     // Fetch pattern
-    const { data: pattern, error: patternError } = await supabase
-      .from('detected_patterns')
+    const { data: pattern, error: patternError } = await (supabase
+      .from('detected_patterns' as any) as any)
       .select('*')
       .eq('id', id)
       .single()
@@ -36,8 +36,8 @@ export default async function handler(
     }
 
     // Fetch associated reports
-    const { data: reportLinks } = await supabase
-      .from('pattern_reports')
+    const { data: reportLinks } = await (supabase
+      .from('pattern_reports' as any) as any)
       .select(`
         relevance_score,
         report:report_id (
@@ -55,8 +55,8 @@ export default async function handler(
       .limit(20)
 
     // Fetch latest insight
-    const { data: insight } = await supabase
-      .from('pattern_insights')
+    const { data: insight } = await (supabase
+      .from('pattern_insights' as any) as any)
       .select('*')
       .eq('pattern_id', id)
       .eq('insight_type', 'pattern_narrative')
@@ -66,14 +66,14 @@ export default async function handler(
       .single()
 
     // Increment view count
-    await supabase
-      .from('detected_patterns')
+    await (supabase
+      .from('detected_patterns' as any) as any)
       .update({ view_count: (pattern.view_count || 0) + 1 })
       .eq('id', id)
 
     return res.status(200).json({
       pattern,
-      reports: reportLinks?.map(link => ({
+      reports: reportLinks?.map((link: any) => ({
         ...link.report,
         relevance_score: link.relevance_score
       })) || [],

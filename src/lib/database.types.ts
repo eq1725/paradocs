@@ -463,6 +463,6 @@ export interface CommentWithUser extends Comment {
 
 // Search result with relevance
 export interface SearchResult extends Report {
-  tags?: PhenomenonTypeTag[]
+  phenomenon_tags?: PhenomenonTypeTag[]  // Renamed to avoid conflict with Report.tags
   relevance_rank?: number
 }

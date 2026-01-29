@@ -21,10 +21,13 @@ interface RelatedReportsProps {
 }
 
 interface RelatedReport extends Report {
-  phenomenon_type?: PhenomenonType
+  phenomenon_type?: PhenomenonType | null
   relation_type: 'same_type' | 'same_category' | 'shared_tags' | 'same_location' | 'cross_disciplinary'
   relevance_score: number
 }
+
+// Type for Supabase query results with joined phenomenon_type
+type ReportQueryResult = Report & { phenomenon_type?: PhenomenonType | null }
 
 export default function RelatedReports({
   reportId,
@@ -59,7 +62,7 @@ export default function RelatedReports({
           .limit(5)
 
         if (sameType) {
-          sameType.forEach(r => {
+          (sameType as ReportQueryResult[]).forEach(r => {
             allRelated.push({
               ...r,
               relation_type: 'same_type',
@@ -81,7 +84,7 @@ export default function RelatedReports({
         .limit(5)
 
       if (sameCategory) {
-        sameCategory.forEach(r => {
+        (sameCategory as ReportQueryResult[]).forEach(r => {
           if (!allRelated.find(ar => ar.id === r.id)) {
             allRelated.push({
               ...r,
@@ -105,7 +108,7 @@ export default function RelatedReports({
           .limit(3)
 
         if (sameLocation) {
-          sameLocation.forEach(r => {
+          (sameLocation as ReportQueryResult[]).forEach(r => {
             if (!allRelated.find(ar => ar.id === r.id)) {
               allRelated.push({
                 ...r,
@@ -131,7 +134,7 @@ export default function RelatedReports({
           .limit(5)
 
         if (crossDisciplinary) {
-          crossDisciplinary.forEach(r => {
+          (crossDisciplinary as ReportQueryResult[]).forEach(r => {
             if (!allRelated.find(ar => ar.id === r.id)) {
               allRelated.push({
                 ...r,

@@ -27,8 +27,8 @@ export default async function handler(
       sortOrder = 'desc'
     } = req.query
 
-    let query = supabase
-      .from('detected_patterns')
+    let query = (supabase
+      .from('detected_patterns' as any) as any)
       .select('*', { count: 'exact' })
 
     // Apply filters

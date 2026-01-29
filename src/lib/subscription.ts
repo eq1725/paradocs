@@ -36,6 +36,9 @@ export interface TierFeatures {
   custom_reports: boolean
   team_members: boolean
   priority_support: boolean | 'dedicated'
+  analytics_dashboard: boolean
+  advanced_search: boolean
+  bulk_import: boolean
 }
 
 export interface TierLimits {
@@ -146,8 +149,8 @@ export async function getTierByName(name: TierName): Promise<SubscriptionTier | 
 export async function getUserSubscription(userId: string): Promise<UserSubscription | null> {
   const supabase = createServerClient()
 
-  const { data, error } = await supabase
-    .from('user_subscriptions')
+  const { data, error } = await (supabase
+    .from('user_subscriptions' as any) as any)
     .select(`
       *,
       tier:subscription_tiers(*)
@@ -177,8 +180,8 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
   }
 
   return {
-    ...data,
-    tier: data.tier as SubscriptionTier
+    ...(data as Record<string, unknown>),
+    tier: (data as any).tier as SubscriptionTier
   } as UserSubscription
 }
 
@@ -212,8 +215,8 @@ export async function getUserUsage(userId: string): Promise<UsageStats | null> {
   periodStart.setDate(1)
   periodStart.setHours(0, 0, 0, 0)
 
-  const { data, error } = await supabase
-    .from('usage_tracking')
+  const { data, error } = await (supabase
+    .from('usage_tracking' as any) as any)
     .select('*')
     .eq('user_id', userId)
     .eq('period_start', periodStart.toISOString().split('T')[0])
@@ -225,8 +228,8 @@ export async function getUserUsage(userId: string): Promise<UsageStats | null> {
     periodEnd.setMonth(periodEnd.getMonth() + 1)
     periodEnd.setDate(0)
 
-    const { data: newUsage, error: insertError } = await supabase
-      .from('usage_tracking')
+    const { data: newUsage, error: insertError } = await (supabase
+      .from('usage_tracking' as any) as any)
       .insert({
         user_id: userId,
         period_start: periodStart.toISOString().split('T')[0],
@@ -288,8 +291,8 @@ export async function incrementUsage(
   const usage = await getUserUsage(userId)
   if (!usage) return false
 
-  const { error } = await supabase
-    .from('usage_tracking')
+  const { error } = await (supabase
+    .from('usage_tracking' as any) as any)
     .update({
       [field]: usage[field] + amount,
       updated_at: new Date().toISOString()
@@ -315,8 +318,8 @@ export async function changeSubscription(
 
   try {
     // Get the new tier details
-    const { data: newTier, error: tierError } = await supabase
-      .from('subscription_tiers')
+    const { data: newTier, error: tierError } = await (supabase
+      .from('subscription_tiers' as any) as any)
       .select('*')
       .eq('id', newTierId)
       .single()
@@ -326,8 +329,8 @@ export async function changeSubscription(
     }
 
     // Cancel existing subscription
-    await supabase
-      .from('user_subscriptions')
+    await (supabase
+      .from('user_subscriptions' as any) as any)
       .update({
         status: 'cancelled',
         cancelled_at: new Date().toISOString()
@@ -336,8 +339,8 @@ export async function changeSubscription(
       .eq('status', 'active')
 
     // Create new subscription
-    const { error: subError } = await supabase
-      .from('user_subscriptions')
+    const { error: subError } = await (supabase
+      .from('user_subscriptions' as any) as any)
       .insert({
         user_id: userId,
         tier_id: newTierId,
@@ -350,15 +353,15 @@ export async function changeSubscription(
     }
 
     // Update profile
-    await supabase
-      .from('profiles')
+    await (supabase
+      .from('profiles' as any) as any)
       .update({ current_tier_id: newTierId })
       .eq('id', userId)
 
     // Create mock billing record (only for paid tiers)
     if (newTier.price_monthly > 0) {
-      await supabase
-        .from('billing_history')
+      await (supabase
+        .from('billing_history' as any) as any)
         .insert({
           user_id: userId,
           amount: newTier.price_monthly,
@@ -413,7 +416,7 @@ export function isWithinLimit(
   }
 
   const usageKey = usageMap[limitKey]
-  return usage[usageKey] < limit
+  return (usage[usageKey] as number) < limit
 }
 
 /**
@@ -435,7 +438,7 @@ export function getUsagePercentage(
   }
 
   const usageKey = usageMap[limitKey]
-  return Math.min(100, Math.round((usage[usageKey] / limit) * 100))
+  return Math.min(100, Math.round(((usage[usageKey] as number) / limit) * 100))
 }
 
 // ============================================

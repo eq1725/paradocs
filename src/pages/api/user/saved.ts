@@ -78,7 +78,7 @@ export default async function handler(
       }
 
       // Transform data to flatten the structure
-      const reports = (savedReports || []).map(item => ({
+      const reports = (savedReports || []).map((item: any) => ({
         saved_id: item.id,
         saved_at: item.saved_at,
         notes: item.notes,

@@ -93,8 +93,8 @@ export async function getPatternInsight(patternId: string): Promise<PatternInsig
   const supabase = createServerClient()
 
   // Check for cached, valid insight
-  const { data: cachedInsight } = await supabase
-    .from('pattern_insights')
+  const { data: cachedInsight } = await (supabase
+    .from('pattern_insights' as any) as any)
     .select('*')
     .eq('pattern_id', patternId)
     .eq('insight_type', 'pattern_narrative')
@@ -109,8 +109,8 @@ export async function getPatternInsight(patternId: string): Promise<PatternInsig
   }
 
   // Fetch pattern data
-  const { data: pattern } = await supabase
-    .from('detected_patterns')
+  const { data: pattern } = await (supabase
+    .from('detected_patterns' as any) as any)
     .select('*')
     .eq('id', patternId)
     .single()
@@ -126,9 +126,9 @@ export async function getPatternInsight(patternId: string): Promise<PatternInsig
   const validUntil = new Date()
   validUntil.setHours(validUntil.getHours() + CACHE_VALIDITY_HOURS)
 
-  // Store insight
-  const { data: newInsight, error } = await supabase
-    .from('pattern_insights')
+  // Store insight - using 'any' assertion for untyped table
+  const { data: newInsight, error } = await (supabase
+    .from('pattern_insights' as any) as any)
     .insert({
       pattern_id: patternId,
       insight_type: 'pattern_narrative',
@@ -148,8 +148,8 @@ export async function getPatternInsight(patternId: string): Promise<PatternInsig
   }
 
   // Update pattern with AI content
-  await supabase
-    .from('detected_patterns')
+  await (supabase
+    .from('detected_patterns' as any) as any)
     .update({
       ai_title: insight.title,
       ai_summary: insight.summary,
@@ -168,8 +168,8 @@ export async function generateWeeklyDigest(): Promise<string> {
   const supabase = createServerClient()
 
   // Fetch active patterns
-  const { data: patterns } = await supabase
-    .from('detected_patterns')
+  const { data: patterns } = await (supabase
+    .from('detected_patterns' as any) as any)
     .select('*')
     .in('status', ['active', 'emerging'])
     .order('significance_score', { ascending: false })
@@ -201,7 +201,7 @@ export async function generateWeeklyDigest(): Promise<string> {
     const validUntil = new Date()
     validUntil.setDate(validUntil.getDate() + 7)
 
-    await supabase.from('pattern_insights').insert({
+    await (supabase.from('pattern_insights' as any) as any).insert({
       insight_type: 'weekly_digest',
       title: `Weekly Pattern Digest - ${new Date().toLocaleDateString()}`,
       content: digest,
@@ -223,8 +223,8 @@ export async function generateWeeklyDigest(): Promise<string> {
 export async function invalidateStaleInsights(patternId: string): Promise<void> {
   const supabase = createServerClient()
 
-  await supabase
-    .from('pattern_insights')
+  await (supabase
+    .from('pattern_insights' as any) as any)
     .update({ is_stale: true })
     .eq('pattern_id', patternId)
 }
@@ -309,10 +309,10 @@ Write in an engaging but analytical tone suitable for paranormal research enthus
 }
 
 function parseInsightResponse(response: string, pattern: DetectedPattern): InsightGenerationResult {
-  // Extract sections from the response
-  const titleMatch = response.match(/TITLE:\s*(.+?)(?:\n|SUMMARY:)/s)
-  const summaryMatch = response.match(/SUMMARY:\s*(.+?)(?:\n|NARRATIVE:)/s)
-  const narrativeMatch = response.match(/NARRATIVE:\s*(.+)/s)
+  // Extract sections from the response (using [\s\S] instead of /s flag for ES5 compatibility)
+  const titleMatch = response.match(/TITLE:\s*([\s\S]+?)(?:\n|SUMMARY:)/)
+  const summaryMatch = response.match(/SUMMARY:\s*([\s\S]+?)(?:\n|NARRATIVE:)/)
+  const narrativeMatch = response.match(/NARRATIVE:\s*([\s\S]+)/)
 
   const title = titleMatch?.[1]?.trim() || generateDefaultTitle(pattern)
   const summary = summaryMatch?.[1]?.trim() || generateDefaultSummary(pattern)

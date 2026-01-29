@@ -79,8 +79,8 @@ export async function runPatternAnalysis(
   const startTime = Date.now()
 
   // Create analysis run record
-  const { data: runData, error: runError } = await supabase
-    .from('pattern_analysis_runs')
+  const { data: runData, error: runError } = await (supabase
+    .from('pattern_analysis_runs' as any) as any)
     .insert({
       run_type: runType,
       status: 'running',
@@ -125,8 +125,8 @@ export async function runPatternAnalysis(
     patternsArchived = await archiveStalePatterns()
 
     // Update run record with results
-    await supabase
-      .from('pattern_analysis_runs')
+    await (supabase
+      .from('pattern_analysis_runs' as any) as any)
       .update({
         status: 'completed',
         completed_at: new Date().toISOString(),
@@ -147,8 +147,8 @@ export async function runPatternAnalysis(
     }
   } catch (error) {
     // Log error and update run status
-    await supabase
-      .from('pattern_analysis_runs')
+    await (supabase
+      .from('pattern_analysis_runs' as any) as any)
       .update({
         status: 'failed',
         completed_at: new Date().toISOString(),
@@ -171,7 +171,7 @@ async function detectGeographicClusters(
   const supabase = createServerClient()
 
   // Call the PostGIS clustering function
-  const { data: clusters, error } = await supabase
+  const { data: clusters, error } = await (supabase as any)
     .rpc('detect_geographic_clusters', {
       p_eps_km: epsKm,
       p_min_points: minPoints,
@@ -214,8 +214,8 @@ async function detectGeographicClusters(
 
     if (existingPattern) {
       // Update existing pattern
-      await supabase
-        .from('detected_patterns')
+      await (supabase
+        .from('detected_patterns' as any) as any)
         .update({
           ...patternData,
           last_updated_at: new Date().toISOString()
@@ -227,8 +227,8 @@ async function detectGeographicClusters(
       updatedPatterns++
     } else {
       // Create new pattern
-      const { data: newPattern } = await supabase
-        .from('detected_patterns')
+      const { data: newPattern } = await (supabase
+        .from('detected_patterns' as any) as any)
         .insert({
           ...patternData,
           center_point: `POINT(${cluster.center_lng} ${cluster.center_lat})`
@@ -253,7 +253,7 @@ async function detectTemporalAnomalies(): Promise<{ newPatterns: number; updated
   const supabase = createServerClient()
 
   // Get weekly report counts
-  const { data: weeklyCounts, error } = await supabase
+  const { data: weeklyCounts, error } = await (supabase as any)
     .rpc('get_weekly_report_counts', {
       p_weeks_back: 52
     })
@@ -281,8 +281,8 @@ async function detectTemporalAnomalies(): Promise<{ newPatterns: number; updated
       const isSpike = zScore > 0
 
       // Check for existing temporal pattern in this time range
-      const { data: existing } = await supabase
-        .from('detected_patterns')
+      const { data: existing } = await (supabase
+        .from('detected_patterns' as any) as any)
         .select('id')
         .eq('pattern_type', 'temporal_anomaly')
         .gte('pattern_start_date', week.week_start)
@@ -307,13 +307,13 @@ async function detectTemporalAnomalies(): Promise<{ newPatterns: number; updated
       }
 
       if (existing) {
-        await supabase
-          .from('detected_patterns')
+        await (supabase
+          .from('detected_patterns' as any) as any)
           .update(patternData)
           .eq('id', existing.id)
         updatedPatterns++
       } else {
-        await supabase.from('detected_patterns').insert(patternData)
+        await (supabase.from('detected_patterns' as any) as any).insert(patternData)
         newPatterns++
       }
     }
@@ -328,7 +328,7 @@ async function detectTemporalAnomalies(): Promise<{ newPatterns: number; updated
 async function analyzeSeasonalPatterns(): Promise<{ newPatterns: number; updatedPatterns: number }> {
   const supabase = createServerClient()
 
-  const { data: seasonalData, error } = await supabase
+  const { data: seasonalData, error } = await (supabase as any)
     .rpc('analyze_seasonal_patterns')
 
   if (error || !seasonalData) {
@@ -348,8 +348,8 @@ async function analyzeSeasonalPatterns(): Promise<{ newPatterns: number; updated
     const isPeak = month.seasonal_index > 1
 
     // Check for existing seasonal pattern for this month
-    const { data: existing } = await supabase
-      .from('detected_patterns')
+    const { data: existing } = await (supabase
+      .from('detected_patterns' as any) as any)
       .select('id')
       .eq('pattern_type', 'seasonal_pattern')
       .contains('metadata', { month: month.month })
@@ -371,13 +371,13 @@ async function analyzeSeasonalPatterns(): Promise<{ newPatterns: number; updated
     }
 
     if (existing) {
-      await supabase
-        .from('detected_patterns')
+      await (supabase
+        .from('detected_patterns' as any) as any)
         .update(patternData)
         .eq('id', existing.id)
       updatedPatterns++
     } else {
-      await supabase.from('detected_patterns').insert(patternData)
+      await (supabase.from('detected_patterns' as any) as any).insert(patternData)
       newPatterns++
     }
   }
@@ -394,8 +394,8 @@ async function archiveStalePatterns(): Promise<number> {
   const thirtyDaysAgo = new Date()
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-  const { data } = await supabase
-    .from('detected_patterns')
+  const { data } = await (supabase
+    .from('detected_patterns' as any) as any)
     .update({ status: 'historical' })
     .eq('status', 'active')
     .lt('last_updated_at', thirtyDaysAgo.toISOString())
@@ -413,7 +413,7 @@ async function findExistingGeographicPattern(
 ): Promise<{ id: string } | null> {
   const supabase = createServerClient()
 
-  const { data } = await supabase
+  const { data } = await (supabase as any)
     .rpc('find_nearby_patterns', {
       p_point: `POINT(${lng} ${lat})`,
       p_radius_km: radiusKm,
@@ -430,8 +430,8 @@ async function updatePatternReports(patternId: string, reportIds: string[]): Pro
   const supabase = createServerClient()
 
   // Remove old links
-  await supabase
-    .from('pattern_reports')
+  await (supabase
+    .from('pattern_reports' as any) as any)
     .delete()
     .eq('pattern_id', patternId)
 
@@ -442,7 +442,7 @@ async function updatePatternReports(patternId: string, reportIds: string[]): Pro
     relevance_score: 1.0
   }))
 
-  await supabase.from('pattern_reports').insert(links)
+  await (supabase.from('pattern_reports' as any) as any).insert(links)
 }
 
 function determinePatternStatus(cluster: GeographicCluster): PatternStatus {
@@ -477,8 +477,8 @@ function calculateClusterSignificance(cluster: GeographicCluster): number {
 export async function getTrendingPatterns(limit: number = 5): Promise<DetectedPattern[]> {
   const supabase = createServerClient()
 
-  const { data, error } = await supabase
-    .from('detected_patterns')
+  const { data, error } = await (supabase
+    .from('detected_patterns' as any) as any)
     .select('*')
     .in('status', ['active', 'emerging'])
     .order('significance_score', { ascending: false })
@@ -503,7 +503,7 @@ export async function getNearbyPatterns(
 ): Promise<DetectedPattern[]> {
   const supabase = createServerClient()
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .rpc('find_nearby_patterns', {
       p_point: `POINT(${lng} ${lat})`,
       p_radius_km: radiusKm,

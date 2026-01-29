@@ -21,8 +21,8 @@ export default async function handler(
     const limitNum = Math.min(parseInt(limit as string, 10) || 5, 20)
 
     // Fetch trending patterns (active/emerging with highest significance)
-    const { data: patterns, error } = await supabase
-      .from('detected_patterns')
+    const { data: patterns, error } = await (supabase
+      .from('detected_patterns' as any) as any)
       .select(`
         id,
         pattern_type,
@@ -50,7 +50,7 @@ export default async function handler(
     }
 
     // Add type-specific labels and icons
-    const enrichedPatterns = patterns?.map(pattern => ({
+    const enrichedPatterns = patterns?.map((pattern: any) => ({
       ...pattern,
       typeLabel: getPatternTypeLabel(pattern.pattern_type),
       typeIcon: getPatternTypeIcon(pattern.pattern_type)
