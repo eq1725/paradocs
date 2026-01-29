@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase'
 import { ReportWithDetails, CommentWithUser } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG } from '@/lib/constants'
 import { formatDate, formatRelativeDate, classNames } from '@/lib/utils'
+import RelatedReports from '@/components/RelatedReports'
 
 export default function ReportPage() {
   const router = useRouter()
@@ -163,7 +164,10 @@ export default function ReportPage() {
         <meta name="description" content={report.summary} />
       </Head>
 
-      <article className="max-w-4xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="lg:flex lg:gap-8">
+          {/* Main content */}
+          <article className="flex-1 max-w-4xl">
         {/* Back link */}
         <Link
           href="/explore"
@@ -440,7 +444,26 @@ export default function ReportPage() {
             </div>
           )}
         </section>
-      </article>
+          </article>
+
+          {/* Sidebar with related reports */}
+          <aside className="lg:w-80 flex-shrink-0 mt-8 lg:mt-0">
+            <div className="lg:sticky lg:top-8 space-y-6">
+              <RelatedReports
+                reportId={report.id}
+                category={report.category}
+                phenomenonTypeId={report.phenomenon_type_id}
+                tags={report.tags}
+                location={{
+                  country: report.country,
+                  state_province: report.state_province
+                }}
+                limit={6}
+              />
+            </div>
+          </aside>
+        </div>
+      </div>
     </>
   )
 }
