@@ -4,7 +4,7 @@
  * Handles subscription tiers, feature access, and usage tracking.
  */
 
-import { createServerClient } from './supabase'
+import { supabase, createServerClient } from './supabase'
 
 // ============================================
 // TYPES
@@ -105,10 +105,9 @@ export type FeatureKey =
 
 /**
  * Get all available subscription tiers
+ * Uses anon client since subscription_tiers is publicly readable
  */
 export async function getSubscriptionTiers(): Promise<SubscriptionTier[]> {
-  const supabase = createServerClient()
-
   const { data, error } = await supabase
     .from('subscription_tiers')
     .select('*')
@@ -125,10 +124,9 @@ export async function getSubscriptionTiers(): Promise<SubscriptionTier[]> {
 
 /**
  * Get a specific tier by name
+ * Uses anon client since subscription_tiers is publicly readable
  */
 export async function getTierByName(name: TierName): Promise<SubscriptionTier | null> {
-  const supabase = createServerClient()
-
   const { data, error } = await supabase
     .from('subscription_tiers')
     .select('*')
@@ -187,10 +185,9 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
 
 /**
  * Get the default (free) tier
+ * Uses anon client since subscription_tiers is publicly readable
  */
 export async function getDefaultTier(): Promise<SubscriptionTier | null> {
-  const supabase = createServerClient()
-
   const { data, error } = await supabase
     .from('subscription_tiers')
     .select('*')
