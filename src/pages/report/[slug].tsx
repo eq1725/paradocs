@@ -16,6 +16,8 @@ import { formatDate, formatRelativeDate, classNames } from '@/lib/utils'
 import RelatedReports from '@/components/RelatedReports'
 import ReportAIInsight from '@/components/reports/ReportAIInsight'
 import PatternConnections from '@/components/reports/PatternConnections'
+import EnvironmentalContext from '@/components/reports/EnvironmentalContext'
+import AcademicObservationPanel from '@/components/reports/AcademicObservationPanel'
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
 const LocationMap = dynamic(
@@ -362,6 +364,12 @@ export default function ReportPage() {
             className="mb-8"
           />
         )}
+
+        {/* Environmental Context & Academic Data - Side by Side on larger screens */}
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <EnvironmentalContext reportSlug={slug as string} />
+          <AcademicObservationPanel reportSlug={slug as string} />
+        </div>
 
         {/* Actions bar */}
         <div className="flex items-center justify-between py-4 border-y border-white/10 mb-8">
