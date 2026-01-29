@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import {
   ArrowLeft, MapPin, Calendar, Clock, Users, Eye,
   ThumbsUp, ThumbsDown, MessageCircle, Share2, Bookmark,
@@ -13,6 +14,14 @@ import { ReportWithDetails, CommentWithUser } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG } from '@/lib/constants'
 import { formatDate, formatRelativeDate, classNames } from '@/lib/utils'
 import RelatedReports from '@/components/RelatedReports'
+import ReportAIInsight from '@/components/reports/ReportAIInsight'
+import PatternConnections from '@/components/reports/PatternConnections'
+
+// Dynamically import LocationMap to avoid SSR issues with Leaflet
+const LocationMap = dynamic(
+  () => import('@/components/reports/LocationMap'),
+  { ssr: false, loading: () => <div className="h-64 bg-white/5 rounded-lg animate-pulse" /> }
+)
 
 export default function ReportPage() {
   const router = useRouter()
@@ -340,6 +349,20 @@ export default function ReportPage() {
           </div>
         </div>
 
+        {/* AI Analysis Section */}
+        <ReportAIInsight reportSlug={slug as string} className="mb-8" />
+
+        {/* Location Intelligence Map */}
+        {report.latitude && report.longitude && (
+          <LocationMap
+            reportSlug={slug as string}
+            reportTitle={report.title}
+            latitude={report.latitude}
+            longitude={report.longitude}
+            className="mb-8"
+          />
+        )}
+
         {/* Actions bar */}
         <div className="flex items-center justify-between py-4 border-y border-white/10 mb-8">
           <div className="flex items-center gap-4">
@@ -447,7 +470,7 @@ export default function ReportPage() {
         </section>
           </article>
 
-          {/* Sidebar with related reports */}
+          {/* Sidebar with related reports and patterns */}
           <aside className="lg:w-80 flex-shrink-0 mt-8 lg:mt-0">
             <div className="lg:sticky lg:top-8 space-y-6">
               <RelatedReports
@@ -461,6 +484,9 @@ export default function ReportPage() {
                 }}
                 limit={6}
               />
+
+              {/* Pattern Connections */}
+              <PatternConnections reportSlug={slug as string} />
             </div>
           </aside>
         </div>
