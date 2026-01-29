@@ -14,3 +14,4 @@ const nextConfig = {
 
 module.exports = nextConfig
 // Build trigger: Thu Jan 29 13:06:49 UTC 2026
+// Deployment trigger 1769692729
