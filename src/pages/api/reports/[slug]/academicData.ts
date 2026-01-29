@@ -91,17 +91,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Get report data
+    // Get report data - use only columns that exist in base schema
     const { data: report, error: reportError } = await supabase
       .from('reports')
       .select(`
         id, title, slug, description, summary,
-        event_date, event_time, event_time_approximate,
+        event_date, event_time,
         location_name, state_province, country, latitude, longitude,
-        witness_count, duration_seconds, duration_text,
+        witness_count,
         has_photo_video, has_physical_evidence, has_official_report,
-        evidence_summary, tags, category, source_type, source_url,
-        credibility_score, created_at
+        tags, category, source_type, source_url,
+        credibility, created_at
       `)
       .eq('slug', slug)
       .eq('status', 'approved')
@@ -132,10 +132,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       temporal: {
         eventDate: report.event_date,
         eventTime: report.event_time,
-        timeApproximate: report.event_time_approximate || false,
-        durationSeconds: academicData?.observation_duration_seconds || report.duration_seconds || extracted.durationSeconds,
-        durationText: report.duration_text,
-        timeCertainty: academicData?.time_certainty || (report.event_time_approximate ? 'approximate' : 'reported'),
+        timeApproximate: false,
+        durationSeconds: academicData?.observation_duration_seconds || extracted.durationSeconds,
+        durationText: null,
+        timeCertainty: academicData?.time_certainty || 'reported',
         reportedAt: report.created_at
       },
 
@@ -194,7 +194,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         hasPhotoVideo: report.has_photo_video || false,
         hasPhysicalEvidence: report.has_physical_evidence || false,
         hasOfficialReport: report.has_official_report || false,
-        evidenceSummary: report.evidence_summary,
+        evidenceSummary: null,
         methods: academicData?.documentation_methods || null,
         timing: academicData?.documentation_timing || null
       },
@@ -211,7 +211,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       quality: {
         dataQualityScore: academicData?.data_quality_score || null,
         completenessScore: academicData?.completeness_score || null,
-        credibilityScore: report.credibility_score,
+        credibilityScore: report.credibility || null,
         sourceType: report.source_type,
         sourceUrl: report.source_url,
         collectionMethod: academicData?.collection_method || 'self-reported'
