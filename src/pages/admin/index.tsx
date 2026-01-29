@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import Layout from '@/components/Layout'
-import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
+import type { User } from '@supabase/supabase-js'
 
 interface DataSource {
   id: string
@@ -34,14 +34,31 @@ interface IngestionJob {
 }
 
 export default function AdminDashboard() {
-  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
+  const [user, setUser] = useState<User | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
   const [dataSources, setDataSources] = useState<DataSource[]>([])
   const [recentJobs, setRecentJobs] = useState<IngestionJob[]>([])
   const [ingesting, setIngesting] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+
+  // Get user session
+  useEffect(() => {
+    async function getUser() {
+      const { data: { session } } = await supabase.auth.getSession()
+      setUser(session?.user ?? null)
+      setAuthLoading(false)
+    }
+    getUser()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
 
   useEffect(() => {
     async function checkAdmin() {
