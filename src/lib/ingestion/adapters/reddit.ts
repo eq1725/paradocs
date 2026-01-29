@@ -175,38 +175,53 @@ async function fetchSubreddit(
 ): Promise<ScrapedReport[]> {
   const reports: ScrapedReport[] = [];
 
-  try {
-    // Use Reddit's public JSON API (no auth required for public posts)
-    const url = `https://www.reddit.com/r/${subreddit}/hot.json?limit=${Math.min(limit, 100)}`;
+  // Try multiple endpoints - Reddit blocks some server-side requests
+  const endpoints = [
+    `https://old.reddit.com/r/${subreddit}/hot.json?limit=${Math.min(limit, 100)}`,
+    `https://www.reddit.com/r/${subreddit}/hot.json?limit=${Math.min(limit, 100)}&raw_json=1`,
+  ];
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'ParaDocs:1.0 (educational research)',
-        'Accept': 'application/json'
+  for (const url of endpoints) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9',
+        }
+      });
+
+      if (!response.ok) {
+        console.log(`[Reddit] Endpoint failed for r/${subreddit}: ${response.status}, trying next...`);
+        continue; // Try next endpoint
       }
-    });
 
-    if (!response.ok) {
-      console.error(`[Reddit] Failed to fetch r/${subreddit}: ${response.status}`);
+      const data: RedditResponse = await response.json();
+
+      if (!data?.data?.children) {
+        console.log(`[Reddit] Invalid response structure for r/${subreddit}, trying next...`);
+        continue;
+      }
+
+      for (const post of data.data.children) {
+        const report = parseRedditPost(post.data);
+        if (report) {
+          reports.push(report);
+        }
+      }
+
+      // If we got here, the endpoint worked
+      console.log(`[Reddit] Successfully fetched ${reports.length} posts from r/${subreddit}`);
       return reports;
+
+    } catch (error) {
+      console.log(`[Reddit] Error with endpoint for r/${subreddit}:`, error instanceof Error ? error.message : 'Unknown');
+      continue; // Try next endpoint
     }
-
-    const data: RedditResponse = await response.json();
-
-    for (const post of data.data.children) {
-      const report = parseRedditPost(post.data);
-      if (report) {
-        reports.push(report);
-      }
-
-      // Respect rate limit
-      await delay(rateLimitMs / 10); // Small delay between processing
-    }
-
-  } catch (error) {
-    console.error(`[Reddit] Error fetching r/${subreddit}:`, error);
   }
 
+  // All endpoints failed
+  console.error(`[Reddit] All endpoints failed for r/${subreddit}`);
   return reports;
 }
 
