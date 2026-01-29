@@ -1,5 +1,5 @@
-// NUFORC (National UFO Reporting Center) Scraper Adapter
-// Scrapes UFO sighting reports from nuforc.org
+// NUFORC (National UFO Reporting Center) Adapter
+// Fetches UFO sighting reports from nuforc.org
 
 import { SourceAdapter, AdapterResult, ScrapedReport } from '../types';
 
@@ -14,146 +14,360 @@ const STATE_MAP: Record<string, string> = {
   'NM': 'New Mexico', 'NY': 'New York', 'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio',
   'OK': 'Oklahoma', 'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island', 'SC': 'South Carolina',
   'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas', 'UT': 'Utah', 'VT': 'Vermont',
-  'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia', 'WI': 'Wisconsin', 'WY': 'Wyoming'
+  'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia', 'WI': 'Wisconsin', 'WY': 'Wyoming',
+  'DC': 'District of Columbia', 'PR': 'Puerto Rico'
 };
 
-// UFO shape types from NUFORC
-const SHAPE_TYPES = [
-  'light', 'circle', 'triangle', 'fireball', 'sphere', 'unknown', 'oval', 'disk',
-  'other', 'cigar', 'rectangle', 'chevron', 'formation', 'changing', 'flash',
-  'cylinder', 'diamond', 'teardrop', 'egg', 'cone', 'cross', 'star'
-];
+const COUNTRY_MAP: Record<string, string> = {
+  'USA': 'United States',
+  'US': 'United States',
+  'CA': 'Canada',
+  'CAN': 'Canada',
+  'UK': 'United Kingdom',
+  'GB': 'United Kingdom',
+  'AU': 'Australia',
+  'MX': 'Mexico',
+  'DE': 'Germany',
+  'FR': 'France',
+};
 
-interface NUFORCReport {
-  date: string;
-  city: string;
-  state: string;
-  country: string;
-  shape: string;
-  duration: string;
-  summary: string;
-  reportLink: string;
-  posted: string;
-}
-
-function generateSlug(city: string, state: string, shape: string, id: string): string {
-  const cleanCity = city.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const cleanState = state.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const cleanShape = shape.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  return `${cleanShape}-ufo-sighting-${cleanCity}-${cleanState}-nuforc-${id}`.substring(0, 100);
-}
+// UFO shape to tags mapping
+const SHAPE_TAGS: Record<string, string[]> = {
+  'light': ['lights', 'luminous'],
+  'circle': ['circular', 'round'],
+  'triangle': ['triangular', 'three-sided'],
+  'fireball': ['bright', 'fire', 'meteor-like'],
+  'sphere': ['spherical', 'ball'],
+  'oval': ['elliptical', 'egg-shaped'],
+  'disk': ['disc', 'saucer', 'classic-ufo'],
+  'cigar': ['cylindrical', 'elongated'],
+  'rectangle': ['rectangular', 'box-shaped'],
+  'chevron': ['v-shaped', 'boomerang'],
+  'formation': ['multiple', 'group'],
+  'changing': ['morphing', 'shapeshifting'],
+  'diamond': ['rhombus', 'kite-shaped'],
+  'cylinder': ['tube', 'cigar-shaped'],
+  'teardrop': ['pear-shaped'],
+  'cone': ['conical'],
+};
 
 function parseDate(dateStr: string): string | undefined {
+  if (!dateStr) return undefined;
+
   try {
-    // NUFORC dates are typically in format "MM/DD/YY" or "MM/DD/YYYY"
-    const parts = dateStr.split('/');
+    // Handle various NUFORC date formats
+    // Format: "MM/DD/YY" or "MM/DD/YYYY" or "YYYY-MM-DD"
+    const cleaned = dateStr.trim();
+
+    if (cleaned.includes('-') && cleaned.length === 10) {
+      // Already ISO format
+      return cleaned;
+    }
+
+    const parts = cleaned.split('/');
     if (parts.length === 3) {
       let year = parseInt(parts[2]);
+      const month = parseInt(parts[0]);
+      const day = parseInt(parts[1]);
+
+      if (isNaN(year) || isNaN(month) || isNaN(day)) return undefined;
+
       if (year < 100) {
         year = year > 50 ? 1900 + year : 2000 + year;
       }
-      const month = parts[0].padStart(2, '0');
-      const day = parts[1].padStart(2, '0');
-      return `${year}-${month}-${day}`;
+
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     }
   } catch (e) {
-    // Return undefined if parsing fails
+    console.error('[NUFORC] Date parse error:', dateStr, e);
   }
   return undefined;
 }
 
-function determineCredibility(report: NUFORCReport): 'low' | 'medium' | 'high' {
-  // Simple heuristics for credibility
+function determineCredibility(description: string, shape: string, duration: string): 'low' | 'medium' | 'high' {
   let score = 0;
 
-  // Longer descriptions tend to be more detailed
-  if (report.summary.length > 200) score += 1;
-  if (report.summary.length > 500) score += 1;
+  // Longer, more detailed descriptions
+  if (description.length > 200) score += 1;
+  if (description.length > 500) score += 1;
+  if (description.length > 1000) score += 1;
 
-  // Known shape types are more credible
-  if (SHAPE_TYPES.includes(report.shape.toLowerCase())) score += 1;
-
-  // Has location data
-  if (report.city && report.state) score += 1;
+  // Has specific shape
+  if (shape && shape !== 'unknown' && shape !== 'other') score += 1;
 
   // Has duration info
-  if (report.duration && report.duration !== 'Unknown') score += 1;
+  if (duration && duration.length > 0 && !duration.toLowerCase().includes('unknown')) score += 1;
 
-  if (score >= 4) return 'high';
-  if (score >= 2) return 'medium';
+  // Contains detailed observations
+  const detailIndicators = ['approximately', 'estimate', 'witnessed', 'observed', 'clearly', 'definitely'];
+  if (detailIndicators.some(indicator => description.toLowerCase().includes(indicator))) score += 1;
+
+  if (score >= 5) return 'high';
+  if (score >= 3) return 'medium';
   return 'low';
+}
+
+function extractTags(shape: string, description: string): string[] {
+  const tags: string[] = ['ufo', 'nuforc'];
+
+  // Add shape-based tags
+  const shapeLower = shape?.toLowerCase() || '';
+  if (SHAPE_TAGS[shapeLower]) {
+    tags.push(shapeLower, ...SHAPE_TAGS[shapeLower]);
+  }
+
+  // Extract common keywords from description
+  const descLower = description.toLowerCase();
+  const keywordMatches: Record<string, string[]> = {
+    'night': ['night', 'dark', 'evening', 'midnight'],
+    'day': ['daytime', 'morning', 'afternoon', 'daylight'],
+    'bright': ['bright', 'brilliant', 'glowing', 'illuminated'],
+    'fast': ['fast', 'rapid', 'quick', 'speed'],
+    'hovering': ['hover', 'hovering', 'stationary', 'still'],
+    'silent': ['silent', 'no sound', 'quiet', 'noiseless'],
+    'multiple-witnesses': ['we saw', 'we both', 'my wife', 'my husband', 'several people', 'group of'],
+    'military-area': ['military', 'air force', 'army', 'navy', 'base'],
+    'aircraft': ['plane', 'aircraft', 'helicopter', 'jet'],
+  };
+
+  for (const [tag, keywords] of Object.entries(keywordMatches)) {
+    if (keywords.some(kw => descLower.includes(kw))) {
+      tags.push(tag);
+    }
+  }
+
+  return [...new Set(tags)]; // Remove duplicates
+}
+
+function cleanDescription(text: string): string {
+  return text
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function generateTitle(city: string, state: string, shape: string, date: string): string {
+  const shapeDesc = shape && shape !== 'unknown' ? `${shape} ` : '';
+  const location = city ? `${city}, ${state || ''}` : state || 'Unknown Location';
+  const dateStr = date ? ` (${date})` : '';
+  return `${shapeDesc}UFO Sighting in ${location}${dateStr}`.substring(0, 200);
+}
+
+function generateSummary(description: string, shape: string, duration: string): string {
+  // Create a brief summary from the description
+  const firstSentences = description.split(/[.!?]/).slice(0, 2).join('. ').trim();
+
+  let summary = firstSentences;
+  if (summary.length > 400) {
+    summary = summary.substring(0, 397) + '...';
+  }
+
+  // Add shape and duration if available
+  const metadata: string[] = [];
+  if (shape && shape !== 'unknown') metadata.push(`Shape: ${shape}`);
+  if (duration) metadata.push(`Duration: ${duration}`);
+
+  if (metadata.length > 0 && summary.length < 350) {
+    summary += ` [${metadata.join(', ')}]`;
+  }
+
+  return summary;
+}
+
+// Parse NUFORC HTML report index page
+async function parseIndexPage(html: string): Promise<Array<{ link: string; date: string; city: string; state: string; shape: string }>> {
+  const reports: Array<{ link: string; date: string; city: string; state: string; shape: string }> = [];
+
+  // NUFORC index pages have table rows with report data
+  // Pattern: <TR><TD>date</TD><TD>city</TD><TD>state</TD><TD>country</TD><TD>shape</TD><TD>duration</TD><TD><A HREF="link">summary</A></TD></TR>
+  const rowRegex = /<TR[^>]*>[\s\S]*?<\/TR>/gi;
+  const rows = html.match(rowRegex) || [];
+
+  for (const row of rows) {
+    try {
+      const cellRegex = /<TD[^>]*>([\s\S]*?)<\/TD>/gi;
+      const cells: string[] = [];
+      let match;
+      while ((match = cellRegex.exec(row)) !== null) {
+        cells.push(match[1].replace(/<[^>]+>/g, '').trim());
+      }
+
+      // Extract link
+      const linkMatch = row.match(/href=["']([^"']+)["']/i);
+      const link = linkMatch ? linkMatch[1] : '';
+
+      if (cells.length >= 5 && link) {
+        reports.push({
+          link: link,
+          date: cells[0] || '',
+          city: cells[1] || '',
+          state: cells[2] || '',
+          shape: cells[4] || ''
+        });
+      }
+    } catch (e) {
+      // Skip malformed rows
+    }
+  }
+
+  return reports;
+}
+
+// Parse individual NUFORC report page
+async function parseReportPage(html: string, metadata: { link: string; date: string; city: string; state: string; shape: string }): Promise<ScrapedReport | null> {
+  try {
+    // Extract the main report text
+    // NUFORC reports typically have the description in a <TR> with VALIGN="TOP"
+    const textMatch = html.match(/<TR[^>]*VALIGN="?TOP"?[^>]*>[\s\S]*?<FONT[^>]*>([\s\S]*?)<\/FONT>/i);
+    const description = textMatch ? cleanDescription(textMatch[1]) : '';
+
+    if (!description || description.length < 20) {
+      return null; // Skip reports without meaningful content
+    }
+
+    // Extract additional metadata from the page
+    const postedMatch = html.match(/Posted:\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i);
+    const durationMatch = html.match(/Duration:\s*([^<\n]+)/i);
+    const duration = durationMatch ? durationMatch[1].trim() : '';
+
+    const city = metadata.city;
+    const state = STATE_MAP[metadata.state] || metadata.state;
+    const shape = metadata.shape.toLowerCase();
+    const eventDate = parseDate(metadata.date);
+
+    // Generate report ID from link
+    const idMatch = metadata.link.match(/ndxe(\d+)\.html/i) || metadata.link.match(/(\d+)\.html/i);
+    const reportId = idMatch ? `nuforc-${idMatch[1]}` : `nuforc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    return {
+      title: generateTitle(city, state, shape, eventDate || ''),
+      summary: generateSummary(description, shape, duration),
+      description: description,
+      category: 'ufos_aliens',
+      location_name: city ? `${city}, ${state}` : state,
+      country: 'United States',
+      state_province: state,
+      city: city,
+      event_date: eventDate,
+      credibility: determineCredibility(description, shape, duration),
+      source_type: 'nuforc',
+      original_report_id: reportId,
+      tags: extractTags(shape, description)
+    };
+  } catch (e) {
+    console.error('[NUFORC] Error parsing report:', e);
+    return null;
+  }
+}
+
+// Fetch with retry and rate limiting
+async function fetchWithRetry(url: string, retries: number = 3, delay: number = 1000): Promise<string | null> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'ParaDocs Research Bot/1.0 (https://discoverparadocs.com; research@discoverparadocs.com)',
+          'Accept': 'text/html,application/xhtml+xml',
+        }
+      });
+
+      if (response.ok) {
+        return await response.text();
+      }
+
+      if (response.status === 429) {
+        // Rate limited, wait longer
+        await new Promise(resolve => setTimeout(resolve, delay * 2));
+      }
+    } catch (e) {
+      console.error(`[NUFORC] Fetch error (attempt ${i + 1}):`, url, e);
+    }
+
+    if (i < retries - 1) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  return null;
 }
 
 export const nuforcAdapter: SourceAdapter = {
   name: 'nuforc',
 
-  async scrape(config: Record<string, any>, limit: number = 100): Promise<AdapterResult> {
+  async scrape(config: Record<string, any>, limit: number = 50): Promise<AdapterResult> {
     const reports: ScrapedReport[] = [];
 
     try {
-      // For now, we'll use a simplified approach that works with the NUFORC data
-      // In production, this would actually fetch from nuforc.org
-      // Due to Vercel's execution limits, we'll process in smaller batches
+      const baseUrl = config.base_url || 'https://nuforc.org';
+      const rateLimitMs = config.rate_limit_ms || 500;
+      const indexPath = config.index_path || '/webreports/ndxevent.html';
 
-      const baseUrl = config.base_url || 'https://nuforc.org/subndx/';
-      const rateLimitMs = config.rate_limit_ms || 1000;
+      console.log(`[NUFORC] Starting scrape. Base URL: ${baseUrl}, Limit: ${limit}`);
 
-      // NUFORC organizes reports by state, then by date
-      // We'll fetch the index and parse recent reports
+      // Fetch the main event index page
+      const indexUrl = `${baseUrl}${indexPath}`;
+      const indexHtml = await fetchWithRetry(indexUrl);
 
-      // For the MVP, we'll simulate fetching by using the HuggingFace dataset
-      // which has pre-scraped NUFORC data
-      const datasetUrl = 'https://huggingface.co/datasets/ufospace/nuforc-reports/resolve/main/data/train-00000-of-00001.parquet';
+      if (!indexHtml) {
+        return {
+          success: false,
+          reports: [],
+          error: 'Failed to fetch NUFORC index page'
+        };
+      }
 
-      // Since we can't directly parse parquet in Vercel Edge functions easily,
-      // we'll use the JSON endpoint if available, or fall back to a CSV approach
+      // Parse the index to get report links
+      const reportMetadata = await parseIndexPage(indexHtml);
+      console.log(`[NUFORC] Found ${reportMetadata.length} reports in index`);
 
-      // For now, return empty with a message that we need to set up the data pipeline
-      console.log('[NUFORC Adapter] Config:', config);
-      console.log('[NUFORC Adapter] Would fetch from:', baseUrl);
-      console.log('[NUFORC Adapter] Rate limit:', rateLimitMs, 'ms');
-      console.log('[NUFORC Adapter] Limit:', limit, 'reports');
+      // Limit the number of reports to process
+      const toProcess = reportMetadata.slice(0, limit);
 
-      // In the actual implementation, we would:
-      // 1. Fetch the state index page
-      // 2. For each state, fetch the report list
-      // 3. For each report, fetch the full details
-      // 4. Parse the HTML and extract structured data
-      // 5. Return the scraped reports
+      // Fetch and parse each report
+      for (const metadata of toProcess) {
+        try {
+          // Construct full URL
+          const reportUrl = metadata.link.startsWith('http')
+            ? metadata.link
+            : `${baseUrl}/webreports/${metadata.link}`;
+
+          const reportHtml = await fetchWithRetry(reportUrl);
+
+          if (reportHtml) {
+            const report = await parseReportPage(reportHtml, metadata);
+            if (report) {
+              reports.push(report);
+              console.log(`[NUFORC] Parsed report: ${report.title}`);
+            }
+          }
+
+          // Rate limiting
+          await new Promise(resolve => setTimeout(resolve, rateLimitMs));
+
+        } catch (e) {
+          console.error('[NUFORC] Error processing report:', metadata.link, e);
+        }
+      }
+
+      console.log(`[NUFORC] Successfully scraped ${reports.length} reports`);
 
       return {
         success: true,
-        reports: [],
-        error: 'NUFORC adapter is configured but requires external data source connection. Use the HuggingFace dataset import for initial data.'
+        reports: reports
       };
 
     } catch (error) {
+      console.error('[NUFORC] Scrape error:', error);
       return {
         success: false,
-        reports: [],
+        reports: reports, // Return any reports we managed to get
         error: error instanceof Error ? error.message : 'Unknown error occurred'
       };
     }
   }
 };
-
-// Helper function to scrape a single NUFORC report page (for future use)
-async function scrapeReportPage(url: string): Promise<NUFORCReport | null> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) return null;
-
-    const html = await response.text();
-
-    // Parse the HTML to extract report details
-    // NUFORC pages have a specific structure we can parse
-    // This is a simplified example - real implementation would need proper HTML parsing
-
-    return null; // Placeholder
-  } catch (error) {
-    console.error('[NUFORC] Error scraping report:', url, error);
-    return null;
-  }
-}
 
 export default nuforcAdapter;

@@ -2,14 +2,15 @@
 
 import { SourceAdapter } from '../types';
 import { nuforcAdapter } from './nuforc';
+import { bfroAdapter } from './bfro';
 
 // Registry of all available adapters
 const adapters: Record<string, SourceAdapter> = {
   nuforc: nuforcAdapter,
+  bfro: bfroAdapter,
   // Future adapters:
-  // mufon: mufon Adapter,
+  // mufon: mufonAdapter,
   // reddit: redditAdapter,
-  // bfro: bfroAdapter,
 };
 
 export function getAdapter(adapterType: string): SourceAdapter | null {
@@ -20,4 +21,4 @@ export function listAdapters(): string[] {
   return Object.keys(adapters);
 }
 
-export { nuforcAdapter };
+export { nuforcAdapter, bfroAdapter };
