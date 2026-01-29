@@ -8,6 +8,8 @@ const BETA_PASSWORD = process.env.BETA_AUTH_PASSWORD || 'beta2026'
 // Paths that should bypass authentication (API routes, static files, etc.)
 const PUBLIC_PATHS = [
   '/api/cron/', // Cron jobs need to run without auth
+  '/api/admin/', // Admin API uses Supabase auth, not basic auth
+  '/auth/', // OAuth callback routes
   '/_next/',
   '/favicon.ico',
   '/images/',
