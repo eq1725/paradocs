@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonType, PhenomenonCategory, CredibilityLevel } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG, COUNTRIES } from '@/lib/constants'
 import CategoryFilter from '@/components/CategoryFilter'
+import SubcategoryFilter from '@/components/SubcategoryFilter'
 import ReportCard from '@/components/ReportCard'
 import { classNames } from '@/lib/utils'
 
@@ -24,6 +25,8 @@ export default function ExplorePage() {
 
   // Filters
   const [category, setCategory] = useState<PhenomenonCategory | 'all'>('all')
+  const [selectedCategories, setSelectedCategories] = useState<PhenomenonCategory[]>([])
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [country, setCountry] = useState('')
   const [credibility, setCredibility] = useState<CredibilityLevel | ''>('')
@@ -56,6 +59,14 @@ export default function ExplorePage() {
       // Apply filters
       if (category !== 'all') {
         query = query.eq('category', category)
+      }
+      // Multi-category filter (from subcategory panel)
+      if (selectedCategories.length > 0) {
+        query = query.in('category', selectedCategories)
+      }
+      // Filter by specific phenomenon types
+      if (selectedTypes.length > 0) {
+        query = query.in('phenomenon_type_id', selectedTypes)
       }
       if (searchQuery) {
         query = query.textSearch('search_vector', searchQuery)
@@ -109,7 +120,7 @@ export default function ExplorePage() {
     } finally {
       setLoading(false)
     }
-  }, [category, searchQuery, country, credibility, dateFrom, dateTo, sort, hasEvidence, featured, page])
+  }, [category, selectedCategories, selectedTypes, searchQuery, country, credibility, dateFrom, dateTo, sort, hasEvidence, featured, page])
 
   useEffect(() => {
     loadReports()
@@ -117,6 +128,8 @@ export default function ExplorePage() {
 
   function clearFilters() {
     setCategory('all')
+    setSelectedCategories([])
+    setSelectedTypes([])
     setSearchQuery('')
     setCountry('')
     setCredibility('')
@@ -128,7 +141,8 @@ export default function ExplorePage() {
     setPage(1)
   }
 
-  const hasActiveFilters = category !== 'all' || searchQuery || country || credibility ||
+  const hasActiveFilters = category !== 'all' || selectedCategories.length > 0 ||
+    selectedTypes.length > 0 || searchQuery || country || credibility ||
     dateFrom || dateTo || hasEvidence || featured
 
   const totalPages = Math.ceil(totalCount / perPage)
@@ -210,6 +224,19 @@ export default function ExplorePage() {
                 </button>
               )}
             </div>
+
+            {/* Subcategory Filter - full width */}
+            <div className="mb-6">
+              <label className="block text-sm text-gray-400 mb-2">Filter by Phenomenon Type</label>
+              <SubcategoryFilter
+                selectedCategories={selectedCategories}
+                selectedTypes={selectedTypes}
+                onCategoriesChange={(cats) => { setSelectedCategories(cats); setPage(1) }}
+                onTypesChange={(types) => { setSelectedTypes(types); setPage(1) }}
+                compact
+              />
+            </div>
+
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-2">Country</label>

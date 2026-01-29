@@ -7,13 +7,17 @@ export type Json =
   | Json[]
 
 export type PhenomenonCategory =
-  | 'ufo_uap'
-  | 'cryptid'
-  | 'ghost_haunting'
-  | 'unexplained_event'
-  | 'psychic_paranormal'
-  | 'mystery_location'
-  | 'other'
+  | 'ufos_aliens'              // UFOs and Aliens/NHIs
+  | 'cryptids'                 // Cryptids
+  | 'ghosts_hauntings'         // Ghosts and Hauntings
+  | 'psychic_phenomena'        // Psychic Phenomena (ESP)
+  | 'consciousness_practices'  // Consciousness Altering Practices
+  | 'psychological_experiences' // Psychological Experiences
+  | 'biological_factors'       // Biological Factors Influencing Experience
+  | 'perception_sensory'       // Perception and Sensory Processes
+  | 'religion_mythology'       // Comparative Religion and Mythology
+  | 'esoteric_practices'       // Esoteric Practices and Beliefs
+  | 'combination'              // Multiple categories apply
 
 export type CredibilityLevel =
   | 'unverified'
@@ -419,15 +423,46 @@ export type SavedReport = Database['public']['Tables']['saved_reports']['Row']
 export type ReportMedia = Database['public']['Tables']['report_media']['Row']
 export type DataSource = Database['public']['Tables']['data_sources']['Row']
 
+// Report Tags for multi-tagging
+export interface ReportTag {
+  id: string
+  report_id: string
+  phenomenon_type_id: string
+  is_primary: boolean
+  relevance_score: number
+  created_at: string
+}
+
+// Phenomenon Type with tag metadata
+export interface PhenomenonTypeTag extends PhenomenonType {
+  is_primary?: boolean
+  relevance_score?: number
+}
+
+// Category with grouped types (from get_phenomenon_types_by_category)
+export interface CategoryWithTypes {
+  category: PhenomenonCategory
+  category_label: string
+  types: PhenomenonType[]
+}
+
 // Extended types with relations
 export interface ReportWithDetails extends Report {
   phenomenon_type?: PhenomenonType | null
   submitter?: Profile | null
   media?: ReportMedia[]
   comments?: CommentWithUser[]
+  report_tags?: PhenomenonTypeTag[]  // All phenomenon type tags
+  related_categories?: string[]       // Array of category slugs for cross-disciplinary
 }
 
 export interface CommentWithUser extends Comment {
   user?: Profile
   replies?: CommentWithUser[]
+}
+
+// Search result with relevance
+export interface SearchResult extends Report {
+  tags?: PhenomenonTypeTag[]
+  relevance_rank?: number
 }
