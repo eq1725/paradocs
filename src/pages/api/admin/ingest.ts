@@ -148,7 +148,7 @@ export default async function handler(
   }
 }
 
-// Longer timeout for ingestion
+// Extended timeout for ingestion (Vercel Pro allows up to 300s)
 export const config = {
-  maxDuration: 60
+  maxDuration: 300
 };

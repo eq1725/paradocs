@@ -262,19 +262,70 @@ export async function getSourcesDueForScraping(): Promise<DataSource[]> {
   return data || [];
 }
 
-// Run ingestion for all due sources
+// Run ingestion for all due sources (parallel processing)
 export async function runScheduledIngestion(): Promise<IngestionResult[]> {
+  const sources = await getSourcesDueForScraping();
+
+  console.log(`[Ingestion] Starting parallel ingestion for ${sources.length} sources`);
+
+  // Run all sources in parallel for maximum efficiency
+  const promises = sources.map(source => {
+    console.log(`[Ingestion] Queuing source: ${source.name}`);
+    return runIngestion(source.id).catch(error => ({
+      success: false,
+      jobId: '',
+      recordsFound: 0,
+      recordsInserted: 0,
+      recordsUpdated: 0,
+      recordsSkipped: 0,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      duration: 0
+    } as IngestionResult));
+  });
+
+  const results = await Promise.all(promises);
+
+  console.log(`[Ingestion] Completed all ${results.length} sources`);
+  return results;
+}
+
+// Run ingestion with controlled concurrency (for rate-limited sources)
+export async function runScheduledIngestionBatched(
+  concurrency: number = 3
+): Promise<IngestionResult[]> {
   const sources = await getSourcesDueForScraping();
   const results: IngestionResult[] = [];
 
-  for (const source of sources) {
-    console.log(`[Ingestion] Running for source: ${source.name}`);
-    const result = await runIngestion(source.id);
-    results.push(result);
+  console.log(`[Ingestion] Starting batched ingestion for ${sources.length} sources (concurrency: ${concurrency})`);
 
-    // Small delay between sources to avoid rate limiting
-    await new Promise(resolve => setTimeout(resolve, 1000));
+  // Process in batches
+  for (let i = 0; i < sources.length; i += concurrency) {
+    const batch = sources.slice(i, i + concurrency);
+    console.log(`[Ingestion] Processing batch ${Math.floor(i / concurrency) + 1}`);
+
+    const batchPromises = batch.map(source => {
+      console.log(`[Ingestion] Running: ${source.name}`);
+      return runIngestion(source.id).catch(error => ({
+        success: false,
+        jobId: '',
+        recordsFound: 0,
+        recordsInserted: 0,
+        recordsUpdated: 0,
+        recordsSkipped: 0,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        duration: 0
+      } as IngestionResult));
+    });
+
+    const batchResults = await Promise.all(batchPromises);
+    results.push(...batchResults);
+
+    // Small delay between batches
+    if (i + concurrency < sources.length) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
   }
 
+  console.log(`[Ingestion] Completed all ${results.length} sources`);
   return results;
 }
