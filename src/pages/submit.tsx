@@ -30,6 +30,7 @@ export default function SubmitPage() {
     title: '',
     category: '' as PhenomenonCategory | '',
     phenomenonTypeId: '',
+    additionalTypeIds: [] as string[], // Cross-disciplinary tags
     summary: '',
 
     // Step 2: Details
@@ -182,6 +183,34 @@ export default function SubmitPage() {
         .single()
 
       if (insertError) throw insertError
+
+      // Insert report_tags for primary and additional phenomenon types
+      const reportTags = []
+
+      if (formData.phenomenonTypeId) {
+        reportTags.push({
+          report_id: data.id,
+          phenomenon_type_id: formData.phenomenonTypeId,
+          is_primary: true,
+          relevance_score: 1.0
+        })
+      }
+
+      // Add additional cross-disciplinary tags
+      for (const typeId of formData.additionalTypeIds) {
+        if (typeId !== formData.phenomenonTypeId) {
+          reportTags.push({
+            report_id: data.id,
+            phenomenon_type_id: typeId,
+            is_primary: false,
+            relevance_score: 0.8
+          })
+        }
+      }
+
+      if (reportTags.length > 0) {
+        await supabase.from('report_tags').insert(reportTags)
+      }
 
       router.push(`/submit/success?id=${data.id}`)
     } catch (err: any) {
@@ -339,6 +368,63 @@ export default function SubmitPage() {
                       </option>
                     ))}
                   </select>
+                </div>
+              )}
+
+              {/* Cross-disciplinary tagging */}
+              {formData.category && (
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    Related Phenomena (Cross-Disciplinary)
+                  </label>
+                  <p className="text-xs text-gray-400 mb-3">
+                    Does this experience relate to other phenomena? Select additional types that apply.
+                  </p>
+                  <div className="max-h-48 overflow-y-auto space-y-1 p-3 bg-white/5 rounded-lg border border-white/10">
+                    {Object.entries(CATEGORY_CONFIG)
+                      .filter(([key]) => key !== formData.category)
+                      .map(([catKey, catConfig]) => {
+                        const catTypes = phenomenonTypes.filter(t => t.category === catKey)
+                        if (catTypes.length === 0) return null
+                        return (
+                          <div key={catKey} className="mb-2">
+                            <p className="text-xs text-gray-400 font-medium flex items-center gap-1 mb-1">
+                              <span>{catConfig.icon}</span> {catConfig.label}
+                            </p>
+                            <div className="flex flex-wrap gap-1 ml-4">
+                              {catTypes.slice(0, 5).map(type => {
+                                const isSelected = formData.additionalTypeIds.includes(type.id)
+                                return (
+                                  <button
+                                    key={type.id}
+                                    type="button"
+                                    onClick={() => {
+                                      const newIds = isSelected
+                                        ? formData.additionalTypeIds.filter(id => id !== type.id)
+                                        : [...formData.additionalTypeIds, type.id]
+                                      updateForm('additionalTypeIds', newIds)
+                                    }}
+                                    className={classNames(
+                                      'text-xs px-2 py-1 rounded-full transition-colors',
+                                      isSelected
+                                        ? 'bg-primary-500/30 text-primary-300 border border-primary-500/50'
+                                        : 'bg-white/5 text-gray-400 border border-white/10 hover:border-white/20'
+                                    )}
+                                  >
+                                    {type.icon} {type.name}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
+                  </div>
+                  {formData.additionalTypeIds.length > 0 && (
+                    <p className="text-xs text-primary-400 mt-2">
+                      {formData.additionalTypeIds.length} additional type(s) selected
+                    </p>
+                  )}
                 </div>
               )}
 
