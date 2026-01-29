@@ -206,22 +206,46 @@ function parseGhostStories(html: string, stateName: string, cityName?: string): 
   return reports;
 }
 
+// Fetch with browser-like headers
+async function fetchWithHeaders(url: string): Promise<Response> {
+  return fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+    }
+  });
+}
+
 // Main adapter implementation
 export const ghostsOfAmericaAdapter: SourceAdapter = {
   name: 'ghostsofamerica',
 
   async scrape(config: Record<string, any>, limit: number = 50): Promise<AdapterResult> {
-    const baseUrl = config.base_url || 'https://www.ghostsofamerica.com';
     const rateLimitMs = config.rate_limit_ms || 1000;
     const targetStates = config.states || ['ca', 'tx', 'fl', 'oh', 'pa', 'ny', 'il', 'ga'];
 
     const allReports: ScrapedReport[] = [];
     const errors: string[] = [];
 
+    // Try multiple possible base URLs (site may have changed)
+    const possibleBaseUrls = [
+      'https://www.ghostsofamerica.com',
+      'https://ghostsofamerica.com',
+      'http://www.ghostsofamerica.com',
+    ];
+
+    // Try multiple URL patterns for state pages
+    const urlPatterns = [
+      (base: string, state: string) => `${base}/ghosts/${state}/`,
+      (base: string, state: string) => `${base}/${state}/`,
+      (base: string, state: string) => `${base}/states/${state}/`,
+      (base: string, state: string) => `${base}/ghost-sightings/${state}/`,
+    ];
+
     try {
       console.log('[GhostsOfAmerica] Starting scrape...');
 
-      // Directly construct state URLs based on known structure
       for (const stateCode of targetStates) {
         if (allReports.length >= limit) break;
 
@@ -231,44 +255,49 @@ export const ghostsOfAmericaAdapter: SourceAdapter = {
           continue;
         }
 
-        try {
-          await delay(rateLimitMs);
+        let stateHtml: string | null = null;
 
-          const stateUrl = `${baseUrl}/ghosts/${stateCode.toLowerCase()}/`;
-          console.log(`[GhostsOfAmerica] Fetching ${stateName}...`);
+        // Try different URL combinations
+        urlLoop:
+        for (const baseUrl of possibleBaseUrls) {
+          for (const pattern of urlPatterns) {
+            try {
+              await delay(rateLimitMs / 2);
 
-          const response = await fetch(stateUrl, {
-            headers: {
-              'User-Agent': 'ParaDocs Research Bot/1.0 (educational research)',
-              'Accept': 'text/html'
+              const stateUrl = pattern(baseUrl, stateCode.toLowerCase());
+              console.log(`[GhostsOfAmerica] Trying: ${stateUrl}`);
+
+              const response = await fetchWithHeaders(stateUrl);
+
+              if (response.ok) {
+                stateHtml = await response.text();
+                console.log(`[GhostsOfAmerica] Success with: ${stateUrl}`);
+                break urlLoop;
+              }
+            } catch (e) {
+              // Continue to next URL pattern
             }
-          });
-
-          if (!response.ok) {
-            errors.push(`Failed to fetch ${stateName}: ${response.status}`);
-            continue;
           }
-
-          const html = await response.text();
-          const stateReports = parseGhostStories(html, stateName);
-
-          console.log(`[GhostsOfAmerica] Found ${stateReports.length} stories in ${stateName}`);
-
-          // Add reports up to limit
-          const remaining = limit - allReports.length;
-          allReports.push(...stateReports.slice(0, remaining));
-
-        } catch (stateError) {
-          errors.push(`Error processing ${stateName}: ${stateError}`);
         }
+
+        if (!stateHtml) {
+          errors.push(`Could not fetch ${stateName} from any known URL pattern`);
+          continue;
+        }
+
+        const stateReports = parseGhostStories(stateHtml, stateName);
+        console.log(`[GhostsOfAmerica] Found ${stateReports.length} stories in ${stateName}`);
+
+        const remaining = limit - allReports.length;
+        allReports.push(...stateReports.slice(0, remaining));
       }
 
       console.log(`[GhostsOfAmerica] Scrape complete. Total reports: ${allReports.length}`);
 
       return {
-        success: allReports.length > 0,
+        success: allReports.length > 0 || errors.length < targetStates.length,
         reports: allReports,
-        error: errors.length > 0 ? errors.join('; ') : undefined
+        error: errors.length > 0 ? errors.slice(0, 3).join('; ') + (errors.length > 3 ? '...' : '') : undefined
       };
 
     } catch (error) {

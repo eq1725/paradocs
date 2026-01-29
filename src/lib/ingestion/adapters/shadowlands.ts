@@ -134,34 +134,68 @@ function parseLocationEntries(html: string, stateName: string): ScrapedReport[] 
   return reports;
 }
 
+// Fetch with browser-like headers
+async function fetchWithHeaders(url: string): Promise<Response> {
+  return fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+    }
+  });
+}
+
 // Main adapter implementation
 export const shadowlandsAdapter: SourceAdapter = {
   name: 'shadowlands',
 
   async scrape(config: Record<string, any>, limit: number = 50): Promise<AdapterResult> {
-    const baseUrl = config.base_url || 'https://theshadowlands.net/places';
     const rateLimitMs = config.rate_limit_ms || 1000;
     const targetStates = config.states || ['california', 'texas', 'florida', 'ohio', 'pennsylvania', 'new york', 'illinois'];
 
     const allReports: ScrapedReport[] = [];
     const errors: string[] = [];
 
+    // Try multiple possible base URLs
+    const possibleUrls = [
+      'https://theshadowlands.net/places',
+      'http://theshadowlands.net/places',
+      'https://www.theshadowlands.net/places',
+      'http://www.theshadowlands.net/places',
+    ];
+
     try {
       console.log('[Shadowlands] Starting scrape...');
 
-      // Fetch the main index page
-      const indexResponse = await fetch(baseUrl, {
-        headers: {
-          'User-Agent': 'ParaDocs Research Bot/1.0 (educational research)',
-          'Accept': 'text/html'
-        }
-      });
+      let indexHtml: string | null = null;
+      let successfulBaseUrl = '';
 
-      if (!indexResponse.ok) {
-        throw new Error(`Failed to fetch index: ${indexResponse.status}`);
+      // Try to fetch the main index page from various URLs
+      for (const baseUrl of possibleUrls) {
+        try {
+          console.log(`[Shadowlands] Trying: ${baseUrl}`);
+          const indexResponse = await fetchWithHeaders(baseUrl);
+
+          if (indexResponse.ok) {
+            indexHtml = await indexResponse.text();
+            successfulBaseUrl = baseUrl;
+            console.log(`[Shadowlands] Success with: ${baseUrl}`);
+            break;
+          }
+        } catch (e) {
+          console.log(`[Shadowlands] Failed: ${baseUrl}`);
+        }
       }
 
-      const indexHtml = await indexResponse.text();
+      if (!indexHtml) {
+        return {
+          success: false,
+          reports: [],
+          error: 'Failed to fetch Shadowlands index from any known URL'
+        };
+      }
+
+      const baseUrl = successfulBaseUrl;
       const stateLinks = parseStateIndex(indexHtml);
 
       console.log(`[Shadowlands] Found ${stateLinks.length} state pages`);

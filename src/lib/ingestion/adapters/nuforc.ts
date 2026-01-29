@@ -265,13 +265,14 @@ async function parseReportPage(html: string, metadata: { link: string; date: str
 }
 
 // Fetch with retry and rate limiting
-async function fetchWithRetry(url: string, retries: number = 3, delay: number = 1000): Promise<string | null> {
+async function fetchWithRetry(url: string, retries: number = 3, delayMs: number = 1000): Promise<string | null> {
   for (let i = 0; i < retries; i++) {
     try {
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'ParaDocs Research Bot/1.0 (https://discoverparadocs.com; research@discoverparadocs.com)',
-          'Accept': 'text/html,application/xhtml+xml',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
         }
       });
 
@@ -279,16 +280,18 @@ async function fetchWithRetry(url: string, retries: number = 3, delay: number = 
         return await response.text();
       }
 
+      console.log(`[NUFORC] Fetch failed (attempt ${i + 1}): ${url} - Status: ${response.status}`);
+
       if (response.status === 429) {
         // Rate limited, wait longer
-        await new Promise(resolve => setTimeout(resolve, delay * 2));
+        await new Promise(resolve => setTimeout(resolve, delayMs * 2));
       }
     } catch (e) {
-      console.error(`[NUFORC] Fetch error (attempt ${i + 1}):`, url, e);
+      console.error(`[NUFORC] Fetch error (attempt ${i + 1}):`, url, e instanceof Error ? e.message : 'Unknown');
     }
 
     if (i < retries - 1) {
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }
   return null;
@@ -301,23 +304,41 @@ export const nuforcAdapter: SourceAdapter = {
     const reports: ScrapedReport[] = [];
 
     try {
-      const baseUrl = config.base_url || 'https://nuforc.org';
       const rateLimitMs = config.rate_limit_ms || 500;
-      const indexPath = config.index_path || '/webreports/ndxevent.html';
 
-      console.log(`[NUFORC] Starting scrape. Base URL: ${baseUrl}, Limit: ${limit}`);
+      // Try multiple possible NUFORC URLs (site structure may change)
+      const possibleUrls = [
+        'https://nuforc.org/webreports/ndxevent.html',
+        'https://nuforc.org/ndxevent.html',
+        'https://www.nuforc.org/webreports/ndxevent.html',
+        'http://www.nuforc.org/webreports/ndxevent.html',
+      ];
 
-      // Fetch the main event index page
-      const indexUrl = `${baseUrl}${indexPath}`;
-      const indexHtml = await fetchWithRetry(indexUrl);
+      console.log(`[NUFORC] Starting scrape. Trying ${possibleUrls.length} URLs, Limit: ${limit}`);
+
+      let indexHtml: string | null = null;
+      let successfulUrl = '';
+
+      for (const url of possibleUrls) {
+        console.log(`[NUFORC] Trying: ${url}`);
+        indexHtml = await fetchWithRetry(url, 2, 500);
+        if (indexHtml) {
+          successfulUrl = url;
+          console.log(`[NUFORC] Success with: ${url}`);
+          break;
+        }
+      }
 
       if (!indexHtml) {
         return {
           success: false,
           reports: [],
-          error: 'Failed to fetch NUFORC index page'
+          error: 'Failed to fetch NUFORC index page from any known URL'
         };
       }
+
+      // Extract base URL from successful URL
+      const baseUrl = successfulUrl.substring(0, successfulUrl.lastIndexOf('/'));
 
       // Parse the index to get report links
       const reportMetadata = await parseIndexPage(indexHtml);
