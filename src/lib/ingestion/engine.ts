@@ -27,17 +27,26 @@ export interface IngestionResult {
   duration: number;
 }
 
-// Generate a URL-safe slug from title
-function generateSlug(title: string, sourceId: string): string {
+// Generate a URL-safe slug from title with guaranteed uniqueness
+function generateSlug(title: string, originalReportId: string, sourceType: string): string {
   const baseSlug = title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .substring(0, 80);
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 60);
 
-  // Add a unique suffix based on source ID to avoid collisions
-  const suffix = sourceId.substring(0, 8);
-  return `${baseSlug}-${suffix}`;
+  // Create a unique hash from source_type + original_report_id
+  // This ensures the same report always gets the same slug
+  const uniqueKey = `${sourceType}-${originalReportId}`;
+  let hash = 0;
+  for (let i = 0; i < uniqueKey.length; i++) {
+    const char = uniqueKey.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  const hashStr = Math.abs(hash).toString(36).substring(0, 8);
+
+  return `${baseSlug}-${hashStr}`;
 }
 
 export async function runIngestion(sourceId: string, limit: number = 100): Promise<IngestionResult> {
@@ -136,7 +145,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           }
         } else {
           // Insert new report
-          const slug = generateSlug(report.title, report.original_report_id);
+          const slug = generateSlug(report.title, report.original_report_id, report.source_type);
 
           const { error: insertError } = await supabase
             .from('reports')
@@ -263,15 +272,15 @@ export async function getSourcesDueForScraping(): Promise<DataSource[]> {
 }
 
 // Run ingestion for all due sources (parallel processing)
-export async function runScheduledIngestion(): Promise<IngestionResult[]> {
+export async function runScheduledIngestion(limit: number = 500): Promise<IngestionResult[]> {
   const sources = await getSourcesDueForScraping();
 
-  console.log(`[Ingestion] Starting parallel ingestion for ${sources.length} sources`);
+  console.log(`[Ingestion] Starting parallel ingestion for ${sources.length} sources (limit: ${limit} per source)`);
 
   // Run all sources in parallel for maximum efficiency
   const promises = sources.map(source => {
     console.log(`[Ingestion] Queuing source: ${source.name}`);
-    return runIngestion(source.id).catch(error => ({
+    return runIngestion(source.id, limit).catch(error => ({
       success: false,
       jobId: '',
       recordsFound: 0,

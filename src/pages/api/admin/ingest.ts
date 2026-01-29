@@ -104,15 +104,17 @@ export default async function handler(
 
     // Check if a specific source is requested
     const sourceId = req.query.source as string;
+    // Allow configurable limit (default 500 for large data pulls)
+    const limit = parseInt(req.query.limit as string) || 500;
 
     let results;
     if (sourceId) {
       // Run for specific source
-      const result = await runIngestion(sourceId);
+      const result = await runIngestion(sourceId, limit);
       results = [result];
     } else {
-      // Run for all active sources
-      results = await runScheduledIngestion();
+      // Run for all active sources with configured limit
+      results = await runScheduledIngestion(limit);
     }
 
     const totalDuration = Date.now() - startTime;
