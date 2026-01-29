@@ -4,14 +4,16 @@
  * Displays a mini-map showing the report location and nearby reports
  */
 
+'use client'
+
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
-import { MapPin, Navigation, ExternalLink } from 'lucide-react'
+import { Navigation, ExternalLink } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 
-// Dynamically import map components to avoid SSR issues
+// Dynamically import the entire map component to avoid SSR issues
 const MapContainer = dynamic(
   () => import('react-leaflet').then(mod => mod.MapContainer),
   { ssr: false }
@@ -64,12 +66,15 @@ export default function LocationMap({
   const [nearbyReports, setNearbyReports] = useState<NearbyReport[]>([])
   const [loading, setLoading] = useState(true)
   const [radiusKm, setRadiusKm] = useState(50)
-  const [mapReady, setMapReady] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [L, setL] = useState<any>(null)
 
+  // Load Leaflet on client side only
   useEffect(() => {
-    // Delay map render to ensure Leaflet loads properly
-    const timer = setTimeout(() => setMapReady(true), 100)
-    return () => clearTimeout(timer)
+    setMounted(true)
+    import('leaflet').then((leaflet) => {
+      setL(leaflet.default)
+    })
   }, [])
 
   useEffect(() => {
@@ -100,24 +105,38 @@ export default function LocationMap({
     return null
   }
 
-  // Create custom icons
+  // Create custom icons using loaded Leaflet instance
   const createIcon = (category: string, isMain: boolean = false) => {
-    if (typeof window === 'undefined') return undefined
+    if (!L) return undefined
 
-    const L = require('leaflet')
     const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
+    const size = isMain ? 32 : 24
+    const bgColor = isMain ? '#8b5cf6' : 'rgba(255,255,255,0.9)'
+    const borderColor = isMain ? '#7c3aed' : 'rgba(0,0,0,0.2)'
+    const textColor = isMain ? 'white' : 'inherit'
 
     return L.divIcon({
       className: 'custom-marker',
       html: `
-        <div class="relative">
-          <div class="w-${isMain ? '8' : '6'} h-${isMain ? '8' : '6'} rounded-full ${isMain ? 'bg-primary-500 ring-4 ring-primary-500/30' : 'bg-white/90'} flex items-center justify-center text-${isMain ? 'sm' : 'xs'} shadow-lg">
-            ${isMain ? '📍' : config.icon}
-          </div>
+        <div style="
+          width: ${size}px;
+          height: ${size}px;
+          border-radius: 50%;
+          background: ${bgColor};
+          border: 2px solid ${borderColor};
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: ${isMain ? '14px' : '12px'};
+          color: ${textColor};
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          ${isMain ? 'animation: pulse 2s infinite;' : ''}
+        ">
+          ${isMain ? '📍' : config.icon}
         </div>
       `,
-      iconSize: [isMain ? 32 : 24, isMain ? 32 : 24],
-      iconAnchor: [isMain ? 16 : 12, isMain ? 32 : 24]
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2]
     })
   }
 
@@ -148,18 +167,49 @@ export default function LocationMap({
         )}
       </div>
 
+      {/* Leaflet CSS - Required for proper map rendering */}
+      <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossOrigin=""
+      />
+      <style>{`
+        .custom-marker {
+          background: transparent !important;
+          border: none !important;
+        }
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.1); opacity: 0.8; }
+        }
+        .leaflet-popup-content-wrapper {
+          background: rgba(15, 23, 42, 0.95);
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 8px;
+        }
+        .leaflet-popup-content {
+          color: white;
+          margin: 8px 12px;
+        }
+        .leaflet-popup-tip {
+          background: rgba(15, 23, 42, 0.95);
+        }
+      `}</style>
+
       {/* Map */}
       <div className="h-64 md:h-80 relative bg-gray-900">
-        {loading ? (
+        {!mounted || !L || loading ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-8 h-8 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : mapReady ? (
+        ) : (
           <MapContainer
             center={[latitude, longitude]}
             zoom={9}
             style={{ height: '100%', width: '100%' }}
-            zoomControl={false}
+            zoomControl={true}
+            scrollWheelZoom={false}
           >
             <TileLayer
               attribution='&copy; <a href="https://carto.com/">CARTO</a>'
@@ -216,10 +266,6 @@ export default function LocationMap({
               </Marker>
             ))}
           </MapContainer>
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
-            <p className="text-gray-500 text-sm">Loading map...</p>
-          </div>
         )}
       </div>
 
