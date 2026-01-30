@@ -38,6 +38,12 @@ const skipTitlePatterns = [
   /^citation needed/i,
 ];
 
+// Patterns for species/creature names (not actual reports)
+const speciesNamePatterns = [
+  /^[A-Z][a-z]+\s+[a-z]+(?:,\s*[a-z\s]+)?$/i,  // "Pinguinus impennis, garefowl"
+  /^[A-Z][a-z]+\s+[a-z]+$/,                      // "Homo sapiens"
+];
+
 function isGarbageReport(title: string | null, summary: string | null): boolean {
   if (!title || title.length < 5) return true;
   if (!summary || summary.length < 20) return true;
@@ -48,6 +54,18 @@ function isGarbageReport(title: string | null, summary: string | null): boolean 
 
   for (const pattern of skipTitlePatterns) {
     if (pattern.test(title.trim())) return true;
+  }
+
+  // Check for species/creature names without actual report content
+  for (const pattern of speciesNamePatterns) {
+    if (pattern.test(title.trim())) {
+      // Only garbage if no report-related words in description
+      const reportIndicators = ['sighting', 'reported', 'seen', 'witnessed', 'encounter', 'appeared', 'observed', 'spotted'];
+      const hasReportContent = reportIndicators.some(word =>
+        (summary || '').toLowerCase().includes(word)
+      );
+      if (!hasReportContent) return true;
+    }
   }
 
   const alphanumeric = title.replace(/[^a-zA-Z0-9]/g, '').length;
@@ -69,6 +87,17 @@ function getGarbageReason(title: string | null, summary: string | null): string 
   if (/^\{/.test(title)) return 'code/JSON block';
   if (/^html\./i.test(title)) return 'CSS selector';
   if (/^#/.test(title)) return 'CSS ID selector';
+
+  // Check for species names
+  for (const pattern of speciesNamePatterns) {
+    if (pattern.test(title.trim())) {
+      const reportIndicators = ['sighting', 'reported', 'seen', 'witnessed', 'encounter', 'appeared', 'observed', 'spotted'];
+      const hasReportContent = reportIndicators.some(word =>
+        (summary || '').toLowerCase().includes(word)
+      );
+      if (!hasReportContent) return 'species/creature name without report';
+    }
+  }
 
   const alphanumeric = title.replace(/[^a-zA-Z0-9]/g, '').length;
   if (alphanumeric / title.length < 0.5) return 'low alphanumeric ratio';

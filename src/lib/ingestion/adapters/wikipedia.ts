@@ -137,6 +137,33 @@ function isValidReport(title: string, description: string): boolean {
   if (!title || title.length < 5) return false;
   if (!description || description.length < 20) return false;
 
+  // Reject entries that are just creature/species names (not actual reports)
+  // Scientific names: "Genus species" or "Genus species, common name"
+  const speciesNamePatterns = [
+    /^[A-Z][a-z]+\s+[a-z]+(?:,\s*[a-z\s]+)?$/i,  // "Pinguinus impennis, garefowl"
+    /^[A-Z][a-z]+\s+[a-z]+$/,                      // "Homo sapiens"
+  ];
+
+  for (const pattern of speciesNamePatterns) {
+    if (pattern.test(title.trim())) {
+      // Check if description also lacks report content
+      const reportIndicators = ['sighting', 'reported', 'seen', 'witnessed', 'encounter', 'appeared', 'observed', 'spotted'];
+      const hasReportContent = reportIndicators.some(word => description.toLowerCase().includes(word));
+      if (!hasReportContent) return false;
+    }
+  }
+
+  // Reject entries that are just entity names without report details
+  // These are typically very short and don't describe an event
+  if (title.length < 30 && description.length < 50) {
+    // If both title and description are short, check for actual report content
+    const eventWords = ['when', 'where', 'saw', 'heard', 'felt', 'appeared', 'reported', 'occurred', 'happened'];
+    const hasEventContent = eventWords.some(word =>
+      title.toLowerCase().includes(word) || description.toLowerCase().includes(word)
+    );
+    if (!hasEventContent) return false;
+  }
+
   // Reject CSS/code artifacts
   const codePatterns = [
     /^\.mw/i,                    // MediaWiki CSS classes
