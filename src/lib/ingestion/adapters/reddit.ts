@@ -254,14 +254,15 @@ async function fetchSubreddit(
         console.log(`[Reddit/ArcticShift] First post structure: id=${firstPost.id}, score=${firstPost.score}, is_self=${firstPost.is_self}, selftext_length=${firstPost.selftext?.length || 0}, title="${firstPost.title?.substring(0, 50)}"`);
       }
 
-      // Filter for text posts with good engagement
+      // Filter for text posts (relaxed engagement filter for archived data)
       let skippedLowScore = 0;
       let skippedNotSelf = 0;
       let skippedParseFailed = 0;
 
       for (const post of posts) {
-        // Skip low engagement posts (but allow posts where score is undefined/null)
-        if (post.score !== undefined && post.score !== null && post.score < 10) {
+        // Only skip heavily downvoted posts (score < 0)
+        // Arctic Shift archives posts with their original scores, many good posts have low scores
+        if (post.score !== undefined && post.score !== null && post.score < 0) {
           skippedLowScore++;
           continue;
         }
