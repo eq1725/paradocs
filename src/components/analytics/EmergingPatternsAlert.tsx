@@ -96,9 +96,10 @@ export default function EmergingPatternsAlert({ patterns }: EmergingPatternsAler
           const isEmerging = pattern.status === 'emerging'
 
           return (
-            <div
+            <Link
               key={pattern.id}
-              className={`p-4 rounded-lg border transition-all hover:scale-[1.01] ${
+              href={`/insights/patterns/${pattern.id}`}
+              className={`block p-4 rounded-lg border transition-all hover:scale-[1.01] cursor-pointer ${
                 isEmerging
                   ? 'bg-amber-500/5 border-amber-500/30 hover:border-amber-500/50'
                   : 'bg-white/5 border-white/10 hover:border-white/20'
@@ -192,7 +193,7 @@ export default function EmergingPatternsAlert({ patterns }: EmergingPatternsAler
                   </div>
                 </div>
               </div>
-            </div>
+            </Link>
           )
         })}
       </div>
