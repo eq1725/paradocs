@@ -11,17 +11,22 @@ import { useRouter } from 'next/router'
 import {
   Sparkles,
   TrendingUp,
+  TrendingDown,
   MapPin,
   Calendar,
   AlertCircle,
   ArrowRight,
   Lightbulb,
   BarChart3,
-  Clock
+  Clock,
+  Settings,
+  Star
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { FeatureGate } from '@/components/dashboard/FeatureGate'
 import { useSubscription } from '@/lib/hooks/useSubscription'
+import { usePersonalization } from '@/lib/hooks/usePersonalization'
+import { CATEGORY_CONFIG } from '@/lib/constants'
 import { supabase } from '@/lib/supabase'
 
 interface PatternSummary {
@@ -126,6 +131,12 @@ function PatternCard({ pattern }: { pattern: PatternSummary }) {
 export default function InsightsPage() {
   const router = useRouter()
   const { canAccess, tierName, loading: subscriptionLoading } = useSubscription()
+  const {
+    data: personalization,
+    insights,
+    loading: personalizationLoading,
+    refreshInsights
+  } = usePersonalization()
   const [patterns, setPatterns] = useState<PatternSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -146,6 +157,9 @@ export default function InsightsPage() {
           const data = await response.json()
           setPatterns(data.patterns || [])
         }
+
+        // Fetch personalized insights
+        refreshInsights()
       } catch (err) {
         console.error('Error fetching insights:', err)
         setError(err instanceof Error ? err.message : 'Unknown error')
@@ -155,37 +169,90 @@ export default function InsightsPage() {
     }
 
     fetchInsights()
-  }, [router])
+  }, [router, refreshInsights])
 
-  // Generate personalized insights
-  const personalizedInsights: InsightCard[] = [
-    {
-      id: '1',
-      type: 'recommendation',
-      title: 'Complete Your Profile',
-      description: 'Add more details to your profile to get better personalized insights and recommendations.',
-      icon: Lightbulb,
-      link: '/dashboard/settings'
-    },
-    {
-      id: '2',
-      type: 'trend',
-      title: 'Increasing Activity in Your Area',
-      description: 'There has been a 23% increase in paranormal reports within 50 miles of your location this month.',
-      icon: TrendingUp,
-      link: '/map'
-    },
-    {
-      id: '3',
-      type: 'pattern',
-      title: 'Similar Reports Found',
-      description: 'We found 5 reports that match the characteristics of sightings you\'ve submitted or saved.',
-      icon: Sparkles,
-      link: '/reports'
+  // Generate personalized insights based on user preferences
+  const generatePersonalizedInsights = (): InsightCard[] => {
+    const cards: InsightCard[] = []
+
+    // If user hasn't set up location, show setup prompt
+    if (!insights?.hasLocation) {
+      cards.push({
+        id: 'setup-location',
+        type: 'recommendation',
+        title: 'Set Up Location',
+        description: 'Share your location to see paranormal activity and patterns near you. Your location is never shared publicly.',
+        icon: MapPin,
+        link: '/dashboard/settings'
+      })
+    } else if (insights?.activityMetrics) {
+      // Show real activity metrics based on user's location
+      const { percent_change, trending_direction, current_count } = insights.activityMetrics
+      const { city, state, radius } = insights.location!
+
+      const TrendIcon = trending_direction === 'increasing' ? TrendingUp :
+                        trending_direction === 'decreasing' ? TrendingDown : BarChart3
+
+      const trendText = trending_direction === 'increasing' ? 'increase' :
+                        trending_direction === 'decreasing' ? 'decrease' : 'stable activity'
+
+      cards.push({
+        id: 'local-activity',
+        type: 'trend',
+        title: trending_direction === 'stable'
+          ? 'Stable Activity in Your Area'
+          : `${trending_direction === 'increasing' ? 'Increasing' : 'Decreasing'} Activity Near You`,
+        description: current_count === 0
+          ? `No paranormal reports within ${radius} miles of ${city}, ${state} in the past month. Be the first to document something!`
+          : `There has been a ${Math.abs(percent_change)}% ${trendText} in paranormal reports within ${radius} miles of ${city}, ${state} this month (${current_count} total reports).`,
+        icon: TrendIcon,
+        link: '/map'
+      })
     }
-  ]
 
-  if (subscriptionLoading || loading) {
+    // If user hasn't set up interests, show setup prompt
+    if (!insights?.hasInterests) {
+      cards.push({
+        id: 'setup-interests',
+        type: 'recommendation',
+        title: 'Select Your Interests',
+        description: 'Tell us which phenomena interest you most to get personalized pattern recommendations.',
+        icon: Star,
+        link: '/dashboard/settings'
+      })
+    } else if (insights?.matchingPatterns && insights.matchingPatterns.length > 0) {
+      // Show patterns matching user's interests
+      const interestLabels = insights.interestedCategories
+        .slice(0, 2)
+        .map(cat => CATEGORY_CONFIG[cat]?.label || cat)
+        .join(' & ')
+
+      cards.push({
+        id: 'interest-patterns',
+        type: 'pattern',
+        title: 'Patterns Matching Your Interests',
+        description: `Based on your interest in ${interestLabels}, we found ${insights.matchingPatterns.length} active ${insights.matchingPatterns.length === 1 ? 'pattern' : 'patterns'} you might find interesting.`,
+        icon: Sparkles,
+        link: '/insights'
+      })
+    }
+
+    // Always show a general insights card
+    cards.push({
+      id: 'similar-reports',
+      type: 'pattern',
+      title: 'Explore Global Patterns',
+      description: 'Discover paranormal patterns detected across the globe through our AI analysis engine.',
+      icon: Lightbulb,
+      link: '/insights'
+    })
+
+    return cards.slice(0, 3) // Max 3 cards
+  }
+
+  const personalizedInsights = generatePersonalizedInsights()
+
+  if (subscriptionLoading || loading || personalizationLoading) {
     return (
       <DashboardLayout title="AI Insights">
         <div className="space-y-6">

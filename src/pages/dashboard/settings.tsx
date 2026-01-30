@@ -16,10 +16,18 @@ import {
   Save,
   Loader2,
   AlertCircle,
-  Check
+  Check,
+  MapPin,
+  Sparkles,
+  Navigation,
+  X,
+  Info
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { supabase } from '@/lib/supabase'
+import { usePersonalization } from '@/lib/hooks/usePersonalization'
+import { CATEGORY_CONFIG, US_STATES } from '@/lib/constants'
+import type { PhenomenonCategory } from '@/lib/database.types'
 
 interface UserProfile {
   id: string
@@ -107,6 +115,14 @@ function Toggle({
   )
 }
 
+// Radius options in miles
+const RADIUS_OPTIONS = [
+  { value: 25, label: '25 miles' },
+  { value: 50, label: '50 miles' },
+  { value: 100, label: '100 miles' },
+  { value: 200, label: '200 miles' }
+]
+
 export default function SettingsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -121,6 +137,34 @@ export default function SettingsPage() {
     email_weekly_digest: false,
     email_marketing: false
   })
+
+  // Personalization state
+  const {
+    data: personalization,
+    loading: personalizationLoading,
+    saving: personalizationSaving,
+    updateAll: updatePersonalization,
+    useCurrentLocation,
+    clearLocation
+  } = usePersonalization()
+
+  const [localCity, setLocalCity] = useState('')
+  const [localState, setLocalState] = useState('')
+  const [localRadius, setLocalRadius] = useState(50)
+  const [localShareLocation, setLocalShareLocation] = useState(false)
+  const [localInterests, setLocalInterests] = useState<PhenomenonCategory[]>([])
+  const [gettingLocation, setGettingLocation] = useState(false)
+
+  // Sync personalization data to local state when loaded
+  useEffect(() => {
+    if (personalization) {
+      setLocalCity(personalization.location_city || '')
+      setLocalState(personalization.location_state || '')
+      setLocalRadius(personalization.watch_radius_miles || 50)
+      setLocalShareLocation(personalization.share_location || false)
+      setLocalInterests(personalization.interested_categories || [])
+    }
+  }, [personalization])
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -205,6 +249,68 @@ export default function SettingsPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleSavePersonalization = async () => {
+    setSaving(true)
+    setError(null)
+    setSuccess(false)
+
+    try {
+      const result = await updatePersonalization({
+        location_city: localCity || null,
+        location_state: localState || null,
+        watch_radius_miles: localRadius,
+        share_location: localShareLocation,
+        interested_categories: localInterests
+      })
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to save personalization')
+      }
+
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
+    } catch (err) {
+      console.error('Error saving personalization:', err)
+      setError(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleUseCurrentLocation = async () => {
+    setGettingLocation(true)
+    setError(null)
+
+    try {
+      const result = await useCurrentLocation()
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to get location')
+      }
+      setLocalShareLocation(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to get location')
+    } finally {
+      setGettingLocation(false)
+    }
+  }
+
+  const handleClearLocation = async () => {
+    await clearLocation()
+    setLocalCity('')
+    setLocalState('')
+    setLocalShareLocation(false)
+  }
+
+  const toggleInterest = (category: PhenomenonCategory) => {
+    setLocalInterests(prev => {
+      if (prev.includes(category)) {
+        return prev.filter(c => c !== category)
+      } else {
+        return [...prev, category]
+      }
+    })
   }
 
   if (loading) {
@@ -357,6 +463,199 @@ export default function SettingsPage() {
                 and all associated data, please contact support@paradocs.com.
               </p>
             </div>
+          </div>
+        </SettingsSection>
+
+        {/* Location Preferences */}
+        <SettingsSection
+          title="Location Preferences"
+          description="Share your location for personalized insights"
+          icon={MapPin}
+        >
+          <div className="space-y-6">
+            {/* Share location toggle */}
+            <Toggle
+              label="Share my location for personalized insights"
+              description="Enable to see activity and patterns near you"
+              checked={localShareLocation}
+              onChange={setLocalShareLocation}
+            />
+
+            {/* Location input */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-gray-400">Set location:</span>
+                <button
+                  onClick={handleUseCurrentLocation}
+                  disabled={gettingLocation}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {gettingLocation ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Navigation className="w-4 h-4" />
+                  )}
+                  Use current location
+                </button>
+                {(localCity || localState) && (
+                  <button
+                    onClick={handleClearLocation}
+                    className="flex items-center gap-1 px-2 py-1.5 text-sm text-gray-500 hover:text-red-400 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    City
+                  </label>
+                  <input
+                    type="text"
+                    value={localCity}
+                    onChange={(e) => setLocalCity(e.target.value)}
+                    placeholder="Enter city"
+                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    State
+                  </label>
+                  <select
+                    value={localState}
+                    onChange={(e) => setLocalState(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="">Select state</option>
+                    {US_STATES.map(state => (
+                      <option key={state} value={state}>{state}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Watch radius */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-3">
+                Watch radius
+              </label>
+              <div className="flex gap-2">
+                {RADIUS_OPTIONS.map(option => (
+                  <button
+                    key={option.value}
+                    onClick={() => setLocalRadius(option.value)}
+                    className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                      localRadius === option.value
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Privacy note */}
+            <div className="flex items-start gap-3 p-4 bg-gray-800/50 rounded-lg">
+              <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-gray-400">
+                Your location is only used to show relevant activity in AI Insights.
+                It is never shared publicly or with other users.
+              </p>
+            </div>
+
+            {/* Save personalization button */}
+            <button
+              onClick={handleSavePersonalization}
+              disabled={saving || personalizationSaving}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              {(saving || personalizationSaving) ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Save Location Settings
+                </>
+              )}
+            </button>
+          </div>
+        </SettingsSection>
+
+        {/* Phenomenon Interests */}
+        <SettingsSection
+          title="Phenomenon Interests"
+          description="Select categories you're interested in for personalized recommendations"
+          icon={Sparkles}
+        >
+          <div className="space-y-6">
+            {/* Category grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {(Object.entries(CATEGORY_CONFIG) as [PhenomenonCategory, typeof CATEGORY_CONFIG[PhenomenonCategory]][])
+                .filter(([key]) => key !== 'combination')
+                .map(([key, config]) => {
+                  const isSelected = localInterests.includes(key)
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => toggleInterest(key)}
+                      className={`flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${
+                        isSelected
+                          ? 'bg-purple-600/20 border-purple-500 text-white'
+                          : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600'
+                      }`}
+                    >
+                      <span className="text-xl">{config.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium block">{config.label}</span>
+                        <span className="text-xs text-gray-500 truncate block">
+                          {config.description.split(',')[0]}
+                        </span>
+                      </div>
+                      {isSelected && (
+                        <Check className="w-5 h-5 text-purple-400 flex-shrink-0" />
+                      )}
+                    </button>
+                  )
+                })}
+            </div>
+
+            {/* Selection summary */}
+            <div className="text-sm text-gray-400">
+              {localInterests.length === 0 ? (
+                'No categories selected. Select your interests to see personalized patterns.'
+              ) : (
+                `${localInterests.length} ${localInterests.length === 1 ? 'category' : 'categories'} selected`
+              )}
+            </div>
+
+            {/* Save interests button */}
+            <button
+              onClick={handleSavePersonalization}
+              disabled={saving || personalizationSaving}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              {(saving || personalizationSaving) ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Save Interest Preferences
+                </>
+              )}
+            </button>
           </div>
         </SettingsSection>
 
