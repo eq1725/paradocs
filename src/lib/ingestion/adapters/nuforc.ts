@@ -404,9 +404,9 @@ export const nuforcAdapter: SourceAdapter = {
 
   async scrape(config: Record<string, any>, limit: number = 100): Promise<AdapterResult> {
     const reports: ScrapedReport[] = [];
-    const rateLimitMs = config.rate_limit_ms || 200;
-    const fetchFullDetails = config.fetch_full_details !== false; // Default to true
-    const maxMonths = config.max_months || 12; // How many months to scrape
+    const rateLimitMs = config.rate_limit_ms || 100; // Faster rate limit for bulk scraping
+    const fetchFullDetails = config.fetch_full_details === true; // Default to FALSE for speed
+    const maxMonths = config.max_months || 6; // Fewer months by default to avoid timeout
 
     try {
       console.log(`[NUFORC] Starting scrape. Limit: ${limit}, Max months: ${maxMonths}`);
@@ -504,8 +504,8 @@ export const nuforcAdapter: SourceAdapter = {
           }
         }
 
-        // Rate limiting between months
-        await new Promise(resolve => setTimeout(resolve, rateLimitMs * 2));
+        // Minimal rate limiting between months (server is robust)
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
       console.log(`[NUFORC] Successfully scraped ${reports.length} reports`);
