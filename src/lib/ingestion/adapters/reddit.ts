@@ -68,6 +68,155 @@ interface ArcticShiftResponse {
   data: ArcticShiftPost[];
 }
 
+// Arctic Shift comment interface
+interface ArcticShiftComment {
+  id: string;
+  body: string;
+  author: string;
+  created_utc: number;
+  score: number;
+  parent_id: string;
+  link_id: string;
+}
+
+// Patterns that indicate a "meta" post (asking for stories, not sharing one)
+const META_POST_PATTERNS = [
+  // Asking for experiences
+  /\b(share your|tell me about|tell us about|what's your|what are your)\b/i,
+  /\b(looking for|searching for|collecting) (stories|experiences|accounts)\b/i,
+  /\b(anyone have|does anyone have|has anyone had|who has had)\b/i,
+  /\b(anyone else|has anyone else|did anyone else)\b/i,
+  // Research/media requests
+  /\b(i'm (making|creating|writing|working on)|for my (book|podcast|channel|video|documentary|research|project|zine))\b/i,
+  /\b(gathering|collecting|compiling) (stories|experiences|data)\b/i,
+  // Challenges/contests
+  /\b(challenge|contest|giveaway)\b/i,
+  // Questions seeking multiple responses
+  /\bwhat (paranormal|supernatural|strange|weird|creepy) (experience|thing|event)s? (have you|did you)\b/i,
+  // Discussion prompts
+  /\b(discussion|megathread|weekly thread)\b/i,
+];
+
+// Check if a post is a "meta" post asking for stories rather than sharing one
+function isMetaPost(post: ArcticShiftPost): boolean {
+  const title = post.title?.toLowerCase() || '';
+  const text = post.selftext?.toLowerCase() || '';
+  const combined = `${title} ${text}`;
+
+  // Check against meta patterns
+  for (const pattern of META_POST_PATTERNS) {
+    if (pattern.test(combined)) {
+      return true;
+    }
+  }
+
+  // Titles that are just questions often indicate prompts
+  if (title.endsWith('?') && title.split(' ').length < 10) {
+    // Short question titles are often prompts
+    const promptWords = ['your', 'you', 'anyone', 'has', 'does', 'what', 'who', 'share'];
+    if (promptWords.some(word => title.includes(word))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Fetch comments from a post using Arctic Shift API
+async function fetchPostComments(
+  postId: string,
+  subreddit: string,
+  postTitle: string,
+  limit: number = 20
+): Promise<ScrapedReport[]> {
+  const reports: ScrapedReport[] = [];
+
+  try {
+    // Arctic Shift comments endpoint
+    const url = `https://arctic-shift.photon-reddit.com/api/comments/search?link_id=t3_${postId}&limit=${limit}`;
+    console.log(`[Reddit/ArcticShift] Fetching comments for post ${postId}: ${url}`);
+
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'ParaDocs/1.0 (Paranormal Research Database)',
+      }
+    });
+
+    if (!response.ok) {
+      console.log(`[Reddit/ArcticShift] Failed to fetch comments for ${postId}: ${response.status}`);
+      return reports;
+    }
+
+    const data = await response.json();
+    const comments: ArcticShiftComment[] = Array.isArray(data) ? data : (data.data || []);
+
+    console.log(`[Reddit/ArcticShift] Found ${comments.length} comments for post ${postId}`);
+
+    // Get category from subreddit
+    const category = SUBREDDIT_CATEGORIES[subreddit] || 'combination';
+
+    for (const comment of comments) {
+      // Skip short comments, deleted, or low quality
+      if (!comment.body || comment.body.length < 150) continue;
+      if (comment.body === '[removed]' || comment.body === '[deleted]') continue;
+      if (comment.score < 0) continue;
+
+      // Clean the comment text
+      const description = comment.body
+        .replace(/\n{3,}/g, '\n\n')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .trim();
+
+      // Create summary
+      const summary = description.length > 200
+        ? description.substring(0, 197) + '...'
+        : description;
+
+      // Create a title from the first sentence or truncate
+      const firstSentence = description.match(/^[^.!?]+[.!?]/);
+      const title = firstSentence
+        ? (firstSentence[0].length > 100 ? firstSentence[0].substring(0, 97) + '...' : firstSentence[0])
+        : (description.substring(0, 97) + '...');
+
+      // Convert UTC timestamp to date
+      const eventDate = new Date(comment.created_utc * 1000).toISOString().split('T')[0];
+
+      // Extract tags
+      const tags: string[] = [subreddit.toLowerCase(), 'comment-experience'];
+      const lowerText = description.toLowerCase();
+
+      if (lowerText.includes('encounter') || lowerText.includes('sighting')) {
+        tags.push('encounter');
+      }
+      if (lowerText.includes('experience') || lowerText.includes('happened to me')) {
+        tags.push('personal-experience');
+      }
+
+      reports.push({
+        title,
+        summary,
+        description,
+        category,
+        event_date: eventDate,
+        credibility: comment.score > 50 ? 'high' : (comment.score > 10 ? 'medium' : 'low'),
+        source_type: 'reddit',
+        original_report_id: `reddit-comment-${comment.id}`,
+        tags
+      });
+    }
+
+    console.log(`[Reddit/ArcticShift] Extracted ${reports.length} valid comment experiences from post ${postId}`);
+
+  } catch (error) {
+    console.error(`[Reddit/ArcticShift] Error fetching comments:`, error instanceof Error ? error.message : 'Unknown');
+  }
+
+  return reports;
+}
+
 // Parse a Reddit/Arctic Shift post into a ScrapedReport
 function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
   // Arctic Shift might use different field names - handle both cases
@@ -257,7 +406,9 @@ async function fetchSubreddit(
       // Filter for text posts (relaxed engagement filter for archived data)
       let skippedLowScore = 0;
       let skippedNotSelf = 0;
+      let skippedMetaPost = 0;
       let skippedParseFailed = 0;
+      let commentReportsAdded = 0;
 
       for (const post of posts) {
         // Only skip heavily downvoted posts (score < 0)
@@ -272,6 +423,25 @@ async function fetchSubreddit(
           continue;
         }
 
+        // Check if this is a meta/prompt post (asking for stories, not sharing one)
+        if (isMetaPost(post)) {
+          console.log(`[Reddit/ArcticShift] Meta post detected: "${post.title?.substring(0, 50)}..." (${post.num_comments} comments)`);
+          skippedMetaPost++;
+
+          // If the post has good engagement, fetch comments as they contain the actual experiences
+          if (post.num_comments >= 5) {
+            try {
+              const commentReports = await fetchPostComments(post.id, subreddit, post.title, 15);
+              reports.push(...commentReports);
+              commentReportsAdded += commentReports.length;
+              console.log(`[Reddit/ArcticShift] Added ${commentReports.length} comment experiences from meta post`);
+            } catch (err) {
+              console.log(`[Reddit/ArcticShift] Failed to fetch comments for meta post: ${err}`);
+            }
+          }
+          continue;
+        }
+
         const report = parseRedditPost(post);
         if (report) {
           reports.push(report);
@@ -280,7 +450,7 @@ async function fetchSubreddit(
         }
       }
 
-      console.log(`[Reddit/ArcticShift] Filtering results for r/${subreddit}: passed=${reports.length}, skippedLowScore=${skippedLowScore}, skippedNotSelf=${skippedNotSelf}, skippedParseFailed=${skippedParseFailed}`);
+      console.log(`[Reddit/ArcticShift] Filtering results for r/${subreddit}: passed=${reports.length}, skippedLowScore=${skippedLowScore}, skippedNotSelf=${skippedNotSelf}, skippedMetaPost=${skippedMetaPost}, skippedParseFailed=${skippedParseFailed}, commentReports=${commentReportsAdded}`);
 
       if (reports.length > 0) {
         console.log(`[Reddit/ArcticShift] Successfully fetched ${reports.length} posts from r/${subreddit}`);
