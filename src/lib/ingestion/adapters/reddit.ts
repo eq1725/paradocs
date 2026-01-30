@@ -97,6 +97,56 @@ const META_POST_PATTERNS = [
   /\b(discussion|megathread|weekly thread)\b/i,
 ];
 
+// Patterns that indicate art, merchandise, or promotional content (NOT sightings)
+const NON_SIGHTING_PATTERNS = [
+  // Art and crafts
+  /\b(i (made|drew|painted|created|designed|crafted|stitched|knitted|crocheted))\b/i,
+  /\b(my (art|artwork|drawing|painting|sketch|illustration|design|craft|creation))\b/i,
+  /\b(cross[- ]?stitch|embroidery|crochet|knitting|quilting|woodworking|sculpture)\b/i,
+  /\b(fan ?art|oc|original character|commission)\b/i,
+  /\b(digital art|traditional art|pixel art|3d model)\b/i,
+  // Merchandise and promotional
+  /\b(for sale|buy now|shop|store|etsy|redbubble|teepublic|amazon)\b/i,
+  /\b(merch|merchandise|t-shirt|shirt|poster|sticker|mug|print)\b/i,
+  /\b(link in (bio|comments|description)|check out my)\b/i,
+  /\b(free download|download free|pattern free)\b/i,
+  // Media/entertainment (not experiences)
+  /\b(movie|film|show|series|episode|trailer|review|rating)\b/i,
+  /\b(game|video ?game|indie game|rpg|tabletop)\b/i,
+  /\b(podcast episode|new episode|latest episode)\b/i,
+  /\b(book release|new book|my novel|my book)\b/i,
+  // Memes and jokes
+  /\b(meme|shitpost|joke|lol|lmao|funny)\b/i,
+  /\b(wrong answers only|caption this)\b/i,
+  // Tattoos
+  /\b(my (new )?tattoo|got (a |this )?tattoo|tattoo (design|idea|artist))\b/i,
+  // Cosplay
+  /\b(cosplay|costume|dressed as|dressed up as)\b/i,
+  // News/articles about phenomena (not personal experiences)
+  /\b(article|news|report says|according to|scientists|researchers found)\b/i,
+];
+
+// URL patterns that indicate promotional/spam content
+const SPAM_URL_PATTERNS = [
+  /etsy\.com/i,
+  /redbubble\.com/i,
+  /teepublic\.com/i,
+  /society6\.com/i,
+  /zazzle\.com/i,
+  /spreadshirt\.com/i,
+  /cafepress\.com/i,
+  /teespring\.com/i,
+  /printful\.com/i,
+  /creativelycrafting\.com/i,
+  /patreon\.com/i,
+  /ko-fi\.com/i,
+  /buymeacoffee\.com/i,
+  /gumroad\.com/i,
+  /linktr\.ee/i,
+  /bit\.ly/i,
+  /tinyurl\.com/i,
+];
+
 // Check if a post is a "meta" post asking for stories rather than sharing one
 function isMetaPost(post: ArcticShiftPost): boolean {
   const title = post.title?.toLowerCase() || '';
@@ -120,6 +170,68 @@ function isMetaPost(post: ArcticShiftPost): boolean {
   }
 
   return false;
+}
+
+// Check if a post is art, merchandise, promotional, or other non-sighting content
+function isNonSightingContent(post: ArcticShiftPost): { isNonSighting: boolean; reason?: string } {
+  const title = post.title?.toLowerCase() || '';
+  const text = post.selftext?.toLowerCase() || '';
+  const combined = `${title} ${text}`;
+
+  // Check against non-sighting patterns
+  for (const pattern of NON_SIGHTING_PATTERNS) {
+    if (pattern.test(combined)) {
+      const match = combined.match(pattern);
+      return { isNonSighting: true, reason: `matches pattern: ${match?.[0]}` };
+    }
+  }
+
+  // Check for spam/promotional URLs in the text
+  for (const urlPattern of SPAM_URL_PATTERNS) {
+    if (urlPattern.test(text)) {
+      return { isNonSighting: true, reason: `contains promotional URL` };
+    }
+  }
+
+  // Check for external links that aren't news sources or image hosts
+  const urlMatches = text.match(/https?:\/\/[^\s\)]+/gi) || [];
+  const allowedDomains = [
+    'reddit.com', 'redd.it', 'imgur.com', 'i.redd.it', 'v.redd.it',
+    'youtube.com', 'youtu.be', 'twitter.com', 'x.com',
+    'wikipedia.org', 'bbc.com', 'cnn.com', 'nytimes.com',
+    'nuforc.org', 'mufon.com'
+  ];
+
+  for (const url of urlMatches) {
+    const isAllowed = allowedDomains.some(domain => url.toLowerCase().includes(domain));
+    if (!isAllowed && !url.includes('.jpg') && !url.includes('.png') && !url.includes('.gif')) {
+      // Check if it looks like a shop/promotional link
+      if (/\.(com|net|org|shop|store)\//.test(url)) {
+        return { isNonSighting: true, reason: `contains external link: ${url.substring(0, 50)}` };
+      }
+    }
+  }
+
+  // Check for common art post flairs
+  const artFlairs = ['art', 'artwork', 'oc', 'fan art', 'fanart', 'meme', 'humor', 'merchandise', 'merch'];
+  if (post.link_flair_text && artFlairs.some(flair => post.link_flair_text?.toLowerCase().includes(flair))) {
+    return { isNonSighting: true, reason: `has art/meme flair: ${post.link_flair_text}` };
+  }
+
+  // Title patterns that suggest non-sighting content
+  const titleOnlyPatterns = [
+    /^(i made|i drew|i painted|i created|my art|here's my|check out my)/i,
+    /^(new|my new) (tattoo|design|artwork|creation)/i,
+    /:[\)\(D]|\s[\)\(D]$/,  // Smileys in title often indicate casual/meme posts
+  ];
+
+  for (const pattern of titleOnlyPatterns) {
+    if (pattern.test(title)) {
+      return { isNonSighting: true, reason: `title suggests non-sighting: ${title.substring(0, 40)}` };
+    }
+  }
+
+  return { isNonSighting: false };
 }
 
 // Fetch comments from a post using Arctic Shift API
@@ -407,6 +519,7 @@ async function fetchSubreddit(
       let skippedLowScore = 0;
       let skippedNotSelf = 0;
       let skippedMetaPost = 0;
+      let skippedNonSighting = 0;
       let skippedParseFailed = 0;
       let commentReportsAdded = 0;
 
@@ -420,6 +533,14 @@ async function fetchSubreddit(
         // Skip non-self posts (links, images) - but allow if is_self is undefined
         if (post.is_self === false) {
           skippedNotSelf++;
+          continue;
+        }
+
+        // Check if this is art, merchandise, or other non-sighting content
+        const nonSightingCheck = isNonSightingContent(post);
+        if (nonSightingCheck.isNonSighting) {
+          console.log(`[Reddit/ArcticShift] Non-sighting content filtered: "${post.title?.substring(0, 50)}..." (${nonSightingCheck.reason})`);
+          skippedNonSighting++;
           continue;
         }
 
@@ -450,7 +571,7 @@ async function fetchSubreddit(
         }
       }
 
-      console.log(`[Reddit/ArcticShift] Filtering results for r/${subreddit}: passed=${reports.length}, skippedLowScore=${skippedLowScore}, skippedNotSelf=${skippedNotSelf}, skippedMetaPost=${skippedMetaPost}, skippedParseFailed=${skippedParseFailed}, commentReports=${commentReportsAdded}`);
+      console.log(`[Reddit/ArcticShift] Filtering results for r/${subreddit}: passed=${reports.length}, skippedLowScore=${skippedLowScore}, skippedNotSelf=${skippedNotSelf}, skippedMetaPost=${skippedMetaPost}, skippedNonSighting=${skippedNonSighting}, skippedParseFailed=${skippedParseFailed}, commentReports=${commentReportsAdded}`);
 
       if (reports.length > 0) {
         console.log(`[Reddit/ArcticShift] Successfully fetched ${reports.length} posts from r/${subreddit}`);
