@@ -344,6 +344,20 @@ export async function getPatternsByInterests(
 // PERSONALIZED INSIGHTS BUNDLE
 // ============================================
 
+export interface CategoryTrend {
+  category: string
+  current_count: number
+  previous_count: number
+  percent_change: number
+  trending_direction: 'increasing' | 'decreasing' | 'stable'
+}
+
+export interface SimilarExperiencers {
+  total_similar_users: number
+  users_in_state: number
+  shared_interests: string[]
+}
+
 export interface PersonalizedInsights {
   hasLocation: boolean
   hasInterests: boolean
@@ -355,6 +369,73 @@ export interface PersonalizedInsights {
   activityMetrics?: ActivityMetrics
   interestedCategories: PhenomenonCategory[]
   matchingPatterns: PatternMatch[]
+  categoryTrends?: CategoryTrend[]
+  similarExperiencers?: SimilarExperiencers
+}
+
+/**
+ * Get trending stats for specific categories
+ */
+export async function getCategoryTrends(
+  categories: string[],
+  days: number = 7
+): Promise<CategoryTrend[]> {
+  const supabase = createServerClient()
+
+  const { data, error } = await supabase
+    .rpc('get_category_trends', {
+      p_categories: categories,
+      p_days: days
+    })
+
+  if (error) {
+    console.error('[Personalization] Error getting category trends:', error)
+    return []
+  }
+
+  return (data || []).map((row: Record<string, unknown>) => ({
+    category: row.category as string,
+    current_count: Number(row.current_count) || 0,
+    previous_count: Number(row.previous_count) || 0,
+    percent_change: Number(row.percent_change) || 0,
+    trending_direction: row.trending_direction as 'increasing' | 'decreasing' | 'stable'
+  }))
+}
+
+/**
+ * Get count of users with similar interests
+ */
+export async function getSimilarExperiencers(
+  userId: string,
+  state?: string
+): Promise<SimilarExperiencers | null> {
+  const supabase = createServerClient()
+
+  const { data, error } = await supabase
+    .rpc('get_similar_experiencers', {
+      p_user_id: userId,
+      p_state: state || null
+    })
+
+  if (error) {
+    console.error('[Personalization] Error getting similar experiencers:', error)
+    return null
+  }
+
+  if (!data || data.length === 0) {
+    return {
+      total_similar_users: 0,
+      users_in_state: 0,
+      shared_interests: []
+    }
+  }
+
+  const result = data[0]
+  return {
+    total_similar_users: Number(result.total_similar_users) || 0,
+    users_in_state: Number(result.users_in_state) || 0,
+    shared_interests: result.shared_interests || []
+  }
 }
 
 /**
@@ -380,7 +461,10 @@ export async function getPersonalizedInsights(userId: string): Promise<Personali
   )
 
   let activityMetrics: ActivityMetrics | undefined
+  let categoryTrends: CategoryTrend[] | undefined
+  let similarExperiencers: SimilarExperiencers | undefined
 
+  // Fetch location-based metrics
   if (hasLocation && personalization) {
     const metrics = await getActivityInRadius(
       personalization.location_latitude!,
@@ -390,6 +474,16 @@ export async function getPersonalizedInsights(userId: string): Promise<Personali
     if (metrics) {
       activityMetrics = metrics
     }
+  }
+
+  // Fetch interest-based metrics
+  if (hasInterests && personalization) {
+    const [trends, similar] = await Promise.all([
+      getCategoryTrends(personalization.interested_categories, 7),
+      getSimilarExperiencers(userId, personalization.location_state || undefined)
+    ])
+    categoryTrends = trends
+    similarExperiencers = similar || undefined
   }
 
   return {
@@ -402,6 +496,8 @@ export async function getPersonalizedInsights(userId: string): Promise<Personali
     } : undefined,
     activityMetrics,
     interestedCategories: personalization?.interested_categories || [],
-    matchingPatterns: patterns
+    matchingPatterns: patterns,
+    categoryTrends,
+    similarExperiencers
   }
 }

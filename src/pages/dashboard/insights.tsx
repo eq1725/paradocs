@@ -20,7 +20,9 @@ import {
   BarChart3,
   Clock,
   Settings,
-  Star
+  Star,
+  Users,
+  Flame
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { FeatureGate } from '@/components/dashboard/FeatureGate'
@@ -220,32 +222,58 @@ export default function InsightsPage() {
         icon: Star,
         link: '/dashboard/settings'
       })
-    } else if (insights?.matchingPatterns && insights.matchingPatterns.length > 0) {
-      // Show patterns matching user's interests
-      const interestLabels = insights.interestedCategories
-        .slice(0, 2)
-        .map(cat => CATEGORY_CONFIG[cat]?.label || cat)
-        .join(' & ')
+    } else {
+      // Show trending in their interests (Option 2)
+      if (insights?.categoryTrends && insights.categoryTrends.length > 0) {
+        const trendingCategories = insights.categoryTrends.filter(t => t.current_count > 0)
+        const hotCategory = trendingCategories.find(t => t.trending_direction === 'increasing')
 
-      cards.push({
-        id: 'interest-patterns',
-        type: 'pattern',
-        title: 'Patterns Matching Your Interests',
-        description: `Based on your interest in ${interestLabels}, we found ${insights.matchingPatterns.length} active ${insights.matchingPatterns.length === 1 ? 'pattern' : 'patterns'} you might find interesting.`,
-        icon: Sparkles,
-        link: '/insights'
-      })
+        if (hotCategory) {
+          const categoryLabel = CATEGORY_CONFIG[hotCategory.category as keyof typeof CATEGORY_CONFIG]?.label || hotCategory.category
+          cards.push({
+            id: 'trending-interests',
+            type: 'trend',
+            title: `${categoryLabel} Activity Rising`,
+            description: `${categoryLabel} reports are up ${Math.abs(hotCategory.percent_change)}% this week with ${hotCategory.current_count} new ${hotCategory.current_count === 1 ? 'report' : 'reports'}. Your interest area is heating up!`,
+            icon: Flame,
+            link: '/explore'
+          })
+        } else if (trendingCategories.length > 0) {
+          // Show general activity in their interests
+          const totalReports = trendingCategories.reduce((sum, t) => sum + t.current_count, 0)
+          const interestLabels = insights.interestedCategories
+            .slice(0, 2)
+            .map(cat => CATEGORY_CONFIG[cat]?.label || cat)
+            .join(' & ')
+
+          cards.push({
+            id: 'interest-activity',
+            type: 'trend',
+            title: 'Activity in Your Interests',
+            description: `${totalReports} new ${totalReports === 1 ? 'report' : 'reports'} in ${interestLabels} this week. Stay tuned for emerging patterns.`,
+            icon: BarChart3,
+            link: '/explore'
+          })
+        }
+      }
+
+      // Show similar experiencers (Option 5)
+      if (insights?.similarExperiencers && insights.similarExperiencers.total_similar_users > 0) {
+        const { total_similar_users, users_in_state } = insights.similarExperiencers
+        const stateText = insights.location?.state && users_in_state > 0
+          ? ` (${users_in_state} in ${insights.location.state})`
+          : ''
+
+        cards.push({
+          id: 'similar-experiencers',
+          type: 'pattern',
+          title: 'Similar Investigators',
+          description: `${total_similar_users} other ${total_similar_users === 1 ? 'investigator shares' : 'investigators share'} your interests${stateText}. You're part of a growing community!`,
+          icon: Users,
+          link: '/explore'
+        })
+      }
     }
-
-    // Always show a general insights card
-    cards.push({
-      id: 'similar-reports',
-      type: 'pattern',
-      title: 'Explore Global Patterns',
-      description: 'Discover paranormal patterns detected across the globe through our AI analysis engine.',
-      icon: Lightbulb,
-      link: '/insights'
-    })
 
     return cards.slice(0, 3) // Max 3 cards
   }

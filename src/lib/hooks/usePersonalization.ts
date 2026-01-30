@@ -48,6 +48,20 @@ export interface PatternMatch {
   center_lng: number
 }
 
+export interface CategoryTrend {
+  category: string
+  current_count: number
+  previous_count: number
+  percent_change: number
+  trending_direction: 'increasing' | 'decreasing' | 'stable'
+}
+
+export interface SimilarExperiencers {
+  total_similar_users: number
+  users_in_state: number
+  shared_interests: string[]
+}
+
 export interface PersonalizedInsights {
   hasLocation: boolean
   hasInterests: boolean
@@ -59,6 +73,8 @@ export interface PersonalizedInsights {
   activityMetrics?: ActivityMetrics
   interestedCategories: PhenomenonCategory[]
   matchingPatterns: PatternMatch[]
+  categoryTrends?: CategoryTrend[]
+  similarExperiencers?: SimilarExperiencers
 }
 
 interface PersonalizationState {
