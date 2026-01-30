@@ -33,21 +33,21 @@ BEGIN
   ),
   current_period AS (
     SELECT
-      r.category,
+      r.category::TEXT as cat,
       COUNT(*) as cnt
     FROM reports r
     WHERE r.status = 'approved'
-      AND r.category = ANY(p_categories)
+      AND r.category::TEXT = ANY(p_categories)
       AND r.created_at >= v_current_start
     GROUP BY r.category
   ),
   previous_period AS (
     SELECT
-      r.category,
+      r.category::TEXT as cat,
       COUNT(*) as cnt
     FROM reports r
     WHERE r.status = 'approved'
-      AND r.category = ANY(p_categories)
+      AND r.category::TEXT = ANY(p_categories)
       AND r.created_at >= v_previous_start
       AND r.created_at < v_previous_end
     GROUP BY r.category
@@ -68,8 +68,8 @@ BEGIN
       ELSE 'stable'
     END as trending_direction
   FROM category_list cl
-  LEFT JOIN current_period cp ON cp.category = cl.cat
-  LEFT JOIN previous_period pp ON pp.category = cl.cat;
+  LEFT JOIN current_period cp ON cp.cat = cl.cat
+  LEFT JOIN previous_period pp ON pp.cat = cl.cat;
 END;
 $$ LANGUAGE plpgsql;
 
