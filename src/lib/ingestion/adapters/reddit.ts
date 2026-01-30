@@ -221,14 +221,21 @@ async function fetchSubreddit(
         continue;
       }
 
+      // Debug: log response structure
+      const dataKeys = typeof data === 'object' && data !== null ? Object.keys(data) : ['not an object'];
+      console.log(`[Reddit/ArcticShift] Response keys for r/${subreddit}: ${dataKeys.join(', ')}`);
+      console.log(`[Reddit/ArcticShift] Response sample for r/${subreddit}: ${JSON.stringify(data).substring(0, 500)}`);
+
       // Handle different response structures
       let posts: ArcticShiftPost[] = [];
       if (Array.isArray(data)) {
+        console.log(`[Reddit/ArcticShift] Response is array with ${data.length} items`);
         posts = data as unknown as ArcticShiftPost[];
       } else if (data?.data && Array.isArray(data.data)) {
+        console.log(`[Reddit/ArcticShift] Response has data array with ${data.data.length} items`);
         posts = data.data;
       } else {
-        console.log(`[Reddit/ArcticShift] Unexpected response structure for r/${subreddit}: ${JSON.stringify(data).substring(0, 200)}`);
+        console.log(`[Reddit/ArcticShift] Unexpected response structure for r/${subreddit}`);
         continue;
       }
 
