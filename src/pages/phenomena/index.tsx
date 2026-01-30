@@ -22,12 +22,13 @@ interface Phenomenon {
 type ViewMode = 'grid' | 'list'
 
 const CATEGORY_ORDER = [
-  'cryptid',
-  'ufo_uap',
-  'ghost_haunting',
-  'unexplained_event',
-  'psychic_paranormal',
-  'mystery_location',
+  'cryptids',
+  'ufos_aliens',
+  'ghosts_hauntings',
+  'psychic_phenomena',
+  'consciousness_practices',
+  'psychological_experiences',
+  'biological_factors',
 ]
 
 export default function PhenomenaPage() {
