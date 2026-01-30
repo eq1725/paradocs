@@ -6,11 +6,14 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { supabaseAdmin } from '@/lib/supabase-admin';
+import { createServerClient } from '../supabase';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+// Create admin client for server-side operations
+const getSupabaseAdmin = () => createServerClient();
 
 // Types
 export interface Phenomenon {
@@ -56,7 +59,7 @@ export interface IdentificationResult {
  * Get all active phenomena
  */
 export async function getAllPhenomena(): Promise<Phenomenon[]> {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await getSupabaseAdmin()
     .from('phenomena')
     .select('*')
     .eq('status', 'active')
@@ -74,7 +77,7 @@ export async function getAllPhenomena(): Promise<Phenomenon[]> {
  * Get phenomena by category
  */
 export async function getPhenomenaByCategory(category: string): Promise<Phenomenon[]> {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await getSupabaseAdmin()
     .from('phenomena')
     .select('*')
     .eq('status', 'active')
@@ -93,7 +96,7 @@ export async function getPhenomenaByCategory(category: string): Promise<Phenomen
  * Get a single phenomenon by slug
  */
 export async function getPhenomenonBySlug(slug: string): Promise<Phenomenon | null> {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await getSupabaseAdmin()
     .from('phenomena')
     .select('*')
     .eq('slug', slug)
@@ -112,7 +115,7 @@ export async function getPhenomenonBySlug(slug: string): Promise<Phenomenon | nu
  * Get related reports for a phenomenon
  */
 export async function getPhenomenonReports(phenomenonId: string, limit = 20) {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await getSupabaseAdmin()
     .from('report_phenomena')
     .select(`
       confidence,
@@ -248,7 +251,7 @@ export async function linkReportToPhenomena(
     // Only link if confidence is above threshold
     if (match.confidence < 0.5) continue;
 
-    const { error } = await supabaseAdmin
+    const { error } = await getSupabaseAdmin()
       .from('report_phenomena')
       .upsert({
         report_id: reportId,
@@ -271,7 +274,7 @@ export async function linkReportToPhenomena(
  */
 export async function generatePhenomenonContent(phenomenonId: string): Promise<boolean> {
   // Get the phenomenon
-  const { data: phenomenon, error } = await supabaseAdmin
+  const { data: phenomenon, error } = await getSupabaseAdmin()
     .from('phenomena')
     .select('*')
     .eq('id', phenomenonId)
@@ -335,7 +338,7 @@ Respond in JSON format:
     const aiContent = JSON.parse(jsonMatch[0]);
 
     // Update the phenomenon with AI content
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await getSupabaseAdmin()
       .from('phenomena')
       .update({
         ai_summary: aiContent.summary,
@@ -381,7 +384,7 @@ export async function createPhenomenon(data: {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 
-  const { data: phenomenon, error } = await supabaseAdmin
+  const { data: phenomenon, error } = await getSupabaseAdmin()
     .from('phenomena')
     .insert({
       name: data.name,
@@ -425,7 +428,7 @@ export async function processPhenomenaForReports(reportIds: string[]): Promise<{
 
   for (const reportId of reportIds) {
     // Get the report
-    const { data: report, error } = await supabaseAdmin
+    const { data: report, error } = await getSupabaseAdmin()
       .from('reports')
       .select('id, title, summary, description, category, tags')
       .eq('id', reportId)
@@ -498,7 +501,7 @@ export async function getReportPhenomena(reportId: string): Promise<{
   phenomenon: Phenomenon;
   confidence: number;
 }[]> {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await getSupabaseAdmin()
     .from('report_phenomena')
     .select(`
       confidence,
@@ -521,7 +524,7 @@ export async function getReportPhenomena(reportId: string): Promise<{
  * Search phenomena by name
  */
 export async function searchPhenomena(query: string, limit = 10): Promise<Phenomenon[]> {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await getSupabaseAdmin()
     .from('phenomena')
     .select('*')
     .eq('status', 'active')
