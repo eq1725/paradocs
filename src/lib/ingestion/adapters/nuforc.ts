@@ -185,30 +185,74 @@ interface ReportMetadata {
 async function parseMonthPage(html: string): Promise<ReportMetadata[]> {
   const reports: ReportMetadata[] = [];
 
-  // Actual NUFORC table structure (wpDataTable):
-  // <tr class="odd"><td class="column-link">...<a href="/sighting/?id=195775">Open</a>...</td>
-  //   <td class="column-occurred">01/25/2026 21:29</td>
-  //   <td class="column-city">Mount Colah</td>
-  //   <td class="column-state">New South Wales</td>
-  //   <td class="column-country">Australia</td>
-  //   <td class="column-shape">Orb</td>
-  //   <td class="column-summary">6 star looking orbs...</td>
-  //   <td class="column-reported">01/25/2026</td>
-  //   <td class="column-hasimage"></td>
-  //   <td class="column-explanation"></td></tr>
+  // Debug: Log HTML size and look for key markers
+  console.log(`[NUFORC] HTML size: ${html.length} bytes`);
+  console.log(`[NUFORC] Contains sighting link: ${html.includes('/sighting/?id=')}`);
+  console.log(`[NUFORC] Contains table: ${html.includes('<table')}`);
+  console.log(`[NUFORC] Contains wpDataTable: ${html.includes('wpDataTable')}`);
 
-  // Find all data rows (skip header row which has <th> elements)
+  // First approach: Find all sighting links directly and extract surrounding row data
+  // This works regardless of table structure
+  const sightingLinkPattern = /href="\/sighting\/\?id=(\d+)"/gi;
+  const sightingIds: string[] = [];
+  let linkMatch;
+  while ((linkMatch = sightingLinkPattern.exec(html)) !== null) {
+    sightingIds.push(linkMatch[1]);
+  }
+  console.log(`[NUFORC] Found ${sightingIds.length} sighting links in page`);
+
+  // If we have sighting IDs, find table rows containing them
+  if (sightingIds.length > 0) {
+    // Try to find each sighting's row data
+    for (const id of sightingIds) {
+      // Find the table row containing this sighting ID
+      const rowPattern = new RegExp(`<tr[^>]*>[\\s\\S]*?href="\\/sighting\\/\\?id=${id}"[\\s\\S]*?<\\/tr>`, 'i');
+      const rowMatch = html.match(rowPattern);
+
+      if (rowMatch) {
+        const rowHtml = rowMatch[0];
+
+        // Extract all td cells
+        const cellPattern = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+        const cells: string[] = [];
+        let cellMatch;
+        while ((cellMatch = cellPattern.exec(rowHtml)) !== null) {
+          cells.push(cleanText(cellMatch[1].replace(/<[^>]+>/g, '')));
+        }
+
+        // We expect: Link, Occurred, City, State, Country, Shape, Summary, Reported, Media, Explanation
+        if (cells.length >= 7) {
+          reports.push({
+            id: id,
+            occurred: cells[1] || '',
+            city: cells[2] || '',
+            state: cells[3] || '',
+            country: cells[4] || 'USA',
+            shape: cells[5] || 'unknown',
+            summary: cells[6] || '',
+            reported: cells[7] || '',
+            hasMedia: (cells[8] || '').toLowerCase() === 'y' || (cells[8] || '').toLowerCase() === 'yes',
+            explanation: cells[9] || ''
+          });
+        }
+      }
+    }
+
+    if (reports.length > 0) {
+      console.log(`[NUFORC] Direct ID extraction found ${reports.length} reports`);
+      return reports;
+    }
+  }
+
+  // Second approach: Class-based cell extraction (for browser-rendered HTML)
   const rowPattern = /<tr[^>]*class="(?:odd|even)"[^>]*>([\s\S]*?)<\/tr>/gi;
   let match;
 
   while ((match = rowPattern.exec(html)) !== null) {
     const rowHtml = match[1];
-
-    // Extract sighting ID from link
     const idMatch = rowHtml.match(/href="\/sighting\/\?id=(\d+)"/i);
     if (!idMatch) continue;
 
-    // Extract cells by their class names for reliability
     const extractCell = (className: string): string => {
       const pattern = new RegExp(`<td[^>]*class="[^"]*column-${className}[^"]*"[^>]*>([\\s\\S]*?)<\\/td>`, 'i');
       const cellMatch = rowHtml.match(pattern);
@@ -228,7 +272,6 @@ async function parseMonthPage(html: string): Promise<ReportMetadata[]> {
     const hasImage = extractCell('hasimage');
     const explanation = extractCell('explanation');
 
-    // Only add if we have at least the ID and some content
     if (occurred || summary) {
       reports.push({
         id: idMatch[1],
@@ -245,47 +288,45 @@ async function parseMonthPage(html: string): Promise<ReportMetadata[]> {
     }
   }
 
-  // Fallback: If class-based extraction didn't work, try generic row parsing
-  if (reports.length === 0) {
-    console.log('[NUFORC] Class-based parsing found 0 rows, trying generic parsing...');
+  if (reports.length > 0) {
+    console.log(`[NUFORC] Class-based parsing found ${reports.length} reports`);
+    return reports;
+  }
 
-    const genericRowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-    let isFirst = true;
+  // Third approach: Generic row parsing
+  console.log('[NUFORC] Class-based parsing found 0 rows, trying generic parsing...');
 
-    while ((match = genericRowPattern.exec(html)) !== null) {
-      const rowHtml = match[1];
+  const genericRowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
 
-      // Skip header rows (contain <th>)
-      if (rowHtml.includes('<th')) {
-        isFirst = false;
-        continue;
-      }
+  while ((match = genericRowPattern.exec(html)) !== null) {
+    const rowHtml = match[0];
 
-      const idMatch = rowHtml.match(/href="[^"]*\/sighting\/\?id=(\d+)"/i);
-      if (!idMatch) continue;
+    // Skip header rows (contain <th>)
+    if (rowHtml.includes('<th')) continue;
 
-      // Extract all td cells
-      const cellPattern = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-      const cells: string[] = [];
-      let cellMatch;
-      while ((cellMatch = cellPattern.exec(rowHtml)) !== null) {
-        cells.push(cleanText(cellMatch[1].replace(/<[^>]+>/g, '')));
-      }
+    const idMatch = rowHtml.match(/href="[^"]*\/sighting\/\?id=(\d+)"/i);
+    if (!idMatch) continue;
 
-      if (cells.length >= 7) {
-        reports.push({
-          id: idMatch[1],
-          occurred: cells[1] || '',
-          city: cells[2] || '',
-          state: cells[3] || '',
-          country: cells[4] || 'USA',
-          shape: cells[5] || 'unknown',
-          summary: cells[6] || '',
-          reported: cells[7] || '',
-          hasMedia: (cells[8] || '').toLowerCase() === 'y',
-          explanation: cells[9] || ''
-        });
-      }
+    const cellPattern = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+    const cells: string[] = [];
+    let cellMatch;
+    while ((cellMatch = cellPattern.exec(rowHtml)) !== null) {
+      cells.push(cleanText(cellMatch[1].replace(/<[^>]+>/g, '')));
+    }
+
+    if (cells.length >= 7) {
+      reports.push({
+        id: idMatch[1],
+        occurred: cells[1] || '',
+        city: cells[2] || '',
+        state: cells[3] || '',
+        country: cells[4] || 'USA',
+        shape: cells[5] || 'unknown',
+        summary: cells[6] || '',
+        reported: cells[7] || '',
+        hasMedia: (cells[8] || '').toLowerCase() === 'y',
+        explanation: cells[9] || ''
+      });
     }
   }
 
