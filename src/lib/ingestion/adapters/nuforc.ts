@@ -139,25 +139,28 @@ async function fetchWithHeaders(url: string, retries: number = 3): Promise<strin
 async function parseMainIndex(html: string): Promise<Array<{ monthId: string; count: number }>> {
   const months: Array<{ monthId: string; count: number }> = [];
 
-  // Pattern: <a href="...">2026/01</a> ... 227
-  // The links contain the month in format YYYY/MM and link to subndx/?id=eYYYYMM
-  const rowPattern = /<tr[^>]*>[\s\S]*?<td[^>]*>[\s\S]*?<a[^>]*href="[^"]*\?id=e(\d{6})"[^>]*>[\s\S]*?(\d{4}\/\d{2})[\s\S]*?<\/a>[\s\S]*?<\/td>[\s\S]*?<td[^>]*>[\s\S]*?(\d+)[\s\S]*?<\/td>[\s\S]*?<\/tr>/gi;
+  // Actual HTML structure from nuforc.org:
+  // <tr><td><u><a href="/subndx/?id=e202601">2026/01</a></u></td><td>227</td></tr>
+
+  // Simple and reliable: extract all links to month pages
+  const linkPattern = /href="\/subndx\/\?id=e(\d{6})"[^>]*>[\s\S]*?<\/a>[\s\S]*?<\/td>\s*<td[^>]*>\s*(\d+)/gi;
 
   let match;
-  while ((match = rowPattern.exec(html)) !== null) {
-    months.push({
-      monthId: match[1],
-      count: parseInt(match[3]) || 0
-    });
+  while ((match = linkPattern.exec(html)) !== null) {
+    const monthId = match[1];
+    const count = parseInt(match[2]) || 100;
+    if (!months.find(m => m.monthId === monthId)) {
+      months.push({ monthId, count });
+    }
   }
 
-  // Fallback: Try simpler pattern if table parsing didn't work
+  // Fallback: Just extract month IDs if count extraction failed
   if (months.length === 0) {
-    const linkPattern = /href="[^"]*subndx[^"]*\?id=e(\d{6})"/gi;
-    while ((match = linkPattern.exec(html)) !== null) {
+    const simplePattern = /href="\/subndx\/\?id=e(\d{6})"/gi;
+    while ((match = simplePattern.exec(html)) !== null) {
       const monthId = match[1];
       if (!months.find(m => m.monthId === monthId)) {
-        months.push({ monthId, count: 100 }); // Estimate
+        months.push({ monthId, count: 100 });
       }
     }
   }
@@ -182,57 +185,107 @@ interface ReportMetadata {
 async function parseMonthPage(html: string): Promise<ReportMetadata[]> {
   const reports: ReportMetadata[] = [];
 
-  // The new NUFORC uses a table with these columns:
-  // LINK | OCCURRED | CITY | STATE | COUNTRY | SHAPE | SUMMARY | REPORTED | MEDIA | EXPLANATION
-  // Each row has: <a href="/sighting/?id=195775">Open</a>
+  // Actual NUFORC table structure (wpDataTable):
+  // <tr class="odd"><td class="column-link">...<a href="/sighting/?id=195775">Open</a>...</td>
+  //   <td class="column-occurred">01/25/2026 21:29</td>
+  //   <td class="column-city">Mount Colah</td>
+  //   <td class="column-state">New South Wales</td>
+  //   <td class="column-country">Australia</td>
+  //   <td class="column-shape">Orb</td>
+  //   <td class="column-summary">6 star looking orbs...</td>
+  //   <td class="column-reported">01/25/2026</td>
+  //   <td class="column-hasimage"></td>
+  //   <td class="column-explanation"></td></tr>
 
-  // Extract table rows
-  const tableMatch = html.match(/<table[^>]*class="[^"]*wp-block-table[^"]*"[^>]*>([\s\S]*?)<\/table>/i) ||
-                     html.match(/<table[^>]*>([\s\S]*?)<\/table>/i);
-
-  if (!tableMatch) {
-    console.log('[NUFORC] Could not find report table');
-    return reports;
-  }
-
-  const tableHtml = tableMatch[1];
-  const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  // Find all data rows (skip header row which has <th> elements)
+  const rowPattern = /<tr[^>]*class="(?:odd|even)"[^>]*>([\s\S]*?)<\/tr>/gi;
   let match;
-  let isHeader = true;
 
-  while ((match = rowPattern.exec(tableHtml)) !== null) {
-    if (isHeader) {
-      isHeader = false;
-      continue; // Skip header row
-    }
-
+  while ((match = rowPattern.exec(html)) !== null) {
     const rowHtml = match[1];
 
     // Extract sighting ID from link
-    const idMatch = rowHtml.match(/href="[^"]*\/sighting\/\?id=(\d+)"/i);
+    const idMatch = rowHtml.match(/href="\/sighting\/\?id=(\d+)"/i);
     if (!idMatch) continue;
 
-    // Extract all cells
-    const cellPattern = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-    const cells: string[] = [];
-    let cellMatch;
-    while ((cellMatch = cellPattern.exec(rowHtml)) !== null) {
-      cells.push(cleanText(cellMatch[1].replace(/<[^>]+>/g, '')));
-    }
+    // Extract cells by their class names for reliability
+    const extractCell = (className: string): string => {
+      const pattern = new RegExp(`<td[^>]*class="[^"]*column-${className}[^"]*"[^>]*>([\\s\\S]*?)<\\/td>`, 'i');
+      const cellMatch = rowHtml.match(pattern);
+      if (cellMatch) {
+        return cleanText(cellMatch[1].replace(/<[^>]+>/g, ''));
+      }
+      return '';
+    };
 
-    if (cells.length >= 7) {
+    const occurred = extractCell('occurred');
+    const city = extractCell('city');
+    const state = extractCell('state');
+    const country = extractCell('country') || 'USA';
+    const shape = extractCell('shape') || 'unknown';
+    const summary = extractCell('summary');
+    const reported = extractCell('reported');
+    const hasImage = extractCell('hasimage');
+    const explanation = extractCell('explanation');
+
+    // Only add if we have at least the ID and some content
+    if (occurred || summary) {
       reports.push({
         id: idMatch[1],
-        occurred: cells[1] || '',
-        city: cells[2] || '',
-        state: cells[3] || '',
-        country: cells[4] || 'USA',
-        shape: cells[5] || 'unknown',
-        summary: cells[6] || '',
-        reported: cells[7] || '',
-        hasMedia: cells[8]?.toLowerCase() === 'y' || cells[8]?.toLowerCase() === 'yes',
-        explanation: cells[9] || ''
+        occurred,
+        city,
+        state,
+        country,
+        shape,
+        summary,
+        reported,
+        hasMedia: hasImage.toLowerCase() === 'y' || hasImage.toLowerCase() === 'yes',
+        explanation
       });
+    }
+  }
+
+  // Fallback: If class-based extraction didn't work, try generic row parsing
+  if (reports.length === 0) {
+    console.log('[NUFORC] Class-based parsing found 0 rows, trying generic parsing...');
+
+    const genericRowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    let isFirst = true;
+
+    while ((match = genericRowPattern.exec(html)) !== null) {
+      const rowHtml = match[1];
+
+      // Skip header rows (contain <th>)
+      if (rowHtml.includes('<th')) {
+        isFirst = false;
+        continue;
+      }
+
+      const idMatch = rowHtml.match(/href="[^"]*\/sighting\/\?id=(\d+)"/i);
+      if (!idMatch) continue;
+
+      // Extract all td cells
+      const cellPattern = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+      const cells: string[] = [];
+      let cellMatch;
+      while ((cellMatch = cellPattern.exec(rowHtml)) !== null) {
+        cells.push(cleanText(cellMatch[1].replace(/<[^>]+>/g, '')));
+      }
+
+      if (cells.length >= 7) {
+        reports.push({
+          id: idMatch[1],
+          occurred: cells[1] || '',
+          city: cells[2] || '',
+          state: cells[3] || '',
+          country: cells[4] || 'USA',
+          shape: cells[5] || 'unknown',
+          summary: cells[6] || '',
+          reported: cells[7] || '',
+          hasMedia: (cells[8] || '').toLowerCase() === 'y',
+          explanation: cells[9] || ''
+        });
+      }
     }
   }
 
