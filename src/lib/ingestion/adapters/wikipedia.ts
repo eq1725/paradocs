@@ -84,6 +84,9 @@ function parseTableRow(row: string, category: string, pageTitle: string, index: 
     if (title.length < description.length) title += '...';
   }
 
+  // Validate the report content
+  if (!isValidReport(title, description)) return null;
+
   // Parse date
   let eventDate: string | undefined;
   if (dateStr) {
@@ -128,10 +131,79 @@ function parseTableRow(row: string, category: string, pageTitle: string, index: 
   };
 }
 
+// Validate that a report has meaningful content (not garbage)
+function isValidReport(title: string, description: string): boolean {
+  // Reject empty or very short content
+  if (!title || title.length < 5) return false;
+  if (!description || description.length < 20) return false;
+
+  // Reject CSS/code artifacts
+  const codePatterns = [
+    /^\.mw/i,                    // MediaWiki CSS classes
+    /^@media/i,                  // CSS media queries
+    /^\{/,                       // JSON/CSS blocks
+    /^html\./i,                  // CSS selectors
+    /^\.skin/i,                  // Wikipedia skin CSS
+    /^#/,                        // CSS ID selectors
+    /^function\s/i,              // JavaScript
+    /^var\s/i,                   // JavaScript
+    /^const\s/i,                 // JavaScript
+    /^\s*\d+\s*$/,               // Just numbers
+    /^parser$/i,                 // Parser artifacts
+    /^theme$/i,                  // Theme artifacts
+  ];
+
+  for (const pattern of codePatterns) {
+    if (pattern.test(title.trim())) return false;
+    if (pattern.test(description.trim())) return false;
+  }
+
+  // Reject citation/reference markers
+  if (title.startsWith('^') || title.startsWith('[')) return false;
+  if (description.startsWith('^')) return false;
+
+  // Reject if title or description is mostly non-alphanumeric
+  const alphanumericRatio = (str: string) => {
+    const alphanumeric = str.replace(/[^a-zA-Z0-9]/g, '').length;
+    return alphanumeric / str.length;
+  };
+
+  if (alphanumericRatio(title) < 0.5) return false;
+
+  // Reject if title contains typical CSS/code characters
+  if (/[{}<>]/.test(title)) return false;
+
+  // Reject navigation/meta items
+  const skipPatterns = [
+    /^see also/i,
+    /^references$/i,
+    /^external links/i,
+    /^notes$/i,
+    /^bibliography/i,
+    /^further reading/i,
+    /^main article/i,
+    /^citation needed/i,
+  ];
+
+  for (const pattern of skipPatterns) {
+    if (pattern.test(title)) return false;
+  }
+
+  return true;
+}
+
 // Parse Wikipedia page content for list items
 function parseWikiContent(html: string, category: string, pageTitle: string): ScrapedReport[] {
   const reports: ScrapedReport[] = [];
   let index = 0;
+
+  // Remove style and script blocks to avoid parsing CSS/JS as content
+  html = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+  html = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+
+  // Remove reference sections
+  html = html.replace(/<ol[^>]*class="[^"]*references[^"]*"[^>]*>[\s\S]*?<\/ol>/gi, '');
+  html = html.replace(/<div[^>]*class="[^"]*reflist[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
 
   // First, try to parse tables (common for structured lists)
   const tablePattern = /<table[^>]*class="[^"]*wikitable[^"]*"[^>]*>([\s\S]*?)<\/table>/gi;
@@ -171,19 +243,19 @@ function parseWikiContent(html: string, category: string, pageTitle: string): Sc
         .replace(/\[\d+\]/g, '')
         .trim();
 
+      // Require minimum content length
       if (content.length < 50) continue;
+
+      // Skip citation references (start with ^ or numbers)
+      if (/^[\^0-9]/.test(content)) continue;
 
       // Try to extract a title and description
       const parts = content.split(/[-–—:]/, 2);
       const title = parts[0]?.trim() || content.substring(0, 60);
       const description = parts[1]?.trim() || content;
 
-      // Skip navigation/meta items
-      if (title.toLowerCase().includes('see also') ||
-          title.toLowerCase().includes('references') ||
-          title.toLowerCase().includes('external links')) {
-        continue;
-      }
+      // Use the validation function
+      if (!isValidReport(title, description)) continue;
 
       const reportId = `wiki-${pageTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${index++}`;
 
