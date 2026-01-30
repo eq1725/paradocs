@@ -272,6 +272,16 @@ export default function InsightsPage() {
           icon: Users,
           link: '/explore'
         })
+      } else if (insights?.similarExperiencers) {
+        // User has interests but no similar users yet - show pioneer card
+        cards.push({
+          id: 'pioneer-investigator',
+          type: 'recommendation',
+          title: 'Pioneer Investigator',
+          description: "You're among the first to set up your investigation profile! As more investigators join, we'll connect you with others who share your interests.",
+          icon: Star,
+          link: '/explore'
+        })
       }
     }
 
