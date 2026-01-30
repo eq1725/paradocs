@@ -200,42 +200,33 @@ async function parseMonthPage(html: string): Promise<ReportMetadata[]> {
   }
 
   // First approach: Find all sighting links directly and extract surrounding row data
-  // Try multiple regex patterns to handle different formats
+  // The site uses SINGLE QUOTES in href attributes: href='/sighting/?id=194984'
   let sightingIds: string[] = [];
 
-  // Pattern 1: Standard href with forward slashes
-  const pattern1 = /href="\/sighting\/\?id=(\d+)"/gi;
+  // Pattern 1: Single quotes (actual format used by NUFORC)
+  const pattern1 = /href='\/sighting\/\?id=(\d+)'/gi;
   let match;
   while ((match = pattern1.exec(html)) !== null) {
     sightingIds.push(match[1]);
   }
-  console.log(`[NUFORC] Pattern 1 (href="/sighting/?id=X"): ${sightingIds.length} matches`);
+  console.log(`[NUFORC] Pattern 1 (single quotes): ${sightingIds.length} matches`);
 
-  // Pattern 2: href without leading slash
+  // Pattern 2: Double quotes (fallback)
   if (sightingIds.length === 0) {
-    const pattern2 = /href="sighting\/\?id=(\d+)"/gi;
+    const pattern2 = /href="\/sighting\/\?id=(\d+)"/gi;
     while ((match = pattern2.exec(html)) !== null) {
       sightingIds.push(match[1]);
     }
-    console.log(`[NUFORC] Pattern 2 (href="sighting/?id=X"): ${sightingIds.length} matches`);
+    console.log(`[NUFORC] Pattern 2 (double quotes): ${sightingIds.length} matches`);
   }
 
-  // Pattern 3: Full URL
+  // Pattern 3: Either quote type with character class
   if (sightingIds.length === 0) {
-    const pattern3 = /href="https?:\/\/nuforc\.org\/sighting\/\?id=(\d+)"/gi;
+    const pattern3 = /href=['"]\/sighting\/\?id=(\d+)['"]/gi;
     while ((match = pattern3.exec(html)) !== null) {
       sightingIds.push(match[1]);
     }
-    console.log(`[NUFORC] Pattern 3 (full URL): ${sightingIds.length} matches`);
-  }
-
-  // Pattern 4: Any href containing sighting and id number
-  if (sightingIds.length === 0) {
-    const pattern4 = /href="[^"]*sighting[^"]*id=(\d+)"/gi;
-    while ((match = pattern4.exec(html)) !== null) {
-      sightingIds.push(match[1]);
-    }
-    console.log(`[NUFORC] Pattern 4 (loose match): ${sightingIds.length} matches`);
+    console.log(`[NUFORC] Pattern 3 (either quote): ${sightingIds.length} matches`);
   }
 
   console.log(`[NUFORC] Total sighting IDs found: ${sightingIds.length}`);
@@ -244,8 +235,8 @@ async function parseMonthPage(html: string): Promise<ReportMetadata[]> {
   if (sightingIds.length > 0) {
     // Try to find each sighting's row data
     for (const id of sightingIds) {
-      // Find the table row containing this sighting ID
-      const rowPattern = new RegExp(`<tr[^>]*>[\\s\\S]*?href="\\/sighting\\/\\?id=${id}"[\\s\\S]*?<\\/tr>`, 'i');
+      // Find the table row containing this sighting ID (handles both single and double quotes)
+      const rowPattern = new RegExp(`<tr[^>]*>[\\s\\S]*?href=['"]\\/sighting\\/\\?id=${id}['"][\\s\\S]*?<\\/tr>`, 'i');
       const rowMatch = html.match(rowPattern);
 
       if (rowMatch) {
@@ -288,7 +279,7 @@ async function parseMonthPage(html: string): Promise<ReportMetadata[]> {
 
   while ((match = rowPattern.exec(html)) !== null) {
     const rowHtml = match[1];
-    const idMatch = rowHtml.match(/href="\/sighting\/\?id=(\d+)"/i);
+    const idMatch = rowHtml.match(/href=['"]\/sighting\/\?id=(\d+)['"]/i);
     if (!idMatch) continue;
 
     const extractCell = (className: string): string => {
@@ -342,7 +333,7 @@ async function parseMonthPage(html: string): Promise<ReportMetadata[]> {
     // Skip header rows (contain <th>)
     if (rowHtml.includes('<th')) continue;
 
-    const idMatch = rowHtml.match(/href="[^"]*\/sighting\/\?id=(\d+)"/i);
+    const idMatch = rowHtml.match(/href=['"][^'"]*\/sighting\/\?id=(\d+)['"]/i);
     if (!idMatch) continue;
 
     const cellPattern = /<td[^>]*>([\s\S]*?)<\/td>/gi;
