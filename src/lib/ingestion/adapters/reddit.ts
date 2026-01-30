@@ -10,7 +10,11 @@ function delay(ms: number): Promise<void> {
 }
 
 // Arctic Shift API base URL (free Reddit archive)
-const ARCTIC_SHIFT_API = 'https://arctic-shift.photon-reddit.com/api';
+// Trying multiple API endpoints for reliability
+const ARCTIC_SHIFT_ENDPOINTS = [
+  'https://arctic-shift.photon-reddit.com/api',
+  'https://api.arcticshift.app/v1',
+];
 
 // Map subreddits to categories
 const SUBREDDIT_CATEGORIES: Record<string, string> = {
@@ -179,56 +183,83 @@ async function fetchSubreddit(
   twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
   const afterDate = twoYearsAgo.toISOString().split('T')[0]; // YYYY-MM-DD format
 
-  // Arctic Shift search endpoint - /api/posts/search
-  const url = new URL(`${ARCTIC_SHIFT_API}/posts/search`);
-  url.searchParams.set('subreddit', subreddit);
-  url.searchParams.set('after', afterDate);
-  url.searchParams.set('limit', Math.min(limit, 100).toString());
-  url.searchParams.set('sort', 'desc'); // Newest first
+  // Try multiple endpoint formats
+  const urlVariants = [
+    // Format 1: photon-reddit.com
+    `https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=${subreddit}&after=${afterDate}&limit=${Math.min(limit, 100)}&sort=desc`,
+    // Format 2: Alternative with different params
+    `https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=${encodeURIComponent(subreddit)}&limit=${Math.min(limit, 100)}`,
+  ];
 
-  try {
-    console.log(`[Reddit/ArcticShift] Fetching from: ${url.toString()}`);
+  for (const urlString of urlVariants) {
+    try {
+      console.log(`[Reddit/ArcticShift] Trying: ${urlString}`);
 
-    const response = await fetch(url.toString(), {
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'ParaDocs/1.0 (Paranormal Research Database)',
+      const response = await fetch(urlString, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'ParaDocs/1.0 (Paranormal Research Database; contact: admin@paradocs.com)',
+        }
+      });
+
+      console.log(`[Reddit/ArcticShift] Response status for r/${subreddit}: ${response.status}`);
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Could not read error body');
+        console.error(`[Reddit/ArcticShift] API error for r/${subreddit}: ${response.status} - ${errorText.substring(0, 200)}`);
+        continue; // Try next URL variant
       }
-    });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[Reddit/ArcticShift] API error for r/${subreddit}: ${response.status} - ${errorText}`);
-      return reports;
-    }
+      const responseText = await response.text();
+      console.log(`[Reddit/ArcticShift] Response length for r/${subreddit}: ${responseText.length} chars`);
 
-    const data: ArcticShiftResponse = await response.json();
-
-    if (!data?.data || !Array.isArray(data.data)) {
-      console.log(`[Reddit/ArcticShift] Invalid response structure for r/${subreddit}`);
-      return reports;
-    }
-
-    // Filter for text posts with good engagement
-    for (const post of data.data) {
-      // Skip low engagement posts
-      if (post.score < 10) continue;
-      // Skip non-self posts (links, images)
-      if (!post.is_self) continue;
-
-      const report = parseRedditPost(post);
-      if (report) {
-        reports.push(report);
+      let data: ArcticShiftResponse;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error(`[Reddit/ArcticShift] JSON parse error for r/${subreddit}: ${responseText.substring(0, 200)}`);
+        continue;
       }
+
+      // Handle different response structures
+      let posts: ArcticShiftPost[] = [];
+      if (Array.isArray(data)) {
+        posts = data as unknown as ArcticShiftPost[];
+      } else if (data?.data && Array.isArray(data.data)) {
+        posts = data.data;
+      } else {
+        console.log(`[Reddit/ArcticShift] Unexpected response structure for r/${subreddit}: ${JSON.stringify(data).substring(0, 200)}`);
+        continue;
+      }
+
+      console.log(`[Reddit/ArcticShift] Found ${posts.length} raw posts for r/${subreddit}`);
+
+      // Filter for text posts with good engagement
+      for (const post of posts) {
+        // Skip low engagement posts
+        if (post.score && post.score < 10) continue;
+        // Skip non-self posts (links, images)
+        if (post.is_self === false) continue;
+
+        const report = parseRedditPost(post);
+        if (report) {
+          reports.push(report);
+        }
+      }
+
+      if (reports.length > 0) {
+        console.log(`[Reddit/ArcticShift] Successfully fetched ${reports.length} posts from r/${subreddit}`);
+        return reports;
+      }
+
+    } catch (error) {
+      console.error(`[Reddit/ArcticShift] Error fetching r/${subreddit}:`, error instanceof Error ? error.message : 'Unknown');
+      continue; // Try next URL variant
     }
-
-    console.log(`[Reddit/ArcticShift] Successfully fetched ${reports.length} posts from r/${subreddit}`);
-    return reports;
-
-  } catch (error) {
-    console.error(`[Reddit/ArcticShift] Error fetching r/${subreddit}:`, error instanceof Error ? error.message : 'Unknown');
-    return reports;
   }
+
+  console.log(`[Reddit/ArcticShift] All endpoints failed for r/${subreddit}`);
+  return reports;
 }
 
 // Main adapter implementation
