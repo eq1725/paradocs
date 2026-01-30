@@ -1,5 +1,6 @@
 // Reddit Paranormal Adapter
-// Fetches posts from paranormal-related subreddits using Reddit's public JSON API
+// Fetches posts from paranormal-related subreddits using Arctic Shift API
+// (Reddit blocks direct server-side requests from cloud environments)
 
 import { SourceAdapter, AdapterResult, ScrapedReport } from '../types';
 
@@ -7,6 +8,9 @@ import { SourceAdapter, AdapterResult, ScrapedReport } from '../types';
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+// Arctic Shift API base URL (free Reddit archive)
+const ARCTIC_SHIFT_API = 'https://arctic-shift.photon-reddit.com/api';
 
 // Map subreddits to categories
 const SUBREDDIT_CATEGORIES: Record<string, string> = {
@@ -40,34 +44,28 @@ const SUBREDDIT_CATEGORIES: Record<string, string> = {
   'HighStrangeness': 'combination'
 };
 
-// Reddit post interface
-interface RedditPost {
-  kind: string;
-  data: {
-    id: string;
-    title: string;
-    selftext: string;
-    author: string;
-    subreddit: string;
-    created_utc: number;
-    score: number;
-    num_comments: number;
-    url: string;
-    permalink: string;
-    link_flair_text?: string;
-    is_self: boolean;
-  };
+// Arctic Shift post interface (matches Reddit's data structure)
+interface ArcticShiftPost {
+  id: string;
+  title: string;
+  selftext: string;
+  author: string;
+  subreddit: string;
+  created_utc: number;
+  score: number;
+  num_comments: number;
+  url: string;
+  permalink: string;
+  link_flair_text?: string;
+  is_self: boolean;
 }
 
-interface RedditResponse {
-  data: {
-    children: RedditPost[];
-    after: string | null;
-  };
+interface ArcticShiftResponse {
+  data: ArcticShiftPost[];
 }
 
-// Parse a Reddit post into a ScrapedReport
-function parseRedditPost(post: RedditPost['data']): ScrapedReport | null {
+// Parse a Reddit/Arctic Shift post into a ScrapedReport
+function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
   // Skip non-text posts or very short posts
   if (!post.is_self || !post.selftext || post.selftext.length < 100) {
     return null;
@@ -167,7 +165,7 @@ function parseRedditPost(post: RedditPost['data']): ScrapedReport | null {
   };
 }
 
-// Fetch posts from a subreddit
+// Fetch posts from a subreddit using Arctic Shift API
 async function fetchSubreddit(
   subreddit: string,
   limit: number,
@@ -175,54 +173,62 @@ async function fetchSubreddit(
 ): Promise<ScrapedReport[]> {
   const reports: ScrapedReport[] = [];
 
-  // Try multiple endpoints - Reddit blocks some server-side requests
-  const endpoints = [
-    `https://old.reddit.com/r/${subreddit}/hot.json?limit=${Math.min(limit, 100)}`,
-    `https://www.reddit.com/r/${subreddit}/hot.json?limit=${Math.min(limit, 100)}&raw_json=1`,
-  ];
+  // Use Arctic Shift API - free Reddit archive that doesn't block server requests
+  // Get posts from the last 2 years
+  const twoYearsAgo = new Date();
+  twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+  const afterDate = twoYearsAgo.toISOString().split('T')[0]; // YYYY-MM-DD format
 
-  for (const url of endpoints) {
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/json, text/plain, */*',
-          'Accept-Language': 'en-US,en;q=0.9',
-        }
-      });
+  // Arctic Shift search endpoint - /api/posts/search
+  const url = new URL(`${ARCTIC_SHIFT_API}/posts/search`);
+  url.searchParams.set('subreddit', subreddit);
+  url.searchParams.set('after', afterDate);
+  url.searchParams.set('limit', Math.min(limit, 100).toString());
+  url.searchParams.set('sort', 'desc'); // Newest first
 
-      if (!response.ok) {
-        console.log(`[Reddit] Endpoint failed for r/${subreddit}: ${response.status}, trying next...`);
-        continue; // Try next endpoint
+  try {
+    console.log(`[Reddit/ArcticShift] Fetching from: ${url.toString()}`);
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'ParaDocs/1.0 (Paranormal Research Database)',
       }
+    });
 
-      const data: RedditResponse = await response.json();
-
-      if (!data?.data?.children) {
-        console.log(`[Reddit] Invalid response structure for r/${subreddit}, trying next...`);
-        continue;
-      }
-
-      for (const post of data.data.children) {
-        const report = parseRedditPost(post.data);
-        if (report) {
-          reports.push(report);
-        }
-      }
-
-      // If we got here, the endpoint worked
-      console.log(`[Reddit] Successfully fetched ${reports.length} posts from r/${subreddit}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Reddit/ArcticShift] API error for r/${subreddit}: ${response.status} - ${errorText}`);
       return reports;
-
-    } catch (error) {
-      console.log(`[Reddit] Error with endpoint for r/${subreddit}:`, error instanceof Error ? error.message : 'Unknown');
-      continue; // Try next endpoint
     }
-  }
 
-  // All endpoints failed
-  console.error(`[Reddit] All endpoints failed for r/${subreddit}`);
-  return reports;
+    const data: ArcticShiftResponse = await response.json();
+
+    if (!data?.data || !Array.isArray(data.data)) {
+      console.log(`[Reddit/ArcticShift] Invalid response structure for r/${subreddit}`);
+      return reports;
+    }
+
+    // Filter for text posts with good engagement
+    for (const post of data.data) {
+      // Skip low engagement posts
+      if (post.score < 10) continue;
+      // Skip non-self posts (links, images)
+      if (!post.is_self) continue;
+
+      const report = parseRedditPost(post);
+      if (report) {
+        reports.push(report);
+      }
+    }
+
+    console.log(`[Reddit/ArcticShift] Successfully fetched ${reports.length} posts from r/${subreddit}`);
+    return reports;
+
+  } catch (error) {
+    console.error(`[Reddit/ArcticShift] Error fetching r/${subreddit}:`, error instanceof Error ? error.message : 'Unknown');
+    return reports;
+  }
 }
 
 // Main adapter implementation
@@ -230,46 +236,51 @@ export const redditAdapter: SourceAdapter = {
   name: 'reddit',
 
   async scrape(config: Record<string, any>, limit: number = 50): Promise<AdapterResult> {
-    const rateLimitMs = config.rate_limit_ms || 2000; // Reddit rate limits
+    const rateLimitMs = config.rate_limit_ms || 1000; // Arctic Shift is more lenient than Reddit
     const subreddits = config.subreddits || [
-      // From research list
-      'aliens',
-      'Tulpas',
-      'ghosts',
-      'NDE',
-      'Psychonaut',
-      // Additional high-value subreddits
+      // High-value paranormal subreddits
       'Paranormal',
       'UFOs',
       'Thetruthishere',
+      'HighStrangeness',
+      'Ghosts',
       'cryptids',
-      'HighStrangeness'
+      'Glitch_in_the_Matrix',
+      'bigfoot',
+      'aliens',
+      'skinwalkers'
     ];
 
     const allReports: ScrapedReport[] = [];
     const errors: string[] = [];
 
     try {
-      console.log('[Reddit] Starting scrape...');
+      console.log('[Reddit/ArcticShift] Starting scrape via Arctic Shift archive...');
 
       const reportsPerSubreddit = Math.ceil(limit / subreddits.length);
 
       for (const subreddit of subreddits) {
         if (allReports.length >= limit) break;
 
-        console.log(`[Reddit] Fetching r/${subreddit}...`);
+        console.log(`[Reddit/ArcticShift] Fetching r/${subreddit}...`);
 
         await delay(rateLimitMs);
 
-        const subredditReports = await fetchSubreddit(subreddit, reportsPerSubreddit, rateLimitMs);
-        console.log(`[Reddit] Found ${subredditReports.length} posts in r/${subreddit}`);
+        try {
+          const subredditReports = await fetchSubreddit(subreddit, reportsPerSubreddit, rateLimitMs);
+          console.log(`[Reddit/ArcticShift] Found ${subredditReports.length} valid posts in r/${subreddit}`);
 
-        // Add reports up to limit
-        const remaining = limit - allReports.length;
-        allReports.push(...subredditReports.slice(0, remaining));
+          // Add reports up to limit
+          const remaining = limit - allReports.length;
+          allReports.push(...subredditReports.slice(0, remaining));
+        } catch (subError) {
+          const errorMsg = `r/${subreddit}: ${subError instanceof Error ? subError.message : 'Unknown error'}`;
+          console.error(`[Reddit/ArcticShift] ${errorMsg}`);
+          errors.push(errorMsg);
+        }
       }
 
-      console.log(`[Reddit] Scrape complete. Total reports: ${allReports.length}`);
+      console.log(`[Reddit/ArcticShift] Scrape complete. Total reports: ${allReports.length}`);
 
       return {
         success: allReports.length > 0,
@@ -278,7 +289,7 @@ export const redditAdapter: SourceAdapter = {
       };
 
     } catch (error) {
-      console.error('[Reddit] Scrape failed:', error);
+      console.error('[Reddit/ArcticShift] Scrape failed:', error);
       return {
         success: false,
         reports: allReports,
