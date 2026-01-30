@@ -236,14 +236,14 @@ export default function InsightsPage() {
             title: `${categoryLabel} Activity Rising`,
             description: `${categoryLabel} reports are up ${Math.abs(hotCategory.percent_change)}% this week with ${hotCategory.current_count} new ${hotCategory.current_count === 1 ? 'report' : 'reports'}. Your interest area is heating up!`,
             icon: Flame,
-            link: '/explore'
+            link: `/explore?category=${hotCategory.category}`
           })
         } else if (trendingCategories.length > 0) {
           // Show general activity in their interests
           const totalReports = trendingCategories.reduce((sum, t) => sum + t.current_count, 0)
-          const interestLabels = insights.interestedCategories
-            .slice(0, 2)
-            .map(cat => CATEGORY_CONFIG[cat]?.label || cat)
+          const topCategories = trendingCategories.slice(0, 2).map(t => t.category)
+          const interestLabels = topCategories
+            .map(cat => CATEGORY_CONFIG[cat as keyof typeof CATEGORY_CONFIG]?.label || cat)
             .join(' & ')
 
           cards.push({
@@ -252,7 +252,7 @@ export default function InsightsPage() {
             title: 'Activity in Your Interests',
             description: `${totalReports} new ${totalReports === 1 ? 'report' : 'reports'} in ${interestLabels} this week. Stay tuned for emerging patterns.`,
             icon: BarChart3,
-            link: '/explore'
+            link: `/explore?category=${topCategories[0]}`
           })
         }
       }
