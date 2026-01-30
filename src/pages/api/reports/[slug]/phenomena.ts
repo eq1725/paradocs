@@ -10,7 +10,7 @@ import {
   linkReportToPhenomena,
   identifyPhenomena,
 } from '@/lib/services/phenomena.service';
-import { supabaseAdmin } from '@/lib/supabase-admin';
+import { createServerClient } from '@/lib/supabase';
 
 export default async function handler(
   req: NextApiRequest,
@@ -23,7 +23,7 @@ export default async function handler(
   }
 
   // Get the report by slug
-  const { data: report, error: reportError } = await supabaseAdmin
+  const { data: report, error: reportError } = await createServerClient()
     .from('reports')
     .select('id, title, summary, description, category, tags')
     .eq('slug', slug)
@@ -124,7 +124,7 @@ export default async function handler(
     }
 
     try {
-      const { error } = await supabaseAdmin
+      const { error } = await createServerClient()
         .from('report_phenomena')
         .delete()
         .eq('report_id', report.id)
