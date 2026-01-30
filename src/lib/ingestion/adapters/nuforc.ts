@@ -285,7 +285,6 @@ async function parseMonthPage(html: string): Promise<ReportMetadata[]> {
 
   // Second approach: Class-based cell extraction (for browser-rendered HTML)
   const rowPattern = /<tr[^>]*class="(?:odd|even)"[^>]*>([\s\S]*?)<\/tr>/gi;
-  let match;
 
   while ((match = rowPattern.exec(html)) !== null) {
     const rowHtml = match[1];
