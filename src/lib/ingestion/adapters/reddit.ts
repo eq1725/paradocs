@@ -70,13 +70,20 @@ interface ArcticShiftResponse {
 
 // Parse a Reddit/Arctic Shift post into a ScrapedReport
 function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
+  // Arctic Shift might use different field names - handle both cases
+  // Try selftext first, then self_text, then body
+  const textContent = post.selftext || (post as any).self_text || (post as any).body || '';
+  const isSelfPost = post.is_self !== false; // Allow undefined/null as self posts
+
   // Skip non-text posts or very short posts
-  if (!post.is_self || !post.selftext || post.selftext.length < 100) {
+  if (!isSelfPost || !textContent || textContent.length < 100) {
+    console.log(`[Reddit/ArcticShift] parseRedditPost rejected: is_self=${post.is_self}, textLength=${textContent.length}, title="${post.title?.substring(0, 30)}"`);
     return null;
   }
 
   // Skip removed/deleted posts
-  if (post.selftext === '[removed]' || post.selftext === '[deleted]') {
+  if (textContent === '[removed]' || textContent === '[deleted]') {
+    console.log(`[Reddit/ArcticShift] parseRedditPost rejected: deleted/removed post`);
     return null;
   }
 
@@ -84,7 +91,7 @@ function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
   const category = SUBREDDIT_CATEGORIES[post.subreddit] || 'combination';
 
   // Clean the text (Reddit uses markdown)
-  const description = post.selftext
+  const description = textContent
     .replace(/\n{3,}/g, '\n\n')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
@@ -241,18 +248,38 @@ async function fetchSubreddit(
 
       console.log(`[Reddit/ArcticShift] Found ${posts.length} raw posts for r/${subreddit}`);
 
+      // Debug: Log first post structure to understand the data
+      if (posts.length > 0) {
+        const firstPost = posts[0];
+        console.log(`[Reddit/ArcticShift] First post structure: id=${firstPost.id}, score=${firstPost.score}, is_self=${firstPost.is_self}, selftext_length=${firstPost.selftext?.length || 0}, title="${firstPost.title?.substring(0, 50)}"`);
+      }
+
       // Filter for text posts with good engagement
+      let skippedLowScore = 0;
+      let skippedNotSelf = 0;
+      let skippedParseFailed = 0;
+
       for (const post of posts) {
-        // Skip low engagement posts
-        if (post.score && post.score < 10) continue;
-        // Skip non-self posts (links, images)
-        if (post.is_self === false) continue;
+        // Skip low engagement posts (but allow posts where score is undefined/null)
+        if (post.score !== undefined && post.score !== null && post.score < 10) {
+          skippedLowScore++;
+          continue;
+        }
+        // Skip non-self posts (links, images) - but allow if is_self is undefined
+        if (post.is_self === false) {
+          skippedNotSelf++;
+          continue;
+        }
 
         const report = parseRedditPost(post);
         if (report) {
           reports.push(report);
+        } else {
+          skippedParseFailed++;
         }
       }
+
+      console.log(`[Reddit/ArcticShift] Filtering results for r/${subreddit}: passed=${reports.length}, skippedLowScore=${skippedLowScore}, skippedNotSelf=${skippedNotSelf}, skippedParseFailed=${skippedParseFailed}`);
 
       if (reports.length > 0) {
         console.log(`[Reddit/ArcticShift] Successfully fetched ${reports.length} posts from r/${subreddit}`);
