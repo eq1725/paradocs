@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Head from 'next/head'
 import {
   Search, ArrowRight, MapPin, TrendingUp, Users,
-  FileText, Compass, Map as MapIcon, BarChart3
+  FileText, Compass, Map as MapIcon, BarChart3, Sparkles
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonType } from '@/lib/database.types'
@@ -250,7 +250,7 @@ export default function Home() {
       {/* Quick Links */}
       <section className="py-16 border-t border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Link href="/explore" className="glass-card p-8 group">
               <Compass className="w-10 h-10 text-primary-400 mb-4" />
               <h3 className="text-xl font-display font-semibold text-white group-hover:text-primary-400 transition-colors">
@@ -258,6 +258,15 @@ export default function Home() {
               </h3>
               <p className="mt-2 text-gray-400 text-sm">
                 Browse thousands of documented paranormal encounters with powerful filters.
+              </p>
+            </Link>
+            <Link href="/phenomena" className="glass-card p-8 group">
+              <Sparkles className="w-10 h-10 text-amber-400 mb-4" />
+              <h3 className="text-xl font-display font-semibold text-white group-hover:text-amber-400 transition-colors">
+                Encyclopedia
+              </h3>
+              <p className="mt-2 text-gray-400 text-sm">
+                Discover Bigfoot, Mothman, UFO types, and more in our phenomena encyclopedia.
               </p>
             </Link>
             <Link href="/map" className="glass-card p-8 group">

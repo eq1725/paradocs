@@ -1,54 +1,42 @@
-// Geocoding service using OpenStreetMap Nominatim (free, no API key required)
-// Rate limited to 1 request per second per Nominatim usage policy
+// Geocoding service using Mapbox Geocoding API
+// Fast, accurate, and allows up to 100k requests/month free
 
 interface GeocodingResult {
   latitude: number;
   longitude: number;
   displayName: string;
-  confidence: number; // 0-1 based on result importance
+  confidence: number; // 0-1 based on result relevance
 }
 
-interface NominatimResponse {
-  lat: string;
-  lon: string;
-  display_name: string;
-  importance: number;
-  type: string;
-  class: string;
+interface MapboxFeature {
+  center: [number, number]; // [longitude, latitude]
+  place_name: string;
+  relevance: number;
+  place_type: string[];
+}
+
+interface MapboxResponse {
+  features: MapboxFeature[];
 }
 
 // In-memory cache to avoid repeated requests
 const geocodeCache = new Map<string, GeocodingResult | null>();
 
-// Rate limiting - max 1 request per second
-let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 1100; // 1.1 seconds to be safe
-
-async function rateLimitedFetch(url: string): Promise<Response> {
-  const now = Date.now();
-  const elapsed = now - lastRequestTime;
-
-  if (elapsed < MIN_REQUEST_INTERVAL) {
-    await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL - elapsed));
-  }
-
-  lastRequestTime = Date.now();
-
-  return fetch(url, {
-    headers: {
-      'User-Agent': 'ParaDocs/1.0 (educational research; contact@example.com)',
-      'Accept': 'application/json'
-    }
-  });
-}
+// Mapbox API key from environment
+const MAPBOX_TOKEN = process.env.MAPBOX_ACCESS_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
 /**
- * Geocode a location string to coordinates
+ * Geocode a location string to coordinates using Mapbox
  * @param location The location string (e.g., "San Francisco, California, USA")
  * @returns Geocoding result or null if not found
  */
 export async function geocodeLocation(location: string): Promise<GeocodingResult | null> {
   if (!location || location.trim().length < 3) {
+    return null;
+  }
+
+  if (!MAPBOX_TOKEN) {
+    console.error('[Geocoding] Mapbox token not configured');
     return null;
   }
 
@@ -61,30 +49,30 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
 
   try {
     const encodedLocation = encodeURIComponent(location);
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodedLocation}&format=json&limit=1&addressdetails=0`;
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedLocation}.json?access_token=${MAPBOX_TOKEN}&limit=1&types=place,locality,neighborhood,address,poi`;
 
-    const response = await rateLimitedFetch(url);
+    const response = await fetch(url);
 
     if (!response.ok) {
-      console.error(`[Geocoding] API error: ${response.status}`);
+      console.error(`[Geocoding] Mapbox API error: ${response.status}`);
       geocodeCache.set(cacheKey, null);
       return null;
     }
 
-    const data: NominatimResponse[] = await response.json();
+    const data: MapboxResponse = await response.json();
 
-    if (!data || data.length === 0) {
+    if (!data.features || data.features.length === 0) {
       console.log(`[Geocoding] No results for: ${location}`);
       geocodeCache.set(cacheKey, null);
       return null;
     }
 
-    const result = data[0];
+    const feature = data.features[0];
     const geocoded: GeocodingResult = {
-      latitude: parseFloat(result.lat),
-      longitude: parseFloat(result.lon),
-      displayName: result.display_name,
-      confidence: Math.min(result.importance || 0.5, 1)
+      latitude: feature.center[1],  // Mapbox returns [lng, lat]
+      longitude: feature.center[0],
+      displayName: feature.place_name,
+      confidence: feature.relevance || 0.5
     };
 
     geocodeCache.set(cacheKey, geocoded);
