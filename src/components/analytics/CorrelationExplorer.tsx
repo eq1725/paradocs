@@ -46,30 +46,51 @@ export default function CorrelationExplorer({
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [isExpanded, setIsExpanded] = useState(false)
 
-  // Calculate correlations and insights
+  // Calculate correlations and insights - filtered by selected category
   const insights = useMemo(() => {
     const results: CorrelationInsight[] = []
-    const totalReports = categoryData.reduce((sum, c) => sum + c.count, 0)
+
+    // Helper to get count for current filter
+    const getCount = (hourData: { count: number; byCategory: Record<string, number> }) => {
+      if (selectedCategory === 'all') return hourData.count
+      return hourData.byCategory[selectedCategory] || 0
+    }
+
+    const getDayCount = (dayData: { count: number; byCategory: Record<string, number> }) => {
+      if (selectedCategory === 'all') return dayData.count
+      return dayData.byCategory[selectedCategory] || 0
+    }
+
+    // Calculate total based on filter
+    const totalReports = selectedCategory === 'all'
+      ? categoryData.reduce((sum, c) => sum + c.count, 0)
+      : categoryData.find(c => c.category === selectedCategory)?.count || 0
+
+    if (totalReports === 0) return results
+
+    const categoryLabel = selectedCategory === 'all'
+      ? ''
+      : CATEGORY_CONFIG[selectedCategory as PhenomenonCategory]?.label || selectedCategory
 
     // Night vs Day analysis
     const nightHours = timeOfDayData.filter(d => d.hour >= 21 || d.hour < 5)
     const dayHours = timeOfDayData.filter(d => d.hour >= 5 && d.hour < 21)
-    const nightCount = nightHours.reduce((sum, d) => sum + d.count, 0)
-    const dayCount = dayHours.reduce((sum, d) => sum + d.count, 0)
+    const nightCount = nightHours.reduce((sum, d) => sum + getCount(d), 0)
+    const dayCount = dayHours.reduce((sum, d) => sum + getCount(d), 0)
     const nightPercentage = totalReports > 0 ? Math.round((nightCount / totalReports) * 100) : 0
 
     if (nightPercentage > 60) {
       results.push({
-        title: 'Nighttime Dominance',
-        description: `${nightPercentage}% of sightings occur at night (9pm-5am). This aligns with darker skies making aerial phenomena more visible.`,
+        title: `Nighttime Dominance${categoryLabel ? ` (${categoryLabel})` : ''}`,
+        description: `${nightPercentage}% of ${categoryLabel || 'all'} sightings occur at night (9pm-5am). This aligns with darker skies making aerial phenomena more visible.`,
         strength: 'strong',
         icon: Moon,
         color: '#3b82f6',
       })
     } else if (nightPercentage > 40) {
       results.push({
-        title: 'Evening Peak Activity',
-        description: `Sightings are fairly distributed, with ${nightPercentage}% at night. Peak activity often occurs during twilight hours.`,
+        title: `Evening Peak Activity${categoryLabel ? ` (${categoryLabel})` : ''}`,
+        description: `${categoryLabel || 'All'} sightings are fairly distributed, with ${nightPercentage}% at night. Peak activity often occurs during twilight hours.`,
         strength: 'moderate',
         icon: Sun,
         color: '#f59e0b',
@@ -79,26 +100,27 @@ export default function CorrelationExplorer({
     // Weekend vs Weekday analysis
     const weekendDays = dayOfWeekData.filter(d => d.day === 0 || d.day === 6)
     const weekdayDays = dayOfWeekData.filter(d => d.day >= 1 && d.day <= 5)
-    const weekendCount = weekendDays.reduce((sum, d) => sum + d.count, 0)
-    const weekdayCount = weekdayDays.reduce((sum, d) => sum + d.count, 0)
+    const weekendCount = weekendDays.reduce((sum, d) => sum + getDayCount(d), 0)
+    const weekdayCount = weekdayDays.reduce((sum, d) => sum + getDayCount(d), 0)
 
     const weekendExpected = totalReports * (2 / 7) // Expected if uniform
     const weekendRatio = weekendExpected > 0 ? weekendCount / weekendExpected : 1
 
     if (weekendRatio > 1.2) {
       results.push({
-        title: 'Weekend Spike',
-        description: `Reports are ${Math.round((weekendRatio - 1) * 100)}% higher on weekends. More people are outdoors and have time to observe and report.`,
+        title: `Weekend Spike${categoryLabel ? ` (${categoryLabel})` : ''}`,
+        description: `${categoryLabel || 'All'} reports are ${Math.round((weekendRatio - 1) * 100)}% higher on weekends. More people are outdoors and have time to observe and report.`,
         strength: weekendRatio > 1.4 ? 'strong' : 'moderate',
         icon: Calendar,
         color: '#22c55e',
       })
     }
 
-    // Category concentration
-    if (categoryData.length > 0) {
+    // Category concentration - only show when viewing all categories
+    if (selectedCategory === 'all' && categoryData.length > 0) {
+      const allTotal = categoryData.reduce((sum, c) => sum + c.count, 0)
       const topCategory = categoryData[0]
-      const topPercentage = totalReports > 0 ? Math.round((topCategory.count / totalReports) * 100) : 0
+      const topPercentage = allTotal > 0 ? Math.round((topCategory.count / allTotal) * 100) : 0
       const categoryConfig = CATEGORY_CONFIG[topCategory.category as PhenomenonCategory]
 
       if (topPercentage > 50) {
@@ -128,18 +150,19 @@ export default function CorrelationExplorer({
       }
     }
 
-    // Peak hour analysis
+    // Peak hour analysis - filtered by category
     if (timeOfDayData.length > 0) {
-      const peakHour = timeOfDayData.reduce((max, d) => d.count > max.count ? d : max, timeOfDayData[0])
+      const hourDataFiltered = timeOfDayData.map(d => ({ ...d, filteredCount: getCount(d) }))
+      const peakHour = hourDataFiltered.reduce((max, d) => d.filteredCount > max.filteredCount ? d : max, hourDataFiltered[0])
       const avgCount = totalReports / 24
-      const peakRatio = avgCount > 0 ? peakHour.count / avgCount : 1
+      const peakRatio = avgCount > 0 ? peakHour.filteredCount / avgCount : 1
 
-      if (peakRatio > 2) {
+      if (peakRatio > 2 && peakHour.filteredCount > 0) {
         const hour = peakHour.hour
         const timeLabel = hour === 0 ? '12 AM' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour - 12} PM`
         results.push({
-          title: `${timeLabel} Peak Hour`,
-          description: `Activity spikes ${Math.round(peakRatio)}x above average at ${timeLabel}. This is the most active hour for reported sightings.`,
+          title: `${timeLabel} Peak Hour${categoryLabel ? ` (${categoryLabel})` : ''}`,
+          description: `${categoryLabel || 'All'} activity spikes ${Math.round(peakRatio)}x above average at ${timeLabel}. This is the most active hour for ${categoryLabel || 'reported'} sightings.`,
           strength: peakRatio > 3 ? 'strong' : 'moderate',
           icon: TrendingUp,
           color: '#ef4444',
@@ -148,7 +171,7 @@ export default function CorrelationExplorer({
     }
 
     return results
-  }, [timeOfDayData, dayOfWeekData, categoryData, credibilityData])
+  }, [timeOfDayData, dayOfWeekData, categoryData, credibilityData, selectedCategory])
 
   // Category-specific time analysis
   const categoryTimeCorrelation = useMemo(() => {

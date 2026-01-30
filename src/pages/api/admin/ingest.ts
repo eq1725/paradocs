@@ -4,6 +4,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { runScheduledIngestion, runIngestion } from '@/lib/ingestion/engine';
+import { runPatternAnalysis } from '@/lib/services/pattern-analysis.service';
 
 // Create admin client
 function getSupabaseAdmin() {
@@ -120,11 +121,12 @@ export default async function handler(
     const totalDuration = Date.now() - startTime;
 
     // Summarize results
+    const totalInserted = results.reduce((sum, r) => sum + r.recordsInserted, 0);
     const summary = {
       success: results.every(r => r.success),
       sourcesProcessed: results.length,
       totalRecordsFound: results.reduce((sum, r) => sum + r.recordsFound, 0),
-      totalRecordsInserted: results.reduce((sum, r) => sum + r.recordsInserted, 0),
+      totalRecordsInserted: totalInserted,
       totalRecordsUpdated: results.reduce((sum, r) => sum + r.recordsUpdated, 0),
       totalRecordsSkipped: results.reduce((sum, r) => sum + r.recordsSkipped, 0),
       duration: totalDuration,
@@ -134,10 +136,26 @@ export default async function handler(
         recordsFound: r.recordsFound,
         recordsInserted: r.recordsInserted,
         error: r.error
-      }))
+      })),
+      patternsAnalyzed: false as boolean | { patterns_detected: number }
     };
 
     console.log('[Admin] Ingestion complete:', summary);
+
+    // Trigger pattern analysis if new records were added
+    if (totalInserted > 0) {
+      try {
+        console.log('[Admin] Triggering pattern analysis for new data...');
+        const patternResult = await runPatternAnalysis('incremental');
+        summary.patternsAnalyzed = {
+          patterns_detected: patternResult.patterns_detected
+        };
+        console.log('[Admin] Pattern analysis complete:', patternResult);
+      } catch (patternError) {
+        console.error('[Admin] Pattern analysis failed (non-blocking):', patternError);
+        // Don't fail the whole request if pattern analysis fails
+      }
+    }
 
     return res.status(200).json(summary);
 
