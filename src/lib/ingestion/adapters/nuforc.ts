@@ -187,19 +187,58 @@ async function parseMonthPage(html: string): Promise<ReportMetadata[]> {
 
   // Debug: Log HTML size and look for key markers
   console.log(`[NUFORC] HTML size: ${html.length} bytes`);
-  console.log(`[NUFORC] Contains sighting link: ${html.includes('/sighting/?id=')}`);
+  const hasSightingLink = html.includes('/sighting/?id=');
+  console.log(`[NUFORC] Contains sighting link: ${hasSightingLink}`);
   console.log(`[NUFORC] Contains table: ${html.includes('<table')}`);
   console.log(`[NUFORC] Contains wpDataTable: ${html.includes('wpDataTable')}`);
 
-  // First approach: Find all sighting links directly and extract surrounding row data
-  // This works regardless of table structure
-  const sightingLinkPattern = /href="\/sighting\/\?id=(\d+)"/gi;
-  const sightingIds: string[] = [];
-  let linkMatch;
-  while ((linkMatch = sightingLinkPattern.exec(html)) !== null) {
-    sightingIds.push(linkMatch[1]);
+  // If sighting link exists, show a sample of the HTML around it
+  if (hasSightingLink) {
+    const idx = html.indexOf('/sighting/?id=');
+    const sample = html.substring(Math.max(0, idx - 50), Math.min(html.length, idx + 100));
+    console.log(`[NUFORC] Sample around sighting link: ${sample.replace(/[\n\r]+/g, ' ').substring(0, 200)}`);
   }
-  console.log(`[NUFORC] Found ${sightingIds.length} sighting links in page`);
+
+  // First approach: Find all sighting links directly and extract surrounding row data
+  // Try multiple regex patterns to handle different formats
+  let sightingIds: string[] = [];
+
+  // Pattern 1: Standard href with forward slashes
+  const pattern1 = /href="\/sighting\/\?id=(\d+)"/gi;
+  let match;
+  while ((match = pattern1.exec(html)) !== null) {
+    sightingIds.push(match[1]);
+  }
+  console.log(`[NUFORC] Pattern 1 (href="/sighting/?id=X"): ${sightingIds.length} matches`);
+
+  // Pattern 2: href without leading slash
+  if (sightingIds.length === 0) {
+    const pattern2 = /href="sighting\/\?id=(\d+)"/gi;
+    while ((match = pattern2.exec(html)) !== null) {
+      sightingIds.push(match[1]);
+    }
+    console.log(`[NUFORC] Pattern 2 (href="sighting/?id=X"): ${sightingIds.length} matches`);
+  }
+
+  // Pattern 3: Full URL
+  if (sightingIds.length === 0) {
+    const pattern3 = /href="https?:\/\/nuforc\.org\/sighting\/\?id=(\d+)"/gi;
+    while ((match = pattern3.exec(html)) !== null) {
+      sightingIds.push(match[1]);
+    }
+    console.log(`[NUFORC] Pattern 3 (full URL): ${sightingIds.length} matches`);
+  }
+
+  // Pattern 4: Any href containing sighting and id number
+  if (sightingIds.length === 0) {
+    const pattern4 = /href="[^"]*sighting[^"]*id=(\d+)"/gi;
+    while ((match = pattern4.exec(html)) !== null) {
+      sightingIds.push(match[1]);
+    }
+    console.log(`[NUFORC] Pattern 4 (loose match): ${sightingIds.length} matches`);
+  }
+
+  console.log(`[NUFORC] Total sighting IDs found: ${sightingIds.length}`);
 
   // If we have sighting IDs, find table rows containing them
   if (sightingIds.length > 0) {
