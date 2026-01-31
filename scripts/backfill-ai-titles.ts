@@ -55,9 +55,9 @@ const FALLBACK_DESCRIPTORS = [
   'Cryptid Encounter',
 ];
 
-// Pattern to match generic titles with date suffix
+// Pattern to match generic titles with date suffix (both "Jan 2026" and "Jan 18, 2026")
 const GENERIC_TITLE_PATTERN = new RegExp(
-  `^(${FALLBACK_DESCRIPTORS.join('|')})\\s*-\\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+\\d{1,2}?,?\\s*\\d{4}$`,
+  `^(${FALLBACK_DESCRIPTORS.join('|')})\\s*-\\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+(\\d{1,2},\\s*)?\\d{4}$`,
   'i'
 );
 
