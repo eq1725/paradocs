@@ -228,8 +228,11 @@ export default function ReportPage() {
             {report.title}
           </h1>
 
-          {/* Only show summary if it adds value beyond the title */}
-          {report.summary && !report.summary.toLowerCase().startsWith(report.title?.toLowerCase().slice(0, 30) || '') && (
+          {/* Only show summary if it adds value beyond the title AND description */}
+          {report.summary &&
+           !report.summary.toLowerCase().startsWith(report.title?.toLowerCase().slice(0, 30) || '') &&
+           report.description?.trim().toLowerCase() !== report.summary?.trim().toLowerCase() &&
+           !report.description?.trim().toLowerCase().startsWith(report.summary?.trim().toLowerCase()) && (
             <p className="text-lg text-gray-300 mb-6">
               {report.summary}
             </p>
@@ -277,28 +280,7 @@ export default function ReportPage() {
         <div className="glass-card p-6 md:p-8 mb-8">
           <div className="prose prose-invert max-w-none">
             <div className="whitespace-pre-wrap text-gray-300 leading-relaxed">
-              {(() => {
-                // Remove duplicate title/summary from description display
-                let displayText = report.description || '';
-                const title = report.title?.trim() || '';
-                const summary = report.summary?.trim() || '';
-
-                // If description starts with the title, remove it
-                if (title && displayText.trim().toLowerCase().startsWith(title.toLowerCase())) {
-                  displayText = displayText.trim().slice(title.length).trim();
-                  // Remove leading punctuation and whitespace
-                  displayText = displayText.replace(/^[.\s\n]+/, '').trim();
-                }
-
-                // If description now starts with content that's in the summary, check for overlap
-                // This handles cases where summary is "Title. First sentence..." and description is the same
-                if (summary && displayText.toLowerCase().startsWith(summary.toLowerCase().slice(0, 50))) {
-                  // Just show description as-is since summary already previewed it
-                  // But don't strip more - the summary section handles the preview
-                }
-
-                return displayText || report.description;
-              })()}
+              {report.description}
             </div>
           </div>
 
