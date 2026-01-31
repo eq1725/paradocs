@@ -194,26 +194,96 @@ export default async function handler(
   console.log(`[Fix Titles] Starting batch process: limit=${limit}, category=${category || 'all'}, dryRun=${dryRun}`);
 
   try {
-    // Find generic titles
+    // Build OR conditions for generic title patterns
+    const titlePatterns = FALLBACK_DESCRIPTORS.map(desc =>
+      `title.like.${desc} - Jan 2026,title.like.${desc} - Feb 2026,title.like.${desc} - Mar 2026,title.like.${desc} - Apr 2026,title.like.${desc} - May 2026,title.like.${desc} - Jun 2026,title.like.${desc} - Jul 2026,title.like.${desc} - Aug 2026,title.like.${desc} - Sep 2026,title.like.${desc} - Oct 2026,title.like.${desc} - Nov 2026,title.like.${desc} - Dec 2026`
+    ).join(',');
+
+    // Find generic titles directly with database filtering
     let query = supabase
       .from('reports')
       .select('id, title, description, category, location_name, created_at')
-      .eq('status', 'approved');
+      .eq('status', 'approved')
+      .or(titlePatterns);
 
     if (category) {
       query = query.eq('category', category);
     }
 
-    const { data: allReports, error } = await query.limit(limit * 5); // Fetch more to filter
+    const { data: reports, error } = await query.limit(limit);
 
     if (error) {
-      throw new Error(`Database error: ${error.message}`);
-    }
+      // Fallback: fetch more and filter in JS if OR query fails
+      console.log('[Fix Titles] OR query failed, using fallback method');
+      const { data: allReports, error: fallbackError } = await supabase
+        .from('reports')
+        .select('id, title, description, category, location_name, created_at')
+        .eq('status', 'approved')
+        .limit(limit * 20);
 
-    // Filter to only generic titles
-    const reports = (allReports || [])
-      .filter(report => GENERIC_TITLE_PATTERN.test(report.title))
-      .slice(0, limit);
+      if (fallbackError) {
+        throw new Error(`Database error: ${fallbackError.message}`);
+      }
+
+      const filteredReports = (allReports || [])
+        .filter(report => GENERIC_TITLE_PATTERN.test(report.title))
+        .slice(0, limit);
+
+      console.log(`[Fix Titles] Found ${filteredReports.length} reports with generic titles (fallback)`);
+
+      // Process filteredReports instead
+      const results: Array<{
+        id: string;
+        oldTitle: string;
+        newTitle: string;
+        changed: boolean;
+      }> = [];
+
+      for (const report of filteredReports) {
+        try {
+          const elements = await extractTitleElements(report.description);
+          const newTitle = generateNewTitle(report.title, elements, report.location_name);
+          const changed = newTitle !== report.title;
+
+          if (changed && !dryRun) {
+            await supabase
+              .from('reports')
+              .update({ title: newTitle })
+              .eq('id', report.id);
+          }
+
+          results.push({
+            id: report.id,
+            oldTitle: report.title,
+            newTitle,
+            changed
+          });
+
+          console.log(`[Fix Titles] ${changed ? 'Updated' : 'Skipped'}: "${report.title.substring(0, 30)}..." -> "${newTitle.substring(0, 30)}..."`);
+        } catch (err) {
+          console.error(`[Fix Titles] Error processing ${report.id}:`, err);
+          results.push({
+            id: report.id,
+            oldTitle: report.title,
+            newTitle: report.title,
+            changed: false
+          });
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      const updated = results.filter(r => r.changed).length;
+
+      return res.status(200).json({
+        success: true,
+        dryRun,
+        processed: results.length,
+        updated,
+        skipped: results.length - updated,
+        results
+      });
+    }
 
     console.log(`[Fix Titles] Found ${reports.length} reports with generic titles`);
 
