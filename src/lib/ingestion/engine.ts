@@ -1,6 +1,6 @@
 // Ingestion Engine - orchestrates the scraping pipeline
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { DataSource, IngestionJob, ScrapedReport } from './types';
 import { getAdapter } from './adapters';
 import {
@@ -21,6 +21,31 @@ function getSupabaseAdmin() {
   }
 
   return createClient(supabaseUrl, supabaseServiceKey);
+}
+
+// Logging helper for activity feed
+type LogLevel = 'info' | 'warning' | 'error' | 'success';
+
+async function logActivity(
+  supabase: SupabaseClient,
+  sourceId: string | null,
+  jobId: string | null,
+  level: LogLevel,
+  message: string,
+  metadata?: Record<string, unknown>
+) {
+  try {
+    await supabase.from('ingestion_logs').insert({
+      source_id: sourceId,
+      job_id: jobId,
+      level,
+      message,
+      metadata: metadata || {}
+    });
+  } catch (error) {
+    // Silently fail if logs table doesn't exist yet
+    console.log(`[Log] ${level}: ${message}`, metadata || '');
+  }
 }
 
 export interface IngestionResult {
@@ -111,12 +136,23 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
       throw new Error(`No adapter found for type: ${source.adapter_type}`);
     }
 
+    // Log start of ingestion
+    await logActivity(supabase, sourceId, job.id, 'info', `Starting ingestion`, {
+      adapter: source.adapter_type,
+      limit
+    });
+
     // Run the scraper
     const result = await adapter.scrape(source.scrape_config || {}, limit);
 
     if (!result.success) {
       throw new Error(result.error || 'Scrape failed');
     }
+
+    // Log scrape completion
+    await logActivity(supabase, sourceId, job.id, 'info', `Scraped ${result.reports.length} reports`, {
+      reportsFound: result.reports.length
+    });
 
     // Process and insert the reports with quality filtering
     let inserted = 0;
@@ -278,6 +314,17 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
 
     console.log(`[Ingestion] Complete: found=${result.reports.length}, inserted=${inserted}, updated=${updated}, rejected=${rejected}, pending=${pendingReview}, skipped=${skipped}`);
 
+    // Log successful completion
+    await logActivity(supabase, sourceId, job.id, 'success', `Ingestion completed`, {
+      found: result.reports.length,
+      inserted,
+      updated,
+      rejected,
+      pendingReview,
+      skipped,
+      durationMs: Date.now() - startTime
+    });
+
     return {
       success: true,
       jobId: job.id,
@@ -292,6 +339,12 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    // Log error
+    await logActivity(supabase, sourceId, job.id, 'error', `Ingestion failed: ${errorMessage}`, {
+      error: errorMessage,
+      durationMs: Date.now() - startTime
+    });
 
     // Update job as failed
     await supabase
