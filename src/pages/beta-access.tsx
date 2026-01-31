@@ -10,14 +10,12 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { CheckCircle, Sparkles, ArrowRight } from 'lucide-react'
 
-// Interest options for the signup form
-const INTEREST_OPTIONS = [
-  { id: 'ufos_aliens', label: 'UFOs & Aliens', icon: '🛸' },
-  { id: 'cryptids', label: 'Cryptids', icon: '🦶' },
-  { id: 'ghosts_hauntings', label: 'Ghosts & Hauntings', icon: '👻' },
-  { id: 'psychic_phenomena', label: 'Psychic Phenomena', icon: '🔮' },
-  { id: 'consciousness', label: 'Consciousness & Dreams', icon: '🧘' },
-  { id: 'unexplained', label: 'Other Unexplained', icon: '✨' },
+// Usage options for the signup form
+const USAGE_OPTIONS = [
+  { id: 'report_experiences', label: 'Report my experiences', icon: '📝' },
+  { id: 'research', label: 'Research & analysis', icon: '🔬' },
+  { id: 'explore_reports', label: 'Explore others\' reports', icon: '🔍' },
+  { id: 'just_curious', label: 'Just curious', icon: '👀' },
 ]
 
 export default function BetaAccessPage() {
@@ -27,17 +25,8 @@ export default function BetaAccessPage() {
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const toggleInterest = (id: string) => {
-    setSelectedInterests(prev => {
-      if (prev.includes(id)) {
-        return prev.filter(i => i !== id)
-      }
-      if (prev.length >= 3) {
-        // Replace oldest selection
-        return [...prev.slice(1), id]
-      }
-      return [...prev, id]
-    })
+  const selectUsage = (id: string) => {
+    setSelectedInterests([id])
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,7 +39,7 @@ export default function BetaAccessPage() {
     }
 
     if (selectedInterests.length === 0) {
-      setError('Please select at least one interest')
+      setError('Please select how you plan to use ParaDocs')
       return
     }
 
@@ -137,27 +126,27 @@ export default function BetaAccessPage() {
                     />
                   </div>
 
-                  {/* Interests Field */}
+                  {/* Usage Field */}
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
-                      What interests you? <span className="text-gray-500">(Pick 1-3)</span>
+                      How will you use ParaDocs?
                     </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {INTEREST_OPTIONS.map((interest) => {
-                        const isSelected = selectedInterests.includes(interest.id)
+                    <div className="grid grid-cols-1 gap-2">
+                      {USAGE_OPTIONS.map((option) => {
+                        const isSelected = selectedInterests.includes(option.id)
                         return (
                           <button
-                            key={interest.id}
+                            key={option.id}
                             type="button"
-                            onClick={() => toggleInterest(interest.id)}
-                            className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-left transition-all ${
+                            onClick={() => selectUsage(option.id)}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-all ${
                               isSelected
                                 ? 'bg-purple-500/20 border-purple-500 text-white'
                                 : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600'
                             }`}
                           >
-                            <span className="text-lg">{interest.icon}</span>
-                            <span className="text-sm font-medium truncate">{interest.label}</span>
+                            <span className="text-xl">{option.icon}</span>
+                            <span className="text-sm font-medium">{option.label}</span>
                             {isSelected && (
                               <CheckCircle className="w-4 h-4 text-purple-400 ml-auto flex-shrink-0" />
                             )}
@@ -201,43 +190,41 @@ export default function BetaAccessPage() {
                 </p>
               </div>
             ) : (
-              /* Thank You Screen */
+              /* Confirmation Screen */
               <div className="bg-gray-900 rounded-2xl p-8 border border-gray-800 text-center">
                 <div className="mb-6">
-                  <div className="inline-flex items-center justify-center w-16 h-16 bg-green-500/20 rounded-full mb-4 animate-bounce-slow">
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-green-500/20 rounded-full mb-4">
                     <CheckCircle className="w-8 h-8 text-green-400" />
                   </div>
                   <h1 className="text-2xl font-bold text-white mb-2">
-                    You're In!
+                    You're on the list!
                   </h1>
                   <p className="text-gray-400">
-                    Welcome to the investigation. Check your inbox for next steps.
+                    Thanks for signing up for early access to ParaDocs.
                   </p>
                 </div>
 
-                <div className="p-4 bg-gray-800/50 rounded-lg mb-6">
-                  <p className="text-sm text-gray-300">
-                    <span className="text-purple-400 font-medium">Your interests:</span>{' '}
-                    {selectedInterests.map(id =>
-                      INTEREST_OPTIONS.find(o => o.id === id)?.label
-                    ).join(', ')}
-                  </p>
+                <div className="p-5 bg-gray-800/50 rounded-lg text-left">
+                  <h3 className="text-sm font-semibold text-white mb-3">What happens next?</h3>
+                  <ul className="space-y-3 text-sm text-gray-300">
+                    <li className="flex items-start gap-3">
+                      <span className="text-purple-400 mt-0.5">1.</span>
+                      <span>We'll notify you as soon as the beta opens</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="text-purple-400 mt-0.5">2.</span>
+                      <span>You'll receive instructions to create your profile</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="text-purple-400 mt-0.5">3.</span>
+                      <span>Log in and start exploring the paranormal</span>
+                    </li>
+                  </ul>
                 </div>
 
-                <div className="space-y-3">
-                  <Link
-                    href="/explore"
-                    className="block w-full py-3 px-4 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-lg transition-colors"
-                  >
-                    Start Exploring Reports
-                  </Link>
-                  <Link
-                    href="/"
-                    className="block w-full py-3 px-4 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-lg transition-colors"
-                  >
-                    Back to Home
-                  </Link>
-                </div>
+                <p className="text-xs text-gray-500 mt-6">
+                  Keep an eye on your inbox at <span className="text-gray-400">{email}</span>
+                </p>
               </div>
             )}
           </div>
@@ -249,19 +236,6 @@ export default function BetaAccessPage() {
         </footer>
       </div>
 
-      <style jsx>{`
-        @keyframes bounce-slow {
-          0%, 100% {
-            transform: translateY(0);
-          }
-          50% {
-            transform: translateY(-10px);
-          }
-        }
-        .animate-bounce-slow {
-          animation: bounce-slow 2s ease-in-out infinite;
-        }
-      `}</style>
     </>
   )
 }
