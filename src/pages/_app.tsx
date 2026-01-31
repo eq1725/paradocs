@@ -1,9 +1,16 @@
 import '@/styles/globals.css'
 import type { AppProps } from 'next/app'
 import Head from 'next/head'
+import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 
+// Pages that should NOT have the main app layout (nav, footer, etc.)
+const STANDALONE_PAGES = ['/beta-access']
+
 export default function App({ Component, pageProps }: AppProps) {
+  const router = useRouter()
+  const isStandalonePage = STANDALONE_PAGES.includes(router.pathname)
+
   return (
     <>
       <Head>
@@ -14,9 +21,13 @@ export default function App({ Component, pageProps }: AppProps) {
         {/* Prevent search engine indexing for beta site */}
         <meta name="robots" content="noindex, nofollow" />
       </Head>
-      <Layout>
+      {isStandalonePage ? (
         <Component {...pageProps} />
-      </Layout>
+      ) : (
+        <Layout>
+          <Component {...pageProps} />
+        </Layout>
+      )}
     </>
   )
 }
