@@ -77,20 +77,21 @@ interface TitleElements {
   uniqueDetail: string | null;
 }
 
-const SYSTEM_PROMPT = `You are a title extraction assistant. Your job is to identify the most distinctive and unique elements from paranormal experience descriptions to create unique titles.
+const SYSTEM_PROMPT = `You are a title extraction assistant helping create unique titles for paranormal experience reports.
 
-Extract these elements:
-1. SETTING: The location type where the experience occurred (e.g., "Old Farmhouse", "Bedroom", "Highway 66", "Grandma's House", "Abandoned Hospital", "Camping Trip")
-2. KEY_ELEMENT: The most distinctive phenomenon or detail (e.g., "Footsteps", "Cold Spot", "Glowing Eyes", "Strange Voice", "Moving Shadows")
-3. TIME_CONTEXT: When it happened if notable (e.g., "Childhood", "3 AM", "Late Night", "During Storm")
-4. UNIQUE_DETAIL: Any other highly distinctive detail that makes this report unique
+IMPORTANT: Your goal is to find AT LEAST ONE distinctive element from each description. We need to replace generic date-based titles with something more descriptive.
+
+Extract these elements (find at least 1-2):
+1. SETTING: Where it happened - any location detail helps (e.g., "Bedroom", "Kitchen", "Woods", "Car", "Apartment", "Hospital", "School", "Home")
+2. KEY_ELEMENT: The main phenomenon or experience (e.g., "Shadow Figure", "Strange Noise", "Cold Feeling", "Moving Object", "Voice", "Light", "Presence")
+3. TIME_CONTEXT: When it happened (e.g., "Childhood", "Night", "Morning", "2019", "Age 12")
+4. UNIQUE_DETAIL: Any specific detail (e.g., "Dog Reacted", "Multiple Witnesses", "Recurring", "Sleep Paralysis")
 
 Guidelines:
-- Be specific but concise (2-4 words max per element)
-- Prioritize unique, memorable details over generic ones
-- If a detail is too common (like "at night"), skip it
-- Focus on what makes THIS experience different from others
-- Return null for any element that isn't distinctive enough
+- Be concise (1-4 words max per element)
+- Extract SOMETHING rather than returning all nulls - any detail is better than a date
+- Even simple details like "Bedroom" or "Shadow" help create unique titles
+- Only return null if that specific category truly has no relevant information
 
 Format your response EXACTLY like this (no other text):
 SETTING: [value or null]
