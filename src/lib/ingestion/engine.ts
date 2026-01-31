@@ -6,7 +6,7 @@ import { getAdapter } from './adapters';
 import {
   assessQuality,
   getStatusFromScore,
-  improveTitle,
+  improveTitleWithAI,
   getSourceLabel,
   isObviouslyLowQuality,
 } from './filters';
@@ -159,12 +159,13 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           pendingReview++;
         }
 
-        // Improve title if needed
-        const titleResult = improveTitle(
+        // Improve title if needed (using AI for unique elements)
+        const titleResult = await improveTitleWithAI(
           report.title,
           report.description,
           report.category,
-          report.location_name
+          report.location_name,
+          report.event_date
         );
 
         const finalTitle = titleResult.title;

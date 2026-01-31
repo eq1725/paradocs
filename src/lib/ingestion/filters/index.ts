@@ -27,6 +27,11 @@ export {
   analyzeTitleQuality,
   generateImprovedTitle,
   fixBasicTitleIssues,
+  // AI-enhanced title functions (async)
+  generateImprovedTitleWithAI,
+  improveTitleWithAI,
+  isGenericFallbackTitle,
+  getFallbackDescriptor,
 } from './title-improver';
 
 // Source label configuration
