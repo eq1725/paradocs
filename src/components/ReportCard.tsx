@@ -6,9 +6,14 @@ import { MapPin, Calendar, Eye, MessageCircle, ThumbsUp, Award } from 'lucide-re
 import { Report, PhenomenonType } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG } from '@/lib/constants'
 import { formatRelativeDate, formatDate, truncate, classNames } from '@/lib/utils'
+import SourceBadge from './SourceBadge'
 
 interface ReportCardProps {
-  report: Report & { phenomenon_type?: PhenomenonType | null }
+  report: Report & {
+    phenomenon_type?: PhenomenonType | null;
+    source_label?: string | null;
+    source_url?: string | null;
+  }
   variant?: 'default' | 'compact' | 'featured'
 }
 
@@ -24,9 +29,18 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
             <span className="text-2xl">{categoryConfig.icon}</span>
             <div className="flex-1 min-w-0">
               <h3 className="font-medium text-white truncate">{report.title}</h3>
-              <p className="text-sm text-gray-400 mt-1">
-                {report.location_name || 'Unknown location'}
-              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-sm text-gray-400 truncate">
+                  {report.location_name || 'Unknown location'}
+                </p>
+                {report.source_type && report.source_type !== 'user' && (
+                  <SourceBadge
+                    sourceType={report.source_type}
+                    sourceLabel={report.source_label || undefined}
+                    variant="minimal"
+                  />
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -81,12 +95,21 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
               )}
             </div>
             <div className="mt-4 flex items-center justify-between">
-              <div className={classNames(
-                'px-2 py-0.5 rounded text-xs font-medium',
-                credibilityConfig.bgColor,
-                credibilityConfig.color
-              )}>
-                {credibilityConfig.label}
+              <div className="flex items-center gap-2">
+                <div className={classNames(
+                  'px-2 py-0.5 rounded text-xs font-medium',
+                  credibilityConfig.bgColor,
+                  credibilityConfig.color
+                )}>
+                  {credibilityConfig.label}
+                </div>
+                {report.source_type && report.source_type !== 'user' && (
+                  <SourceBadge
+                    sourceType={report.source_type}
+                    sourceLabel={report.source_label || undefined}
+                    variant="compact"
+                  />
+                )}
               </div>
               <div className="flex items-center gap-3 text-gray-500 text-sm">
                 <span className="flex items-center gap-1">
@@ -136,7 +159,7 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
             <p className="mt-1 text-sm text-gray-400 line-clamp-2">
               {report.summary}
             </p>
-            <div className="mt-3 flex items-center gap-4 text-xs text-gray-500">
+            <div className="mt-3 flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
               {report.location_name && (
                 <span className="flex items-center gap-1">
                   <MapPin className="w-3 h-3" />
@@ -157,6 +180,13 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
                 <ThumbsUp className="w-3 h-3" />
                 {report.upvotes}
               </span>
+              {report.source_type && report.source_type !== 'user' && (
+                <SourceBadge
+                  sourceType={report.source_type}
+                  sourceLabel={report.source_label || undefined}
+                  variant="minimal"
+                />
+              )}
             </div>
           </div>
         </div>

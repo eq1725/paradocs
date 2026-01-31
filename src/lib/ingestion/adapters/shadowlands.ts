@@ -127,7 +127,13 @@ function parseLocationEntries(html: string, stateName: string): ScrapedReport[] 
       credibility,
       source_type: 'shadowlands',
       original_report_id: reportId,
-      tags
+      tags,
+      // New quality system fields
+      source_label: 'Shadowlands',
+      metadata: {
+        locationName,
+        stateName
+      }
     });
   }
 

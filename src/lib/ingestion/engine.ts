@@ -3,6 +3,13 @@
 import { createClient } from '@supabase/supabase-js';
 import { DataSource, IngestionJob, ScrapedReport } from './types';
 import { getAdapter } from './adapters';
+import {
+  assessQuality,
+  getStatusFromScore,
+  improveTitle,
+  getSourceLabel,
+  isObviouslyLowQuality,
+} from './filters';
 
 // Initialize Supabase client with service role for server-side operations
 function getSupabaseAdmin() {
@@ -23,6 +30,8 @@ export interface IngestionResult {
   recordsInserted: number;
   recordsUpdated: number;
   recordsSkipped: number;
+  recordsRejected: number;        // Failed quality filter
+  recordsPendingReview: number;   // Sent to review queue
   error?: string;
   duration: number;
 }
@@ -72,6 +81,8 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
       recordsInserted: 0,
       recordsUpdated: 0,
       recordsSkipped: 0,
+      recordsRejected: 0,
+      recordsPendingReview: 0,
       error: `Failed to create job: ${jobError?.message}`,
       duration: Date.now() - startTime
     };
@@ -107,13 +118,61 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
       throw new Error(result.error || 'Scrape failed');
     }
 
-    // Process and insert the reports
+    // Process and insert the reports with quality filtering
     let inserted = 0;
     let updated = 0;
     let skipped = 0;
+    let rejected = 0;
+    let pendingReview = 0;
 
     for (const report of result.reports) {
       try {
+        // Quick rejection for obviously low quality content
+        if (isObviouslyLowQuality(report.title, report.description)) {
+          console.log(`[Ingestion] Quick reject: "${report.title.substring(0, 40)}..." (obviously low quality)`);
+          rejected++;
+          continue;
+        }
+
+        // Full quality assessment
+        const qualityResult = assessQuality(report, report.metadata);
+
+        if (!qualityResult.passed) {
+          console.log(`[Ingestion] Filtered: "${report.title.substring(0, 40)}..." (${qualityResult.reason})`);
+          rejected++;
+          continue;
+        }
+
+        // Get quality score and determine status
+        const qualityScore = qualityResult.qualityScore!;
+        const status = getStatusFromScore(qualityScore.total);
+
+        // Reject very low quality
+        if (status === 'rejected') {
+          console.log(`[Ingestion] Low score reject: "${report.title.substring(0, 40)}..." (score: ${qualityScore.total})`);
+          rejected++;
+          continue;
+        }
+
+        // Track pending review
+        if (status === 'pending_review') {
+          pendingReview++;
+        }
+
+        // Improve title if needed
+        const titleResult = improveTitle(
+          report.title,
+          report.description,
+          report.category,
+          report.location_name
+        );
+
+        const finalTitle = titleResult.title;
+        const originalTitle = titleResult.wasImproved ? titleResult.originalTitle : undefined;
+
+        // Generate source label
+        const sourceLabel = report.source_label || getSourceLabel(report.source_type);
+
         // Check if report already exists
         const { data: existing } = await supabase
           .from('reports')
@@ -127,13 +186,15 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           const { error: updateError } = await supabase
             .from('reports')
             .update({
-              title: report.title,
+              title: finalTitle,
               summary: report.summary,
               description: report.description,
               location_name: report.location_name,
               event_date: report.event_date,
               credibility: report.credibility,
               tags: report.tags,
+              source_label: sourceLabel,
+              original_title: originalTitle,
               updated_at: new Date().toISOString()
             })
             .eq('id', existing.id);
@@ -144,13 +205,13 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
             skipped++;
           }
         } else {
-          // Insert new report
-          const slug = generateSlug(report.title, report.original_report_id, report.source_type);
+          // Insert new report with quality-based status
+          const slug = generateSlug(finalTitle, report.original_report_id, report.source_type);
 
           const { error: insertError } = await supabase
             .from('reports')
             .insert({
-              title: report.title,
+              title: finalTitle,
               slug: slug,
               summary: report.summary,
               description: report.description,
@@ -165,14 +226,20 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               credibility: report.credibility || 'medium',
               source_type: report.source_type,
               original_report_id: report.original_report_id,
-              status: 'approved', // Auto-approve from trusted sources
+              status: status,  // Quality-based status instead of auto-approve
               tags: report.tags || [],
+              source_label: sourceLabel,
+              source_url: report.source_url,
+              original_title: originalTitle,
               upvotes: 0,
               view_count: 0
             });
 
           if (!insertError) {
             inserted++;
+            if (titleResult.wasImproved) {
+              console.log(`[Ingestion] Title improved: "${originalTitle?.substring(0, 30)}..." -> "${finalTitle.substring(0, 30)}..."`);
+            }
           } else {
             console.error('Insert error:', insertError);
             skipped++;
@@ -208,6 +275,8 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
       })
       .eq('id', sourceId);
 
+    console.log(`[Ingestion] Complete: found=${result.reports.length}, inserted=${inserted}, updated=${updated}, rejected=${rejected}, pending=${pendingReview}, skipped=${skipped}`);
+
     return {
       success: true,
       jobId: job.id,
@@ -215,6 +284,8 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
       recordsInserted: inserted,
       recordsUpdated: updated,
       recordsSkipped: skipped,
+      recordsRejected: rejected,
+      recordsPendingReview: pendingReview,
       duration: Date.now() - startTime
     };
 
@@ -247,6 +318,8 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
       recordsInserted: 0,
       recordsUpdated: 0,
       recordsSkipped: 0,
+      recordsRejected: 0,
+      recordsPendingReview: 0,
       error: errorMessage,
       duration: Date.now() - startTime
     };
@@ -287,6 +360,8 @@ export async function runScheduledIngestion(limit: number = 500): Promise<Ingest
       recordsInserted: 0,
       recordsUpdated: 0,
       recordsSkipped: 0,
+      recordsRejected: 0,
+      recordsPendingReview: 0,
       error: error instanceof Error ? error.message : 'Unknown error',
       duration: 0
     } as IngestionResult));
@@ -321,6 +396,8 @@ export async function runScheduledIngestionBatched(
         recordsInserted: 0,
         recordsUpdated: 0,
         recordsSkipped: 0,
+        recordsRejected: 0,
+        recordsPendingReview: 0,
         error: error instanceof Error ? error.message : 'Unknown error',
         duration: 0
       } as IngestionResult));

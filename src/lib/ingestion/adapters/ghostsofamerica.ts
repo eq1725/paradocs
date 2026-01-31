@@ -167,7 +167,15 @@ function parseGhostStories(html: string, stateName: string, cityName?: string): 
       credibility,
       source_type: 'ghostsofamerica',
       original_report_id: reportId,
-      tags
+      tags,
+      // New quality system fields
+      source_label: 'Ghosts of America',
+      metadata: {
+        stateName,
+        cityName,
+        hasDate: !!eventDate,
+        hasSpecificLocation: !!locationMatch
+      }
     });
   }
 
@@ -198,7 +206,13 @@ function parseGhostStories(html: string, stateName: string, cityName?: string): 
         credibility: 'medium',
         source_type: 'ghostsofamerica',
         original_report_id: reportId,
-        tags: ['ghost-story']
+        tags: ['ghost-story'],
+        // New quality system fields
+        source_label: 'Ghosts of America',
+        metadata: {
+          stateName,
+          cityName
+        }
       });
     }
   }

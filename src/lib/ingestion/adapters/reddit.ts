@@ -316,7 +316,16 @@ async function fetchPostComments(
         credibility: comment.score > 50 ? 'high' : (comment.score > 10 ? 'medium' : 'low'),
         source_type: 'reddit',
         original_report_id: `reddit-comment-${comment.id}`,
-        tags
+        tags,
+        // New quality system fields
+        source_label: `r/${subreddit}`,
+        source_url: `https://reddit.com/r/${subreddit}/comments/${postId}`,
+        metadata: {
+          subreddit,
+          postTitle,
+          commentScore: comment.score,
+          isComment: true
+        }
       });
     }
 
@@ -433,7 +442,17 @@ function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
     credibility,
     source_type: 'reddit',
     original_report_id: `reddit-${post.id}`,
-    tags
+    tags,
+    // New quality system fields
+    source_label: `r/${post.subreddit}`,
+    source_url: `https://reddit.com${post.permalink}`,
+    metadata: {
+      subreddit: post.subreddit,
+      postId: post.id,
+      score: post.score,
+      numComments: post.num_comments,
+      flair: post.link_flair_text
+    }
   };
 }
 

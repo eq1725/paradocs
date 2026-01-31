@@ -51,6 +51,19 @@ export interface ScrapedReport {
   source_type: string;
   original_report_id: string;
   tags?: string[];
+  // New fields for quality system
+  source_label?: string;      // Display label (e.g., "r/Paranormal", "BFRO Database")
+  source_url?: string;        // Link back to original source
+  original_title?: string;    // Original title before improvement
+  quality_score?: number;     // 0-100 quality score
+  quality_breakdown?: {       // Detailed score breakdown
+    lengthScore: number;
+    detailScore: number;
+    coherenceScore: number;
+    sourceScore: number;
+  };
+  // Adapter-specific metadata
+  metadata?: Record<string, any>;
 }
 
 export interface AdapterResult {

@@ -281,7 +281,14 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
       credibility: getCredibility(classification),
       source_type: 'bfro',
       original_report_id: `bfro-${reportNumber}`,
-      tags: extractTags(description, classification)
+      tags: extractTags(description, classification),
+      // New quality system fields
+      source_label: 'BFRO Database',
+      source_url: `${baseUrl}/GDB/show_report.asp?id=${reportNumber}`,
+      metadata: {
+        bfroClass: classification,
+        reportNumber
+      }
     };
 
   } catch (e) {

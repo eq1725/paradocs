@@ -490,7 +490,16 @@ export const nuforcAdapter: SourceAdapter = {
               credibility: determineCredibility(description, meta.shape, meta.hasMedia),
               source_type: 'nuforc',
               original_report_id: `nuforc-${meta.id}`,
-              tags: extractTags(meta.shape, description)
+              tags: extractTags(meta.shape, description),
+              // New quality system fields
+              source_label: 'NUFORC',
+              source_url: `https://nuforc.org/sighting/?id=${meta.id}`,
+              metadata: {
+                shape: meta.shape,
+                hasMedia: meta.hasMedia,
+                duration: duration,
+                reportId: meta.id
+              }
             };
 
             reports.push(report);

@@ -127,7 +127,15 @@ function parseTableRow(row: string, category: string, pageTitle: string, index: 
     credibility: 'medium', // Wikipedia is generally reliable
     source_type: 'wikipedia',
     original_report_id: reportId,
-    tags: ['wikipedia', 'historical', category.replace(/_/g, '-')]
+    tags: ['wikipedia', 'historical', category.replace(/_/g, '-')],
+    // New quality system fields
+    source_label: 'Wikipedia',
+    source_url: `https://en.wikipedia.org/wiki/${encodeURIComponent(pageTitle)}`,
+    metadata: {
+      pageTitle,
+      hasDate: !!eventDate,
+      hasLocation: !!location
+    }
   };
 }
 
@@ -294,7 +302,13 @@ function parseWikiContent(html: string, category: string, pageTitle: string): Sc
         credibility: 'medium',
         source_type: 'wikipedia',
         original_report_id: reportId,
-        tags: ['wikipedia', 'historical', category.replace(/_/g, '-')]
+        tags: ['wikipedia', 'historical', category.replace(/_/g, '-')],
+        // New quality system fields
+        source_label: 'Wikipedia',
+        source_url: `https://en.wikipedia.org/wiki/${encodeURIComponent(pageTitle)}`,
+        metadata: {
+          pageTitle
+        }
       });
     }
   }
