@@ -17,11 +17,14 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const anthropicKey = process.env.ANTHROPIC_API_KEY!;
+const anthropicKey = process.env.ANTHROPIC_API_KEY;
 const adminApiKey = process.env.ADMIN_API_KEY || 'admin-secret-key';
 
+// Log API key status on module load (without exposing the actual key)
+console.log(`[Fix Titles] ANTHROPIC_API_KEY status: ${anthropicKey ? 'SET (' + anthropicKey.substring(0, 10) + '...)' : 'MISSING'}`);
+
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
-const anthropic = new Anthropic({ apiKey: anthropicKey });
+const anthropic = anthropicKey ? new Anthropic({ apiKey: anthropicKey }) : null;
 
 const MODEL = 'claude-sonnet-4-5-20250929';
 
@@ -77,11 +80,19 @@ TIME_CONTEXT: [value or null]
 UNIQUE_DETAIL: [value or null]`;
 
 async function extractTitleElements(description: string): Promise<TitleElements> {
+  // Check if Anthropic client is available
+  if (!anthropic) {
+    console.error('[Fix Titles] ANTHROPIC_API_KEY is not set - cannot extract title elements');
+    return { setting: null, keyElement: null, timeContext: null, uniqueDetail: null };
+  }
+
   const truncatedDesc = description.length > 1500
     ? description.substring(0, 1500) + '...'
     : description;
 
   try {
+    console.log(`[Fix Titles] Calling Anthropic API for description (${truncatedDesc.length} chars)...`);
+
     const message = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 200,
@@ -97,9 +108,14 @@ async function extractTitleElements(description: string): Promise<TitleElements>
     const textBlock = message.content.find(block => block.type === 'text');
     const responseText = textBlock?.type === 'text' ? textBlock.text : '';
 
-    return parseElementsResponse(responseText);
+    console.log(`[Fix Titles] AI Response: "${responseText.substring(0, 200)}..."`);
+
+    const elements = parseElementsResponse(responseText);
+    console.log(`[Fix Titles] Parsed elements:`, JSON.stringify(elements));
+
+    return elements;
   } catch (error) {
-    console.error('Error extracting title elements:', error);
+    console.error('[Fix Titles] Error extracting title elements:', error);
     return { setting: null, keyElement: null, timeContext: null, uniqueDetail: null };
   }
 }
@@ -145,7 +161,9 @@ function buildTitleSuffix(elements: TitleElements): string | null {
   if (elements.uniqueDetail && parts.length < 2) parts.push(elements.uniqueDetail);
   if (elements.timeContext && parts.length < 2) parts.push(elements.timeContext);
 
-  return parts.length > 0 ? parts.join(', ') : null;
+  const result = parts.length > 0 ? parts.join(', ') : null;
+  console.log(`[Fix Titles] buildTitleSuffix: parts=${JSON.stringify(parts)}, result="${result}"`);
+  return result;
 }
 
 function generateNewTitle(
@@ -159,16 +177,21 @@ function generateNewTitle(
   const aiSuffix = buildTitleSuffix(elements);
 
   if (aiSuffix) {
-    return `${phenomenonType} - ${aiSuffix}`;
+    const newTitle = `${phenomenonType} - ${aiSuffix}`;
+    console.log(`[Fix Titles] generateNewTitle: using AI suffix -> "${newTitle}"`);
+    return newTitle;
   }
 
   if (locationName && locationName.length < 25) {
     const cleanLocation = locationName.replace(/,?\s*(USA|US|United States)$/i, '').trim();
     if (cleanLocation) {
-      return `${phenomenonType} - ${cleanLocation}`;
+      const newTitle = `${phenomenonType} - ${cleanLocation}`;
+      console.log(`[Fix Titles] generateNewTitle: using location fallback -> "${newTitle}"`);
+      return newTitle;
     }
   }
 
+  console.log(`[Fix Titles] generateNewTitle: no improvement possible, keeping original`);
   return oldTitle;
 }
 
@@ -185,6 +208,15 @@ export default async function handler(
   const apiKey = req.headers['x-admin-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
   if (apiKey !== adminApiKey) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // Check if Anthropic API key is available
+  if (!anthropic) {
+    return res.status(500).json({
+      error: 'Configuration error',
+      message: 'ANTHROPIC_API_KEY is not set in environment variables. Please add it to Vercel project settings.',
+      hint: 'Go to Vercel Dashboard > Project Settings > Environment Variables and add ANTHROPIC_API_KEY'
+    });
   }
 
   const limit = parseInt(req.query.limit as string) || 20;
