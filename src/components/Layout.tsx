@@ -81,7 +81,7 @@ export default function Layout({ children }: LayoutProps) {
             {/* Logo */}
             <Link href="/" className="flex items-center gap-3">
               <span className="text-3xl">🌌</span>
-              <span className="font-display font-bold text-xl text-white">ParaDocs</span>
+              <span className="font-display font-bold text-xl text-white">Paradocs</span>
             </Link>
 
             {/* Desktop Navigation */}
@@ -250,7 +250,7 @@ export default function Layout({ children }: LayoutProps) {
             <div className="col-span-2 md:col-span-1">
               <Link href="/" className="flex items-center gap-2 mb-4">
                 <span className="text-2xl">🌌</span>
-                <span className="font-display font-bold text-lg">ParaDocs</span>
+                <span className="font-display font-bold text-lg">Paradocs</span>
               </Link>
               <p className="text-sm text-gray-500">
                 The world's largest database of paranormal phenomena. Where mysteries meet discovery.
@@ -282,7 +282,7 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-white/5 text-center text-sm text-gray-500">
-            © {new Date().getFullYear()} ParaDocs. All rights reserved.
+            © {new Date().getFullYear()} Paradocs. All rights reserved.
           </div>
         </div>
       </footer>

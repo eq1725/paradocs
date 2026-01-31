@@ -78,7 +78,7 @@ export default function PhenomenaPage() {
   return (
     <>
       <Head>
-        <title>Phenomena Encyclopedia - ParaDocs</title>
+        <title>Phenomena Encyclopedia - Paradocs</title>
         <meta name="description" content="Explore our comprehensive encyclopedia of paranormal phenomena, cryptids, UFOs, and unexplained events." />
       </Head>
 

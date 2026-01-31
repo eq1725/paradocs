@@ -137,7 +137,7 @@ export default function PhenomenonPage() {
   return (
     <>
       <Head>
-        <title>{phenomenon.name} - Phenomena Encyclopedia - ParaDocs</title>
+        <title>{phenomenon.name} - Phenomena Encyclopedia - Paradocs</title>
         <meta name="description" content={phenomenon.ai_summary || `Learn about ${phenomenon.name} in our paranormal phenomena encyclopedia.`} />
       </Head>
 

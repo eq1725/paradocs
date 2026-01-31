@@ -39,7 +39,7 @@ export default function BetaAccessPage() {
     }
 
     if (selectedInterests.length === 0) {
-      setError('Please select how you plan to use ParaDocs')
+      setError('Please select how you plan to use Paradocs')
       return
     }
 
@@ -72,8 +72,8 @@ export default function BetaAccessPage() {
   return (
     <>
       <Head>
-        <title>Join the Beta | ParaDocs</title>
-        <meta name="description" content="Get early access to ParaDocs - the platform for documenting and exploring paranormal phenomena." />
+        <title>Join the Beta | Paradocs</title>
+        <meta name="description" content="Get early access to Paradocs - the platform for documenting and exploring paranormal phenomena." />
       </Head>
 
       <div className="min-h-screen bg-gray-950 flex flex-col">
@@ -126,7 +126,7 @@ export default function BetaAccessPage() {
                   {/* Usage Field */}
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
-                      How will you use ParaDocs?
+                      How will you use Paradocs?
                     </label>
                     <div className="grid grid-cols-1 gap-2">
                       {USAGE_OPTIONS.map((option) => {
@@ -181,7 +181,7 @@ export default function BetaAccessPage() {
                 </form>
 
                 <p className="text-center text-xs text-gray-500 mt-6">
-                  By signing up, you agree to receive emails about ParaDocs.
+                  By signing up, you agree to receive emails about Paradocs.
                   <br />
                   Unsubscribe anytime.
                 </p>
@@ -197,7 +197,7 @@ export default function BetaAccessPage() {
                     You're on the list!
                   </h1>
                   <p className="text-gray-400">
-                    Thanks for signing up for early access to ParaDocs.
+                    Thanks for signing up for early access to Paradocs.
                   </p>
                 </div>
 

@@ -258,7 +258,7 @@ export default function SubmitPage() {
   return (
     <>
       <Head>
-        <title>Submit a Report - ParaDocs</title>
+        <title>Submit a Report - Paradocs</title>
       </Head>
 
       <div className="max-w-3xl mx-auto px-4 py-8">

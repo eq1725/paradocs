@@ -91,7 +91,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>ParaDocs - The World's Largest Paranormal Database</title>
+        <title>Paradocs - The World's Largest Paranormal Database</title>
       </Head>
 
       {/* Hero Section */}

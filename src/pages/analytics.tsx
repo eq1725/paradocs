@@ -176,7 +176,7 @@ export default function AnalyticsPage() {
   return (
     <>
       <Head>
-        <title>Analytics - ParaDocs</title>
+        <title>Analytics - Paradocs</title>
         <meta name="description" content="Explore patterns and trends across paranormal phenomena with advanced analytics and AI-powered insights." />
       </Head>
 

@@ -150,7 +150,7 @@ export default function ExplorePage() {
   return (
     <>
       <Head>
-        <title>Explore Paranormal Reports - ParaDocs</title>
+        <title>Explore Paranormal Reports - Paradocs</title>
       </Head>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

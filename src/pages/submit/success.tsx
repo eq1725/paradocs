@@ -9,7 +9,7 @@ export default function SubmitSuccessPage() {
   return (
     <>
       <Head>
-        <title>Report Submitted - ParaDocs</title>
+        <title>Report Submitted - Paradocs</title>
       </Head>
 
       <div className="min-h-[70vh] flex items-center justify-center px-4">
@@ -23,7 +23,7 @@ export default function SubmitSuccessPage() {
           </h1>
 
           <p className="text-gray-400 mb-8">
-            Thank you for your contribution to ParaDocs. Your report has been submitted
+            Thank you for your contribution to Paradocs. Your report has been submitted
             and is pending review. Our team will review it shortly and it will be
             published once approved.
           </p>

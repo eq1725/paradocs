@@ -98,7 +98,7 @@ export default function InsightsPage() {
   return (
     <Layout>
       <Head>
-        <title>Pattern Insights | ParaDocs</title>
+        <title>Pattern Insights | Paradocs</title>
         <meta
           name="description"
           content="Explore AI-detected patterns in paranormal report data including geographic clusters, temporal anomalies, and correlations."

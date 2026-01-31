@@ -161,12 +161,12 @@ export default function SearchPage() {
   return (
     <>
       <Head>
-        <title>{q ? `Search: ${q}` : 'Advanced Search'} - ParaDocs</title>
+        <title>{q ? `Search: ${q}` : 'Advanced Search'} - Paradocs</title>
       </Head>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-display font-bold text-white mb-2">
-          Search ParaDocs
+          Search Paradocs
         </h1>
         <p className="text-gray-400 mb-8">
           Search across all paranormal reports with advanced filtering

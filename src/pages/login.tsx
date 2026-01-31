@@ -92,7 +92,7 @@ export default function LoginPage() {
   return (
     <>
       <Head>
-        <title>{mode === 'signup' ? 'Sign Up' : mode === 'forgot' ? 'Reset Password' : 'Sign In'} - ParaDocs</title>
+        <title>{mode === 'signup' ? 'Sign Up' : mode === 'forgot' ? 'Reset Password' : 'Sign In'} - Paradocs</title>
       </Head>
 
       <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
