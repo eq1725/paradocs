@@ -8,7 +8,7 @@
 import React, { useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import { CheckCircle, Sparkles, ArrowRight } from 'lucide-react'
+import { CheckCircle, ArrowRight } from 'lucide-react'
 
 // Usage options for the signup form
 const USAGE_OPTIONS = [
@@ -79,11 +79,8 @@ export default function BetaAccessPage() {
       <div className="min-h-screen bg-gray-950 flex flex-col">
         {/* Header */}
         <header className="p-6">
-          <Link href="/" className="inline-flex items-center gap-2 text-white hover:text-purple-400 transition-colors">
-            <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold">ParaDocs</span>
+          <Link href="https://www.discoverparadocs.com" className="inline-block text-white hover:opacity-80 transition-opacity">
+            <span className="text-xl font-black tracking-tight">Paradocs.</span>
           </Link>
         </header>
 
@@ -232,7 +229,7 @@ export default function BetaAccessPage() {
 
         {/* Footer */}
         <footer className="p-6 text-center text-gray-500 text-sm">
-          © {new Date().getFullYear()} ParaDocs. All rights reserved.
+          © {new Date().getFullYear()} Paradocs. All rights reserved.
         </footer>
       </div>
 
