@@ -344,44 +344,30 @@ async function detectTemporalAnomaliesOptimized(): Promise<{ newPatterns: number
 }
 
 /**
- * Update existing patterns with recent reports
+ * Update existing patterns - just refresh timestamps for active patterns
+ * Report counts are managed by the category analysis functions
  */
 async function updateExistingPatterns(): Promise<{ updated: number }> {
   const { data: patterns, error } = await supabaseAdmin
     .from('detected_patterns')
-    .select('*')
+    .select('id, status, last_updated_at')
     .in('status', ['active', 'emerging'])
 
   if (error || !patterns) return { updated: 0 }
 
   let updated = 0
+  const now = new Date()
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
   for (const pattern of patterns) {
-    const categories = pattern.categories || []
+    const lastUpdated = new Date(pattern.last_updated_at)
 
-    // Count matching reports
-    let query = supabaseAdmin
-      .from('reports')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'approved')
-
-    if (categories.length > 0) {
-      query = query.in('category', categories)
-    }
-
-    if (pattern.pattern_start_date) {
-      query = query.gte('event_date', pattern.pattern_start_date)
-    }
-
-    const { count } = await query
-
-    // Update if count changed significantly
-    if (count && Math.abs(count - pattern.report_count) >= 5) {
+    // Refresh timestamp for patterns not updated in the last 7 days
+    if (lastUpdated < sevenDaysAgo) {
       await supabaseAdmin
         .from('detected_patterns')
         .update({
-          report_count: count,
-          last_updated_at: new Date().toISOString()
+          last_updated_at: now.toISOString()
         })
         .eq('id', pattern.id)
       updated++
@@ -484,14 +470,15 @@ async function createTemporalPattern(data: any) {
 }
 
 async function createRegionalPattern(data: any) {
+  const reportCount = data.reports.length
   await supabaseAdmin
     .from('detected_patterns')
     .insert({
       pattern_type: 'regional_concentration',
       status: 'emerging',
-      confidence_score: Math.min(data.reports.length / 50, 1),
-      significance_score: Math.min(data.reports.length / 30, 1),
-      report_count: data.reports.length,
+      confidence_score: Math.min(reportCount / 50, 1),
+      significance_score: Math.min(reportCount / 30, 1),
+      report_count: reportCount,
       categories: [data.category],
       metadata: {
         pattern_key: `region_${data.category}_${data.location.replace(/\W/g, '_')}`,
