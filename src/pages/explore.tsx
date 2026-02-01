@@ -35,8 +35,8 @@ export default function ExplorePage() {
           setTotalCount(data.total || 0)
         }
       } catch {
-        // Use fallback
-        setBaselineCount(250000)
+        // Don't use fallback - let it show 0 or actual count from data
+        setBaselineCount(0)
       }
     }
     fetchTotalCount()
@@ -145,7 +145,7 @@ export default function ExplorePage() {
         setTotalCount((page - 1) * perPage + (data?.length || 0) + estimatedMore)
       } else {
         // Use actual count fetched from stats API
-        setTotalCount(baselineCount || 250000)
+        setTotalCount(baselineCount)
       }
     } catch (error) {
       console.error('Error loading reports:', error)

@@ -17,17 +17,32 @@ export default async function handler(
 
   try {
     // Use fast approximate counts to avoid timeout on 250K+ rows
-    // For total: use estimated count from pg_class
-    let total = 250000 // Fallback
+    let total = 0
+
+    // Try RPC first (fastest)
     try {
       const { data: countData } = await supabaseAdmin
         .rpc('get_approved_reports_count')
         .single()
       if (countData?.count) {
-        total = countData.count
+        total = Number(countData.count)
       }
     } catch {
-      // Use fallback if RPC doesn't exist
+      // RPC doesn't exist yet
+    }
+
+    // Fallback: use head count query (slower but accurate)
+    if (!total) {
+      try {
+        const { count } = await supabaseAdmin
+          .from('reports')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'approved')
+        total = count || 0
+      } catch {
+        // Last resort fallback
+        total = 0
+      }
     }
 
     // Get this month's count - smaller dataset, can use exact
@@ -51,17 +66,33 @@ export default async function handler(
       // Monthly count optional
     }
 
-    // Get unique countries - try RPC first, else sample
-    let uniqueCountries = 75 // Approximate fallback
+    // Get unique countries - try RPC first, else direct query
+    let uniqueCountries = 0
     try {
       const { data: countryData, error: countryError } = await supabaseAdmin
         .rpc('get_unique_countries_count')
         .single()
       if (!countryError && countryData?.count) {
-        uniqueCountries = countryData.count
+        uniqueCountries = Number(countryData.count)
       }
     } catch {
-      // Use fallback
+      // RPC doesn't exist yet
+    }
+
+    // Fallback: sample distinct countries
+    if (!uniqueCountries) {
+      try {
+        const { data: countries } = await supabaseAdmin
+          .from('reports')
+          .select('country')
+          .eq('status', 'approved')
+          .not('country', 'is', null)
+          .limit(10000)
+        const uniqueSet = new Set(countries?.map(r => r.country).filter(Boolean))
+        uniqueCountries = uniqueSet.size
+      } catch {
+        uniqueCountries = 0
+      }
     }
 
     // Cache for 5 minutes
