@@ -54,7 +54,7 @@ export default function ExplorePage() {
       // Select fields needed for ReportCard - skip count for performance on large datasets
       let query = supabase
         .from('reports')
-        .select('id,title,slug,summary,category,country,city,state,event_date,credibility,upvotes,view_count,comment_count,has_photo_video,has_physical_evidence,featured,location_name,source_type,source_label,created_at')
+        .select('id,title,slug,summary,category,country,city,state_province,event_date,credibility,upvotes,view_count,comment_count,has_photo_video,has_physical_evidence,featured,location_name,source_type,source_label,created_at')
         .eq('status', 'approved')
 
       // Apply filters
