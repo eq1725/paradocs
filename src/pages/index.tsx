@@ -43,19 +43,19 @@ export default function Home() {
         .order('created_at', { ascending: false })
         .limit(6)
 
-      // Stats
-      const { count: total } = await supabase
+      // Stats - use estimated counts for better performance on large tables
+      const { count: total, error: totalError } = await supabase
         .from('reports')
-        .select('*', { count: 'exact', head: true })
+        .select('*', { count: 'estimated', head: true })
         .eq('status', 'approved')
 
       // Fix: Reset to midnight UTC to capture all records from the 1st of the month
       const thisMonth = new Date()
       thisMonth.setUTCDate(1)
       thisMonth.setUTCHours(0, 0, 0, 0)
-      const { count: monthly } = await supabase
+      const { count: monthly, error: monthlyError } = await supabase
         .from('reports')
-        .select('*', { count: 'exact', head: true })
+        .select('*', { count: 'estimated', head: true })
         .eq('status', 'approved')
         .gte('created_at', thisMonth.toISOString())
 
