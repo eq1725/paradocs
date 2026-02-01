@@ -95,6 +95,27 @@ const META_POST_PATTERNS = [
   /\bwhat (paranormal|supernatural|strange|weird|creepy) (experience|thing|event)s? (have you|did you)\b/i,
   // Discussion prompts
   /\b(discussion|megathread|weekly thread)\b/i,
+  // Theory/consensus questions (not sightings)
+  /\b(what('s| is) (the|your) (consensus|theory|opinion|take|thoughts?)( on)?)\b/i,
+  /\b(what do (you|we|people) think (about|of))\b/i,
+  /\b(how do (you|we) explain)\b/i,
+  /\b(can (someone|anyone) explain)\b/i,
+  /\b(theories? (about|on|regarding))\b/i,
+  /\b(years later|decades later|looking back)\b/i,
+  // Opinion polls
+  /\b(poll|vote|which (do you|would you))\b/i,
+  /\bif you had to (choose|pick)\b/i,
+  // Historical discussion (not personal experience)
+  /\b(historical|famous|well-known|documented) (case|event|incident|sighting)\b/i,
+  /\b(the|this) (case|event|incident) (of|from)\b/i,
+];
+
+// Patterns that indicate the title is asking a question (not reporting)
+const QUESTION_TITLE_PATTERNS = [
+  /^(what|why|how|where|when|who|which|is|are|do|does|did|can|could|should|would|has|have)\b.+\?$/i,
+  /\b(thoughts\??|opinions?\??|theories?\??|explain\??)$/i,
+  /\bwhat do you think\b/i,
+  /\bdoes anyone (know|think|believe)\b/i,
 ];
 
 // Patterns that indicate art, merchandise, or promotional content (NOT sightings)
@@ -160,11 +181,22 @@ function isMetaPost(post: ArcticShiftPost): boolean {
     }
   }
 
+  // Check if title is a question asking for opinions/theories (not a personal report)
+  for (const pattern of QUESTION_TITLE_PATTERNS) {
+    if (pattern.test(title)) {
+      return true;
+    }
+  }
+
   // Titles that are just questions often indicate prompts
-  if (title.endsWith('?') && title.split(' ').length < 10) {
-    // Short question titles are often prompts
-    const promptWords = ['your', 'you', 'anyone', 'has', 'does', 'what', 'who', 'share'];
+  if (title.endsWith('?')) {
+    // Question titles with these words are usually discussion prompts, not experiences
+    const promptWords = ['your', 'you', 'anyone', 'has', 'does', 'what', 'who', 'share', 'think', 'consensus', 'theory', 'opinion', 'explain'];
     if (promptWords.some(word => title.includes(word))) {
+      return true;
+    }
+    // Short question titles (< 15 words) are often prompts
+    if (title.split(' ').length < 15) {
       return true;
     }
   }

@@ -20,8 +20,27 @@ export default function ExplorePage() {
   const [loading, setLoading] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
   const [totalCount, setTotalCount] = useState(0)
+  const [baselineCount, setBaselineCount] = useState(0) // Actual total from API
   const [page, setPage] = useState(1)
   const perPage = 12
+
+  // Fetch actual total count on mount
+  useEffect(() => {
+    async function fetchTotalCount() {
+      try {
+        const res = await fetch('/api/public/stats')
+        if (res.ok) {
+          const data = await res.json()
+          setBaselineCount(data.total || 0)
+          setTotalCount(data.total || 0)
+        }
+      } catch {
+        // Use fallback
+        setBaselineCount(250000)
+      }
+    }
+    fetchTotalCount()
+  }, [])
 
   // Filters
   const [category, setCategory] = useState<PhenomenonCategory | 'all'>('all')
@@ -125,15 +144,15 @@ export default function ExplorePage() {
         const estimatedMore = (data?.length || 0) === perPage ? 1000 : 0
         setTotalCount((page - 1) * perPage + (data?.length || 0) + estimatedMore)
       } else {
-        // Use known approximate count for unfiltered
-        setTotalCount(250000)
+        // Use actual count fetched from stats API
+        setTotalCount(baselineCount || 250000)
       }
     } catch (error) {
       console.error('Error loading reports:', error)
     } finally {
       setLoading(false)
     }
-  }, [category, selectedCategories, selectedTypes, searchQuery, country, credibility, dateFrom, dateTo, sort, hasEvidence, featured, page])
+  }, [category, selectedCategories, selectedTypes, searchQuery, country, credibility, dateFrom, dateTo, sort, hasEvidence, featured, page, baselineCount])
 
   useEffect(() => {
     loadReports()
