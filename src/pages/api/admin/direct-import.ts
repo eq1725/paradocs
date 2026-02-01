@@ -123,11 +123,62 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Create summary
         const summary = description.length > 200 ? description.substring(0, 197) + '...' : description
 
-        // Extract location if present
-        const locationMatch = description.match(
-          /(?:in|at|near|from)\s+([A-Z][a-zA-Z]+(?:,?\s+[A-Z]{2})?(?:,?\s+(?:USA|US|United States|Canada|UK))?)/
-        )
-        const locationName = locationMatch ? locationMatch[1] : undefined
+        // Extract location and country if present
+        let locationName: string | undefined
+        let country: string | undefined
+
+        // Try to find location patterns
+        const locationPatterns = [
+          // "in City, State" or "in City, ST"
+          /(?:in|at|near|from)\s+([A-Z][a-zA-Z\s]+,\s*[A-Z]{2})\b/,
+          // "in City, Country"
+          /(?:in|at|near|from)\s+([A-Z][a-zA-Z\s]+,\s*(?:USA|US|United States|Canada|UK|Australia|Ireland|Scotland|England|Wales|Germany|France|Japan|Mexico|Brazil|India|China))/i,
+          // "Location: City" pattern
+          /Location:\s*([A-Z][a-zA-Z\s,]+?)(?:\.|$|\n)/,
+          // Just city/state
+          /(?:in|at|near|from)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)/
+        ]
+
+        for (const pattern of locationPatterns) {
+          const match = description.match(pattern)
+          if (match) {
+            locationName = match[1].trim()
+            break
+          }
+        }
+
+        // Try to determine country from text
+        const countryPatterns: [RegExp, string][] = [
+          [/\b(?:USA|US|United States|America)\b/i, 'United States'],
+          [/\bCanada\b/i, 'Canada'],
+          [/\b(?:UK|United Kingdom|Britain|England|Scotland|Wales)\b/i, 'United Kingdom'],
+          [/\bAustralia\b/i, 'Australia'],
+          [/\bIreland\b/i, 'Ireland'],
+          [/\bGermany\b/i, 'Germany'],
+          [/\bFrance\b/i, 'France'],
+          [/\bJapan\b/i, 'Japan'],
+          [/\bMexico\b/i, 'Mexico'],
+          [/\bBrazil\b/i, 'Brazil'],
+          [/\bIndia\b/i, 'India'],
+          [/\bChina\b/i, 'China'],
+          [/\bPhilippines\b/i, 'Philippines'],
+          [/\bNew Zealand\b/i, 'New Zealand'],
+        ]
+
+        for (const [pattern, countryName] of countryPatterns) {
+          if (pattern.test(description) || pattern.test(post.title)) {
+            country = countryName
+            break
+          }
+        }
+
+        // If location contains a US state abbreviation and no country found, assume US
+        if (!country && locationName) {
+          const usStates = /\b(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY)\b/
+          if (usStates.test(locationName)) {
+            country = 'United States'
+          }
+        }
 
         // Convert timestamp
         const eventDate = new Date(post.created_utc * 1000).toISOString().split('T')[0]
@@ -175,7 +226,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             description,
             category,
             location_name: locationName,
-            country: 'United States',
+            country: country, // Only set if we can determine it from content
             event_date: eventDate,
             credibility,
             source_type: 'reddit',
