@@ -189,7 +189,7 @@ async function analyzeCategoryTrends(category: string): Promise<{ analyzed: numb
 
   const { data: reports, error, count } = await supabaseAdmin
     .from('reports')
-    .select('id, event_date, created_at, country, location_name', { count: 'exact' })
+    .select('id, event_date, created_at, country, location_name, source_type', { count: 'exact' })
     .eq('status', 'approved')
     .eq('category', category)
     .gte('created_at', ninetyDaysAgo.toISOString())
@@ -213,8 +213,17 @@ async function analyzeCategoryTrends(category: string): Promise<{ analyzed: numb
     const weekCount = (weekReports as any[]).length
     const ratio = weekCount / avgPerWeek
 
-    // Surge detection: >2x average
-    if (ratio >= 2 && weekCount >= 5) {
+    // Check if most reports are from bulk ingestion (non-user sources)
+    const typedReports = weekReports as any[]
+    const userReports = typedReports.filter(r => r.source_type === 'user' || !r.source_type).length
+    const ingestedReports = weekCount - userReports
+    const ingestionRatio = ingestedReports / weekCount
+
+    // Skip surges that are >80% from bulk ingestion - these are setup, not patterns
+    const isBulkIngestion = ingestionRatio > 0.8 && ratio > 5
+
+    // Surge detection: >2x average (but not bulk ingestion)
+    if (ratio >= 2 && weekCount >= 5 && !isBulkIngestion) {
       const patternKey = `surge_${category}_${weekStart}`
       const existing = await findExistingPattern(patternKey)
 
@@ -224,6 +233,8 @@ async function analyzeCategoryTrends(category: string): Promise<{ analyzed: numb
           metadata: {
             ...existing.metadata,
             ratio,
+            user_reports: userReports,
+            ingested_reports: ingestedReports,
             last_analyzed: new Date().toISOString()
           }
         })
@@ -234,7 +245,7 @@ async function analyzeCategoryTrends(category: string): Promise<{ analyzed: numb
           weekStart,
           reportCount: weekCount,
           ratio,
-          reports: weekReports as any[]
+          reports: typedReports
         })
         patternsFound++
       }
@@ -272,18 +283,23 @@ async function detectTemporalAnomaliesOptimized(): Promise<{ newPatterns: number
   // Get weekly report counts for the past year
   const { data: weeklyData, error } = await supabaseAdmin
     .from('reports')
-    .select('created_at, category')
+    .select('created_at, category, source_type')
     .eq('status', 'approved')
     .gte('created_at', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString())
     .limit(50000)
 
   if (error || !weeklyData) return { newPatterns: 0, updatedPatterns: 0 }
 
-  // Group by week
+  // Group by week, tracking user vs ingested reports
   const weekCounts: Record<string, number> = {}
+  const weekUserCounts: Record<string, number> = {}
   for (const report of weeklyData) {
     const week = getWeekStart(new Date(report.created_at))
     weekCounts[week] = (weekCounts[week] || 0) + 1
+    // Track user-submitted reports separately
+    if (report.source_type === 'user' || !report.source_type) {
+      weekUserCounts[week] = (weekUserCounts[week] || 0) + 1
+    }
   }
 
   // Calculate statistics
@@ -292,11 +308,17 @@ async function detectTemporalAnomaliesOptimized(): Promise<{ newPatterns: number
   const variance = counts.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / counts.length
   const stdDev = Math.sqrt(variance)
 
-  // Find anomalies (z-score > 2)
+  // Find anomalies (z-score > 2), but skip bulk ingestion surges
   for (const [week, count] of Object.entries(weekCounts)) {
     const zScore = (count - mean) / stdDev
+    const userCount = weekUserCounts[week] || 0
+    const ingestionRatio = (count - userCount) / count
 
-    if (Math.abs(zScore) > 2) {
+    // Skip surges that are >80% from bulk ingestion with z-score > 3
+    // These are setup/ingestion periods, not genuine patterns
+    const isBulkIngestion = ingestionRatio > 0.8 && zScore > 3
+
+    if (Math.abs(zScore) > 2 && !isBulkIngestion) {
       const isSpike = zScore > 0
       const existing = await findExistingPattern(`temporal_${week}`)
 
