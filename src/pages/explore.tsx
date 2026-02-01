@@ -16,7 +16,7 @@ type SortOption = 'newest' | 'oldest' | 'popular' | 'most_viewed'
 
 export default function ExplorePage() {
   const router = useRouter()
-  const [reports, setReports] = useState<(Report & { phenomenon_type?: PhenomenonType })[]>([])
+  const [reports, setReports] = useState<Partial<Report>[]>([])
   const [loading, setLoading] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
   const [totalCount, setTotalCount] = useState(0)
@@ -51,9 +51,32 @@ export default function ExplorePage() {
   const loadReports = useCallback(async () => {
     setLoading(true)
     try {
+      // Use 'estimated' count for performance on large datasets (258K+ rows)
+      // Only select fields needed for ReportCard to reduce payload
       let query = supabase
         .from('reports')
-        .select('*, phenomenon_type:phenomenon_types(*)', { count: 'exact' })
+        .select(`
+          id,
+          title,
+          slug,
+          summary,
+          category,
+          country,
+          city,
+          state,
+          event_date,
+          credibility,
+          upvotes,
+          view_count,
+          comment_count,
+          has_photo_video,
+          has_physical_evidence,
+          featured,
+          location_name,
+          source_type,
+          source_label,
+          created_at
+        `, { count: 'estimated' })
         .eq('status', 'approved')
 
       // Apply filters
