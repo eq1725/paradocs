@@ -51,11 +51,10 @@ export default function ExplorePage() {
   const loadReports = useCallback(async () => {
     setLoading(true)
     try {
-      // Use 'planned' count for performance on large datasets (258K+ rows)
-      // Only select fields needed for ReportCard to reduce payload
+      // Select fields needed for ReportCard - skip count for performance on large datasets
       let query = supabase
         .from('reports')
-        .select('id,title,slug,summary,category,country,city,state,event_date,credibility,upvotes,view_count,comment_count,has_photo_video,has_physical_evidence,featured,location_name,source_type,source_label,created_at', { count: 'planned' })
+        .select('id,title,slug,summary,category,country,city,state,event_date,credibility,upvotes,view_count,comment_count,has_photo_video,has_physical_evidence,featured,location_name,source_type,source_label,created_at')
         .eq('status', 'approved')
 
       // Apply filters
@@ -111,12 +110,24 @@ export default function ExplorePage() {
       const from = (page - 1) * perPage
       query = query.range(from, from + perPage - 1)
 
-      const { data, count, error } = await query
+      const { data, error } = await query
 
       if (error) throw error
 
       setReports(data || [])
-      setTotalCount(count || 0)
+      // Use estimated count for large dataset - exact count causes timeout
+      // Will show "250,000+" for unfiltered, or use data length + offset for filtered
+      const hasFilters = category !== 'all' || selectedCategories.length > 0 ||
+        selectedTypes.length > 0 || searchQuery || country || credibility ||
+        dateFrom || dateTo || hasEvidence || featured
+      if (hasFilters) {
+        // For filtered queries, estimate based on results
+        const estimatedMore = (data?.length || 0) === perPage ? 1000 : 0
+        setTotalCount((page - 1) * perPage + (data?.length || 0) + estimatedMore)
+      } else {
+        // Use known approximate count for unfiltered
+        setTotalCount(250000)
+      }
     } catch (error) {
       console.error('Error loading reports:', error)
     } finally {
