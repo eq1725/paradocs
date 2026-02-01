@@ -75,16 +75,11 @@ export async function runOptimizedPatternAnalysis(): Promise<AnalysisResult> {
   const runId = runData.id
 
   try {
-    // 1. Get all categories dynamically from the database
-    console.log('[Pattern Analysis V2] Fetching categories from database...')
-    const { data: categoryData } = await supabaseAdmin
-      .from('reports')
-      .select('category')
-      .eq('status', 'approved')
-      .limit(10000)
-
-    const uniqueCategories = [...new Set((categoryData || []).map(r => r.category).filter(Boolean))]
-    console.log('[Pattern Analysis V2] Found categories:', uniqueCategories)
+    // 1. Get all categories - use hardcoded list which covers all possible values
+    // This is more reliable than dynamic discovery which can miss categories
+    console.log('[Pattern Analysis V2] Using known category list...')
+    const uniqueCategories = CATEGORIES.filter(Boolean)
+    console.log('[Pattern Analysis V2] Processing categories:', uniqueCategories)
 
     // 2. Update temporal patterns (category-based surge detection)
     console.log('[Pattern Analysis V2] Starting category-based analysis...')
