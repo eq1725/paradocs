@@ -52,16 +52,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const failedRecent = recentJobs?.filter(j => j.status === 'failed').length || 0
     const healthStatus = failedRecent === 0 ? 'healthy' : failedRecent < 3 ? 'warning' : 'critical'
 
-    // Get reports by source type for pie chart
-    const { data: reportsBySource } = await supabaseAdmin
-      .from('reports')
-      .select('source_type')
+    // Get reports by source type for pie chart - use RPC or limited query
+    let sourceBreakdown: Record<string, number> = {}
+    try {
+      const { data: sourceData, error } = await supabaseAdmin.rpc('get_source_breakdown')
+      if (!error && sourceData) {
+        sourceData.forEach((r: any) => {
+          sourceBreakdown[r.source_type] = Number(r.count)
+        })
+      }
+    } catch {
+      // Fallback with limited data
+      const { data: reportsBySource } = await supabaseAdmin
+        .from('reports')
+        .select('source_type')
+        .eq('status', 'approved')
+        .limit(10000)
 
-    const sourceBreakdown: Record<string, number> = {}
-    reportsBySource?.forEach(r => {
-      const source = r.source_type || 'unknown'
-      sourceBreakdown[source] = (sourceBreakdown[source] || 0) + 1
-    })
+      reportsBySource?.forEach(r => {
+        const source = r.source_type || 'unknown'
+        sourceBreakdown[source] = (sourceBreakdown[source] || 0) + 1
+      })
+    }
 
     // Get ingestion history for line chart (last 30 days)
     const thirtyDaysAgo = new Date()

@@ -1,13 +1,10 @@
 /**
  * Enhanced Analytics API
  *
- * Provides comprehensive analytics data including:
- * - Basic stats (reports, views, countries)
- * - Temporal patterns (time of day, day of week, seasonal)
- * - Evidence and source analysis
- * - Emerging patterns and alerts
- * - Correlation data
- * - Recent activity feed
+ * Provides comprehensive analytics data using PostgreSQL aggregation
+ * for efficient performance at scale (10M+ records).
+ *
+ * Uses RPC functions for aggregation instead of loading records into memory.
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next'
@@ -25,8 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-
-    // Parallel data fetching for performance
+    // Parallel data fetching for performance using optimized RPC functions
     const [
       basicStats,
       categoryBreakdown,
@@ -41,31 +37,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       emergingPatterns,
       witnessStats,
     ] = await Promise.all([
-      // Basic stats
       getBasicStats(supabaseAdmin),
-      // Category breakdown
       getCategoryBreakdown(supabaseAdmin),
-      // Country breakdown
       getCountryBreakdown(supabaseAdmin),
-      // Monthly trend (12 months)
       getMonthlyTrend(supabaseAdmin),
-      // Credibility breakdown
       getCredibilityBreakdown(supabaseAdmin),
-      // Time of day heatmap data
       getTimeOfDayData(supabaseAdmin),
-      // Day of week distribution
       getDayOfWeekData(supabaseAdmin),
-      // Evidence analysis
       getEvidenceAnalysis(supabaseAdmin),
-      // Source analysis
       getSourceAnalysis(supabaseAdmin),
-      // Recent activity feed
       getRecentActivity(supabaseAdmin),
-      // Emerging patterns
       getEmergingPatterns(supabaseAdmin),
-      // Witness statistics
       getWitnessStats(supabaseAdmin),
     ])
+
+    // Cache for 5 minutes to reduce load
+    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate')
 
     return res.status(200).json({
       basicStats,
@@ -88,27 +75,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 }
 
+// Use RPC function or fallback to optimized query
 async function getBasicStats(supabase: any) {
+  try {
+    // Try optimized RPC first
+    const { data: statsData, error } = await supabase.rpc('get_basic_stats').single()
+
+    if (!error && statsData) {
+      const thisMonthCount = statsData.this_month_reports || 0
+      const lastMonthCount = statsData.last_month_reports || 0
+      const monthChange = lastMonthCount > 0
+        ? Math.round(((thisMonthCount - lastMonthCount) / lastMonthCount) * 100)
+        : 0
+
+      return {
+        totalReports: statsData.total_reports || 0,
+        totalViews: statsData.total_views || 0,
+        countriesCount: statsData.countries_count || 0,
+        thisMonthReports: thisMonthCount,
+        monthOverMonthChange: monthChange,
+        last24hReports: statsData.last_24h_reports || 0,
+        last7dReports: statsData.last_7d_reports || 0,
+      }
+    }
+  } catch {
+    // RPC not available, use fallback
+  }
+
+  // Fallback: efficient queries with head:true for counts only
   const now = new Date()
   const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1)
   const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000)
   const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-  const [totalResult, viewsResult, countriesResult, thisMonthResult, lastMonthResult, last24hResult, last7dResult] = await Promise.all([
-    supabase.from('reports').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
-    supabase.from('reports').select('view_count').eq('status', 'approved').limit(100000),
-    supabase.from('reports').select('country').eq('status', 'approved').not('country', 'is', null).limit(100000),
-    supabase.from('reports').select('*', { count: 'exact', head: true }).eq('status', 'approved').gte('created_at', thisMonth.toISOString()),
-    supabase.from('reports').select('*', { count: 'exact', head: true }).eq('status', 'approved').gte('created_at', lastMonth.toISOString()).lt('created_at', thisMonth.toISOString()),
-    supabase.from('reports').select('*', { count: 'exact', head: true }).eq('status', 'approved').gte('created_at', last24h.toISOString()),
-    supabase.from('reports').select('*', { count: 'exact', head: true }).eq('status', 'approved').gte('created_at', last7d.toISOString()),
+  const [totalResult, thisMonthResult, lastMonthResult, last24hResult, last7dResult] = await Promise.all([
+    supabase.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
+    supabase.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'approved').gte('created_at', thisMonth.toISOString()),
+    supabase.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'approved').gte('created_at', lastMonth.toISOString()).lt('created_at', thisMonth.toISOString()),
+    supabase.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'approved').gte('created_at', last24h.toISOString()),
+    supabase.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'approved').gte('created_at', last7d.toISOString()),
   ])
 
-  const totalViews = viewsResult.data?.reduce((sum: number, r: any) => sum + (r.view_count || 0), 0) || 0
-  const uniqueCountries = new Set(countriesResult.data?.map((r: any) => r.country)).size
-
-  // Calculate month-over-month change
   const thisMonthCount = thisMonthResult.count || 0
   const lastMonthCount = lastMonthResult.count || 0
   const monthChange = lastMonthCount > 0
@@ -117,8 +125,8 @@ async function getBasicStats(supabase: any) {
 
   return {
     totalReports: totalResult.count || 0,
-    totalViews,
-    countriesCount: uniqueCountries,
+    totalViews: 0, // Skip view aggregation in fallback for performance
+    countriesCount: 0,
     thisMonthReports: thisMonthCount,
     monthOverMonthChange: monthChange,
     last24hReports: last24hResult.count || 0,
@@ -127,12 +135,21 @@ async function getBasicStats(supabase: any) {
 }
 
 async function getCategoryBreakdown(supabase: any) {
-  // Use range to get all records (Supabase default limit is 1000)
+  try {
+    const { data, error } = await supabase.rpc('get_category_breakdown')
+    if (!error && data) {
+      return data.map((r: any) => ({ category: r.category, count: Number(r.count) }))
+    }
+  } catch {
+    // RPC not available
+  }
+
+  // Fallback: sample-based estimation for large datasets
   const { data } = await supabase
     .from('reports')
     .select('category')
     .eq('status', 'approved')
-    .limit(100000)
+    .limit(10000)
 
   const counts: Record<string, number> = {}
   data?.forEach((r: any) => {
@@ -145,12 +162,22 @@ async function getCategoryBreakdown(supabase: any) {
 }
 
 async function getCountryBreakdown(supabase: any) {
+  try {
+    const { data, error } = await supabase.rpc('get_country_breakdown', { limit_count: 15 })
+    if (!error && data) {
+      return data.map((r: any) => ({ country: r.country, count: Number(r.count) }))
+    }
+  } catch {
+    // RPC not available
+  }
+
+  // Fallback
   const { data } = await supabase
     .from('reports')
     .select('country')
     .eq('status', 'approved')
     .not('country', 'is', null)
-    .limit(100000)
+    .limit(10000)
 
   const counts: Record<string, number> = {}
   data?.forEach((r: any) => {
@@ -166,12 +193,29 @@ async function getCountryBreakdown(supabase: any) {
 }
 
 async function getMonthlyTrend(supabase: any) {
+  try {
+    const { data, error } = await supabase.rpc('get_monthly_trend', { months_back: 12 })
+    if (!error && data) {
+      // Format the data for the frontend
+      return data.map((r: any) => ({
+        month: new Date(r.month_key + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+        monthKey: r.month_key,
+        count: Number(r.count),
+        byCategory: {}, // RPC doesn't return by-category breakdown for simplicity
+      }))
+    }
+  } catch {
+    // RPC not available
+  }
+
+  // Fallback with limited data
   const { data } = await supabase
     .from('reports')
     .select('created_at, category')
     .eq('status', 'approved')
+    .gte('created_at', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString())
     .order('created_at', { ascending: true })
-    .limit(100000)
+    .limit(10000)
 
   const now = new Date()
   const months: Record<string, { total: number; byCategory: Record<string, number> }> = {}
@@ -200,10 +244,22 @@ async function getMonthlyTrend(supabase: any) {
 }
 
 async function getCredibilityBreakdown(supabase: any) {
+  try {
+    const { data, error } = await supabase.rpc('get_credibility_breakdown')
+    if (!error && data) {
+      return data.map((r: any) => ({ name: r.credibility, value: Number(r.count) }))
+        .filter((d: any) => d.value > 0)
+    }
+  } catch {
+    // RPC not available
+  }
+
+  // Fallback
   const { data } = await supabase
     .from('reports')
     .select('credibility')
-    .eq('status', 'approved').limit(100000)
+    .eq('status', 'approved')
+    .limit(10000)
 
   const counts: Record<string, number> = {}
   data?.forEach((r: any) => {
@@ -218,100 +274,165 @@ async function getCredibilityBreakdown(supabase: any) {
 }
 
 async function getTimeOfDayData(supabase: any) {
+  // Initialize 24-hour buckets
+  const hourLabels = Array.from({ length: 24 }, (_, h) => ({
+    hour: h,
+    label: `${h.toString().padStart(2, '0')}:00`,
+    count: 0,
+    byCategory: {},
+  }))
+
+  try {
+    const { data, error } = await supabase.rpc('get_time_of_day_breakdown')
+    if (!error && data) {
+      data.forEach((r: any) => {
+        if (r.hour >= 0 && r.hour < 24) {
+          hourLabels[r.hour].count = Number(r.count)
+        }
+      })
+      return hourLabels
+    }
+  } catch {
+    // RPC not available
+  }
+
+  // Fallback - limited query
   const { data } = await supabase
     .from('reports')
     .select('event_time, category')
-    .eq('status', 'approved').limit(100000)
+    .eq('status', 'approved')
     .not('event_time', 'is', null)
-
-  // Initialize 24-hour buckets
-  const hourData: Record<number, { total: number; byCategory: Record<string, number> }> = {}
-  for (let h = 0; h < 24; h++) {
-    hourData[h] = { total: 0, byCategory: {} }
-  }
+    .limit(5000)
 
   data?.forEach((r: any) => {
     if (r.event_time) {
       const hour = parseInt(r.event_time.split(':')[0], 10)
       if (hour >= 0 && hour < 24) {
-        hourData[hour].total++
-        hourData[hour].byCategory[r.category] = (hourData[hour].byCategory[r.category] || 0) + 1
+        hourLabels[hour].count++
       }
     }
   })
 
-  return Object.entries(hourData).map(([hour, data]) => ({
-    hour: parseInt(hour),
-    label: `${hour.toString().padStart(2, '0')}:00`,
-    count: data.total,
-    byCategory: data.byCategory,
-  }))
+  return hourLabels
 }
 
 async function getDayOfWeekData(supabase: any) {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const dayData = days.map((name, i) => ({
+    day: i,
+    name,
+    shortName: name.slice(0, 3),
+    count: 0,
+    byCategory: {},
+  }))
+
+  try {
+    const { data, error } = await supabase.rpc('get_day_of_week_breakdown')
+    if (!error && data) {
+      data.forEach((r: any) => {
+        if (r.day_of_week >= 0 && r.day_of_week < 7) {
+          dayData[r.day_of_week].count = Number(r.count)
+        }
+      })
+      return dayData
+    }
+  } catch {
+    // RPC not available
+  }
+
+  // Fallback
   const { data } = await supabase
     .from('reports')
     .select('event_date, category')
-    .eq('status', 'approved').limit(100000)
+    .eq('status', 'approved')
     .not('event_date', 'is', null)
-
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-  const dayData: Record<number, { total: number; byCategory: Record<string, number> }> = {}
-  for (let d = 0; d < 7; d++) {
-    dayData[d] = { total: 0, byCategory: {} }
-  }
+    .limit(10000)
 
   data?.forEach((r: any) => {
     if (r.event_date) {
       const date = new Date(r.event_date)
       const day = date.getDay()
-      dayData[day].total++
-      dayData[day].byCategory[r.category] = (dayData[day].byCategory[r.category] || 0) + 1
+      dayData[day].count++
     }
   })
 
-  return Object.entries(dayData).map(([day, data]) => ({
-    day: parseInt(day),
-    name: days[parseInt(day)],
-    shortName: days[parseInt(day)].slice(0, 3),
-    count: data.total,
-    byCategory: data.byCategory,
-  }))
+  return dayData
 }
 
 async function getEvidenceAnalysis(supabase: any) {
+  try {
+    const { data, error } = await supabase.rpc('get_evidence_analysis').single()
+    if (!error && data) {
+      const total = Number(data.total) || 1
+      return {
+        total: Number(data.total),
+        withPhotoVideo: {
+          count: Number(data.with_photo_video),
+          percentage: Math.round((Number(data.with_photo_video) / total) * 100)
+        },
+        withPhysicalEvidence: {
+          count: Number(data.with_physical_evidence),
+          percentage: Math.round((Number(data.with_physical_evidence) / total) * 100)
+        },
+        withOfficialReport: {
+          count: Number(data.with_official_report),
+          percentage: Math.round((Number(data.with_official_report) / total) * 100)
+        },
+        withAnyEvidence: {
+          count: Number(data.with_any_evidence),
+          percentage: Math.round((Number(data.with_any_evidence) / total) * 100)
+        },
+      }
+    }
+  } catch {
+    // RPC not available
+  }
+
+  // Fallback
   const { data } = await supabase
     .from('reports')
-    .select('has_photo_video, has_physical_evidence, has_official_report, category')
-    .eq('status', 'approved').limit(100000)
+    .select('has_photo_video, has_physical_evidence, has_official_report')
+    .eq('status', 'approved')
+    .limit(10000)
 
-  const total = data?.length || 0
+  const total = data?.length || 1
   let withPhoto = 0
   let withPhysical = 0
   let withOfficial = 0
-  let withAnyEvidence = 0
+  let withAny = 0
 
   data?.forEach((r: any) => {
     if (r.has_photo_video) withPhoto++
     if (r.has_physical_evidence) withPhysical++
     if (r.has_official_report) withOfficial++
-    if (r.has_photo_video || r.has_physical_evidence || r.has_official_report) withAnyEvidence++
+    if (r.has_photo_video || r.has_physical_evidence || r.has_official_report) withAny++
   })
 
   return {
     total,
-    withPhotoVideo: { count: withPhoto, percentage: total > 0 ? Math.round((withPhoto / total) * 100) : 0 },
-    withPhysicalEvidence: { count: withPhysical, percentage: total > 0 ? Math.round((withPhysical / total) * 100) : 0 },
-    withOfficialReport: { count: withOfficial, percentage: total > 0 ? Math.round((withOfficial / total) * 100) : 0 },
-    withAnyEvidence: { count: withAnyEvidence, percentage: total > 0 ? Math.round((withAnyEvidence / total) * 100) : 0 },
+    withPhotoVideo: { count: withPhoto, percentage: Math.round((withPhoto / total) * 100) },
+    withPhysicalEvidence: { count: withPhysical, percentage: Math.round((withPhysical / total) * 100) },
+    withOfficialReport: { count: withOfficial, percentage: Math.round((withOfficial / total) * 100) },
+    withAnyEvidence: { count: withAny, percentage: Math.round((withAny / total) * 100) },
   }
 }
 
 async function getSourceAnalysis(supabase: any) {
+  try {
+    const { data, error } = await supabase.rpc('get_source_breakdown')
+    if (!error && data) {
+      return data.map((r: any) => ({ source: r.source_type, count: Number(r.count) }))
+    }
+  } catch {
+    // RPC not available
+  }
+
+  // Fallback
   const { data } = await supabase
     .from('reports')
     .select('source_type')
-    .eq('status', 'approved').limit(100000)
+    .eq('status', 'approved')
+    .limit(10000)
 
   const counts: Record<string, number> = {}
   data?.forEach((r: any) => {
@@ -328,7 +449,7 @@ async function getRecentActivity(supabase: any) {
   const { data } = await supabase
     .from('reports')
     .select('id, title, slug, category, location_name, country, created_at, view_count')
-    .eq('status', 'approved').limit(100000)
+    .eq('status', 'approved')
     .order('created_at', { ascending: false })
     .limit(10)
 
@@ -336,7 +457,6 @@ async function getRecentActivity(supabase: any) {
 }
 
 async function getEmergingPatterns(supabase: any) {
-  // Check if detected_patterns table exists and has data
   const { data, error } = await supabase
     .from('detected_patterns')
     .select('id, pattern_type, ai_title, ai_summary, report_count, confidence_score, significance_score, categories, first_detected_at, last_updated_at, status')
@@ -345,7 +465,6 @@ async function getEmergingPatterns(supabase: any) {
     .limit(5)
 
   if (error) {
-    // Table might not exist or be empty
     return []
   }
 
@@ -353,33 +472,53 @@ async function getEmergingPatterns(supabase: any) {
 }
 
 async function getWitnessStats(supabase: any) {
+  try {
+    const { data, error } = await supabase.rpc('get_witness_stats').single()
+    if (!error && data) {
+      const total = Number(data.total_reports) || 1
+      return {
+        totalReports: Number(data.total_reports),
+        totalWitnesses: Number(data.total_witnesses),
+        averageWitnessCount: (Number(data.total_witnesses) / total).toFixed(1),
+        reportsWithMultipleWitnesses: Number(data.reports_with_multiple_witnesses),
+        submitterWasWitness: Number(data.submitter_was_witness_count),
+        anonymousSubmissions: Number(data.anonymous_submissions),
+        anonymousPercentage: Math.round((Number(data.anonymous_submissions) / total) * 100),
+      }
+    }
+  } catch {
+    // RPC not available
+  }
+
+  // Fallback
   const { data } = await supabase
     .from('reports')
     .select('witness_count, submitter_was_witness, anonymous_submission')
-    .eq('status', 'approved').limit(100000)
+    .eq('status', 'approved')
+    .limit(10000)
 
-  const total = data?.length || 0
+  const total = data?.length || 1
   let totalWitnesses = 0
-  let reportsWithMultipleWitnesses = 0
-  let submitterWasWitness = 0
-  let anonymousSubmissions = 0
+  let multipleWitnesses = 0
+  let submitterWitness = 0
+  let anonymous = 0
 
   data?.forEach((r: any) => {
     if (r.witness_count) {
       totalWitnesses += r.witness_count
-      if (r.witness_count > 1) reportsWithMultipleWitnesses++
+      if (r.witness_count > 1) multipleWitnesses++
     }
-    if (r.submitter_was_witness) submitterWasWitness++
-    if (r.anonymous_submission) anonymousSubmissions++
+    if (r.submitter_was_witness) submitterWitness++
+    if (r.anonymous_submission) anonymous++
   })
 
   return {
     totalReports: total,
     totalWitnesses,
-    averageWitnessCount: total > 0 ? (totalWitnesses / total).toFixed(1) : '0',
-    reportsWithMultipleWitnesses,
-    submitterWasWitness,
-    anonymousSubmissions,
-    anonymousPercentage: total > 0 ? Math.round((anonymousSubmissions / total) * 100) : 0,
+    averageWitnessCount: (totalWitnesses / total).toFixed(1),
+    reportsWithMultipleWitnesses: multipleWitnesses,
+    submitterWasWitness: submitterWitness,
+    anonymousSubmissions: anonymous,
+    anonymousPercentage: Math.round((anonymous / total) * 100),
   }
 }
