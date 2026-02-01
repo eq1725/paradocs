@@ -11,7 +11,13 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+
+// Use service role client for full data access
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -36,29 +42,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       witnessStats,
     ] = await Promise.all([
       // Basic stats
-      getBasicStats(supabase),
+      getBasicStats(supabaseAdmin),
       // Category breakdown
-      getCategoryBreakdown(supabase),
+      getCategoryBreakdown(supabaseAdmin),
       // Country breakdown
-      getCountryBreakdown(supabase),
+      getCountryBreakdown(supabaseAdmin),
       // Monthly trend (12 months)
-      getMonthlyTrend(supabase),
+      getMonthlyTrend(supabaseAdmin),
       // Credibility breakdown
-      getCredibilityBreakdown(supabase),
+      getCredibilityBreakdown(supabaseAdmin),
       // Time of day heatmap data
-      getTimeOfDayData(supabase),
+      getTimeOfDayData(supabaseAdmin),
       // Day of week distribution
-      getDayOfWeekData(supabase),
+      getDayOfWeekData(supabaseAdmin),
       // Evidence analysis
-      getEvidenceAnalysis(supabase),
+      getEvidenceAnalysis(supabaseAdmin),
       // Source analysis
-      getSourceAnalysis(supabase),
+      getSourceAnalysis(supabaseAdmin),
       // Recent activity feed
-      getRecentActivity(supabase),
+      getRecentActivity(supabaseAdmin),
       // Emerging patterns
-      getEmergingPatterns(supabase),
+      getEmergingPatterns(supabaseAdmin),
       // Witness statistics
-      getWitnessStats(supabase),
+      getWitnessStats(supabaseAdmin),
     ])
 
     return res.status(200).json({
@@ -91,8 +97,8 @@ async function getBasicStats(supabase: any) {
 
   const [totalResult, viewsResult, countriesResult, thisMonthResult, lastMonthResult, last24hResult, last7dResult] = await Promise.all([
     supabase.from('reports').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
-    supabase.from('reports').select('view_count').eq('status', 'approved'),
-    supabase.from('reports').select('country').eq('status', 'approved').not('country', 'is', null),
+    supabase.from('reports').select('view_count').eq('status', 'approved').limit(100000),
+    supabase.from('reports').select('country').eq('status', 'approved').not('country', 'is', null).limit(100000),
     supabase.from('reports').select('*', { count: 'exact', head: true }).eq('status', 'approved').gte('created_at', thisMonth.toISOString()),
     supabase.from('reports').select('*', { count: 'exact', head: true }).eq('status', 'approved').gte('created_at', lastMonth.toISOString()).lt('created_at', thisMonth.toISOString()),
     supabase.from('reports').select('*', { count: 'exact', head: true }).eq('status', 'approved').gte('created_at', last24h.toISOString()),
@@ -121,10 +127,12 @@ async function getBasicStats(supabase: any) {
 }
 
 async function getCategoryBreakdown(supabase: any) {
+  // Use range to get all records (Supabase default limit is 1000)
   const { data } = await supabase
     .from('reports')
     .select('category')
     .eq('status', 'approved')
+    .limit(100000)
 
   const counts: Record<string, number> = {}
   data?.forEach((r: any) => {
@@ -142,6 +150,7 @@ async function getCountryBreakdown(supabase: any) {
     .select('country')
     .eq('status', 'approved')
     .not('country', 'is', null)
+    .limit(100000)
 
   const counts: Record<string, number> = {}
   data?.forEach((r: any) => {
@@ -162,6 +171,7 @@ async function getMonthlyTrend(supabase: any) {
     .select('created_at, category')
     .eq('status', 'approved')
     .order('created_at', { ascending: true })
+    .limit(100000)
 
   const now = new Date()
   const months: Record<string, { total: number; byCategory: Record<string, number> }> = {}
@@ -193,7 +203,7 @@ async function getCredibilityBreakdown(supabase: any) {
   const { data } = await supabase
     .from('reports')
     .select('credibility')
-    .eq('status', 'approved')
+    .eq('status', 'approved').limit(100000)
 
   const counts: Record<string, number> = {}
   data?.forEach((r: any) => {
@@ -211,7 +221,7 @@ async function getTimeOfDayData(supabase: any) {
   const { data } = await supabase
     .from('reports')
     .select('event_time, category')
-    .eq('status', 'approved')
+    .eq('status', 'approved').limit(100000)
     .not('event_time', 'is', null)
 
   // Initialize 24-hour buckets
@@ -242,7 +252,7 @@ async function getDayOfWeekData(supabase: any) {
   const { data } = await supabase
     .from('reports')
     .select('event_date, category')
-    .eq('status', 'approved')
+    .eq('status', 'approved').limit(100000)
     .not('event_date', 'is', null)
 
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -273,7 +283,7 @@ async function getEvidenceAnalysis(supabase: any) {
   const { data } = await supabase
     .from('reports')
     .select('has_photo_video, has_physical_evidence, has_official_report, category')
-    .eq('status', 'approved')
+    .eq('status', 'approved').limit(100000)
 
   const total = data?.length || 0
   let withPhoto = 0
@@ -301,7 +311,7 @@ async function getSourceAnalysis(supabase: any) {
   const { data } = await supabase
     .from('reports')
     .select('source_type')
-    .eq('status', 'approved')
+    .eq('status', 'approved').limit(100000)
 
   const counts: Record<string, number> = {}
   data?.forEach((r: any) => {
@@ -318,7 +328,7 @@ async function getRecentActivity(supabase: any) {
   const { data } = await supabase
     .from('reports')
     .select('id, title, slug, category, location_name, country, created_at, view_count')
-    .eq('status', 'approved')
+    .eq('status', 'approved').limit(100000)
     .order('created_at', { ascending: false })
     .limit(10)
 
@@ -346,7 +356,7 @@ async function getWitnessStats(supabase: any) {
   const { data } = await supabase
     .from('reports')
     .select('witness_count, submitter_was_witness, anonymous_submission')
-    .eq('status', 'approved')
+    .eq('status', 'approved').limit(100000)
 
   const total = data?.length || 0
   let totalWitnesses = 0
