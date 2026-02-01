@@ -224,9 +224,15 @@ export default function ReportPage() {
             )}
           </div>
 
-          <h1 className="text-3xl md:text-4xl font-display font-bold text-white mb-4">
-            {report.title}
-          </h1>
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <h1 className="text-3xl md:text-4xl font-display font-bold text-white flex-1">
+              {report.title}
+            </h1>
+            <button className="btn btn-primary text-sm flex items-center gap-2 shrink-0 mt-1">
+              <Bookmark className="w-4 h-4" />
+              Save
+            </button>
+          </div>
 
           {/* Only show summary if it adds value beyond the title AND description */}
           {(() => {

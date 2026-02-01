@@ -136,6 +136,18 @@ const NON_SIGHTING_PATTERNS = [
   /\b(game|video ?game|indie game|rpg|tabletop)\b/i,
   /\b(podcast episode|new episode|latest episode)\b/i,
   /\b(book release|new book|my novel|my book)\b/i,
+  // Watching/consuming media
+  /\b(i watched|just watched|recently watched|finished watching)\b/i,
+  /\b(i saw|just saw) (the|this|a) (movie|film|show|documentary)\b/i,
+  /\b(on netflix|on hulu|on amazon prime|on disney\+?|streaming)\b/i,
+  /\b(tv show|television|binge|binged|binging)\b/i,
+  // Well-known paranormal movies/shows that aren't sightings
+  /\b(arrival|interstellar|close encounters|e\.?t\.?|x-files|stranger things)\b/i,
+  /\b(signs|war of the worlds|independence day|district 9|prometheus|alien)\b/i,
+  /\b(the fourth kind|fire in the sky|communion|dark skies|nope)\b/i,
+  /\b(poltergeist|conjuring|insidious|paranormal activity|annabelle)\b/i,
+  /\b(hereditary|midsommar|the witch|it follows|get out)\b/i,
+  /\b(ghost hunters|ghost adventures|ancient aliens|unsolved mysteries)\b/i,
   // Memes and jokes
   /\b(meme|shitpost|joke|lol|lmao|funny)\b/i,
   /\b(wrong answers only|caption this)\b/i,
