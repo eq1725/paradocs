@@ -35,7 +35,11 @@ export default function MapPage() {
         query = query.eq('category', category)
       }
 
-      const { data, error } = await query.limit(2000)
+      // Order by created_at desc to get most recent geocoded reports
+      // This helps the query use an index instead of full table scan
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .limit(500)
 
       if (error) throw error
       setReports(data || [])
