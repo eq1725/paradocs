@@ -51,32 +51,11 @@ export default function ExplorePage() {
   const loadReports = useCallback(async () => {
     setLoading(true)
     try {
-      // Use 'estimated' count for performance on large datasets (258K+ rows)
+      // Use 'planned' count for performance on large datasets (258K+ rows)
       // Only select fields needed for ReportCard to reduce payload
       let query = supabase
         .from('reports')
-        .select(`
-          id,
-          title,
-          slug,
-          summary,
-          category,
-          country,
-          city,
-          state,
-          event_date,
-          credibility,
-          upvotes,
-          view_count,
-          comment_count,
-          has_photo_video,
-          has_physical_evidence,
-          featured,
-          location_name,
-          source_type,
-          source_label,
-          created_at
-        `, { count: 'estimated' })
+        .select('id,title,slug,summary,category,country,city,state,event_date,credibility,upvotes,view_count,comment_count,has_photo_video,has_physical_evidence,featured,location_name,source_type,source_label,created_at', { count: 'planned' })
         .eq('status', 'approved')
 
       // Apply filters
