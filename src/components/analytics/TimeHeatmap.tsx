@@ -30,7 +30,11 @@ interface TimeHeatmapProps {
 }
 
 export default function TimeHeatmap({ timeOfDayData, dayOfWeekData }: TimeHeatmapProps) {
-  const [activeView, setActiveView] = useState<'hour' | 'day'>('hour')
+  // Check if we have any hour data (event_time is rarely populated)
+  const hasHourData = timeOfDayData.some(d => d.count > 0)
+
+  // Default to 'day' view since hour data requires event_time which is often missing
+  const [activeView, setActiveView] = useState<'hour' | 'day'>('day')
 
   // Calculate max values for scaling
   const maxHourCount = Math.max(...timeOfDayData.map(d => d.count), 1)
@@ -102,6 +106,7 @@ export default function TimeHeatmap({ timeOfDayData, dayOfWeekData }: TimeHeatma
       </div>
 
       {activeView === 'hour' ? (
+        hasHourData ? (
         <>
           {/* Time period summary */}
           <div className="grid grid-cols-4 gap-2 mb-6">
@@ -176,6 +181,18 @@ export default function TimeHeatmap({ timeOfDayData, dayOfWeekData }: TimeHeatma
             <span>More</span>
           </div>
         </>
+        ) : (
+          /* No hour data available */
+          <div className="text-center py-12">
+            <Clock className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+            <p className="text-gray-400 mb-2">No time-of-day data available</p>
+            <p className="text-sm text-gray-500">
+              Reports don't have specific event times recorded.
+              <br />
+              Try the "By Day" view to see day-of-week patterns.
+            </p>
+          </div>
+        )
       ) : (
         <>
           {/* Day of week distribution */}

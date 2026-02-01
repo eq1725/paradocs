@@ -423,6 +423,12 @@ function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
     }
   }
 
+  // Default to United States for Reddit posts since Reddit is predominantly US-based
+  // This improves geographic analytics accuracy
+  if (!country) {
+    country = 'United States';
+  }
+
   // Convert UTC timestamp to date
   const eventDate = new Date(post.created_utc * 1000).toISOString().split('T')[0];
 
