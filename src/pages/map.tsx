@@ -23,9 +23,10 @@ export default function MapPage() {
 
   async function loadReports() {
     try {
+      // Select only fields needed for map display - avoid full row scan
       let query = supabase
         .from('reports')
-        .select('*')
+        .select('id,title,slug,summary,category,latitude,longitude,location_name,event_date,witness_count,credibility')
         .eq('status', 'approved')
         .not('latitude', 'is', null)
         .not('longitude', 'is', null)
@@ -34,7 +35,7 @@ export default function MapPage() {
         query = query.eq('category', category)
       }
 
-      const { data, error } = await query.limit(1000)
+      const { data, error } = await query.limit(2000)
 
       if (error) throw error
       setReports(data || [])
