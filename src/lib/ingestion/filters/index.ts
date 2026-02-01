@@ -14,6 +14,7 @@ export {
   FICTION_PATTERNS,
   LOW_EFFORT_PATTERNS,
   SPAM_URL_PATTERNS,
+  QUESTION_ONLY_PATTERNS,
   // Source credibility
   BFRO_CLASS_BOOST,
   // Types

@@ -58,6 +58,17 @@ export default function AdminDashboard() {
   const [ingesting, setIngesting] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'sources' | 'jobs'>('overview')
+  const [analyzingPatterns, setAnalyzingPatterns] = useState(false)
+  const [patternResult, setPatternResult] = useState<{
+    success: boolean
+    message: string
+    details?: {
+      duration: number
+      categoriesAnalyzed: number
+      newPatterns: number
+      updatedPatterns: number
+    }
+  } | null>(null)
 
   useEffect(() => {
     async function getUser() {
@@ -192,6 +203,44 @@ export default function AdminDashboard() {
     }
   }
 
+  async function triggerPatternAnalysis() {
+    setAnalyzingPatterns(true)
+    setPatternResult(null)
+
+    try {
+      const response = await fetch('/api/admin/trigger-pattern-analysis', {
+        method: 'POST'
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        setPatternResult({
+          success: true,
+          message: 'Pattern analysis completed successfully!',
+          details: {
+            duration: data.result?.duration || 0,
+            categoriesAnalyzed: data.result?.categoriesProcessed || 0,
+            newPatterns: data.result?.newPatterns || 0,
+            updatedPatterns: data.result?.updatedPatterns || 0
+          }
+        })
+      } else {
+        setPatternResult({
+          success: false,
+          message: data.error || 'Pattern analysis failed'
+        })
+      }
+    } catch (error) {
+      setPatternResult({
+        success: false,
+        message: error instanceof Error ? error.message : 'Network error'
+      })
+    } finally {
+      setAnalyzingPatterns(false)
+    }
+  }
+
   if (authLoading || loading) {
     return (
       <Layout>
@@ -314,6 +363,65 @@ export default function AdminDashboard() {
                 ingesting={ingesting}
               />
               <ActivityFeed maxItems={15} refreshInterval={30000} />
+            </div>
+
+            {/* Pattern Analysis Section */}
+            <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700/50">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold flex items-center gap-2">
+                    <span>🔮</span> Emergent Pattern Analysis
+                  </h2>
+                  <p className="text-gray-400 text-sm mt-1">
+                    Analyze all reports to detect temporal anomalies and regional concentrations.
+                    Runs automatically daily at 7 AM UTC.
+                  </p>
+                </div>
+                <button
+                  onClick={triggerPatternAnalysis}
+                  disabled={analyzingPatterns}
+                  className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-lg shadow-purple-500/20"
+                >
+                  {analyzingPatterns ? (
+                    <span className="flex items-center gap-2">
+                      <span className="animate-spin">⟳</span> Analyzing...
+                    </span>
+                  ) : (
+                    '🔬 Run Pattern Analysis'
+                  )}
+                </button>
+              </div>
+
+              {/* Pattern Analysis Result */}
+              {patternResult && (
+                <div className={`mt-4 p-4 rounded-lg ${
+                  patternResult.success
+                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                    : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                }`}>
+                  <div className="font-medium">{patternResult.message}</div>
+                  {patternResult.details && (
+                    <div className="mt-2 text-sm grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <span className="text-gray-400">Duration:</span>{' '}
+                        <span className="font-mono">{patternResult.details.duration.toFixed(1)}s</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Categories:</span>{' '}
+                        <span className="font-mono">{patternResult.details.categoriesAnalyzed}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">New Patterns:</span>{' '}
+                        <span className="font-mono text-green-400">+{patternResult.details.newPatterns}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Updated:</span>{' '}
+                        <span className="font-mono text-blue-400">{patternResult.details.updatedPatterns}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

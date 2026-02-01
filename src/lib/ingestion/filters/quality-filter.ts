@@ -85,6 +85,34 @@ export const LOW_EFFORT_PATTERNS = [
   /^(help|what|why|how|does|is|can|should)\s/i,  // Questions only
 ];
 
+// Question-only posts - these are discussions, not experiences
+export const QUESTION_ONLY_PATTERNS = [
+  // Direct questions about phenomena (not experiences)
+  /^what (are|is|do|does|would|could|should|might|can)\b/i,
+  /^(why|how|where|when) (are|is|do|does|would|could|should|can)\b/i,
+  /^(does|do|is|are|can|could|would|should|has|have|will) (anyone|anybody|someone|somebody|you|we|they)\b/i,
+  /^(can|could|would|should|do|does|is|are) (it|this|that|there)\b/i,
+  // "What are X made of?" type questions
+  /what (?:are|is) .{1,50} made of/i,
+  /what (?:do|does) .{1,50} (look like|sound like|feel like|eat|want)/i,
+  /what (?:would|could|should) .{1,50} (do|be|look|happen)/i,
+  // Hypothetical/speculative questions
+  /^if (you|we|they|someone|a|an|the)\b/i,
+  /\bwhat if\b/i,
+  /\bhypothetically\b/i,
+  /\btheoretically\b/i,
+  // Opinion seeking
+  /^(thoughts on|opinions? on|what do you think about)\b/i,
+  /your (thoughts|opinion|take) on/i,
+  /\bwhat'?s? your (favorite|least favorite|best|worst)\b/i,
+  // "Has anyone" / "Does anyone" patterns
+  /^has (anyone|anybody|someone) (ever|here)\b/i,
+  /^does (anyone|anybody|someone) (know|have|remember|think)\b/i,
+  // Definition/explanation seeking
+  /^what (?:exactly )?(?:is|are) (?:a |an |the )?(?:\w+\s?){1,4}\??$/i,  // "What is a UFO?" "What are cryptids?"
+  /^(explain|define|eli5|tldr)\b/i,
+];
+
 // Spam URL patterns
 export const SPAM_URL_PATTERNS = [
   /etsy\.com/i,
@@ -384,6 +412,13 @@ export function filterContent(
     }
   }
 
+  // Check question-only patterns (titles that are just questions, not experiences)
+  for (const pattern of QUESTION_ONLY_PATTERNS) {
+    if (pattern.test(title)) {
+      return { passed: false, reason: `Question-only post (not an experience): ${pattern.source.substring(0, 30)}...` };
+    }
+  }
+
   // Check non-experience patterns
   for (const pattern of NON_EXPERIENCE_PATTERNS) {
     if (pattern.test(combinedText)) {
@@ -481,6 +516,22 @@ export function isObviouslyLowQuality(title: string, description: string): boole
 
   // Repetitive content
   if (/(.{10,})\1{2,}/.test(description)) return true;
+
+  // Question-only titles (not personal experiences)
+  const questionOnlyPatterns = [
+    /^what (are|is|do|does|would|could|should|might|can)\b/i,
+    /^(why|how|where|when) (are|is|do|does|would|could|should|can)\b/i,
+    /^(does|do|is|are|can|could|would|should) (anyone|anybody|someone|you|we|they)\b/i,
+    /what (?:are|is) .{1,50} made of/i,
+    /^what (?:exactly )?(?:is|are) (?:a |an |the )?(?:\w+\s?){1,4}\??$/i,
+    /^(thoughts on|opinions? on|what do you think)\b/i,
+    /^has (anyone|anybody) (ever|here)\b/i,
+    /^does (anyone|anybody) (know|have|remember)\b/i,
+  ];
+
+  for (const pattern of questionOnlyPatterns) {
+    if (pattern.test(title)) return true;
+  }
 
   return false;
 }
