@@ -43,38 +43,16 @@ export default function Home() {
         .order('created_at', { ascending: false })
         .limit(6)
 
-      // Stats - use estimated counts for better performance on large tables
-      const { count: total, error: totalError } = await supabase
-        .from('reports')
-        .select('*', { count: 'estimated', head: true })
-        .eq('status', 'approved')
-
-      // Fix: Reset to midnight UTC to capture all records from the 1st of the month
-      const thisMonth = new Date()
-      thisMonth.setUTCDate(1)
-      thisMonth.setUTCHours(0, 0, 0, 0)
-      const { count: monthly, error: monthlyError } = await supabase
-        .from('reports')
-        .select('*', { count: 'estimated', head: true })
-        .eq('status', 'approved')
-        .gte('created_at', thisMonth.toISOString())
-
-      // Get unique countries (add limit to avoid default 1000 row cap)
-      const { data: countries } = await supabase
-        .from('reports')
-        .select('country')
-        .eq('status', 'approved')
-        .not('country', 'is', null)
-        .limit(100000)
-
-      const uniqueCountries = new Set(countries?.map(r => r.country)).size
+      // Fetch stats from server API (handles pagination and exact counts)
+      const statsResponse = await fetch('/api/public/stats')
+      const statsData = statsResponse.ok ? await statsResponse.json() : { total: 0, thisMonth: 0, countries: 0 }
 
       setFeaturedReports(featured || [])
       setRecentReports(recent || [])
       setStats({
-        total: total || 0,
-        thisMonth: monthly || 0,
-        locations: uniqueCountries
+        total: statsData.total || 0,
+        thisMonth: statsData.thisMonth || 0,
+        locations: statsData.countries || 0
       })
     } catch (error) {
       console.error('Error loading data:', error)
