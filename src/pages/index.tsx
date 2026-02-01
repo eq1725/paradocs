@@ -49,19 +49,23 @@ export default function Home() {
         .select('*', { count: 'exact', head: true })
         .eq('status', 'approved')
 
+      // Fix: Reset to midnight UTC to capture all records from the 1st of the month
       const thisMonth = new Date()
-      thisMonth.setDate(1)
+      thisMonth.setUTCDate(1)
+      thisMonth.setUTCHours(0, 0, 0, 0)
       const { count: monthly } = await supabase
         .from('reports')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'approved')
         .gte('created_at', thisMonth.toISOString())
 
+      // Get unique countries (add limit to avoid default 1000 row cap)
       const { data: countries } = await supabase
         .from('reports')
         .select('country')
         .eq('status', 'approved')
         .not('country', 'is', null)
+        .limit(100000)
 
       const uniqueCountries = new Set(countries?.map(r => r.country)).size
 
