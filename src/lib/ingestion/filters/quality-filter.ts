@@ -23,6 +23,13 @@ export const META_POST_PATTERNS = [
   /\bwhat (paranormal|supernatural|strange|weird|creepy) (experience|thing|event)s? (have you|did you)\b/i,
   // Discussion prompts
   /\b(discussion|megathread|weekly thread)\b/i,
+  // Poll/hypothetical questions - NOT real experiences
+  /\b(which (one )?would you|would you rather|if you could|would you want to be)\b/i,
+  /\b(vote|poll|survey|choose one|pick one)\b/i,
+  /\b(reincarnated as|come back as|be turned into)\b/i,
+  /\b(favorite|best|worst|scariest|creepiest) (cryptid|creature|ghost|ufo|alien)\?/i,
+  /\b(what do you think|what would you do|how would you)\b/i,
+  /\b(unpopular opinion|hot take|change my mind)\b/i,
 ];
 
 // Art, merchandise, and promotional content
@@ -38,6 +45,12 @@ export const NON_EXPERIENCE_PATTERNS = [
   /\b(merch|merchandise|t-shirt|shirt|poster|sticker|mug|print)\b/i,
   /\b(link in (bio|comments|description)|check out my)\b/i,
   /\b(free download|download free|pattern free)\b/i,
+  // SELF-PROMOTION - YouTube, podcasts, channels
+  /\b(i started a|check out my|subscribe to my|my new|just started a|just launched) (youtube|channel|podcast|blog|website|series)\b/i,
+  /\b(new (youtube )?channel|my (youtube )?channel|started a (youtube )?channel)\b/i,
+  /\b(please subscribe|hit subscribe|smash.{0,10}subscribe|like and subscribe)\b/i,
+  /\b(support my|support the) (channel|podcast|blog|patreon|work)\b/i,
+  /\b(first video|new video|latest video|just uploaded|just posted)\b/i,
   // Media/entertainment (not experiences)
   /\b(movie|film|show|series|episode|trailer|review|rating)\s+(about|of|for)/i,
   /\b(game|video ?game|indie game|rpg|tabletop)\b/i,
@@ -91,6 +104,27 @@ export const SPAM_URL_PATTERNS = [
   /bit\.ly/i,
   /tinyurl\.com/i,
   /onlyfans\.com/i,
+  // YouTube and video platforms (self-promotion)
+  /youtube\.com\/(?:channel|c|user|@)/i,
+  /youtube\.com\/shorts/i,
+  /youtu\.be/i,
+  // Social media self-promo
+  /tiktok\.com\/@/i,
+  /instagram\.com\/(?!p\/)/i,  // Profile links, not post links
+  /twitter\.com\/(?!.*\/status\/)/i,  // Profile links, not tweet links
+  /discord\.gg/i,
+  /t\.me\//i,  // Telegram
+  // Crowdfunding
+  /kickstarter\.com/i,
+  /indiegogo\.com/i,
+  /gofundme\.com/i,
+];
+
+// Patterns for content that is PRIMARILY just links (link-spam)
+export const LINK_HEAVY_PATTERNS = [
+  // Content that's just a link with minimal text
+  /^.{0,50}https?:\/\/.{10,}$/i,  // Very short text followed by URL
+  /^\[?https?:\/\/[^\]]+\]?\(?https?:\/\/[^\)]+\)?$/i,  // Just markdown links
 ];
 
 // ============================================================================
@@ -380,6 +414,13 @@ export function filterContent(
     for (const pattern of SPAM_URL_PATTERNS) {
       if (pattern.test(description)) {
         return { passed: false, reason: `Spam URL detected` };
+      }
+    }
+
+    // Check for link-heavy content (posts that are just links with minimal text)
+    for (const pattern of LINK_HEAVY_PATTERNS) {
+      if (pattern.test(description.trim())) {
+        return { passed: false, reason: `Link-heavy content (minimal text with URL)` };
       }
     }
   }
