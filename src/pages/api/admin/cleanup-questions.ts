@@ -4,7 +4,7 @@
  * Remove question-only posts that shouldn't have been imported
  * These are discussion posts, not first-hand experiences
  *
- * Optimized: Queries one pattern at a time instead of loading all 273K reports
+ * Optimized: Uses only prefix patterns (fast with indexes) and processes in batches
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next'
@@ -15,9 +15,9 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// iLIKE patterns (SQL wildcards: % = any chars)
-// These match question-only posts that are discussions, not experiences
-const QUESTION_ILIKE_PATTERNS = [
+// FAST prefix patterns only (iLIKE 'pattern%' uses index)
+// These match question-only posts that start with question words
+const PREFIX_PATTERNS = [
   // "What is/are/do/does..." questions
   'what is %',
   'what are %',
@@ -27,7 +27,8 @@ const QUESTION_ILIKE_PATTERNS = [
   'what could %',
   'what should %',
   'what can %',
-  // "Why/How/Where/When are/is..." questions
+  'what if %',
+  // "Why/How/Where/When..." questions
   'why is %',
   'why are %',
   'why do %',
@@ -36,51 +37,65 @@ const QUESTION_ILIKE_PATTERNS = [
   'how are %',
   'how do %',
   'how does %',
+  'how can %',
+  'how would %',
   'where is %',
   'where are %',
+  'where do %',
   'when is %',
   'when are %',
-  // "Does/Do anyone..." questions
+  'when do %',
+  // "Does/Do/Is/Are anyone..." questions
   'does anyone %',
   'does anybody %',
-  'do anyone %',
+  'does someone %',
   'do you %',
+  'do any %',
   'is anyone %',
   'is there %',
+  'is it %',
   'are there %',
+  'are you %',
   'can anyone %',
   'can someone %',
+  'can you %',
   'could anyone %',
+  'could someone %',
   'would anyone %',
+  'would you %',
+  'should i %',
+  'should we %',
   'has anyone %',
   'has anybody %',
   'have you %',
+  'have any %',
   'will anyone %',
-  // "What is X made of" questions
-  '% made of%',
-  // "Thoughts on / Opinions on" discussions
+  // Discussion starters
   'thoughts on %',
   'opinion on %',
   'opinions on %',
   'what do you think%',
-  // ELI5 / Explain / Define requests
+  // Requests
   'explain %',
   'define %',
   'eli5 %',
   'eli5:%',
   'tldr %',
-  // "What if" hypotheticals
-  '% what if %',
-  'what if %',
-  // "If you/we/they..." hypotheticals
+  'tldr:%',
+  // Hypotheticals
   'if you %',
   'if we %',
   'if they %',
   'if someone %',
-  // Question marks at end with question starters
+  'if i %',
+  // Comparisons/rankings
   'which one %',
   'which is %',
   'which are %',
+  'who is %',
+  'who are %',
+  'who was %',
+  'who would %',
 ]
 
 export default async function handler(
@@ -95,38 +110,55 @@ export default async function handler(
 
   try {
     console.log(`[Cleanup] Starting question-post cleanup (dryRun: ${dryRun})...`)
+    console.log(`[Cleanup] Processing ${PREFIX_PATTERNS.length} patterns...`)
 
     // Track unique IDs to delete (avoid duplicates across patterns)
     const idsToDelete = new Set<string>()
     const samples: { id: string; title: string; slug: string; pattern: string }[] = []
+    let patternsProcessed = 0
+    let patternsWithMatches = 0
 
-    // Process each pattern - much faster than loading all reports
-    for (const pattern of QUESTION_ILIKE_PATTERNS) {
-      const { data: matches, error } = await supabaseAdmin
-        .from('reports')
-        .select('id, title, slug')
-        .ilike('title', pattern)
-        .limit(5000) // Cap per pattern to avoid timeouts
+    // Process each pattern with timeout protection
+    for (const pattern of PREFIX_PATTERNS) {
+      try {
+        const { data: matches, error } = await supabaseAdmin
+          .from('reports')
+          .select('id, title, slug')
+          .ilike('title', pattern)
+          .limit(2000) // Cap per pattern
 
-      if (error) {
-        console.error(`[Cleanup] Error with pattern "${pattern}":`, error.message)
-        continue
-      }
+        patternsProcessed++
 
-      if (matches && matches.length > 0) {
-        console.log(`[Cleanup] Pattern "${pattern}" matched ${matches.length} reports`)
-        for (const match of matches) {
-          if (!idsToDelete.has(match.id)) {
-            idsToDelete.add(match.id)
-            if (samples.length < 30) {
-              samples.push({ ...match, pattern })
+        if (error) {
+          console.error(`[Cleanup] Error with pattern "${pattern}":`, error.message)
+          continue
+        }
+
+        if (matches && matches.length > 0) {
+          patternsWithMatches++
+          console.log(`[Cleanup] "${pattern}" → ${matches.length} matches`)
+
+          for (const match of matches) {
+            if (!idsToDelete.has(match.id)) {
+              idsToDelete.add(match.id)
+              if (samples.length < 30) {
+                samples.push({ ...match, pattern })
+              }
             }
           }
         }
+      } catch (err) {
+        console.error(`[Cleanup] Exception with pattern "${pattern}":`, err)
+        continue
+      }
+
+      // Progress log every 10 patterns
+      if (patternsProcessed % 10 === 0) {
+        console.log(`[Cleanup] Progress: ${patternsProcessed}/${PREFIX_PATTERNS.length} patterns, ${idsToDelete.size} matches`)
       }
     }
 
-    console.log(`[Cleanup] Total unique matches: ${idsToDelete.size}`)
+    console.log(`[Cleanup] Total unique matches: ${idsToDelete.size} from ${patternsWithMatches} patterns`)
 
     let deleted = 0
     if (!dryRun && idsToDelete.size > 0) {
@@ -156,6 +188,8 @@ export default async function handler(
     return res.status(200).json({
       success: true,
       dryRun,
+      patternsProcessed,
+      patternsWithMatches,
       matchedForDeletion: idsToDelete.size,
       deleted: dryRun ? 0 : deleted,
       samples: samples.map(r => ({
