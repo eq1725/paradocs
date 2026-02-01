@@ -1,0 +1,505 @@
+/**
+ * Pattern Analysis Service V2
+ *
+ * Optimized for large datasets (270K+ reports):
+ * - Processes by category to avoid timeouts
+ * - Uses simpler, faster analysis methods
+ * - Supports incremental updates
+ * - Better error handling and progress tracking
+ */
+
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+// Categories to process
+const CATEGORIES = [
+  'ufo_uap',
+  'cryptid',
+  'ghost_haunting',
+  'unexplained_event',
+  'psychic_paranormal',
+  'consciousness',
+  'psychological',
+  'esoteric',
+  'multi_disciplinary'
+]
+
+export interface AnalysisResult {
+  run_id: string
+  status: 'completed' | 'partial' | 'failed'
+  patterns_detected: number
+  patterns_updated: number
+  patterns_archived: number
+  reports_analyzed: number
+  duration_ms: number
+  errors: string[]
+  category_results: Record<string, { analyzed: number; patterns: number }>
+}
+
+/**
+ * Main entry point - optimized pattern analysis
+ */
+export async function runOptimizedPatternAnalysis(): Promise<AnalysisResult> {
+  const startTime = Date.now()
+  const errors: string[] = []
+  const categoryResults: Record<string, { analyzed: number; patterns: number }> = {}
+
+  let patternsDetected = 0
+  let patternsUpdated = 0
+  let patternsArchived = 0
+  let totalReportsAnalyzed = 0
+
+  // Create run record
+  const { data: runData, error: runError } = await supabaseAdmin
+    .from('pattern_analysis_runs')
+    .insert({
+      run_type: 'optimized',
+      status: 'running',
+      metadata: { version: 'v2', started_by: 'system' }
+    })
+    .select('id')
+    .single()
+
+  if (runError) {
+    console.error('Failed to create analysis run:', runError)
+    throw new Error(`Failed to create analysis run: ${runError.message}`)
+  }
+
+  const runId = runData.id
+
+  try {
+    // 1. Update temporal patterns (category-based surge detection)
+    console.log('[Pattern Analysis V2] Starting category-based analysis...')
+
+    for (const category of CATEGORIES) {
+      try {
+        const result = await analyzeCategoryTrends(category)
+        categoryResults[category] = result
+        patternsDetected += result.patterns
+        totalReportsAnalyzed += result.analyzed
+      } catch (err) {
+        const msg = `Category ${category} failed: ${err instanceof Error ? err.message : 'Unknown'}`
+        errors.push(msg)
+        console.error(msg)
+      }
+    }
+
+    // 2. Detect temporal anomalies (weekly spikes)
+    console.log('[Pattern Analysis V2] Detecting temporal anomalies...')
+    try {
+      const temporalResult = await detectTemporalAnomaliesOptimized()
+      patternsDetected += temporalResult.newPatterns
+      patternsUpdated += temporalResult.updatedPatterns
+    } catch (err) {
+      errors.push(`Temporal analysis failed: ${err instanceof Error ? err.message : 'Unknown'}`)
+    }
+
+    // 3. Update existing patterns with new reports
+    console.log('[Pattern Analysis V2] Updating existing patterns...')
+    try {
+      const updateResult = await updateExistingPatterns()
+      patternsUpdated += updateResult.updated
+    } catch (err) {
+      errors.push(`Pattern update failed: ${err instanceof Error ? err.message : 'Unknown'}`)
+    }
+
+    // 4. Archive stale patterns
+    console.log('[Pattern Analysis V2] Archiving stale patterns...')
+    try {
+      patternsArchived = await archiveStalePatterns()
+    } catch (err) {
+      errors.push(`Archive failed: ${err instanceof Error ? err.message : 'Unknown'}`)
+    }
+
+    // Update run record
+    const status = errors.length === 0 ? 'completed' : 'partial'
+    await supabaseAdmin
+      .from('pattern_analysis_runs')
+      .update({
+        status,
+        completed_at: new Date().toISOString(),
+        reports_analyzed: totalReportsAnalyzed,
+        patterns_detected: patternsDetected,
+        patterns_updated: patternsUpdated,
+        patterns_archived: patternsArchived,
+        error_message: errors.length > 0 ? errors.join('; ') : null,
+        metadata: {
+          version: 'v2',
+          category_results: categoryResults,
+          errors
+        }
+      })
+      .eq('id', runId)
+
+    console.log('[Pattern Analysis V2] Complete:', {
+      status,
+      patternsDetected,
+      patternsUpdated,
+      patternsArchived,
+      duration: Date.now() - startTime
+    })
+
+    return {
+      run_id: runId,
+      status,
+      patterns_detected: patternsDetected,
+      patterns_updated: patternsUpdated,
+      patterns_archived: patternsArchived,
+      reports_analyzed: totalReportsAnalyzed,
+      duration_ms: Date.now() - startTime,
+      errors,
+      category_results: categoryResults
+    }
+
+  } catch (error) {
+    await supabaseAdmin
+      .from('pattern_analysis_runs')
+      .update({
+        status: 'failed',
+        completed_at: new Date().toISOString(),
+        error_message: error instanceof Error ? error.message : 'Unknown error'
+      })
+      .eq('id', runId)
+
+    throw error
+  }
+}
+
+/**
+ * Analyze trends for a specific category
+ * Uses simpler time-based analysis instead of expensive DBSCAN
+ */
+async function analyzeCategoryTrends(category: string): Promise<{ analyzed: number; patterns: number }> {
+  // Get report counts for this category over past 90 days
+  const ninetyDaysAgo = new Date()
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+
+  const { data: reports, error, count } = await supabaseAdmin
+    .from('reports')
+    .select('id, event_date, created_at, country, location_name', { count: 'exact' })
+    .eq('status', 'approved')
+    .eq('category', category)
+    .gte('created_at', ninetyDaysAgo.toISOString())
+    .order('created_at', { ascending: false })
+    .limit(5000)
+
+  if (error) throw error
+
+  const reportsAnalyzed = count || reports?.length || 0
+  let patternsFound = 0
+
+  if (!reports || reports.length < 10) {
+    return { analyzed: reportsAnalyzed, patterns: 0 }
+  }
+
+  // Calculate weekly averages and detect surges
+  const weeklyGroups = groupByWeek(reports)
+  const avgPerWeek = reports.length / 13 // 90 days ≈ 13 weeks
+
+  for (const [weekStart, weekReports] of Object.entries(weeklyGroups)) {
+    const weekCount = (weekReports as any[]).length
+    const ratio = weekCount / avgPerWeek
+
+    // Surge detection: >2x average
+    if (ratio >= 2 && weekCount >= 5) {
+      const patternKey = `surge_${category}_${weekStart}`
+      const existing = await findExistingPattern(patternKey)
+
+      if (existing) {
+        await updatePattern(existing.id, {
+          report_count: weekCount,
+          metadata: {
+            ...existing.metadata,
+            ratio,
+            last_analyzed: new Date().toISOString()
+          }
+        })
+      } else {
+        await createTemporalPattern({
+          pattern_type: 'temporal_anomaly',
+          category,
+          weekStart,
+          reportCount: weekCount,
+          ratio,
+          reports: weekReports as any[]
+        })
+        patternsFound++
+      }
+    }
+  }
+
+  // Check for regional concentrations
+  const locationGroups = groupByLocation(reports)
+  for (const [location, locReports] of Object.entries(locationGroups)) {
+    if ((locReports as any[]).length >= 10) {
+      const patternKey = `region_${category}_${location.replace(/\W/g, '_')}`
+      const existing = await findExistingPattern(patternKey)
+
+      if (!existing) {
+        await createRegionalPattern({
+          category,
+          location,
+          reports: locReports as any[]
+        })
+        patternsFound++
+      }
+    }
+  }
+
+  return { analyzed: reportsAnalyzed, patterns: patternsFound }
+}
+
+/**
+ * Detect temporal anomalies using simple statistical analysis
+ */
+async function detectTemporalAnomaliesOptimized(): Promise<{ newPatterns: number; updatedPatterns: number }> {
+  let newPatterns = 0
+  let updatedPatterns = 0
+
+  // Get weekly report counts for the past year
+  const { data: weeklyData, error } = await supabaseAdmin
+    .from('reports')
+    .select('created_at, category')
+    .eq('status', 'approved')
+    .gte('created_at', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString())
+    .limit(50000)
+
+  if (error || !weeklyData) return { newPatterns: 0, updatedPatterns: 0 }
+
+  // Group by week
+  const weekCounts: Record<string, number> = {}
+  for (const report of weeklyData) {
+    const week = getWeekStart(new Date(report.created_at))
+    weekCounts[week] = (weekCounts[week] || 0) + 1
+  }
+
+  // Calculate statistics
+  const counts = Object.values(weekCounts)
+  const mean = counts.reduce((a, b) => a + b, 0) / counts.length
+  const variance = counts.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / counts.length
+  const stdDev = Math.sqrt(variance)
+
+  // Find anomalies (z-score > 2)
+  for (const [week, count] of Object.entries(weekCounts)) {
+    const zScore = (count - mean) / stdDev
+
+    if (Math.abs(zScore) > 2) {
+      const isSpike = zScore > 0
+      const existing = await findExistingPattern(`temporal_${week}`)
+
+      if (existing) {
+        await updatePattern(existing.id, {
+          metadata: { ...existing.metadata, z_score: zScore, count }
+        })
+        updatedPatterns++
+      } else {
+        await supabaseAdmin
+          .from('detected_patterns')
+          .insert({
+            pattern_type: 'temporal_anomaly',
+            status: 'active',
+            confidence_score: Math.min(Math.abs(zScore) / 5, 1),
+            significance_score: Math.min(count / 100, 1),
+            report_count: count,
+            pattern_start_date: week,
+            pattern_end_date: addDays(week, 7),
+            metadata: {
+              pattern_key: `temporal_${week}`,
+              z_score: zScore,
+              is_spike: isSpike,
+              mean_count: mean,
+              std_dev: stdDev
+            },
+            ai_title: isSpike
+              ? `Report Surge: ${count} Reports (Week of ${week})`
+              : `Report Decline: Only ${count} Reports (Week of ${week})`,
+            ai_summary: isSpike
+              ? `Statistically significant increase in paranormal reports. This week saw ${count} reports, which is ${(zScore).toFixed(1)} standard deviations above the weekly average of ${mean.toFixed(0)}.`
+              : `Unusual decrease in report activity. Only ${count} reports this week, ${Math.abs(zScore).toFixed(1)} standard deviations below average.`
+          })
+        newPatterns++
+      }
+    }
+  }
+
+  return { newPatterns, updatedPatterns }
+}
+
+/**
+ * Update existing patterns with recent reports
+ */
+async function updateExistingPatterns(): Promise<{ updated: number }> {
+  const { data: patterns, error } = await supabaseAdmin
+    .from('detected_patterns')
+    .select('*')
+    .in('status', ['active', 'emerging'])
+
+  if (error || !patterns) return { updated: 0 }
+
+  let updated = 0
+
+  for (const pattern of patterns) {
+    const categories = pattern.categories || []
+
+    // Count matching reports
+    let query = supabaseAdmin
+      .from('reports')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'approved')
+
+    if (categories.length > 0) {
+      query = query.in('category', categories)
+    }
+
+    if (pattern.pattern_start_date) {
+      query = query.gte('event_date', pattern.pattern_start_date)
+    }
+
+    const { count } = await query
+
+    // Update if count changed significantly
+    if (count && Math.abs(count - pattern.report_count) >= 5) {
+      await supabaseAdmin
+        .from('detected_patterns')
+        .update({
+          report_count: count,
+          last_updated_at: new Date().toISOString()
+        })
+        .eq('id', pattern.id)
+      updated++
+    }
+  }
+
+  return { updated }
+}
+
+/**
+ * Archive patterns that haven't had activity in 90+ days
+ */
+async function archiveStalePatterns(): Promise<number> {
+  const ninetyDaysAgo = new Date()
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+
+  const { data, error } = await supabaseAdmin
+    .from('detected_patterns')
+    .update({ status: 'historical' })
+    .in('status', ['active', 'emerging', 'declining'])
+    .lt('last_updated_at', ninetyDaysAgo.toISOString())
+    .select('id')
+
+  return data?.length || 0
+}
+
+// Helper functions
+
+function groupByWeek(reports: any[]): Record<string, any[]> {
+  const groups: Record<string, any[]> = {}
+  for (const report of reports) {
+    const week = getWeekStart(new Date(report.created_at))
+    if (!groups[week]) groups[week] = []
+    groups[week].push(report)
+  }
+  return groups
+}
+
+function groupByLocation(reports: any[]): Record<string, any[]> {
+  const groups: Record<string, any[]> = {}
+  for (const report of reports) {
+    const loc = report.country || report.location_name || 'Unknown'
+    if (!groups[loc]) groups[loc] = []
+    groups[loc].push(report)
+  }
+  return groups
+}
+
+function getWeekStart(date: Date): string {
+  const d = new Date(date)
+  d.setDate(d.getDate() - d.getDay())
+  return d.toISOString().split('T')[0]
+}
+
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr)
+  d.setDate(d.getDate() + days)
+  return d.toISOString().split('T')[0]
+}
+
+async function findExistingPattern(patternKey: string) {
+  const { data } = await supabaseAdmin
+    .from('detected_patterns')
+    .select('*')
+    .contains('metadata', { pattern_key: patternKey })
+    .single()
+  return data
+}
+
+async function updatePattern(id: string, updates: any) {
+  await supabaseAdmin
+    .from('detected_patterns')
+    .update({
+      ...updates,
+      last_updated_at: new Date().toISOString()
+    })
+    .eq('id', id)
+}
+
+async function createTemporalPattern(data: any) {
+  await supabaseAdmin
+    .from('detected_patterns')
+    .insert({
+      pattern_type: 'temporal_anomaly',
+      status: 'emerging',
+      confidence_score: Math.min(data.ratio / 5, 1),
+      significance_score: Math.min(data.reportCount / 50, 1),
+      report_count: data.reportCount,
+      pattern_start_date: data.weekStart,
+      pattern_end_date: addDays(data.weekStart, 7),
+      categories: [data.category],
+      metadata: {
+        pattern_key: `surge_${data.category}_${data.weekStart}`,
+        ratio: data.ratio,
+        category: data.category
+      },
+      ai_title: `${getCategoryName(data.category)} Surge: ${Math.round(data.ratio * 100)}% Above Average (Week of ${data.weekStart})`,
+      ai_summary: `A statistically significant surge in ${getCategoryName(data.category)} reports was detected during the week of ${data.weekStart}, with ${data.reportCount} reports - ${Math.round(data.ratio * 100)}% above the typical weekly average.`
+    })
+}
+
+async function createRegionalPattern(data: any) {
+  await supabaseAdmin
+    .from('detected_patterns')
+    .insert({
+      pattern_type: 'regional_concentration',
+      status: 'emerging',
+      confidence_score: Math.min(data.reports.length / 50, 1),
+      significance_score: Math.min(data.reports.length / 30, 1),
+      report_count: data.reports.length,
+      categories: [data.category],
+      metadata: {
+        pattern_key: `region_${data.category}_${data.location.replace(/\W/g, '_')}`,
+        location: data.location,
+        category: data.category
+      },
+      ai_title: `${getCategoryName(data.category)} Concentration: ${data.reports.length} Reports in ${data.location}`,
+      ai_summary: `A notable concentration of ${getCategoryName(data.category)} reports has been identified in ${data.location}, with ${data.reports.length} documented incidents in recent months.`
+    })
+}
+
+function getCategoryName(category: string): string {
+  const names: Record<string, string> = {
+    'ufo_uap': 'UFO/UAP',
+    'cryptid': 'Cryptid',
+    'ghost_haunting': 'Ghost & Haunting',
+    'unexplained_event': 'Unexplained Event',
+    'psychic_paranormal': 'Psychic Phenomena',
+    'consciousness': 'Consciousness',
+    'psychological': 'Psychological',
+    'esoteric': 'Esoteric',
+    'multi_disciplinary': 'Multi-Disciplinary'
+  }
+  return names[category] || category
+}

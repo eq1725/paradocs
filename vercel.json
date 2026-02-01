@@ -10,8 +10,8 @@
       "schedule": "0 6 * * *"
     },
     {
-      "path": "/api/cron/analyze-patterns",
-      "schedule": "0 */6 * * *"
+      "path": "/api/cron/analyze-patterns-v2",
+      "schedule": "0 7 * * *"
     }
   ]
 }
