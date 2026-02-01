@@ -15,17 +15,20 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Categories to process
+// Categories to process - these match the actual database values
 const CATEGORIES = [
-  'ufo_uap',
-  'cryptid',
-  'ghost_haunting',
-  'unexplained_event',
-  'psychic_paranormal',
-  'consciousness',
-  'psychological',
-  'esoteric',
-  'multi_disciplinary'
+  'ufos_aliens',
+  'cryptids',
+  'ghosts_hauntings',
+  'psychic_phenomena',
+  'consciousness_practices',
+  'psychological_experiences',
+  'biological_factors',
+  'perception_sensory',
+  'religion_mythology',
+  'esoteric_practices',
+  'multi_disciplinary',
+  'combination'
 ]
 
 export interface AnalysisResult {
@@ -72,10 +75,21 @@ export async function runOptimizedPatternAnalysis(): Promise<AnalysisResult> {
   const runId = runData.id
 
   try {
-    // 1. Update temporal patterns (category-based surge detection)
+    // 1. Get all categories dynamically from the database
+    console.log('[Pattern Analysis V2] Fetching categories from database...')
+    const { data: categoryData } = await supabaseAdmin
+      .from('reports')
+      .select('category')
+      .eq('status', 'approved')
+      .limit(10000)
+
+    const uniqueCategories = [...new Set((categoryData || []).map(r => r.category).filter(Boolean))]
+    console.log('[Pattern Analysis V2] Found categories:', uniqueCategories)
+
+    // 2. Update temporal patterns (category-based surge detection)
     console.log('[Pattern Analysis V2] Starting category-based analysis...')
 
-    for (const category of CATEGORIES) {
+    for (const category of uniqueCategories) {
       try {
         const result = await analyzeCategoryTrends(category)
         categoryResults[category] = result
@@ -491,15 +505,18 @@ async function createRegionalPattern(data: any) {
 
 function getCategoryName(category: string): string {
   const names: Record<string, string> = {
-    'ufo_uap': 'UFO/UAP',
-    'cryptid': 'Cryptid',
-    'ghost_haunting': 'Ghost & Haunting',
-    'unexplained_event': 'Unexplained Event',
-    'psychic_paranormal': 'Psychic Phenomena',
-    'consciousness': 'Consciousness',
-    'psychological': 'Psychological',
-    'esoteric': 'Esoteric',
-    'multi_disciplinary': 'Multi-Disciplinary'
+    'ufos_aliens': 'UFOs & Aliens',
+    'cryptids': 'Cryptids',
+    'ghosts_hauntings': 'Ghosts & Hauntings',
+    'psychic_phenomena': 'Psychic Phenomena',
+    'consciousness_practices': 'Consciousness Practices',
+    'psychological_experiences': 'Psychological Experiences',
+    'biological_factors': 'Biological Factors',
+    'perception_sensory': 'Perception & Sensory',
+    'religion_mythology': 'Religion & Mythology',
+    'esoteric_practices': 'Esoteric Practices',
+    'multi_disciplinary': 'Multi-Disciplinary',
+    'combination': 'Combination'
   }
-  return names[category] || category
+  return names[category] || category.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
