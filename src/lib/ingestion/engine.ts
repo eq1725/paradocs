@@ -238,6 +238,30 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
 
           if (!updateError) {
             updated++;
+
+            // Update media for existing report if it has new media
+            if (report.media && report.media.length > 0) {
+              // Check if report already has media
+              const { count: existingMediaCount } = await supabase
+                .from('report_media')
+                .select('*', { count: 'exact', head: true })
+                .eq('report_id', existing.id);
+
+              // Only add media if report doesn't already have any
+              if (!existingMediaCount || existingMediaCount === 0) {
+                for (const mediaItem of report.media) {
+                  await supabase.from('report_media').insert({
+                    report_id: existing.id,
+                    media_type: mediaItem.type,
+                    url: mediaItem.url,
+                    thumbnail_url: mediaItem.thumbnailUrl || null,
+                    caption: mediaItem.caption || null,
+                    is_primary: mediaItem.isPrimary || false
+                  });
+                }
+                console.log(`[Ingestion] Added ${report.media.length} media items to existing report`);
+              }
+            }
           } else {
             skipped++;
           }
@@ -245,7 +269,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           // Insert new report with quality-based status
           const slug = generateSlug(finalTitle, report.original_report_id, report.source_type);
 
-          const { error: insertError } = await supabase
+          const { data: insertedReport, error: insertError } = await supabase
             .from('reports')
             .insert({
               title: finalTitle,
@@ -270,12 +294,33 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               original_title: originalTitle,
               upvotes: 0,
               view_count: 0
-            });
+            })
+            .select('id')
+            .single();
 
-          if (!insertError) {
+          if (!insertError && insertedReport) {
             inserted++;
             if (titleResult.wasImproved) {
               console.log(`[Ingestion] Title improved: "${originalTitle?.substring(0, 30)}..." -> "${finalTitle.substring(0, 30)}..."`);
+            }
+
+            // Insert media for new report
+            if (report.media && report.media.length > 0) {
+              let mediaInserted = 0;
+              for (const mediaItem of report.media) {
+                const { error: mediaError } = await supabase.from('report_media').insert({
+                  report_id: insertedReport.id,
+                  media_type: mediaItem.type,
+                  url: mediaItem.url,
+                  thumbnail_url: mediaItem.thumbnailUrl || null,
+                  caption: mediaItem.caption || null,
+                  is_primary: mediaItem.isPrimary || false
+                });
+                if (!mediaError) mediaInserted++;
+              }
+              if (mediaInserted > 0) {
+                console.log(`[Ingestion] Added ${mediaInserted} media items to new report`);
+              }
             }
           } else {
             console.error('Insert error:', insertError);

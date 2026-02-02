@@ -2,7 +2,7 @@
 // Fetches posts from paranormal-related subreddits using Arctic Shift API
 // (Reddit blocks direct server-side requests from cloud environments)
 
-import { SourceAdapter, AdapterResult, ScrapedReport } from '../types';
+import { SourceAdapter, AdapterResult, ScrapedReport, ScrapedMediaItem } from '../types';
 
 // Rate limiting helper
 function delay(ms: number): Promise<void> {
@@ -62,6 +62,37 @@ interface ArcticShiftPost {
   permalink: string;
   link_flair_text?: string;
   is_self: boolean;
+  // Media-related fields
+  is_video?: boolean;
+  media?: {
+    reddit_video?: {
+      fallback_url: string;
+      height: number;
+      width: number;
+      duration?: number;
+    };
+  };
+  gallery_data?: {
+    items: Array<{
+      media_id: string;
+      id: number;
+    }>;
+  };
+  media_metadata?: Record<string, {
+    e: string;  // 'Image' or 'RedditVideo'
+    m?: string; // mime type
+    s?: { u: string; x: number; y: number };  // source
+    p?: Array<{ u: string; x: number; y: number }>;  // previews
+  }>;
+  preview?: {
+    images: Array<{
+      source: { url: string; width: number; height: number };
+      resolutions?: Array<{ url: string; width: number; height: number }>;
+    }>;
+  };
+  thumbnail?: string;
+  thumbnail_width?: number;
+  thumbnail_height?: number;
 }
 
 interface ArcticShiftResponse {
@@ -179,6 +210,174 @@ const SPAM_URL_PATTERNS = [
   /bit\.ly/i,
   /tinyurl\.com/i,
 ];
+
+// Image URL patterns for direct media links
+const IMAGE_URL_PATTERNS = [
+  /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i,
+  /i\.redd\.it\//i,
+  /i\.imgur\.com\//i,
+  /preview\.redd\.it\//i,
+];
+
+// Check if a URL is a direct image link
+function isImageUrl(url: string): boolean {
+  if (!url) return false;
+  return IMAGE_URL_PATTERNS.some(pattern => pattern.test(url));
+}
+
+// Check if a URL is a Reddit video
+function isRedditVideoUrl(url: string): boolean {
+  if (!url) return false;
+  return /v\.redd\.it\//i.test(url);
+}
+
+// Clean Reddit's HTML-encoded URLs
+function cleanRedditUrl(url: string): string {
+  return url
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
+// Extract image URLs from text content
+function extractImageUrlsFromText(text: string): string[] {
+  if (!text) return [];
+
+  const urls: string[] = [];
+  // Match common image hosting URLs in text
+  const urlRegex = /https?:\/\/[^\s\)\]]+\.(jpg|jpeg|png|gif|webp)(\?[^\s\)\]]*)?\b/gi;
+  const matches = text.match(urlRegex) || [];
+
+  for (const match of matches) {
+    const cleanUrl = cleanRedditUrl(match);
+    if (!urls.includes(cleanUrl)) {
+      urls.push(cleanUrl);
+    }
+  }
+
+  // Also look for i.redd.it and i.imgur.com links without extensions
+  const redditImageRegex = /https?:\/\/i\.redd\.it\/[a-zA-Z0-9]+/gi;
+  const imgurImageRegex = /https?:\/\/i\.imgur\.com\/[a-zA-Z0-9]+/gi;
+
+  const redditMatches = text.match(redditImageRegex) || [];
+  const imgurMatches = text.match(imgurImageRegex) || [];
+
+  for (const match of [...redditMatches, ...imgurMatches]) {
+    const cleanUrl = cleanRedditUrl(match);
+    if (!urls.includes(cleanUrl)) {
+      urls.push(cleanUrl);
+    }
+  }
+
+  return urls;
+}
+
+// Extract media from a Reddit post
+function extractMediaFromPost(post: ArcticShiftPost): ScrapedMediaItem[] {
+  const media: ScrapedMediaItem[] = [];
+  const seenUrls = new Set<string>();
+
+  // Helper to add unique media
+  const addMedia = (item: ScrapedMediaItem) => {
+    const normalizedUrl = cleanRedditUrl(item.url);
+    if (!seenUrls.has(normalizedUrl)) {
+      seenUrls.add(normalizedUrl);
+      media.push({ ...item, url: normalizedUrl });
+    }
+  };
+
+  // 1. Check post URL for direct images (link posts)
+  if (post.url && isImageUrl(post.url)) {
+    addMedia({
+      type: 'image',
+      url: post.url,
+      isPrimary: true
+    });
+  }
+
+  // 2. Check for Reddit video
+  if (post.is_video && post.media?.reddit_video) {
+    const video = post.media.reddit_video;
+    addMedia({
+      type: 'video',
+      url: video.fallback_url,
+      width: video.width,
+      height: video.height,
+      isPrimary: media.length === 0
+    });
+  }
+
+  // 3. Check for gallery posts (multiple images)
+  if (post.gallery_data && post.media_metadata) {
+    for (const item of post.gallery_data.items) {
+      const meta = post.media_metadata[item.media_id];
+      if (meta?.s?.u) {
+        addMedia({
+          type: 'image',
+          url: meta.s.u,
+          width: meta.s.x,
+          height: meta.s.y,
+          isPrimary: media.length === 0
+        });
+      }
+    }
+  }
+
+  // 4. Check preview images (for link posts that have previews)
+  if (post.preview?.images?.length && media.length === 0) {
+    const preview = post.preview.images[0];
+    if (preview.source?.url) {
+      addMedia({
+        type: 'image',
+        url: preview.source.url,
+        width: preview.source.width,
+        height: preview.source.height,
+        isPrimary: true
+      });
+    }
+  }
+
+  // 5. Extract image URLs from selftext
+  const selftext = post.selftext || (post as any).self_text || '';
+  const textImageUrls = extractImageUrlsFromText(selftext);
+  for (const url of textImageUrls) {
+    addMedia({
+      type: 'image',
+      url,
+      isPrimary: media.length === 0
+    });
+  }
+
+  // 6. Use thumbnail as fallback (if it's a real image, not a placeholder)
+  if (media.length === 0 && post.thumbnail && !['self', 'default', 'nsfw', 'spoiler', ''].includes(post.thumbnail)) {
+    if (post.thumbnail.startsWith('http')) {
+      addMedia({
+        type: 'image',
+        url: post.thumbnail,
+        width: post.thumbnail_width,
+        height: post.thumbnail_height,
+        isPrimary: true
+      });
+    }
+  }
+
+  // Ensure only one item is marked as primary
+  let hasPrimary = false;
+  for (const item of media) {
+    if (item.isPrimary) {
+      if (hasPrimary) {
+        item.isPrimary = false;
+      } else {
+        hasPrimary = true;
+      }
+    }
+  }
+  if (!hasPrimary && media.length > 0) {
+    media[0].isPrimary = true;
+  }
+
+  return media;
+}
 
 // Check if a post is a "meta" post asking for stories rather than sharing one
 function isMetaPost(post: ArcticShiftPost): boolean {
@@ -480,6 +679,14 @@ function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
     credibility = 'low';
   }
 
+  // Extract media from the post
+  const extractedMedia = extractMediaFromPost(post);
+  if (extractedMedia.length > 0) {
+    console.log(`[Reddit/ArcticShift] Extracted ${extractedMedia.length} media items from post "${post.title.substring(0, 30)}..."`);
+    // Add 'has-media' tag for searchability
+    tags.push('has-media');
+  }
+
   return {
     title: post.title.length > 150 ? post.title.substring(0, 147) + '...' : post.title,
     summary,
@@ -496,12 +703,16 @@ function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
     // New quality system fields
     source_label: `r/${post.subreddit}`,
     source_url: `https://reddit.com${post.permalink}`,
+    // Media extracted from the post
+    media: extractedMedia.length > 0 ? extractedMedia : undefined,
     metadata: {
       subreddit: post.subreddit,
       postId: post.id,
       score: post.score,
       numComments: post.num_comments,
-      flair: post.link_flair_text
+      flair: post.link_flair_text,
+      hasMedia: extractedMedia.length > 0,
+      mediaCount: extractedMedia.length
     }
   };
 }

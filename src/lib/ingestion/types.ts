@@ -35,6 +35,17 @@ export interface IngestionJob {
   created_at: string;
 }
 
+// Media item extracted from source
+export interface ScrapedMediaItem {
+  type: 'image' | 'video' | 'audio';
+  url: string;
+  thumbnailUrl?: string;
+  width?: number;
+  height?: number;
+  caption?: string;
+  isPrimary?: boolean;
+}
+
 export interface ScrapedReport {
   title: string;
   summary: string;
@@ -62,6 +73,8 @@ export interface ScrapedReport {
     coherenceScore: number;
     sourceScore: number;
   };
+  // Media extracted from the source
+  media?: ScrapedMediaItem[];
   // Adapter-specific metadata
   metadata?: Record<string, any>;
 }

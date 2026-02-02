@@ -53,6 +53,7 @@ export default function ExplorePage() {
   const [dateTo, setDateTo] = useState('')
   const [sort, setSort] = useState<SortOption>('newest')
   const [hasEvidence, setHasEvidence] = useState(false)
+  const [hasMedia, setHasMedia] = useState(false)
   const [featured, setFeatured] = useState(false)
 
   // Initialize from URL params
@@ -106,6 +107,9 @@ export default function ExplorePage() {
       if (hasEvidence) {
         query = query.or('has_physical_evidence.eq.true,has_photo_video.eq.true')
       }
+      if (hasMedia) {
+        query = query.contains('tags', ['has-media'])
+      }
       if (featured) {
         query = query.eq('featured', true)
       }
@@ -138,7 +142,7 @@ export default function ExplorePage() {
       // Will show "250,000+" for unfiltered, or use data length + offset for filtered
       const hasFilters = category !== 'all' || selectedCategories.length > 0 ||
         selectedTypes.length > 0 || searchQuery || country || credibility ||
-        dateFrom || dateTo || hasEvidence || featured
+        dateFrom || dateTo || hasEvidence || hasMedia || featured
       if (hasFilters) {
         // For filtered queries, estimate based on results
         const estimatedMore = (data?.length || 0) === perPage ? 1000 : 0
@@ -152,7 +156,7 @@ export default function ExplorePage() {
     } finally {
       setLoading(false)
     }
-  }, [category, selectedCategories, selectedTypes, searchQuery, country, credibility, dateFrom, dateTo, sort, hasEvidence, featured, page, baselineCount])
+  }, [category, selectedCategories, selectedTypes, searchQuery, country, credibility, dateFrom, dateTo, sort, hasEvidence, hasMedia, featured, page, baselineCount])
 
   useEffect(() => {
     loadReports()
@@ -168,6 +172,7 @@ export default function ExplorePage() {
     setDateFrom('')
     setDateTo('')
     setHasEvidence(false)
+    setHasMedia(false)
     setFeatured(false)
     setSort('newest')
     setPage(1)
@@ -175,7 +180,7 @@ export default function ExplorePage() {
 
   const hasActiveFilters = category !== 'all' || selectedCategories.length > 0 ||
     selectedTypes.length > 0 || searchQuery || country || credibility ||
-    dateFrom || dateTo || hasEvidence || featured
+    dateFrom || dateTo || hasEvidence || hasMedia || featured
 
   const totalPages = Math.ceil(totalCount / perPage)
 
@@ -324,6 +329,15 @@ export default function ExplorePage() {
                   className="rounded bg-white/5 border-white/20"
                 />
                 <span className="text-sm text-gray-300">Has evidence</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={hasMedia}
+                  onChange={(e) => { setHasMedia(e.target.checked); setPage(1) }}
+                  className="rounded bg-white/5 border-white/20"
+                />
+                <span className="text-sm text-gray-300">Has photos/video</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input

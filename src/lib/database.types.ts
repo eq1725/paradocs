@@ -350,6 +350,9 @@ export interface Database {
           is_primary: boolean
           uploaded_by: string | null
           created_at: string
+          ai_tags: string[] | null
+          ai_description: string | null
+          ai_analyzed_at: string | null
         }
         Insert: {
           id?: string
@@ -361,6 +364,9 @@ export interface Database {
           is_primary?: boolean
           uploaded_by?: string | null
           created_at?: string
+          ai_tags?: string[] | null
+          ai_description?: string | null
+          ai_analyzed_at?: string | null
         }
         Update: {
           id?: string
@@ -372,6 +378,9 @@ export interface Database {
           is_primary?: boolean
           uploaded_by?: string | null
           created_at?: string
+          ai_tags?: string[] | null
+          ai_description?: string | null
+          ai_analyzed_at?: string | null
         }
       }
       data_sources: {
