@@ -552,10 +552,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const supabase = getSupabaseAdmin();
-  const { dryRun = false, slugs = [], limit = 5 } = req.body; // Default limit of 5 to avoid timeout
+  const { dryRun = false, slugs = [], limit = 10, forceAll = false } = req.body;
 
   try {
-    // Get phenomena that need images (no supabase URL yet)
+    // Get all active phenomena
     const { data: phenomena, error: fetchError } = await supabase
       .from('phenomena')
       .select('id, slug, name, category, primary_image_url')
@@ -565,10 +565,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(500).json({ error: 'Failed to fetch phenomena', details: fetchError?.message });
     }
 
-    // Filter by slugs if provided, otherwise get those without self-hosted images
-    let toProcess = slugs.length > 0
-      ? phenomena.filter(p => slugs.includes(p.slug))
-      : phenomena.filter(p => !p.primary_image_url?.includes('supabase'));
+    // Filter logic:
+    // - forceAll=true: process ALL phenomena (for complete image replacement)
+    // - slugs provided: process only those slugs
+    // - otherwise: process only those without supabase URLs
+    let toProcess = forceAll
+      ? phenomena
+      : slugs.length > 0
+        ? phenomena.filter(p => slugs.includes(p.slug))
+        : phenomena.filter(p => !p.primary_image_url?.includes('supabase'));
 
     // Apply limit to avoid timeout
     const totalNeedingImages = toProcess.length;
