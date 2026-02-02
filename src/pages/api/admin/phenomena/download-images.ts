@@ -179,27 +179,27 @@ const WIKIMEDIA_IMAGES: Record<string, { url: string; credit: string; searchTerm
   },
 };
 
-// Category default images
+// Category default images - verified working full-resolution URLs
 const CATEGORY_DEFAULTS: Record<string, { url: string; credit: string }> = {
   'cryptids': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Sasquatch.svg/500px-Sasquatch.svg.png',
+    url: 'https://upload.wikimedia.org/wikipedia/commons/1/18/Sasquatch.svg',
     credit: 'Cryptid silhouette - CC BY-SA 4.0'
   },
   'ufos_aliens': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Above_Black_-_UFO_illustration.jpg/640px-Above_Black_-_UFO_illustration.jpg',
-    credit: 'UFO illustration - Public Domain'
+    url: 'https://upload.wikimedia.org/wikipedia/commons/6/66/Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg',
+    credit: 'Passaic UFO photo, 1952 - Public Domain'
   },
   'ghosts_hauntings': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Ghost-159356.svg/400px-Ghost-159356.svg.png',
-    credit: 'Ghost silhouette - Public Domain'
+    url: 'https://upload.wikimedia.org/wikipedia/commons/5/56/John_Henry_Fuseli_-_The_Nightmare.JPG',
+    credit: 'The Nightmare by Fuseli, 1781 - Public Domain'
   },
   'psychic_phenomena': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Brain_icon_%28the_Noun_Project_6616%29.svg/480px-Brain_icon_%28the_Noun_Project_6616%29.svg.png',
-    credit: 'Brain icon - CC BY 3.0'
+    url: 'https://upload.wikimedia.org/wikipedia/commons/5/56/John_Henry_Fuseli_-_The_Nightmare.JPG',
+    credit: 'The Nightmare by Fuseli, 1781 - Public Domain'
   },
   'psychological_experiences': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/John_Henry_Fuseli_-_The_Nightmare.JPG/640px-John_Henry_Fuseli_-_The_Nightmare.JPG',
-    credit: 'The Nightmare - Public Domain'
+    url: 'https://upload.wikimedia.org/wikipedia/commons/5/56/John_Henry_Fuseli_-_The_Nightmare.JPG',
+    credit: 'The Nightmare by Fuseli, 1781 - Public Domain'
   }
 };
 
