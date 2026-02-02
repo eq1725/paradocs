@@ -201,29 +201,40 @@ export default async function handler(
 
 /**
  * Map seed category names to database enum values
+ * Valid values: ufos_aliens, cryptids, ghosts_hauntings, psychic_phenomena,
+ * consciousness_practices, psychological_experiences, biological_factors,
+ * perception_sensory, religion_mythology, esoteric_practices, combination
  */
 function mapCategory(category: string): string {
   const mapping: Record<string, string> = {
-    'cryptids': 'cryptid',
-    'cryptid': 'cryptid',
-    'ufos_aliens': 'ufo_uap',
-    'ufo_uap': 'ufo_uap',
-    'ufos': 'ufo_uap',
-    'aliens': 'ufo_uap',
-    'ghosts_hauntings': 'ghost_haunting',
-    'ghost_haunting': 'ghost_haunting',
-    'ghosts': 'ghost_haunting',
-    'hauntings': 'ghost_haunting',
-    'psychic_phenomena': 'psychic_paranormal',
-    'psychic_paranormal': 'psychic_paranormal',
-    'psychic': 'psychic_paranormal',
-    'unexplained': 'unexplained_event',
-    'unexplained_event': 'unexplained_event',
-    'mystery_location': 'mystery_location',
-    'other': 'other',
+    // Cryptids
+    'cryptids': 'cryptids',
+    'cryptid': 'cryptids',
+    // UFOs and Aliens
+    'ufos_aliens': 'ufos_aliens',
+    'ufo_uap': 'ufos_aliens',
+    'ufos': 'ufos_aliens',
+    'aliens': 'ufos_aliens',
+    // Ghosts and Hauntings
+    'ghosts_hauntings': 'ghosts_hauntings',
+    'ghost_haunting': 'ghosts_hauntings',
+    'ghosts': 'ghosts_hauntings',
+    'hauntings': 'ghosts_hauntings',
+    // Psychic Phenomena
+    'psychic_phenomena': 'psychic_phenomena',
+    'psychic_paranormal': 'psychic_phenomena',
+    'psychic': 'psychic_phenomena',
+    // Other categories
+    'unexplained': 'psychological_experiences',
+    'unexplained_event': 'psychological_experiences',
+    'consciousness_practices': 'consciousness_practices',
+    'psychological_experiences': 'psychological_experiences',
+    'religion_mythology': 'religion_mythology',
+    'esoteric_practices': 'esoteric_practices',
+    'combination': 'combination',
   };
 
-  return mapping[category.toLowerCase()] || 'other';
+  return mapping[category.toLowerCase()] || 'combination';
 }
 
 // Increase body size limit for large seed data
