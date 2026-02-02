@@ -1,7 +1,7 @@
 // NUFORC (National UFO Reporting Center) Adapter
 // Fetches UFO sighting reports from nuforc.org (new WordPress-based site)
 
-import { SourceAdapter, AdapterResult, ScrapedReport } from '../types';
+import { SourceAdapter, AdapterResult, ScrapedReport, ScrapedMediaItem } from '../types';
 
 // US State abbreviations to full names mapping
 const STATE_MAP: Record<string, string> = {
@@ -362,6 +362,72 @@ async function parseMonthPage(html: string): Promise<ReportMetadata[]> {
   return reports;
 }
 
+// Extract media from NUFORC report page
+function extractMediaFromPage(html: string): ScrapedMediaItem[] {
+  const media: ScrapedMediaItem[] = [];
+  const seenUrls = new Set<string>();
+
+  // NUFORC image patterns - they often link to images on various hosts
+  const imagePatterns = [
+    // Direct image links
+    /<img[^>]+src=["']([^"']+\.(?:jpg|jpeg|png|gif|webp)(?:\?[^"']*)?)["']/gi,
+    // Links to images
+    /<a[^>]+href=["']([^"']+\.(?:jpg|jpeg|png|gif|webp)(?:\?[^"']*)?)["']/gi,
+    // WordPress media uploads
+    /src=["'](https?:\/\/[^"']*\/wp-content\/uploads\/[^"']+)["']/gi,
+    // Figure tags with images
+    /<figure[^>]*>[\s\S]*?src=["']([^"']+)["']/gi,
+  ];
+
+  for (const pattern of imagePatterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      const url = match[1];
+
+      // Skip icons, logos, and tiny images
+      if (url.includes('icon') || url.includes('logo') || url.includes('avatar') ||
+          url.includes('sprite') || url.includes('1x1') || url.includes('blank') ||
+          url.includes('loading') || url.includes('placeholder')) {
+        continue;
+      }
+
+      // Skip if already seen
+      if (seenUrls.has(url)) continue;
+      seenUrls.add(url);
+
+      media.push({
+        type: 'image',
+        url: url,
+        isPrimary: media.length === 0
+      });
+    }
+  }
+
+  // Also look for YouTube/video embeds
+  const videoPatterns = [
+    /src=["'](https?:\/\/(?:www\.)?youtube\.com\/embed\/[^"']+)["']/gi,
+    /href=["'](https?:\/\/(?:www\.)?youtube\.com\/watch[^"']+)["']/gi,
+    /href=["'](https?:\/\/youtu\.be\/[^"']+)["']/gi,
+  ];
+
+  for (const pattern of videoPatterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      const url = match[1];
+      if (seenUrls.has(url)) continue;
+      seenUrls.add(url);
+
+      media.push({
+        type: 'video',
+        url: url,
+        isPrimary: media.length === 0
+      });
+    }
+  }
+
+  return media;
+}
+
 // Fetch and parse individual report page for full details
 async function fetchReportDetails(id: string): Promise<{
   description: string;
@@ -369,6 +435,7 @@ async function fetchReportDetails(id: string): Promise<{
   observers: number;
   color: string;
   location: string;
+  media: ScrapedMediaItem[];
 } | null> {
   const url = `https://nuforc.org/sighting/?id=${id}`;
   const html = await fetchWithHeaders(url, 2);
@@ -390,12 +457,19 @@ async function fetchReportDetails(id: string): Promise<{
     description = cleanText(descMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '));
   }
 
+  // Extract media from the page
+  const media = extractMediaFromPage(html);
+  if (media.length > 0) {
+    console.log(`[NUFORC] Found ${media.length} media items in report ${id}`);
+  }
+
   return {
     description,
     duration: extractField('Duration'),
     observers: parseInt(extractField('No of observers')) || 1,
     color: extractField('Color'),
-    location: extractField('Location')
+    location: extractField('Location'),
+    media
   };
 }
 
@@ -462,20 +536,26 @@ export const nuforcAdapter: SourceAdapter = {
           try {
             let description = meta.summary;
             let duration = '';
+            let mediaItems: ScrapedMediaItem[] = [];
 
-            // Optionally fetch full report details
-            if (fetchFullDetails && description.length < 200) {
+            // Fetch full report details if needed (short description OR has media)
+            if (fetchFullDetails && (description.length < 200 || meta.hasMedia)) {
               await new Promise(resolve => setTimeout(resolve, rateLimitMs));
               const details = await fetchReportDetails(meta.id);
               if (details) {
                 description = details.description || meta.summary;
                 duration = details.duration;
+                mediaItems = details.media;
               }
             }
 
             const state = STATE_MAP[meta.state] || meta.state;
             const eventDate = parseDate(meta.occurred);
             const locationName = meta.city ? `${meta.city}, ${state}` : state;
+
+            // Build tags array
+            const baseTags = extractTags(meta.shape, description);
+            const tags = mediaItems.length > 0 ? [...baseTags, 'has-media'] : baseTags;
 
             const report: ScrapedReport = {
               title: `${meta.shape || 'UFO'} Sighting in ${locationName}${eventDate ? ` (${eventDate})` : ''}`.substring(0, 200),
@@ -487,16 +567,18 @@ export const nuforcAdapter: SourceAdapter = {
               state_province: state,
               city: meta.city,
               event_date: eventDate,
-              credibility: determineCredibility(description, meta.shape, meta.hasMedia),
+              credibility: determineCredibility(description, meta.shape, meta.hasMedia || mediaItems.length > 0),
               source_type: 'nuforc',
               original_report_id: `nuforc-${meta.id}`,
-              tags: extractTags(meta.shape, description),
+              tags: tags,
               // New quality system fields
               source_label: 'NUFORC',
               source_url: `https://nuforc.org/sighting/?id=${meta.id}`,
+              // Media extracted from the report
+              media: mediaItems.length > 0 ? mediaItems : undefined,
               metadata: {
                 shape: meta.shape,
-                hasMedia: meta.hasMedia,
+                hasMedia: meta.hasMedia || mediaItems.length > 0,
                 duration: duration,
                 reportId: meta.id
               }

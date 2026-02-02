@@ -1,7 +1,7 @@
 // Wikipedia Paranormal Lists Adapter
 // Fetches structured data from Wikipedia lists of paranormal sightings/events
 
-import { SourceAdapter, AdapterResult, ScrapedReport } from '../types';
+import { SourceAdapter, AdapterResult, ScrapedReport, ScrapedMediaItem } from '../types';
 
 // Rate limiting helper
 function delay(ms: number): Promise<void> {
@@ -316,6 +316,65 @@ function parseWikiContent(html: string, category: string, pageTitle: string): Sc
   return reports;
 }
 
+// Extract images from Wikipedia content
+function extractWikiImages(html: string): ScrapedMediaItem[] {
+  const media: ScrapedMediaItem[] = [];
+  const seenUrls = new Set<string>();
+
+  // Wikipedia image patterns
+  const imagePatterns = [
+    // Thumb images (most common)
+    /src=["'](\/\/upload\.wikimedia\.org\/wikipedia\/[^"']+\.(?:jpg|jpeg|png|gif|webp)[^"']*)["']/gi,
+    // Full resolution images
+    /href=["'](https?:\/\/upload\.wikimedia\.org\/wikipedia\/[^"']+\.(?:jpg|jpeg|png|gif|webp)[^"']*)["']/gi,
+    // File links
+    /href=["'](\/wiki\/File:[^"']+\.(?:jpg|jpeg|png|gif|webp))["']/gi,
+  ];
+
+  for (const pattern of imagePatterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      let url = match[1];
+
+      // Skip tiny icons and Wikipedia UI elements
+      if (url.includes('Icon') || url.includes('Button') || url.includes('Arrow') ||
+          url.includes('Ambox') || url.includes('Commons') || url.includes('Edit-') ||
+          url.includes('Lock-') || url.includes('Symbol') || url.includes('Wiki') ||
+          url.includes('/thumb/') && url.includes('/20px-')) {
+        continue;
+      }
+
+      // Convert protocol-relative URLs
+      if (url.startsWith('//')) {
+        url = 'https:' + url;
+      }
+
+      // Convert File: links to actual image URLs
+      if (url.startsWith('/wiki/File:')) {
+        continue; // Skip these as they're just links to file pages
+      }
+
+      // Get larger version of thumbnails if possible
+      if (url.includes('/thumb/') && !url.includes('/1024px-')) {
+        // Try to get a larger version
+        url = url.replace(/\/\d+px-([^\/]+)$/, '/800px-$1');
+      }
+
+      if (seenUrls.has(url)) continue;
+      seenUrls.add(url);
+
+      media.push({
+        type: 'image',
+        url: url,
+        isPrimary: media.length === 0
+      });
+    }
+  }
+
+  // Limit to first 5 most relevant images
+  return media.slice(0, 5);
+}
+
 // Fetch a Wikipedia page and parse it
 async function fetchWikiPage(
   pageTitle: string,
@@ -346,7 +405,25 @@ async function fetchWikiPage(
     }
 
     const html = data.parse.text['*'];
-    return parseWikiContent(html, category, pageTitle);
+
+    // Extract images from the page
+    const pageMedia = extractWikiImages(html);
+    if (pageMedia.length > 0) {
+      console.log(`[Wikipedia] Found ${pageMedia.length} images in ${pageTitle}`);
+    }
+
+    // Parse reports and attach media to the first few reports
+    const reports = parseWikiContent(html, category, pageTitle);
+
+    // Distribute images across reports (most relevant ones get images)
+    if (pageMedia.length > 0 && reports.length > 0) {
+      for (let i = 0; i < Math.min(reports.length, pageMedia.length); i++) {
+        reports[i].media = [{ ...pageMedia[i], isPrimary: true }];
+        reports[i].tags = [...(reports[i].tags || []), 'has-media'];
+      }
+    }
+
+    return reports;
 
   } catch (error) {
     console.error(`[Wikipedia] Error fetching ${pageTitle}:`, error);
