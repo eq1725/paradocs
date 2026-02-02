@@ -6,6 +6,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@/lib/supabase';
 import { generatePhenomenonContent } from '@/lib/services/phenomena.service';
 
@@ -22,6 +23,49 @@ interface SeedPhenomenon {
   regions: string[];
 }
 
+// Helper to get user from cookies/headers
+async function getAuthenticatedUser(req: NextApiRequest): Promise<{ id: string; email: string } | null> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+  // Try Authorization header first
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (!error && user) {
+      return { id: user.id, email: user.email || '' };
+    }
+  }
+
+  // Try cookie-based auth
+  const cookies = req.headers.cookie || '';
+  const accessTokenMatch = cookies.match(/sb-[^-]+-auth-token=([^;]+)/);
+  if (accessTokenMatch) {
+    try {
+      const tokenData = JSON.parse(decodeURIComponent(accessTokenMatch[1]));
+      if (tokenData?.access_token) {
+        const supabaseWithToken = createClient(supabaseUrl, supabaseAnonKey, {
+          global: {
+            headers: {
+              Authorization: `Bearer ${tokenData.access_token}`,
+            },
+          },
+        });
+        const { data: { user } } = await supabaseWithToken.auth.getUser();
+        if (user) {
+          return { id: user.id, email: user.email || '' };
+        }
+      }
+    } catch (e) {
+      // Cookie parse error, continue
+    }
+  }
+
+  return null;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -30,13 +74,13 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const supabase = createServerClient();
-
-  // Check authentication
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user || user.email !== ADMIN_EMAIL) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  // Check authentication from cookies/headers
+  const user = await getAuthenticatedUser(req);
+  if (!user || user.email !== ADMIN_EMAIL) {
+    return res.status(401).json({ error: 'Unauthorized', debug: { userEmail: user?.email, required: ADMIN_EMAIL } });
   }
+
+  const supabase = createServerClient();
 
   try {
     const { phenomena, generateContent = true, dryRun = false } = req.body as {
