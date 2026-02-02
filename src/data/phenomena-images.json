@@ -1,0 +1,61 @@
+{
+  "images": [
+    {
+      "slug": "bigfoot",
+      "image_url": "https://upload.wikimedia.org/wikipedia/en/9/99/Patterson%E2%80%93Gimlin_film_frame_352.jpg",
+      "image_credit": "Patterson-Gimlin Film, 1967 (Fair use)"
+    },
+    {
+      "slug": "mothman",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Mothman_statue_Point_Pleasant_WV.jpg/800px-Mothman_statue_Point_Pleasant_WV.jpg",
+      "image_credit": "Mothman statue, Point Pleasant WV - Public Domain"
+    },
+    {
+      "slug": "loch-ness-monster",
+      "image_url": "https://upload.wikimedia.org/wikipedia/en/d/d4/Hoaxed_photo_of_the_Loch_Ness_monster.jpg",
+      "image_credit": "Surgeon's Photograph, 1934 (Public Domain)"
+    },
+    {
+      "slug": "chupacabra",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Chupacabra_%28artist%27s_rendition%29.jpg/800px-Chupacabra_%28artist%27s_rendition%29.jpg",
+      "image_credit": "Artist's rendition - CC BY-SA 3.0"
+    },
+    {
+      "slug": "jersey-devil",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Jersey_Devil_Philadelphia_Post_1909.jpg/450px-Jersey_Devil_Philadelphia_Post_1909.jpg",
+      "image_credit": "Philadelphia Post, 1909 (Public Domain)"
+    },
+    {
+      "slug": "black-triangle-ufo",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/USAF_B-2_Spirit.jpg/1280px-USAF_B-2_Spirit.jpg",
+      "image_credit": "B-2 Spirit reference - US Air Force (Public Domain)"
+    },
+    {
+      "slug": "flying-saucer",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/PurportedUFO2.jpg/1280px-PurportedUFO2.jpg",
+      "image_credit": "Classic UFO photograph (Public Domain)"
+    },
+    {
+      "slug": "grey-alien",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/Alienigena.jpg/440px-Alienigena.jpg",
+      "image_credit": "Grey alien illustration - CC BY-SA 3.0"
+    },
+    {
+      "slug": "shadow-person",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Shadow_person.svg/440px-Shadow_person.svg.png",
+      "image_credit": "Shadow person illustration - Public Domain"
+    },
+    {
+      "slug": "poltergeist",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Poltergeist-Enfield-Hodgson.png/440px-Poltergeist-Enfield-Hodgson.png",
+      "image_credit": "Enfield Poltergeist photo - Fair use"
+    }
+  ],
+  "category_defaults": {
+    "cryptids": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/16/Outdoors-man-silhouette.svg/440px-Outdoors-man-silhouette.svg.png",
+    "ufos_aliens": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/PurportedUFO2.jpg/640px-PurportedUFO2.jpg",
+    "ghosts_hauntings": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/A_spectre_is_haunting_Europe_-_the_spectre_of_communism_%28cropped%29.jpg/440px-A_spectre_is_haunting_Europe_-_the_spectre_of_communism_%28cropped%29.jpg",
+    "psychic_phenomena": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/ESP_and_Psychic_Powers.jpg/440px-ESP_and_Psychic_Powers.jpg",
+    "psychological_experiences": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Phrenology_by_Robmaurobr.jpg/440px-Phrenology_by_Robmaurobr.jpg"
+  }
+}
