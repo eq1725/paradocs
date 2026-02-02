@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import {
   Search, Menu, X, Home, Compass, Map, PlusCircle,
-  BarChart3, User, LogOut, LogIn, Settings, LayoutDashboard
+  BarChart3, User, LogOut, LogIn, Settings, LayoutDashboard, BookOpen
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Profile } from '@/lib/database.types'
@@ -65,6 +65,7 @@ export default function Layout({ children }: LayoutProps) {
   const navigation = [
     { name: 'Home', href: '/', icon: Home },
     { name: 'Explore', href: '/explore', icon: Compass },
+    { name: 'Encyclopedia', href: '/phenomena', icon: BookOpen },
     { name: 'Map', href: '/map', icon: Map },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   ]

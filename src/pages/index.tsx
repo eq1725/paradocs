@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonType } from '@/lib/database.types'
+import { Phenomenon } from '@/lib/services/phenomena.service'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import ReportCard from '@/components/ReportCard'
 import { TrendingPatternsWidget } from '@/components/patterns'
@@ -44,6 +45,7 @@ function setCachedStats(stats: { total: number; thisMonth: number; locations: nu
 export default function Home() {
   const [featuredReports, setFeaturedReports] = useState<(Report & { phenomenon_type?: PhenomenonType })[]>([])
   const [recentReports, setRecentReports] = useState<(Report & { phenomenon_type?: PhenomenonType })[]>([])
+  const [featuredPhenomena, setFeaturedPhenomena] = useState<Phenomenon[]>([])
   const [stats, setStats] = useState(DEFAULT_STATS)
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -77,6 +79,15 @@ export default function Home() {
       const statsResponse = await fetch('/api/public/stats')
       const statsData = statsResponse.ok ? await statsResponse.json() : { total: 0, thisMonth: 0, countries: 0 }
 
+      // Featured phenomena for encyclopedia section
+      const { data: phenomena } = await supabase
+        .from('phenomena')
+        .select('*')
+        .not('primary_image_url', 'is', null)
+        .order('report_count', { ascending: false })
+        .limit(6)
+
+      setFeaturedPhenomena(phenomena || [])
       setFeaturedReports(featured || [])
       setRecentReports(recent || [])
 
@@ -203,6 +214,56 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Phenomena Encyclopedia */}
+      {featuredPhenomena.length > 0 && (
+        <section className="py-16 border-t border-white/5">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-2xl font-display font-bold text-white">
+                  Phenomena Encyclopedia
+                </h2>
+                <p className="text-gray-400 mt-1">Discover creatures, entities, and unexplained phenomena</p>
+              </div>
+              <Link
+                href="/phenomena"
+                className="text-sm text-amber-400 hover:text-amber-300 flex items-center gap-1"
+              >
+                Browse Encyclopedia <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              {featuredPhenomena.map((phenomenon) => (
+                <Link
+                  key={phenomenon.id}
+                  href={`/phenomena/${phenomenon.slug}`}
+                  className="glass-card overflow-hidden group hover:scale-105 transition-transform"
+                >
+                  <div className="aspect-square relative">
+                    {phenomenon.primary_image_url ? (
+                      <img
+                        src={phenomenon.primary_image_url}
+                        alt={phenomenon.name}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                        <span className="text-4xl">{phenomenon.icon || '❓'}</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                  </div>
+                  <div className="p-3">
+                    <h3 className="font-medium text-white text-sm truncate">{phenomenon.name}</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">{phenomenon.report_count?.toLocaleString() || 0} reports</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Featured Reports */}
       {featuredReports.length > 0 && (
