@@ -11,9 +11,13 @@ import { createClient } from '@supabase/supabase-js';
 const ADMIN_EMAIL = 'williamschaseh@gmail.com';
 const BUCKET_NAME = 'phenomena-images';
 
-// Verified working Wikimedia Commons image URLs with their phenomena mappings
-const WIKIMEDIA_IMAGES: Record<string, { url: string; credit: string; searchTerms?: string[] }> = {
-  // Cryptids
+// Comprehensive Wikimedia Commons image mappings for all phenomena
+// Design System: Historical illustrations, vintage photos, classical art - mysterious & scholarly aesthetic
+const WIKIMEDIA_IMAGES: Record<string, { url: string; credit: string }> = {
+
+  // ============================================
+  // CRYPTIDS - Naturalist drawings, woodcuts, vintage illustrations
+  // ============================================
   'bigfoot': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Sasquatch.svg/500px-Sasquatch.svg.png',
     credit: 'Sasquatch silhouette - CC BY-SA 4.0'
@@ -22,10 +26,13 @@ const WIKIMEDIA_IMAGES: Record<string, { url: string; credit: string; searchTerm
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Sasquatch.svg/500px-Sasquatch.svg.png',
     credit: 'Sasquatch silhouette - CC BY-SA 4.0'
   },
+  'yeti': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Sasquatch.svg/500px-Sasquatch.svg.png',
+    credit: 'Yeti silhouette - CC BY-SA 4.0'
+  },
   'mothman': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Mothman_Artist%27s_impression.png/440px-Mothman_Artist%27s_impression.png',
-    credit: "Mothman artist's impression - CC BY-SA 4.0",
-    searchTerms: ['mothman']
+    credit: "Mothman artist's impression - CC BY-SA 4.0"
   },
   'loch-ness-monster': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Plesiosaur_2_%28PSF%29.png/640px-Plesiosaur_2_%28PSF%29.png',
@@ -39,91 +46,265 @@ const WIKIMEDIA_IMAGES: Record<string, { url: string; credit: string; searchTerm
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Jersey_Devil.svg/350px-Jersey_Devil.svg.png',
     credit: 'Jersey Devil illustration - Public Domain'
   },
-  'yeti': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Sasquatch.svg/500px-Sasquatch.svg.png',
-    credit: 'Yeti silhouette - CC BY-SA 4.0'
-  },
   'wendigo': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Wendigo_1.svg/360px-Wendigo_1.svg.png',
     credit: 'Wendigo illustration - CC BY-SA 4.0'
   },
   'dogman': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9f/Werewolf_by_Lucas_Cranach_the_Elder.jpg/440px-Werewolf_by_Lucas_Cranach_the_Elder.jpg',
-    credit: 'Werewolf by Lucas Cranach - Public Domain'
+    credit: 'Werewolf by Lucas Cranach the Elder, 1512 - Public Domain'
   },
   'skinwalker': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9f/Werewolf_by_Lucas_Cranach_the_Elder.jpg/440px-Werewolf_by_Lucas_Cranach_the_Elder.jpg',
-    credit: 'Shape-shifter illustration - Public Domain'
+    credit: 'Shape-shifter, Lucas Cranach - Public Domain'
+  },
+  'thunderbird': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Thunderbird_symbol.svg/500px-Thunderbird_symbol.svg.png',
+    credit: 'Thunderbird symbol - Public Domain'
+  },
+  'bunyip': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Bunyip_%281890%29.jpg/440px-Bunyip_%281890%29.jpg',
+    credit: 'Bunyip illustration, 1890 - Public Domain'
+  },
+  'kraken': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Colossal_octopus_by_Pierre_Denys_de_Montfort.jpg/440px-Colossal_octopus_by_Pierre_Denys_de_Montfort.jpg',
+    credit: 'Kraken by Pierre Denys de Montfort - Public Domain'
+  },
+  'mokele-mbembe': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Plesiosaur_2_%28PSF%29.png/640px-Plesiosaur_2_%28PSF%29.png',
+    credit: 'Sauropod illustration - Public Domain'
+  },
+  'champ': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Plesiosaur_2_%28PSF%29.png/640px-Plesiosaur_2_%28PSF%29.png',
+    credit: 'Lake monster illustration - Public Domain'
+  },
+  'ogopogo': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Plesiosaur_2_%28PSF%29.png/640px-Plesiosaur_2_%28PSF%29.png',
+    credit: 'Lake serpent illustration - Public Domain'
+  },
+  'cadborosaurus': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/99/Basking_shark_harper%27s_weekly_1868.jpg/640px-Basking_shark_harper%27s_weekly_1868.jpg',
+    credit: 'Sea serpent, Harpers Weekly 1868 - Public Domain'
+  },
+  'almas': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Sasquatch.svg/500px-Sasquatch.svg.png',
+    credit: 'Wild man silhouette - CC BY-SA 4.0'
+  },
+  'yowie': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Sasquatch.svg/500px-Sasquatch.svg.png',
+    credit: 'Yowie silhouette - CC BY-SA 4.0'
+  },
+  'orang-pendek': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Sasquatch.svg/500px-Sasquatch.svg.png',
+    credit: 'Cryptid ape silhouette - CC BY-SA 4.0'
+  },
+  'skunk-ape': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Sasquatch.svg/500px-Sasquatch.svg.png',
+    credit: 'Skunk Ape silhouette - CC BY-SA 4.0'
+  },
+  'goatman': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Baphomet.png/400px-Baphomet.png',
+    credit: 'Goat-man illustration - Public Domain'
+  },
+  'dover-demon': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Iconic_Grey_Alien.svg/400px-Iconic_Grey_Alien.svg.png',
+    credit: 'Dover Demon illustration - CC BY-SA 4.0'
+  },
+  'flatwoods-monster': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Iconic_Grey_Alien.svg/400px-Iconic_Grey_Alien.svg.png',
+    credit: 'Flatwoods Monster illustration - CC BY-SA 4.0'
+  },
+  'hopkinsville-goblins': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Iconic_Grey_Alien.svg/400px-Iconic_Grey_Alien.svg.png',
+    credit: 'Hopkinsville Goblin illustration - CC BY-SA 4.0'
+  },
+  'lizard-man-of-scape-ore-swamp': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Baphomet.png/400px-Baphomet.png',
+    credit: 'Reptilian humanoid illustration - Public Domain'
+  },
+  'snallygaster': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/Wyvern.svg/500px-Wyvern.svg.png',
+    credit: 'Wyvern/dragon illustration - Public Domain'
+  },
+  'altamaha-ha': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Plesiosaur_2_%28PSF%29.png/640px-Plesiosaur_2_%28PSF%29.png',
+    credit: 'River monster illustration - Public Domain'
+  },
+  'tessie': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Plesiosaur_2_%28PSF%29.png/640px-Plesiosaur_2_%28PSF%29.png',
+    credit: 'Lake monster illustration - Public Domain'
+  },
+  'mapinguari': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Sasquatch.svg/500px-Sasquatch.svg.png',
+    credit: 'Mapinguari silhouette - CC BY-SA 4.0'
+  },
+  'yeren': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Sasquatch.svg/500px-Sasquatch.svg.png',
+    credit: 'Yeren/wildman silhouette - CC BY-SA 4.0'
+  },
+  'hibagon': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Sasquatch.svg/500px-Sasquatch.svg.png',
+    credit: 'Hibagon silhouette - CC BY-SA 4.0'
+  },
+  'loveland-frog': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Colossal_octopus_by_Pierre_Denys_de_Montfort.jpg/440px-Colossal_octopus_by_Pierre_Denys_de_Montfort.jpg',
+    credit: 'Amphibian creature illustration - Public Domain'
+  },
+  'pope-lick-monster': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Baphomet.png/400px-Baphomet.png',
+    credit: 'Goat-man hybrid illustration - Public Domain'
+  },
+  'mogollon-monster': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Sasquatch.svg/500px-Sasquatch.svg.png',
+    credit: 'Mogollon Monster silhouette - CC BY-SA 4.0'
   },
 
-  // UFOs & Aliens
+  // ============================================
+  // UFOs & ALIENS - Classic UFO photos, declassified imagery, retro illustrations
+  // ============================================
   'flying-saucer': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Above_Black_-_UFO_illustration.jpg/640px-Above_Black_-_UFO_illustration.jpg',
-    credit: 'UFO illustration - Public Domain'
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg/640px-Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg',
+    credit: 'Passaic UFO photo, 1952 - Public Domain'
   },
   'black-triangle-ufo': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/TR-3B_render_illustration.jpg/640px-TR-3B_render_illustration.jpg',
-    credit: 'Triangle UFO render - CC BY-SA 4.0'
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Belgian_UFO_1990.jpg/440px-Belgian_UFO_1990.jpg',
+    credit: 'Belgian UFO wave photo, 1990 - Fair Use/Public Domain'
+  },
+  'tic-tac-ufo': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg/640px-Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg',
+    credit: 'UFO photograph - Public Domain'
+  },
+  'orb-ufo': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Foo_fighter.jpg/440px-Foo_fighter.jpg',
+    credit: 'Foo Fighter orbs, WWII - Public Domain'
+  },
+  'cigar-ufo': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg/640px-Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg',
+    credit: 'Cigar-shaped UFO - Public Domain'
+  },
+  'boomerang-ufo': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Belgian_UFO_1990.jpg/440px-Belgian_UFO_1990.jpg',
+    credit: 'V-shaped UFO illustration - Public Domain'
   },
   'grey-alien': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Iconic_Grey_Alien.svg/400px-Iconic_Grey_Alien.svg.png',
     credit: 'Grey alien icon - CC BY-SA 4.0'
   },
+  'nordic-alien': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Iconic_Grey_Alien.svg/400px-Iconic_Grey_Alien.svg.png',
+    credit: 'Humanoid alien illustration - CC BY-SA 4.0'
+  },
+  'reptilian-aliens': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Baphomet.png/400px-Baphomet.png',
+    credit: 'Reptilian entity illustration - Public Domain'
+  },
+  'mantis-beings': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Iconic_Grey_Alien.svg/400px-Iconic_Grey_Alien.svg.png',
+    credit: 'Insectoid being illustration - CC BY-SA 4.0'
+  },
   'alien-abduction': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Iconic_Grey_Alien.svg/400px-Iconic_Grey_Alien.svg.png',
-    credit: 'Alien illustration - CC BY-SA 4.0'
+    credit: 'Alien abduction illustration - CC BY-SA 4.0'
   },
-  'ufo-lights': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Above_Black_-_UFO_illustration.jpg/640px-Above_Black_-_UFO_illustration.jpg',
-    credit: 'UFO lights illustration - Public Domain'
+  'men-in-black': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/Man_shadow.svg/300px-Man_shadow.svg.png',
+    credit: 'Man in Black silhouette - Public Domain'
   },
-  'orb-ufo': {
+  'close-encounter-of-the-first-kind': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg/640px-Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg',
+    credit: 'UFO sighting - Public Domain'
+  },
+  'close-encounter-of-the-second-kind': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg/640px-Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg',
+    credit: 'UFO physical evidence - Public Domain'
+  },
+  'close-encounter-of-the-third-kind': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Iconic_Grey_Alien.svg/400px-Iconic_Grey_Alien.svg.png',
+    credit: 'Alien encounter illustration - CC BY-SA 4.0'
+  },
+  'roswell-incident': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg/640px-Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg',
+    credit: 'UFO crash photograph - Public Domain'
+  },
+  'phoenix-lights': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Foo_fighter.jpg/440px-Foo_fighter.jpg',
-    credit: 'Orb UFO - Public Domain'
+    credit: 'Light formation photograph - Public Domain'
   },
-  'cigar-shaped-ufo': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Above_Black_-_UFO_illustration.jpg/640px-Above_Black_-_UFO_illustration.jpg',
-    credit: 'UFO illustration - Public Domain'
+  'rendlesham-forest-incident': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg/640px-Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg',
+    credit: 'UFO incident illustration - Public Domain'
+  },
+  'belgian-ufo-wave': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Belgian_UFO_1990.jpg/440px-Belgian_UFO_1990.jpg',
+    credit: 'Belgian UFO wave, 1990 - Public Domain'
   },
 
-  // Ghosts & Hauntings
+  // ============================================
+  // GHOSTS & HAUNTINGS - Victorian spiritualism, classical ghost paintings
+  // ============================================
   'apparition': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Ghost-159356.svg/400px-Ghost-159356.svg.png',
-    credit: 'Ghost silhouette - Public Domain'
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/John_Dee_and_Edward_Kelley_invoking_a_spirit.jpg/440px-John_Dee_and_Edward_Kelley_invoking_a_spirit.jpg',
+    credit: 'Spirit manifestation, 19th century - Public Domain'
   },
   'poltergeist': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Ghost-159356.svg/400px-Ghost-159356.svg.png',
-    credit: 'Poltergeist illustration - Public Domain'
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/John_Henry_Fuseli_-_The_Nightmare.JPG/640px-John_Henry_Fuseli_-_The_Nightmare.JPG',
+    credit: 'The Nightmare by Fuseli, 1781 - Public Domain'
   },
   'shadow-person': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Shadow_person.svg/320px-Shadow_person.svg.png',
-    credit: 'Shadow person - Public Domain'
+    credit: 'Shadow person silhouette - Public Domain'
   },
   'residual-haunting': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Ghost-159356.svg/400px-Ghost-159356.svg.png',
-    credit: 'Ghost illustration - Public Domain'
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/John_Dee_and_Edward_Kelley_invoking_a_spirit.jpg/440px-John_Dee_and_Edward_Kelley_invoking_a_spirit.jpg',
+    credit: 'Ghost manifestation illustration - Public Domain'
   },
   'intelligent-haunting': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Ghost-159356.svg/400px-Ghost-159356.svg.png',
-    credit: 'Ghost illustration - Public Domain'
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/John_Dee_and_Edward_Kelley_invoking_a_spirit.jpg/440px-John_Dee_and_Edward_Kelley_invoking_a_spirit.jpg',
+    credit: 'Spirit communication, 19th century - Public Domain'
+  },
+  'demon': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f8/Buer.jpg/440px-Buer.jpg',
+    credit: 'Demon Buer, Dictionnaire Infernal - Public Domain'
   },
   'demonic-haunting': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f8/Buer.jpg/440px-Buer.jpg',
-    credit: 'Demon illustration - Public Domain'
+    credit: 'Demon illustration, Dictionnaire Infernal - Public Domain'
+  },
+  'hat-man': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Shadow_person.svg/320px-Shadow_person.svg.png',
+    credit: 'Hat Man shadow figure - Public Domain'
+  },
+  'old-hag-syndrome': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/John_Henry_Fuseli_-_The_Nightmare.JPG/640px-John_Henry_Fuseli_-_The_Nightmare.JPG',
+    credit: 'The Nightmare by Fuseli - Public Domain'
+  },
+  'doppelganger': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/John_Dee_and_Edward_Kelley_invoking_a_spirit.jpg/440px-John_Dee_and_Edward_Kelley_invoking_a_spirit.jpg',
+    credit: 'Doppelganger illustration - Public Domain'
   },
   'banshee': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Ghost-159356.svg/400px-Ghost-159356.svg.png',
-    credit: 'Banshee illustration - Public Domain'
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/John_Dee_and_Edward_Kelley_invoking_a_spirit.jpg/440px-John_Dee_and_Edward_Kelley_invoking_a_spirit.jpg',
+    credit: 'Banshee spirit illustration - Public Domain'
+  },
+  'evp': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/48/Emile_Berliner_with_disc_record_gramophone_-_Between_1910_and_1929.jpg/440px-Emile_Berliner_with_disc_record_gramophone_-_Between_1910_and_1929.jpg',
+    credit: 'Vintage recording equipment - Public Domain'
+  },
+  'orbs': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Foo_fighter.jpg/440px-Foo_fighter.jpg',
+    credit: 'Orb phenomenon - Public Domain'
   },
 
-  // Psychic Phenomena
+  // ============================================
+  // PSYCHIC PHENOMENA - Mystical symbols, occult imagery, brain illustrations
+  // ============================================
   'telepathy': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Brain_icon_%28the_Noun_Project_6616%29.svg/480px-Brain_icon_%28the_Noun_Project_6616%29.svg.png',
-    credit: 'Brain icon - CC BY 3.0'
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Eye_of_Providence.svg/480px-Eye_of_Providence.svg.png',
+    credit: 'Eye of Providence - Public Domain'
   },
   'precognition': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Brain_icon_%28the_Noun_Project_6616%29.svg/480px-Brain_icon_%28the_Noun_Project_6616%29.svg.png',
-    credit: 'Brain icon - CC BY 3.0'
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Eye_of_Providence.svg/480px-Eye_of_Providence.svg.png',
+    credit: 'All-seeing eye - Public Domain'
   },
   'clairvoyance': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Eye_of_Providence.svg/480px-Eye_of_Providence.svg.png',
@@ -135,71 +316,131 @@ const WIKIMEDIA_IMAGES: Record<string, { url: string; credit: string; searchTerm
   },
   'remote-viewing': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Eye_of_Providence.svg/480px-Eye_of_Providence.svg.png',
-    credit: 'Eye of Providence - Public Domain'
+    credit: 'Remote viewing eye - Public Domain'
   },
-  'automatic-writing': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Writing.svg/480px-Writing.svg.png',
-    credit: 'Writing icon - Public Domain'
-  },
-
-  // Psychological Experiences
-  'sleep-paralysis': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/John_Henry_Fuseli_-_The_Nightmare.JPG/640px-John_Henry_Fuseli_-_The_Nightmare.JPG',
-    credit: 'The Nightmare by Fuseli - Public Domain'
+  'astral-projection': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/Hieronymus_Bosch_-_Ascent_of_the_Blessed_%28detail%29.jpg/440px-Hieronymus_Bosch_-_Ascent_of_the_Blessed_%28detail%29.jpg',
+    credit: 'Ascent of the Blessed by Bosch - Public Domain'
   },
   'out-of-body-experience': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Brain_icon_%28the_Noun_Project_6616%29.svg/480px-Brain_icon_%28the_Noun_Project_6616%29.svg.png',
-    credit: 'Brain icon - CC BY 3.0'
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/Hieronymus_Bosch_-_Ascent_of_the_Blessed_%28detail%29.jpg/440px-Hieronymus_Bosch_-_Ascent_of_the_Blessed_%28detail%29.jpg',
+    credit: 'Soul leaving body, Bosch - Public Domain'
   },
   'near-death-experience': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/Hieronymus_Bosch_-_Ascent_of_the_Blessed_%28detail%29.jpg/440px-Hieronymus_Bosch_-_Ascent_of_the_Blessed_%28detail%29.jpg',
     credit: 'Ascent of the Blessed by Bosch - Public Domain'
   },
-  'lucid-dreaming': {
+  'mediumship': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/John_Dee_and_Edward_Kelley_invoking_a_spirit.jpg/440px-John_Dee_and_Edward_Kelley_invoking_a_spirit.jpg',
+    credit: 'Séance illustration, 19th century - Public Domain'
+  },
+  'automatic-writing': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/John_Dee_and_Edward_Kelley_invoking_a_spirit.jpg/440px-John_Dee_and_Edward_Kelley_invoking_a_spirit.jpg',
+    credit: 'Spirit writing illustration - Public Domain'
+  },
+  'past-life-memory': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Brain_icon_%28the_Noun_Project_6616%29.svg/480px-Brain_icon_%28the_Noun_Project_6616%29.svg.png',
+    credit: 'Memory/consciousness illustration - CC BY 3.0'
+  },
+  'shared-death-experience': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/Hieronymus_Bosch_-_Ascent_of_the_Blessed_%28detail%29.jpg/440px-Hieronymus_Bosch_-_Ascent_of_the_Blessed_%28detail%29.jpg',
+    credit: 'Spiritual ascent by Bosch - Public Domain'
+  },
+  'tulpa': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Brain_icon_%28the_Noun_Project_6616%29.svg/480px-Brain_icon_%28the_Noun_Project_6616%29.svg.png',
+    credit: 'Thought-form illustration - CC BY 3.0'
+  },
+  'sleep-paralysis': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/John_Henry_Fuseli_-_The_Nightmare.JPG/640px-John_Henry_Fuseli_-_The_Nightmare.JPG',
-    credit: 'The Nightmare by Fuseli - Public Domain'
+    credit: 'The Nightmare by Fuseli, 1781 - Public Domain'
   },
 
-  // Other phenomena
+  // ============================================
+  // PSYCHOLOGICAL EXPERIENCES - Surreal art, conceptual imagery
+  // ============================================
+  'glitch-in-the-matrix': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Pocket_watch.svg/400px-Pocket_watch.svg.png',
+    credit: 'Time/reality glitch illustration - Public Domain'
+  },
+  'mandela-effect': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Brain_icon_%28the_Noun_Project_6616%29.svg/480px-Brain_icon_%28the_Noun_Project_6616%29.svg.png',
+    credit: 'Memory phenomenon illustration - CC BY 3.0'
+  },
+  'missing-time': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Pocket_watch.svg/400px-Pocket_watch.svg.png',
+    credit: 'Missing time pocket watch - Public Domain'
+  },
+  'time-slip': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Pocket_watch.svg/400px-Pocket_watch.svg.png',
+    credit: 'Time slip illustration - Public Domain'
+  },
+  'phantom-hitchhiker': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Shadow_person.svg/320px-Shadow_person.svg.png',
+    credit: 'Phantom figure silhouette - Public Domain'
+  },
+  'phantom-ship': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7d/Flying_Dutchman%2C_the.jpg/640px-Flying_Dutchman%2C_the.jpg',
+    credit: 'Flying Dutchman painting - Public Domain'
+  },
+  'skinwalker-ranch': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg/640px-Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg',
+    credit: 'Paranormal hotspot illustration - Public Domain'
+  },
+  'spontaneous-human-combustion': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/John_Henry_Fuseli_-_The_Nightmare.JPG/640px-John_Henry_Fuseli_-_The_Nightmare.JPG',
+    credit: 'Mysterious phenomenon illustration - Public Domain'
+  },
+  'lucid-dreaming': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/John_Henry_Fuseli_-_The_Nightmare.JPG/640px-John_Henry_Fuseli_-_The_Nightmare.JPG',
+    credit: 'Dream state by Fuseli - Public Domain'
+  },
+
+  // ============================================
+  // OTHER PHENOMENA
+  // ============================================
   'ball-lightning': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Ball_lightning.png/440px-Ball_lightning.png',
     credit: 'Ball lightning illustration - CC BY-SA 3.0'
   },
   'crop-circles': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Crop_circles_Swirl.jpg/640px-Crop_circles_Swirl.jpg',
-    credit: 'Crop circle - CC BY 2.0'
+    credit: 'Crop circle photograph - CC BY 2.0'
   },
-  'men-in-black': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Iconic_Grey_Alien.svg/400px-Iconic_Grey_Alien.svg.png',
-    credit: 'MIB illustration - CC BY-SA 4.0'
-  },
-  'time-slip': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Pocket_watch.svg/400px-Pocket_watch.svg.png',
-    credit: 'Time illustration - Public Domain'
+  'cattle-mutilation': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg/640px-Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg',
+    credit: 'UFO/cattle mutilation related - Public Domain'
   },
 };
 
-// Category default images - verified working full-resolution URLs
+// Category default images - fallback for any unmapped phenomena
 const CATEGORY_DEFAULTS: Record<string, { url: string; credit: string }> = {
   'cryptids': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/1/18/Sasquatch.svg',
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Sasquatch.svg/500px-Sasquatch.svg.png',
     credit: 'Cryptid silhouette - CC BY-SA 4.0'
   },
   'ufos_aliens': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/6/66/Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg',
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg/640px-Supposed_UFO%2C_Passaic%2C_New_Jersey.jpg',
     credit: 'Passaic UFO photo, 1952 - Public Domain'
   },
   'ghosts_hauntings': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/5/56/John_Henry_Fuseli_-_The_Nightmare.JPG',
-    credit: 'The Nightmare by Fuseli, 1781 - Public Domain'
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/John_Dee_and_Edward_Kelley_invoking_a_spirit.jpg/440px-John_Dee_and_Edward_Kelley_invoking_a_spirit.jpg',
+    credit: 'Spirit manifestation, 19th century - Public Domain'
   },
   'psychic_phenomena': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/5/56/John_Henry_Fuseli_-_The_Nightmare.JPG',
-    credit: 'The Nightmare by Fuseli, 1781 - Public Domain'
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Eye_of_Providence.svg/480px-Eye_of_Providence.svg.png',
+    credit: 'Eye of Providence - Public Domain'
   },
   'psychological_experiences': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/5/56/John_Henry_Fuseli_-_The_Nightmare.JPG',
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/John_Henry_Fuseli_-_The_Nightmare.JPG/640px-John_Henry_Fuseli_-_The_Nightmare.JPG',
     credit: 'The Nightmare by Fuseli, 1781 - Public Domain'
+  },
+  'consciousness_practices': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Brain_icon_%28the_Noun_Project_6616%29.svg/480px-Brain_icon_%28the_Noun_Project_6616%29.svg.png',
+    credit: 'Consciousness icon - CC BY 3.0'
+  },
+  'biological_factors': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Brain_icon_%28the_Noun_Project_6616%29.svg/480px-Brain_icon_%28the_Noun_Project_6616%29.svg.png',
+    credit: 'Brain/biology icon - CC BY 3.0'
   }
 };
 
