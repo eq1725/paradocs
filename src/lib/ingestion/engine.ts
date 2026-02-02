@@ -249,7 +249,22 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
 
               // Only add media if report doesn't already have any
               if (!existingMediaCount || existingMediaCount === 0) {
+                const seenUrls = new Set<string>();
+                let mediaAdded = 0;
+
                 for (const mediaItem of report.media) {
+                  // Skip duplicate URLs
+                  const normalizedUrl = mediaItem.url.replace(/&amp;/g, '&').toLowerCase();
+                  if (seenUrls.has(normalizedUrl)) continue;
+                  seenUrls.add(normalizedUrl);
+
+                  // Skip known broken image patterns
+                  if (normalizedUrl.includes('deleted') ||
+                      normalizedUrl.includes('removed') ||
+                      normalizedUrl.includes('if you are looking for an image')) {
+                    continue;
+                  }
+
                   await supabase.from('report_media').insert({
                     report_id: existing.id,
                     media_type: mediaItem.type,
@@ -258,8 +273,11 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                     caption: mediaItem.caption || null,
                     is_primary: mediaItem.isPrimary || false
                   });
+                  mediaAdded++;
                 }
-                console.log(`[Ingestion] Added ${report.media.length} media items to existing report`);
+                if (mediaAdded > 0) {
+                  console.log(`[Ingestion] Added ${mediaAdded} media items to existing report`);
+                }
               }
             }
           } else {
@@ -304,10 +322,28 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               console.log(`[Ingestion] Title improved: "${originalTitle?.substring(0, 30)}..." -> "${finalTitle.substring(0, 30)}..."`);
             }
 
-            // Insert media for new report
+            // Insert media for new report (with deduplication)
             if (report.media && report.media.length > 0) {
               let mediaInserted = 0;
+              const seenUrls = new Set<string>();
+
               for (const mediaItem of report.media) {
+                // Skip duplicate URLs
+                const normalizedUrl = mediaItem.url.replace(/&amp;/g, '&').toLowerCase();
+                if (seenUrls.has(normalizedUrl)) {
+                  console.log(`[Ingestion] Skipping duplicate URL: ${mediaItem.url.substring(0, 50)}...`);
+                  continue;
+                }
+                seenUrls.add(normalizedUrl);
+
+                // Skip known broken image patterns
+                if (normalizedUrl.includes('deleted') ||
+                    normalizedUrl.includes('removed') ||
+                    normalizedUrl.includes('if you are looking for an image')) {
+                  console.log(`[Ingestion] Skipping known broken URL pattern`);
+                  continue;
+                }
+
                 const { error: mediaError } = await supabase.from('report_media').insert({
                   report_id: insertedReport.id,
                   media_type: mediaItem.type,

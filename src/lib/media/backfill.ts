@@ -317,17 +317,41 @@ export async function backfillRedditMedia(options: BackfillOptions = {}): Promis
         }
 
         if (mediaItems.length > 0) {
-          result.mediaFound += mediaItems.length;
-          console.log(`[Backfill] Found ${mediaItems.length} media items for "${report.title?.substring(0, 40)}..."`);
+          // Filter out broken/invalid media URLs before counting
+          const validMediaItems = mediaItems.filter(item => {
+            const lowerUrl = item.url.toLowerCase();
+            // Skip known broken image patterns
+            if (lowerUrl.includes('deleted') ||
+                lowerUrl.includes('removed') ||
+                lowerUrl.includes('if you are looking for an image') ||
+                lowerUrl.includes('imgur.com/removed') ||
+                lowerUrl.includes('i.imgur.com/removed')) {
+              console.log(`[Backfill] Skipping known broken URL: ${item.url.substring(0, 50)}...`);
+              return false;
+            }
+            return true;
+          });
 
-          // Ensure first item is primary
-          if (mediaItems.length > 0) {
-            mediaItems[0].isPrimary = true;
+          // Deduplicate by URL
+          const seenUrls = new Set<string>();
+          const dedupedMediaItems = validMediaItems.filter(item => {
+            const normalizedUrl = item.url.replace(/&amp;/g, '&').toLowerCase();
+            if (seenUrls.has(normalizedUrl)) return false;
+            seenUrls.add(normalizedUrl);
+            return true;
+          });
+
+          if (dedupedMediaItems.length > 0) {
+            result.mediaFound += dedupedMediaItems.length;
+            console.log(`[Backfill] Found ${dedupedMediaItems.length} media items for "${report.title?.substring(0, 40)}..."`);
+
+            // Ensure first item is primary
+            dedupedMediaItems[0].isPrimary = true;
           }
 
-          if (!dryRun) {
+          if (!dryRun && dedupedMediaItems.length > 0) {
             // Insert media records
-            for (const mediaItem of mediaItems) {
+            for (const mediaItem of dedupedMediaItems) {
               const { data: insertedMedia, error: insertError } = await supabase
                 .from('report_media')
                 .insert({

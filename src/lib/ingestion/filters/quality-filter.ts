@@ -40,6 +40,10 @@ export const NON_EXPERIENCE_PATTERNS = [
   /\b(cross[- ]?stitch|embroidery|crochet|knitting|quilting|woodworking|sculpture)\b/i,
   /\b(fan ?art|oc|original character|commission)\b/i,
   /\b(digital art|traditional art|pixel art|3d model)\b/i,
+  // NEW: Catch standalone "art" mentions in titles like "more Cryptid art"
+  /\b(more|some|new|another|latest)\s+\w*\s*art\b/i,
+  /\b(cryptid|ufo|alien|ghost|bigfoot|paranormal|mothman)\s+art\b/i,
+  /\bart\s*(i|of|for|post|piece|work|style)\b/i,
   // Merchandise and promotional
   /\b(for sale|buy now|shop|store|etsy|redbubble|teepublic|amazon)\b/i,
   /\b(merch|merchandise|t-shirt|shirt|poster|sticker|mug|print)\b/i,
@@ -56,6 +60,12 @@ export const NON_EXPERIENCE_PATTERNS = [
   /\b(game|video ?game|indie game|rpg|tabletop)\b/i,
   /\b(podcast episode|new episode|latest episode)\b/i,
   /\b(book release|new book|my novel|my book)\b/i,
+  // NEW: Book promos, Kindle giveaways, and promotional content
+  /\b(kindle|ebook|e-book)\s*(giveaway|free|promo)/i,
+  /\b(free|win|enter)\s*(kindle|ebook|e-book|book)\b/i,
+  /\b(book|kindle)\s*(promo|promotion|giveaway|contest)\b/i,
+  /\bgiveaway!?\s*.{0,30}(book|kindle|read|novel)/i,
+  /\bfree\s*(kindle|book)\s*(giveaway|download)/i,
   // Memes and jokes
   /\b(meme|shitpost|joke|lol|lmao|rofl)\b/i,
   /\b(wrong answers only|caption this)\b/i,
