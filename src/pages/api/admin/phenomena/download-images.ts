@@ -311,10 +311,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const supabase = getSupabaseAdmin();
-  const { dryRun = false, slugs = [] } = req.body;
+  const { dryRun = false, slugs = [], limit = 5 } = req.body; // Default limit of 5 to avoid timeout
 
   try {
-    // Get all phenomena
+    // Get phenomena that need images (no supabase URL yet)
     const { data: phenomena, error: fetchError } = await supabase
       .from('phenomena')
       .select('id, slug, name, category, primary_image_url')
@@ -324,12 +324,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(500).json({ error: 'Failed to fetch phenomena', details: fetchError?.message });
     }
 
-    // Filter by slugs if provided
-    const toProcess = slugs.length > 0
+    // Filter by slugs if provided, otherwise get those without self-hosted images
+    let toProcess = slugs.length > 0
       ? phenomena.filter(p => slugs.includes(p.slug))
-      : phenomena;
+      : phenomena.filter(p => !p.primary_image_url?.includes('supabase'));
+
+    // Apply limit to avoid timeout
+    const totalNeedingImages = toProcess.length;
+    toProcess = toProcess.slice(0, limit);
 
     const results = {
+      totalNeedingImages,
+      batchSize: toProcess.length,
       processed: 0,
       uploaded: 0,
       skipped: 0,
@@ -339,13 +345,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     for (const phenomenon of toProcess) {
       results.processed++;
-
-      // Check if already has a self-hosted image (our Supabase URL)
-      if (phenomenon.primary_image_url?.includes('supabase')) {
-        results.skipped++;
-        results.details.push({ slug: phenomenon.slug, status: 'already_self_hosted' });
-        continue;
-      }
 
       // Find image URL - first check specific, then category default
       let imageData = WIKIMEDIA_IMAGES[phenomenon.slug];
