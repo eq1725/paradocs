@@ -44,6 +44,12 @@ export const NON_EXPERIENCE_PATTERNS = [
   /\b(more|some|new|another|latest)\s+\w*\s*art\b/i,
   /\b(cryptid|ufo|alien|ghost|bigfoot|paranormal|mothman)\s+art\b/i,
   /\bart\s*(i|of|for|post|piece|work|style)\b/i,
+  // Art threads and recurring art posts
+  /\b(weekly|monthly|daily)?\s*art\s*(thread|tuesday|gift|post|contest|challenge)\b/i,
+  /\b(art|tulpa)\s+(tuesday|thread|gift)\b/i,
+  /\bshitpost\s*(sunday|saturday)?\b/i,
+  /\bpsychedelic\s+art\s+tributes?\b/i,
+  /\bvisualizing\s+consciousness.*art\b/i,
   // Merchandise and promotional
   /\b(for sale|buy now|shop|store|etsy|redbubble|teepublic|amazon)\b/i,
   /\b(merch|merchandise|t-shirt|shirt|poster|sticker|mug|print)\b/i,
