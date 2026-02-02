@@ -123,10 +123,15 @@ export default function PhenomenonPage() {
         <div className="relative bg-gradient-to-b from-gray-900 to-gray-950 border-b border-gray-800">
           {/* Background Image Overlay */}
           {phenomenon.primary_image_url && (
-            <div
-              className="absolute inset-0 opacity-10 bg-cover bg-center"
-              style={{ backgroundImage: `url(${phenomenon.primary_image_url})` }}
-            />
+            <div className="absolute inset-0 overflow-hidden">
+              <img
+                src={phenomenon.primary_image_url}
+                alt=""
+                className="w-full h-full object-cover opacity-10"
+                referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
+              />
+            </div>
           )}
 
           <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -147,6 +152,8 @@ export default function PhenomenonPage() {
                     src={phenomenon.primary_image_url}
                     alt={phenomenon.name}
                     className="w-full h-full object-cover rounded-2xl"
+                    referrerPolicy="no-referrer"
+                    crossOrigin="anonymous"
                   />
                 ) : (
                   <span className="text-7xl">{phenomenon.icon || config?.icon}</span>

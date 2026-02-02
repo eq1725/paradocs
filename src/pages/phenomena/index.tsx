@@ -228,6 +228,8 @@ function PhenomenonCard({ phenomenon }: { phenomenon: Phenomenon }) {
               src={phenomenon.primary_image_url}
               alt={phenomenon.name}
               className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+              crossOrigin="anonymous"
             />
           ) : (
             <span className="text-6xl opacity-50 group-hover:opacity-70 transition-opacity">
