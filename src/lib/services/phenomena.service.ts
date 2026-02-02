@@ -23,6 +23,7 @@ export interface Phenomenon {
   aliases: string[];
   category: string;
   icon: string;
+  // Standard tier content (all users)
   ai_summary: string | null;
   ai_description: string | null;
   ai_history: string | null;
@@ -30,6 +31,15 @@ export interface Phenomenon {
   ai_notable_sightings: string | null;
   ai_theories: string | null;
   ai_cultural_impact: string | null;
+  // Research tier content (Pro/Enterprise only)
+  ai_cultural_origins: string | null;
+  ai_regional_variants: string | null;
+  ai_scientific_analysis: string | null;
+  ai_witness_profile: string | null;
+  ai_bibliography: string | null;
+  ai_related_phenomena: string | null;
+  content_tier: 'standard' | 'research';
+  // Stats and metadata
   report_count: number;
   primary_image_url: string | null;
   first_reported_date: string | null;
@@ -362,6 +372,117 @@ Respond in JSON format:
     return true;
   } catch (error) {
     console.error('[Phenomena] Error generating content:', error);
+    return false;
+  }
+}
+
+/**
+ * Generate research-tier AI content for a phenomenon (Pro/Enterprise)
+ * This adds deeper cultural, scientific, and academic content.
+ */
+export async function generateResearchTierContent(phenomenonId: string): Promise<boolean> {
+  // Get the phenomenon with existing content
+  const { data: phenomenon, error } = await getSupabaseAdmin()
+    .from('phenomena')
+    .select('*')
+    .eq('id', phenomenonId)
+    .single();
+
+  if (error || !phenomenon) {
+    console.error('[Phenomena] Phenomenon not found for research tier:', phenomenonId);
+    return false;
+  }
+
+  // Get related reports for deeper context
+  const reports = await getPhenomenonReports(phenomenonId, 25);
+  const reportsContext = reports.slice(0, 15).map(r =>
+    `- "${r.title}" (${r.country || 'Unknown'}, ${r.event_date || 'date unknown'}): ${r.summary}`
+  ).join('\n');
+
+  const prompt = `You are an academic researcher specializing in paranormal phenomena, folklore studies, and anomalistic psychology.
+
+Generate RESEARCH-GRADE content for this phenomenon entry. This content is for serious researchers and academics, so maintain scholarly rigor while remaining accessible.
+
+PHENOMENON: ${phenomenon.name}
+ALIASES: ${phenomenon.aliases?.join(', ') || 'None'}
+CATEGORY: ${phenomenon.category}
+EXISTING DESCRIPTION: ${phenomenon.ai_description || phenomenon.ai_summary || 'None'}
+EXISTING HISTORY: ${phenomenon.ai_history || 'None'}
+
+SAMPLE LINKED REPORTS (from database of ${phenomenon.report_count || 0} total):
+${reportsContext || 'No reports available yet.'}
+
+Generate the following RESEARCH-TIER sections in an academic but accessible tone:
+
+1. CULTURAL ORIGINS: Trace the folklore roots and indigenous/traditional beliefs about this phenomenon. Include how different cultures have interpreted similar experiences historically.
+
+2. REGIONAL VARIANTS: Document how this phenomenon manifests differently across regions and cultures (e.g., how Bigfoot relates to Yeti, Yowie, Yeren, etc.). Include both physical description differences and cultural interpretations.
+
+3. SCIENTIFIC ANALYSIS: Provide balanced coverage of scientific perspectives - both skeptical explanations (misidentification, psychology, hoaxes) and any serious research conducted. Mention relevant fields like cryptozoology, ufology, parapsychology as appropriate.
+
+4. WITNESS PROFILE: Based on documented cases, describe the typical witness demographics, circumstances of encounters, and common elements reported. Note any patterns without making unfounded generalizations.
+
+5. BIBLIOGRAPHY: List key researchers, essential books, academic papers, and documentaries. Focus on seminal works and serious investigators rather than popular media.
+
+6. RELATED PHENOMENA: Identify other phenomena that may be connected - either as variants, similar entities, or phenomena that frequently co-occur in reports.
+
+Respond in JSON format:
+{
+  "cultural_origins": "2-3 paragraphs on folklore roots and cross-cultural connections",
+  "regional_variants": "2-3 paragraphs on geographic variations",
+  "scientific_analysis": "2-3 paragraphs balancing skeptic and believer perspectives",
+  "witness_profile": "1-2 paragraphs on typical encounter circumstances",
+  "bibliography": "Key sources formatted as: Author (Year). Title. Publisher/Journal.",
+  "related_phenomena": "List of related phenomena with brief explanation of connections"
+}
+
+Important: Do NOT invent specific names, dates, or citations. Only reference well-documented information.`;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4000,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const content = response.content[0];
+    if (content.type !== 'text') {
+      return false;
+    }
+
+    // Parse JSON from response
+    const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error('[Phenomena] Failed to parse research tier response');
+      return false;
+    }
+
+    const researchContent = JSON.parse(jsonMatch[0]);
+
+    // Update the phenomenon with research-tier content
+    const { error: updateError } = await getSupabaseAdmin()
+      .from('phenomena')
+      .update({
+        ai_cultural_origins: researchContent.cultural_origins,
+        ai_regional_variants: researchContent.regional_variants,
+        ai_scientific_analysis: researchContent.scientific_analysis,
+        ai_witness_profile: researchContent.witness_profile,
+        ai_bibliography: researchContent.bibliography,
+        ai_related_phenomena: researchContent.related_phenomena,
+        content_tier: 'research',
+        ai_generated_at: new Date().toISOString(),
+      })
+      .eq('id', phenomenonId);
+
+    if (updateError) {
+      console.error('[Phenomena] Error updating research tier content:', updateError);
+      return false;
+    }
+
+    console.log('[Phenomena] Generated research-tier content for:', phenomenon.name);
+    return true;
+  } catch (error) {
+    console.error('[Phenomena] Error generating research tier content:', error);
     return false;
   }
 }

@@ -11,6 +11,123 @@ import {
   isObviouslyLowQuality,
 } from './filters';
 
+// Phenomenon pattern matching for auto-identification during ingestion
+interface PhenomenonPattern {
+  id: string;
+  name: string;
+  category: string;
+  patterns: string[];
+}
+
+let cachedPhenomena: PhenomenonPattern[] | null = null;
+let cacheTimestamp = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Get phenomena patterns with caching
+async function getPhenomenaPatterns(supabase: SupabaseClient): Promise<PhenomenonPattern[]> {
+  if (cachedPhenomena && Date.now() - cacheTimestamp < CACHE_TTL) {
+    return cachedPhenomena;
+  }
+
+  const { data: phenomena } = await supabase
+    .from('phenomena')
+    .select('id, name, aliases, category')
+    .eq('status', 'active');
+
+  cachedPhenomena = (phenomena || []).map(p => ({
+    id: p.id,
+    name: p.name,
+    category: p.category,
+    patterns: [
+      p.name.toLowerCase(),
+      ...(p.aliases || []).map((a: string) => a.toLowerCase())
+    ].filter(Boolean)
+  }));
+  cacheTimestamp = Date.now();
+
+  return cachedPhenomena;
+}
+
+// Escape regex special characters
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Check if report category aligns with phenomenon category
+function isCategoryMatch(reportCategory: string, phenomenonCategory: string): boolean {
+  const mapping: Record<string, string[]> = {
+    'cryptids': ['cryptid', 'creature', 'monster'],
+    'ufos_aliens': ['ufo', 'uap', 'alien', 'extraterrestrial'],
+    'ghosts_hauntings': ['ghost', 'haunting', 'spirit', 'paranormal'],
+    'psychic_phenomena': ['psychic', 'esp', 'telepathy', 'paranormal'],
+    'psychological_experiences': ['unexplained', 'strange', 'mysterious'],
+  };
+
+  const phenomenonKeys = mapping[phenomenonCategory] || [];
+  const reportCategoryLower = (reportCategory || '').toLowerCase();
+
+  return phenomenonKeys.some(key => reportCategoryLower.includes(key)) ||
+         reportCategoryLower.includes(phenomenonCategory);
+}
+
+// Pattern-match a single report to phenomena (lightweight, no AI)
+async function identifyPhenomenaForReport(
+  supabase: SupabaseClient,
+  reportId: string,
+  title: string,
+  summary: string,
+  description: string,
+  category: string
+): Promise<number> {
+  const phenomena = await getPhenomenaPatterns(supabase);
+  if (phenomena.length === 0) return 0;
+
+  const searchText = [title || '', summary || '', description || ''].join(' ').toLowerCase();
+  const matches: { phenomenonId: string; confidence: number }[] = [];
+
+  for (const phenomenon of phenomena) {
+    for (const pattern of phenomenon.patterns) {
+      const regex = new RegExp(`\\b${escapeRegex(pattern)}\\b`, 'i');
+      if (regex.test(searchText)) {
+        let confidence = 0.6;
+
+        if (regex.test((title || '').toLowerCase())) {
+          confidence = 0.85;
+        } else if (regex.test((summary || '').toLowerCase())) {
+          confidence = 0.75;
+        }
+
+        if (isCategoryMatch(category, phenomenon.category)) {
+          confidence = Math.min(confidence + 0.1, 0.95);
+        }
+
+        matches.push({ phenomenonId: phenomenon.id, confidence });
+        break;
+      }
+    }
+  }
+
+  // Insert links (ignore duplicates)
+  let linked = 0;
+  for (const match of matches) {
+    const { error } = await supabase
+      .from('report_phenomena')
+      .upsert({
+        report_id: reportId,
+        phenomenon_id: match.phenomenonId,
+        confidence: match.confidence,
+        tagged_by: 'auto',
+      }, {
+        onConflict: 'report_id,phenomenon_id',
+        ignoreDuplicates: true,
+      });
+
+    if (!error) linked++;
+  }
+
+  return linked;
+}
+
 // Initialize Supabase client with service role for server-side operations
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -57,6 +174,7 @@ export interface IngestionResult {
   recordsSkipped: number;
   recordsRejected: number;        // Failed quality filter
   recordsPendingReview: number;   // Sent to review queue
+  phenomenaLinked: number;        // Reports linked to phenomena
   error?: string;
   duration: number;
 }
@@ -108,6 +226,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
       recordsSkipped: 0,
       recordsRejected: 0,
       recordsPendingReview: 0,
+      phenomenaLinked: 0,
       error: `Failed to create job: ${jobError?.message}`,
       duration: Date.now() - startTime
     };
@@ -160,6 +279,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
     let skipped = 0;
     let rejected = 0;
     let pendingReview = 0;
+    let phenomenaLinked = 0;
 
     for (const report of result.reports) {
       try {
@@ -322,6 +442,27 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               console.log(`[Ingestion] Title improved: "${originalTitle?.substring(0, 30)}..." -> "${finalTitle.substring(0, 30)}..."`);
             }
 
+            // Auto-identify and link to phenomena (only for approved reports)
+            if (status === 'approved') {
+              try {
+                const linked = await identifyPhenomenaForReport(
+                  supabase,
+                  insertedReport.id,
+                  finalTitle,
+                  report.summary,
+                  report.description,
+                  report.category
+                );
+                if (linked > 0) {
+                  phenomenaLinked += linked;
+                  console.log(`[Ingestion] Linked report to ${linked} phenomena`);
+                }
+              } catch (phenError) {
+                // Don't fail ingestion if phenomenon linking fails
+                console.error('[Ingestion] Phenomenon linking error:', phenError);
+              }
+            }
+
             // Insert media for new report (with deduplication)
             if (report.media && report.media.length > 0) {
               let mediaInserted = 0;
@@ -393,7 +534,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
       })
       .eq('id', sourceId);
 
-    console.log(`[Ingestion] Complete: found=${result.reports.length}, inserted=${inserted}, updated=${updated}, rejected=${rejected}, pending=${pendingReview}, skipped=${skipped}`);
+    console.log(`[Ingestion] Complete: found=${result.reports.length}, inserted=${inserted}, updated=${updated}, rejected=${rejected}, pending=${pendingReview}, skipped=${skipped}, phenomenaLinked=${phenomenaLinked}`);
 
     // Log successful completion
     await logActivity(supabase, sourceId, job.id, 'success', `Ingestion completed`, {
@@ -415,6 +556,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
       recordsSkipped: skipped,
       recordsRejected: rejected,
       recordsPendingReview: pendingReview,
+      phenomenaLinked: phenomenaLinked,
       duration: Date.now() - startTime
     };
 
@@ -455,6 +597,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
       recordsSkipped: 0,
       recordsRejected: 0,
       recordsPendingReview: 0,
+      phenomenaLinked: 0,
       error: errorMessage,
       duration: Date.now() - startTime
     };
@@ -497,6 +640,7 @@ export async function runScheduledIngestion(limit: number = 500): Promise<Ingest
       recordsSkipped: 0,
       recordsRejected: 0,
       recordsPendingReview: 0,
+      phenomenaLinked: 0,
       error: error instanceof Error ? error.message : 'Unknown error',
       duration: 0
     } as IngestionResult));
