@@ -13,14 +13,44 @@ import { CATEGORY_CONFIG } from '@/lib/constants'
 import ReportCard from '@/components/ReportCard'
 import { TrendingPatternsWidget } from '@/components/patterns'
 
+// Default fallback stats (reasonable estimates, updated periodically)
+const DEFAULT_STATS = { total: 258000, thisMonth: 1000, locations: 14 }
+const STATS_CACHE_KEY = 'paradocs_homepage_stats'
+
+function getCachedStats() {
+  if (typeof window === 'undefined') return DEFAULT_STATS
+  try {
+    const cached = localStorage.getItem(STATS_CACHE_KEY)
+    if (cached) {
+      const parsed = JSON.parse(cached)
+      // Use cached if it has reasonable values
+      if (parsed.total > 0) return parsed
+    }
+  } catch (e) {
+    // Ignore localStorage errors
+  }
+  return DEFAULT_STATS
+}
+
+function setCachedStats(stats: { total: number; thisMonth: number; locations: number }) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(STATS_CACHE_KEY, JSON.stringify(stats))
+  } catch (e) {
+    // Ignore localStorage errors
+  }
+}
+
 export default function Home() {
   const [featuredReports, setFeaturedReports] = useState<(Report & { phenomenon_type?: PhenomenonType })[]>([])
   const [recentReports, setRecentReports] = useState<(Report & { phenomenon_type?: PhenomenonType })[]>([])
-  const [stats, setStats] = useState({ total: 0, thisMonth: 0, locations: 0 })
+  const [stats, setStats] = useState(DEFAULT_STATS)
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
+  // Load cached stats immediately on mount
   useEffect(() => {
+    setStats(getCachedStats())
     loadData()
   }, [])
 
@@ -49,11 +79,17 @@ export default function Home() {
 
       setFeaturedReports(featured || [])
       setRecentReports(recent || [])
-      setStats({
+
+      // Update stats and cache for next visit
+      const newStats = {
         total: statsData.total || 0,
         thisMonth: statsData.thisMonth || 0,
         locations: statsData.countries || 0
-      })
+      }
+      setStats(newStats)
+      if (newStats.total > 0) {
+        setCachedStats(newStats)
+      }
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
