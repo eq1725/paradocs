@@ -317,7 +317,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Get all phenomena
     const { data: phenomena, error: fetchError } = await supabase
       .from('phenomena')
-      .select('id, slug, name, category, primary_image_url, image_credit')
+      .select('id, slug, name, category, primary_image_url')
       .eq('status', 'active');
 
     if (fetchError || !phenomena) {
@@ -377,8 +377,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const { error: updateError } = await supabase
           .from('phenomena')
           .update({
-            primary_image_url: selfHostedUrl,
-            image_credit: imageData.credit
+            primary_image_url: selfHostedUrl
           })
           .eq('id', phenomenon.id);
 
