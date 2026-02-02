@@ -1,0 +1,805 @@
+{
+  "phenomena": [
+    {
+      "name": "Sasquatch",
+      "aliases": ["Bigfoot", "Squatch", "Wood Ape", "Forest Giant"],
+      "category": "cryptids",
+      "icon": "🦶",
+      "brief_description": "Large, hairy, ape-like creature reported across North American forests",
+      "key_characteristics": ["7-10 feet tall", "covered in dark hair", "bipedal", "strong odor", "nocturnal"],
+      "regions": ["Pacific Northwest", "Appalachian Mountains", "Great Lakes region"]
+    },
+    {
+      "name": "Skunk Ape",
+      "aliases": ["Swamp Ape", "Florida Bigfoot", "Myakka Ape"],
+      "category": "cryptids",
+      "icon": "🦧",
+      "brief_description": "Florida's version of Bigfoot, known for its terrible odor",
+      "key_characteristics": ["smaller than Bigfoot", "extremely foul smell", "reddish-brown hair", "swamp dweller"],
+      "regions": ["Florida Everglades", "Southern swamps"]
+    },
+    {
+      "name": "Yeti",
+      "aliases": ["Abominable Snowman", "Meh-Teh", "Migoi"],
+      "category": "cryptids",
+      "icon": "🏔️",
+      "brief_description": "Ape-like cryptid said to inhabit the Himalayan mountain range",
+      "key_characteristics": ["white or gray fur", "mountain dweller", "larger than human", "leaves large footprints in snow"],
+      "regions": ["Nepal", "Tibet", "Bhutan", "Himalayas"]
+    },
+    {
+      "name": "Yowie",
+      "aliases": ["Yahoo", "Australian Bigfoot"],
+      "category": "cryptids",
+      "icon": "🦘",
+      "brief_description": "Australia's ape-like cryptid from Aboriginal folklore",
+      "key_characteristics": ["covered in hair", "red eyes", "foul smell", "extremely shy"],
+      "regions": ["Australia", "New South Wales", "Queensland"]
+    },
+    {
+      "name": "Wendigo",
+      "aliases": ["Windigo", "Witiko", "Wihtikow"],
+      "category": "cryptids",
+      "icon": "💀",
+      "brief_description": "Malevolent supernatural creature from Algonquian folklore associated with cannibalism and winter",
+      "key_characteristics": ["emaciated appearance", "insatiable hunger", "associated with winter", "supernatural speed"],
+      "regions": ["Great Lakes region", "Canadian forests", "Northern United States"]
+    },
+    {
+      "name": "Skinwalker",
+      "aliases": ["Yee Naaldlooshii", "Navajo Witch"],
+      "category": "cryptids",
+      "icon": "🐺",
+      "brief_description": "Shape-shifting entity from Navajo legend capable of transforming into animals",
+      "key_characteristics": ["shape-shifting ability", "glowing eyes", "mimics voices", "associated with witchcraft"],
+      "regions": ["Navajo Nation", "Four Corners region", "American Southwest"]
+    },
+    {
+      "name": "Dogman",
+      "aliases": ["Michigan Dogman", "Beast of Bray Road", "Werewolf"],
+      "category": "cryptids",
+      "icon": "🐕",
+      "brief_description": "Bipedal canine creature reported across the Midwest United States",
+      "key_characteristics": ["wolf-like head", "bipedal stance", "7 feet tall", "glowing eyes"],
+      "regions": ["Michigan", "Wisconsin", "Midwest United States"]
+    },
+    {
+      "name": "Goatman",
+      "aliases": ["Maryland Goatman", "Pope Lick Monster", "Lake Worth Monster"],
+      "category": "cryptids",
+      "icon": "🐐",
+      "brief_description": "Half-human, half-goat creature reported near bridges and rural areas",
+      "key_characteristics": ["goat legs", "horns", "aggressive behavior", "found near bridges"],
+      "regions": ["Maryland", "Kentucky", "Texas"]
+    },
+    {
+      "name": "Thunderbird",
+      "aliases": ["Piasa Bird", "Giant Bird"],
+      "category": "cryptids",
+      "icon": "🦅",
+      "brief_description": "Enormous bird from Native American legend, with modern sightings continuing",
+      "key_characteristics": ["massive wingspan", "can carry large prey", "associated with storms", "prehistoric appearance"],
+      "regions": ["Pennsylvania", "Illinois", "Native American territories"]
+    },
+    {
+      "name": "Dover Demon",
+      "aliases": [],
+      "category": "cryptids",
+      "icon": "👽",
+      "brief_description": "Small humanoid creature sighted in Dover, Massachusetts in 1977",
+      "key_characteristics": ["large head", "glowing orange eyes", "thin body", "long fingers", "peach-colored skin"],
+      "regions": ["Dover, Massachusetts"]
+    },
+    {
+      "name": "Flatwoods Monster",
+      "aliases": ["Braxton County Monster", "Green Monster"],
+      "category": "cryptids",
+      "icon": "🟢",
+      "brief_description": "Tall humanoid entity encountered in Flatwoods, West Virginia in 1952",
+      "key_characteristics": ["10 feet tall", "ace of spades shaped head", "glowing eyes", "green body", "hissing sound"],
+      "regions": ["Flatwoods, West Virginia"]
+    },
+    {
+      "name": "Hopkinsville Goblins",
+      "aliases": ["Kelly-Hopkinsville Encounter", "Kelly Green Men"],
+      "category": "cryptids",
+      "icon": "👾",
+      "brief_description": "Small humanoid creatures that allegedly terrorized a Kentucky farmhouse in 1955",
+      "key_characteristics": ["3-4 feet tall", "large ears", "glowing silver", "clawed hands", "floated rather than walked"],
+      "regions": ["Kelly, Kentucky"]
+    },
+    {
+      "name": "Lizard Man of Scape Ore Swamp",
+      "aliases": ["Lizard Man", "Scape Ore Swamp Creature"],
+      "category": "cryptids",
+      "icon": "🦎",
+      "brief_description": "Reptilian humanoid creature reported in South Carolina since 1988",
+      "key_characteristics": ["7 feet tall", "green scaly skin", "red eyes", "three-fingered hands"],
+      "regions": ["Lee County, South Carolina"]
+    },
+    {
+      "name": "Loveland Frog",
+      "aliases": ["Loveland Frogman", "Loveland Lizard"],
+      "category": "cryptids",
+      "icon": "🐸",
+      "brief_description": "Bipedal frog-like creature spotted near Loveland, Ohio",
+      "key_characteristics": ["4 feet tall", "leathery skin", "frog-like face", "bipedal"],
+      "regions": ["Loveland, Ohio"]
+    },
+    {
+      "name": "Mogollon Monster",
+      "aliases": ["Arizona Bigfoot"],
+      "category": "cryptids",
+      "icon": "🏜️",
+      "brief_description": "Bigfoot-like creature reported in Arizona's Mogollon Rim region",
+      "key_characteristics": ["7+ feet tall", "covered in hair", "foul odor", "aggressive"],
+      "regions": ["Mogollon Rim, Arizona"]
+    },
+    {
+      "name": "Snallygaster",
+      "aliases": ["Schneller Geist"],
+      "category": "cryptids",
+      "icon": "🐉",
+      "brief_description": "Dragon-like creature from Maryland and Pennsylvania folklore",
+      "key_characteristics": ["bird-like", "metallic beak", "tentacles", "single eye"],
+      "regions": ["Central Maryland", "South-central Pennsylvania"]
+    },
+    {
+      "name": "Champ",
+      "aliases": ["Lake Champlain Monster"],
+      "category": "cryptids",
+      "icon": "🦕",
+      "brief_description": "Lake monster said to inhabit Lake Champlain",
+      "key_characteristics": ["long neck", "serpentine body", "dark colored", "multiple humps"],
+      "regions": ["Lake Champlain", "Vermont", "New York"]
+    },
+    {
+      "name": "Ogopogo",
+      "aliases": ["Naitaka", "Lake Okanagan Monster"],
+      "category": "cryptids",
+      "icon": "🐍",
+      "brief_description": "Lake monster reported in Okanagan Lake, British Columbia",
+      "key_characteristics": ["40-50 feet long", "serpentine", "dark green", "multiple humps"],
+      "regions": ["Okanagan Lake, British Columbia"]
+    },
+    {
+      "name": "Mokele-mbembe",
+      "aliases": ["One Who Stops Rivers"],
+      "category": "cryptids",
+      "icon": "🦖",
+      "brief_description": "Alleged living dinosaur reported in the Congo River Basin",
+      "key_characteristics": ["sauropod-like", "long neck", "brownish-gray", "elephant-sized"],
+      "regions": ["Congo River Basin", "Central Africa"]
+    },
+    {
+      "name": "Bunyip",
+      "aliases": [],
+      "category": "cryptids",
+      "icon": "🦦",
+      "brief_description": "Water-dwelling creature from Australian Aboriginal mythology",
+      "key_characteristics": ["lives in swamps", "loud bellowing cry", "various descriptions", "dangerous"],
+      "regions": ["Australia", "Billabongs", "Swamps"]
+    },
+    {
+      "name": "Cadborosaurus",
+      "aliases": ["Caddy", "Cadborosaurus willsi"],
+      "category": "cryptids",
+      "icon": "🌊",
+      "brief_description": "Sea serpent reported along the Pacific coast of North America",
+      "key_characteristics": ["horse-like head", "long neck", "flippers", "serpentine body"],
+      "regions": ["Pacific Coast", "British Columbia", "California"]
+    },
+    {
+      "name": "Altamaha-ha",
+      "aliases": ["Altie"],
+      "category": "cryptids",
+      "icon": "🐊",
+      "brief_description": "River monster reported in Georgia's Altamaha River",
+      "key_characteristics": ["20-30 feet long", "seal-like", "gray skin", "front flippers"],
+      "regions": ["Altamaha River, Georgia"]
+    },
+    {
+      "name": "Tessie",
+      "aliases": ["Lake Tahoe Monster"],
+      "category": "cryptids",
+      "icon": "🏔️",
+      "brief_description": "Lake monster reported in Lake Tahoe",
+      "key_characteristics": ["10-80 feet long", "serpentine", "dark colored"],
+      "regions": ["Lake Tahoe", "California", "Nevada"]
+    },
+    {
+      "name": "Almas",
+      "aliases": ["Mongolian Wildman"],
+      "category": "cryptids",
+      "icon": "🗻",
+      "brief_description": "Wild man cryptid reported in Central Asia and Mongolia",
+      "key_characteristics": ["human-like", "covered in reddish hair", "primitive features"],
+      "regions": ["Mongolia", "Central Asia", "Caucasus"]
+    },
+    {
+      "name": "Orang Pendek",
+      "aliases": ["Short Person"],
+      "category": "cryptids",
+      "icon": "🌴",
+      "brief_description": "Small ape-like cryptid reported in Sumatra",
+      "key_characteristics": ["3-5 feet tall", "bipedal", "covered in short fur", "ground-dwelling"],
+      "regions": ["Sumatra", "Indonesia"]
+    },
+    {
+      "name": "Yeren",
+      "aliases": ["Chinese Wildman", "Man-Monkey"],
+      "category": "cryptids",
+      "icon": "🎋",
+      "brief_description": "Ape-like creature reported in the mountainous forests of China",
+      "key_characteristics": ["6+ feet tall", "reddish-brown hair", "bipedal", "shy"],
+      "regions": ["Hubei Province", "Shennongjia", "China"]
+    },
+    {
+      "name": "Mapinguari",
+      "aliases": ["Roaring Animal"],
+      "category": "cryptids",
+      "icon": "🌳",
+      "brief_description": "Legendary creature from Brazilian and Bolivian folklore",
+      "key_characteristics": ["one eye", "mouth on belly", "foul odor", "impenetrable skin"],
+      "regions": ["Amazon rainforest", "Brazil", "Bolivia"]
+    },
+    {
+      "name": "Beast of Bodmin Moor",
+      "aliases": ["Bodmin Beast"],
+      "category": "cryptids",
+      "icon": "🐆",
+      "brief_description": "Phantom big cat reported in Cornwall, England",
+      "key_characteristics": ["large black cat", "3-5 feet long", "glowing eyes"],
+      "regions": ["Bodmin Moor", "Cornwall", "England"]
+    },
+    {
+      "name": "Beast of Gévaudan",
+      "aliases": ["La Bête du Gévaudan"],
+      "category": "cryptids",
+      "icon": "🐺",
+      "brief_description": "Man-eating wolf-like creature that terrorized France in the 1760s",
+      "key_characteristics": ["wolf-like", "reddish fur", "enormous size", "attacked humans"],
+      "regions": ["Gévaudan", "France"]
+    },
+    {
+      "name": "Black Triangle UFO",
+      "aliases": ["TR-3B", "Triangle Craft", "Flying Triangle"],
+      "category": "ufos_aliens",
+      "icon": "🔺",
+      "brief_description": "Triangular-shaped unidentified aerial craft with lights at each corner",
+      "key_characteristics": ["triangular shape", "lights at corners", "silent or low hum", "massive size", "hovers"],
+      "regions": ["Belgium", "Phoenix", "Global"]
+    },
+    {
+      "name": "Tic Tac UFO",
+      "aliases": ["Nimitz UFO", "USS Nimitz UAP"],
+      "category": "ufos_aliens",
+      "icon": "💊",
+      "brief_description": "Oblong, white, wingless craft famously encountered by USS Nimitz pilots in 2004",
+      "key_characteristics": ["white oblong shape", "no visible propulsion", "hypersonic speed", "transmedium capable"],
+      "regions": ["Pacific Ocean", "USS Nimitz encounter"]
+    },
+    {
+      "name": "Cigar UFO",
+      "aliases": ["Cylinder UFO", "Rocket-shaped UFO"],
+      "category": "ufos_aliens",
+      "icon": "🚀",
+      "brief_description": "Elongated cylindrical craft reported since the 1940s",
+      "key_characteristics": ["cigar or cylinder shape", "metallic", "no wings", "often releases smaller objects"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Orb UFO",
+      "aliases": ["Light Orb", "Sphere UFO", "Foo Fighter"],
+      "category": "ufos_aliens",
+      "icon": "⚪",
+      "brief_description": "Spherical or ball-shaped luminous objects",
+      "key_characteristics": ["spherical shape", "glowing", "erratic movement", "multiple colors"],
+      "regions": ["Global", "WWII reports"]
+    },
+    {
+      "name": "Diamond UFO",
+      "aliases": ["Cash-Landrum UFO"],
+      "category": "ufos_aliens",
+      "icon": "💎",
+      "brief_description": "Diamond-shaped craft, notably involved in the 1980 Cash-Landrum incident",
+      "key_characteristics": ["diamond shape", "intense heat", "flames", "followed by helicopters"],
+      "regions": ["Texas", "Global"]
+    },
+    {
+      "name": "Boomerang UFO",
+      "aliases": ["V-shaped UFO", "Chevron UFO"],
+      "category": "ufos_aliens",
+      "icon": "🪃",
+      "brief_description": "V-shaped or boomerang-shaped craft often reported as massive in size",
+      "key_characteristics": ["V or boomerang shape", "multiple lights", "silent", "enormous wingspan"],
+      "regions": ["Hudson Valley", "Phoenix", "Global"]
+    },
+    {
+      "name": "Phoenix Lights",
+      "aliases": ["Lights Over Phoenix"],
+      "category": "ufos_aliens",
+      "icon": "🌃",
+      "brief_description": "Mass UFO sighting over Phoenix, Arizona on March 13, 1997",
+      "key_characteristics": ["V formation of lights", "mile-wide craft", "thousands of witnesses", "two distinct events"],
+      "regions": ["Phoenix, Arizona", "Nevada"]
+    },
+    {
+      "name": "Grey Alien",
+      "aliases": ["Grays", "Greys", "Zeta Reticulans", "EBE"],
+      "category": "ufos_aliens",
+      "icon": "👽",
+      "brief_description": "Small humanoid beings with grey skin, large heads, and black eyes",
+      "key_characteristics": ["3-4 feet tall", "grey skin", "large black eyes", "small mouth", "telepathic"],
+      "regions": ["Global", "Associated with abductions"]
+    },
+    {
+      "name": "Nordic Aliens",
+      "aliases": ["Tall Whites", "Pleiadians", "Space Brothers"],
+      "category": "ufos_aliens",
+      "icon": "👱",
+      "brief_description": "Human-like extraterrestrials with blonde hair and Nordic features",
+      "key_characteristics": ["tall", "blonde hair", "blue eyes", "benevolent", "telepathic"],
+      "regions": ["Global", "Contactee reports"]
+    },
+    {
+      "name": "Reptilian Aliens",
+      "aliases": ["Reptilians", "Lizard People", "Draconians"],
+      "category": "ufos_aliens",
+      "icon": "🦎",
+      "brief_description": "Reptile-like humanoid beings reported in UFO and conspiracy contexts",
+      "key_characteristics": ["reptilian features", "tall", "green/brown scales", "vertical pupils", "shape-shifting"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Mantis Beings",
+      "aliases": ["Insectoid Aliens", "Praying Mantis Aliens"],
+      "category": "ufos_aliens",
+      "icon": "🦗",
+      "brief_description": "Tall insect-like beings resembling praying mantises",
+      "key_characteristics": ["7+ feet tall", "insectoid features", "large eyes", "often in supervisory role"],
+      "regions": ["Global", "Abduction reports"]
+    },
+    {
+      "name": "Close Encounter of the First Kind",
+      "aliases": ["CE1", "UFO Sighting"],
+      "category": "ufos_aliens",
+      "icon": "👁️",
+      "brief_description": "Visual sighting of a UFO within 500 feet",
+      "key_characteristics": ["visual observation", "close proximity", "detailed description possible"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Close Encounter of the Second Kind",
+      "aliases": ["CE2", "Physical Effects"],
+      "category": "ufos_aliens",
+      "icon": "🔥",
+      "brief_description": "UFO encounter with physical effects on environment or witnesses",
+      "key_characteristics": ["physical traces", "burn marks", "vehicle interference", "physiological effects"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Close Encounter of the Third Kind",
+      "aliases": ["CE3", "Entity Encounter"],
+      "category": "ufos_aliens",
+      "icon": "🛸",
+      "brief_description": "UFO encounter involving observation of occupants or entities",
+      "key_characteristics": ["entity observation", "beings seen near craft", "possible communication"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Alien Abduction",
+      "aliases": ["CE4", "Close Encounter of the Fourth Kind", "Abduction Experience"],
+      "category": "ufos_aliens",
+      "icon": "✨",
+      "brief_description": "Experience of being taken aboard an extraterrestrial craft",
+      "key_characteristics": ["missing time", "medical examination", "implants", "paralysis", "telepathic communication"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Roswell Incident",
+      "aliases": ["Roswell Crash", "Roswell UFO"],
+      "category": "ufos_aliens",
+      "icon": "🎈",
+      "brief_description": "1947 crash of unknown object near Roswell, New Mexico",
+      "key_characteristics": ["debris field", "military recovery", "alleged bodies", "cover-up claims"],
+      "regions": ["Roswell, New Mexico"]
+    },
+    {
+      "name": "Rendlesham Forest Incident",
+      "aliases": ["Britain's Roswell", "Bentwaters Incident"],
+      "category": "ufos_aliens",
+      "icon": "🌲",
+      "brief_description": "1980 UFO encounters near RAF Woodbridge in Suffolk, England",
+      "key_characteristics": ["multiple military witnesses", "physical traces", "radiation readings", "light beams"],
+      "regions": ["Rendlesham Forest, England"]
+    },
+    {
+      "name": "Belgian UFO Wave",
+      "aliases": ["Belgian Wave"],
+      "category": "ufos_aliens",
+      "icon": "🇧🇪",
+      "brief_description": "Series of triangle UFO sightings over Belgium from 1989-1990",
+      "key_characteristics": ["black triangles", "thousands of witnesses", "F-16 pursuit", "radar confirmation"],
+      "regions": ["Belgium"]
+    },
+    {
+      "name": "Shadow Person",
+      "aliases": ["Shadow Figure", "Shadow Being", "Dark Watcher"],
+      "category": "ghosts_hauntings",
+      "icon": "👤",
+      "brief_description": "Dark humanoid figure seen in peripheral vision or during sleep paralysis",
+      "key_characteristics": ["humanoid silhouette", "featureless", "seen peripherally", "often wears hat", "induces fear"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Hat Man",
+      "aliases": ["Man in the Hat", "Fedora Shadow"],
+      "category": "ghosts_hauntings",
+      "icon": "🎩",
+      "brief_description": "Specific shadow person wearing a wide-brimmed hat or fedora",
+      "key_characteristics": ["wears hat", "tall", "darker than shadow people", "malevolent presence"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Poltergeist",
+      "aliases": ["Noisy Ghost"],
+      "category": "ghosts_hauntings",
+      "icon": "🪑",
+      "brief_description": "Type of haunting characterized by physical disturbances like objects moving",
+      "key_characteristics": ["objects move", "knocking sounds", "centered on person", "temporary duration"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Apparition",
+      "aliases": ["Ghost", "Spirit", "Specter"],
+      "category": "ghosts_hauntings",
+      "icon": "👻",
+      "brief_description": "Visual manifestation of a deceased person or spirit",
+      "key_characteristics": ["human form", "transparent or solid", "recognizable features", "tied to location"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Residual Haunting",
+      "aliases": ["Stone Tape", "Imprint Haunting"],
+      "category": "ghosts_hauntings",
+      "icon": "🔁",
+      "brief_description": "Haunting where events replay like a recording without awareness",
+      "key_characteristics": ["repeating events", "no interaction", "same time/place", "energy imprint"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Intelligent Haunting",
+      "aliases": ["Interactive Ghost", "Conscious Spirit"],
+      "category": "ghosts_hauntings",
+      "icon": "💬",
+      "brief_description": "Haunting where entity appears aware and can interact with living",
+      "key_characteristics": ["responds to communication", "aware of surroundings", "purposeful actions"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Old Hag Syndrome",
+      "aliases": ["Night Hag", "Sleep Paralysis Entity"],
+      "category": "ghosts_hauntings",
+      "icon": "👵",
+      "brief_description": "Entity perceived during sleep paralysis, often sitting on chest",
+      "key_characteristics": ["old woman appearance", "sits on chest", "difficulty breathing", "paralysis"],
+      "regions": ["Global", "Newfoundland folklore"]
+    },
+    {
+      "name": "Black-Eyed Children",
+      "aliases": ["BEK", "Black-Eyed Kids"],
+      "category": "ghosts_hauntings",
+      "icon": "👧",
+      "brief_description": "Children with entirely black eyes who request entry to homes or vehicles",
+      "key_characteristics": ["solid black eyes", "pale skin", "request permission to enter", "induces terror"],
+      "regions": ["Global", "United States"]
+    },
+    {
+      "name": "Doppelganger",
+      "aliases": ["Double", "Fetch", "Vardøger"],
+      "category": "ghosts_hauntings",
+      "icon": "👯",
+      "brief_description": "Ghostly double of a living person, often considered an omen",
+      "key_characteristics": ["exact copy of person", "seen by self or others", "bad omen in folklore"],
+      "regions": ["Global", "Germanic folklore"]
+    },
+    {
+      "name": "Banshee",
+      "aliases": ["Bean Sidhe", "Wailing Woman"],
+      "category": "ghosts_hauntings",
+      "icon": "😱",
+      "brief_description": "Female spirit from Irish folklore whose wail foretells death",
+      "key_characteristics": ["female spirit", "screaming or wailing", "death omen", "attached to families"],
+      "regions": ["Ireland", "Scotland"]
+    },
+    {
+      "name": "EVP",
+      "aliases": ["Electronic Voice Phenomenon", "Spirit Voice"],
+      "category": "ghosts_hauntings",
+      "icon": "🎤",
+      "brief_description": "Unexplained voices captured on electronic recording devices",
+      "key_characteristics": ["voices on recordings", "not heard in real-time", "responses to questions"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Orbs",
+      "aliases": ["Spirit Orbs", "Ghost Lights"],
+      "category": "ghosts_hauntings",
+      "icon": "🔮",
+      "brief_description": "Spherical anomalies captured in photographs, sometimes considered spirits",
+      "key_characteristics": ["spherical", "translucent", "appear in photos", "various colors"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Demon",
+      "aliases": ["Evil Spirit", "Malevolent Entity"],
+      "category": "ghosts_hauntings",
+      "icon": "😈",
+      "brief_description": "Malevolent supernatural entity, often from religious traditions",
+      "key_characteristics": ["inhuman", "malevolent", "oppression", "possession", "foul odor"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Near-Death Experience",
+      "aliases": ["NDE", "Clinical Death Experience"],
+      "category": "psychic_phenomena",
+      "icon": "💫",
+      "brief_description": "Profound experience reported by those who nearly died or were clinically dead",
+      "key_characteristics": ["tunnel of light", "life review", "deceased relatives", "out-of-body", "peace"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Out-of-Body Experience",
+      "aliases": ["OBE", "Astral Projection", "OOBE"],
+      "category": "psychic_phenomena",
+      "icon": "🧘",
+      "brief_description": "Experience of consciousness separating from the physical body",
+      "key_characteristics": ["floating sensation", "seeing own body", "silver cord", "vivid awareness"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Remote Viewing",
+      "aliases": ["Clairvoyance", "Psychic Spying"],
+      "category": "psychic_phenomena",
+      "icon": "🔭",
+      "brief_description": "Ability to perceive distant locations or events through psychic means",
+      "key_characteristics": ["perception of distant places", "government programs", "coordinate viewing"],
+      "regions": ["Global", "Stanford Research Institute"]
+    },
+    {
+      "name": "Precognition",
+      "aliases": ["Premonition", "Future Sight"],
+      "category": "psychic_phenomena",
+      "icon": "🔮",
+      "brief_description": "Ability to perceive future events before they occur",
+      "key_characteristics": ["dreams of future", "visions", "deja vu", "disaster premonitions"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Telepathy",
+      "aliases": ["Mind Reading", "Thought Transfer"],
+      "category": "psychic_phenomena",
+      "icon": "🧠",
+      "brief_description": "Direct mind-to-mind communication without physical means",
+      "key_characteristics": ["thought transmission", "receiving thoughts", "emotional transfer", "twin connections"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Psychokinesis",
+      "aliases": ["Telekinesis", "PK", "Mind Over Matter"],
+      "category": "psychic_phenomena",
+      "icon": "🥄",
+      "brief_description": "Ability to move or affect objects using only the mind",
+      "key_characteristics": ["object movement", "spoon bending", "dice influence", "poltergeist connection"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Past Life Memory",
+      "aliases": ["Reincarnation Memory", "Previous Life Recall"],
+      "category": "psychic_phenomena",
+      "icon": "📜",
+      "brief_description": "Memories of events from a previous incarnation or lifetime",
+      "key_characteristics": ["childhood memories", "verifiable details", "phobias from past", "birthmarks"],
+      "regions": ["Global", "Strong research in Asia"]
+    },
+    {
+      "name": "Shared Death Experience",
+      "aliases": ["SDE", "Empathic Death Experience"],
+      "category": "psychic_phenomena",
+      "icon": "👥",
+      "brief_description": "Experience where living persons share aspects of a dying person's transition",
+      "key_characteristics": ["shared visions", "mist leaving body", "tunnel experience", "loved ones present"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Crisis Apparition",
+      "aliases": ["Death Bed Vision", "Veridical Apparition"],
+      "category": "psychic_phenomena",
+      "icon": "⚡",
+      "brief_description": "Apparition of a person at the moment of their death or crisis",
+      "key_characteristics": ["appears at death moment", "often to loved ones", "at distance", "verified timing"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Automatic Writing",
+      "aliases": ["Spirit Writing", "Psychography"],
+      "category": "psychic_phenomena",
+      "icon": "✍️",
+      "brief_description": "Writing produced without conscious control, attributed to spirits or subconscious",
+      "key_characteristics": ["hand moves automatically", "different handwriting", "messages received"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Time Slip",
+      "aliases": ["Time Warp", "Temporal Anomaly"],
+      "category": "unexplained",
+      "icon": "⏰",
+      "brief_description": "Experience of briefly traveling to or glimpsing another time period",
+      "key_characteristics": ["past scene witnessed", "disorientation", "different era clothing", "buildings changed"],
+      "regions": ["Bold Street Liverpool", "Versailles", "Global"]
+    },
+    {
+      "name": "Missing Time",
+      "aliases": ["Lost Time", "Time Loss"],
+      "category": "unexplained",
+      "icon": "⌛",
+      "brief_description": "Period of time for which a person has no memory, often associated with UFOs",
+      "key_characteristics": ["gap in memory", "arriving late", "hypnotic recall", "UFO association"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Glitch in the Matrix",
+      "aliases": ["Reality Glitch", "Simulation Error"],
+      "category": "unexplained",
+      "icon": "🖥️",
+      "brief_description": "Experience suggesting reality is a simulation with occasional errors",
+      "key_characteristics": ["déjà vu", "objects appearing/disappearing", "reality shifts", "impossible events"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Mandela Effect",
+      "aliases": ["False Memory Effect", "Collective Misremembering"],
+      "category": "unexplained",
+      "icon": "🌀",
+      "brief_description": "Phenomenon where many people share the same false memory",
+      "key_characteristics": ["collective false memory", "brand names", "historical events", "movie quotes"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Spontaneous Human Combustion",
+      "aliases": ["SHC"],
+      "category": "unexplained",
+      "icon": "🔥",
+      "brief_description": "Alleged phenomenon where a human body ignites without external source",
+      "key_characteristics": ["body burned", "surroundings intact", "no external ignition", "extremities remain"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Ball Lightning",
+      "aliases": ["Globe Lightning", "Thunderbolt"],
+      "category": "unexplained",
+      "icon": "⚡",
+      "brief_description": "Unexplained atmospheric phenomenon of luminous spherical objects during storms",
+      "key_characteristics": ["glowing sphere", "floats", "passes through objects", "explosive or silent"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Crop Circles",
+      "aliases": ["Crop Formations", "Agriglyphs"],
+      "category": "unexplained",
+      "icon": "🌾",
+      "brief_description": "Patterns created by flattening crops, often of unknown origin",
+      "key_characteristics": ["geometric patterns", "bent not broken stems", "overnight appearance", "node changes"],
+      "regions": ["Wiltshire, England", "Global"]
+    },
+    {
+      "name": "Cattle Mutilation",
+      "aliases": ["Animal Mutilation", "Livestock Mutilation"],
+      "category": "unexplained",
+      "icon": "🐄",
+      "brief_description": "Unexplained deaths and precise surgical removal of tissue from livestock",
+      "key_characteristics": ["surgical precision", "no blood", "specific organs removed", "no tracks"],
+      "regions": ["American Midwest", "South America", "Global"]
+    },
+    {
+      "name": "Phantom Hitchhiker",
+      "aliases": ["Vanishing Hitchhiker", "Ghost Hitchhiker"],
+      "category": "unexplained",
+      "icon": "🚗",
+      "brief_description": "Ghostly figure who hitchhikes before mysteriously vanishing from the vehicle",
+      "key_characteristics": ["requests ride", "vanishes from car", "later found to be deceased", "recurring location"],
+      "regions": ["Global", "Resurrection Mary, Chicago"]
+    },
+    {
+      "name": "Phantom Ship",
+      "aliases": ["Ghost Ship", "Spectral Vessel"],
+      "category": "unexplained",
+      "icon": "⛵",
+      "brief_description": "Ghostly ship seen sailing, often associated with disaster or death",
+      "key_characteristics": ["glowing ship", "appears in storms", "death omen", "famous examples"],
+      "regions": ["Cape of Good Hope", "Great Lakes", "Global"]
+    },
+    {
+      "name": "Men in Black",
+      "aliases": ["MIB", "Dark Suited Men"],
+      "category": "ufos_aliens",
+      "icon": "🕴️",
+      "brief_description": "Mysterious figures in black suits who allegedly harass UFO witnesses",
+      "key_characteristics": ["black suits", "pale skin", "odd behavior", "threaten witnesses", "black cars"],
+      "regions": ["Global", "United States"]
+    },
+    {
+      "name": "Tulpa",
+      "aliases": ["Thoughtform", "Egregore"],
+      "category": "psychic_phenomena",
+      "icon": "💭",
+      "brief_description": "Entity created through focused thought and meditation",
+      "key_characteristics": ["created by mind", "gains independence", "Tibetan Buddhism origin", "Philip experiment"],
+      "regions": ["Tibet", "Global"]
+    },
+    {
+      "name": "Sleep Paralysis",
+      "aliases": ["Night Paralysis", "Kanashibari"],
+      "category": "psychic_phenomena",
+      "icon": "😴",
+      "brief_description": "State of being conscious but unable to move, often with hallucinations",
+      "key_characteristics": ["cannot move", "presence felt", "chest pressure", "hypnagogic state"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Skinwalker Ranch",
+      "aliases": ["Sherman Ranch", "UFO Ranch"],
+      "category": "unexplained",
+      "icon": "🏚️",
+      "brief_description": "Utah property known for numerous paranormal phenomena reports",
+      "key_characteristics": ["UFOs", "cattle mutilations", "poltergeist activity", "cryptid sightings", "portal"],
+      "regions": ["Uintah Basin, Utah"]
+    },
+    {
+      "name": "Bermuda Triangle",
+      "aliases": ["Devil's Triangle"],
+      "category": "unexplained",
+      "icon": "🔻",
+      "brief_description": "Region in the Atlantic where ships and aircraft allegedly disappear mysteriously",
+      "key_characteristics": ["disappearances", "compass anomalies", "time distortion", "electronic fog"],
+      "regions": ["Atlantic Ocean", "Miami-Bermuda-Puerto Rico"]
+    },
+    {
+      "name": "Chupacabra",
+      "aliases": ["Goat Sucker"],
+      "category": "cryptids",
+      "icon": "🐐",
+      "brief_description": "Creature reported to attack and drain blood from livestock, particularly goats",
+      "key_characteristics": ["spines on back", "red eyes", "drains blood", "3-4 feet tall"],
+      "regions": ["Puerto Rico", "Mexico", "American Southwest"]
+    },
+    {
+      "name": "Mothman",
+      "aliases": ["Point Pleasant Creature"],
+      "category": "cryptids",
+      "icon": "🦋",
+      "brief_description": "Winged humanoid creature first reported in Point Pleasant, West Virginia in 1966",
+      "key_characteristics": ["7 feet tall", "giant wings", "glowing red eyes", "disaster omen"],
+      "regions": ["Point Pleasant, West Virginia", "Chicago"]
+    },
+    {
+      "name": "Jersey Devil",
+      "aliases": ["Leeds Devil"],
+      "category": "cryptids",
+      "icon": "😈",
+      "brief_description": "Legendary creature said to inhabit the Pine Barrens of New Jersey",
+      "key_characteristics": ["bat wings", "forked tail", "hooves", "kangaroo-like body", "screaming"],
+      "regions": ["Pine Barrens, New Jersey"]
+    },
+    {
+      "name": "Loch Ness Monster",
+      "aliases": ["Nessie", "Loch Ness Creature"],
+      "category": "cryptids",
+      "icon": "🦕",
+      "brief_description": "Large aquatic creature said to inhabit Loch Ness in Scotland",
+      "key_characteristics": ["long neck", "humped back", "plesiosaur-like", "dark colored", "shy"],
+      "regions": ["Loch Ness, Scotland"]
+    }
+  ]
+}
