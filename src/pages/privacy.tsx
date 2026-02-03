@@ -93,7 +93,7 @@ export default function PrivacyPolicyPage() {
               several privacy controls for report submissions:
             </p>
             <ul className="list-disc list-inside space-y-2 text-gray-400 ml-2">
-              <li><strong className="text-white">Anonymous submissions:</strong> You can submit reports without creating an account</li>
+              <li><strong className="text-white">Anonymous display:</strong> You can choose to hide your username on published reports</li>
               <li><strong className="text-white">Location privacy:</strong> You can choose to obscure precise locations to a general area</li>
               <li><strong className="text-white">Display name control:</strong> Use any display name you choose, separate from your real identity</li>
               <li><strong className="text-white">Report editing:</strong> You can edit or delete your reports at any time</li>
