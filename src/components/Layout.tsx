@@ -271,6 +271,7 @@ export default function Layout({ children }: LayoutProps) {
               <ul className="space-y-2 text-sm text-gray-400">
                 <li><Link href="/submit" className="hover:text-white">Submit Report</Link></li>
                 <li><Link href="/analytics" className="hover:text-white">Analytics</Link></li>
+                <li><Link href="/insights/methodology" className="hover:text-white">Methodology</Link></li>
                 <li><Link href="/about" className="hover:text-white">About</Link></li>
               </ul>
             </div>
