@@ -7,6 +7,8 @@ import { shadowlandsAdapter } from './shadowlands';
 import { ghostsOfAmericaAdapter } from './ghostsofamerica';
 import { redditAdapter } from './reddit';
 import { wikipediaAdapter } from './wikipedia';
+import { nderfAdapter } from './nderf';
+import { iandsAdapter } from './iands';
 
 // Registry of all available adapters
 const adapters: Record<string, SourceAdapter> = {
@@ -16,6 +18,8 @@ const adapters: Record<string, SourceAdapter> = {
   ghostsofamerica: ghostsOfAmericaAdapter,
   reddit: redditAdapter,
   wikipedia: wikipediaAdapter,
+  nderf: nderfAdapter,
+  iands: iandsAdapter,
   // Future adapters:
   // mufon: mufonAdapter,
 };
@@ -34,5 +38,7 @@ export {
   shadowlandsAdapter,
   ghostsOfAmericaAdapter,
   redditAdapter,
-  wikipediaAdapter
+  wikipediaAdapter,
+  nderfAdapter,
+  iandsAdapter
 };
