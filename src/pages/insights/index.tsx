@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import Head from 'next/head'
+import Link from 'next/link'
 import Layout from '@/components/Layout'
 import { PatternCard, Pattern } from '@/components/patterns'
 import {
@@ -9,7 +10,8 @@ import {
   MapPin,
   Calendar,
   Activity,
-  Sparkles
+  Sparkles,
+  FlaskConical
 } from 'lucide-react'
 
 const PATTERN_TYPES = [
@@ -111,10 +113,17 @@ export default function InsightsPage() {
           <h1 className="text-3xl md:text-4xl font-display font-bold text-white mb-4">
             Pattern Insights
           </h1>
-          <p className="text-gray-400 max-w-2xl mx-auto">
+          <p className="text-gray-400 max-w-2xl mx-auto mb-4">
             Our AI analyzes thousands of reports to detect emerging patterns,
             geographic hotspots, and temporal anomalies in paranormal activity.
           </p>
+          <Link
+            href="/insights/methodology"
+            className="inline-flex items-center gap-2 text-sm text-primary-400 hover:text-primary-300 transition-colors"
+          >
+            <FlaskConical className="w-4 h-4" />
+            View our research methodology
+          </Link>
         </div>
 
         {/* Stats Overview */}
