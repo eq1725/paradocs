@@ -279,6 +279,38 @@ async function fetchNDEPosts(limit: number): Promise<ScrapedReport[]> {
   return reports;
 }
 
+// Near-Death Experience phenomenon ID (from phenomena table)
+const NDE_PHENOMENON_ID = 'ed6ef301-77eb-43ce-aef3-43d9cc2cfa70';
+
+// Link a report to the NDE phenomenon
+async function linkToNDEPhenomenon(
+  supabase: SupabaseClient,
+  reportId: string
+): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('report_phenomena')
+      .upsert({
+        report_id: reportId,
+        phenomenon_id: NDE_PHENOMENON_ID,
+        confidence: 0.9, // High confidence for NDE-specific ingestion
+        tagged_by: 'auto-nde'
+      }, {
+        onConflict: 'report_id,phenomenon_id',
+        ignoreDuplicates: true
+      });
+
+    if (error) {
+      console.error(`[NDE] Failed to link report ${reportId} to phenomenon:`, error);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error(`[NDE] Error linking report to phenomenon:`, e);
+    return false;
+  }
+}
+
 // Generate URL-safe slug
 function generateSlug(title: string, originalReportId: string, sourceType: string): string {
   const baseSlug = title
@@ -386,6 +418,7 @@ export default async function handler(
     let updated = 0;
     let skipped = 0;
     let rejected = 0;
+    let linked = 0;
 
     for (const report of reports) {
       try {
@@ -450,6 +483,9 @@ export default async function handler(
 
           if (!updateError) {
             updated++;
+            // Also link to NDE phenomenon if not already linked
+            const wasLinked = await linkToNDEPhenomenon(supabaseAdmin, existing.id);
+            if (wasLinked) linked++;
           } else {
             skipped++;
           }
@@ -457,7 +493,7 @@ export default async function handler(
           // Insert new report
           const slug = generateSlug(finalTitle, report.original_report_id, report.source_type);
 
-          const { error: insertError } = await supabaseAdmin
+          const { data: insertedReport, error: insertError } = await supabaseAdmin
             .from('reports')
             .insert({
               title: finalTitle,
@@ -478,10 +514,15 @@ export default async function handler(
               original_title: originalTitle,
               upvotes: 0,
               view_count: 0
-            });
+            })
+            .select('id')
+            .single();
 
-          if (!insertError) {
+          if (!insertError && insertedReport) {
             inserted++;
+            // Link to NDE phenomenon
+            const wasLinked = await linkToNDEPhenomenon(supabaseAdmin, insertedReport.id);
+            if (wasLinked) linked++;
           } else {
             console.error('[NDE] Insert error:', insertError);
             skipped++;
@@ -503,8 +544,9 @@ export default async function handler(
       recordsUpdated: updated,
       recordsSkipped: skipped,
       recordsRejected: rejected,
+      recordsLinked: linked,
       duration,
-      message: `NDE ingestion complete: ${inserted} new, ${updated} updated, ${rejected} filtered`
+      message: `NDE ingestion complete: ${inserted} new, ${updated} updated, ${rejected} filtered, ${linked} linked to NDE phenomenon`
     };
 
     console.log('[NDE] Ingestion complete:', summary);
