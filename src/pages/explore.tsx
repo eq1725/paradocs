@@ -20,11 +20,10 @@ export default function ExplorePage() {
   const [loading, setLoading] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
   const [totalCount, setTotalCount] = useState(0)
-  const [baselineCount, setBaselineCount] = useState(0) // Actual total from API
+  const [baselineCount, setBaselineCount] = useState(0)
   const [page, setPage] = useState(1)
   const perPage = 12
 
-  // Fetch actual total count on mount
   useEffect(() => {
     async function fetchTotalCount() {
       try {
@@ -35,7 +34,6 @@ export default function ExplorePage() {
           setTotalCount(data.total || 0)
         }
       } catch {
-        // Don't use fallback - let it show 0 or actual count from data
         setBaselineCount(0)
       }
     }
@@ -56,7 +54,6 @@ export default function ExplorePage() {
   const [hasMedia, setHasMedia] = useState(false)
   const [featured, setFeatured] = useState(false)
 
-  // Initialize from URL params
   useEffect(() => {
     if (router.isReady) {
       const { category: cat, q, country: c, credibility: cred, featured: feat } = router.query
@@ -71,85 +68,157 @@ export default function ExplorePage() {
   const loadReports = useCallback(async () => {
     setLoading(true)
     try {
-      // Select fields needed for ReportCard - skip count for performance on large datasets
-      let query = supabase
-        .from('reports')
-        .select('id,title,slug,summary,category,country,city,state_province,event_date,credibility,upvotes,view_count,comment_count,has_photo_video,has_physical_evidence,featured,location_name,source_type,source_label,created_at')
-        .eq('status', 'approved')
-
-      // Apply filters
-      if (category !== 'all') {
-        query = query.eq('category', category)
-      }
-      // Multi-category filter (from subcategory panel)
-      if (selectedCategories.length > 0) {
-        query = query.in('category', selectedCategories)
-      }
-      // Filter by specific phenomenon types
+      // If filtering by phenomena from encyclopedia, use report_phenomena junction table
       if (selectedTypes.length > 0) {
-        query = query.in('phenomenon_type_id', selectedTypes)
-      }
-      if (searchQuery) {
-        query = query.textSearch('search_vector', searchQuery)
-      }
-      if (country) {
-        query = query.eq('country', country)
-      }
-      if (credibility) {
-        query = query.eq('credibility', credibility)
-      }
-      if (dateFrom) {
-        query = query.gte('event_date', dateFrom)
-      }
-      if (dateTo) {
-        query = query.lte('event_date', dateTo)
-      }
-      if (hasEvidence) {
-        query = query.or('has_physical_evidence.eq.true,has_photo_video.eq.true')
-      }
-      if (hasMedia) {
-        query = query.contains('tags', ['has-media'])
-      }
-      if (featured) {
-        query = query.eq('featured', true)
-      }
+        // Step 1: Get report IDs linked to selected phenomena
+        const { data: links, error: linkError } = await supabase
+          .from('report_phenomena')
+          .select('report_id')
+          .in('phenomenon_id', selectedTypes)
 
-      // Apply sorting
-      switch (sort) {
-        case 'oldest':
-          query = query.order('event_date', { ascending: true, nullsFirst: false })
-          break
-        case 'popular':
-          query = query.order('upvotes', { ascending: false })
-          break
-        case 'most_viewed':
-          query = query.order('view_count', { ascending: false })
-          break
-        default:
-          query = query.order('created_at', { ascending: false })
-      }
+        if (linkError) throw linkError
 
-      // Pagination
-      const from = (page - 1) * perPage
-      query = query.range(from, from + perPage - 1)
+        if (!links || links.length === 0) {
+          setReports([])
+          setTotalCount(0)
+          setLoading(false)
+          return
+        }
 
-      const { data, error } = await query
+        // Get unique report IDs
+        const reportIds = [...new Set(links.map(l => l.report_id))]
 
-      if (error) throw error
+        // Step 2: Query reports with those IDs
+        let query = supabase
+          .from('reports')
+          .select('id,title,slug,summary,category,country,city,state_province,event_date,credibility,upvotes,view_count,comment_count,has_photo_video,has_physical_evidence,featured,location_name,source_type,source_label,created_at')
+          .in('id', reportIds)
+          .eq('status', 'approved')
 
-      setReports(data || [])
-      // Use estimated count for large dataset - exact count causes timeout
-      // Will show "250,000+" for unfiltered, or use data length + offset for filtered
-      const hasFilters = category !== 'all' || selectedCategories.length > 0 ||
-        selectedTypes.length > 0 || searchQuery || country || credibility ||
-        dateFrom || dateTo || hasEvidence || hasMedia || featured
-      if (hasFilters) {
-        // For filtered queries, estimate based on results
-        const estimatedMore = (data?.length || 0) === perPage ? 1000 : 0
-        setTotalCount((page - 1) * perPage + (data?.length || 0) + estimatedMore)
+        // Apply additional filters
+        if (category !== 'all') {
+          query = query.eq('category', category)
+        }
+        if (selectedCategories.length > 0) {
+          query = query.in('category', selectedCategories)
+        }
+        if (searchQuery) {
+          query = query.or(`title.ilike.%${searchQuery}%,summary.ilike.%${searchQuery}%`)
+        }
+        if (country) {
+          query = query.eq('country', country)
+        }
+        if (credibility) {
+          query = query.eq('credibility', credibility)
+        }
+        if (dateFrom) {
+          query = query.gte('event_date', dateFrom)
+        }
+        if (dateTo) {
+          query = query.lte('event_date', dateTo)
+        }
+        if (hasEvidence) {
+          query = query.or('has_physical_evidence.eq.true,has_photo_video.eq.true')
+        }
+        if (hasMedia) {
+          query = query.contains('tags', ['has-media'])
+        }
+        if (featured) {
+          query = query.eq('featured', true)
+        }
+
+        // Apply sorting
+        switch (sort) {
+          case 'oldest':
+            query = query.order('event_date', { ascending: true, nullsFirst: false })
+            break
+          case 'popular':
+            query = query.order('upvotes', { ascending: false })
+            break
+          case 'most_viewed':
+            query = query.order('view_count', { ascending: false })
+            break
+          default:
+            query = query.order('created_at', { ascending: false })
+        }
+
+        // Pagination
+        const from = (page - 1) * perPage
+        query = query.range(from, from + perPage - 1)
+
+        const { data, error } = await query
+        if (error) throw error
+
+        setReports(data || [])
+        // For phenomenon filter, use the linked count
+        setTotalCount(reportIds.length)
       } else {
-        // Use actual count fetched from stats API
-        setTotalCount(baselineCount)
+        // Standard query (no phenomenon filter)
+        let query = supabase
+          .from('reports')
+          .select('id,title,slug,summary,category,country,city,state_province,event_date,credibility,upvotes,view_count,comment_count,has_photo_video,has_physical_evidence,featured,location_name,source_type,source_label,created_at')
+          .eq('status', 'approved')
+
+        if (category !== 'all') {
+          query = query.eq('category', category)
+        }
+        if (selectedCategories.length > 0) {
+          query = query.in('category', selectedCategories)
+        }
+        if (searchQuery) {
+          query = query.textSearch('search_vector', searchQuery)
+        }
+        if (country) {
+          query = query.eq('country', country)
+        }
+        if (credibility) {
+          query = query.eq('credibility', credibility)
+        }
+        if (dateFrom) {
+          query = query.gte('event_date', dateFrom)
+        }
+        if (dateTo) {
+          query = query.lte('event_date', dateTo)
+        }
+        if (hasEvidence) {
+          query = query.or('has_physical_evidence.eq.true,has_photo_video.eq.true')
+        }
+        if (hasMedia) {
+          query = query.contains('tags', ['has-media'])
+        }
+        if (featured) {
+          query = query.eq('featured', true)
+        }
+
+        switch (sort) {
+          case 'oldest':
+            query = query.order('event_date', { ascending: true, nullsFirst: false })
+            break
+          case 'popular':
+            query = query.order('upvotes', { ascending: false })
+            break
+          case 'most_viewed':
+            query = query.order('view_count', { ascending: false })
+            break
+          default:
+            query = query.order('created_at', { ascending: false })
+        }
+
+        const from = (page - 1) * perPage
+        query = query.range(from, from + perPage - 1)
+
+        const { data, error } = await query
+        if (error) throw error
+
+        setReports(data || [])
+        const hasFilters = category !== 'all' || selectedCategories.length > 0 ||
+          searchQuery || country || credibility || dateFrom || dateTo || hasEvidence || hasMedia || featured
+        if (hasFilters) {
+          const estimatedMore = (data?.length || 0) === perPage ? 1000 : 0
+          setTotalCount((page - 1) * perPage + (data?.length || 0) + estimatedMore)
+        } else {
+          setTotalCount(baselineCount)
+        }
       }
     } catch (error) {
       console.error('Error loading reports:', error)
@@ -191,7 +260,6 @@ export default function ExplorePage() {
       </Head>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-display font-bold text-white">Explore Reports</h1>
           <p className="mt-2 text-gray-400">
@@ -199,7 +267,6 @@ export default function ExplorePage() {
           </p>
         </div>
 
-        {/* Category Filter */}
         <div className="mb-6">
           <CategoryFilter
             selected={category}
@@ -207,7 +274,6 @@ export default function ExplorePage() {
           />
         </div>
 
-        {/* Search and Filter Bar */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -229,9 +295,7 @@ export default function ExplorePage() {
             >
               <SlidersHorizontal className="w-4 h-4" />
               Filters
-              {hasActiveFilters && (
-                <span className="w-2 h-2 rounded-full bg-white" />
-              )}
+              {hasActiveFilters && <span className="w-2 h-2 rounded-full bg-white" />}
             </button>
             <select
               value={sort}
@@ -246,25 +310,20 @@ export default function ExplorePage() {
           </div>
         </div>
 
-        {/* Expanded Filters */}
         {showFilters && (
           <div className="glass-card p-6 mb-6 animate-fade-in">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium text-white">Advanced Filters</h3>
               {hasActiveFilters && (
-                <button
-                  onClick={clearFilters}
-                  className="text-sm text-gray-400 hover:text-white flex items-center gap-1"
-                >
+                <button onClick={clearFilters} className="text-sm text-gray-400 hover:text-white flex items-center gap-1">
                   <X className="w-4 h-4" />
                   Clear all
                 </button>
               )}
             </div>
 
-            {/* Subcategory Filter - full width */}
             <div className="mb-6">
-              <label className="block text-sm text-gray-400 mb-2">Filter by Phenomenon Type</label>
+              <label className="block text-sm text-gray-400 mb-2">Filter by Phenomenon</label>
               <SubcategoryFilter
                 selectedCategories={selectedCategories}
                 selectedTypes={selectedTypes}
@@ -277,96 +336,53 @@ export default function ExplorePage() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-2">Country</label>
-                <select
-                  value={country}
-                  onChange={(e) => { setCountry(e.target.value); setPage(1) }}
-                  className="w-full"
-                >
+                <select value={country} onChange={(e) => { setCountry(e.target.value); setPage(1) }} className="w-full">
                   <option value="">All countries</option>
-                  {COUNTRIES.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
+                  {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-sm text-gray-400 mb-2">Credibility</label>
-                <select
-                  value={credibility}
-                  onChange={(e) => { setCredibility(e.target.value as CredibilityLevel); setPage(1) }}
-                  className="w-full"
-                >
+                <select value={credibility} onChange={(e) => { setCredibility(e.target.value as CredibilityLevel); setPage(1) }} className="w-full">
                   <option value="">Any credibility</option>
-                  {Object.entries(CREDIBILITY_CONFIG).map(([key, config]) => (
-                    <option key={key} value={key}>{config.label}</option>
-                  ))}
+                  {Object.entries(CREDIBILITY_CONFIG).map(([key, config]) => <option key={key} value={key}>{config.label}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-sm text-gray-400 mb-2">Date From</label>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
-                  className="w-full"
-                />
+                <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="w-full" />
               </div>
               <div>
                 <label className="block text-sm text-gray-400 mb-2">Date To</label>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
-                  className="w-full"
-                />
+                <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="w-full" />
               </div>
             </div>
             <div className="flex flex-wrap gap-4 mt-4">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={hasEvidence}
-                  onChange={(e) => { setHasEvidence(e.target.checked); setPage(1) }}
-                  className="rounded bg-white/5 border-white/20"
-                />
+                <input type="checkbox" checked={hasEvidence} onChange={(e) => { setHasEvidence(e.target.checked); setPage(1) }} className="rounded bg-white/5 border-white/20" />
                 <span className="text-sm text-gray-300">Has evidence</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={hasMedia}
-                  onChange={(e) => { setHasMedia(e.target.checked); setPage(1) }}
-                  className="rounded bg-white/5 border-white/20"
-                />
+                <input type="checkbox" checked={hasMedia} onChange={(e) => { setHasMedia(e.target.checked); setPage(1) }} className="rounded bg-white/5 border-white/20" />
                 <span className="text-sm text-gray-300">Has photos/video</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={featured}
-                  onChange={(e) => { setFeatured(e.target.checked); setPage(1) }}
-                  className="rounded bg-white/5 border-white/20"
-                />
+                <input type="checkbox" checked={featured} onChange={(e) => { setFeatured(e.target.checked); setPage(1) }} className="rounded bg-white/5 border-white/20" />
                 <span className="text-sm text-gray-300">Featured only</span>
               </label>
             </div>
           </div>
         )}
 
-        {/* Results */}
         {loading ? (
           <div className="grid md:grid-cols-2 gap-4">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="glass-card p-5 h-32 skeleton" />
-            ))}
+            {[...Array(6)].map((_, i) => <div key={i} className="glass-card p-5 h-32 skeleton" />)}
           </div>
         ) : reports.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-gray-400">No reports found matching your criteria.</p>
             {hasActiveFilters && (
-              <button
-                onClick={clearFilters}
-                className="mt-4 text-primary-400 hover:text-primary-300"
-              >
+              <button onClick={clearFilters} className="mt-4 text-primary-400 hover:text-primary-300">
                 Clear filters
               </button>
             )}
@@ -374,29 +390,16 @@ export default function ExplorePage() {
         ) : (
           <>
             <div className="grid md:grid-cols-2 gap-4">
-              {reports.map((report) => (
-                <ReportCard key={report.id} report={report} />
-              ))}
+              {reports.map((report) => <ReportCard key={report.id} report={report as any} />)}
             </div>
 
-            {/* Pagination */}
             {totalPages > 1 && (
               <div className="flex justify-center gap-2 mt-8">
-                <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="btn btn-secondary disabled:opacity-50"
-                >
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn btn-secondary disabled:opacity-50">
                   Previous
                 </button>
-                <span className="flex items-center px-4 text-gray-400">
-                  Page {page} of {totalPages}
-                </span>
-                <button
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="btn btn-secondary disabled:opacity-50"
-                >
+                <span className="flex items-center px-4 text-gray-400">Page {page} of {totalPages}</span>
+                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn btn-secondary disabled:opacity-50">
                   Next
                 </button>
               </div>
