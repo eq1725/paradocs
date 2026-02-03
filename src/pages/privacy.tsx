@@ -94,9 +94,9 @@ export default function PrivacyPolicyPage() {
             </p>
             <ul className="list-disc list-inside space-y-2 text-gray-400 ml-2">
               <li><strong className="text-white">Anonymous display:</strong> You can choose to hide your username on published reports</li>
-              <li><strong className="text-white">Location privacy:</strong> You can choose to obscure precise locations to a general area</li>
+              <li><strong className="text-white">Optional location detail:</strong> Precise coordinates are optional—you control how specific your location data is</li>
               <li><strong className="text-white">Display name control:</strong> Use any display name you choose, separate from your real identity</li>
-              <li><strong className="text-white">Report editing:</strong> You can edit or delete your reports at any time</li>
+              <li><strong className="text-white">Draft management:</strong> You can delete draft reports before publishing</li>
             </ul>
             <p className="mt-4 text-gray-400">
               We never publicly associate your real name or contact information with your reports
@@ -137,7 +137,7 @@ export default function PrivacyPolicyPage() {
               <li>Access the personal information we hold about you</li>
               <li>Correct inaccurate information</li>
               <li>Delete your account and associated data</li>
-              <li>Export your data in a portable format</li>
+              <li>Request a copy of your data by contacting us</li>
               <li>Opt out of non-essential communications</li>
               <li>Disable cookies through your browser settings</li>
             </ul>
