@@ -925,7 +925,16 @@ export default function MethodologyPage() {
 
         {/* Footer */}
         <div className="glass-card p-6 text-center">
-          <p className="text-xs text-gray-600">
+          <p className="text-sm text-gray-400 mb-4">
+            Questions about our methodology? Suggestions for improvement?
+          </p>
+          <p className="text-sm text-gray-500">
+            Contact us at{' '}
+            <a href="mailto:contact@discoverparadocs.com" className="text-primary-400 hover:underline">
+              contact@discoverparadocs.com
+            </a>
+          </p>
+          <p className="text-xs text-gray-600 mt-4">
             Last updated: {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
             {' · '}ParaDocs Pattern Detection v1.0
           </p>
