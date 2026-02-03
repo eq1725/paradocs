@@ -141,13 +141,11 @@ export default function MethodologyPanel({
               <span>Analysis run: {formatDateTime(methodology.lastRunAt)}</span>
             </div>
             <a
-              href="https://docs.discoverparadocs.com/methodology"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-primary-400 hover:text-primary-300"
+              href="/insights/methodology"
+              className="flex items-center gap-1 text-gray-400 hover:text-primary-400 transition-colors"
             >
-              <span>Full documentation</span>
               <ExternalLink className="w-3 h-3" />
+              <span>Full methodology documentation</span>
             </a>
           </div>
         </div>
