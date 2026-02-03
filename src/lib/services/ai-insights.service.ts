@@ -38,19 +38,42 @@ interface InsightGenerationResult {
 
 /**
  * System prompt for pattern analysis
+ * Updated for journalistic, engaging titles while maintaining academic rigor
  */
-const SYSTEM_PROMPT = `You are an expert analyst specializing in anomalous phenomena research.
-Your role is to analyze patterns in paranormal report data and provide objective, research-focused insights.
+const SYSTEM_PROMPT = `You are an expert science journalist specializing in anomalous phenomena research.
+Your role is to analyze patterns in paranormal report data and craft compelling, accurate narratives.
 
-Guidelines:
-- Be analytical and objective, avoiding sensationalism
-- Present findings as observations, not conclusions
+TITLE GUIDELINES (Critical):
+- Write like a compelling magazine headline or news story
+- Use active voice and strong verbs
+- Pose intriguing questions when appropriate
+- Avoid formulaic templates like "X Reports in Y" or "Pattern Detected"
+- Create curiosity without sensationalism
+- Maximum 80 characters
+
+GOOD TITLE EXAMPLES:
+- "Why Are Pacific Northwest Cryptid Sightings Surging This Summer?"
+- "The October Spike: What's Behind This Year's Ghost Report Wave?"
+- "Three States, One Mystery: A Cluster of Strange Lights Emerges"
+- "After Years of Silence, Mothman Reports Return to Point Pleasant"
+- "The Midnight Hour: When Most UFO Sightings Actually Happen"
+
+BAD TITLE EXAMPLES (Avoid these patterns):
+- "United States Emerges as Global Cryptid Activity Hotspot with 162 Reports"
+- "Geographic Cluster Detected in Pacific Northwest Region"
+- "Temporal Anomaly: 45% Increase in Reports"
+- "Regional Concentration - 231 Reports Identified"
+
+NARRATIVE GUIDELINES:
+- Lead with the most interesting finding
+- Provide specific numbers and comparisons
 - Acknowledge uncertainty and alternative explanations
-- Use precise language and cite specific data points
 - Consider mundane explanations alongside anomalous ones
-- Maintain scientific rigor while remaining accessible
+- Use precise language but remain accessible
+- Include historical context when relevant
+- End with open questions for further research
 
-Your analysis should help researchers and enthusiasts understand trends in reported phenomena.`
+Your analysis should engage curious readers while respecting scientific rigor.`
 
 /**
  * Generate insight for a specific pattern
@@ -232,61 +255,145 @@ export async function invalidateStaleInsights(patternId: string): Promise<void> 
 // Helper functions
 
 function buildPatternPrompt(pattern: DetectedPattern): string {
-  const typeDescriptions: Record<PatternType, string> = {
-    geographic_cluster: 'geographic cluster of reports',
-    temporal_anomaly: 'temporal spike in report activity',
-    flap_wave: 'wave of reports spreading across a region',
-    characteristic_correlation: 'correlation between report characteristics',
-    regional_concentration: 'unusual concentration of reports in a region',
-    seasonal_pattern: 'seasonal pattern in report frequency',
-    time_of_day_pattern: 'pattern related to time of day',
-    date_correlation: 'pattern related to specific dates'
+  const typeContexts: Record<PatternType, { description: string; questions: string[] }> = {
+    geographic_cluster: {
+      description: 'geographic hotspot where reports are clustering',
+      questions: [
+        'What makes this location unusual?',
+        'Is there something about the terrain, history, or demographics?',
+        'Have there been similar clusters here before?'
+      ]
+    },
+    temporal_anomaly: {
+      description: 'unusual spike or drop in report activity',
+      questions: [
+        'What triggered this change?',
+        'Does it correlate with any events?',
+        'Is this unprecedented or part of a cycle?'
+      ]
+    },
+    flap_wave: {
+      description: 'wave of reports spreading across a region over time',
+      questions: [
+        'How is the wave propagating?',
+        'What started it?',
+        'Where might it spread next?'
+      ]
+    },
+    characteristic_correlation: {
+      description: 'interesting correlation between report characteristics',
+      questions: [
+        'What features are linked?',
+        'Is this correlation causal or coincidental?',
+        'What mechanism could explain this?'
+      ]
+    },
+    regional_concentration: {
+      description: 'unusual concentration of reports in a specific region',
+      questions: [
+        'Why this region specifically?',
+        'What distinguishes it from neighboring areas?',
+        'Is this a new development or ongoing?'
+      ]
+    },
+    seasonal_pattern: {
+      description: 'recurring seasonal pattern in report frequency',
+      questions: [
+        'What happens in this season that might explain the pattern?',
+        'Do different phenomena show different seasonal peaks?',
+        'How consistent is this across years?'
+      ]
+    },
+    time_of_day_pattern: {
+      description: 'pattern related to specific times of day',
+      questions: [
+        'Why this time specifically?',
+        'Does it relate to human activity patterns?',
+        'Are certain phenomena more time-specific than others?'
+      ]
+    },
+    date_correlation: {
+      description: 'pattern linked to specific dates or anniversaries',
+      questions: [
+        'What significance do these dates have?',
+        'Is this cultural, astronomical, or something else?',
+        'How strong is the date correlation?'
+      ]
+    }
   }
 
+  const context = typeContexts[pattern.pattern_type]
   const metadata = pattern.metadata as Record<string, unknown>
 
-  let prompt = `Analyze this ${typeDescriptions[pattern.pattern_type]}:\n\n`
-  prompt += `Pattern Type: ${pattern.pattern_type}\n`
-  prompt += `Status: ${pattern.status}\n`
-  prompt += `Report Count: ${pattern.report_count ?? 0}\n`
-  const confidence = typeof pattern.confidence_score === 'number' ? pattern.confidence_score : 0
-  const significance = typeof pattern.significance_score === 'number' ? pattern.significance_score : 0
-  prompt += `Confidence Score: ${(confidence * 100).toFixed(1)}%\n`
-  prompt += `Significance Score: ${(significance * 100).toFixed(1)}%\n`
+  // Extract useful context from metadata
+  const zScore = metadata.z_score as number | undefined
+  const isSpike = metadata.is_spike as boolean | undefined
+  const seasonalIndex = metadata.seasonal_index as number | undefined
+  const monthName = metadata.month_name as string | undefined
+  const density = metadata.density as number | undefined
+
+  let prompt = `Analyze this ${context.description}:\n\n`
+
+  // Core stats
+  prompt += `## Key Data\n`
+  prompt += `- Report Count: ${pattern.report_count ?? 0}\n`
+  prompt += `- Status: ${pattern.status} (${pattern.status === 'emerging' ? 'newly detected' : pattern.status === 'active' ? 'ongoing' : 'historical'})\n`
+
+  // Pattern-specific metrics
+  if (zScore !== undefined) {
+    prompt += `- Z-Score: ${zScore.toFixed(2)} (${Math.abs(zScore) > 3 ? 'extremely unusual' : Math.abs(zScore) > 2.5 ? 'highly unusual' : 'notable'})\n`
+    prompt += `- Direction: ${isSpike ? 'SPIKE (increase)' : 'DROP (decrease)'}\n`
+  }
+
+  if (seasonalIndex !== undefined) {
+    prompt += `- Seasonal Index: ${seasonalIndex.toFixed(2)}× (${seasonalIndex > 1.5 ? 'peak season' : seasonalIndex < 0.5 ? 'low season' : 'near average'})\n`
+    if (monthName) prompt += `- Peak Month: ${monthName}\n`
+  }
+
+  if (density !== undefined) {
+    prompt += `- Spatial Density: ${density.toFixed(2)} reports/km²\n`
+  }
 
   if (pattern.center_point) {
-    // Handle both {lat, lng} format and GeoJSON {type: "Point", coordinates: [lng, lat]} format
     const cp = pattern.center_point as any
     const lat = cp.lat ?? cp.coordinates?.[1]
     const lng = cp.lng ?? cp.coordinates?.[0]
     if (typeof lat === 'number' && typeof lng === 'number') {
-      prompt += `Location: ${lat.toFixed(4)}, ${lng.toFixed(4)}\n`
+      prompt += `- Approximate Location: ${lat.toFixed(2)}°, ${lng.toFixed(2)}°\n`
     }
   }
 
   if (pattern.radius_km) {
-    prompt += `Radius: ${pattern.radius_km} km\n`
+    prompt += `- Geographic Spread: ~${pattern.radius_km} km radius\n`
   }
 
   if (pattern.categories.length > 0) {
-    prompt += `Categories: ${pattern.categories.join(', ')}\n`
+    prompt += `- Phenomena Types: ${pattern.categories.join(', ')}\n`
   }
 
-  prompt += `\nMetadata:\n${JSON.stringify(metadata, null, 2)}\n\n`
+  prompt += `\n## Context Questions to Consider\n`
+  context.questions.forEach(q => {
+    prompt += `- ${q}\n`
+  })
 
-  prompt += `Please provide:
-1. A concise, engaging title (max 100 characters)
-2. A brief summary (max 200 characters)
-3. A detailed narrative analysis (2-3 paragraphs) covering:
-   - What this pattern indicates
-   - Potential explanations (both mundane and anomalous)
-   - Historical context if relevant
-   - Recommendations for researchers
+  prompt += `\n## Your Task\n`
+  prompt += `Create an engaging, journalistic analysis of this pattern.\n\n`
 
-Format your response as:
-TITLE: [your title]
-SUMMARY: [your summary]
-NARRATIVE: [your detailed analysis]`
+  prompt += `1. TITLE (max 80 chars): Write a compelling headline that would make someone want to read more. Use active voice. Ask a question if appropriate. AVOID formulaic patterns like "X Reports in Y Region" or "Pattern Detected".\n\n`
+
+  prompt += `2. SUMMARY (max 180 chars): One punchy sentence capturing the key finding.\n\n`
+
+  prompt += `3. NARRATIVE (2-3 paragraphs):\n`
+  prompt += `   - Lead with the most interesting finding\n`
+  prompt += `   - Provide specific comparisons (e.g., "3× higher than average")\n`
+  prompt += `   - Offer at least one mundane and one anomalous explanation\n`
+  prompt += `   - Note any limitations or uncertainties\n`
+  prompt += `   - End with what researchers should investigate next\n\n`
+
+  prompt += `Format your response EXACTLY as:\n`
+  prompt += `TITLE: [your headline]\n`
+  prompt += `SUMMARY: [your summary]\n`
+  prompt += `NARRATIVE: [your detailed analysis]`
 
   return prompt
 }
