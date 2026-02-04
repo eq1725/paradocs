@@ -50,6 +50,13 @@ export const NON_EXPERIENCE_PATTERNS = [
   /\bshitpost\s*(sunday|saturday)?\b/i,
   /\bpsychedelic\s+art\s+tributes?\b/i,
   /\bvisualizing\s+consciousness.*art\b/i,
+  // Daily/weekly recurring content posts (not experiences)
+  /\b(daily|weekly|monthly)\s*(cryptid|creature|monster|ufo|alien|ghost|paranormal)\b/i,
+  /\b(cryptid|creature|monster)\s*(of the|for)\s*(day|week|month)\b/i,
+  /\b(today'?s?|this week'?s?)\s*(cryptid|creature|monster|featured)\b/i,
+  // "Look at this" / image sharing posts (not personal experiences)
+  /\b(look at|check out|found this|saw this|here'?s? a?n?)\s*(pic|photo|image|video|clip)\b/i,
+  /\b(thought you'?d?|you guys might|y'?all might)\s*(like|enjoy|appreciate)\b/i,
   // Merchandise and promotional
   /\b(for sale|buy now|shop|store|etsy|redbubble|teepublic|amazon)\b/i,
   /\b(merch|merchandise|t-shirt|shirt|poster|sticker|mug|print)\b/i,
@@ -99,6 +106,21 @@ export const LOW_EFFORT_PATTERNS = [
   /[!?]{3,}/,  // Excessive punctuation
   /(.)\1{4,}/,  // Repeated characters (aaaaa, !!!!!!)
   /^(help|what|why|how|does|is|can|should)\s/i,  // Questions only
+];
+
+// Single-word or very short titles that are just creature/phenomenon names (not experiences)
+export const NAME_ONLY_TITLE_PATTERNS = [
+  // Common cryptid names as standalone titles
+  /^(bigfoot|sasquatch|yeti|mothman|chupacabra|jackalope|wendigo|skinwalker|dogman|goatman)$/i,
+  /^(thunderbird|jersey devil|loch ness|nessie|ogopogo|champ|mokele-mbembe)$/i,
+  /^(grey|gray|nordic|reptilian|mantis)s?\s*(alien)?$/i,
+  /^(ufo|uap|orb|triangle|tic tac|cigar)s?$/i,
+  /^(ghost|apparition|poltergeist|shadow person|hat man|demon)s?$/i,
+  /^(tulpa|nde|obe|astral projection|sleep paralysis)$/i,
+  // Very short titles (1-3 words) that don't indicate a personal experience
+  /^[A-Z][a-z]+(\s+[A-Z][a-z]+)?$/,  // "Bigfoot" or "Bigfoot Sighting" without context
+  // Titles that are just [Cryptid] + generic noun
+  /^[A-Za-z]+\s+(photo|pic|image|video|footage|evidence|proof|sighting)s?$/i,
 ];
 
 // Question-only posts - these are discussions, not experiences
@@ -460,6 +482,17 @@ export function filterContent(
     }
   }
 
+  // Check name-only titles (creature names without experience context)
+  for (const pattern of NAME_ONLY_TITLE_PATTERNS) {
+    if (pattern.test(title.trim())) {
+      // Only reject if description also lacks first-person narrative
+      const hasFirstPerson = /\b(I|we|my|our)\s+(saw|heard|felt|experienced|encountered|witnessed|noticed)\b/i.test(description);
+      if (!hasFirstPerson) {
+        return { passed: false, reason: `Name-only title without personal experience` };
+      }
+    }
+  }
+
   // Check spam URLs
   if (opts.checkSpam) {
     for (const pattern of SPAM_URL_PATTERNS) {
@@ -532,6 +565,17 @@ export function isObviouslyLowQuality(title: string, description: string): boole
 
   // Repetitive content
   if (/(.{10,})\1{2,}/.test(description)) return true;
+
+  // Single-word cryptid names as titles (not experiences)
+  const nameOnlyPatterns = [
+    /^(bigfoot|sasquatch|yeti|mothman|chupacabra|jackalope|wendigo|skinwalker|dogman)$/i,
+    /^(thunderbird|jersey devil|loch ness|nessie|ogopogo|champ)$/i,
+    /^(ghost|apparition|poltergeist|shadow person|demon|tulpa)s?$/i,
+    /^(ufo|uap|orb|nde|obe)s?$/i,
+  ];
+  for (const pattern of nameOnlyPatterns) {
+    if (pattern.test(title.trim())) return true;
+  }
 
   // Question-only titles (not personal experiences)
   const questionOnlyPatterns = [

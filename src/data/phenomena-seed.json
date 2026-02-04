@@ -543,7 +543,7 @@
     {
       "name": "Near-Death Experience",
       "aliases": ["NDE", "Clinical Death Experience"],
-      "category": "psychic_phenomena",
+      "category": "psychological_experiences",
       "icon": "💫",
       "brief_description": "Profound experience reported by those who nearly died or were clinically dead",
       "key_characteristics": ["tunnel of light", "life review", "deceased relatives", "out-of-body", "peace"],
@@ -552,7 +552,7 @@
     {
       "name": "Out-of-Body Experience",
       "aliases": ["OBE", "Astral Projection", "OOBE"],
-      "category": "psychic_phenomena",
+      "category": "consciousness_practices",
       "icon": "🧘",
       "brief_description": "Experience of consciousness separating from the physical body",
       "key_characteristics": ["floating sensation", "seeing own body", "silver cord", "vivid awareness"],
@@ -606,7 +606,7 @@
     {
       "name": "Shared Death Experience",
       "aliases": ["SDE", "Empathic Death Experience"],
-      "category": "psychic_phenomena",
+      "category": "psychological_experiences",
       "icon": "👥",
       "brief_description": "Experience where living persons share aspects of a dying person's transition",
       "key_characteristics": ["shared visions", "mist leaving body", "tunnel experience", "loved ones present"],
@@ -741,7 +741,7 @@
     {
       "name": "Sleep Paralysis",
       "aliases": ["Night Paralysis", "Kanashibari"],
-      "category": "psychic_phenomena",
+      "category": "psychological_experiences",
       "icon": "😴",
       "brief_description": "State of being conscious but unable to move, often with hallucinations",
       "key_characteristics": ["cannot move", "presence felt", "chest pressure", "hypnagogic state"],

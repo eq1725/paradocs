@@ -27,7 +27,9 @@ const SUBREDDIT_CATEGORIES: Record<string, string> = {
   'astralprojection': 'consciousness_practices',
   'luciddreaming': 'consciousness_practices',
   'psychonaut': 'consciousness_practices',
-  'psychic': 'psychic_phenomena'
+  'psychic': 'psychic_phenomena',
+  'tulpas': 'consciousness_practices',
+  'tulpa': 'consciousness_practices'
 }
 
 function generateSlug(title: string, originalReportId: string, sourceType: string): string {
