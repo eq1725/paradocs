@@ -454,12 +454,8 @@ async function detectTemporalAnomaliesOptimized(): Promise<{ newPatterns: number
               mean_count: mean,
               std_dev: stdDev
             },
-            ai_title: isSpike
-              ? `Report Surge: ${count} Reports (Week of ${week})`
-              : `Report Decline: Only ${count} Reports (Week of ${week})`,
-            ai_summary: isSpike
-              ? `Statistically significant increase in paranormal reports. This week saw ${count} reports, which is ${(zScore).toFixed(1)} standard deviations above the weekly average of ${mean.toFixed(0)}.`
-              : `Unusual decrease in report activity. Only ${count} reports this week, ${Math.abs(zScore).toFixed(1)} standard deviations below average.`
+            ai_title: `Exploring Paranormal Reports from ${week}`,
+            ai_summary: `Historical archive of ${count} paranormal reports from the week of ${week}. Click to explore what witnesses described during this period.`
           })
         newPatterns++
       }
@@ -608,8 +604,8 @@ async function createTemporalPattern(data: any): Promise<string | null> {
         ratio: data.ratio,
         category: data.category
       },
-      ai_title: `${getCategoryName(data.category)} Surge: ${Math.round(data.ratio * 100)}% Above Average (Week of ${data.weekStart})`,
-      ai_summary: `A statistically significant surge in ${getCategoryName(data.category)} reports was detected during the week of ${data.weekStart}, with ${data.reportCount} reports - ${Math.round(data.ratio * 100)}% above the typical weekly average.`
+      ai_title: `${getCategoryName(data.category)} Reports: Week of ${data.weekStart}`,
+      ai_summary: `Explore ${data.reportCount} ${getCategoryName(data.category)} reports from the week of ${data.weekStart}. Click to discover what witnesses described.`
     })
     .select('id')
     .single()
@@ -637,8 +633,8 @@ async function createRegionalPattern(data: any): Promise<string | null> {
         location: data.location,
         category: data.category
       },
-      ai_title: `${getCategoryName(data.category)} Concentration: ${data.reports.length} Reports in ${data.location}`,
-      ai_summary: `A notable concentration of ${getCategoryName(data.category)} reports has been identified in ${data.location}, with ${data.reports.length} documented incidents in recent months.`
+      ai_title: `${getCategoryName(data.category)} in ${data.location}: What Witnesses Describe`,
+      ai_summary: `Explore ${data.reports.length} ${getCategoryName(data.category)} reports from ${data.location}. Click to discover the patterns in witness experiences.`
     })
     .select('id')
     .single()
