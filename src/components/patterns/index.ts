@@ -16,3 +16,6 @@ export { default as QualityFlags } from './QualityFlags'
 // Type-specific visualizations
 export { default as TemporalVisualization } from './TemporalVisualization'
 export { default as SeasonalVisualization } from './SeasonalVisualization'
+
+// Empty states
+export { default as BuildingInsightsState } from './BuildingInsightsState'

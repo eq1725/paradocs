@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import Layout from '@/components/Layout'
-import { PatternCard, Pattern } from '@/components/patterns'
+import { PatternCard, Pattern, BuildingInsightsState } from '@/components/patterns'
 import {
   TrendingUp,
   Filter,
@@ -13,6 +13,14 @@ import {
   Sparkles,
   FlaskConical
 } from 'lucide-react'
+
+interface BaselineStatus {
+  isBuilding: boolean
+  reportCount: number
+  weeksSinceStart: number
+  minReports: number
+  minWeeks: number
+}
 
 const PATTERN_TYPES = [
   { value: '', label: 'All Types' },
@@ -35,6 +43,7 @@ export default function InsightsPage() {
   const [loading, setLoading] = useState(true)
   const [typeFilter, setTypeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('active,emerging')
+  const [baselineStatus, setBaselineStatus] = useState<BaselineStatus | null>(null)
 
   useEffect(() => {
     async function fetchPatterns() {
@@ -50,6 +59,10 @@ export default function InsightsPage() {
         if (response.ok) {
           const data = await response.json()
           setPatterns(data.patterns || [])
+          // Check if API returns baseline status
+          if (data.baselineStatus) {
+            setBaselineStatus(data.baselineStatus)
+          }
         }
       } catch (error) {
         console.error('Failed to fetch patterns:', error)
@@ -60,6 +73,14 @@ export default function InsightsPage() {
 
     fetchPatterns()
   }, [typeFilter, statusFilter])
+
+  // Determine if we're in "building" mode
+  // Show building state when there are no patterns and baseline status indicates it
+  const isBuilding = patterns.length === 0 && (
+    baselineStatus?.isBuilding ||
+    // Fallback heuristic: if no patterns at all and fresh filters, likely building
+    (statusFilter === 'active,emerging' && !typeFilter)
+  )
 
   // Group patterns by type for the overview
   const patternsByType = patterns.reduce((acc, pattern) => {
@@ -177,7 +198,16 @@ export default function InsightsPage() {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 text-primary-400 animate-spin" />
           </div>
+        ) : patterns.length === 0 && isBuilding ? (
+          // Show building state when platform is gathering initial data
+          <BuildingInsightsState
+            reportCount={baselineStatus?.reportCount ?? 0}
+            weeksSinceStart={baselineStatus?.weeksSinceStart ?? 0}
+            minReports={baselineStatus?.minReports ?? 10}
+            minWeeks={baselineStatus?.minWeeks ?? 4}
+          />
         ) : patterns.length === 0 ? (
+          // Show "no results" when filters return nothing
           <div className="glass-card p-12 text-center">
             <Activity className="w-12 h-12 text-gray-600 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-white mb-2">

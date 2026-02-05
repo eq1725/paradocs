@@ -15,6 +15,55 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+// Minimum thresholds for pattern detection
+const MIN_REPORTS_FOR_PATTERN = 10
+const MIN_WEEKS_FOR_BASELINE = 4
+
+/**
+ * Get the baseline start date from system settings
+ * Pattern detection only considers data created after this date
+ */
+async function getBaselineStartDate(): Promise<Date> {
+  const { data } = await supabaseAdmin
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'pattern_baseline_start_date')
+    .single()
+
+  if (data?.value) {
+    return new Date(data.value)
+  }
+
+  // Default: 90 days ago if no setting exists
+  const defaultDate = new Date()
+  defaultDate.setDate(defaultDate.getDate() - 90)
+  return defaultDate
+}
+
+/**
+ * Check if we have enough data for meaningful pattern detection
+ */
+async function hasEnoughDataForPatterns(baselineStart: Date): Promise<boolean> {
+  const { count } = await supabaseAdmin
+    .from('reports')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'approved')
+    .gte('created_at', baselineStart.toISOString())
+
+  const weeksSinceStart = Math.floor(
+    (Date.now() - baselineStart.getTime()) / (7 * 24 * 60 * 60 * 1000)
+  )
+
+  const hasEnoughReports = (count || 0) >= MIN_REPORTS_FOR_PATTERN
+  const hasEnoughTime = weeksSinceStart >= MIN_WEEKS_FOR_BASELINE
+
+  if (!hasEnoughReports || !hasEnoughTime) {
+    console.log(`[Pattern Analysis] Insufficient data: ${count} reports, ${weeksSinceStart} weeks (need ${MIN_REPORTS_FOR_PATTERN} reports, ${MIN_WEEKS_FOR_BASELINE} weeks)`)
+  }
+
+  return hasEnoughReports && hasEnoughTime
+}
+
 // Categories to process - these match the actual database values
 const CATEGORIES = [
   'ufos_aliens',
@@ -55,6 +104,27 @@ export async function runOptimizedPatternAnalysis(): Promise<AnalysisResult> {
   let patternsUpdated = 0
   let patternsArchived = 0
   let totalReportsAnalyzed = 0
+
+  // Get baseline start date (only analyze data after this date)
+  const baselineStartDate = await getBaselineStartDate()
+  console.log(`[Pattern Analysis V2] Using baseline start date: ${baselineStartDate.toISOString()}`)
+
+  // Check if we have enough data for meaningful analysis
+  const hasEnoughData = await hasEnoughDataForPatterns(baselineStartDate)
+  if (!hasEnoughData) {
+    console.log('[Pattern Analysis V2] Skipping analysis - insufficient data for reliable patterns')
+    return {
+      run_id: 'skipped_insufficient_data',
+      status: 'completed',
+      patterns_detected: 0,
+      patterns_updated: 0,
+      patterns_archived: 0,
+      reports_analyzed: 0,
+      duration_ms: Date.now() - startTime,
+      errors: ['Insufficient data for pattern detection - building baseline'],
+      category_results: {}
+    }
+  }
 
   // Create run record
   const { data: runData, error: runError } = await supabaseAdmin
@@ -181,18 +251,18 @@ export async function runOptimizedPatternAnalysis(): Promise<AnalysisResult> {
 /**
  * Analyze trends for a specific category
  * Uses simpler time-based analysis instead of expensive DBSCAN
+ * Only considers data after the baseline start date
  */
 async function analyzeCategoryTrends(category: string): Promise<{ analyzed: number; patterns: number }> {
-  // Get report counts for this category over past 90 days
-  const ninetyDaysAgo = new Date()
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+  // Get baseline start date - only analyze data after this date
+  const baselineStartDate = await getBaselineStartDate()
 
   const { data: reports, error, count } = await supabaseAdmin
     .from('reports')
     .select('id, event_date, created_at, country, location_name, source_type', { count: 'exact' })
     .eq('status', 'approved')
     .eq('category', category)
-    .gte('created_at', ninetyDaysAgo.toISOString())
+    .gte('created_at', baselineStartDate.toISOString())
     .order('created_at', { ascending: false })
     .limit(5000)
 
@@ -201,7 +271,8 @@ async function analyzeCategoryTrends(category: string): Promise<{ analyzed: numb
   const reportsAnalyzed = count || reports?.length || 0
   let patternsFound = 0
 
-  if (!reports || reports.length < 10) {
+  // Need enough reports for meaningful analysis
+  if (!reports || reports.length < MIN_REPORTS_FOR_PATTERN) {
     return { analyzed: reportsAnalyzed, patterns: 0 }
   }
 
@@ -275,20 +346,30 @@ async function analyzeCategoryTrends(category: string): Promise<{ analyzed: numb
 
 /**
  * Detect temporal anomalies using simple statistical analysis
+ * Only considers data after the baseline start date
  */
 async function detectTemporalAnomaliesOptimized(): Promise<{ newPatterns: number; updatedPatterns: number }> {
   let newPatterns = 0
   let updatedPatterns = 0
 
-  // Get weekly report counts for the past year
+  // Get baseline start date - only analyze data after this date
+  const baselineStartDate = await getBaselineStartDate()
+
+  // Get weekly report counts since baseline start
   const { data: weeklyData, error } = await supabaseAdmin
     .from('reports')
     .select('created_at, category, source_type')
     .eq('status', 'approved')
-    .gte('created_at', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString())
+    .gte('created_at', baselineStartDate.toISOString())
     .limit(50000)
 
   if (error || !weeklyData) return { newPatterns: 0, updatedPatterns: 0 }
+
+  // Check if we have enough data for meaningful statistics
+  if (weeklyData.length < MIN_REPORTS_FOR_PATTERN) {
+    console.log(`[Temporal Analysis] Only ${weeklyData.length} reports since baseline - skipping`)
+    return { newPatterns: 0, updatedPatterns: 0 }
+  }
 
   // Group by week, tracking user vs ingested reports
   const weekCounts: Record<string, number> = {}
