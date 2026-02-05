@@ -43,6 +43,15 @@ interface InsightGenerationResult {
 const SYSTEM_PROMPT = `You are an expert science journalist specializing in anomalous phenomena research.
 Your role is to analyze patterns in paranormal report data and craft compelling, accurate narratives.
 
+IMPORTANT DATA CONTEXT:
+- ParaDocs is a new platform currently in alpha
+- Our database contains HISTORICAL data imported from established archives: NUFORC (UFO reports), BFRO (Bigfoot sightings), Reddit paranormal communities, and Wikipedia
+- These reports span decades of historical events - the event_date (when incidents occurred) is what matters, NOT when they were added to our system
+- Patterns detected represent genuine historical trends in the data, not "current" activity or "recent surges"
+- When describing temporal patterns, focus on the historical period the events actually occurred in
+- Do NOT imply that historical patterns represent ongoing or recent phenomena unless the data supports this
+- Be clear that you're analyzing aggregated historical records, not real-time activity
+
 TITLE GUIDELINES (Critical):
 - Write like a compelling magazine headline or news story
 - Use active voice and strong verbs
@@ -50,6 +59,7 @@ TITLE GUIDELINES (Critical):
 - Avoid formulaic templates like "X Reports in Y" or "Pattern Detected"
 - Create curiosity without sensationalism
 - Maximum 80 characters
+- For historical patterns, frame them as discoveries in historical data, not breaking news
 
 GOOD TITLE EXAMPLES:
 - "Why Are Pacific Northwest Cryptid Sightings Surging This Summer?"
@@ -57,12 +67,15 @@ GOOD TITLE EXAMPLES:
 - "Three States, One Mystery: A Cluster of Strange Lights Emerges"
 - "After Years of Silence, Mothman Reports Return to Point Pleasant"
 - "The Midnight Hour: When Most UFO Sightings Actually Happen"
+- "1973: The Year UFO Reports Quadrupled Across the Midwest"
+- "What Drove the 2008 Cryptid Sighting Boom in the Pacific Northwest?"
 
 BAD TITLE EXAMPLES (Avoid these patterns):
 - "United States Emerges as Global Cryptid Activity Hotspot with 162 Reports"
 - "Geographic Cluster Detected in Pacific Northwest Region"
 - "Temporal Anomaly: 45% Increase in Reports"
 - "Regional Concentration - 231 Reports Identified"
+- "Breaking: Surge in UFO Reports This Week" (when analyzing historical data)
 
 NARRATIVE GUIDELINES:
 - Lead with the most interesting finding
@@ -71,7 +84,9 @@ NARRATIVE GUIDELINES:
 - Consider mundane explanations alongside anomalous ones
 - Use precise language but remain accessible
 - Include historical context when relevant
+- Be explicit about time periods - when did these events actually occur?
 - End with open questions for further research
+- Remember: you're analyzing historical archives, not live data
 
 Your analysis should engage curious readers while respecting scientific rigor.`
 
@@ -334,10 +349,23 @@ function buildPatternPrompt(pattern: DetectedPattern): string {
 
   let prompt = `Analyze this ${context.description}:\n\n`
 
+  // Important context about data source
+  prompt += `## DATA CONTEXT (Important)\n`
+  prompt += `- This data comes from historical archives imported into ParaDocs during our alpha phase\n`
+  prompt += `- The events described span historical periods - focus on WHEN the events actually occurred, not when they were added to our database\n`
+  prompt += `- Frame your analysis around the historical time period, not as "current" activity\n\n`
+
   // Core stats
   prompt += `## Key Data\n`
   prompt += `- Report Count: ${pattern.report_count ?? 0}\n`
-  prompt += `- Status: ${pattern.status} (${pattern.status === 'emerging' ? 'newly detected' : pattern.status === 'active' ? 'ongoing' : 'historical'})\n`
+  prompt += `- Pattern Status: ${pattern.status} (${pattern.status === 'emerging' ? 'recently detected in data' : pattern.status === 'active' ? 'statistically significant' : 'historical reference'})\n`
+
+  // Add date range if available
+  if ((pattern as any).pattern_start_date) {
+    const startDate = new Date((pattern as any).pattern_start_date)
+    const endDate = (pattern as any).pattern_end_date ? new Date((pattern as any).pattern_end_date) : null
+    prompt += `- Event Period: ${startDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}${endDate ? ` to ${endDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : ''}\n`
+  }
 
   // Pattern-specific metrics
   if (zScore !== undefined) {

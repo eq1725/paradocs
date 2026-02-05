@@ -104,8 +104,7 @@ export default function InsightNarrative({ patternId, className }: InsightNarrat
         </div>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-gray-700/50 flex items-center justify-between text-xs text-gray-500">
-        <span>Powered by Claude</span>
+      <div className="mt-4 pt-4 border-t border-gray-700/50 flex items-center justify-end text-xs text-gray-500">
         <button
           onClick={fetchInsight}
           className="flex items-center gap-1 text-gray-400 hover:text-primary-400 transition-colors"

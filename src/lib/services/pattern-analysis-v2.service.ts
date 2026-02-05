@@ -319,13 +319,15 @@ async function analyzeCategoryTrends(category: string): Promise<{ analyzed: numb
           metadata: {
             ...existing.metadata,
             ratio,
-            user_reports: userReports,
-            ingested_reports: ingestedReports,
+            valid_reports: validReports,
+            test_import_reports: testImportReports,
             last_analyzed: new Date().toISOString()
           }
         })
+        // Update pattern_reports links
+        await linkReportsToPattern(existing.id, typedReports)
       } else {
-        await createTemporalPattern({
+        const patternId = await createTemporalPattern({
           pattern_type: 'temporal_anomaly',
           category,
           weekStart,
@@ -333,6 +335,10 @@ async function analyzeCategoryTrends(category: string): Promise<{ analyzed: numb
           ratio,
           reports: typedReports
         })
+        // Link reports to the new pattern
+        if (patternId) {
+          await linkReportsToPattern(patternId, typedReports)
+        }
         patternsFound++
       }
     }
@@ -346,12 +352,19 @@ async function analyzeCategoryTrends(category: string): Promise<{ analyzed: numb
       const existing = await findExistingPattern(patternKey)
 
       if (!existing) {
-        await createRegionalPattern({
+        const patternId = await createRegionalPattern({
           category,
           location,
           reports: locReports as any[]
         })
+        // Link reports to the new pattern
+        if (patternId) {
+          await linkReportsToPattern(patternId, locReports as any[])
+        }
         patternsFound++
+      } else {
+        // Update pattern_reports links for existing regional patterns
+        await linkReportsToPattern(existing.id, locReports as any[])
       }
     }
   }
@@ -578,8 +591,8 @@ async function updatePattern(id: string, updates: any) {
     .eq('id', id)
 }
 
-async function createTemporalPattern(data: any) {
-  await supabaseAdmin
+async function createTemporalPattern(data: any): Promise<string | null> {
+  const { data: pattern, error } = await supabaseAdmin
     .from('detected_patterns')
     .insert({
       pattern_type: 'temporal_anomaly',
@@ -598,11 +611,19 @@ async function createTemporalPattern(data: any) {
       ai_title: `${getCategoryName(data.category)} Surge: ${Math.round(data.ratio * 100)}% Above Average (Week of ${data.weekStart})`,
       ai_summary: `A statistically significant surge in ${getCategoryName(data.category)} reports was detected during the week of ${data.weekStart}, with ${data.reportCount} reports - ${Math.round(data.ratio * 100)}% above the typical weekly average.`
     })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('Error creating temporal pattern:', error)
+    return null
+  }
+  return pattern?.id || null
 }
 
-async function createRegionalPattern(data: any) {
+async function createRegionalPattern(data: any): Promise<string | null> {
   const reportCount = data.reports.length
-  await supabaseAdmin
+  const { data: pattern, error } = await supabaseAdmin
     .from('detected_patterns')
     .insert({
       pattern_type: 'regional_concentration',
@@ -619,6 +640,46 @@ async function createRegionalPattern(data: any) {
       ai_title: `${getCategoryName(data.category)} Concentration: ${data.reports.length} Reports in ${data.location}`,
       ai_summary: `A notable concentration of ${getCategoryName(data.category)} reports has been identified in ${data.location}, with ${data.reports.length} documented incidents in recent months.`
     })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('Error creating regional pattern:', error)
+    return null
+  }
+  return pattern?.id || null
+}
+
+/**
+ * Link reports to a pattern in the pattern_reports junction table
+ * Uses upsert to avoid duplicates
+ */
+async function linkReportsToPattern(patternId: string, reports: any[]): Promise<void> {
+  if (!patternId || !reports || reports.length === 0) return
+
+  // Create links for each report
+  const links = reports
+    .filter(r => r.id) // Only reports with valid IDs
+    .map(report => ({
+      pattern_id: patternId,
+      report_id: report.id,
+      relevance_score: 0.8 // Default relevance for auto-matched reports
+    }))
+
+  if (links.length === 0) return
+
+  // Insert in batches to avoid hitting limits
+  const batchSize = 500
+  for (let i = 0; i < links.length; i += batchSize) {
+    const batch = links.slice(i, i + batchSize)
+    const { error } = await supabaseAdmin
+      .from('pattern_reports')
+      .upsert(batch, { onConflict: 'pattern_id,report_id' })
+
+    if (error) {
+      console.error(`Error linking reports to pattern ${patternId}:`, error)
+    }
+  }
 }
 
 function getCategoryName(category: string): string {
