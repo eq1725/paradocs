@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import Layout from '@/components/Layout'
 import { PatternCard, Pattern, BuildingInsightsState } from '@/components/patterns'
 import {
   TrendingUp,
@@ -119,7 +118,7 @@ export default function InsightsPage() {
   ]
 
   return (
-    <Layout>
+    <>
       <Head>
         <title>Pattern Insights | Paradocs</title>
         <meta
@@ -226,6 +225,6 @@ export default function InsightsPage() {
         )}
 
       </div>
-    </Layout>
+    </>
   )
 }

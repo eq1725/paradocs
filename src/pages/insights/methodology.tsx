@@ -1,7 +1,6 @@
 import React from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import Layout from '@/components/Layout'
 import {
   FlaskConical,
   Database,
@@ -166,7 +165,7 @@ function QualityFlagItem({
 
 export default function MethodologyPage() {
   return (
-    <Layout>
+    <>
       <Head>
         <title>Research Methodology | ParaDocs Pattern Detection</title>
         <meta
@@ -941,6 +940,6 @@ export default function MethodologyPage() {
           </p>
         </div>
       </div>
-    </Layout>
+    </>
   )
 }

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import Link from 'next/link'
-import Layout from '@/components/Layout'
 import {
   InsightNarrative,
   Pattern,
@@ -174,30 +173,26 @@ export default function PatternDetailPage() {
 
   if (loading) {
     return (
-      <Layout>
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 text-primary-400 animate-spin" />
-        </div>
-      </Layout>
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 text-primary-400 animate-spin" />
+      </div>
     )
   }
 
   if (error || !pattern || !enhancedScores) {
     return (
-      <Layout>
-        <div className="py-20 text-center">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-white mb-2">Pattern Not Found</h1>
-          <p className="text-gray-400 mb-6">{error || 'Unable to load pattern details'}</p>
-          <Link
-            href="/insights"
-            className="inline-flex items-center gap-2 text-primary-400 hover:text-primary-300"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Insights
-          </Link>
-        </div>
-      </Layout>
+      <div className="py-20 text-center">
+        <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+        <h1 className="text-xl font-bold text-white mb-2">Pattern Not Found</h1>
+        <p className="text-gray-400 mb-6">{error || 'Unable to load pattern details'}</p>
+        <Link
+          href="/insights"
+          className="inline-flex items-center gap-2 text-primary-400 hover:text-primary-300"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Insights
+        </Link>
+      </div>
     )
   }
 
@@ -220,7 +215,7 @@ export default function PatternDetailPage() {
     : null
 
   return (
-    <Layout>
+    <>
       <Head>
         <title>{pattern.ai_title || TYPE_LABELS[pattern.pattern_type]} | ParaDocs Insights</title>
         <meta
@@ -501,6 +496,6 @@ export default function PatternDetailPage() {
           </div>
         </div>
       </div>
-    </Layout>
+    </>
   )
 }

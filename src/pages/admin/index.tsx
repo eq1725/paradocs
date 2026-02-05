@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
-import Layout from '@/components/Layout'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import StatsCard from '@/components/admin/StatsCard'
@@ -243,11 +242,9 @@ export default function AdminDashboard() {
 
   if (authLoading || loading) {
     return (
-      <Layout>
-        <div className="flex justify-center items-center min-h-[50vh]">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
-        </div>
-      </Layout>
+      <div className="flex justify-center items-center min-h-[50vh]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
+      </div>
     )
   }
 
@@ -259,7 +256,7 @@ export default function AdminDashboard() {
                           stats?.healthStatus === 'warning' ? '🟡' : '🔴'
 
   return (
-    <Layout>
+    <>
       <Head>
         <title>Command Center - Paradocs</title>
       </Head>
@@ -571,6 +568,6 @@ export default function AdminDashboard() {
           </section>
         )}
       </div>
-    </Layout>
+    </>
   )
 }
