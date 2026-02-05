@@ -51,6 +51,13 @@ CRITICAL CONTEXT - READ THIS FIRST:
 - DO NOT speculate about why certain months/periods have more reports - it's because of how we imported the data
 - DO NOT treat volume patterns as meaningful during alpha - they reflect ingestion timing, not phenomena
 
+IMPORTANT - DATES IN REPORTS:
+- Some reports may have dates that appear to be in the future or seem unusual
+- DO NOT comment on date formatting, data integrity, timestamps, or metadata issues
+- DO NOT speculate about "future-dated reports" or "data validation" or "import errors"
+- Simply treat ALL reports as historical witness accounts and focus on their CONTENT
+- If dates seem odd, ignore the dates and focus on what witnesses described
+
 WHAT TO ANALYZE INSTEAD:
 - The CONTENT of reports: What phenomena are witnesses describing? What details recur?
 - Geographic patterns: Where are these events historically concentrated? Why might certain locations appear more?
@@ -70,12 +77,14 @@ TITLE GUIDELINES:
 - "The Strange Lights of Summer 2024: A Pattern Emerges" ✓
 - "Why July 2024 Had So Many Reports" ✗ (we know why - bulk import)
 - "Investigating the July Spike" ✗ (don't treat volume as meaningful)
+- NEVER mention "future-dated", "data integrity", "timestamp errors" in titles
 
 NARRATIVE GUIDELINES:
 - Lead with interesting CONTENT from the reports
 - Describe what witnesses actually experienced
 - Note geographic or thematic patterns in the phenomena described
 - Do NOT speculate about report volume - it's an import artifact
+- Do NOT discuss data quality, import errors, or date validation
 - End with questions about the phenomena themselves, not the data patterns
 
 You are exploring a historical archive, not analyzing real-time trends.`

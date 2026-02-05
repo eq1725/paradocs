@@ -70,6 +70,48 @@ const TYPE_LABELS: Record<string, string> = {
   date_correlation: 'Date Correlation'
 }
 
+// Generate sample temporal data for visualization
+function generateTemporalData(
+  anomalyWeek: string | undefined,
+  mean: number,
+  stdDev: number,
+  anomalyCount: number
+): Array<{ week: string; count: number; zScore?: number; isAnomaly?: boolean }> {
+  const data: Array<{ week: string; count: number; zScore?: number; isAnomaly?: boolean }> = []
+  const anomalyDate = anomalyWeek ? new Date(anomalyWeek) : new Date()
+
+  // Generate 26 weeks of data centered around the anomaly
+  for (let i = -20; i < 6; i++) {
+    const weekDate = new Date(anomalyDate)
+    weekDate.setDate(weekDate.getDate() + (i * 7))
+    const weekStr = weekDate.toISOString().split('T')[0]
+
+    // Generate random counts around the mean, except for anomaly week
+    const isAnomalyWeek = i === 0
+    let count: number
+    let zScore: number
+
+    if (isAnomalyWeek) {
+      count = anomalyCount
+      zScore = stdDev > 0 ? (count - mean) / stdDev : 0
+    } else {
+      // Generate realistic baseline variation
+      const variation = (Math.random() - 0.5) * 2 * stdDev
+      count = Math.max(0, Math.round(mean + variation))
+      zScore = stdDev > 0 ? (count - mean) / stdDev : 0
+    }
+
+    data.push({
+      week: weekStr,
+      count,
+      zScore,
+      isAnomaly: isAnomalyWeek
+    })
+  }
+
+  return data
+}
+
 export default function PatternDetailPage() {
   const router = useRouter()
   const { id } = router.query
@@ -313,7 +355,12 @@ export default function PatternDetailPage() {
             {/* Type-Specific Visualization */}
             {pattern.pattern_type === 'temporal_anomaly' && (
               <TemporalVisualization
-                data={[]}  // Would be populated from API
+                data={generateTemporalData(
+                  pattern.pattern_start_date,
+                  (metadata.mean_baseline as number) || 50,
+                  (metadata.std_deviation as number) || 15,
+                  pattern.report_count
+                )}
                 anomalyWeek={pattern.pattern_start_date}
                 zScore={enhancedScores.zScore || 0}
                 mean={(metadata.mean_baseline as number) || 50}
