@@ -273,16 +273,15 @@ export async function runOptimizedPatternAnalysis(): Promise<AnalysisResult> {
  * Only considers data after the baseline start date
  */
 async function analyzeCategoryTrends(category: string): Promise<{ analyzed: number; patterns: number }> {
-  // Get baseline start date - only analyze data after this date
-  const baselineStartDate = await getBaselineStartDate()
-
+  // Get all reports for this category - we use event_date for temporal analysis
   const { data: reports, error, count } = await supabaseAdmin
     .from('reports')
     .select('id, event_date, created_at, country, location_name, source_type', { count: 'exact' })
     .eq('status', 'approved')
     .eq('category', category)
-    .gte('created_at', baselineStartDate.toISOString())
-    .order('created_at', { ascending: false })
+    .not('event_date', 'is', null)
+    .gte('event_date', '1900-01-01') // Filter out clearly erroneous dates
+    .order('event_date', { ascending: false })
     .limit(5000)
 
   if (error) throw error
@@ -296,8 +295,10 @@ async function analyzeCategoryTrends(category: string): Promise<{ analyzed: numb
   }
 
   // Calculate weekly averages and detect surges
-  const weeklyGroups = groupByWeek(reports)
-  const avgPerWeek = reports.length / 13 // 90 days ≈ 13 weeks
+  // Use event_date for temporal grouping (when the event happened, not when it was imported)
+  const weeklyGroups = groupByWeekEventDate(reports)
+  const numWeeks = Object.keys(weeklyGroups).length || 1
+  const avgPerWeek = reports.length / numWeeks
 
   for (const [weekStart, weekReports] of Object.entries(weeklyGroups)) {
     const weekCount = (weekReports as any[]).length
@@ -372,30 +373,30 @@ async function detectTemporalAnomaliesOptimized(): Promise<{ newPatterns: number
   let newPatterns = 0
   let updatedPatterns = 0
 
-  // Get baseline start date - only analyze data after this date
-  const baselineStartDate = await getBaselineStartDate()
-
-  // Get weekly report counts since baseline start
+  // Get weekly report counts - use event_date for historical analysis
+  // We analyze ALL data by event_date, not filtered by created_at
   const { data: weeklyData, error } = await supabaseAdmin
     .from('reports')
-    .select('created_at, category, source_type')
+    .select('event_date, category, source_type')
     .eq('status', 'approved')
-    .gte('created_at', baselineStartDate.toISOString())
+    .not('event_date', 'is', null)
+    .gte('event_date', '1900-01-01') // Filter out clearly erroneous dates
     .limit(50000)
 
   if (error || !weeklyData) return { newPatterns: 0, updatedPatterns: 0 }
 
   // Check if we have enough data for meaningful statistics
   if (weeklyData.length < MIN_REPORTS_FOR_PATTERN) {
-    console.log(`[Temporal Analysis] Only ${weeklyData.length} reports since baseline - skipping`)
+    console.log(`[Temporal Analysis] Only ${weeklyData.length} reports with event_date - skipping`)
     return { newPatterns: 0, updatedPatterns: 0 }
   }
 
-  // Group by week, tracking valid data sources vs test imports
+  // Group by week using event_date (when the event happened, not when imported)
   const weekCounts: Record<string, number> = {}
   const weekValidCounts: Record<string, number> = {}
   for (const report of weeklyData) {
-    const week = getWeekStart(new Date(report.created_at))
+    if (!report.event_date) continue
+    const week = getWeekStart(new Date(report.event_date))
     weekCounts[week] = (weekCounts[week] || 0) + 1
     // Track reports from valid data sources (not test imports)
     if (isValidDataSource(report.source_type)) {
@@ -518,6 +519,24 @@ function groupByWeek(reports: any[]): Record<string, any[]> {
   const groups: Record<string, any[]> = {}
   for (const report of reports) {
     const week = getWeekStart(new Date(report.created_at))
+    if (!groups[week]) groups[week] = []
+    groups[week].push(report)
+  }
+  return groups
+}
+
+/**
+ * Group reports by event_date week (when the event happened, not when imported)
+ * Filters out reports with invalid/missing event_dates
+ */
+function groupByWeekEventDate(reports: any[]): Record<string, any[]> {
+  const groups: Record<string, any[]> = {}
+  for (const report of reports) {
+    if (!report.event_date) continue
+    const eventDate = new Date(report.event_date)
+    // Filter out clearly invalid dates (before 1900 or in the future)
+    if (eventDate.getFullYear() < 1900 || eventDate > new Date()) continue
+    const week = getWeekStart(eventDate)
     if (!groups[week]) groups[week] = []
     groups[week].push(report)
   }
