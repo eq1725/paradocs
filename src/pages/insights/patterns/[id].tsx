@@ -336,55 +336,6 @@ export default function PatternDetailPage() {
 
             {/* Skeptic Mode */}
             <SkepticMode hypotheses={enhancedScores.hypotheses} />
-
-            {/* Associated Reports */}
-            <div className="glass-card p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-display font-semibold text-white">
-                  Associated Reports ({reports.length})
-                </h2>
-                {reports.length > 0 && (
-                  <Link
-                    href={`/explore?pattern=${pattern.id}`}
-                    className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1"
-                  >
-                    View all <ChevronRight className="w-4 h-4" />
-                  </Link>
-                )}
-              </div>
-              {reports.length === 0 ? (
-                <p className="text-gray-400">No reports linked to this pattern yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {reports.slice(0, 10).map((report) => (
-                    <Link
-                      key={report.id}
-                      href={`/report/${report.slug}`}
-                      className="block glass-card p-4 hover:scale-[1.01] transition-transform"
-                    >
-                      <h3 className="font-medium text-white">{report.title}</h3>
-                      <div className="flex items-center gap-4 mt-2 text-sm text-gray-400">
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {report.location_description || 'Unknown location'}
-                        </span>
-                        {report.event_date && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {formatDate(report.event_date)}
-                          </span>
-                        )}
-                      </div>
-                    </Link>
-                  ))}
-                  {reports.length > 10 && (
-                    <p className="text-center text-gray-500 text-sm pt-2">
-                      + {reports.length - 10} more reports
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Sidebar */}
@@ -494,6 +445,60 @@ export default function PatternDetailPage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Associated Reports - Full Width */}
+        <div className="glass-card p-6 mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-display font-semibold text-white">
+              Associated Reports ({reports.length})
+            </h2>
+            {reports.length > 0 && (
+              <Link
+                href={`/explore?pattern=${pattern.id}`}
+                className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1"
+              >
+                View all <ChevronRight className="w-4 h-4" />
+              </Link>
+            )}
+          </div>
+          {reports.length === 0 ? (
+            <p className="text-gray-400">No reports linked to this pattern yet.</p>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {reports.slice(0, 12).map((report) => (
+                <Link
+                  key={report.id}
+                  href={`/report/${report.slug}`}
+                  className="block glass-card p-4 hover:scale-[1.02] transition-transform"
+                >
+                  <h3 className="font-medium text-white text-sm line-clamp-2">{report.title}</h3>
+                  <div className="flex flex-col gap-1 mt-2 text-xs text-gray-400">
+                    <span className="flex items-center gap-1 truncate">
+                      <MapPin className="w-3 h-3 flex-shrink-0" />
+                      {report.location_description || 'Unknown location'}
+                    </span>
+                    {report.event_date && (
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3 flex-shrink-0" />
+                        {formatDate(report.event_date)}
+                      </span>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+          {reports.length > 12 && (
+            <div className="text-center mt-4">
+              <Link
+                href={`/explore?pattern=${pattern.id}`}
+                className="text-sm text-primary-400 hover:text-primary-300"
+              >
+                View all {reports.length} reports →
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </>
