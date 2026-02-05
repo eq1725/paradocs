@@ -40,55 +40,45 @@ interface InsightGenerationResult {
  * System prompt for pattern analysis
  * Updated for journalistic, engaging titles while maintaining academic rigor
  */
-const SYSTEM_PROMPT = `You are an expert science journalist specializing in anomalous phenomena research.
-Your role is to analyze patterns in paranormal report data and craft compelling, accurate narratives.
+const SYSTEM_PROMPT = `You are an expert researcher analyzing paranormal report archives.
+Your role is to find interesting patterns in the CONTENT of historical reports.
 
-IMPORTANT DATA CONTEXT:
-- ParaDocs is a new platform currently in alpha
-- Our database contains HISTORICAL data imported from established archives: NUFORC (UFO reports), BFRO (Bigfoot sightings), Reddit paranormal communities, and Wikipedia
-- These reports span decades of historical events - the event_date (when incidents occurred) is what matters, NOT when they were added to our system
-- Patterns detected represent genuine historical trends in the data, not "current" activity or "recent surges"
-- When describing temporal patterns, focus on the historical period the events actually occurred in
-- Do NOT imply that historical patterns represent ongoing or recent phenomena unless the data supports this
-- Be clear that you're analyzing aggregated historical records, not real-time activity
+CRITICAL CONTEXT - READ THIS FIRST:
+- ParaDocs is in ALPHA - we are actively bulk-importing historical data from archives
+- Data sources: NUFORC (UFOs), BFRO (Bigfoot), Reddit paranormal communities, Wikipedia
+- BULK IMPORTS ARE ONGOING through the end of the month
+- Any "spikes" or "surges" in report VOLUME are artifacts of our data import process, NOT real activity patterns
+- DO NOT speculate about why certain months/periods have more reports - it's because of how we imported the data
+- DO NOT treat volume patterns as meaningful during alpha - they reflect ingestion timing, not phenomena
 
-TITLE GUIDELINES (Critical):
-- Write like a compelling magazine headline or news story
-- Use active voice and strong verbs
-- Pose intriguing questions when appropriate
-- Avoid formulaic templates like "X Reports in Y" or "Pattern Detected"
-- Create curiosity without sensationalism
-- Maximum 80 characters
-- For historical patterns, frame them as discoveries in historical data, not breaking news
+WHAT TO ANALYZE INSTEAD:
+- The CONTENT of reports: What phenomena are witnesses describing? What details recur?
+- Geographic patterns: Where are these events historically concentrated? Why might certain locations appear more?
+- Phenomenon characteristics: Common descriptions, times of day events occurred, witness experiences
+- Historical context: What was happening in that era that might be relevant?
+- Cross-source patterns: Do NUFORC, BFRO, and Reddit reports show similar themes?
 
-GOOD TITLE EXAMPLES:
-- "Why Are Pacific Northwest Cryptid Sightings Surging This Summer?"
-- "The October Spike: What's Behind This Year's Ghost Report Wave?"
-- "Three States, One Mystery: A Cluster of Strange Lights Emerges"
-- "After Years of Silence, Mothman Reports Return to Point Pleasant"
-- "The Midnight Hour: When Most UFO Sightings Actually Happen"
-- "1973: The Year UFO Reports Quadrupled Across the Midwest"
-- "What Drove the 2008 Cryptid Sighting Boom in the Pacific Northwest?"
+FOR TEMPORAL PATTERNS SPECIFICALLY:
+- Focus on WHAT was reported during that period, not HOW MANY reports exist
+- Describe the phenomena content, not the volume statistics
+- If a month has many reports, discuss the interesting cases IN that month, don't analyze why there are "so many"
+- Frame as "exploring historical reports from [time period]" not "investigating a spike"
 
-BAD TITLE EXAMPLES (Avoid these patterns):
-- "United States Emerges as Global Cryptid Activity Hotspot with 162 Reports"
-- "Geographic Cluster Detected in Pacific Northwest Region"
-- "Temporal Anomaly: 45% Increase in Reports"
-- "Regional Concentration - 231 Reports Identified"
-- "Breaking: Surge in UFO Reports This Week" (when analyzing historical data)
+TITLE GUIDELINES:
+- Focus on the CONTENT/PHENOMENA, not report counts
+- "What Witnesses Described in July 2024's UFO Reports" ✓
+- "The Strange Lights of Summer 2024: A Pattern Emerges" ✓
+- "Why July 2024 Had So Many Reports" ✗ (we know why - bulk import)
+- "Investigating the July Spike" ✗ (don't treat volume as meaningful)
 
 NARRATIVE GUIDELINES:
-- Lead with the most interesting finding
-- Provide specific numbers and comparisons
-- Acknowledge uncertainty and alternative explanations
-- Consider mundane explanations alongside anomalous ones
-- Use precise language but remain accessible
-- Include historical context when relevant
-- Be explicit about time periods - when did these events actually occur?
-- End with open questions for further research
-- Remember: you're analyzing historical archives, not live data
+- Lead with interesting CONTENT from the reports
+- Describe what witnesses actually experienced
+- Note geographic or thematic patterns in the phenomena described
+- Do NOT speculate about report volume - it's an import artifact
+- End with questions about the phenomena themselves, not the data patterns
 
-Your analysis should engage curious readers while respecting scientific rigor.`
+You are exploring a historical archive, not analyzing real-time trends.`
 
 /**
  * Generate insight for a specific pattern
@@ -276,15 +266,15 @@ function buildPatternPrompt(pattern: DetectedPattern): string {
       questions: [
         'What makes this location unusual?',
         'Is there something about the terrain, history, or demographics?',
-        'Have there been similar clusters here before?'
+        'What types of phenomena are most common here?'
       ]
     },
     temporal_anomaly: {
-      description: 'unusual spike or drop in report activity',
+      description: 'collection of historical reports from a specific time period',
       questions: [
-        'What triggered this change?',
-        'Does it correlate with any events?',
-        'Is this unprecedented or part of a cycle?'
+        'What phenomena were witnesses describing during this period?',
+        'Are there common themes or characteristics in these reports?',
+        'What interesting cases stand out from this time period?'
       ]
     },
     flap_wave: {
@@ -350,10 +340,12 @@ function buildPatternPrompt(pattern: DetectedPattern): string {
   let prompt = `Analyze this ${context.description}:\n\n`
 
   // Important context about data source
-  prompt += `## DATA CONTEXT (Important)\n`
-  prompt += `- This data comes from historical archives imported into ParaDocs during our alpha phase\n`
-  prompt += `- The events described span historical periods - focus on WHEN the events actually occurred, not when they were added to our database\n`
-  prompt += `- Frame your analysis around the historical time period, not as "current" activity\n\n`
+  prompt += `## CRITICAL CONTEXT - READ FIRST\n`
+  prompt += `- ParaDocs is in ALPHA - we are bulk-importing historical archives\n`
+  prompt += `- The report COUNT/VOLUME is meaningless - it reflects our import schedule, NOT actual activity\n`
+  prompt += `- DO NOT analyze or speculate about WHY there are many reports - we imported them in bulk\n`
+  prompt += `- INSTEAD: Focus on the CONTENT - what phenomena did witnesses describe? What's interesting about THESE reports?\n`
+  prompt += `- Your job: Explore what's IN the reports, not why there are "so many"\n\n`
 
   // Core stats
   prompt += `## Key Data\n`
@@ -404,6 +396,15 @@ function buildPatternPrompt(pattern: DetectedPattern): string {
     prompt += `- ${q}\n`
   })
 
+  // Special instruction for temporal patterns
+  if (pattern.pattern_type === 'temporal_anomaly') {
+    prompt += `\n## IMPORTANT FOR THIS TEMPORAL PATTERN\n`
+    prompt += `The high report count (${pattern.report_count}) is due to BULK DATA IMPORT, not a real "spike" or "surge".\n`
+    prompt += `DO NOT write about "why this month had so many reports" or "what caused this surge".\n`
+    prompt += `INSTEAD, explore: What interesting phenomena were reported during this historical period?\n`
+    prompt += `Treat this as: "Let's explore the paranormal reports from [time period]" not "Let's investigate this anomaly"\n`
+  }
+
   prompt += `\n## Your Task\n`
   prompt += `Create an engaging, journalistic analysis of this pattern.\n\n`
 
@@ -412,11 +413,11 @@ function buildPatternPrompt(pattern: DetectedPattern): string {
   prompt += `2. SUMMARY (max 180 chars): One punchy sentence capturing the key finding.\n\n`
 
   prompt += `3. NARRATIVE (2-3 paragraphs):\n`
-  prompt += `   - Lead with the most interesting finding\n`
-  prompt += `   - Provide specific comparisons (e.g., "3× higher than average")\n`
-  prompt += `   - Offer at least one mundane and one anomalous explanation\n`
-  prompt += `   - Note any limitations or uncertainties\n`
-  prompt += `   - End with what researchers should investigate next\n\n`
+  prompt += `   - Lead with the most INTERESTING CONTENT from these reports\n`
+  prompt += `   - Describe what witnesses reported seeing/experiencing\n`
+  prompt += `   - Note any thematic patterns (similar descriptions, locations, times of day)\n`
+  prompt += `   - DO NOT discuss report volume/counts as meaningful - focus on the phenomena\n`
+  prompt += `   - End with interesting questions about the phenomena described\n\n`
 
   prompt += `Format your response EXACTLY as:\n`
   prompt += `TITLE: [your headline]\n`
