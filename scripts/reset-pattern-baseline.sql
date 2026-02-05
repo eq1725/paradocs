@@ -3,10 +3,11 @@
 -- Run this to start fresh for alpha
 -- ============================================
 
--- 1. Archive all existing patterns (don't delete - keep for reference)
+-- 1. Archive all existing patterns (mark as 'historical' - the closest status to archived)
+-- Note: pattern_status enum only has: active, historical, emerging, declining
 UPDATE detected_patterns
 SET
-  status = 'archived',
+  status = 'historical',
   metadata = jsonb_set(
     jsonb_set(
       COALESCE(metadata, '{}'::jsonb),
