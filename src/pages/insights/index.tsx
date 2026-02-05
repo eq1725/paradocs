@@ -10,8 +10,14 @@ import {
   Calendar,
   Activity,
   Sparkles,
-  FlaskConical
+  FlaskConical,
+  User,
+  Settings,
+  Star
 } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { CATEGORY_CONFIG } from '@/lib/constants'
+import type { PhenomenonCategory } from '@/lib/database.types'
 
 interface BaselineStatus {
   isBuilding: boolean
@@ -44,6 +50,32 @@ export default function InsightsPage() {
   const [statusFilter, setStatusFilter] = useState('active,emerging')
   const [baselineStatus, setBaselineStatus] = useState<BaselineStatus | null>(null)
 
+  // Personalization state
+  const [user, setUser] = useState<{ id: string } | null>(null)
+  const [userInterests, setUserInterests] = useState<PhenomenonCategory[]>([])
+  const [showPersonalized, setShowPersonalized] = useState(false)
+  const [personalizedPatterns, setPersonalizedPatterns] = useState<Pattern[]>([])
+
+  // Check for logged-in user and their interests
+  useEffect(() => {
+    async function checkUser() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        setUser({ id: session.user.id })
+        // Fetch user interests
+        const { data } = await supabase
+          .from('profiles')
+          .select('interested_categories')
+          .eq('id', session.user.id)
+          .single()
+        if (data?.interested_categories) {
+          setUserInterests(data.interested_categories as PhenomenonCategory[])
+        }
+      }
+    }
+    checkUser()
+  }, [])
+
   useEffect(() => {
     async function fetchPatterns() {
       setLoading(true)
@@ -73,6 +105,16 @@ export default function InsightsPage() {
     fetchPatterns()
   }, [typeFilter, statusFilter])
 
+  // Filter patterns for user interests
+  useEffect(() => {
+    if (userInterests.length > 0 && patterns.length > 0) {
+      const filtered = patterns.filter(pattern =>
+        pattern.categories?.some(cat => userInterests.includes(cat as PhenomenonCategory))
+      )
+      setPersonalizedPatterns(filtered)
+    }
+  }, [patterns, userInterests])
+
   // Determine if we're in "building" mode
   // Show building state when there are no patterns and baseline status indicates it
   const isBuilding = patterns.length === 0 && (
@@ -80,6 +122,11 @@ export default function InsightsPage() {
     // Fallback heuristic: if no patterns at all and fresh filters, likely building
     (statusFilter === 'active,emerging' && !typeFilter)
   )
+
+  // Get displayed patterns based on personalization toggle
+  const displayedPatterns = showPersonalized && personalizedPatterns.length > 0
+    ? personalizedPatterns
+    : patterns
 
   // Group patterns by type for the overview
   const patternsByType = patterns.reduce((acc, pattern) => {
@@ -146,6 +193,70 @@ export default function InsightsPage() {
           </Link>
         </div>
 
+        {/* Personalization Banner for logged-in users */}
+        {user && userInterests.length > 0 && (
+          <div className="glass-card p-4 mb-6 bg-gradient-to-r from-primary-900/20 to-purple-900/20 border border-primary-500/20">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary-500/20">
+                  <Star className="w-5 h-5 text-primary-400" />
+                </div>
+                <div>
+                  <h3 className="font-medium text-white">Personalized For You</h3>
+                  <p className="text-sm text-gray-400">
+                    {personalizedPatterns.length} patterns match your interests
+                    ({userInterests.map(i => CATEGORY_CONFIG[i]?.label || i).join(', ')})
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowPersonalized(!showPersonalized)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    showPersonalized
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  }`}
+                >
+                  {showPersonalized ? 'Showing My Interests' : 'Show My Interests'}
+                </button>
+                <Link
+                  href="/dashboard/settings"
+                  className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                  title="Update interests"
+                >
+                  <Settings className="w-5 h-5" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sign-in prompt for non-logged users */}
+        {!user && (
+          <div className="glass-card p-4 mb-6 border border-gray-700/50">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-gray-700/50">
+                  <User className="w-5 h-5 text-gray-400" />
+                </div>
+                <div>
+                  <h3 className="font-medium text-white">Get Personalized Insights</h3>
+                  <p className="text-sm text-gray-400">
+                    Sign in and set your interests to see patterns that matter to you
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/login?redirect=/insights"
+                className="px-4 py-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-sm font-medium text-white transition-colors"
+              >
+                Sign In
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* Stats Overview */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {stats.map((stat, index) => (
@@ -187,7 +298,8 @@ export default function InsightsPage() {
               ))}
             </select>
             <span className="text-sm text-gray-500 ml-auto">
-              {patterns.length} patterns found
+              {displayedPatterns.length} patterns found
+              {showPersonalized && ` (${patterns.length} total)`}
             </span>
           </div>
         </div>
@@ -205,20 +317,30 @@ export default function InsightsPage() {
             minReports={baselineStatus?.minReports ?? 10}
             minWeeks={baselineStatus?.minWeeks ?? 4}
           />
-        ) : patterns.length === 0 ? (
+        ) : displayedPatterns.length === 0 ? (
           // Show "no results" when filters return nothing
           <div className="glass-card p-12 text-center">
             <Activity className="w-12 h-12 text-gray-600 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-white mb-2">
-              No Patterns Found
+              {showPersonalized ? 'No Matching Patterns' : 'No Patterns Found'}
             </h3>
             <p className="text-gray-400">
-              No patterns match your current filters. Try adjusting your search criteria.
+              {showPersonalized
+                ? 'No patterns match your interests. Try viewing all patterns or updating your interests in settings.'
+                : 'No patterns match your current filters. Try adjusting your search criteria.'}
             </p>
+            {showPersonalized && (
+              <button
+                onClick={() => setShowPersonalized(false)}
+                className="mt-4 text-primary-400 hover:text-primary-300"
+              >
+                View all patterns
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {patterns.map(pattern => (
+            {displayedPatterns.map(pattern => (
               <PatternCard key={pattern.id} pattern={pattern} variant="featured" />
             ))}
           </div>

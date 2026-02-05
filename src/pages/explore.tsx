@@ -3,7 +3,8 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
-import { Search, SlidersHorizontal, X, ChevronDown } from 'lucide-react'
+import { Search, SlidersHorizontal, X, ChevronDown, Sparkles, ArrowRight } from 'lucide-react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonType, PhenomenonCategory, CredibilityLevel } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG, COUNTRIES } from '@/lib/constants'
@@ -266,6 +267,25 @@ export default function ExplorePage() {
             Browse {totalCount.toLocaleString()} documented paranormal encounters
           </p>
         </div>
+
+        {/* Pattern Insights Banner */}
+        <Link
+          href="/insights"
+          className="block mb-6 p-4 glass-card bg-gradient-to-r from-primary-900/30 to-purple-900/30 border border-primary-500/20 hover:border-primary-500/40 transition-all group"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary-500/20">
+                <Sparkles className="w-5 h-5 text-primary-400" />
+              </div>
+              <div>
+                <h3 className="font-medium text-white">Discover Pattern Insights</h3>
+                <p className="text-sm text-gray-400">AI-detected patterns, geographic clusters & temporal anomalies</p>
+              </div>
+            </div>
+            <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-primary-400 group-hover:translate-x-1 transition-all" />
+          </div>
+        </Link>
 
         <div className="mb-6">
           <CategoryFilter

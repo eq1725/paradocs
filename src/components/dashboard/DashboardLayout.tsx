@@ -4,7 +4,7 @@
  * Wrapper layout for all dashboard pages with sidebar navigation.
  */
 
-import React, { ReactNode } from 'react'
+import React, { ReactNode, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { TierBadge } from './TierBadge'
+import { Avatar } from '@/components/AvatarSelector'
 import { supabase } from '@/lib/supabase'
 
 interface DashboardLayoutProps {
@@ -72,6 +73,23 @@ const navItems: NavItem[] = [
 export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayoutProps) {
   const router = useRouter()
   const { subscription, tierName, tierDisplayName, loading } = useSubscription()
+  const [userProfile, setUserProfile] = useState<{ avatar_url?: string | null; display_name?: string | null } | null>(null)
+
+  // Fetch user profile for avatar
+  useEffect(() => {
+    async function fetchProfile() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('avatar_url, display_name')
+          .eq('id', session.user.id)
+          .single()
+        if (data) setUserProfile(data)
+      }
+    }
+    fetchProfile()
+  }, [])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -111,12 +129,14 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
           {/* User Info */}
           <div className="p-4 border-b border-gray-800">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white font-semibold">
-                {subscription?.tier?.display_name?.[0] || 'U'}
-              </div>
+              <Avatar
+                avatar={userProfile?.avatar_url}
+                fallback={userProfile?.display_name || 'U'}
+                size="lg"
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-white text-sm font-medium truncate">
-                  {loading ? 'Loading...' : 'My Account'}
+                  {loading ? 'Loading...' : (userProfile?.display_name || 'My Account')}
                 </p>
                 {tierName && (
                   <TierBadge tier={tierName} size="sm" />

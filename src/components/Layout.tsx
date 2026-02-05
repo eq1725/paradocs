@@ -5,11 +5,12 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import {
   Search, Menu, X, Home, Compass, Map, PlusCircle,
-  BarChart3, User, LogOut, LogIn, Settings, LayoutDashboard, BookOpen
+  BarChart3, User, LogOut, LogIn, Settings, LayoutDashboard, BookOpen, Sparkles
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Profile } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
+import { Avatar } from '@/components/AvatarSelector'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -67,6 +68,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Explore', href: '/explore', icon: Compass },
     { name: 'Encyclopedia', href: '/phenomena', icon: BookOpen },
     { name: 'Map', href: '/map', icon: Map },
+    { name: 'Insights', href: '/insights', icon: Sparkles },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   ]
 
@@ -137,9 +139,11 @@ export default function Layout({ children }: LayoutProps) {
                 user ? (
                   <div className="relative group">
                     <button className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 transition-colors">
-                      <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-sm font-medium">
-                        {user.display_name?.[0] || user.username[0]}
-                      </div>
+                      <Avatar
+                        avatar={user.avatar_url}
+                        fallback={user.display_name || user.username}
+                        size="md"
+                      />
                     </button>
                     <div className="absolute right-0 top-full mt-2 w-48 py-2 bg-gray-900/95 backdrop-blur border border-white/10 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
                       <div className="px-4 py-2 border-b border-white/10">
@@ -264,6 +268,7 @@ export default function Layout({ children }: LayoutProps) {
                 <li><Link href="/explore?category=cryptid" className="hover:text-white">Cryptids</Link></li>
                 <li><Link href="/explore?category=ghost_haunting" className="hover:text-white">Ghosts</Link></li>
                 <li><Link href="/map" className="hover:text-white">Interactive Map</Link></li>
+                <li><Link href="/insights" className="hover:text-white">Pattern Insights</Link></li>
               </ul>
             </div>
             <div>

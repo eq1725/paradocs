@@ -24,6 +24,7 @@ import {
   Info
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
+import AvatarSelector, { Avatar } from '@/components/AvatarSelector'
 import { supabase } from '@/lib/supabase'
 import { usePersonalization } from '@/lib/hooks/usePersonalization'
 import { CATEGORY_CONFIG, US_STATES } from '@/lib/constants'
@@ -154,6 +155,7 @@ export default function SettingsPage() {
   const [localShareLocation, setLocalShareLocation] = useState(false)
   const [localInterests, setLocalInterests] = useState<PhenomenonCategory[]>([])
   const [gettingLocation, setGettingLocation] = useState(false)
+  const [showAvatarSelector, setShowAvatarSelector] = useState(false)
 
   // Sync personalization data to local state when loaded
   useEffect(() => {
@@ -335,6 +337,38 @@ export default function SettingsPage() {
           icon={User}
         >
           <div className="space-y-4">
+            {/* Avatar Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Avatar
+              </label>
+              {showAvatarSelector ? (
+                <AvatarSelector
+                  currentAvatar={profile?.avatar_url}
+                  onSelect={(avatar) => {
+                    setProfile(p => p ? { ...p, avatar_url: avatar } : null)
+                    setShowAvatarSelector(false)
+                  }}
+                  onClose={() => setShowAvatarSelector(false)}
+                />
+              ) : (
+                <div className="flex items-center gap-4">
+                  <Avatar
+                    avatar={profile?.avatar_url}
+                    fallback={profile?.display_name || profile?.username || 'U'}
+                    size="xl"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAvatarSelector(true)}
+                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-sm text-white transition-colors"
+                  >
+                    Change Avatar
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Display Name
