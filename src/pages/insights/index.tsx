@@ -225,33 +225,6 @@ export default function InsightsPage() {
           </div>
         )}
 
-        {/* Info Section */}
-        <div className="mt-12 glass-card p-6">
-          <h2 className="text-xl font-display font-semibold text-white mb-4">
-            About Pattern Detection
-          </h2>
-          <div className="grid md:grid-cols-2 gap-6 text-sm text-gray-400">
-            <div>
-              <h3 className="text-white font-medium mb-2">How It Works</h3>
-              <p>
-                Our system uses statistical algorithms including DBSCAN clustering
-                and z-score analysis to identify significant patterns in report data.
-                Geographic clusters are detected using PostGIS spatial functions,
-                while temporal anomalies are flagged when activity deviates significantly
-                from baseline levels.
-              </p>
-            </div>
-            <div>
-              <h3 className="text-white font-medium mb-2">AI-Enhanced Analysis</h3>
-              <p>
-                Each detected pattern is analyzed by Claude, an advanced AI model,
-                to generate narrative insights that explain potential significance,
-                historical context, and research implications. These insights are
-                updated automatically as new reports are added to the database.
-              </p>
-            </div>
-          </div>
-        </div>
       </div>
     </Layout>
   )
