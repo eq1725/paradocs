@@ -61,26 +61,24 @@ async function getBaselineStartDate(): Promise<Date> {
 
 /**
  * Check if we have enough data for meaningful pattern detection
+ * Uses event_date to count reports with valid historical dates
  */
-async function hasEnoughDataForPatterns(baselineStart: Date): Promise<boolean> {
+async function hasEnoughDataForPatterns(): Promise<boolean> {
+  // Count reports with valid event_dates (the actual historical data)
   const { count } = await supabaseAdmin
     .from('reports')
     .select('id', { count: 'exact', head: true })
     .eq('status', 'approved')
-    .gte('created_at', baselineStart.toISOString())
-
-  const weeksSinceStart = Math.floor(
-    (Date.now() - baselineStart.getTime()) / (7 * 24 * 60 * 60 * 1000)
-  )
+    .not('event_date', 'is', null)
+    .gte('event_date', '1900-01-01')
 
   const hasEnoughReports = (count || 0) >= MIN_REPORTS_FOR_PATTERN
-  const hasEnoughTime = weeksSinceStart >= MIN_WEEKS_FOR_BASELINE
 
-  if (!hasEnoughReports || !hasEnoughTime) {
-    console.log(`[Pattern Analysis] Insufficient data: ${count} reports, ${weeksSinceStart} weeks (need ${MIN_REPORTS_FOR_PATTERN} reports, ${MIN_WEEKS_FOR_BASELINE} weeks)`)
+  if (!hasEnoughReports) {
+    console.log(`[Pattern Analysis] Insufficient data: ${count} reports with valid event_date (need ${MIN_REPORTS_FOR_PATTERN})`)
   }
 
-  return hasEnoughReports && hasEnoughTime
+  return hasEnoughReports
 }
 
 // Categories to process - these match the actual database values
@@ -124,12 +122,8 @@ export async function runOptimizedPatternAnalysis(): Promise<AnalysisResult> {
   let patternsArchived = 0
   let totalReportsAnalyzed = 0
 
-  // Get baseline start date (only analyze data after this date)
-  const baselineStartDate = await getBaselineStartDate()
-  console.log(`[Pattern Analysis V2] Using baseline start date: ${baselineStartDate.toISOString()}`)
-
   // Check if we have enough data for meaningful analysis
-  const hasEnoughData = await hasEnoughDataForPatterns(baselineStartDate)
+  const hasEnoughData = await hasEnoughDataForPatterns()
   if (!hasEnoughData) {
     console.log('[Pattern Analysis V2] Skipping analysis - insufficient data for reliable patterns')
     return {
