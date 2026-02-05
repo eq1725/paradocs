@@ -19,6 +19,25 @@ const supabaseAdmin = createClient(
 const MIN_REPORTS_FOR_PATTERN = 10
 const MIN_WEEKS_FOR_BASELINE = 4
 
+// Valid data sources - these are established databases, not "bulk test imports"
+// Only truly temporary test imports should be excluded from pattern detection
+const VALID_DATA_SOURCES = [
+  'user',      // User-submitted reports
+  'reddit',    // Reddit archives (historical community reports)
+  'nuforc',    // NUFORC database (established UFO reports)
+  'bfro',      // BFRO database (Bigfoot sightings)
+  'wikipedia', // Wikipedia-sourced data
+  null,        // Legacy data without source_type
+  undefined    // Legacy data without source_type
+]
+
+/**
+ * Check if a source_type represents valid data (not a test import)
+ */
+function isValidDataSource(sourceType: string | null | undefined): boolean {
+  return VALID_DATA_SOURCES.includes(sourceType as any)
+}
+
 /**
  * Get the baseline start date from system settings
  * Pattern detection only considers data created after this date
@@ -284,17 +303,18 @@ async function analyzeCategoryTrends(category: string): Promise<{ analyzed: numb
     const weekCount = (weekReports as any[]).length
     const ratio = weekCount / avgPerWeek
 
-    // Check if most reports are from bulk ingestion (non-user sources)
+    // Check if most reports are from valid data sources vs test imports
     const typedReports = weekReports as any[]
-    const userReports = typedReports.filter(r => r.source_type === 'user' || !r.source_type).length
-    const ingestedReports = weekCount - userReports
-    const ingestionRatio = ingestedReports / weekCount
+    const validReports = typedReports.filter(r => isValidDataSource(r.source_type)).length
+    const testImportReports = weekCount - validReports
+    const testImportRatio = testImportReports / weekCount
 
-    // Skip surges that are >80% from bulk ingestion - these are setup, not patterns
-    const isBulkIngestion = ingestionRatio > 0.8 && ratio > 5
+    // Skip surges that are >80% from test imports - these are setup, not patterns
+    // Note: reddit, nuforc, bfro, wikipedia are considered VALID sources
+    const isBulkTestImport = testImportRatio > 0.8 && ratio > 5
 
-    // Surge detection: >2x average (but not bulk ingestion)
-    if (ratio >= 2 && weekCount >= 5 && !isBulkIngestion) {
+    // Surge detection: >2x average (but not test imports)
+    if (ratio >= 2 && weekCount >= 5 && !isBulkTestImport) {
       const patternKey = `surge_${category}_${weekStart}`
       const existing = await findExistingPattern(patternKey)
 
@@ -371,15 +391,15 @@ async function detectTemporalAnomaliesOptimized(): Promise<{ newPatterns: number
     return { newPatterns: 0, updatedPatterns: 0 }
   }
 
-  // Group by week, tracking user vs ingested reports
+  // Group by week, tracking valid data sources vs test imports
   const weekCounts: Record<string, number> = {}
-  const weekUserCounts: Record<string, number> = {}
+  const weekValidCounts: Record<string, number> = {}
   for (const report of weeklyData) {
     const week = getWeekStart(new Date(report.created_at))
     weekCounts[week] = (weekCounts[week] || 0) + 1
-    // Track user-submitted reports separately
-    if (report.source_type === 'user' || !report.source_type) {
-      weekUserCounts[week] = (weekUserCounts[week] || 0) + 1
+    // Track reports from valid data sources (not test imports)
+    if (isValidDataSource(report.source_type)) {
+      weekValidCounts[week] = (weekValidCounts[week] || 0) + 1
     }
   }
 
@@ -389,17 +409,17 @@ async function detectTemporalAnomaliesOptimized(): Promise<{ newPatterns: number
   const variance = counts.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / counts.length
   const stdDev = Math.sqrt(variance)
 
-  // Find anomalies (z-score > 2), but skip bulk ingestion surges
+  // Find anomalies (z-score > 2), but skip test import surges
   for (const [week, count] of Object.entries(weekCounts)) {
     const zScore = (count - mean) / stdDev
-    const userCount = weekUserCounts[week] || 0
-    const ingestionRatio = (count - userCount) / count
+    const validCount = weekValidCounts[week] || 0
+    const testImportRatio = (count - validCount) / count
 
-    // Skip surges that are >80% from bulk ingestion with z-score > 3
-    // These are setup/ingestion periods, not genuine patterns
-    const isBulkIngestion = ingestionRatio > 0.8 && zScore > 3
+    // Skip surges that are >80% from test imports with z-score > 3
+    // Note: reddit, nuforc, bfro, wikipedia are VALID sources, not test imports
+    const isBulkTestImport = testImportRatio > 0.8 && zScore > 3
 
-    if (Math.abs(zScore) > 2 && !isBulkIngestion) {
+    if (Math.abs(zScore) > 2 && !isBulkTestImport) {
       const isSpike = zScore > 0
       const existing = await findExistingPattern(`temporal_${week}`)
 
