@@ -266,19 +266,19 @@ export default function PatternDetailPage() {
         />
       </Head>
 
-      <div className="py-8">
+      <div className="py-4 sm:py-8 px-1 sm:px-0">
         {/* Back Navigation */}
         <Link
           href="/insights"
-          className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
+          className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-4 sm:mb-6 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Insights
         </Link>
 
         {/* Header */}
-        <div className="glass-card p-6 mb-6">
-          <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="glass-card p-4 sm:p-6 mb-4 sm:mb-6 overflow-hidden">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-3">
                 <span className={classNames(
@@ -308,7 +308,7 @@ export default function PatternDetailPage() {
 
             {/* Mini Map for Geographic Patterns */}
             {centerPoint && (pattern.pattern_type === 'geographic_cluster' || pattern.pattern_type === 'regional_concentration') && (
-              <div className="hidden lg:block w-64 shrink-0">
+              <div className="w-full lg:w-64 shrink-0">
                 <PatternMiniMap
                   center={centerPoint}
                   radiusKm={pattern.radius_km}
@@ -349,9 +349,9 @@ export default function PatternDetailPage() {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
+        <div className="grid lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
             {/* Type-Specific Visualization */}
             {pattern.pattern_type === 'temporal_anomaly' && (
               <TemporalVisualization
@@ -386,7 +386,7 @@ export default function PatternDetailPage() {
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Confidence Details */}
             <div className="glass-card p-4">
               <h3 className="font-medium text-white mb-4">Score Details</h3>
@@ -495,7 +495,7 @@ export default function PatternDetailPage() {
         </div>
 
         {/* Associated Reports - Full Width */}
-        <div className="glass-card p-6 mt-6">
+        <div className="glass-card p-4 sm:p-6 mt-4 sm:mt-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-display font-semibold text-white">
               Associated Reports ({reports.length})

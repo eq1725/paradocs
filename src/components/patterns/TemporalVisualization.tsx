@@ -42,17 +42,17 @@ export default function TemporalVisualization({
   const isSpike = zScore > 0
 
   return (
-    <div className={classNames('glass-card p-4', className)}>
-      <div className="flex items-center justify-between mb-4">
+    <div className={classNames('glass-card p-3 sm:p-4 overflow-hidden', className)}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
         <div className="flex items-center gap-2">
-          <Calendar className="w-5 h-5 text-amber-400" />
+          <Calendar className="w-5 h-5 text-amber-400 flex-shrink-0" />
           <h3 className="font-medium text-white">Temporal Pattern</h3>
         </div>
         <div className="flex items-center gap-2">
           {isSpike ? (
-            <TrendingUp className="w-4 h-4 text-red-400" />
+            <TrendingUp className="w-4 h-4 text-red-400 flex-shrink-0" />
           ) : (
-            <TrendingDown className="w-4 h-4 text-blue-400" />
+            <TrendingDown className="w-4 h-4 text-blue-400 flex-shrink-0" />
           )}
           <span className={classNames(
             'text-sm font-medium',
@@ -64,16 +64,16 @@ export default function TemporalVisualization({
       </div>
 
       {/* Sparkline Chart */}
-      <div className="relative h-32 mb-4">
+      <div className="relative h-28 sm:h-32 mb-4">
         {/* Y-axis labels */}
-        <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col justify-between text-xs text-gray-500">
+        <div className="absolute left-0 top-0 bottom-0 w-6 sm:w-8 flex flex-col justify-between text-xs text-gray-500">
           <span>{maxCount}</span>
           <span>{Math.round(maxCount / 2)}</span>
           <span>0</span>
         </div>
 
         {/* Chart area */}
-        <div className="ml-10 h-full relative">
+        <div className="ml-7 sm:ml-10 h-full relative">
           {/* Mean line */}
           {mean > 0 && (
             <div
@@ -166,9 +166,9 @@ export default function TemporalVisualization({
       </div>
 
       {/* Explanation */}
-      <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-2">
+      <div className="mt-4 p-2 sm:p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-2">
         <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-        <p className="text-xs text-gray-300">
+        <p className="text-xs text-gray-300 break-words">
           {isSpike ? (
             <>
               This week&apos;s report count of <span className="text-amber-400 font-medium">
