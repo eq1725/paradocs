@@ -33,6 +33,13 @@ export type ReportStatus =
   | 'flagged'
   | 'archived'
 
+// Content type distinguishes between actual experiencer reports vs discussions/news
+export type ContentType =
+  | 'experiencer_report'    // First-hand witness account of a paranormal encounter
+  | 'historical_case'       // Documented historical case (not first-hand)
+  | 'news_discussion'       // News, articles, discussions about paranormal topics
+  | 'research_analysis'     // Academic or research-based analysis
+
 export type UserRole =
   | 'user'
   | 'contributor'
@@ -124,6 +131,7 @@ export interface Database {
           description: string
           phenomenon_type_id: string | null
           category: PhenomenonCategory
+          content_type: ContentType
           tags: string[]
           location_name: string | null
           location_description: string | null
@@ -169,6 +177,7 @@ export interface Database {
           description: string
           phenomenon_type_id?: string | null
           category: PhenomenonCategory
+          content_type?: ContentType
           tags?: string[]
           location_name?: string | null
           location_description?: string | null
@@ -214,6 +223,7 @@ export interface Database {
           description?: string
           phenomenon_type_id?: string | null
           category?: PhenomenonCategory
+          content_type?: ContentType
           tags?: string[]
           location_name?: string | null
           location_description?: string | null

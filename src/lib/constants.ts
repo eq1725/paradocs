@@ -1,4 +1,4 @@
-import { PhenomenonCategory, CredibilityLevel } from './database.types'
+import { PhenomenonCategory, CredibilityLevel, ContentType } from './database.types'
 
 export const CATEGORY_CONFIG: Record<PhenomenonCategory, {
   label: string
@@ -121,6 +121,59 @@ export const CREDIBILITY_CONFIG: Record<CredibilityLevel, {
     color: 'text-blue-400',
     bgColor: 'bg-blue-400/10',
     description: 'Multiple sources confirm'
+  }
+}
+
+// Content type configuration - distinguishes actual experiencer reports from other content
+export const CONTENT_TYPE_CONFIG: Record<ContentType, {
+  label: string
+  shortLabel: string
+  color: string
+  bgColor: string
+  borderColor: string
+  icon: string
+  description: string
+  isPrimary: boolean  // Is this the primary content type we want (experiencer reports)?
+}> = {
+  experiencer_report: {
+    label: 'Experiencer Report',
+    shortLabel: 'Experiencer',
+    color: 'text-emerald-400',
+    bgColor: 'bg-emerald-500/20',
+    borderColor: 'border-emerald-500/30',
+    icon: '👁️',
+    description: 'First-hand witness account of a paranormal encounter',
+    isPrimary: true
+  },
+  historical_case: {
+    label: 'Historical Case',
+    shortLabel: 'Historical',
+    color: 'text-amber-400',
+    bgColor: 'bg-amber-500/20',
+    borderColor: 'border-amber-500/30',
+    icon: '📜',
+    description: 'Documented historical case from archives or research',
+    isPrimary: true
+  },
+  news_discussion: {
+    label: 'News & Discussion',
+    shortLabel: 'Discussion',
+    color: 'text-gray-400',
+    bgColor: 'bg-gray-500/20',
+    borderColor: 'border-gray-500/30',
+    icon: '📰',
+    description: 'News articles, community discussions, or commentary',
+    isPrimary: false
+  },
+  research_analysis: {
+    label: 'Research & Analysis',
+    shortLabel: 'Research',
+    color: 'text-blue-400',
+    bgColor: 'bg-blue-500/20',
+    borderColor: 'border-blue-500/30',
+    icon: '🔬',
+    description: 'Academic research, analysis, or investigative reports',
+    isPrimary: true
   }
 }
 

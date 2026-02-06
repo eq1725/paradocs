@@ -11,7 +11,8 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { ReportWithDetails, CommentWithUser } from '@/lib/database.types'
-import { CATEGORY_CONFIG, CREDIBILITY_CONFIG } from '@/lib/constants'
+import { CATEGORY_CONFIG, CREDIBILITY_CONFIG, CONTENT_TYPE_CONFIG } from '@/lib/constants'
+import type { ContentType } from '@/lib/database.types'
 import { formatDate, formatRelativeDate, classNames } from '@/lib/utils'
 import RelatedReports from '@/components/RelatedReports'
 import MediaGallery from '@/components/MediaGallery'
@@ -179,6 +180,8 @@ export default function ReportPage() {
 
   const categoryConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
   const credibilityConfig = CREDIBILITY_CONFIG[report.credibility]
+  const contentTypeConfig = CONTENT_TYPE_CONFIG[(report as any).content_type as ContentType] || CONTENT_TYPE_CONFIG.experiencer_report
+  const isNonExperiencer = (report as any).content_type && (report as any).content_type !== 'experiencer_report'
 
   return (
     <>
@@ -200,9 +203,35 @@ export default function ReportPage() {
           Back to explore
         </Link>
 
+        {/* Non-Experiencer Content Notice */}
+        {isNonExperiencer && (
+          <div className="mb-6 p-4 bg-gray-800/50 border border-gray-700 rounded-lg flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-amber-400 font-medium text-sm">
+                {contentTypeConfig.label}
+              </p>
+              <p className="text-gray-400 text-sm mt-1">
+                {contentTypeConfig.description}. This is not a first-hand experiencer report.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <header className="mb-8">
-          <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4">
+            {/* Content Type Badge - shown prominently for non-experiencer content */}
+            <span className={classNames(
+              'px-3 py-1 rounded-full text-sm font-medium border flex items-center gap-1.5',
+              contentTypeConfig.bgColor,
+              contentTypeConfig.color,
+              contentTypeConfig.borderColor
+            )}>
+              <span>{contentTypeConfig.icon}</span>
+              <span className="hidden sm:inline">{contentTypeConfig.label}</span>
+              <span className="sm:hidden">{contentTypeConfig.shortLabel}</span>
+            </span>
             <span className={classNames(
               'px-3 py-1 rounded-full text-sm font-medium border',
               categoryConfig.bgColor,
@@ -352,50 +381,44 @@ export default function ReportPage() {
         </div>
 
         {/* Sidebar info */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          {/* Credibility */}
-          <div className="glass-card p-5">
-            <h4 className="text-sm text-gray-400 mb-2">Credibility</h4>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+          {/* Content Type */}
+          <div className="glass-card p-4 sm:p-5">
+            <h4 className="text-xs sm:text-sm text-gray-400 mb-2">Content Type</h4>
             <div className={classNames(
-              'text-lg font-medium',
+              'text-sm sm:text-base font-medium flex items-center gap-1.5',
+              contentTypeConfig.color
+            )}>
+              <span>{contentTypeConfig.icon}</span>
+              <span className="truncate">{contentTypeConfig.shortLabel}</span>
+            </div>
+          </div>
+
+          {/* Credibility */}
+          <div className="glass-card p-4 sm:p-5">
+            <h4 className="text-xs sm:text-sm text-gray-400 mb-2">Credibility</h4>
+            <div className={classNames(
+              'text-sm sm:text-base font-medium',
               credibilityConfig.color
             )}>
               {credibilityConfig.label}
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              {credibilityConfig.description}
-            </p>
           </div>
 
           {/* Source */}
-          <div className="glass-card p-5">
-            <h4 className="text-sm text-gray-400 mb-2">Source</h4>
-            <div className="text-lg font-medium text-white">
-              {report.source_type === 'user_submission' ? 'User Submission' : report.source_type}
+          <div className="glass-card p-4 sm:p-5">
+            <h4 className="text-xs sm:text-sm text-gray-400 mb-2">Source</h4>
+            <div className="text-sm sm:text-base font-medium text-white truncate">
+              {report.source_type === 'user_submission' ? 'User' : (report.source_type || 'Unknown')}
             </div>
-            {report.source_url && (
-              <a
-                href={report.source_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-primary-400 hover:text-primary-300 flex items-center gap-1 mt-1"
-              >
-                View source <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
           </div>
 
           {/* Submitted */}
-          <div className="glass-card p-5">
-            <h4 className="text-sm text-gray-400 mb-2">Submitted</h4>
-            <div className="text-lg font-medium text-white">
+          <div className="glass-card p-4 sm:p-5">
+            <h4 className="text-xs sm:text-sm text-gray-400 mb-2">Submitted</h4>
+            <div className="text-sm sm:text-base font-medium text-white truncate">
               {formatRelativeDate(report.created_at)}
             </div>
-            {report.submitter && !report.anonymous_submission && (
-              <p className="text-xs text-gray-500 mt-1">
-                by @{report.submitter.username}
-              </p>
-            )}
           </div>
         </div>
 

@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useState } from 'react'
-import { Sparkles, RefreshCw, Shield, AlertCircle, History, ChevronDown, ChevronUp } from 'lucide-react'
+import { Sparkles, RefreshCw, Shield, AlertCircle, History, ChevronDown, ChevronUp, AlertTriangle, FileText } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 
 interface CredibilityFactor {
@@ -37,6 +37,13 @@ interface SimilarCase {
   location?: string
 }
 
+interface ContentTypeAssessment {
+  suggested_type: 'experiencer_report' | 'historical_case' | 'news_discussion' | 'research_analysis'
+  confidence: 'high' | 'medium' | 'low'
+  reasoning: string
+  is_first_hand_account: boolean
+}
+
 interface ReportInsight {
   id: string
   title: string
@@ -45,6 +52,7 @@ interface ReportInsight {
   credibility_analysis: CredibilityAnalysis | null
   similar_cases: SimilarCase[] | null
   mundane_explanations: MundaneExplanation[] | null
+  content_type_assessment: ContentTypeAssessment | null
   generated_at: string
 }
 
@@ -171,6 +179,31 @@ export default function ReportAIInsight({ reportSlug, className }: Props) {
       <h4 className="text-base sm:text-lg font-medium text-white mb-2 break-words">
         {insight.title}
       </h4>
+
+      {/* Content Type Assessment Warning */}
+      {insight.content_type_assessment && !insight.content_type_assessment.is_first_hand_account && (
+        <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-amber-400">
+                Not a First-Hand Account
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                {insight.content_type_assessment.reasoning}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Suggested classification: {
+                  insight.content_type_assessment.suggested_type === 'news_discussion' ? 'News & Discussion' :
+                  insight.content_type_assessment.suggested_type === 'historical_case' ? 'Historical Case' :
+                  insight.content_type_assessment.suggested_type === 'research_analysis' ? 'Research & Analysis' :
+                  'Experiencer Report'
+                } ({insight.content_type_assessment.confidence} confidence)
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Narrative */}
       <div className="prose prose-invert prose-sm max-w-none mb-4 sm:mb-6">

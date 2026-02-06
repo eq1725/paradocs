@@ -29,6 +29,7 @@ export interface ReportInsight {
   credibility_analysis: CredibilityAnalysis | null
   similar_cases: SimilarCase[] | null
   mundane_explanations: MundaneExplanation[] | null
+  content_type_assessment: ContentTypeAssessment | null
   model_used: string
   generated_at: string
   valid_until: string
@@ -59,6 +60,14 @@ export interface MundaneExplanation {
   reasoning: string
 }
 
+// Content type detection for flagging non-experiencer content
+export interface ContentTypeAssessment {
+  suggested_type: 'experiencer_report' | 'historical_case' | 'news_discussion' | 'research_analysis'
+  confidence: 'high' | 'medium' | 'low'
+  reasoning: string
+  is_first_hand_account: boolean
+}
+
 interface InsightGenerationResult {
   title: string
   summary: string
@@ -66,6 +75,7 @@ interface InsightGenerationResult {
   credibility_analysis: CredibilityAnalysis
   similar_cases: SimilarCase[]
   mundane_explanations: MundaneExplanation[]
+  content_type_assessment: ContentTypeAssessment
 }
 
 /**
@@ -82,6 +92,14 @@ Guidelines:
 - Reference similar historical cases when relevant
 - Help researchers understand what makes this report interesting or notable
 - Maintain scientific rigor while remaining accessible and respectful to witnesses
+
+CRITICAL: Distinguish between actual EXPERIENCER REPORTS (first-hand witness accounts) and other content types:
+- experiencer_report: First-hand witness account describing what they personally saw/experienced
+- historical_case: A documented historical case being discussed (not first-hand)
+- news_discussion: News articles, discussions about paranormal topics, commentary, or meta-discussions
+- research_analysis: Academic research or investigative analysis
+
+Flag content that is NOT a first-hand experiencer report - this is important for database quality.
 
 Your analysis should help both researchers and the general public understand the context and significance of reports.`
 
@@ -175,6 +193,7 @@ export async function getReportInsight(reportId: string): Promise<ReportInsight 
       credibility_analysis: result.credibility_analysis,
       similar_cases: result.similar_cases,
       mundane_explanations: result.mundane_explanations,
+      content_type_assessment: result.content_type_assessment,
       model_used: MODEL,
       generated_at: new Date().toISOString(),
       valid_until: validUntil.toISOString(),
@@ -200,6 +219,7 @@ export async function getReportInsight(reportId: string): Promise<ReportInsight 
     credibility_analysis: result.credibility_analysis,
     similar_cases: result.similar_cases,
     mundane_explanations: result.mundane_explanations,
+    content_type_assessment: result.content_type_assessment,
     model_used: MODEL,
     generated_at: new Date().toISOString(),
     valid_until: validUntil.toISOString()
@@ -309,7 +329,13 @@ Factors:
 
 SIMILAR_CASES:
 [List 1-3 similar historical cases if applicable, formatted as:]
-- [Case name/title] ([Year if known], [Location if known]): [Why it's similar]`
+- [Case name/title] ([Year if known], [Location if known]): [Why it's similar]
+
+CONTENT_TYPE_ASSESSMENT:
+Type: [experiencer_report / historical_case / news_discussion / research_analysis]
+Is First-Hand Account: [yes / no]
+Confidence: [high / medium / low]
+Reasoning: [1 sentence explaining why you classified it this way]`
 
   return prompt
 }
@@ -324,7 +350,8 @@ function parseInsightResponse(
   const analysisMatch = response.match(/ANALYSIS:\s*([\s\S]+?)(?:\n\n|MUNDANE_EXPLANATIONS:)/i)
   const mundaneMatch = response.match(/MUNDANE_EXPLANATIONS:\s*([\s\S]+?)(?:\n\n|CREDIBILITY_ASSESSMENT:)/i)
   const credibilityMatch = response.match(/CREDIBILITY_ASSESSMENT:\s*([\s\S]+?)(?:\n\n|SIMILAR_CASES:)/i)
-  const similarMatch = response.match(/SIMILAR_CASES:\s*([\s\S]+?)$/i)
+  const similarMatch = response.match(/SIMILAR_CASES:\s*([\s\S]+?)(?:\n\n|CONTENT_TYPE_ASSESSMENT:)/i)
+  const contentTypeMatch = response.match(/CONTENT_TYPE_ASSESSMENT:\s*([\s\S]+?)$/i)
 
   const title = titleMatch?.[1]?.trim() || `Analysis: ${report.title}`
   const summary = summaryMatch?.[1]?.trim() || 'AI-generated analysis of this report.'
@@ -393,13 +420,43 @@ function parseInsightResponse(
     }
   }
 
+  // Parse content type assessment
+  let content_type_assessment: ContentTypeAssessment = {
+    suggested_type: 'experiencer_report',
+    confidence: 'medium',
+    reasoning: 'Default classification as experiencer report.',
+    is_first_hand_account: true
+  }
+
+  if (contentTypeMatch?.[1]) {
+    const contentText = contentTypeMatch[1]
+    const typeMatch = contentText.match(/Type:\s*(experiencer_report|historical_case|news_discussion|research_analysis)/i)
+    const firstHandMatch = contentText.match(/Is First-Hand Account:\s*(yes|no)/i)
+    const confidenceMatch = contentText.match(/Confidence:\s*(high|medium|low)/i)
+    const reasoningMatch = contentText.match(/Reasoning:\s*([^\n]+)/i)
+
+    if (typeMatch) {
+      content_type_assessment.suggested_type = typeMatch[1].toLowerCase() as ContentTypeAssessment['suggested_type']
+    }
+    if (firstHandMatch) {
+      content_type_assessment.is_first_hand_account = firstHandMatch[1].toLowerCase() === 'yes'
+    }
+    if (confidenceMatch) {
+      content_type_assessment.confidence = confidenceMatch[1].toLowerCase() as 'high' | 'medium' | 'low'
+    }
+    if (reasoningMatch) {
+      content_type_assessment.reasoning = reasoningMatch[1].trim()
+    }
+  }
+
   return {
     title,
     summary,
     narrative,
     credibility_analysis,
     similar_cases,
-    mundane_explanations
+    mundane_explanations,
+    content_type_assessment
   }
 }
 
@@ -436,7 +493,13 @@ function generateFallbackInsight(report: Report): InsightGenerationResult {
       ]
     },
     similar_cases: [],
-    mundane_explanations: []
+    mundane_explanations: [],
+    content_type_assessment: {
+      suggested_type: report.submitter_was_witness ? 'experiencer_report' : 'historical_case',
+      confidence: 'low',
+      reasoning: 'Fallback classification based on report metadata.',
+      is_first_hand_account: report.submitter_was_witness
+    }
   }
 }
 

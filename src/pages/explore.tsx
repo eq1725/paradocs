@@ -6,8 +6,8 @@ import Head from 'next/head'
 import { Search, SlidersHorizontal, X, ChevronDown, Sparkles, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { Report, PhenomenonType, PhenomenonCategory, CredibilityLevel } from '@/lib/database.types'
-import { CATEGORY_CONFIG, CREDIBILITY_CONFIG, COUNTRIES } from '@/lib/constants'
+import { Report, PhenomenonType, PhenomenonCategory, CredibilityLevel, ContentType } from '@/lib/database.types'
+import { CATEGORY_CONFIG, CREDIBILITY_CONFIG, CONTENT_TYPE_CONFIG, COUNTRIES } from '@/lib/constants'
 import CategoryFilter from '@/components/CategoryFilter'
 import SubcategoryFilter from '@/components/SubcategoryFilter'
 import ReportCard from '@/components/ReportCard'
@@ -54,6 +54,7 @@ export default function ExplorePage() {
   const [hasEvidence, setHasEvidence] = useState(false)
   const [hasMedia, setHasMedia] = useState(false)
   const [featured, setFeatured] = useState(false)
+  const [contentType, setContentType] = useState<ContentType | 'all' | 'primary'>('primary') // 'primary' = experiencer + historical + research
 
   useEffect(() => {
     if (router.isReady) {
@@ -127,6 +128,13 @@ export default function ExplorePage() {
         if (featured) {
           query = query.eq('featured', true)
         }
+        // Content type filter
+        if (contentType === 'primary') {
+          // Show only primary content types (experiencer reports, historical cases, research)
+          query = query.in('content_type', ['experiencer_report', 'historical_case', 'research_analysis'])
+        } else if (contentType !== 'all') {
+          query = query.eq('content_type', contentType)
+        }
 
         // Apply sorting
         switch (sort) {
@@ -190,6 +198,13 @@ export default function ExplorePage() {
         if (featured) {
           query = query.eq('featured', true)
         }
+        // Content type filter
+        if (contentType === 'primary') {
+          // Show only primary content types (experiencer reports, historical cases, research)
+          query = query.in('content_type', ['experiencer_report', 'historical_case', 'research_analysis'])
+        } else if (contentType !== 'all') {
+          query = query.eq('content_type', contentType)
+        }
 
         switch (sort) {
           case 'oldest':
@@ -226,7 +241,7 @@ export default function ExplorePage() {
     } finally {
       setLoading(false)
     }
-  }, [category, selectedCategories, selectedTypes, searchQuery, country, credibility, dateFrom, dateTo, sort, hasEvidence, hasMedia, featured, page, baselineCount])
+  }, [category, selectedCategories, selectedTypes, searchQuery, country, credibility, dateFrom, dateTo, sort, hasEvidence, hasMedia, featured, contentType, page, baselineCount])
 
   useEffect(() => {
     loadReports()
@@ -244,13 +259,14 @@ export default function ExplorePage() {
     setHasEvidence(false)
     setHasMedia(false)
     setFeatured(false)
+    setContentType('primary')
     setSort('newest')
     setPage(1)
   }
 
   const hasActiveFilters = category !== 'all' || selectedCategories.length > 0 ||
     selectedTypes.length > 0 || searchQuery || country || credibility ||
-    dateFrom || dateTo || hasEvidence || hasMedia || featured
+    dateFrom || dateTo || hasEvidence || hasMedia || featured || contentType !== 'primary'
 
   const totalPages = Math.ceil(totalCount / perPage)
 
@@ -286,6 +302,58 @@ export default function ExplorePage() {
             <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-primary-400 group-hover:translate-x-1 transition-all" />
           </div>
         </Link>
+
+        {/* Content Type Filter - Prominent toggle for report types */}
+        <div className="mb-6 p-3 sm:p-4 glass-card">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <span className="text-sm text-gray-400 whitespace-nowrap">Show:</span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => { setContentType('primary'); setPage(1) }}
+                className={classNames(
+                  'px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5',
+                  contentType === 'primary'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
+                )}
+              >
+                👁️ Experiencer Reports
+              </button>
+              <button
+                onClick={() => { setContentType('all'); setPage(1) }}
+                className={classNames(
+                  'px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
+                  contentType === 'all'
+                    ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
+                    : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
+                )}
+              >
+                All Content
+              </button>
+              <button
+                onClick={() => { setContentType('news_discussion'); setPage(1) }}
+                className={classNames(
+                  'px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5',
+                  contentType === 'news_discussion'
+                    ? 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
+                    : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
+                )}
+              >
+                📰 News & Discussion
+              </button>
+            </div>
+          </div>
+          {contentType === 'primary' && (
+            <p className="text-xs text-gray-500 mt-2">
+              Showing first-hand witness accounts, documented historical cases, and research reports
+            </p>
+          )}
+          {contentType === 'news_discussion' && (
+            <p className="text-xs text-gray-500 mt-2">
+              Showing news articles, community discussions, and commentary (not first-hand accounts)
+            </p>
+          )}
+        </div>
 
         <div className="mb-6">
           <CategoryFilter
