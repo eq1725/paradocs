@@ -1,28 +1,50 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Background with gradient -->
   <defs>
+    <!-- Background gradient matching site -->
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#1c194b"/>
       <stop offset="100%" style="stop-color:#0a0a14"/>
     </linearGradient>
-    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#7c8ff8"/>
+    <!-- Purple gradient for the P - 3-stop gradient -->
+    <linearGradient id="pGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a4b8fc"/>
+      <stop offset="50%" style="stop-color:#7c8ff8"/>
       <stop offset="100%" style="stop-color:#5b63f1"/>
     </linearGradient>
   </defs>
 
-  <!-- Full background (iOS will apply its own rounding) -->
+  <!-- Full background -->
   <rect width="512" height="512" fill="url(#bg)"/>
 
   <!-- Subtle stars -->
-  <circle cx="80" cy="100" r="2" fill="rgba(255,255,255,0.3)"/>
-  <circle cx="420" cy="80" r="1.5" fill="rgba(255,255,255,0.2)"/>
-  <circle cx="450" cy="400" r="2" fill="rgba(255,255,255,0.25)"/>
-  <circle cx="60" cy="380" r="1.5" fill="rgba(255,255,255,0.2)"/>
-  <circle cx="380" cy="150" r="1" fill="rgba(255,255,255,0.15)"/>
-  <circle cx="100" cy="420" r="1" fill="rgba(255,255,255,0.15)"/>
+  <circle cx="90" cy="90" r="2" fill="rgba(255,255,255,0.25)"/>
+  <circle cx="420" cy="70" r="1.5" fill="rgba(255,255,255,0.2)"/>
+  <circle cx="440" cy="420" r="2" fill="rgba(255,255,255,0.2)"/>
+  <circle cx="70" cy="400" r="1.5" fill="rgba(255,255,255,0.15)"/>
 
-  <!-- "P" letter - properly centered -->
-  <!-- Center of canvas is 256,256. P should be visually centered -->
-  <path d="M156 96h120c77 0 140 63 140 140s-63 140-140 140h-50v100h-70V96zm70 210h50c39 0 70-31 70-70s-31-70-70-70h-50v140z" fill="url(#accent)"/>
+  <!-- "P" - geometric sans-serif style (Inter-like), properly centered -->
+  <!-- Centered at x=256. P is 200px wide, stem is 56px. Bowl extends right. -->
+  <!-- Visual centering: shift slightly left since P has more mass on left -->
+  <g transform="translate(136, 86)">
+    <!-- Outer shape of P -->
+    <path d="
+      M 0 0
+      L 140 0
+      C 220 0, 240 30, 240 100
+      C 240 170, 220 200, 140 200
+      L 56 200
+      L 56 340
+      L 0 340
+      Z
+    " fill="url(#pGradient)"/>
+    <!-- Inner cutout for the bowl -->
+    <path d="
+      M 56 50
+      L 130 50
+      C 170 50, 184 70, 184 100
+      C 184 130, 170 150, 130 150
+      L 56 150
+      Z
+    " fill="url(#bg)"/>
+  </g>
 </svg>
