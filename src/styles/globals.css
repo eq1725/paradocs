@@ -94,12 +94,31 @@ body {
 .custom-div-marker {
   background: transparent !important;
   border: none !important;
+  width: 36px !important;
+  height: 36px !important;
+  margin-left: -18px !important;
+  margin-top: -18px !important;
 }
 
 .leaflet-marker-icon.custom-div-marker {
   background: none !important;
   border: none !important;
   box-shadow: none !important;
+  width: 36px !important;
+  height: 36px !important;
+}
+
+/* Force marker inner div to be a perfect circle */
+.custom-div-marker > div {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  max-width: 36px !important;
+  max-height: 36px !important;
+  aspect-ratio: 1 / 1 !important;
+  border-radius: 50% !important;
+  flex-shrink: 0 !important;
 }
 
 /* Hide Leaflet's default marker shadow */
