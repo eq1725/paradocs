@@ -83,7 +83,7 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <Link href="/" className="flex items-center mr-8">
-              <span className="font-display font-extrabold text-2xl text-white tracking-tight">Paradocs</span>
+              <span className="font-sans font-black text-2xl text-white tracking-tight">Paradocs</span>
             </Link>
 
             {/* Desktop Navigation */}
