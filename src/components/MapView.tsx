@@ -45,7 +45,15 @@ export default function MapView({
     setMounted(true)
     // Import Leaflet only on client side
     import('leaflet').then((leaflet) => {
-      setL(leaflet.default)
+      const L = leaflet.default
+      // Fix Leaflet's default icon path issue
+      delete (L.Icon.Default.prototype as any)._getIconUrl
+      L.Icon.Default.mergeOptions({
+        iconUrl: '',
+        iconRetinaUrl: '',
+        shadowUrl: '',
+      })
+      setL(L)
     })
   }, [])
 
@@ -59,19 +67,6 @@ export default function MapView({
       </div>
     )
   }
-
-  // Fix Leaflet's default icon path issue
-  useEffect(() => {
-    if (L) {
-      // Prevent Leaflet from trying to load default marker images
-      delete (L.Icon.Default.prototype as any)._getIconUrl
-      L.Icon.Default.mergeOptions({
-        iconUrl: '',
-        iconRetinaUrl: '',
-        shadowUrl: '',
-      })
-    }
-  }, [L])
 
   // Create custom icons for each category
   const createIcon = (category: string) => {
@@ -100,10 +95,14 @@ export default function MapView({
         zoom={zoom}
         style={{ height: '100%', width: '100%' }}
         className="z-0"
+        minZoom={2}
+        maxBounds={[[-85, -180], [85, 180]]}
+        maxBoundsViscosity={1.0}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          noWrap={true}
         />
         {reportsWithCoords.map((report) => (
           <Marker
