@@ -185,10 +185,10 @@ export default function Home() {
       </section>
 
       {/* Categories Grid */}
-      <section className="py-16 border-t border-white/5">
+      <section className="py-12 border-t border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-display font-bold text-white">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-display font-bold text-white">
               Explore by Category
             </h2>
             <Link
@@ -198,42 +198,107 @@ export default function Home() {
               View all <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
             {categories.map(([key, config]) => (
               <Link
                 key={key}
                 href={`/explore?category=${key}`}
-                className="glass-card p-6 text-center hover:scale-105 transition-transform group"
+                className="glass-card p-4 text-center hover:scale-105 transition-transform group"
               >
-                <span className="text-4xl block mb-3 group-hover:scale-110 transition-transform">
+                <span className="text-3xl block mb-2 group-hover:scale-110 transition-transform">
                   {config.icon}
                 </span>
-                <h3 className="font-medium text-white text-sm">{config.label}</h3>
+                <h3 className="font-medium text-white text-xs sm:text-sm">{config.label}</h3>
               </Link>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Phenomena Encyclopedia */}
+      {/* Trending Patterns - Moved up for AI differentiation */}
+      <section className="py-12 border-t border-white/5 bg-gradient-to-b from-purple-900/10 to-transparent">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <TrendingPatternsWidget limit={3} showHeader={true} variant="inline" />
+        </div>
+      </section>
+
+      {/* Reports Section - Combined Featured + Recent */}
+      <section className="py-12 border-t border-white/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Featured Reports - Highlight row */}
+          {featuredReports.length > 0 && (
+            <div className="mb-10">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-amber-400" />
+                  <h2 className="text-xl font-display font-bold text-white">
+                    Featured Reports
+                  </h2>
+                </div>
+                <Link
+                  href="/explore?featured=true"
+                  className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1"
+                >
+                  View all <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {featuredReports.map((report) => (
+                  <ReportCard key={report.id} report={report} variant="featured" />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Recent Reports */}
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-display font-bold text-white">
+                Latest Reports
+              </h2>
+              <Link
+                href="/explore"
+                className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1"
+              >
+                Explore all <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+            {loading ? (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="glass-card p-5 h-32 skeleton" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {recentReports.map((report) => (
+                  <ReportCard key={report.id} report={report} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Phenomena Encyclopedia - Secondary discovery */}
       {featuredPhenomena.length > 0 && (
-        <section className="py-16 border-t border-white/5">
+        <section className="py-12 border-t border-white/5">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-2xl font-display font-bold text-white">
+                <h2 className="text-xl font-display font-bold text-white">
                   Phenomena Encyclopedia
                 </h2>
-                <p className="text-gray-400 mt-1">Discover creatures, entities, and unexplained phenomena</p>
+                <p className="text-gray-400 text-sm mt-1">Creatures, entities, and unexplained phenomena</p>
               </div>
               <Link
                 href="/phenomena"
                 className="text-sm text-amber-400 hover:text-amber-300 flex items-center gap-1"
               >
-                Browse Encyclopedia <ArrowRight className="w-4 h-4" />
+                Browse all <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
               {featuredPhenomena.map((phenomenon) => (
                 <Link
                   key={phenomenon.id}
@@ -246,17 +311,18 @@ export default function Home() {
                         src={phenomenon.primary_image_url}
                         alt={phenomenon.name}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        loading="lazy"
                       />
                     ) : (
                       <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-                        <span className="text-4xl">{phenomenon.icon || '❓'}</span>
+                        <span className="text-3xl">{phenomenon.icon || '❓'}</span>
                       </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                   </div>
-                  <div className="p-3">
-                    <h3 className="font-medium text-white text-sm truncate">{phenomenon.name}</h3>
-                    <p className="text-xs text-gray-400 mt-0.5">{phenomenon.report_count?.toLocaleString() || 0} reports</p>
+                  <div className="p-2 sm:p-3">
+                    <h3 className="font-medium text-white text-xs sm:text-sm truncate">{phenomenon.name}</h3>
+                    <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">{phenomenon.report_count?.toLocaleString() || 0} reports</p>
                   </div>
                 </Link>
               ))}
@@ -265,124 +331,70 @@ export default function Home() {
         </section>
       )}
 
-      {/* Featured Reports */}
-      {featuredReports.length > 0 && (
-        <section className="py-16 border-t border-white/5">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-display font-bold text-white">
-                Featured Reports
-              </h2>
-              <Link
-                href="/explore?featured=true"
-                className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1"
-              >
-                View all <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {featuredReports.map((report) => (
-                <ReportCard key={report.id} report={report} variant="featured" />
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Recent Reports */}
-      <section className="py-16 border-t border-white/5">
+      {/* Quick Links - Condensed */}
+      <section className="py-12 border-t border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-display font-bold text-white">
-              Recent Reports
-            </h2>
-            <Link
-              href="/explore"
-              className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1"
-            >
-              View all <ArrowRight className="w-4 h-4" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Link href="/explore" className="glass-card p-5 group flex items-start gap-4">
+              <Compass className="w-8 h-8 text-primary-400 shrink-0" />
+              <div>
+                <h3 className="font-display font-semibold text-white group-hover:text-primary-400 transition-colors">
+                  Explore
+                </h3>
+                <p className="mt-1 text-gray-400 text-xs hidden sm:block">
+                  Browse with powerful filters
+                </p>
+              </div>
             </Link>
-          </div>
-          {loading ? (
-            <div className="grid md:grid-cols-2 gap-4">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="glass-card p-5 h-32 skeleton" />
-              ))}
-            </div>
-          ) : (
-            <div className="grid md:grid-cols-2 gap-4">
-              {recentReports.map((report) => (
-                <ReportCard key={report.id} report={report} />
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Emerging Patterns Section */}
-      <section className="py-16 border-t border-white/5">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <TrendingPatternsWidget limit={3} showHeader={true} variant="inline" />
-        </div>
-      </section>
-
-      {/* Quick Links */}
-      <section className="py-16 border-t border-white/5">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Link href="/explore" className="glass-card p-8 group">
-              <Compass className="w-10 h-10 text-primary-400 mb-4" />
-              <h3 className="text-xl font-display font-semibold text-white group-hover:text-primary-400 transition-colors">
-                Explore Database
-              </h3>
-              <p className="mt-2 text-gray-400 text-sm">
-                Browse thousands of documented paranormal encounters with powerful filters.
-              </p>
+            <Link href="/phenomena" className="glass-card p-5 group flex items-start gap-4">
+              <Sparkles className="w-8 h-8 text-amber-400 shrink-0" />
+              <div>
+                <h3 className="font-display font-semibold text-white group-hover:text-amber-400 transition-colors">
+                  Encyclopedia
+                </h3>
+                <p className="mt-1 text-gray-400 text-xs hidden sm:block">
+                  Bigfoot, Mothman & more
+                </p>
+              </div>
             </Link>
-            <Link href="/phenomena" className="glass-card p-8 group">
-              <Sparkles className="w-10 h-10 text-amber-400 mb-4" />
-              <h3 className="text-xl font-display font-semibold text-white group-hover:text-amber-400 transition-colors">
-                Encyclopedia
-              </h3>
-              <p className="mt-2 text-gray-400 text-sm">
-                Discover Bigfoot, Mothman, UFO types, and more in our phenomena encyclopedia.
-              </p>
+            <Link href="/map" className="glass-card p-5 group flex items-start gap-4">
+              <MapIcon className="w-8 h-8 text-green-400 shrink-0" />
+              <div>
+                <h3 className="font-display font-semibold text-white group-hover:text-green-400 transition-colors">
+                  Global Map
+                </h3>
+                <p className="mt-1 text-gray-400 text-xs hidden sm:block">
+                  Visualize sightings worldwide
+                </p>
+              </div>
             </Link>
-            <Link href="/map" className="glass-card p-8 group">
-              <MapIcon className="w-10 h-10 text-green-400 mb-4" />
-              <h3 className="text-xl font-display font-semibold text-white group-hover:text-green-400 transition-colors">
-                Interactive Map
-              </h3>
-              <p className="mt-2 text-gray-400 text-sm">
-                Visualize sightings and encounters on a global interactive map.
-              </p>
-            </Link>
-            <Link href="/insights" className="glass-card p-8 group">
-              <TrendingUp className="w-10 h-10 text-purple-400 mb-4" />
-              <h3 className="text-xl font-display font-semibold text-white group-hover:text-purple-400 transition-colors">
-                Pattern Insights
-              </h3>
-              <p className="mt-2 text-gray-400 text-sm">
-                AI-detected patterns, anomalies, and trends across phenomena.
-              </p>
+            <Link href="/insights" className="glass-card p-5 group flex items-start gap-4">
+              <TrendingUp className="w-8 h-8 text-purple-400 shrink-0" />
+              <div>
+                <h3 className="font-display font-semibold text-white group-hover:text-purple-400 transition-colors">
+                  AI Insights
+                </h3>
+                <p className="mt-1 text-gray-400 text-xs hidden sm:block">
+                  Patterns & anomalies
+                </p>
+              </div>
             </Link>
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-24 border-t border-white/5">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl md:text-4xl font-display font-bold text-white">
+      <section className="py-16 border-t border-white/5 bg-gradient-to-b from-transparent to-primary-900/10">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-2xl md:text-3xl font-display font-bold text-white">
             Have a Report to Share?
           </h2>
-          <p className="mt-4 text-lg text-gray-400">
-            Witnessed something unexplainable? Contribute to the world's most comprehensive
-            paranormal database. Your experience matters.
+          <p className="mt-3 text-gray-400">
+            Witnessed something unexplainable? Your experience matters.
           </p>
           <Link
             href="/submit"
-            className="mt-8 inline-flex btn btn-primary text-lg px-8 py-4"
+            className="mt-6 inline-flex btn btn-primary px-6 py-3"
           >
             <FileText className="w-5 h-5" />
             Submit a Report
