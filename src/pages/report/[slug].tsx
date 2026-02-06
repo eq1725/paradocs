@@ -187,10 +187,10 @@ export default function ReportPage() {
         <meta name="description" content={report.summary} />
       </Head>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <div className="lg:flex lg:gap-8">
           {/* Main content */}
-          <article className="flex-1 max-w-4xl">
+          <article className="flex-1 max-w-4xl overflow-hidden">
         {/* Back link */}
         <Link
           href="/explore"
@@ -224,11 +224,11 @@ export default function ReportPage() {
             )}
           </div>
 
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <h1 className="text-3xl md:text-4xl font-display font-bold text-white flex-1">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-4">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold text-white">
               {report.title}
             </h1>
-            <button className="btn btn-primary text-sm flex items-center gap-2 shrink-0 mt-1">
+            <button className="btn btn-primary text-sm flex items-center gap-2 shrink-0 w-fit">
               <Bookmark className="w-4 h-4" />
               Save
             </button>
@@ -301,9 +301,9 @@ export default function ReportPage() {
         )}
 
         {/* Main content */}
-        <div className="glass-card p-6 md:p-8 mb-8">
+        <div className="glass-card p-4 sm:p-6 md:p-8 mb-6 sm:mb-8 overflow-hidden">
           <div className="prose prose-invert max-w-none">
-            <div className="whitespace-pre-wrap text-gray-300 leading-relaxed">
+            <div className="whitespace-pre-wrap text-gray-300 leading-relaxed break-words">
               {report.description}
             </div>
           </div>
@@ -352,7 +352,7 @@ export default function ReportPage() {
         </div>
 
         {/* Sidebar info */}
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
           {/* Credibility */}
           <div className="glass-card p-5">
             <h4 className="text-sm text-gray-400 mb-2">Credibility</h4>
@@ -420,37 +420,37 @@ export default function ReportPage() {
         </div>
 
         {/* Actions bar */}
-        <div className="flex items-center justify-between py-4 border-y border-white/10 mb-8">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 py-4 border-y border-white/10 mb-6 sm:mb-8">
+          <div className="flex items-center gap-3 sm:gap-4">
             <button
               onClick={() => handleVote(1)}
               disabled={!user}
-              className="flex items-center gap-2 text-gray-400 hover:text-green-400 disabled:opacity-50"
+              className="flex items-center gap-1.5 sm:gap-2 text-gray-400 hover:text-green-400 disabled:opacity-50"
             >
-              <ThumbsUp className="w-5 h-5" />
-              <span>{report.upvotes}</span>
+              <ThumbsUp className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="text-sm">{report.upvotes}</span>
             </button>
             <button
               onClick={() => handleVote(-1)}
               disabled={!user}
-              className="flex items-center gap-2 text-gray-400 hover:text-red-400 disabled:opacity-50"
+              className="flex items-center gap-1.5 sm:gap-2 text-gray-400 hover:text-red-400 disabled:opacity-50"
             >
-              <ThumbsDown className="w-5 h-5" />
-              <span>{report.downvotes}</span>
+              <ThumbsDown className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="text-sm">{report.downvotes}</span>
             </button>
-            <span className="flex items-center gap-2 text-gray-400">
-              <Eye className="w-5 h-5" />
-              <span>{report.view_count}</span>
+            <span className="flex items-center gap-1.5 sm:gap-2 text-gray-400">
+              <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="text-sm">{report.view_count}</span>
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <button className="btn btn-ghost text-sm">
+            <button className="btn btn-ghost text-xs sm:text-sm">
               <Bookmark className="w-4 h-4" />
-              Save
+              <span className="hidden sm:inline">Save</span>
             </button>
-            <button className="btn btn-ghost text-sm">
+            <button className="btn btn-ghost text-xs sm:text-sm">
               <Share2 className="w-4 h-4" />
-              Share
+              <span className="hidden sm:inline">Share</span>
             </button>
           </div>
         </div>

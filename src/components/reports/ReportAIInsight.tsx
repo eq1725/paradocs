@@ -145,15 +145,15 @@ export default function ReportAIInsight({ reportSlug, className }: Props) {
     : 'text-gray-400'
 
   return (
-    <div className={classNames('glass-card p-6', className)}>
+    <div className={classNames('glass-card p-4 sm:p-6 overflow-hidden', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <Sparkles className="w-5 h-5 text-primary-400" />
+      <div className="flex items-center justify-between gap-2 mb-4">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Sparkles className="w-5 h-5 text-primary-400 flex-shrink-0" />
           <h3 className="font-medium text-white">AI Analysis</h3>
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-500">
-          <span>
+          <span className="hidden sm:inline">
             {new Date(insight.generated_at).toLocaleDateString()}
           </span>
           <button
@@ -168,13 +168,13 @@ export default function ReportAIInsight({ reportSlug, className }: Props) {
       </div>
 
       {/* Title */}
-      <h4 className="text-lg font-medium text-white mb-2">
+      <h4 className="text-base sm:text-lg font-medium text-white mb-2 break-words">
         {insight.title}
       </h4>
 
       {/* Main Narrative */}
-      <div className="prose prose-invert prose-sm max-w-none mb-6">
-        <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">
+      <div className="prose prose-invert prose-sm max-w-none mb-4 sm:mb-6">
+        <p className="text-gray-300 whitespace-pre-wrap leading-relaxed break-words">
           {insight.content}
         </p>
       </div>
@@ -184,19 +184,19 @@ export default function ReportAIInsight({ reportSlug, className }: Props) {
         <div className="border-t border-white/10 pt-4 mb-4">
           <button
             onClick={() => toggleSection('credibility')}
-            className="flex items-center justify-between w-full text-left"
+            className="flex items-center justify-between w-full text-left gap-2"
           >
-            <div className="flex items-center gap-2">
-              <Shield className="w-4 h-4 text-gray-400" />
-              <span className="text-sm font-medium text-white">Credibility Assessment</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Shield className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <span className="text-sm font-medium text-white">Credibility</span>
               <span className={classNames('text-sm font-bold', credibilityColor)}>
                 {credibility.score}/100
               </span>
             </div>
             {expandedSections.credibility ? (
-              <ChevronUp className="w-4 h-4 text-gray-400" />
+              <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" />
             ) : (
-              <ChevronDown className="w-4 h-4 text-gray-400" />
+              <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
             )}
           </button>
 
@@ -247,18 +247,18 @@ export default function ReportAIInsight({ reportSlug, className }: Props) {
             <div className="mt-3 space-y-3">
               {insight.mundane_explanations.map((exp, i) => (
                 <div key={i} className="bg-white/5 rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium text-white">{exp.explanation}</span>
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className="text-sm font-medium text-white break-words">{exp.explanation}</span>
                     <span className={classNames(
-                      'text-xs px-2 py-0.5 rounded-full',
+                      'text-xs px-2 py-0.5 rounded-full whitespace-nowrap',
                       exp.likelihood === 'high' ? 'bg-yellow-500/20 text-yellow-400' :
                         exp.likelihood === 'medium' ? 'bg-blue-500/20 text-blue-400' :
                           'bg-gray-500/20 text-gray-400'
                     )}>
-                      {exp.likelihood} likelihood
+                      {exp.likelihood}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-400">{exp.reasoning}</p>
+                  <p className="text-sm text-gray-400 break-words">{exp.reasoning}</p>
                 </div>
               ))}
             </div>
