@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background with gradient -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1c194b"/>
+      <stop offset="100%" style="stop-color:#0a0a14"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7c8ff8"/>
+      <stop offset="100%" style="stop-color:#5b63f1"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded background -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+
+  <!-- Subtle stars -->
+  <circle cx="80" cy="100" r="2" fill="rgba(255,255,255,0.3)"/>
+  <circle cx="420" cy="80" r="1.5" fill="rgba(255,255,255,0.2)"/>
+  <circle cx="450" cy="400" r="2" fill="rgba(255,255,255,0.25)"/>
+  <circle cx="60" cy="380" r="1.5" fill="rgba(255,255,255,0.2)"/>
+  <circle cx="380" cy="150" r="1" fill="rgba(255,255,255,0.15)"/>
+  <circle cx="100" cy="420" r="1" fill="rgba(255,255,255,0.15)"/>
+
+  <!-- "P" letter -->
+  <path d="M150 120h140c66 0 120 54 120 120s-54 120-120 120h-70v112h-70V120zm70 175h70c28 0 50-22 50-50s-22-50-50-50h-70v100z" fill="url(#accent)"/>
+</svg>
