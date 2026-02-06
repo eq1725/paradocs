@@ -20,6 +20,11 @@ body {
   min-height: 100vh;
 }
 
+/* Safe area padding for iPhone notch/home indicator */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

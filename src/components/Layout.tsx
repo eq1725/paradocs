@@ -181,22 +181,86 @@ export default function Layout({ children }: LayoutProps) {
                 )
               )}
 
-              {/* Mobile menu button */}
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 rounded-lg hover:bg-white/10"
-              >
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
+              {/* Mobile menu button - hidden, bottom bar handles this */}
             </div>
           </div>
         </div>
+      </header>
 
-        {/* Mobile menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-white/5 bg-black/50 backdrop-blur-xl">
-            <div className="px-4 py-4 space-y-2">
-              <form onSubmit={handleSearch} className="mb-4">
+      {/* Mobile Bottom Navigation Bar - Always visible on mobile */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-xl border-t border-white/10 safe-area-pb">
+        <div className="flex items-center justify-around h-16">
+          <Link
+            href="/explore"
+            className={classNames(
+              'flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors',
+              router.pathname === '/explore' || router.pathname.startsWith('/explore')
+                ? 'text-primary-400'
+                : 'text-gray-400 hover:text-white'
+            )}
+          >
+            <Compass className="w-5 h-5" />
+            <span className="text-xs mt-1">Explore</span>
+          </Link>
+          <Link
+            href="/map"
+            className={classNames(
+              'flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors',
+              router.pathname === '/map'
+                ? 'text-primary-400'
+                : 'text-gray-400 hover:text-white'
+            )}
+          >
+            <Map className="w-5 h-5" />
+            <span className="text-xs mt-1">Map</span>
+          </Link>
+          <Link
+            href="/submit"
+            className="flex flex-col items-center justify-center flex-1 h-full py-2"
+          >
+            <div className="flex items-center justify-center w-12 h-12 -mt-4 rounded-full bg-primary-600 text-white shadow-lg shadow-primary-600/30">
+              <PlusCircle className="w-6 h-6" />
+            </div>
+          </Link>
+          <Link
+            href="/phenomena"
+            className={classNames(
+              'flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors',
+              router.pathname === '/phenomena' || router.pathname.startsWith('/phenomena')
+                ? 'text-primary-400'
+                : 'text-gray-400 hover:text-white'
+            )}
+          >
+            <BookOpen className="w-5 h-5" />
+            <span className="text-xs mt-1">Encyclopedia</span>
+          </Link>
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className={classNames(
+              'flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors',
+              mobileMenuOpen ? 'text-primary-400' : 'text-gray-400 hover:text-white'
+            )}
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            <span className="text-xs mt-1">More</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* Mobile Slide-up Menu */}
+      {mobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-40" onClick={() => setMobileMenuOpen(false)}>
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+
+          {/* Menu Panel */}
+          <div
+            className="absolute bottom-16 left-0 right-0 bg-gray-900/98 backdrop-blur-xl border-t border-white/10 rounded-t-2xl max-h-[70vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Search */}
+            <div className="p-4 border-b border-white/5">
+              <form onSubmit={handleSearch}>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                   <input
@@ -204,69 +268,105 @@ export default function Layout({ children }: LayoutProps) {
                     placeholder="Search phenomena..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm"
+                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm"
                   />
                 </div>
               </form>
-              {/* Home link for mobile */}
-              <Link
-                href="/"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:text-white hover:bg-white/10"
-              >
-                <Home className="w-5 h-5" />
-                Home
-              </Link>
-              {navigation.map((item) => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:text-white hover:bg-white/10"
-                >
-                  <item.icon className="w-5 h-5" />
-                  {item.name}
-                </Link>
-              ))}
-              {/* Analytics for mobile - power user feature */}
-              <Link
-                href="/analytics"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:text-white hover:bg-white/10"
-              >
-                <BarChart3 className="w-5 h-5" />
-                Analytics
-              </Link>
-              {user && (
-                <Link
-                  href="/dashboard"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:text-white hover:bg-white/10"
-                >
-                  <LayoutDashboard className="w-5 h-5" />
-                  Dashboard
-                </Link>
-              )}
-              <Link
-                href="/submit"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 px-4 py-3 rounded-lg bg-primary-600 text-white"
-              >
-                <PlusCircle className="w-5 h-5" />
-                Submit Report
-              </Link>
             </div>
-          </div>
-        )}
-      </header>
 
-      {/* Main content */}
-      <main className="pt-16 min-h-screen">
+            {/* DISCOVER Section */}
+            <div className="px-4 pt-4 pb-2">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Discover</p>
+              <div className="space-y-1">
+                <Link
+                  href="/"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                >
+                  <Home className="w-5 h-5" />
+                  <span>Home</span>
+                </Link>
+                <Link
+                  href="/insights"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                >
+                  <Sparkles className="w-5 h-5" />
+                  <span>AI Insights</span>
+                </Link>
+                <Link
+                  href="/analytics"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                >
+                  <BarChart3 className="w-5 h-5" />
+                  <span>Analytics</span>
+                </Link>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="mx-4 border-t border-white/5" />
+
+            {/* MY PARADOCS Section */}
+            <div className="px-4 pt-4 pb-2">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">My Paradocs</p>
+              <div className="space-y-1">
+                {user ? (
+                  <>
+                    <Link
+                      href="/dashboard"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      <LayoutDashboard className="w-5 h-5" />
+                      <span>Dashboard</span>
+                    </Link>
+                    <Link
+                      href="/dashboard/settings"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      <Settings className="w-5 h-5" />
+                      <span>Settings</span>
+                    </Link>
+                    <button
+                      onClick={() => {
+                        handleSignOut()
+                        setMobileMenuOpen(false)
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      <LogOut className="w-5 h-5" />
+                      <span>Sign out</span>
+                    </button>
+                  </>
+                ) : (
+                  <Link
+                    href="/login"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                  >
+                    <LogIn className="w-5 h-5" />
+                    <span>Sign in</span>
+                  </Link>
+                )}
+              </div>
+            </div>
+
+            {/* Bottom padding for safe area */}
+            <div className="h-4" />
+          </div>
+        </div>
+      )}
+
+      {/* Main content - extra bottom padding on mobile for bottom nav */}
+      <main className="pt-16 pb-20 md:pb-0 min-h-screen">
         {children}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-white/5 bg-black/30 backdrop-blur">
+      {/* Footer - extra bottom padding on mobile for bottom nav */}
+      <footer className="border-t border-white/5 bg-black/30 backdrop-blur pb-20 md:pb-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="col-span-2 md:col-span-1">
