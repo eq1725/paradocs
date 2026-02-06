@@ -63,13 +63,13 @@ export default function Layout({ children }: LayoutProps) {
     }
   }
 
+  // Main navigation - optimized for serial position effect (important items first/last)
+  // Home removed (logo handles it), Analytics moved to footer/dashboard
   const navigation = [
-    { name: 'Home', href: '/', icon: Home },
     { name: 'Explore', href: '/explore', icon: Compass },
-    { name: 'Encyclopedia', href: '/phenomena', icon: BookOpen },
     { name: 'Map', href: '/map', icon: Map },
+    { name: 'Encyclopedia', href: '/phenomena', icon: BookOpen },
     { name: 'Insights', href: '/insights', icon: Sparkles },
-    { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   ]
 
   return (
@@ -86,22 +86,22 @@ export default function Layout({ children }: LayoutProps) {
               <span className="font-sans font-black text-2xl text-white tracking-tight">Paradocs</span>
             </Link>
 
-            {/* Desktop Navigation */}
+            {/* Desktop Navigation - Text only, no icons for cleaner look */}
             <nav className="hidden md:flex items-center gap-1">
               {navigation.map((item) => {
-                const isActive = router.pathname === item.href
+                const isActive = router.pathname === item.href ||
+                  (item.href !== '/' && router.pathname.startsWith(item.href))
                 return (
                   <Link
                     key={item.name}
                     href={item.href}
                     className={classNames(
-                      'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+                      'px-4 py-2 rounded-lg text-sm font-medium transition-all',
                       isActive
-                        ? 'bg-white/10 text-white'
+                        ? 'bg-white/15 text-white shadow-sm'
                         : 'text-gray-400 hover:text-white hover:bg-white/5'
                     )}
                   >
-                    <item.icon className="w-4 h-4" />
                     {item.name}
                   </Link>
                 )
@@ -208,6 +208,15 @@ export default function Layout({ children }: LayoutProps) {
                   />
                 </div>
               </form>
+              {/* Home link for mobile */}
+              <Link
+                href="/"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:text-white hover:bg-white/10"
+              >
+                <Home className="w-5 h-5" />
+                Home
+              </Link>
               {navigation.map((item) => (
                 <Link
                   key={item.name}
@@ -219,6 +228,15 @@ export default function Layout({ children }: LayoutProps) {
                   {item.name}
                 </Link>
               ))}
+              {/* Analytics for mobile - power user feature */}
+              <Link
+                href="/analytics"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:text-white hover:bg-white/10"
+              >
+                <BarChart3 className="w-5 h-5" />
+                Analytics
+              </Link>
               {user && (
                 <Link
                   href="/dashboard"
