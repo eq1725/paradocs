@@ -60,14 +60,28 @@ export default function MapView({
     )
   }
 
+  // Fix Leaflet's default icon path issue
+  useEffect(() => {
+    if (L) {
+      // Prevent Leaflet from trying to load default marker images
+      delete (L.Icon.Default.prototype as any)._getIconUrl
+      L.Icon.Default.mergeOptions({
+        iconUrl: '',
+        iconRetinaUrl: '',
+        shadowUrl: '',
+      })
+    }
+  }, [L])
+
   // Create custom icons for each category
   const createIcon = (category: string) => {
     const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
     return L.divIcon({
-      html: `<div style="width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; background: rgba(15, 15, 25, 0.95); border: 2px solid rgba(124, 143, 248, 0.6); box-shadow: 0 2px 8px rgba(0,0,0,0.5);">${config.icon}</div>`,
+      html: `<div style="width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; background: rgba(15, 15, 25, 0.95); border: 2px solid rgba(124, 143, 248, 0.6); box-shadow: 0 2px 8px rgba(0,0,0,0.5); line-height: 1;">${config.icon}</div>`,
       className: 'custom-div-marker',
       iconSize: [36, 36],
       iconAnchor: [18, 18],
+      popupAnchor: [0, -18],
     })
   }
 

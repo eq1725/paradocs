@@ -21,7 +21,7 @@ export default function CategoryFilter({
   const categories = Object.entries(CATEGORY_CONFIG) as [PhenomenonCategory, typeof CATEGORY_CONFIG[PhenomenonCategory]][]
 
   return (
-    <div className="flex gap-3 sm:gap-2 overflow-x-auto pb-2 -mb-2 scrollbar-hide sm:flex-wrap sm:overflow-visible sm:pb-0 sm:mb-0">
+    <div className="flex gap-3 sm:gap-2 overflow-x-auto py-1 -my-1 scrollbar-hide sm:flex-wrap sm:overflow-visible sm:py-0 sm:my-0">
       <button
         onClick={() => onChange('all')}
         className={classNames(

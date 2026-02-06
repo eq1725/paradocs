@@ -102,6 +102,32 @@ body {
   box-shadow: none !important;
 }
 
+/* Hide Leaflet's default marker shadow */
+.leaflet-marker-shadow {
+  display: none !important;
+}
+
+/* More aggressive marker icon overrides */
+.leaflet-marker-icon {
+  background-image: none !important;
+}
+
+.leaflet-marker-icon.custom-div-marker,
+.leaflet-marker-icon.custom-div-marker * {
+  background-image: none !important;
+  border-image: none !important;
+}
+
+/* Prevent any default Leaflet icon from showing */
+.leaflet-default-icon-path {
+  display: none !important;
+}
+
+/* Override any marker pane defaults */
+.leaflet-marker-pane .leaflet-marker-icon:not(.custom-div-marker) {
+  display: none !important;
+}
+
 /* Animations */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
