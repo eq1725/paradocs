@@ -89,6 +89,15 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
       }
     }
     fetchProfile()
+
+    // Listen for profile updates from settings page
+    const handleProfileUpdate = () => {
+      fetchProfile()
+    }
+    window.addEventListener('profile-updated', handleProfileUpdate)
+    return () => {
+      window.removeEventListener('profile-updated', handleProfileUpdate)
+    }
   }, [])
 
   const handleSignOut = async () => {

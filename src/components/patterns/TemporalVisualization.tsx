@@ -146,21 +146,21 @@ export default function TemporalVisualization({
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-4 gap-2 text-center">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
         <div className="p-2 bg-gray-800/50 rounded">
-          <p className="text-lg font-bold text-white">{zScore.toFixed(1)}σ</p>
+          <p className="text-base sm:text-lg font-bold text-white">{zScore.toFixed(1)}σ</p>
           <p className="text-xs text-gray-400">Z-Score</p>
         </div>
         <div className="p-2 bg-gray-800/50 rounded">
-          <p className="text-lg font-bold text-white">{mean.toFixed(0)}</p>
+          <p className="text-base sm:text-lg font-bold text-white">{mean.toFixed(0)}</p>
           <p className="text-xs text-gray-400">Mean</p>
         </div>
         <div className="p-2 bg-gray-800/50 rounded">
-          <p className="text-lg font-bold text-white">±{stdDev.toFixed(0)}</p>
+          <p className="text-base sm:text-lg font-bold text-white">±{stdDev.toFixed(0)}</p>
           <p className="text-xs text-gray-400">Std Dev</p>
         </div>
         <div className="p-2 bg-gray-800/50 rounded">
-          <p className="text-lg font-bold text-white">2.5σ</p>
+          <p className="text-base sm:text-lg font-bold text-white">2.5σ</p>
           <p className="text-xs text-gray-400">Threshold</p>
         </div>
       </div>

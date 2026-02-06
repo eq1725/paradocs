@@ -321,30 +321,30 @@ export default function PatternDetailPage() {
           </div>
 
           {/* Enhanced Stats Grid with Uncertainty */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-gray-700/50">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-white">{pattern.report_count}</p>
-              <p className="text-sm text-gray-400">Reports</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mt-6 pt-6 border-t border-gray-700/50">
+            <div className="text-center p-2 sm:p-0">
+              <p className="text-xl sm:text-2xl font-bold text-white">{pattern.report_count}</p>
+              <p className="text-xs sm:text-sm text-gray-400">Reports</p>
             </div>
-            <div className="text-center">
+            <div className="text-center p-2 sm:p-0">
               <UncertaintyDisplay
                 label=""
                 bounds={enhancedScores.confidenceBounds}
                 variant="badge"
               />
-              <p className="text-sm text-gray-400 mt-1">Confidence</p>
+              <p className="text-xs sm:text-sm text-gray-400 mt-1">Confidence</p>
             </div>
-            <div className="text-center">
+            <div className="text-center p-2 sm:p-0">
               <UncertaintyDisplay
                 label=""
                 bounds={enhancedScores.significanceBounds}
                 variant="badge"
               />
-              <p className="text-sm text-gray-400 mt-1">Significance</p>
+              <p className="text-xs sm:text-sm text-gray-400 mt-1">Significance</p>
             </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-white">{pattern.view_count || 0}</p>
-              <p className="text-sm text-gray-400">Views</p>
+            <div className="text-center p-2 sm:p-0">
+              <p className="text-xl sm:text-2xl font-bold text-white">{pattern.view_count || 0}</p>
+              <p className="text-xs sm:text-sm text-gray-400">Views</p>
             </div>
           </div>
         </div>

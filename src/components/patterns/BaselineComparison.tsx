@@ -69,7 +69,7 @@ export default function BaselineComparison({
         <h3 className="font-medium text-white">Compared to Baseline</h3>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Current vs Baseline */}
         <div className="p-3 bg-gray-800/50 rounded-lg">
           <div className="flex items-center justify-between mb-2">
@@ -77,11 +77,11 @@ export default function BaselineComparison({
             <span className="text-xs text-gray-400">Baseline</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-xl font-bold text-white">
+            <span className="text-lg sm:text-xl font-bold text-white">
               {comparison.currentValue.toLocaleString()}
             </span>
-            <TrendIcon className={classNames('w-5 h-5 mx-2', trendColor)} />
-            <span className="text-xl font-bold text-gray-400">
+            <TrendIcon className={classNames('w-5 h-5 mx-2 flex-shrink-0', trendColor)} />
+            <span className="text-lg sm:text-xl font-bold text-gray-400">
               {comparison.baselineValue.toLocaleString()}
             </span>
           </div>
@@ -97,13 +97,13 @@ export default function BaselineComparison({
         <div className="p-3 bg-gray-800/50 rounded-lg">
           <div className="flex items-center gap-2 mb-2">
             <Trophy className={classNames(
-              'w-4 h-4',
+              'w-4 h-4 flex-shrink-0',
               comparison.historicalRank <= 3 ? 'text-amber-400' : 'text-gray-400'
             )} />
             <span className="text-xs text-gray-400">Historical Rank</span>
           </div>
           <div className="text-center">
-            <span className="text-3xl font-bold text-white">
+            <span className="text-2xl sm:text-3xl font-bold text-white">
               #{comparison.historicalRank}
             </span>
             <p className="text-xs text-gray-400 mt-1">

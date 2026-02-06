@@ -234,6 +234,7 @@ export default function SettingsPage() {
           id: session.user.id,
           username: profile.username,
           display_name: profile.display_name,
+          avatar_url: profile.avatar_url,
           bio: profile.bio,
           location: profile.location,
           website: profile.website,
@@ -242,6 +243,9 @@ export default function SettingsPage() {
         })
 
       if (error) throw error
+
+      // Dispatch event to notify other components (like DashboardLayout sidebar) to refresh
+      window.dispatchEvent(new CustomEvent('profile-updated'))
 
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
