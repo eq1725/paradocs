@@ -27,7 +27,7 @@ export default function CategoryFilter({
       {/* Fade gradient on right edge (mobile only) */}
       <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#0a0a14] to-transparent z-10 pointer-events-none sm:hidden" />
 
-      <div className="flex gap-3 sm:gap-2 overflow-x-auto py-1 pb-5 -my-1 -mb-5 pr-4 scrollbar-hide sm:flex-wrap sm:overflow-visible sm:py-0 sm:my-0 sm:pb-0 sm:-mb-0 sm:pr-0 items-start">
+      <div className="flex gap-3 sm:gap-2 overflow-x-auto py-1 pb-5 -my-1 -mb-5 pr-2 scrollbar-hide sm:flex-wrap sm:overflow-visible sm:py-0 sm:my-0 sm:pb-0 sm:-mb-0 sm:pr-0 items-start">
       <button
         onClick={() => onChange('all')}
         className={classNames(
