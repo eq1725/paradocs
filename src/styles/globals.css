@@ -121,11 +121,35 @@ body {
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
+  overflow: hidden;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .glass-card:hover {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Prevent text overflow on mobile */
+.prose, .prose-invert {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Global mobile text overflow prevention */
+@media (max-width: 640px) {
+  article, section, div, p {
+    max-width: 100%;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+  }
+
+  /* Ensure long URLs/text break */
+  a, span {
+    word-break: break-word;
+  }
 }
 
 /* Category badges */
