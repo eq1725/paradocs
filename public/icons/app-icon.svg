@@ -11,8 +11,8 @@
     </linearGradient>
   </defs>
 
-  <!-- Rounded background -->
-  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- Full background (iOS will apply its own rounding) -->
+  <rect width="512" height="512" fill="url(#bg)"/>
 
   <!-- Subtle stars -->
   <circle cx="80" cy="100" r="2" fill="rgba(255,255,255,0.3)"/>
@@ -22,6 +22,7 @@
   <circle cx="380" cy="150" r="1" fill="rgba(255,255,255,0.15)"/>
   <circle cx="100" cy="420" r="1" fill="rgba(255,255,255,0.15)"/>
 
-  <!-- "P" letter -->
-  <path d="M150 120h140c66 0 120 54 120 120s-54 120-120 120h-70v112h-70V120zm70 175h70c28 0 50-22 50-50s-22-50-50-50h-70v100z" fill="url(#accent)"/>
+  <!-- "P" letter - properly centered -->
+  <!-- Center of canvas is 256,256. P should be visually centered -->
+  <path d="M156 96h120c77 0 140 63 140 140s-63 140-140 140h-50v100h-70V96zm70 210h50c39 0 70-31 70-70s-31-70-70-70h-50v140z" fill="url(#accent)"/>
 </svg>

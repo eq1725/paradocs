@@ -20,9 +20,25 @@ body {
   min-height: 100vh;
 }
 
-/* Safe area padding for iPhone notch/home indicator */
+/* Safe area padding for iPhone notch/Dynamic Island/home indicator */
+.safe-area-pt {
+  padding-top: env(safe-area-inset-top, 0px);
+}
 .safe-area-pb {
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.safe-area-top {
+  top: env(safe-area-inset-top, 0px);
+}
+
+/* Main content padding that accounts for header + safe area */
+.main-content-pt {
+  padding-top: calc(3.5rem + env(safe-area-inset-top, 0px)); /* h-14 = 3.5rem */
+}
+@media (min-width: 640px) {
+  .main-content-pt {
+    padding-top: calc(4rem + env(safe-area-inset-top, 0px)); /* h-16 = 4rem */
+  }
 }
 
 /* Custom scrollbar */

@@ -77,10 +77,10 @@ export default function Layout({ children }: LayoutProps) {
       {/* Starfield background */}
       <Starfield />
 
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-black/30 backdrop-blur-xl border-b border-white/5">
+      {/* Header - safe-area-pt handles Dynamic Island in PWA mode */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-black/30 backdrop-blur-xl border-b border-white/5 safe-area-pt">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-14 sm:h-16">
             {/* Logo */}
             <Link href="/" className="flex items-center mr-8">
               <span className="font-sans font-black text-2xl text-white tracking-tight">Paradocs</span>
@@ -360,8 +360,8 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       )}
 
-      {/* Main content - extra bottom padding on mobile for bottom nav */}
-      <main className="pt-16 pb-20 md:pb-0 min-h-screen">
+      {/* Main content - accounts for header + safe area (Dynamic Island) + bottom nav */}
+      <main className="main-content-pt pb-20 md:pb-0 min-h-screen">
         {children}
       </main>
 
