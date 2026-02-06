@@ -349,9 +349,28 @@ export default function SettingsPage() {
               {showAvatarSelector ? (
                 <AvatarSelector
                   currentAvatar={profile?.avatar_url}
-                  onSelect={(avatar) => {
+                  onSelect={async (avatar) => {
+                    // Update local state
                     setProfile(p => p ? { ...p, avatar_url: avatar } : null)
                     setShowAvatarSelector(false)
+
+                    // Auto-save avatar to database
+                    try {
+                      const { data: { session } } = await supabase.auth.getSession()
+                      if (session) {
+                        await supabase
+                          .from('profiles')
+                          .upsert({
+                            id: session.user.id,
+                            avatar_url: avatar,
+                            updated_at: new Date().toISOString()
+                          })
+                        // Notify sidebar to refresh
+                        window.dispatchEvent(new CustomEvent('profile-updated'))
+                      }
+                    } catch (err) {
+                      console.error('Error saving avatar:', err)
+                    }
                   }}
                   onClose={() => setShowAvatarSelector(false)}
                 />

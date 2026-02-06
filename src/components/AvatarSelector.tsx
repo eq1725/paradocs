@@ -152,16 +152,20 @@ export function Avatar({
   // Parse avatar string (format: "emoji:bg-color-class")
   if (avatar && avatar.includes(':')) {
     const [emoji, bgColor] = avatar.split(':')
-    return (
-      <div className={classNames(
-        'rounded-full flex items-center justify-center',
-        sizeClasses[size],
-        bgColor || 'bg-primary-600',
-        className
-      )}>
-        {emoji}
-      </div>
-    )
+    // Validate that emoji is actually a valid emoji from our list
+    if (AVATAR_EMOJIS.includes(emoji)) {
+      return (
+        <div className={classNames(
+          'rounded-full flex items-center justify-center',
+          sizeClasses[size],
+          bgColor || 'bg-primary-600',
+          className
+        )}>
+          {emoji}
+        </div>
+      )
+    }
+    // Invalid emoji format, fall through to fallback
   }
 
   // Just an emoji without color
