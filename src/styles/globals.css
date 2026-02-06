@@ -90,6 +90,18 @@ body {
   color: white !important;
 }
 
+/* Custom map marker - remove Leaflet's default marker styling */
+.custom-div-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.leaflet-marker-icon.custom-div-marker {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
 /* Animations */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }

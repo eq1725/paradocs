@@ -64,10 +64,10 @@ export default function MapView({
   const createIcon = (category: string) => {
     const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
     return L.divIcon({
-      html: `<div class="w-8 h-8 rounded-full flex items-center justify-center text-lg shadow-lg" style="background: rgba(0,0,0,0.8); border: 2px solid currentColor;" class="${config.color}">${config.icon}</div>`,
-      className: 'custom-marker',
-      iconSize: [32, 32],
-      iconAnchor: [16, 16],
+      html: `<div style="width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; background: rgba(15, 15, 25, 0.95); border: 2px solid rgba(124, 143, 248, 0.6); box-shadow: 0 2px 8px rgba(0,0,0,0.5);">${config.icon}</div>`,
+      className: 'custom-div-marker',
+      iconSize: [36, 36],
+      iconAnchor: [18, 18],
     })
   }
 
