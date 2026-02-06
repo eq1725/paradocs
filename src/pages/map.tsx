@@ -61,8 +61,8 @@ export default function MapPage() {
       <div className="h-[calc(100vh-4rem)] flex flex-col">
         {/* Top bar with filters */}
         <div className="p-4 border-b border-white/5 bg-black/30 backdrop-blur">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="max-w-7xl mx-auto space-y-3">
+            <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-xl font-display font-bold text-white">
                   Global Sightings Map
@@ -71,6 +71,9 @@ export default function MapPage() {
                   {reports.length.toLocaleString()} locations mapped
                 </p>
               </div>
+            </div>
+            {/* Full width filter row for proper scrolling */}
+            <div className="-mx-4 px-4 sm:mx-0 sm:px-0">
               <CategoryFilter
                 selected={category}
                 onChange={setCategory}
