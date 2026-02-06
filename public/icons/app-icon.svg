@@ -1,50 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <!-- Background gradient matching site -->
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1c194b"/>
-      <stop offset="100%" style="stop-color:#0a0a14"/>
+      <stop offset="0%" stop-color="#16163a"/>
+      <stop offset="100%" stop-color="#0c0c1d"/>
     </linearGradient>
-    <!-- Purple gradient for the P - 3-stop gradient -->
-    <linearGradient id="pGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#a4b8fc"/>
-      <stop offset="50%" style="stop-color:#7c8ff8"/>
-      <stop offset="100%" style="stop-color:#5b63f1"/>
+    <linearGradient id="pGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c4b5fd"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#5b21b6"/>
     </linearGradient>
   </defs>
 
-  <!-- Full background -->
+  <!-- Background -->
   <rect width="512" height="512" fill="url(#bg)"/>
 
-  <!-- Subtle stars -->
-  <circle cx="90" cy="90" r="2" fill="rgba(255,255,255,0.25)"/>
-  <circle cx="420" cy="70" r="1.5" fill="rgba(255,255,255,0.2)"/>
-  <circle cx="440" cy="420" r="2" fill="rgba(255,255,255,0.2)"/>
-  <circle cx="70" cy="400" r="1.5" fill="rgba(255,255,255,0.15)"/>
-
-  <!-- "P" - geometric sans-serif style (Inter-like), properly centered -->
-  <!-- Centered at x=256. P is 200px wide, stem is 56px. Bowl extends right. -->
-  <!-- Visual centering: shift slightly left since P has more mass on left -->
-  <g transform="translate(136, 86)">
-    <!-- Outer shape of P -->
-    <path d="
-      M 0 0
-      L 140 0
-      C 220 0, 240 30, 240 100
-      C 240 170, 220 200, 140 200
-      L 56 200
-      L 56 340
-      L 0 340
-      Z
-    " fill="url(#pGradient)"/>
-    <!-- Inner cutout for the bowl -->
-    <path d="
-      M 56 50
-      L 130 50
-      C 170 50, 184 70, 184 100
-      C 184 130, 170 150, 130 150
-      L 56 150
-      Z
-    " fill="url(#bg)"/>
-  </g>
+  <!-- Clean bold P - exactly centered -->
+  <!-- Bounding box: 180w x 260h, centered in 512x512 -->
+  <!-- x offset: (512-180)/2 = 166, y offset: (512-260)/2 = 126 -->
+  <path d="
+    M 166 126
+    L 166 386
+    L 226 386
+    L 226 296
+    L 286 296
+    Q 346 296 346 211
+    Q 346 126 286 126
+    Z
+    M 226 181
+    L 271 181
+    Q 291 181 291 211
+    Q 291 241 271 241
+    L 226 241
+    Z
+  " fill="url(#pGrad)" fill-rule="evenodd"/>
 </svg>
