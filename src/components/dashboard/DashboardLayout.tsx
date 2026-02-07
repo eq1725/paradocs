@@ -319,8 +319,8 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
               </div>
             </header>
 
-            {/* Mobile Title Bar */}
-            <div className="md:hidden pt-14 px-4 py-4 bg-gray-950">
+            {/* Mobile Title Bar - pt-14 for header + safe-area-pt for notch */}
+            <div className="md:hidden px-4 py-4 bg-gray-950 mobile-title-offset">
               <h1 className="text-xl font-semibold text-white">{title}</h1>
             </div>
 
@@ -332,7 +332,7 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
         </div>
       </div>
 
-      {/* Animation styles */}
+      {/* Animation styles and safe area handling */}
       <style jsx global>{`
         @keyframes slide-in-right {
           from {
@@ -344,6 +344,10 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
         }
         .animate-slide-in-right {
           animation: slide-in-right 0.2s ease-out;
+        }
+        /* Mobile title offset: header height (56px) + safe area for notch */
+        .mobile-title-offset {
+          padding-top: calc(3.5rem + env(safe-area-inset-top, 0px));
         }
       `}</style>
     </>
