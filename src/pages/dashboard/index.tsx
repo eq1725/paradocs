@@ -84,19 +84,19 @@ function StatCard({
   href?: string
 }) {
   const content = (
-    <div className="p-6 bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-gray-400 text-sm mb-1">{label}</p>
-          <p className="text-2xl font-bold text-white">{value}</p>
+    <div className="p-4 sm:p-6 bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors">
+      <div className="flex items-center gap-3 sm:gap-4">
+        <div className="p-2.5 sm:p-3 bg-gray-800 rounded-lg shrink-0">
+          <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-gray-400 text-xs sm:text-sm truncate">{label}</p>
+          <p className="text-xl sm:text-2xl font-bold text-white">{value}</p>
           {trend && (
-            <p className={`text-sm mt-1 ${trend.positive ? 'text-green-400' : 'text-red-400'}`}>
-              {trend.positive ? '+' : ''}{trend.value}% this month
+            <p className={`text-xs sm:text-sm ${trend.positive ? 'text-green-400' : 'text-red-400'}`}>
+              {trend.positive ? '+' : ''}{trend.value}%
             </p>
           )}
-        </div>
-        <div className="p-3 bg-gray-800 rounded-lg">
-          <Icon className="w-6 h-6 text-purple-400" />
         </div>
       </div>
     </div>
@@ -243,7 +243,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
         <StatCard
           label="Total Reports"
           value={stats?.reports.total || 0}

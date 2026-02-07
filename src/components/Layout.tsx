@@ -74,6 +74,9 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen">
+      {/* Force hide desktop dropdown on mobile */}
+      <MobileDropdownHide />
+
       {/* Starfield background */}
       <Starfield />
 
@@ -136,40 +139,54 @@ export default function Layout({ children }: LayoutProps) {
               {/* User menu */}
               {!loading && (
                 user ? (
-                  <div className="relative group">
-                    <button className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 transition-colors">
+                  <>
+                    {/* Mobile: Simple link to dashboard (no dropdown) */}
+                    <Link
+                      href="/dashboard"
+                      className="md:hidden flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 transition-colors"
+                    >
                       <Avatar
                         avatar={user.avatar_url}
                         fallback={user.display_name || user.username}
                         size="md"
                       />
-                    </button>
-                    <div className="absolute right-0 top-full mt-2 w-48 py-2 bg-gray-900/95 backdrop-blur border border-white/10 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
-                      <div className="px-4 py-2 border-b border-white/10">
-                        <p className="font-medium text-white">{user.display_name || user.username}</p>
-                        <p className="text-xs text-gray-400">@{user.username}</p>
-                      </div>
-                      <Link href="/dashboard" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
-                        <LayoutDashboard className="w-4 h-4" />
-                        Dashboard
-                      </Link>
-                      <Link href="/dashboard/settings" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
-                        <User className="w-4 h-4" />
-                        Profile
-                      </Link>
-                      <Link href="/dashboard/settings" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
-                        <Settings className="w-4 h-4" />
-                        Settings
-                      </Link>
-                      <button
-                        onClick={handleSignOut}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        Sign out
+                    </Link>
+                    {/* Desktop: Hover dropdown menu - HIDDEN ON MOBILE */}
+                    <div className="desktop-user-dropdown relative group hidden md:block">
+                      <button className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 transition-colors">
+                        <Avatar
+                          avatar={user.avatar_url}
+                          fallback={user.display_name || user.username}
+                          size="md"
+                        />
                       </button>
+                      <div className="absolute right-0 top-full mt-2 w-48 py-2 bg-gray-900/95 backdrop-blur border border-white/10 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                        <div className="px-4 py-2 border-b border-white/10">
+                          <p className="font-medium text-white">{user.display_name || user.username}</p>
+                          <p className="text-xs text-gray-400">@{user.username}</p>
+                        </div>
+                        <Link href="/dashboard" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
+                          <LayoutDashboard className="w-4 h-4" />
+                          Dashboard
+                        </Link>
+                        <Link href="/dashboard/settings" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
+                          <User className="w-4 h-4" />
+                          Profile
+                        </Link>
+                        <Link href="/dashboard/settings" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
+                          <Settings className="w-4 h-4" />
+                          Settings
+                        </Link>
+                        <button
+                          onClick={handleSignOut}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          Sign out
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  </>
                 ) : (
                   <Link
                     href="/login"
@@ -314,6 +331,18 @@ export default function Layout({ children }: LayoutProps) {
               <div className="space-y-1">
                 {user ? (
                   <>
+                    {/* User profile header */}
+                    <div className="flex items-center gap-3 px-3 py-3 mb-2 bg-white/5 rounded-xl">
+                      <Avatar
+                        avatar={user.avatar_url}
+                        fallback={user.display_name || user.username}
+                        size="md"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-white truncate">{user.display_name || user.username}</p>
+                        <p className="text-xs text-gray-400 truncate">@{user.username}</p>
+                      </div>
+                    </div>
                     <Link
                       href="/dashboard"
                       onClick={() => setMobileMenuOpen(false)}
@@ -411,6 +440,20 @@ export default function Layout({ children }: LayoutProps) {
     </div>
   )
 }
+
+// Force hide desktop dropdown on mobile - CSS override
+const MobileDropdownHide = () => (
+  <style jsx global>{`
+    @media (max-width: 767px) {
+      .desktop-user-dropdown {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+    }
+  `}</style>
+)
 
 // Starfield component
 function Starfield() {
