@@ -11,6 +11,8 @@ import { ScrapedReport } from '../types';
 export const META_POST_PATTERNS = [
   // Asking for experiences
   /\b(share your|tell me about|tell us about|what's your|what are your)\b/i,
+  /\b(dump your|drop your|post your|leave your)\s+(experience|stor|thought|comment)/i,
+  /\b(everybody|everyone)\s+(share|dump|drop|post|tell|comment)/i,
   /\b(looking for|searching for|collecting) (stories|experiences|accounts)\b/i,
   /\b(anyone have|does anyone have|has anyone had|who has had)\b/i,
   /\b(anyone else|has anyone else|did anyone else)\b/i,
@@ -23,9 +25,17 @@ export const META_POST_PATTERNS = [
   /\bwhat (paranormal|supernatural|strange|weird|creepy) (experience|thing|event)s? (have you|did you)\b/i,
   // Discussion prompts
   /\b(discussion|megathread|weekly thread)\b/i,
+  /\btalk about (anything|whatever|something)\b/i,
+  /\b(let's|lets) (discuss|talk about|hear)\b/i,
+  /\b(open )?discussion\s*(thread|post|prompt)?\b/i,
+  /\b(sound off|chime in|weigh in)\b/i,
   // Poll/hypothetical questions - NOT real experiences
   /\b(which (one )?would you|would you rather|if you could|would you want to be)\b/i,
   /\b(vote|poll|survey|choose one|pick one)\b/i,
+  // Practice/technique questions (not experiences)
+  /\b(do you|does your|have you)\s+(practice|do|use|try)\b.*\?/i,
+  /\b(has|have)\s+(tulpamancy|meditation|astral projection|lucid dreaming)\s+(affected|changed|helped)/i,
+  /\b(how do you|how does your|what's your)\s+(practice|technique|method|approach)\b/i,
   /\b(reincarnated as|come back as|be turned into)\b/i,
   /\b(favorite|best|worst|scariest|creepiest) (cryptid|creature|ghost|ufo|alien)\?/i,
   /\b(what do you think|what would you do|how would you)\b/i,
@@ -431,6 +441,13 @@ export function filterContent(
   const combinedText = `${title} ${description}`;
   const lowerText = combinedText.toLowerCase();
 
+  // Determine if this is a Reddit comment (comments are responses, often first-hand accounts)
+  const isComment = sourceType === 'reddit-comments';
+
+  // Strong first-person narrative signals (positive indicator for experiences)
+  const hasFirstPersonExperience = /\b(I|we)\s+(saw|heard|felt|experienced|encountered|witnessed|noticed|remember|was there|had a|have had)\b/i.test(description);
+  const hasStoryMarkers = /\b(this happened|it happened|one time|one night|a few years ago|back in|when I was)\b/i.test(description);
+
   // Check minimum length
   if (description.length < opts.minLength) {
     return { passed: false, reason: `Content too short (${description.length} < ${opts.minLength} chars)` };
@@ -441,8 +458,9 @@ export function filterContent(
     return { passed: false, reason: 'Content was deleted or removed' };
   }
 
-  // Check meta post patterns
-  if (opts.checkMeta) {
+  // Check meta post patterns - ONLY for posts, not comments
+  // Comments on meta threads often contain actual first-hand experiences
+  if (opts.checkMeta && !isComment) {
     for (const pattern of META_POST_PATTERNS) {
       if (pattern.test(combinedText)) {
         return { passed: false, reason: `Meta post pattern: ${pattern.source.substring(0, 30)}...` };
@@ -450,17 +468,26 @@ export function filterContent(
     }
   }
 
+  // For comments: if they have strong first-person experience markers, they're likely valid
+  // Skip stricter filters for these as they're responding to prompts with actual experiences
+  const isLikelyExperience = isComment && (hasFirstPersonExperience || hasStoryMarkers);
+
   // Check question-only patterns (titles that are just questions, not experiences)
-  for (const pattern of QUESTION_ONLY_PATTERNS) {
-    if (pattern.test(title)) {
-      return { passed: false, reason: `Question-only post (not an experience): ${pattern.source.substring(0, 30)}...` };
+  // Only apply to posts - comments don't have meaningful titles and are often valid responses
+  if (!isComment) {
+    for (const pattern of QUESTION_ONLY_PATTERNS) {
+      if (pattern.test(title)) {
+        return { passed: false, reason: `Question-only post (not an experience): ${pattern.source.substring(0, 30)}...` };
+      }
     }
   }
 
-  // Check non-experience patterns
-  for (const pattern of NON_EXPERIENCE_PATTERNS) {
-    if (pattern.test(combinedText)) {
-      return { passed: false, reason: `Non-experience content: ${pattern.source.substring(0, 30)}...` };
+  // Check non-experience patterns (skip for comments that are clearly first-person experiences)
+  if (!isLikelyExperience) {
+    for (const pattern of NON_EXPERIENCE_PATTERNS) {
+      if (pattern.test(combinedText)) {
+        return { passed: false, reason: `Non-experience content: ${pattern.source.substring(0, 30)}...` };
+      }
     }
   }
 
