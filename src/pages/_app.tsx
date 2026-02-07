@@ -5,7 +5,7 @@ import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 
 // Pages that should NOT have the main app layout (nav, footer, etc.)
-const STANDALONE_PAGES = ['/beta-access']
+const STANDALONE_PAGES = ['/beta-access', '/survey']
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter()
