@@ -178,8 +178,11 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
       </Head>
 
       <div className="min-h-screen bg-gray-950">
-        {/* Mobile Header - extends into safe area with proper padding */}
-        <header className="md:hidden fixed top-0 left-0 right-0 z-40 bg-gray-900 border-b border-gray-800 dashboard-mobile-header">
+        {/* Safe area background - fills the notch/Dynamic Island area */}
+        <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-gray-900 safe-area-background" />
+
+        {/* Mobile Header - sits below safe area */}
+        <header className="md:hidden fixed left-0 right-0 z-40 bg-gray-900 border-b border-gray-800 dashboard-mobile-header-positioned">
           <div className="flex items-center justify-between h-14 px-4">
             <Link href="/" className="flex items-center gap-2 text-white">
               <ChevronLeft className="w-4 h-4" />
@@ -347,9 +350,13 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
         .animate-slide-in-right {
           animation: slide-in-right 0.2s ease-out;
         }
-        /* Dashboard mobile header: padding-top for safe area (notch/Dynamic Island) */
-        .dashboard-mobile-header {
-          padding-top: env(safe-area-inset-top, 0px);
+        /* Safe area background - fills Dynamic Island / notch area */
+        .safe-area-background {
+          height: env(safe-area-inset-top, 0px);
+        }
+        /* Dashboard mobile header: positioned below safe area */
+        .dashboard-mobile-header-positioned {
+          top: env(safe-area-inset-top, 0px);
         }
         /* Mobile title offset: header height (56px) + safe area for notch */
         .mobile-title-offset {
