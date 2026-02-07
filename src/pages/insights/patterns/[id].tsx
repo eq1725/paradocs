@@ -266,7 +266,7 @@ export default function PatternDetailPage() {
         />
       </Head>
 
-      <div className="py-4 sm:py-8 px-1 sm:px-0">
+      <div className="py-4 sm:py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         {/* Back Navigation */}
         <Link
           href="/insights"
@@ -277,7 +277,7 @@ export default function PatternDetailPage() {
         </Link>
 
         {/* Header */}
-        <div className="glass-card p-4 sm:p-6 mb-4 sm:mb-6 overflow-hidden">
+        <div className="glass-card w-full p-4 sm:p-6 mb-4 sm:mb-6 overflow-hidden">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-3">
@@ -349,9 +349,9 @@ export default function PatternDetailPage() {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 w-full">
           {/* Main Content */}
-          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6 min-w-0">
             {/* Type-Specific Visualization */}
             {pattern.pattern_type === 'temporal_anomaly' && (
               <TemporalVisualization
@@ -386,9 +386,9 @@ export default function PatternDetailPage() {
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-4 sm:space-y-6">
+          <div className="space-y-4 sm:space-y-6 min-w-0">
             {/* Confidence Details */}
-            <div className="glass-card p-4">
+            <div className="glass-card w-full p-4">
               <h3 className="font-medium text-white mb-4">Score Details</h3>
               <div className="space-y-4">
                 <UncertaintyDisplay
@@ -405,7 +405,7 @@ export default function PatternDetailPage() {
             </div>
 
             {/* Pattern Details */}
-            <div className="glass-card p-6">
+            <div className="glass-card w-full p-4 sm:p-6">
               <h2 className="text-lg font-display font-semibold text-white mb-4">
                 Pattern Details
               </h2>
@@ -467,7 +467,7 @@ export default function PatternDetailPage() {
 
             {/* Technical Metadata */}
             {Object.keys(metadata).length > 0 && (
-              <div className="glass-card p-6">
+              <div className="glass-card w-full p-4 sm:p-6">
                 <h2 className="text-lg font-display font-semibold text-white mb-4">
                   Technical Data
                 </h2>
@@ -495,7 +495,7 @@ export default function PatternDetailPage() {
         </div>
 
         {/* Associated Reports - Full Width */}
-        <div className="glass-card p-4 sm:p-6 mt-4 sm:mt-6">
+        <div className="glass-card w-full p-4 sm:p-6 mt-4 sm:mt-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-display font-semibold text-white">
               Associated Reports ({reports.length})
@@ -512,12 +512,12 @@ export default function PatternDetailPage() {
           {reports.length === 0 ? (
             <p className="text-gray-400">No reports linked to this pattern yet.</p>
           ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
               {reports.slice(0, 12).map((report) => (
                 <Link
                   key={report.id}
                   href={`/report/${report.slug}`}
-                  className="block glass-card p-4 hover:scale-[1.02] transition-transform"
+                  className="block glass-card w-full p-4 hover:scale-[1.02] transition-transform"
                 >
                   <h3 className="font-medium text-white text-sm line-clamp-2">{report.title}</h3>
                   <div className="flex flex-col gap-1 mt-2 text-xs text-gray-400">
