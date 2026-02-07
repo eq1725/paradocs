@@ -10,6 +10,7 @@ import {
   getSourceLabel,
   isObviouslyLowQuality,
 } from './filters';
+import { parseLocation } from './utils/location-parser';
 import * as readline from 'readline';
 import * as fs from 'fs';
 import * as zlib from 'zlib';
@@ -342,22 +343,11 @@ function parseRedditDumpPost(post: RedditPost): ScrapedReport | null {
     ? description.substring(0, 197) + '...'
     : description;
 
-  // Extract potential location
-  const locationMatch = description.match(
-    /(?:in|at|near|from)\s+([A-Z][a-zA-Z]+(?:,?\s+[A-Z]{2})?(?:,?\s+(?:USA|US|United States|Canada|UK))?)/
-  );
-  const locationName = locationMatch ? locationMatch[1] : undefined;
-
-  let stateProvince: string | undefined;
-  let country: string | undefined;
-
-  if (locationName) {
-    const stateMatch = locationName.match(/,?\s*([A-Z]{2})(?:,|\s|$)/);
-    if (stateMatch) {
-      stateProvince = stateMatch[1];
-      country = 'United States';
-    }
-  }
+  // Extract potential location using smart parser (handles international locations)
+  const parsedLocation = parseLocation(description);
+  const locationName = parsedLocation.locationName;
+  const stateProvince = parsedLocation.stateProvince;
+  const country = parsedLocation.country;
 
   // Convert UTC timestamp to date
   const eventDate = new Date(post.created_utc * 1000).toISOString().split('T')[0];
