@@ -178,29 +178,31 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
       </Head>
 
       <div className="min-h-screen bg-gray-950">
-        {/* Mobile Header */}
-        <header className="md:hidden fixed top-0 left-0 right-0 z-50 h-14 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4 safe-area-pt">
-          <Link href="/" className="flex items-center gap-2 text-white">
-            <ChevronLeft className="w-4 h-4" />
-            <span className="font-semibold">ParaDocs</span>
-          </Link>
-          <div className="flex items-center gap-2">
-            <button className="p-2 text-gray-400 hover:text-white transition-colors relative">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-purple-500 rounded-full"></span>
-            </button>
-            <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="p-2 text-gray-400 hover:text-white transition-colors"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
+        {/* Mobile Header - extends into safe area with proper padding */}
+        <header className="md:hidden fixed top-0 left-0 right-0 z-40 bg-gray-900 border-b border-gray-800 dashboard-mobile-header">
+          <div className="flex items-center justify-between h-14 px-4">
+            <Link href="/" className="flex items-center gap-2 text-white">
+              <ChevronLeft className="w-4 h-4" />
+              <span className="font-semibold">ParaDocs</span>
+            </Link>
+            <div className="flex items-center gap-2">
+              <button className="p-2 text-gray-400 hover:text-white transition-colors relative">
+                <Bell className="w-5 h-5" />
+                <span className="absolute top-1 right-1 w-2 h-2 bg-purple-500 rounded-full"></span>
+              </button>
+              <button
+                onClick={() => setMobileMenuOpen(true)}
+                className="p-2 text-gray-400 hover:text-white transition-colors"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </header>
 
-        {/* Mobile Menu Overlay */}
+        {/* Mobile Menu Overlay - higher z-index than header */}
         {mobileMenuOpen && (
-          <div className="md:hidden fixed inset-0 z-50">
+          <div className="md:hidden fixed inset-0 z-[60]">
             {/* Backdrop */}
             <div
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -344,6 +346,10 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
         }
         .animate-slide-in-right {
           animation: slide-in-right 0.2s ease-out;
+        }
+        /* Dashboard mobile header: padding-top for safe area (notch/Dynamic Island) */
+        .dashboard-mobile-header {
+          padding-top: env(safe-area-inset-top, 0px);
         }
         /* Mobile title offset: header height (56px) + safe area for notch */
         .mobile-title-offset {
