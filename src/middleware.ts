@@ -16,6 +16,7 @@ const PUBLIC_PATHS = [
   '/api/admin/', // Admin API uses Supabase auth, not basic auth
   '/api/', // All API routes should work with Supabase auth
   '/auth/', // OAuth callback routes
+  '/survey', // Public survey page (linked from email campaigns)
   '/_next/',
   '/favicon.ico',
   '/images/',
