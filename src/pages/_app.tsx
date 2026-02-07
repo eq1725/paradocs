@@ -7,9 +7,13 @@ import Layout from '@/components/Layout'
 // Pages that should NOT have the main app layout (nav, footer, etc.)
 const STANDALONE_PAGES = ['/beta-access', '/survey']
 
+// Pages/routes that have their own complete layout (like DashboardLayout)
+const CUSTOM_LAYOUT_PREFIXES = ['/dashboard']
+
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter()
   const isStandalonePage = STANDALONE_PAGES.includes(router.pathname)
+  const hasCustomLayout = CUSTOM_LAYOUT_PREFIXES.some(prefix => router.pathname.startsWith(prefix))
 
   return (
     <>
@@ -47,7 +51,7 @@ export default function App({ Component, pageProps }: AppProps) {
         {/* Prevent search engine indexing for beta site */}
         <meta name="robots" content="noindex, nofollow" />
       </Head>
-      {isStandalonePage ? (
+      {isStandalonePage || hasCustomLayout ? (
         <Component {...pageProps} />
       ) : (
         <Layout>
