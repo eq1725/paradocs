@@ -206,40 +206,25 @@ async function processFile(filePath) {
 async function processBatch(batch, stats) {
   if (batch.length === 0) return;
 
-  // Use simple bulk insert - much faster than one-by-one
-  // Duplicates will fail at DB level and we'll handle them
-  try {
-    const { data, error } = await supabase
-      .from('reports')
-      .insert(batch)
-      .select('id');
-
-    if (error) {
-      // Bulk insert failed - likely some duplicates or bad data
-      // Fall back to individual inserts for this batch
-      for (const report of batch) {
-        try {
-          const { error: singleError } = await supabase.from('reports').insert(report);
-          if (singleError) {
-            if (singleError.code === '23505') {
-              stats.skipped++;  // Duplicate
-            } else {
-              stats.errors++;
-            }
-          } else {
-            stats.inserted++;
-          }
-        } catch (e) {
+  // Insert records one by one for reliability (bulk can fail silently)
+  for (const report of batch) {
+    try {
+      const { error } = await supabase.from('reports').insert(report);
+      if (error) {
+        if (error.code === '23505') {
+          stats.skipped++;  // Duplicate
+        } else {
           stats.errors++;
+          if (stats.errors <= 5) {
+            console.log(`  DB Error: ${error.message}`);
+          }
         }
+      } else {
+        stats.inserted++;
       }
-    } else {
-      // All inserted successfully
-      stats.inserted += batch.length;
+    } catch (e) {
+      stats.errors++;
     }
-  } catch (e) {
-    console.error('  Batch error:', e.message);
-    stats.errors += batch.length;
   }
 }
 
