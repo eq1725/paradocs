@@ -59,8 +59,26 @@ const REJECT_PATTERNS = [
   /\[(removed|deleted)\]/i,
 ];
 
+// POSITIVE filters - signs of first-hand experience (what we WANT)
+const EXPERIENCE_PATTERNS = [
+  // First-person experience verbs
+  /\b(I|we)\s+(saw|seen|heard|felt|experienced|encountered|witnessed|noticed|remember|had)\b/i,
+  // Story markers
+  /\b(this happened|it happened|one time|one night|a few years ago|back in|when I was|years ago)\b/i,
+  // Personal narrative indicators
+  /\b(my (experience|encounter|sighting|story)|happened to me|I was there|I remember)\b/i,
+  // Time/place specifics suggesting real account
+  /\b(around \d|about \d|\d (am|pm)|at night|that night|that day|in (my|the) (house|room|car|bed))\b/i,
+  // Emotional reactions (suggest genuine experience)
+  /\b(scared|terrified|freaked|couldn't explain|still don't know|to this day|never forget)\b/i,
+];
+
 function shouldReject(text) {
   return REJECT_PATTERNS.some(p => p.test(text));
+}
+
+function hasExperienceMarkers(text) {
+  return EXPERIENCE_PATTERNS.some(p => p.test(text));
 }
 
 function generateSlug(title, id, source) {
@@ -122,7 +140,7 @@ async function processFile(filePath) {
     // Log every 10K lines OR every 5 seconds
     const now = Date.now();
     if (stats.total % 10000 === 0 || (now - lastLog > 5000)) {
-      console.log(`  Lines: ${stats.total.toLocaleString()} | Passed: ${stats.passed.toLocaleString()} | Inserted: ${stats.inserted.toLocaleString()} | TooShort: ${(stats.tooShort||0).toLocaleString()} | Rejected: ${(stats.rejected||0).toLocaleString()}`);
+      console.log(`  Lines: ${stats.total.toLocaleString()} | Passed: ${stats.passed.toLocaleString()} | Inserted: ${stats.inserted.toLocaleString()} | TooShort: ${(stats.tooShort||0).toLocaleString()} | NoExp: ${(stats.noExperience||0).toLocaleString()}`);
       lastLog = now;
     }
 
@@ -147,9 +165,16 @@ async function processFile(filePath) {
         continue;
       }
 
-      // Quality filter
+      // Quality filter - reject obvious non-experiences
       if (shouldReject(title + ' ' + description)) {
         stats.rejected = (stats.rejected || 0) + 1;
+        continue;
+      }
+
+      // POSITIVE filter - require signs of first-hand experience
+      // This is what ParaDocs is about: actual anecdotal reports
+      if (!hasExperienceMarkers(description)) {
+        stats.noExperience = (stats.noExperience || 0) + 1;
         continue;
       }
       stats.passed++;
@@ -193,9 +218,10 @@ async function processFile(filePath) {
   console.log(`\nCompleted: ${fileName}`);
   console.log(`  Total lines: ${stats.total.toLocaleString()}`);
   console.log(`  Matched subreddit: ${stats.matched.toLocaleString()}`);
-  console.log(`  Too short: ${(stats.tooShort||0).toLocaleString()}`);
-  console.log(`  Rejected by filter: ${(stats.rejected||0).toLocaleString()}`);
-  console.log(`  Passed filters: ${stats.passed.toLocaleString()}`);
+  console.log(`  Too short (<100 chars): ${(stats.tooShort||0).toLocaleString()}`);
+  console.log(`  Rejected (spam/meta): ${(stats.rejected||0).toLocaleString()}`);
+  console.log(`  No experience markers: ${(stats.noExperience||0).toLocaleString()}`);
+  console.log(`  Passed all filters: ${stats.passed.toLocaleString()}`);
   console.log(`  Inserted: ${stats.inserted.toLocaleString()}`);
   console.log(`  Skipped (duplicates): ${stats.skipped.toLocaleString()}`);
   console.log(`  Errors: ${stats.errors.toLocaleString()}`);
