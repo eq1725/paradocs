@@ -197,3 +197,29 @@ export const US_STATES = [
   'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont',
   'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming'
 ]
+
+export const CA_PROVINCES = [
+  'Alberta', 'British Columbia', 'Manitoba', 'New Brunswick',
+  'Newfoundland and Labrador', 'Northwest Territories', 'Nova Scotia',
+  'Nunavut', 'Ontario', 'Prince Edward Island', 'Quebec', 'Saskatchewan', 'Yukon'
+]
+
+export const UK_REGIONS = [
+  'England', 'Scotland', 'Wales', 'Northern Ireland'
+]
+
+export const AU_STATES = [
+  'Australian Capital Territory', 'New South Wales', 'Northern Territory',
+  'Queensland', 'South Australia', 'Tasmania', 'Victoria', 'Western Australia'
+]
+
+// Get region list based on country
+export function getRegionsForCountry(country: string): { list: string[], label: string } {
+  switch (country) {
+    case 'United States': return { list: US_STATES, label: 'State' }
+    case 'Canada': return { list: CA_PROVINCES, label: 'Province' }
+    case 'United Kingdom': return { list: UK_REGIONS, label: 'Region' }
+    case 'Australia': return { list: AU_STATES, label: 'State/Territory' }
+    default: return { list: [], label: 'State/Province/Region' }
+  }
+}

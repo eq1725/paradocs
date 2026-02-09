@@ -26,7 +26,7 @@ import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import AvatarSelector, { Avatar } from '@/components/AvatarSelector'
 import { supabase } from '@/lib/supabase'
 import { usePersonalization } from '@/lib/hooks/usePersonalization'
-import { CATEGORY_CONFIG, US_STATES } from '@/lib/constants'
+import { CATEGORY_CONFIG, COUNTRIES, getRegionsForCountry } from '@/lib/constants'
 import type { PhenomenonCategory } from '@/lib/database.types'
 
 interface UserProfile {
@@ -149,6 +149,7 @@ export default function SettingsPage() {
 
   const [localCity, setLocalCity] = useState('')
   const [localState, setLocalState] = useState('')
+  const [localCountry, setLocalCountry] = useState('United States')
   const [localRadius, setLocalRadius] = useState(50)
   const [localShareLocation, setLocalShareLocation] = useState(false)
   const [localInterests, setLocalInterests] = useState<PhenomenonCategory[]>([])
@@ -160,11 +161,14 @@ export default function SettingsPage() {
     if (personalization) {
       setLocalCity(personalization.location_city || '')
       setLocalState(personalization.location_state || '')
+      setLocalCountry(personalization.location_country || 'United States')
       setLocalRadius(personalization.watch_radius_miles || 50)
       setLocalShareLocation(personalization.share_location || false)
       setLocalInterests(personalization.interested_categories || [])
     }
   }, [personalization])
+
+  const regionInfo = getRegionsForCountry(localCountry)
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -262,6 +266,7 @@ export default function SettingsPage() {
       const result = await updatePersonalization({
         location_city: localCity || null,
         location_state: localState || null,
+        location_country: localCountry,
         watch_radius_miles: localRadius,
         share_location: localShareLocation,
         interested_categories: localInterests
@@ -302,6 +307,7 @@ export default function SettingsPage() {
     await clearLocation()
     setLocalCity('')
     setLocalState('')
+    setLocalCountry('United States')
     setLocalShareLocation(false)
   }
 
@@ -547,33 +553,59 @@ export default function SettingsPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    City
-                  </label>
-                  <input
-                    type="text"
-                    value={localCity}
-                    onChange={(e) => setLocalCity(e.target.value)}
-                    placeholder="Enter city"
-                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    State
+                    Country
                   </label>
                   <select
-                    value={localState}
-                    onChange={(e) => setLocalState(e.target.value)}
+                    value={localCountry}
+                    onChange={(e) => { setLocalCountry(e.target.value); setLocalState('') }}
                     className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500"
                   >
-                    <option value="">Select state</option>
-                    {US_STATES.map(state => (
-                      <option key={state} value={state}>{state}</option>
+                    {COUNTRIES.map(country => (
+                      <option key={country} value={country}>{country}</option>
                     ))}
                   </select>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      City
+                    </label>
+                    <input
+                      type="text"
+                      value={localCity}
+                      onChange={(e) => setLocalCity(e.target.value)}
+                      placeholder="Enter city"
+                      className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      {regionInfo.label}
+                    </label>
+                    {regionInfo.list.length > 0 ? (
+                      <select
+                        value={localState}
+                        onChange={(e) => setLocalState(e.target.value)}
+                        className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                      >
+                        <option value="">Select {regionInfo.label.toLowerCase()}</option>
+                        {regionInfo.list.map(region => (
+                          <option key={region} value={region}>{region}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={localState}
+                        onChange={(e) => setLocalState(e.target.value)}
+                        placeholder={`Enter ${regionInfo.label.toLowerCase()}`}
+                        className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
