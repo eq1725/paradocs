@@ -36,14 +36,14 @@ function AlgorithmCard({
   limitations: string[]
 }) {
   return (
-    <div className="glass-card p-6">
-      <div className="flex items-start gap-4 mb-4">
-        <div className="w-12 h-12 rounded-xl bg-primary-500/20 flex items-center justify-center flex-shrink-0">
-          <Icon className="w-6 h-6 text-primary-400" />
+    <div className="glass-card p-4 sm:p-6">
+      <div className="flex items-start gap-3 sm:gap-4 mb-4">
+        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary-500/20 flex items-center justify-center flex-shrink-0">
+          <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-primary-400" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-white mb-1">{name}</h3>
-          <p className="text-sm text-gray-400">{description}</p>
+          <h3 className="text-base sm:text-lg font-semibold text-white mb-1">{name}</h3>
+          <p className="text-xs sm:text-sm text-gray-400">{description}</p>
         </div>
       </div>
 
@@ -97,16 +97,16 @@ function HypothesisCard({
   evidenceAgainst: string[]
 }) {
   return (
-    <div className="glass-card p-5">
-      <div className="flex items-center justify-between mb-3">
-        <h4 className="font-medium text-white">{name}</h4>
-        <span className="px-2 py-1 bg-gray-700/50 rounded text-xs text-gray-300">
-          {plausibility} plausibility
+    <div className="glass-card p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h4 className="font-medium text-white text-sm sm:text-base">{name}</h4>
+        <span className="px-2 py-1 bg-gray-700/50 rounded text-xs text-gray-300 whitespace-nowrap">
+          {plausibility}
         </span>
       </div>
-      <p className="text-sm text-gray-400 mb-4">{description}</p>
+      <p className="text-xs sm:text-sm text-gray-400 mb-4">{description}</p>
 
-      <div className="grid grid-cols-2 gap-4 text-xs">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
         <div>
           <div className="flex items-center gap-1 text-emerald-400 mb-2">
             <CheckCircle2 className="w-3 h-3" />
@@ -174,7 +174,7 @@ export default function MethodologyPage() {
         />
       </Head>
 
-      <div className="py-8 max-w-5xl mx-auto">
+      <div className="py-6 sm:py-8 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
         {/* Back link */}
         <Link
           href="/insights"
@@ -185,19 +185,19 @@ export default function MethodologyPage() {
         </Link>
 
         {/* Header */}
-        <div className="mb-12">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-              <FlaskConical className="w-8 h-8 text-white" />
+        <div className="mb-8 sm:mb-12">
+          <div className="flex items-center gap-3 sm:gap-4 mb-4">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0">
+              <FlaskConical className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl md:text-4xl font-display font-bold text-white">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold text-white">
                 Research Methodology
               </h1>
-              <p className="text-gray-400">ParaDocs Pattern Detection System v1.0</p>
+              <p className="text-gray-400 text-sm sm:text-base">ParaDocs Pattern Detection System v1.0</p>
             </div>
           </div>
-          <p className="text-gray-300 text-lg leading-relaxed max-w-3xl">
+          <p className="text-gray-300 text-base sm:text-lg leading-relaxed max-w-3xl">
             This document provides complete transparency into how ParaDocs identifies, scores, and
             presents patterns in paranormal report data. Our goal is to enable researchers to
             evaluate our findings critically and understand exactly how conclusions were reached.
@@ -205,12 +205,12 @@ export default function MethodologyPage() {
         </div>
 
         {/* Table of Contents */}
-        <nav className="glass-card p-6 mb-12">
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+        <nav className="glass-card p-4 sm:p-6 mb-8 sm:mb-12">
+          <h2 className="text-base sm:text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-primary-400" />
             Contents
           </h2>
-          <div className="grid md:grid-cols-2 gap-2">
+          <div className="grid sm:grid-cols-2 gap-2">
             {[
               { id: 'overview', title: '1. System Overview' },
               { id: 'data', title: '2. Data Collection & Sources' },
@@ -233,24 +233,24 @@ export default function MethodologyPage() {
         </nav>
 
         {/* Section 1: Overview */}
-        <section id="overview" className="mb-16">
-          <h2 className="text-2xl font-display font-semibold text-white mb-6 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary-500/20 flex items-center justify-center">
+        <section id="overview" className="mb-12 sm:mb-16">
+          <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-4 sm:mb-6 flex items-center gap-3">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-primary-500/20 flex items-center justify-center shrink-0">
               <Cpu className="w-4 h-4 text-primary-400" />
             </div>
             1. System Overview
           </h2>
 
           <div className="prose prose-invert max-w-none">
-            <p className="text-gray-300 mb-4">
+            <p className="text-gray-300 text-sm sm:text-base mb-4">
               The ParaDocs Pattern Detection System analyzes the database of paranormal reports to
               identify statistically significant patterns. The system runs continuously, processing
               new reports and updating pattern assessments in near real-time.
             </p>
 
-            <div className="glass-card p-6 mb-6">
-              <h3 className="text-lg font-medium text-white mb-4">System Architecture</h3>
-              <div className="grid md:grid-cols-3 gap-4">
+            <div className="glass-card p-4 sm:p-6 mb-6">
+              <h3 className="text-base sm:text-lg font-medium text-white mb-4">System Architecture</h3>
+              <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                 <div className="p-4 bg-gray-800/50 rounded-lg">
                   <Database className="w-6 h-6 text-emerald-400 mb-2" />
                   <h4 className="text-sm font-medium text-white mb-1">Data Layer</h4>
@@ -278,7 +278,7 @@ export default function MethodologyPage() {
               </div>
             </div>
 
-            <p className="text-gray-300">
+            <p className="text-gray-300 text-sm sm:text-base">
               All patterns include confidence intervals, effect sizes, and quality flags to help
               researchers assess the reliability of findings. We explicitly present alternative
               hypotheses to encourage critical evaluation.
@@ -287,22 +287,22 @@ export default function MethodologyPage() {
         </section>
 
         {/* Section 2: Data */}
-        <section id="data" className="mb-16">
-          <h2 className="text-2xl font-display font-semibold text-white mb-6 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+        <section id="data" className="mb-12 sm:mb-16">
+          <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-4 sm:mb-6 flex items-center gap-3">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
               <Database className="w-4 h-4 text-emerald-400" />
             </div>
             2. Data Collection & Sources
           </h2>
 
           <div className="space-y-6">
-            <p className="text-gray-300">
+            <p className="text-gray-300 text-sm sm:text-base">
               Pattern detection operates on the ParaDocs report database, which includes reports
               from multiple sources with varying levels of verification and detail.
             </p>
 
-            <div className="glass-card p-6">
-              <h3 className="text-lg font-medium text-white mb-4">Data Sources</h3>
+            <div className="glass-card p-4 sm:p-6">
+              <h3 className="text-base sm:text-lg font-medium text-white mb-4">Data Sources</h3>
               <div className="space-y-3">
                 <div className="flex items-start gap-3 p-3 bg-gray-800/50 rounded-lg">
                   <div className="w-8 h-8 rounded bg-blue-500/20 flex items-center justify-center flex-shrink-0">
@@ -360,15 +360,15 @@ export default function MethodologyPage() {
         </section>
 
         {/* Section 3: Algorithms */}
-        <section id="algorithms" className="mb-16">
-          <h2 className="text-2xl font-display font-semibold text-white mb-6 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+        <section id="algorithms" className="mb-12 sm:mb-16">
+          <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-4 sm:mb-6 flex items-center gap-3">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center shrink-0">
               <BarChart3 className="w-4 h-4 text-cyan-400" />
             </div>
             3. Pattern Detection Algorithms
           </h2>
 
-          <p className="text-gray-300 mb-6">
+          <p className="text-gray-300 text-sm sm:text-base mb-6">
             We employ five primary algorithms for pattern detection, each targeting different types
             of patterns in the data.
           </p>
@@ -457,15 +457,15 @@ export default function MethodologyPage() {
         </section>
 
         {/* Section 4: Scoring */}
-        <section id="scoring" className="mb-16">
-          <h2 className="text-2xl font-display font-semibold text-white mb-6 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+        <section id="scoring" className="mb-12 sm:mb-16">
+          <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-4 sm:mb-6 flex items-center gap-3">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-purple-500/20 flex items-center justify-center shrink-0">
               <Scale className="w-4 h-4 text-purple-400" />
             </div>
             4. Scoring Methodology
           </h2>
 
-          <p className="text-gray-300 mb-6">
+          <p className="text-gray-300 text-sm sm:text-base mb-6">
             Each detected pattern receives multiple scores to help researchers assess its reliability
             and significance. We use established statistical methods with adaptations for the unique
             challenges of paranormal report data.
@@ -473,8 +473,8 @@ export default function MethodologyPage() {
 
           <div className="space-y-6">
             {/* Confidence Score */}
-            <div className="glass-card p-6">
-              <h3 className="text-lg font-medium text-white mb-4">Confidence Score</h3>
+            <div className="glass-card p-4 sm:p-6">
+              <h3 className="text-base sm:text-lg font-medium text-white mb-4">Confidence Score</h3>
               <p className="text-sm text-gray-400 mb-4">
                 Measures how certain we are that the detected pattern is real rather than noise.
                 Calculated using the <strong className="text-white">Wilson score interval</strong>,
@@ -482,15 +482,15 @@ export default function MethodologyPage() {
                 percentages.
               </p>
 
-              <div className="bg-gray-800/50 rounded-lg p-4 mb-4 font-mono text-sm">
+              <div className="bg-gray-800/50 rounded-lg p-4 mb-4 font-mono text-xs sm:text-sm overflow-x-auto">
                 <div className="text-gray-400 mb-2">// Wilson score interval formula</div>
-                <div className="text-cyan-400">
+                <div className="text-cyan-400 whitespace-nowrap">
                   center = (p + z²/2n) / (1 + z²/n)
                 </div>
-                <div className="text-cyan-400">
+                <div className="text-cyan-400 whitespace-nowrap">
                   margin = (z / (1 + z²/n)) × √(p(1-p)/n + z²/4n²)
                 </div>
-                <div className="text-gray-500 mt-2">
+                <div className="text-gray-500 mt-2 whitespace-nowrap">
                   where p = raw confidence, n = report count, z = 1.96 (95% CI)
                 </div>
               </div>
@@ -502,8 +502,8 @@ export default function MethodologyPage() {
             </div>
 
             {/* Significance Score */}
-            <div className="glass-card p-6">
-              <h3 className="text-lg font-medium text-white mb-4">Significance Score</h3>
+            <div className="glass-card p-4 sm:p-6">
+              <h3 className="text-base sm:text-lg font-medium text-white mb-4">Significance Score</h3>
               <p className="text-sm text-gray-400 mb-4">
                 Measures how meaningful or important a pattern is for research purposes. Combines
                 multiple factors with logarithmic scaling to prevent saturation.
@@ -532,47 +532,47 @@ export default function MethodologyPage() {
             </div>
 
             {/* Effect Size */}
-            <div className="glass-card p-6">
-              <h3 className="text-lg font-medium text-white mb-4">Effect Size (Cohen's d)</h3>
+            <div className="glass-card p-4 sm:p-6">
+              <h3 className="text-base sm:text-lg font-medium text-white mb-4">Effect Size (Cohen's d)</h3>
               <p className="text-sm text-gray-400 mb-4">
                 Measures the magnitude of difference from baseline expectations. Unlike statistical
                 significance, effect size tells us whether a pattern is <em>practically</em>
                 meaningful.
               </p>
 
-              <div className="bg-gray-800/50 rounded-lg p-4 mb-4 font-mono text-sm">
-                <div className="text-cyan-400">
+              <div className="bg-gray-800/50 rounded-lg p-4 mb-4 font-mono text-xs sm:text-sm overflow-x-auto">
+                <div className="text-cyan-400 whitespace-nowrap">
                   d = (observed_mean - baseline_mean) / pooled_std_dev
                 </div>
               </div>
 
-              <div className="grid grid-cols-5 gap-2 text-center text-xs">
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 text-center text-xs">
                 <div className="p-2 bg-gray-700/50 rounded">
                   <div className="text-gray-400">Negligible</div>
-                  <div className="text-white font-mono">d &lt; 0.2</div>
+                  <div className="text-white font-mono text-[10px] sm:text-xs">d &lt; 0.2</div>
                 </div>
                 <div className="p-2 bg-blue-500/20 rounded">
                   <div className="text-blue-400">Small</div>
-                  <div className="text-white font-mono">0.2 - 0.5</div>
+                  <div className="text-white font-mono text-[10px] sm:text-xs">0.2 - 0.5</div>
                 </div>
                 <div className="p-2 bg-cyan-500/20 rounded">
                   <div className="text-cyan-400">Medium</div>
-                  <div className="text-white font-mono">0.5 - 0.8</div>
+                  <div className="text-white font-mono text-[10px] sm:text-xs">0.5 - 0.8</div>
                 </div>
                 <div className="p-2 bg-purple-500/20 rounded">
                   <div className="text-purple-400">Large</div>
-                  <div className="text-white font-mono">0.8 - 1.2</div>
+                  <div className="text-white font-mono text-[10px] sm:text-xs">0.8 - 1.2</div>
                 </div>
-                <div className="p-2 bg-pink-500/20 rounded">
+                <div className="p-2 bg-pink-500/20 rounded col-span-3 sm:col-span-1">
                   <div className="text-pink-400">Very Large</div>
-                  <div className="text-white font-mono">d &gt; 1.2</div>
+                  <div className="text-white font-mono text-[10px] sm:text-xs">d &gt; 1.2</div>
                 </div>
               </div>
             </div>
 
             {/* Baseline Comparison */}
-            <div className="glass-card p-6">
-              <h3 className="text-lg font-medium text-white mb-4">Baseline Comparison</h3>
+            <div className="glass-card p-4 sm:p-6">
+              <h3 className="text-base sm:text-lg font-medium text-white mb-4">Baseline Comparison</h3>
               <p className="text-sm text-gray-400 mb-4">
                 Every pattern is compared against historical baselines to provide context. This shows
                 whether current activity is truly unusual or within expected ranges.
@@ -580,28 +580,28 @@ export default function MethodologyPage() {
 
               <div className="p-4 bg-gray-800/50 rounded-lg">
                 <h4 className="text-sm font-medium text-white mb-3">Baseline Metrics</h4>
-                <div className="grid md:grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <span className="text-gray-400">Percent Change:</span>
-                    <span className="text-white ml-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-1">
+                    <span className="text-gray-400 font-medium">Percent Change:</span>
+                    <span className="text-white">
                       How much current activity deviates from average
                     </span>
                   </div>
-                  <div>
-                    <span className="text-gray-400">Multiplier:</span>
-                    <span className="text-white ml-2">
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-1">
+                    <span className="text-gray-400 font-medium">Multiplier:</span>
+                    <span className="text-white">
                       Current activity as multiple of baseline (e.g., "2.3× normal")
                     </span>
                   </div>
-                  <div>
-                    <span className="text-gray-400">Historical Rank:</span>
-                    <span className="text-white ml-2">
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-1">
+                    <span className="text-gray-400 font-medium">Historical Rank:</span>
+                    <span className="text-white">
                       Where current period ranks among all comparable periods
                     </span>
                   </div>
-                  <div>
-                    <span className="text-gray-400">Period:</span>
-                    <span className="text-white ml-2">
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-1">
+                    <span className="text-gray-400 font-medium">Period:</span>
+                    <span className="text-white">
                       Time range used for baseline calculation
                     </span>
                   </div>
@@ -612,15 +612,15 @@ export default function MethodologyPage() {
         </section>
 
         {/* Section 5: Alternative Hypotheses */}
-        <section id="hypotheses" className="mb-16">
-          <h2 className="text-2xl font-display font-semibold text-white mb-6 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-rose-500/20 flex items-center justify-center">
+        <section id="hypotheses" className="mb-12 sm:mb-16">
+          <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-4 sm:mb-6 flex items-center gap-3">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-rose-500/20 flex items-center justify-center shrink-0">
               <Scale className="w-4 h-4 text-rose-400" />
             </div>
             5. Alternative Hypotheses
           </h2>
 
-          <p className="text-gray-300 mb-6">
+          <p className="text-gray-300 text-sm sm:text-base mb-6">
             Every pattern includes alternative explanations to encourage critical evaluation. We
             explicitly consider mundane explanations alongside anomalous interpretations.
           </p>
@@ -702,15 +702,15 @@ export default function MethodologyPage() {
         </section>
 
         {/* Section 6: Quality Flags */}
-        <section id="quality" className="mb-16">
-          <h2 className="text-2xl font-display font-semibold text-white mb-6 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+        <section id="quality" className="mb-12 sm:mb-16">
+          <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-4 sm:mb-6 flex items-center gap-3">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
               <AlertTriangle className="w-4 h-4 text-amber-400" />
             </div>
             6. Quality Flags & Warnings
           </h2>
 
-          <p className="text-gray-300 mb-6">
+          <p className="text-gray-300 text-sm sm:text-base mb-6">
             Patterns are automatically tagged with quality indicators to help researchers quickly
             assess data reliability.
           </p>
@@ -756,16 +756,16 @@ export default function MethodologyPage() {
         </section>
 
         {/* Section 7: Limitations */}
-        <section id="limitations" className="mb-16">
-          <h2 className="text-2xl font-display font-semibold text-white mb-6 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gray-500/20 flex items-center justify-center">
+        <section id="limitations" className="mb-12 sm:mb-16">
+          <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-4 sm:mb-6 flex items-center gap-3">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gray-500/20 flex items-center justify-center shrink-0">
               <AlertTriangle className="w-4 h-4 text-gray-400" />
             </div>
             7. Limitations & Caveats
           </h2>
 
-          <div className="glass-card p-6">
-            <p className="text-gray-300 mb-6">
+          <div className="glass-card p-4 sm:p-6">
+            <p className="text-gray-300 text-sm sm:text-base mb-6">
               This system analyzes <em>reports</em> of paranormal phenomena, not the phenomena
               themselves. Results should be interpreted with the following limitations in mind:
             </p>
@@ -857,15 +857,15 @@ export default function MethodologyPage() {
         </section>
 
         {/* Section 8: Glossary */}
-        <section id="glossary" className="mb-16">
-          <h2 className="text-2xl font-display font-semibold text-white mb-6 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+        <section id="glossary" className="mb-12 sm:mb-16">
+          <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-4 sm:mb-6 flex items-center gap-3">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center shrink-0">
               <BookOpen className="w-4 h-4 text-indigo-400" />
             </div>
             8. Glossary of Terms
           </h2>
 
-          <div className="glass-card p-6">
+          <div className="glass-card p-4 sm:p-6">
             <div className="grid gap-4">
               {[
                 {
@@ -914,8 +914,8 @@ export default function MethodologyPage() {
                     'The number of standard deviations a value is from the mean. Used to identify statistical outliers.'
                 }
               ].map((item, i) => (
-                <div key={i} className="flex gap-4 p-3 bg-gray-800/30 rounded-lg">
-                  <span className="text-primary-400 font-medium min-w-[160px]">{item.term}</span>
+                <div key={i} className="flex flex-col sm:flex-row gap-2 sm:gap-4 p-3 bg-gray-800/30 rounded-lg">
+                  <span className="text-primary-400 font-medium sm:min-w-[160px] sm:shrink-0">{item.term}</span>
                   <span className="text-gray-400 text-sm">{item.definition}</span>
                 </div>
               ))}
@@ -924,7 +924,7 @@ export default function MethodologyPage() {
         </section>
 
         {/* Contact Section */}
-        <div className="glass-card p-6 text-center">
+        <div className="glass-card p-4 sm:p-6 text-center">
           <p className="text-sm text-gray-400 mb-4">
             Questions about our methodology? Suggestions for improvement?
           </p>

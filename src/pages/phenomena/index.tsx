@@ -113,12 +113,12 @@ export default function PhenomenaPage() {
                 />
               </div>
 
-              <div className="flex gap-4 items-center">
+              <div className="flex gap-2 sm:gap-4 items-center w-full sm:w-auto">
                 {/* Category Filter */}
                 <select
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-purple-500"
                 >
                   <option value="all">All Categories</option>
                   {CATEGORY_ORDER.map(cat => (
@@ -129,7 +129,7 @@ export default function PhenomenaPage() {
                 </select>
 
                 {/* View Toggle */}
-                <div className="flex bg-gray-800 rounded-lg p-1">
+                <div className="flex bg-gray-800 rounded-lg p-1 shrink-0">
                   <button
                     onClick={() => setViewMode('grid')}
                     className={classNames(
@@ -276,28 +276,29 @@ function PhenomenonListItem({ phenomenon }: { phenomenon: Phenomenon }) {
 
   return (
     <Link href={`/phenomena/${phenomenon.slug}`}>
-      <div className="group flex items-center gap-4 p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-purple-500/50 transition-all">
+      <div className="group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-purple-500/50 transition-all">
         {/* Icon */}
-        <div className="w-12 h-12 flex items-center justify-center bg-gray-800 rounded-lg">
-          <span className="text-2xl">{phenomenon.icon || config?.icon}</span>
+        <div className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-gray-800 rounded-lg shrink-0">
+          <span className="text-xl sm:text-2xl">{phenomenon.icon || config?.icon}</span>
         </div>
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <h3 className="text-white font-medium group-hover:text-purple-400 transition-colors">
+          <h3 className="text-white font-medium group-hover:text-purple-400 transition-colors text-sm sm:text-base">
             {phenomenon.name}
           </h3>
           {phenomenon.ai_summary && (
-            <p className="text-sm text-gray-400 truncate">
+            <p className="text-xs sm:text-sm text-gray-400 truncate">
               {phenomenon.ai_summary}
             </p>
           )}
         </div>
 
         {/* Stats */}
-        <div className="flex items-center gap-4 text-sm text-gray-500">
-          <span>{phenomenon.report_count} reports</span>
-          <ChevronRight className="w-5 h-5 group-hover:text-purple-400 transition-colors" />
+        <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500 shrink-0">
+          <span className="hidden sm:inline">{phenomenon.report_count} reports</span>
+          <span className="sm:hidden">{phenomenon.report_count}</span>
+          <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 group-hover:text-purple-400 transition-colors" />
         </div>
       </div>
     </Link>

@@ -209,7 +209,7 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
+        <div className="flex gap-2 mb-8 overflow-x-auto pb-2 scrollbar-hide">
           {[
             { id: 'overview', label: 'Overview', icon: Sparkles },
             { id: 'temporal', label: 'Temporal', icon: Calendar },

@@ -2,6 +2,10 @@
 /**
  * Batch Reddit Data Import Script
  *
+ * Imports both Reddit SUBMISSIONS and COMMENTS from zstd-compressed NDJSON dumps.
+ * Comments are automatically detected (they have 'body' but no 'title') and
+ * will have titles generated from their content.
+ *
  * Usage:
  *   npx ts-node scripts/batch-import-reddit.ts <file_path> [options]
  *
@@ -12,11 +16,18 @@
  *   --subreddits=a,b  Comma-separated list of target subreddits
  *
  * Examples:
+ *   # Import submissions
  *   npx ts-node scripts/batch-import-reddit.ts ./data/paranormal_submissions.zst
- *   npx ts-node scripts/batch-import-reddit.ts ./data/dump.zst --limit=1000 --ai-titles
+ *
+ *   # Import comments (valuable personal experiences in replies!)
+ *   npx ts-node scripts/batch-import-reddit.ts ./data/paranormal_comments.zst
+ *
+ *   # Test with limit
+ *   npx ts-node scripts/batch-import-reddit.ts ./data/dump.zst --limit=1000
  *
  * Data Sources:
  *   - Arctic Shift: https://arctic-shift.photon-reddit.com/download-tool
+ *     (Download both "submissions" and "comments" for each subreddit!)
  *   - Academic Torrents: https://academictorrents.com/details/56aa49f9653ba545f48df2e33679f014d2829c10
  */
 
@@ -38,6 +49,7 @@ Reddit Batch Import Script
 ==========================
 
 Imports Reddit data dumps (zstd-compressed NDJSON) from Arctic Shift or Academic Torrents.
+Works with BOTH submissions (posts) AND comments - comments are auto-detected!
 
 Usage:
   npx ts-node scripts/batch-import-reddit.ts <file_path> [options]
@@ -53,21 +65,24 @@ Target Subreddits (default):
   ${Array.from(TARGET_SUBREDDITS).join(', ')}
 
 Examples:
-  # Import all paranormal posts from a dump file
-  npx ts-node scripts/batch-import-reddit.ts ./data/reddit_submissions.zst
+  # Import submissions from a dump file
+  npx ts-node scripts/batch-import-reddit.ts ./data/paranormal_submissions.zst
+
+  # Import comments (personal experiences shared in replies!)
+  npx ts-node scripts/batch-import-reddit.ts ./data/paranormal_comments.zst
 
   # Test with first 1000 records
   npx ts-node scripts/batch-import-reddit.ts ./data/dump.zst --limit=1000
 
-  # Import with AI title enhancement (slower)
-  npx ts-node scripts/batch-import-reddit.ts ./data/dump.zst --ai-titles
-
   # Import only specific subreddits
   npx ts-node scripts/batch-import-reddit.ts ./data/dump.zst --subreddits=Paranormal,UFOs,Ghosts
 
-Data Sources:
+Data Sources (download BOTH submissions AND comments!):
   - Arctic Shift Download Tool: https://arctic-shift.photon-reddit.com/download-tool
   - Academic Torrents (2005-2024): https://academictorrents.com/details/56aa49f9653ba545f48df2e33679f014d2829c10
+
+Note: Comments require 200+ characters (vs 100 for submissions) since they lack context.
+      Titles are auto-generated from the first sentence of the comment body.
 `);
     process.exit(0);
   }

@@ -403,11 +403,9 @@ export default function MyReportsPage() {
 
             {/* Pagination */}
             {pagination && pagination.totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-gray-800">
-                <p className="text-sm text-gray-400">
-                  Showing {((pagination.page - 1) * pagination.limit) + 1} to{' '}
-                  {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
-                  {pagination.total} reports
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-gray-800">
+                <p className="text-xs sm:text-sm text-gray-400 text-center sm:text-left">
+                  Showing {((pagination.page - 1) * pagination.limit) + 1}-{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
                 </p>
                 <div className="flex items-center gap-2">
                   <button
@@ -418,7 +416,7 @@ export default function MyReportsPage() {
                     <ChevronLeft className="w-5 h-5" />
                   </button>
                   <span className="text-gray-400 text-sm">
-                    Page {pagination.page} of {pagination.totalPages}
+                    {pagination.page} / {pagination.totalPages}
                   </span>
                   <button
                     onClick={() => setCurrentPage(p => Math.min(pagination.totalPages, p + 1))}

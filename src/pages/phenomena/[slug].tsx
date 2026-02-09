@@ -144,9 +144,9 @@ export default function PhenomenonPage() {
               Back to Encyclopedia
             </Link>
 
-            <div className="flex flex-col md:flex-row gap-8 items-start">
+            <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
               {/* Icon/Image */}
-              <div className="w-32 h-32 flex items-center justify-center bg-gray-800/50 rounded-2xl border border-gray-700">
+              <div className="w-24 h-24 sm:w-32 sm:h-32 flex items-center justify-center bg-gray-800/50 rounded-2xl border border-gray-700 shrink-0">
                 {phenomenon.primary_image_url ? (
                   <img
                     src={phenomenon.primary_image_url}
@@ -156,15 +156,15 @@ export default function PhenomenonPage() {
                     crossOrigin="anonymous"
                   />
                 ) : (
-                  <span className="text-7xl">{phenomenon.icon || config?.icon}</span>
+                  <span className="text-5xl sm:text-7xl">{phenomenon.icon || config?.icon}</span>
                 )}
               </div>
 
               {/* Title & Meta */}
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 mb-2">
                   <span className={classNames(
-                    'px-3 py-1 rounded-full text-sm',
+                    'px-3 py-1 rounded-full text-xs sm:text-sm',
                     config?.bgClass || 'bg-gray-800',
                     config?.textClass || 'text-gray-400'
                   )}>
@@ -172,38 +172,39 @@ export default function PhenomenonPage() {
                   </span>
                 </div>
 
-                <h1 className="text-4xl md:text-5xl font-bold text-white mb-3">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-3">
                   {phenomenon.name}
                 </h1>
 
                 {phenomenon.aliases && phenomenon.aliases.length > 0 && (
-                  <p className="text-gray-400 mb-4">
+                  <p className="text-gray-400 mb-4 text-sm sm:text-base">
                     Also known as: {phenomenon.aliases.join(', ')}
                   </p>
                 )}
 
                 {phenomenon.ai_summary && (
-                  <p className="text-lg text-gray-300 max-w-3xl">
+                  <p className="text-base sm:text-lg text-gray-300 max-w-3xl">
                     {phenomenon.ai_summary}
                   </p>
                 )}
 
                 {/* Stats */}
-                <div className="flex flex-wrap gap-6 mt-6 text-sm text-gray-400">
+                <div className="flex flex-wrap gap-3 sm:gap-6 mt-4 sm:mt-6 text-xs sm:text-sm text-gray-400">
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4" />
-                    <span>{phenomenon.report_count} related reports</span>
+                    <span>{phenomenon.report_count} reports</span>
                   </div>
                   {phenomenon.first_reported_date && (
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4" />
-                      <span>First reported: {new Date(phenomenon.first_reported_date).toLocaleDateString()}</span>
+                      <span className="hidden sm:inline">First reported: </span>
+                      <span>{new Date(phenomenon.first_reported_date).toLocaleDateString()}</span>
                     </div>
                   )}
                   {phenomenon.primary_regions && phenomenon.primary_regions.length > 0 && (
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4" />
-                      <span>{phenomenon.primary_regions.slice(0, 3).join(', ')}</span>
+                      <span>{phenomenon.primary_regions.slice(0, 2).join(', ')}</span>
                     </div>
                   )}
                 </div>
@@ -215,11 +216,11 @@ export default function PhenomenonPage() {
         {/* Tab Navigation */}
         <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-sm border-b border-gray-800">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <nav className="flex gap-8">
+            <nav className="flex gap-4 sm:gap-8 overflow-x-auto scrollbar-hide">
               <button
                 onClick={() => setActiveTab('overview')}
                 className={classNames(
-                  'py-4 border-b-2 font-medium transition-colors',
+                  'py-4 border-b-2 font-medium transition-colors whitespace-nowrap text-sm sm:text-base',
                   activeTab === 'overview'
                     ? 'border-purple-500 text-white'
                     : 'border-transparent text-gray-400 hover:text-white'
@@ -230,24 +231,24 @@ export default function PhenomenonPage() {
               <button
                 onClick={() => setActiveTab('history')}
                 className={classNames(
-                  'py-4 border-b-2 font-medium transition-colors',
+                  'py-4 border-b-2 font-medium transition-colors whitespace-nowrap text-sm sm:text-base',
                   activeTab === 'history'
                     ? 'border-purple-500 text-white'
                     : 'border-transparent text-gray-400 hover:text-white'
                 )}
               >
-                History & Details
+                History
               </button>
               <button
                 onClick={() => setActiveTab('reports')}
                 className={classNames(
-                  'py-4 border-b-2 font-medium transition-colors',
+                  'py-4 border-b-2 font-medium transition-colors whitespace-nowrap text-sm sm:text-base',
                   activeTab === 'reports'
                     ? 'border-purple-500 text-white'
                     : 'border-transparent text-gray-400 hover:text-white'
                 )}
               >
-                Related Reports ({reports.length})
+                Reports ({reports.length})
               </button>
             </nav>
           </div>
