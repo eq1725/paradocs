@@ -51,14 +51,17 @@ export default function SearchPage() {
     setLoading(true)
     setSearched(true)
     try {
-      // Sanitize query for LIKE patterns (escape % and _)
-      const sanitized = searchQuery.trim().replace(/[%_]/g, '\\$&')
+      // Strip special chars that break PostgREST filter syntax, keep alphanumeric and spaces
+      const sanitized = searchQuery.trim().replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, ' ').trim()
+      // Build wildcard pattern with % between each word for flexible matching
+      const words = sanitized.split(' ').filter(Boolean)
+      const pattern = `%${words.join('%')}%`
 
       let queryBuilder = supabase
         .from('reports')
         .select('*, phenomenon_type:phenomenon_types(*)')
         .eq('status', 'approved')
-        .or(`title.ilike.%${sanitized}%,summary.ilike.%${sanitized}%,description.ilike.%${sanitized}%`)
+        .or(`title.ilike.${pattern},summary.ilike.${pattern}`)
 
       // Apply category filters
       if (filters.categories.length > 0) {

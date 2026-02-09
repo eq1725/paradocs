@@ -130,7 +130,9 @@ export default function ExplorePage() {
           query = query.in('category', selectedCategories)
         }
         if (searchQuery) {
-          query = query.or(`title.ilike.%${searchQuery}%,summary.ilike.%${searchQuery}%`)
+          const words = searchQuery.trim().replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean)
+          const pattern = `%${words.join('%')}%`
+          query = query.or(`title.ilike.${pattern},summary.ilike.${pattern}`)
         }
         if (country) {
           query = query.eq('country', country)
@@ -199,8 +201,9 @@ export default function ExplorePage() {
           query = query.in('category', selectedCategories)
         }
         if (searchQuery) {
-          const sanitized = searchQuery.trim().replace(/[%_]/g, '\\$&')
-          query = query.or(`title.ilike.%${sanitized}%,summary.ilike.%${sanitized}%`)
+          const words = searchQuery.trim().replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean)
+          const pattern = `%${words.join('%')}%`
+          query = query.or(`title.ilike.${pattern},summary.ilike.${pattern}`)
         }
         if (country) {
           query = query.eq('country', country)
@@ -265,8 +268,9 @@ export default function ExplorePage() {
             if (category !== 'all') countQuery = countQuery.eq('category', category)
             if (selectedCategories.length > 0) countQuery = countQuery.in('category', selectedCategories)
             if (searchQuery) {
-              const sanitized = searchQuery.trim().replace(/[%_]/g, '\\$&')
-              countQuery = countQuery.or(`title.ilike.%${sanitized}%,summary.ilike.%${sanitized}%`)
+              const words = searchQuery.trim().replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean)
+              const pattern = `%${words.join('%')}%`
+              countQuery = countQuery.or(`title.ilike.${pattern},summary.ilike.${pattern}`)
             }
             if (country) countQuery = countQuery.eq('country', country)
             if (credibility) countQuery = countQuery.eq('credibility', credibility)
