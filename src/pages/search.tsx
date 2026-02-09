@@ -174,14 +174,14 @@ export default function SearchPage() {
 
         {/* Search form */}
         <form onSubmit={handleSearch} className="mb-6">
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search for phenomena, locations, or keywords..."
+                placeholder="Search..."
                 className="w-full pl-12 pr-12 py-4 text-lg"
                 autoFocus
               />
@@ -195,23 +195,25 @@ export default function SearchPage() {
                 </button>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => setShowFilters(!showFilters)}
-              className={classNames(
-                'btn',
-                showFilters || hasActiveFilters ? 'btn-primary' : 'btn-secondary'
-              )}
-            >
-              <Filter className="w-4 h-4" />
-              Filters
-              {hasActiveFilters && (
-                <span className="w-2 h-2 rounded-full bg-white" />
-              )}
-            </button>
-            <button type="submit" className="btn btn-primary">
-              Search
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowFilters(!showFilters)}
+                className={classNames(
+                  'btn flex-1 sm:flex-initial',
+                  showFilters || hasActiveFilters ? 'btn-primary' : 'btn-secondary'
+                )}
+              >
+                <Filter className="w-4 h-4" />
+                <span className="sm:inline">Filters</span>
+                {hasActiveFilters && (
+                  <span className="w-2 h-2 rounded-full bg-white" />
+                )}
+              </button>
+              <button type="submit" className="btn btn-primary flex-1 sm:flex-initial">
+                Search
+              </button>
+            </div>
           </div>
         </form>
 
@@ -280,9 +282,9 @@ export default function SearchPage() {
           </div>
         )}
 
-        <div className="flex gap-8">
+        <div className="flex gap-4 sm:gap-8">
           {/* Main content */}
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             {/* Results */}
             {loading ? (
               <div className="space-y-4">
