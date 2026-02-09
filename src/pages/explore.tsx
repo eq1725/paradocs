@@ -255,14 +255,40 @@ export default function ExplorePage() {
         const hasFilters = category !== 'all' || selectedCategories.length > 0 ||
           searchQuery || country || credibility || dateFrom || dateTo || hasEvidence || hasMedia || featured
         if (hasFilters) {
-          const estimatedMore = (data?.length || 0) === perPage ? 1000 : 0
-          setTotalCount((page - 1) * perPage + (data?.length || 0) + estimatedMore)
+          // Get actual count for filtered queries
+          try {
+            let countQuery = supabase
+              .from('reports')
+              .select('id', { count: 'exact', head: true })
+              .eq('status', 'approved')
+            if (category !== 'all') countQuery = countQuery.eq('category', category)
+            if (selectedCategories.length > 0) countQuery = countQuery.in('category', selectedCategories)
+            if (searchQuery) countQuery = countQuery.textSearch('search_vector', searchQuery)
+            if (country) countQuery = countQuery.eq('country', country)
+            if (credibility) countQuery = countQuery.eq('credibility', credibility)
+            if (dateFrom) countQuery = countQuery.gte('event_date', dateFrom)
+            if (dateTo) countQuery = countQuery.lte('event_date', dateTo)
+            if (hasEvidence) countQuery = countQuery.or('has_physical_evidence.eq.true,has_photo_video.eq.true')
+            if (featured) countQuery = countQuery.eq('featured', true)
+            if (contentType === 'primary') {
+              countQuery = countQuery.in('content_type', ['experiencer_report', 'historical_case', 'research_analysis'])
+            } else if (contentType !== 'all') {
+              countQuery = countQuery.eq('content_type', contentType)
+            }
+            const { count: exactCount } = await countQuery
+            setTotalCount(exactCount || 0)
+          } catch {
+            // Fallback to estimate if count query fails
+            setTotalCount((data?.length || 0) + ((data?.length || 0) === perPage ? (page * perPage) : 0))
+          }
         } else {
           setTotalCount(baselineCount)
         }
       }
     } catch (error) {
       console.error('Error loading reports:', error)
+      setReports([])
+      setTotalCount(0)
     } finally {
       setLoading(false)
     }

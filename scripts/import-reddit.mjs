@@ -45,9 +45,9 @@ const SUBREDDIT_CATEGORIES = {
   'haunted': 'ghosts_hauntings', 'ghoststories': 'ghosts_hauntings',
   'bigfoot': 'cryptids', 'cryptids': 'cryptids', 'dogman': 'cryptids', 'crawlersightings': 'cryptids',
   'skinwalkers': 'cryptids', 'humanoidencounters': 'cryptids',
-  'glitch_in_the_matrix': 'high_strangeness', 'highstrangeness': 'high_strangeness',
-  'missing411': 'high_strangeness',
-  'nde': 'nde_consciousness', 'astralprojection': 'nde_consciousness'
+  'glitch_in_the_matrix': 'psychic_phenomena', 'highstrangeness': 'psychic_phenomena',
+  'missing411': 'psychic_phenomena',
+  'nde': 'consciousness_practices', 'astralprojection': 'consciousness_practices'
 };
 
 // Simple quality filter patterns
