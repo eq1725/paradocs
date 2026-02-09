@@ -195,13 +195,13 @@ export default function ReportPage() {
           {/* Main content */}
           <article className="flex-1 max-w-4xl overflow-hidden">
         {/* Back link */}
-        <Link
-          href="/explore"
+        <button
+          onClick={() => router.back()}
           className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-6"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to explore
-        </Link>
+          Back
+        </button>
 
         {/* Non-Experiencer Content Notice */}
         {isNonExperiencer && (

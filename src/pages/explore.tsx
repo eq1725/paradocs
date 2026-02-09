@@ -56,16 +56,41 @@ export default function ExplorePage() {
   const [featured, setFeatured] = useState(false)
   const [contentType, setContentType] = useState<ContentType | 'all' | 'primary'>('primary') // 'primary' = experiencer + historical + research
 
+  // Restore filter state from URL on mount/navigation
+  const [initialized, setInitialized] = useState(false)
   useEffect(() => {
     if (router.isReady) {
-      const { category: cat, q, country: c, credibility: cred, featured: feat } = router.query
+      const { category: cat, q, country: c, credibility: cred, featured: feat, sort: s, contentType: ct, page: p } = router.query
       if (cat && typeof cat === 'string') setCategory(cat as PhenomenonCategory)
       if (q && typeof q === 'string') setSearchQuery(q)
       if (c && typeof c === 'string') setCountry(c)
       if (cred && typeof cred === 'string') setCredibility(cred as CredibilityLevel)
       if (feat === 'true') setFeatured(true)
+      if (s && typeof s === 'string') setSort(s as SortOption)
+      if (ct && typeof ct === 'string') setContentType(ct as ContentType | 'all' | 'primary')
+      if (p && typeof p === 'string') setPage(parseInt(p, 10) || 1)
+      setInitialized(true)
     }
-  }, [router.isReady, router.query])
+  }, [router.isReady])
+
+  // Sync filter state to URL so browser back preserves filters
+  useEffect(() => {
+    if (!initialized) return
+    const timeout = setTimeout(() => {
+      const params: Record<string, string> = {}
+      if (category !== 'all') params.category = category
+      if (searchQuery) params.q = searchQuery
+      if (country) params.country = country
+      if (credibility) params.credibility = credibility
+      if (featured) params.featured = 'true'
+      if (sort !== 'newest') params.sort = sort
+      if (contentType !== 'primary') params.contentType = contentType
+      if (page > 1) params.page = String(page)
+
+      router.replace({ pathname: '/explore', query: params }, undefined, { shallow: true })
+    }, 300)
+    return () => clearTimeout(timeout)
+  }, [initialized, category, searchQuery, country, credibility, featured, sort, contentType, page])
 
   const loadReports = useCallback(async () => {
     setLoading(true)
