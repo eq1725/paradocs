@@ -51,11 +51,14 @@ export default function SearchPage() {
     setLoading(true)
     setSearched(true)
     try {
+      // Sanitize query for LIKE patterns (escape % and _)
+      const sanitized = searchQuery.trim().replace(/[%_]/g, '\\$&')
+
       let queryBuilder = supabase
         .from('reports')
         .select('*, phenomenon_type:phenomenon_types(*)')
         .eq('status', 'approved')
-        .textSearch('search_vector', searchQuery)
+        .or(`title.ilike.%${sanitized}%,summary.ilike.%${sanitized}%,description.ilike.%${sanitized}%`)
 
       // Apply category filters
       if (filters.categories.length > 0) {

@@ -199,7 +199,8 @@ export default function ExplorePage() {
           query = query.in('category', selectedCategories)
         }
         if (searchQuery) {
-          query = query.textSearch('search_vector', searchQuery)
+          const sanitized = searchQuery.trim().replace(/[%_]/g, '\\$&')
+          query = query.or(`title.ilike.%${sanitized}%,summary.ilike.%${sanitized}%`)
         }
         if (country) {
           query = query.eq('country', country)
@@ -263,7 +264,10 @@ export default function ExplorePage() {
               .eq('status', 'approved')
             if (category !== 'all') countQuery = countQuery.eq('category', category)
             if (selectedCategories.length > 0) countQuery = countQuery.in('category', selectedCategories)
-            if (searchQuery) countQuery = countQuery.textSearch('search_vector', searchQuery)
+            if (searchQuery) {
+              const sanitized = searchQuery.trim().replace(/[%_]/g, '\\$&')
+              countQuery = countQuery.or(`title.ilike.%${sanitized}%,summary.ilike.%${sanitized}%`)
+            }
             if (country) countQuery = countQuery.eq('country', country)
             if (credibility) countQuery = countQuery.eq('credibility', credibility)
             if (dateFrom) countQuery = countQuery.gte('event_date', dateFrom)
