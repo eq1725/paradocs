@@ -12,7 +12,6 @@ import {
   Bell,
   Shield,
   Palette,
-  Globe,
   Save,
   Loader2,
   AlertCircle,
@@ -36,7 +35,6 @@ interface UserProfile {
   display_name: string | null
   avatar_url: string | null
   bio: string | null
-  location: string | null
   website: string | null
 }
 
@@ -202,7 +200,6 @@ export default function SettingsPage() {
             display_name: null,
             avatar_url: null,
             bio: null,
-            location: null,
             website: null
           })
         }
@@ -236,7 +233,6 @@ export default function SettingsPage() {
           display_name: profile.display_name,
           avatar_url: profile.avatar_url,
           bio: profile.bio,
-          location: profile.location,
           website: profile.website,
           notification_settings: notifications,
           updated_at: new Date().toISOString()
@@ -434,31 +430,17 @@ export default function SettingsPage() {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Location
-                </label>
-                <input
-                  type="text"
-                  value={profile?.location || ''}
-                  onChange={(e) => setProfile(p => p ? { ...p, location: e.target.value } : null)}
-                  placeholder="City, Country"
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Website
-                </label>
-                <input
-                  type="url"
-                  value={profile?.website || ''}
-                  onChange={(e) => setProfile(p => p ? { ...p, website: e.target.value } : null)}
-                  placeholder="https://yoursite.com"
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Website
+              </label>
+              <input
+                type="url"
+                value={profile?.website || ''}
+                onChange={(e) => setProfile(p => p ? { ...p, website: e.target.value } : null)}
+                placeholder="https://yoursite.com"
+                className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+              />
             </div>
           </div>
         </SettingsSection>
