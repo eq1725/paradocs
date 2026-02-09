@@ -186,6 +186,7 @@ async function processFile(filePath) {
         summary: description.substring(0, 200) + (description.length > 200 ? '...' : ''),
         description,
         category: SUBREDDIT_CATEGORIES[subreddit] || 'ghosts_hauntings',
+        content_type: 'experiencer_report',  // These pass experience markers filter, so they're experiencer reports
         source_type: sourceType,
         original_report_id: post.id,
         source_url: `https://reddit.com${post.permalink || `/r/${subreddit}/comments/${post.id}`}`,

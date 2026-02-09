@@ -153,10 +153,9 @@ export default function ExplorePage() {
         if (featured) {
           query = query.eq('featured', true)
         }
-        // Content type filter
+        // Content type filter (include NULL for imported records without content_type)
         if (contentType === 'primary') {
-          // Show only primary content types (experiencer reports, historical cases, research)
-          query = query.in('content_type', ['experiencer_report', 'historical_case', 'research_analysis'])
+          query = query.or('content_type.in.(experiencer_report,historical_case,research_analysis),content_type.is.null')
         } else if (contentType !== 'all') {
           query = query.eq('content_type', contentType)
         }
@@ -224,9 +223,10 @@ export default function ExplorePage() {
           query = query.eq('featured', true)
         }
         // Content type filter
+        // 'primary' = experiencer reports + historical + research (excludes news/discussion)
+        // Also include NULL content_type since imported records may not have it set yet
         if (contentType === 'primary') {
-          // Show only primary content types (experiencer reports, historical cases, research)
-          query = query.in('content_type', ['experiencer_report', 'historical_case', 'research_analysis'])
+          query = query.or('content_type.in.(experiencer_report,historical_case,research_analysis),content_type.is.null')
         } else if (contentType !== 'all') {
           query = query.eq('content_type', contentType)
         }
@@ -254,7 +254,7 @@ export default function ExplorePage() {
         setReports(data || [])
         const hasFilters = category !== 'all' || selectedCategories.length > 0 ||
           searchQuery || country || credibility || dateFrom || dateTo || hasEvidence || hasMedia || featured
-        if (hasFilters) {
+        if (hasFilters || contentType !== 'primary') {
           // Get actual count for filtered queries
           try {
             let countQuery = supabase
@@ -271,7 +271,7 @@ export default function ExplorePage() {
             if (hasEvidence) countQuery = countQuery.or('has_physical_evidence.eq.true,has_photo_video.eq.true')
             if (featured) countQuery = countQuery.eq('featured', true)
             if (contentType === 'primary') {
-              countQuery = countQuery.in('content_type', ['experiencer_report', 'historical_case', 'research_analysis'])
+              countQuery = countQuery.or('content_type.in.(experiencer_report,historical_case,research_analysis),content_type.is.null')
             } else if (contentType !== 'all') {
               countQuery = countQuery.eq('content_type', contentType)
             }
