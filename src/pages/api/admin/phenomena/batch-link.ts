@@ -1,10 +1,17 @@
 /**
- * Batch Link Reports to Phenomena API
+ * Batch Link Reports to Phenomena API (v2 - Optimized)
  *
  * Efficiently links existing reports to phenomena using pattern matching.
  * Uses keyword/alias matching for fast processing without AI calls.
  *
- * Run in batches to process the full 258k+ report database.
+ * Optimizations over v1:
+ * - Bulk upsert instead of individual inserts (massive DB round-trip reduction)
+ * - Pre-compiled regex patterns (avoid re-creating per report)
+ * - Complete category mapping for all 11 categories
+ * - Min pattern length guard to prevent false positives
+ * - 300s timeout to process larger batches per call
+ *
+ * Run in batches to process the full 1.9M+ report database.
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -13,6 +20,12 @@ import { createServerClient } from '@/lib/supabase';
 
 // Admin email check
 const ADMIN_EMAIL = 'williamschaseh@gmail.com';
+
+// Minimum pattern length to avoid false positives (e.g. "MIB" is 3, which is fine)
+const MIN_PATTERN_LENGTH = 3;
+
+// Max links to upsert in a single DB call
+const UPSERT_CHUNK_SIZE = 500;
 
 // Helper to get user from cookies/headers
 async function getAuthenticatedUser(req: NextApiRequest): Promise<{ id: string; email: string } | null> {
@@ -57,12 +70,12 @@ async function getAuthenticatedUser(req: NextApiRequest): Promise<{ id: string; 
   return null;
 }
 
-interface PhenomenonPattern {
+interface PhenomenonMatcher {
   id: string;
   name: string;
-  aliases: string[];
   category: string;
-  patterns: string[]; // Combined name + aliases as lowercase patterns
+  // Pre-compiled regex for each pattern, grouped by field priority
+  compiledPatterns: { regex: RegExp; raw: string }[];
 }
 
 export default async function handler(
@@ -83,7 +96,7 @@ export default async function handler(
 
   try {
     const {
-      batchSize = 100,
+      batchSize = 1000,
       offset = 0,
       dryRun = false,
       category = null // Optional: filter by report category
@@ -101,17 +114,25 @@ export default async function handler(
       return res.status(400).json({ error: 'No phenomena found' });
     }
 
-    // Build pattern matchers
-    const phenomenaPatterns: PhenomenonPattern[] = phenomena.map(p => ({
-      id: p.id,
-      name: p.name,
-      aliases: p.aliases || [],
-      category: p.category,
-      patterns: [
+    // Pre-compile regex patterns once (not per report)
+    const phenomenaMatchers: PhenomenonMatcher[] = phenomena.map(p => {
+      const rawPatterns = [
         p.name.toLowerCase(),
         ...(p.aliases || []).map((a: string) => a.toLowerCase())
-      ].filter(Boolean)
-    }));
+      ].filter(Boolean).filter((pat: string) => pat.length >= MIN_PATTERN_LENGTH);
+
+      return {
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        compiledPatterns: rawPatterns.map((pat: string) => ({
+          regex: new RegExp(`\\b${escapeRegex(pat)}\\b`, 'i'),
+          raw: pat,
+        })),
+      };
+    });
+
+    console.log(`[BatchLink] ${phenomenaMatchers.length} phenomena with ${phenomenaMatchers.reduce((sum, p) => sum + p.compiledPatterns.length, 0)} total patterns`);
 
     // Get reports batch
     let query = supabase
@@ -136,7 +157,7 @@ export default async function handler(
       return res.status(200).json({
         success: true,
         message: 'No more reports to process',
-        results: { processed: 0, linked: 0, matches: 0 },
+        results: { processed: 0, linked: 0, matches: 0, skipped: 0 },
         nextOffset: null,
         done: true,
       });
@@ -161,35 +182,27 @@ export default async function handler(
       newLinks: [] as { reportId: string; reportTitle: string; phenomenonName: string; confidence: number }[],
     };
 
+    // Collect all new links for bulk upsert
+    const pendingInserts: { report_id: string; phenomenon_id: string; confidence: number; tagged_by: string }[] = [];
+
     // Process each report
     for (const report of reports) {
       results.processed++;
 
-      // Combine text to search
-      const searchText = [
-        report.title || '',
-        report.summary || '',
-        report.description || ''
-      ].join(' ').toLowerCase();
+      const titleLower = (report.title || '').toLowerCase();
+      const summaryLower = (report.summary || '').toLowerCase();
+      const searchText = [titleLower, summaryLower, (report.description || '').toLowerCase()].join(' ');
 
       // Find matching phenomena
-      const matches: { phenomenonId: string; phenomenonName: string; confidence: number }[] = [];
-
-      for (const phenomenon of phenomenaPatterns) {
-        // Check if any pattern matches
-        for (const pattern of phenomenon.patterns) {
-          // Use word boundary matching for better accuracy
-          const regex = new RegExp(`\\b${escapeRegex(pattern)}\\b`, 'i');
+      for (const phenomenon of phenomenaMatchers) {
+        for (const { regex } of phenomenon.compiledPatterns) {
           if (regex.test(searchText)) {
             // Calculate confidence based on where match was found
-            let confidence = 0.6; // Base confidence for pattern match
+            let confidence = 0.6; // Base: found in description
 
-            // Higher confidence if in title
-            if (regex.test((report.title || '').toLowerCase())) {
+            if (regex.test(titleLower)) {
               confidence = 0.85;
-            }
-            // Medium confidence if in summary
-            else if (regex.test((report.summary || '').toLowerCase())) {
+            } else if (regex.test(summaryLower)) {
               confidence = 0.75;
             }
 
@@ -198,58 +211,60 @@ export default async function handler(
               confidence = Math.min(confidence + 0.1, 0.95);
             }
 
-            matches.push({
-              phenomenonId: phenomenon.id,
-              phenomenonName: phenomenon.name,
-              confidence,
-            });
+            results.matches++;
+
+            const linkKey = `${report.id}:${phenomenon.id}`;
+            if (existingLinkSet.has(linkKey)) {
+              results.skipped++;
+            } else {
+              pendingInserts.push({
+                report_id: report.id,
+                phenomenon_id: phenomenon.id,
+                confidence,
+                tagged_by: 'auto',
+              });
+
+              // Track for response
+              if (results.newLinks.length < 10) {
+                results.newLinks.push({
+                  reportId: report.id,
+                  reportTitle: report.title,
+                  phenomenonName: phenomenon.name,
+                  confidence,
+                });
+              }
+
+              // Prevent duplicates within this batch
+              existingLinkSet.add(linkKey);
+            }
+
             break; // Only count each phenomenon once per report
           }
         }
       }
+    }
 
-      results.matches += matches.length;
+    // Bulk upsert all new links in chunks
+    if (!dryRun && pendingInserts.length > 0) {
+      for (let i = 0; i < pendingInserts.length; i += UPSERT_CHUNK_SIZE) {
+        const chunk = pendingInserts.slice(i, i + UPSERT_CHUNK_SIZE);
+        const { error: upsertError } = await supabase
+          .from('report_phenomena')
+          .upsert(chunk, { onConflict: 'report_id,phenomenon_id', ignoreDuplicates: true });
 
-      // Link report to phenomena
-      for (const match of matches) {
-        const linkKey = `${report.id}:${match.phenomenonId}`;
-        if (existingLinkSet.has(linkKey)) {
-          results.skipped++;
-          continue;
+        if (upsertError) {
+          console.error(`[BatchLink] Bulk upsert error (chunk ${i / UPSERT_CHUNK_SIZE + 1}):`, upsertError);
+        } else {
+          results.linked += chunk.length;
         }
-
-        if (!dryRun) {
-          const { error: linkError } = await supabase
-            .from('report_phenomena')
-            .insert({
-              report_id: report.id,
-              phenomenon_id: match.phenomenonId,
-              confidence: match.confidence,
-              tagged_by: 'auto',
-            });
-
-          if (linkError) {
-            console.error(`[BatchLink] Error linking report ${report.id}:`, linkError);
-            continue;
-          }
-        }
-
-        results.linked++;
-        results.newLinks.push({
-          reportId: report.id,
-          reportTitle: report.title,
-          phenomenonName: match.phenomenonName,
-          confidence: match.confidence,
-        });
-
-        // Add to set to avoid duplicates within this batch
-        existingLinkSet.add(linkKey);
       }
+    } else {
+      results.linked = pendingInserts.length; // For dry run, count what would be linked
     }
 
     const nextOffset = reports.length === batchSize ? offset + batchSize : null;
 
-    console.log(`[BatchLink] Batch complete: ${results.processed} processed, ${results.linked} linked, ${results.matches} matches`);
+    console.log(`[BatchLink] Batch complete: ${results.processed} processed, ${results.linked} linked, ${results.matches} matches, ${results.skipped} skipped`);
 
     return res.status(200).json({
       success: true,
@@ -259,8 +274,9 @@ export default async function handler(
         linked: results.linked,
         matches: results.matches,
         skipped: results.skipped,
-        sampleLinks: results.newLinks.slice(0, 10), // Show first 10 as samples
+        sampleLinks: results.newLinks.slice(0, 10),
       },
+      totalPhenomena: phenomenaMatchers.length,
       nextOffset,
       done: nextOffset === null,
     });
@@ -281,15 +297,22 @@ function escapeRegex(str: string): string {
 }
 
 /**
- * Check if report category aligns with phenomenon category
+ * Check if report category aligns with phenomenon category.
+ * Covers all 11 phenomenon categories for confidence bonus.
  */
 function isCategoryMatch(reportCategory: string, phenomenonCategory: string): boolean {
   const mapping: Record<string, string[]> = {
-    'cryptids': ['cryptid', 'creature', 'monster'],
-    'ufos_aliens': ['ufo', 'uap', 'alien', 'extraterrestrial'],
-    'ghosts_hauntings': ['ghost', 'haunting', 'spirit', 'paranormal'],
-    'psychic_phenomena': ['psychic', 'esp', 'telepathy', 'paranormal'],
-    'psychological_experiences': ['unexplained', 'strange', 'mysterious'],
+    'cryptids': ['cryptid', 'creature', 'monster', 'cryptids'],
+    'ufos_aliens': ['ufo', 'uap', 'alien', 'extraterrestrial', 'ufos_aliens', 'ufos', 'aliens', 'nhi'],
+    'ghosts_hauntings': ['ghost', 'haunting', 'spirit', 'apparition', 'ghosts_hauntings', 'ghosts', 'hauntings'],
+    'psychic_phenomena': ['psychic', 'esp', 'telepathy', 'precognition', 'psychic_phenomena', 'psychic_paranormal'],
+    'psychological_experiences': ['psychological', 'nde', 'sleep_paralysis', 'psychological_experiences', 'unexplained', 'strange'],
+    'consciousness_practices': ['consciousness', 'meditation', 'astral', 'lucid_dream', 'consciousness_practices', 'nde_consciousness'],
+    'biological_factors': ['biological', 'physiological', 'biological_factors', 'biology'],
+    'perception_sensory': ['perception', 'sensory', 'visual', 'auditory', 'perception_sensory'],
+    'religion_mythology': ['religion', 'mythology', 'spiritual', 'divine', 'angel', 'demon', 'religion_mythology'],
+    'esoteric_practices': ['esoteric', 'occult', 'ritual', 'magic', 'esoteric_practices', 'mystery_location'],
+    'combination': ['combination', 'multi', 'other', 'high_strangeness'],
   };
 
   const phenomenonKeys = mapping[phenomenonCategory] || [];
@@ -299,7 +322,7 @@ function isCategoryMatch(reportCategory: string, phenomenonCategory: string): bo
          reportCategoryLower.includes(phenomenonCategory);
 }
 
-// Increase timeout for batch processing
+// 300s timeout for Pro plan - needed for large batch processing
 export const config = {
   api: {
     bodyParser: {
@@ -307,5 +330,5 @@ export const config = {
     },
     responseLimit: false,
   },
-  maxDuration: 60, // 60 second timeout for Pro plan
+  maxDuration: 300,
 };
