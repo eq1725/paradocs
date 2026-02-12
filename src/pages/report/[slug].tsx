@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic'
 import {
   MapPin, Calendar, Clock, Users, Eye,
   ThumbsUp, ThumbsDown, MessageCircle, Share2, Bookmark,
-  Award, AlertTriangle, Check, ChevronRight
+  Award, AlertTriangle, Check, ChevronRight, ChevronDown
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { ReportWithDetails, CommentWithUser } from '@/lib/database.types'
@@ -16,11 +16,25 @@ import type { ContentType } from '@/lib/database.types'
 import { formatDate, formatRelativeDate, classNames, estimateReadingTime } from '@/lib/utils'
 import RelatedReports from '@/components/RelatedReports'
 import MediaGallery from '@/components/MediaGallery'
-import ReportAIInsight from '@/components/reports/ReportAIInsight'
-import PatternConnections from '@/components/reports/PatternConnections'
-import EnvironmentalContext from '@/components/reports/EnvironmentalContext'
-import AcademicObservationPanel from '@/components/reports/AcademicObservationPanel'
+// Lazy load below-fold components for faster initial page render
+const ReportAIInsight = dynamic(
+  () => import('@/components/reports/ReportAIInsight'),
+  { ssr: false, loading: () => <div className="h-32 bg-white/5 rounded-lg animate-pulse mb-8" /> }
+)
+const PatternConnections = dynamic(
+  () => import('@/components/reports/PatternConnections'),
+  { ssr: false, loading: () => <div className="h-24 bg-white/5 rounded-lg animate-pulse" /> }
+)
+const EnvironmentalContext = dynamic(
+  () => import('@/components/reports/EnvironmentalContext'),
+  { ssr: false, loading: () => <div className="h-32 bg-white/5 rounded-lg animate-pulse" /> }
+)
+const AcademicObservationPanel = dynamic(
+  () => import('@/components/reports/AcademicObservationPanel'),
+  { ssr: false, loading: () => <div className="h-32 bg-white/5 rounded-lg animate-pulse" /> }
+)
 // ReportPhenomena removed from report page — tagging lives in admin/dashboard instead
+import FormattedDescription from '@/components/FormattedDescription'
 import OnboardingTour, { hasCompletedOnboarding } from '@/components/OnboardingTour'
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
@@ -54,6 +68,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const [savingReport, setSavingReport] = useState(false)
   const [copiedShare, setCopiedShare] = useState(false)
   const [userVote, setUserVote] = useState<1 | -1 | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     if (slug) {
@@ -120,14 +135,21 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     }
   }
 
-  // Increment view count — fire and forget
+  // Increment view count — deduplicated per session to avoid inflation
   async function incrementViewCount(reportId: string, currentCount: number) {
     try {
+      const viewKey = `viewed_${reportId}`
+      if (typeof window !== 'undefined' && sessionStorage.getItem(viewKey)) {
+        return // Already counted this session
+      }
       await supabase
         .from('reports')
         .update({ view_count: currentCount + 1 })
         .eq('id', reportId)
       setReport(prev => prev ? { ...prev, view_count: currentCount + 1 } : prev)
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(viewKey, '1')
+      }
     } catch (e) {
       // Non-critical — fail silently
     }
@@ -379,7 +401,28 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     <>
       <Head>
         <title>{report.title} - ParaDocs</title>
-        <meta name="description" content={report.summary} />
+        <meta name="description" content={report.summary || report.description?.slice(0, 160)} />
+
+        {/* Open Graph */}
+        <meta property="og:type" content="article" />
+        <meta property="og:title" content={report.title} />
+        <meta property="og:description" content={report.summary || report.description?.slice(0, 160)} />
+        <meta property="og:site_name" content="ParaDocs" />
+        <meta property="og:url" content={`https://beta.discoverparadocs.com/report/${slug}`} />
+        {media[0]?.url && <meta property="og:image" content={media[0].url} />}
+
+        {/* Twitter Card */}
+        <meta name="twitter:card" content={media[0]?.url ? 'summary_large_image' : 'summary'} />
+        <meta name="twitter:title" content={report.title} />
+        <meta name="twitter:description" content={report.summary || report.description?.slice(0, 160)} />
+        {media[0]?.url && <meta name="twitter:image" content={media[0].url} />}
+
+        {/* Article metadata */}
+        {report.event_date && <meta property="article:published_time" content={report.event_date} />}
+        <meta property="article:section" content={categoryConfig.label} />
+        {report.tags?.map((tag: string, i: number) => (
+          <meta key={i} property="article:tag" content={tag} />
+        ))}
       </Head>
 
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
@@ -531,9 +574,10 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         {/* Main content */}
         <div className="glass-card p-4 sm:p-6 md:p-8 mb-6 sm:mb-8 overflow-hidden" data-tour-step="description">
           <div className="prose prose-invert max-w-none">
-            <div className="whitespace-pre-wrap text-gray-300 leading-relaxed break-words">
-              {report.description}
-            </div>
+            <FormattedDescription
+              text={report.description || ''}
+              className="text-gray-300 leading-relaxed break-words"
+            />
           </div>
 
           {/* Evidence section */}
@@ -783,7 +827,22 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
 
           {/* Sidebar with related reports and patterns */}
           <aside className="lg:w-80 flex-shrink-0 mt-8 lg:mt-0" data-tour-step="sidebar">
-            <div className="lg:sticky lg:top-20 space-y-6">
+            {/* Mobile: collapsible toggle */}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="lg:hidden w-full flex items-center justify-between px-4 py-3 glass-card mb-4"
+            >
+              <span className="text-sm font-medium text-gray-300">Related Reports &amp; Patterns</span>
+              <ChevronDown className={classNames(
+                'w-4 h-4 text-gray-400 transition-transform',
+                sidebarOpen ? 'rotate-180' : ''
+              )} />
+            </button>
+
+            <div className={classNames(
+              'lg:sticky lg:top-20 space-y-6',
+              sidebarOpen ? 'block' : 'hidden lg:block'
+            )}>
               <RelatedReports
                 reportId={report.id}
                 category={report.category}
