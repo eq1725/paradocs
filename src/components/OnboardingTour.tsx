@@ -1,0 +1,426 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { X, ChevronRight, ChevronLeft, Sparkles, MapPin, Brain, Eye, Layers, BarChart3, BookOpen, Compass } from 'lucide-react'
+
+// ─── Tour Step Configuration ─────────────────────────────────────────────
+
+interface TourStep {
+  targetSelector: string
+  title: string
+  description: string
+  icon: React.ReactNode
+  position?: 'top' | 'bottom' | 'left' | 'right'
+}
+
+const TOUR_STEPS: TourStep[] = [
+  {
+    targetSelector: '[data-tour-step="header"]',
+    title: 'Comprehensive Case Files',
+    description: 'Every case is categorized, dated, and located. See the content type, phenomenon category, credibility rating, and key details at a glance.',
+    icon: <BookOpen className="w-5 h-5" />,
+    position: 'bottom',
+  },
+  {
+    targetSelector: '[data-tour-step="media"]',
+    title: 'All Evidence, One Place',
+    description: 'Photos, videos, documents — we compile every piece of available media for each case. Click any image to view it full size.',
+    icon: <Eye className="w-5 h-5" />,
+    position: 'bottom',
+  },
+  {
+    targetSelector: '[data-tour-step="description"]',
+    title: 'The Full Story',
+    description: 'Read the complete account with evidence tags showing what physical proof, photos, or official reports exist for this case.',
+    icon: <Layers className="w-5 h-5" />,
+    position: 'top',
+  },
+  {
+    targetSelector: '[data-tour-step="info-grid"]',
+    title: 'At-a-Glance Details',
+    description: 'Content type, credibility assessment, source tracking, and timeline — key metadata organized into quick-reference cards.',
+    icon: <BarChart3 className="w-5 h-5" />,
+    position: 'top',
+  },
+  {
+    targetSelector: '[data-tour-step="ai-insight"]',
+    title: 'AI-Powered Analysis',
+    description: 'Our AI analyzes each case for credibility indicators, cross-references patterns across thousands of reports, and provides an objective assessment.',
+    icon: <Brain className="w-5 h-5" />,
+    position: 'top',
+  },
+  {
+    targetSelector: '[data-tour-step="location-map"]',
+    title: 'Geographic Intelligence',
+    description: 'See exactly where events occurred and discover nearby reports. Patterns emerge when you see cases plotted on a map.',
+    icon: <MapPin className="w-5 h-5" />,
+    position: 'top',
+  },
+  {
+    targetSelector: '[data-tour-step="environmental"]',
+    title: 'Scientific Context',
+    description: 'Moon phase, weather conditions, and structured observation data — the environmental and academic context surrounding each event.',
+    icon: <Compass className="w-5 h-5" />,
+    position: 'top',
+  },
+  {
+    targetSelector: '[data-tour-step="sidebar"]',
+    title: 'Connected Cases',
+    description: 'Discover related reports, pattern connections, and linked phenomena. Every case is part of a larger picture — explore the web of connections.',
+    icon: <Sparkles className="w-5 h-5" />,
+    position: 'left',
+  },
+]
+
+// ─── Component ───────────────────────────────────────────────────────────
+
+interface OnboardingTourProps {
+  onComplete: () => void
+}
+
+export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
+  const [currentStep, setCurrentStep] = useState(0)
+  const [targetRect, setTargetRect] = useState<DOMRect | null>(null)
+  const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({})
+  const [isAnimating, setIsAnimating] = useState(false)
+  const [isVisible, setIsVisible] = useState(false)
+  const tooltipRef = useRef<HTMLDivElement>(null)
+  const resizeObserverRef = useRef<ResizeObserver | null>(null)
+
+  const step = TOUR_STEPS[currentStep]
+  const isFirst = currentStep === 0
+  const isLast = currentStep === TOUR_STEPS.length - 1
+
+  // ─── Position calculation ──────────────────────────────────
+
+  const updatePosition = useCallback(() => {
+    if (!step) return
+
+    const target = document.querySelector(step.targetSelector)
+    if (!target) {
+      // If target not found, skip to next step or finish
+      if (!isLast) {
+        setCurrentStep(prev => prev + 1)
+      } else {
+        handleComplete()
+      }
+      return
+    }
+
+    const rect = target.getBoundingClientRect()
+    setTargetRect(rect)
+
+    // Calculate tooltip position
+    const padding = 16
+    const tooltipWidth = Math.min(380, window.innerWidth - 32)
+    const isMobile = window.innerWidth < 768
+
+    let style: React.CSSProperties = {
+      width: isMobile ? 'calc(100vw - 32px)' : `${tooltipWidth}px`,
+      maxWidth: '380px',
+    }
+
+    if (isMobile) {
+      // Mobile: always position below target, centered
+      style.left = '16px'
+      style.top = `${rect.bottom + padding + window.scrollY}px`
+      style.position = 'absolute'
+    } else {
+      // Desktop: position based on step preference
+      const pos = step.position || 'bottom'
+
+      switch (pos) {
+        case 'bottom':
+          style.top = `${rect.bottom + padding + window.scrollY}px`
+          style.left = `${Math.max(16, Math.min(rect.left, window.innerWidth - tooltipWidth - 16))}px`
+          style.position = 'absolute'
+          break
+        case 'top':
+          style.bottom = `${window.innerHeight - rect.top + padding - window.scrollY}px`
+          style.left = `${Math.max(16, Math.min(rect.left, window.innerWidth - tooltipWidth - 16))}px`
+          style.position = 'fixed'
+          break
+        case 'left':
+          style.top = `${rect.top + window.scrollY}px`
+          style.right = `${window.innerWidth - rect.left + padding}px`
+          style.position = 'absolute'
+          break
+        case 'right':
+          style.top = `${rect.top + window.scrollY}px`
+          style.left = `${rect.right + padding}px`
+          style.position = 'absolute'
+          break
+      }
+    }
+
+    setTooltipStyle(style)
+  }, [step, currentStep, isLast])
+
+  // ─── Scroll to target and update position ──────────────────
+
+  useEffect(() => {
+    if (!step) return
+
+    setIsAnimating(true)
+
+    const target = document.querySelector(step.targetSelector)
+    if (target) {
+      // Scroll target into view with some padding
+      const rect = target.getBoundingClientRect()
+      const scrollTop = window.scrollY + rect.top - 120 // 120px from top for breathing room
+
+      window.scrollTo({
+        top: Math.max(0, scrollTop),
+        behavior: currentStep === 0 ? 'auto' : 'smooth',
+      })
+
+      // Wait for scroll to finish, then position tooltip
+      const timer = setTimeout(() => {
+        updatePosition()
+        setIsAnimating(false)
+        if (!isVisible) setIsVisible(true)
+      }, currentStep === 0 ? 100 : 500)
+
+      return () => clearTimeout(timer)
+    } else {
+      setIsAnimating(false)
+      if (!isVisible) setIsVisible(true)
+    }
+  }, [currentStep, step, updatePosition])
+
+  // ─── Resize and scroll listener ────────────────────────────
+
+  useEffect(() => {
+    const handleResize = () => updatePosition()
+    const handleScroll = () => {
+      // Debounced reposition on scroll
+      requestAnimationFrame(updatePosition)
+    }
+
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('scroll', handleScroll, { passive: true })
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('scroll', handleScroll)
+    }
+  }, [updatePosition])
+
+  // ─── ResizeObserver for target element changes ─────────────
+
+  useEffect(() => {
+    if (!step) return
+
+    const target = document.querySelector(step.targetSelector)
+    if (!target) return
+
+    resizeObserverRef.current = new ResizeObserver(() => {
+      updatePosition()
+    })
+    resizeObserverRef.current.observe(target)
+
+    return () => {
+      resizeObserverRef.current?.disconnect()
+    }
+  }, [step, updatePosition])
+
+  // ─── Keyboard navigation ───────────────────────────────────
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleComplete()
+      } else if (e.key === 'ArrowRight' || e.key === 'Enter') {
+        handleNext()
+      } else if (e.key === 'ArrowLeft') {
+        handleBack()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [currentStep])
+
+  // ─── Navigation handlers ───────────────────────────────────
+
+  function handleNext() {
+    if (isLast) {
+      handleComplete()
+    } else {
+      setCurrentStep(prev => prev + 1)
+    }
+  }
+
+  function handleBack() {
+    if (!isFirst) {
+      setCurrentStep(prev => prev - 1)
+    }
+  }
+
+  function handleComplete() {
+    localStorage.setItem('paradocs_onboarding_complete', 'true')
+    onComplete()
+  }
+
+  // ─── Spotlight mask (box-shadow trick for the cutout) ──────
+
+  function getSpotlightStyle(): React.CSSProperties {
+    if (!targetRect) return {}
+
+    const padding = 8
+    return {
+      position: 'fixed',
+      top: targetRect.top - padding,
+      left: targetRect.left - padding,
+      width: targetRect.width + padding * 2,
+      height: targetRect.height + padding * 2,
+      borderRadius: '12px',
+      boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.7)',
+      pointerEvents: 'none' as const,
+      zIndex: 9998,
+      transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+    }
+  }
+
+  if (!step) return null
+
+  return (
+    <div className="onboarding-tour" style={{ zIndex: 9997 }}>
+      {/* Backdrop - catches clicks outside */}
+      <div
+        className="fixed inset-0"
+        style={{ zIndex: 9997 }}
+        onClick={(e) => {
+          e.stopPropagation()
+          // Don't auto-close on backdrop click — user should use buttons
+        }}
+      />
+
+      {/* Spotlight cutout */}
+      {targetRect && (
+        <div style={getSpotlightStyle()} />
+      )}
+
+      {/* Tooltip */}
+      {isVisible && !isAnimating && (
+        <div
+          ref={tooltipRef}
+          style={{ ...tooltipStyle, zIndex: 9999 }}
+          className="animate-fade-in"
+        >
+          <div
+            className="rounded-xl border shadow-2xl"
+            style={{
+              background: 'rgba(15, 15, 30, 0.95)',
+              backdropFilter: 'blur(20px)',
+              borderColor: 'rgba(91, 99, 241, 0.3)',
+              boxShadow: '0 0 30px rgba(91, 99, 241, 0.15), 0 20px 60px rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between p-4 pb-2">
+              <div className="flex items-center gap-3">
+                <div
+                  className="flex items-center justify-center w-9 h-9 rounded-lg"
+                  style={{
+                    background: 'rgba(91, 99, 241, 0.15)',
+                    color: '#5b63f1',
+                  }}
+                >
+                  {step.icon}
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-white text-base leading-tight">
+                    {step.title}
+                  </h3>
+                  <span className="text-xs text-gray-500">
+                    {currentStep + 1} of {TOUR_STEPS.length}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={handleComplete}
+                className="text-gray-500 hover:text-white transition-colors p-1 -mt-1 -mr-1"
+                title="Skip tour"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Description */}
+            <div className="px-4 pb-3">
+              <p className="text-gray-300 text-sm leading-relaxed">
+                {step.description}
+              </p>
+            </div>
+
+            {/* Progress dots + Navigation */}
+            <div className="flex items-center justify-between px-4 pb-4 pt-1">
+              {/* Progress dots */}
+              <div className="flex items-center gap-1.5">
+                {TOUR_STEPS.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setCurrentStep(i)}
+                    className="transition-all duration-300"
+                    style={{
+                      width: i === currentStep ? '20px' : '6px',
+                      height: '6px',
+                      borderRadius: '3px',
+                      background: i === currentStep
+                        ? '#5b63f1'
+                        : i < currentStep
+                          ? 'rgba(91, 99, 241, 0.4)'
+                          : 'rgba(255, 255, 255, 0.15)',
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* Buttons */}
+              <div className="flex items-center gap-2">
+                {!isFirst && (
+                  <button
+                    onClick={handleBack}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    Back
+                  </button>
+                )}
+                {isFirst && (
+                  <button
+                    onClick={handleComplete}
+                    className="px-3 py-1.5 rounded-lg text-sm text-gray-500 hover:text-gray-300 transition-colors"
+                  >
+                    Skip
+                  </button>
+                )}
+                <button
+                  onClick={handleNext}
+                  className="flex items-center gap-1 px-4 py-1.5 rounded-lg text-sm font-medium text-white transition-all"
+                  style={{
+                    background: 'linear-gradient(135deg, #5b63f1, #4f46e5)',
+                    boxShadow: '0 2px 10px rgba(91, 99, 241, 0.3)',
+                  }}
+                >
+                  {isLast ? 'Finish' : 'Next'}
+                  {!isLast && <ChevronRight className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Utility: Reset onboarding (for testing / settings page) ─────────
+
+export function resetOnboarding() {
+  localStorage.removeItem('paradocs_onboarding_complete')
+}
+
+export function hasCompletedOnboarding(): boolean {
+  if (typeof window === 'undefined') return true
+  return localStorage.getItem('paradocs_onboarding_complete') === 'true'
+}

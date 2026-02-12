@@ -21,6 +21,7 @@ import PatternConnections from '@/components/reports/PatternConnections'
 import EnvironmentalContext from '@/components/reports/EnvironmentalContext'
 import AcademicObservationPanel from '@/components/reports/AcademicObservationPanel'
 import ReportPhenomena from '@/components/reports/ReportPhenomena'
+import OnboardingTour, { hasCompletedOnboarding } from '@/components/OnboardingTour'
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
 const LocationMap = dynamic(
@@ -39,6 +40,7 @@ export default function ReportPage() {
   const [user, setUser] = useState<any>(null)
   const [newComment, setNewComment] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
+  const [showTour, setShowTour] = useState(false)
 
   useEffect(() => {
     if (slug) {
@@ -46,6 +48,21 @@ export default function ReportPage() {
       checkUser()
     }
   }, [slug])
+
+  // Check if onboarding tour should be shown
+  useEffect(() => {
+    if (!slug || loading || !report) return
+
+    const params = new URLSearchParams(window.location.search)
+    const tourRequested = params.get('tour') === 'true'
+    const alreadySeen = hasCompletedOnboarding()
+
+    if (tourRequested || (!alreadySeen && slug === 'the-roswell-incident-july-1947-showcase')) {
+      // Small delay to let the page fully render before starting tour
+      const timer = setTimeout(() => setShowTour(true), 800)
+      return () => clearTimeout(timer)
+    }
+  }, [slug, loading, report])
 
   async function checkUser() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -219,7 +236,7 @@ export default function ReportPage() {
         )}
 
         {/* Header */}
-        <header className="mb-8">
+        <header className="mb-8" data-tour-step="header">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4">
             {/* Content Type Badge - shown prominently for non-experiencer content */}
             <span className={classNames(
@@ -324,13 +341,13 @@ export default function ReportPage() {
 
         {/* Media Gallery */}
         {media.length > 0 && (
-          <div className="mb-8">
+          <div className="mb-8" data-tour-step="media">
             <MediaGallery media={media} />
           </div>
         )}
 
         {/* Main content */}
-        <div className="glass-card p-4 sm:p-6 md:p-8 mb-6 sm:mb-8 overflow-hidden">
+        <div className="glass-card p-4 sm:p-6 md:p-8 mb-6 sm:mb-8 overflow-hidden" data-tour-step="description">
           <div className="prose prose-invert max-w-none">
             <div className="whitespace-pre-wrap text-gray-300 leading-relaxed break-words">
               {report.description}
@@ -381,7 +398,7 @@ export default function ReportPage() {
         </div>
 
         {/* Sidebar info */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8" data-tour-step="info-grid">
           {/* Content Type */}
           <div className="glass-card p-4 sm:p-5">
             <h4 className="text-xs sm:text-sm text-gray-400 mb-2">Content Type</h4>
@@ -423,10 +440,13 @@ export default function ReportPage() {
         </div>
 
         {/* AI Analysis Section */}
-        <ReportAIInsight reportSlug={slug as string} className="mb-8" />
+        <div data-tour-step="ai-insight">
+          <ReportAIInsight reportSlug={slug as string} className="mb-8" />
+        </div>
 
         {/* Location Intelligence Map */}
         {report.latitude && report.longitude && (
+          <div data-tour-step="location-map">
           <LocationMap
             reportSlug={slug as string}
             reportTitle={report.title}
@@ -434,10 +454,11 @@ export default function ReportPage() {
             longitude={report.longitude}
             className="mb-8"
           />
+          </div>
         )}
 
         {/* Environmental Context & Academic Data - Side by Side on larger screens */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
+        <div className="grid md:grid-cols-2 gap-6 mb-8" data-tour-step="environmental">
           <EnvironmentalContext reportSlug={slug as string} />
           <AcademicObservationPanel reportSlug={slug as string} />
         </div>
@@ -550,7 +571,7 @@ export default function ReportPage() {
           </article>
 
           {/* Sidebar with related reports and patterns */}
-          <aside className="lg:w-80 flex-shrink-0 mt-8 lg:mt-0">
+          <aside className="lg:w-80 flex-shrink-0 mt-8 lg:mt-0" data-tour-step="sidebar">
             <div className="lg:sticky lg:top-8 space-y-6">
               <RelatedReports
                 reportId={report.id}
@@ -573,6 +594,21 @@ export default function ReportPage() {
           </aside>
         </div>
       </div>
+
+      {/* Onboarding Tour Overlay */}
+      {showTour && (
+        <OnboardingTour
+          onComplete={() => {
+            setShowTour(false)
+            // Clean up tour query param if present
+            const url = new URL(window.location.href)
+            if (url.searchParams.has('tour')) {
+              url.searchParams.delete('tour')
+              window.history.replaceState({}, '', url.pathname)
+            }
+          }}
+        />
+      )}
     </>
   )
 }

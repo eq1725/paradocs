@@ -13,6 +13,7 @@ import { Phenomenon } from '@/lib/services/phenomena.service'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import ReportCard from '@/components/ReportCard'
 import { TrendingPatternsWidget } from '@/components/patterns'
+import { hasCompletedOnboarding } from '@/components/OnboardingTour'
 
 // Default fallback stats (reasonable estimates, updated periodically)
 const DEFAULT_STATS = { total: 258000, thisMonth: 1000, locations: 14 }
@@ -49,6 +50,14 @@ export default function Home() {
   const [stats, setStats] = useState(DEFAULT_STATS)
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [showTourCTA, setShowTourCTA] = useState(false)
+
+  // Show tour CTA for users who haven't completed onboarding
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !hasCompletedOnboarding()) {
+      setShowTourCTA(true)
+    }
+  }, [])
 
   // Load cached stats immediately on mount
   useEffect(() => {
@@ -180,6 +189,24 @@ export default function Home() {
                 <p className="text-sm text-gray-500">This Month</p>
               </div>
             </div>
+
+            {/* Tour CTA for new users */}
+            {showTourCTA && (
+              <div className="mt-10 animate-fade-in">
+                <Link
+                  href="/report/the-roswell-incident-july-1947-showcase?tour=true"
+                  className="inline-flex items-center gap-3 px-6 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-105"
+                  style={{
+                    background: 'rgba(91, 99, 241, 0.15)',
+                    border: '1px solid rgba(91, 99, 241, 0.3)',
+                  }}
+                >
+                  <Sparkles className="w-4 h-4 text-primary-400" />
+                  <span>New here? Take a guided tour of the Roswell Incident</span>
+                  <ArrowRight className="w-4 h-4 text-primary-400" />
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </section>
