@@ -22,8 +22,16 @@ We have ~2M Reddit reports ingested. We're planning tens of millions across mult
 - **Purple period branding** — logo updated in Layout.tsx
 
 ### What's In Progress
-- Media backfill (ready to run, testing on small batch first)
+- User dashboard overhaul, journey, and gamification design
 - Report display quality iteration
+
+### What's Done (Pipeline)
+- **Media pipeline fully tested** on golden sample (~2,500 reports across text + arctic modes)
+  - Text extraction + junk filtering + dead URL validation + content viability classification
+  - Arctic Shift recovery for media-primary posts (inline, not separate pass)
+  - Auto-archive for hollow reports (media-primary with no viable media → status='archived')
+  - Arctic-only mode tested: low value for paranormal subreddits (mostly self/text posts, not link posts)
+- Pipeline is locked in and ready for bulk run at Phase 4
 
 ### What's Planned
 - User dashboard overhaul
@@ -171,6 +179,8 @@ All batch operations use browser console scripts that:
 | Feb 2026 | Keep existing 2M for development | Useful for load testing, search perf, UI at scale |
 | Feb 2026 | Add content viability check to pipeline | Media-primary posts with dead links are worthless shells — skip them |
 | Feb 2026 | Validate media URLs before inserting | Prevents 404s on the site, avoids cluttering DB with dead links |
+| Feb 2026 | Arctic-only mode not needed as separate pass | Paranormal subreddits are ~99% self/text posts; inline recovery in text mode is sufficient |
+| Feb 2026 | Pipeline locked in for Phase 4 bulk run | Tested on ~2,500 reports, all quality gates working |
 
 ---
 
@@ -180,6 +190,6 @@ When continuing this project:
 1. **Read this doc first** for strategic context
 2. **Check `docs/` folder** for other reference docs
 3. **Check git log** for recent changes
-4. **Current phase**: Golden Sample iteration — small batch testing, then UX/dashboard work
+4. **Current phase**: Phase 2 — Dashboard, UX, gamification, user journey. Pipeline is locked in.
 5. **Don't run bulk operations** without explicit user approval
 6. **The ~2M existing records** are development data — they may be wiped and re-ingested through the final pipeline
