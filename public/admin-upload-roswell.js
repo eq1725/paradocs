@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════════════════
-// ROSWELL SHOWCASE — Browser-Side Media Upload Script v2
+// ROSWELL SHOWCASE — Browser-Side Media Upload Script v3
 // Run this in the browser console on beta.discoverparadocs.com
-// Uses verified Wikimedia Commons filenames + computed hash paths
+// Adds image compression to stay under Vercel's 4.5MB body limit
 // ═══════════════════════════════════════════════════════════════════════
 
 const MEDIA_LIST = [
   // ─── PHOTOGRAPHS (verified Wikimedia Commons filenames) ──────────
   {
     sourceUrl: 'https://upload.wikimedia.org/wikipedia/commons/0/0a/Roswell_Daily_Record._July_8%2C_1947._RAAF_Captures_Flying_Saucer_On_Ranch_in_Roswell_Region.webp',
-    storageName: 'roswell-daily-record-1947.webp',
+    storageName: 'roswell-daily-record-1947.jpg',
     media_type: 'image',
     caption: 'Roswell Daily Record, July 8, 1947 — Front page headline: "RAAF Captures Flying Saucer On Ranch in Roswell Region." This was the original announcement before the military retraction.',
     is_primary: true,
@@ -50,7 +50,7 @@ const MEDIA_LIST = [
   },
   {
     sourceUrl: 'https://upload.wikimedia.org/wikipedia/commons/b/b0/General_Ramey_with_Roswell_Memo.png',
-    storageName: 'ramey-roswell-memo.png',
+    storageName: 'ramey-roswell-memo.jpg',
     media_type: 'image',
     caption: 'Brigadier General Ramey holding a memo — the so-called "Ramey Memo" visible in his hand has been subject to decades of analysis by researchers attempting to decipher its contents about the Roswell debris.',
     is_primary: false,
@@ -115,6 +115,31 @@ async function downloadImage(url) {
   }
 }
 
+// Compress image using canvas — keeps it under Vercel's 4.5MB body limit
+function compressImage(blob, maxWidth, quality) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let w = img.width;
+      let h = img.height;
+      if (w > maxWidth) {
+        h = Math.round(h * maxWidth / w);
+        w = maxWidth;
+      }
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob((b) => {
+        if (b) resolve(b); else reject(new Error('Canvas toBlob failed'));
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = () => reject(new Error('Image load failed'));
+    img.src = URL.createObjectURL(blob);
+  });
+}
+
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -128,23 +153,35 @@ function blobToBase64(blob) {
 }
 
 async function uploadToSupabase(base64, storageName, contentType, token) {
-  const resp = await fetch('/api/admin/upload-showcase-image', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + token,
-    },
-    body: JSON.stringify({ imageData: base64, storageName, contentType }),
-  });
-  return resp.json();
+  try {
+    const resp = await fetch('/api/admin/upload-showcase-image', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+      },
+      body: JSON.stringify({ imageData: base64, storageName, contentType }),
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      return { success: false, error: `HTTP ${resp.status}`, details: text.slice(0, 200) };
+    }
+    return resp.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 }
 
 // ─── Main Upload Flow ──────────────────────────────────────────────────
 
 async function runUpload() {
   const token = getToken();
-  console.log('🛸 Starting Roswell Showcase Media Upload v2...');
+  console.log('🛸 Starting Roswell Showcase Media Upload v3...');
   console.log(`   ${MEDIA_LIST.length} total media items (${MEDIA_LIST.filter(m => m.storageName).length} images + ${MEDIA_LIST.filter(m => !m.storageName).length} external links)`);
+
+  const MAX_WIDTH = 1600;
+  const JPEG_QUALITY = 0.85;
+  const MAX_BASE64_SIZE = 3 * 1024 * 1024; // 3MB base64 limit (safe for Vercel 4.5MB body)
 
   const uploadedMedia = [];
   let uploaded = 0;
@@ -165,33 +202,61 @@ async function runUpload() {
       continue;
     }
 
-    // Download image through the browser
-    console.log(`⬇️  Downloading: ${item.storageName}...`);
-    const blob = await downloadImage(item.sourceUrl);
-    if (!blob) {
-      console.error(`  ✗ Failed to download ${item.storageName}`);
-      failed++;
-      continue;
-    }
+    try {
+      // Download image through the browser
+      console.log(`⬇️  Downloading: ${item.storageName}...`);
+      const blob = await downloadImage(item.sourceUrl);
+      if (!blob) {
+        failed++;
+        continue;
+      }
+      console.log(`  ✓ Downloaded: ${(blob.size / 1024).toFixed(0)} KB`);
 
-    console.log(`  ✓ Downloaded: ${(blob.size / 1024).toFixed(0)} KB`);
+      // Compress if needed (over 2MB raw or any non-JPEG)
+      let finalBlob = blob;
+      if (blob.size > 2 * 1024 * 1024 || blob.type === 'image/png' || blob.type === 'image/webp') {
+        console.log(`  🗜️  Compressing (${blob.type}, ${(blob.size / 1024).toFixed(0)} KB)...`);
+        finalBlob = await compressImage(blob, MAX_WIDTH, JPEG_QUALITY);
+        console.log(`  ✓ Compressed: ${(finalBlob.size / 1024).toFixed(0)} KB`);
+      }
 
-    // Convert to base64 and upload
-    const base64 = await blobToBase64(blob);
-    console.log(`⬆️  Uploading to Supabase: ${item.storageName}...`);
-    const result = await uploadToSupabase(base64, item.storageName, blob.type, token);
+      // Convert to base64
+      const base64 = await blobToBase64(finalBlob);
+      console.log(`  📦 Base64 size: ${(base64.length / 1024).toFixed(0)} KB`);
 
-    if (result.success) {
-      console.log(`  ✓ Uploaded → ${result.publicUrl.slice(0, 60)}...`);
-      uploadedMedia.push({
-        media_type: item.media_type,
-        url: result.publicUrl,
-        caption: item.caption,
-        is_primary: item.is_primary,
-      });
-      uploaded++;
-    } else {
-      console.error(`  ✗ Upload failed: ${result.error} — ${result.details || ''}`);
+      // If still too large, compress more aggressively
+      if (base64.length > MAX_BASE64_SIZE) {
+        console.log(`  🗜️  Still too large, compressing further...`);
+        finalBlob = await compressImage(blob, 1200, 0.7);
+        const base64v2 = await blobToBase64(finalBlob);
+        console.log(`  ✓ Re-compressed: ${(base64v2.length / 1024).toFixed(0)} KB`);
+        // Upload the smaller version
+        console.log(`⬆️  Uploading to Supabase: ${item.storageName}...`);
+        const result = await uploadToSupabase(base64v2, item.storageName, 'image/jpeg', token);
+        if (result.success) {
+          console.log(`  ✓ Uploaded → ${result.publicUrl.slice(0, 60)}...`);
+          uploadedMedia.push({ media_type: item.media_type, url: result.publicUrl, caption: item.caption, is_primary: item.is_primary });
+          uploaded++;
+        } else {
+          console.error(`  ✗ Upload failed: ${result.error} — ${result.details || ''}`);
+          failed++;
+        }
+        continue;
+      }
+
+      // Upload
+      console.log(`⬆️  Uploading to Supabase: ${item.storageName}...`);
+      const result = await uploadToSupabase(base64, item.storageName, 'image/jpeg', token);
+      if (result.success) {
+        console.log(`  ✓ Uploaded → ${result.publicUrl.slice(0, 60)}...`);
+        uploadedMedia.push({ media_type: item.media_type, url: result.publicUrl, caption: item.caption, is_primary: item.is_primary });
+        uploaded++;
+      } else {
+        console.error(`  ✗ Upload failed: ${result.error} — ${result.details || ''}`);
+        failed++;
+      }
+    } catch (err) {
+      console.error(`  ✗ Error processing ${item.storageName}: ${err.message}`);
       failed++;
     }
   }
