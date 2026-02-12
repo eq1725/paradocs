@@ -8,23 +8,10 @@
   console.log('🛸 Roswell Witness Reports Seeder');
   console.log('══════════════════════════════════');
 
-  // Get Supabase client from the page
+  // Get Supabase client
   const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
-
-  // Read env from the page's meta or window
-  const supabaseUrl = document.querySelector('meta[name="supabase-url"]')?.content
-    || window.__NEXT_DATA__?.runtimeConfig?.NEXT_PUBLIC_SUPABASE_URL
-    || prompt('Enter Supabase URL:');
-  const supabaseKey = document.querySelector('meta[name="supabase-key"]')?.content
-    || window.__NEXT_DATA__?.runtimeConfig?.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    || prompt('Enter Supabase Anon Key:');
-
-  if (!supabaseUrl || !supabaseKey) {
-    // Try to extract from page scripts
-    const scripts = document.querySelectorAll('script[src*="_next"]');
-    console.error('Could not find Supabase credentials. Trying alternate method...');
-  }
-
+  const supabaseUrl = 'https://bhkbctdmwnowfmqpksed.supabase.co';
+  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJoa2JjdGRtd25vd2ZtcXBrc2VkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1MTk4NjIsImV4cCI6MjA4NTA5NTg2Mn0.eQAyAKbNwfmJZzSgGTz1hTH-I5IWYa7E2pLJER6M8bc';
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   // First, find the main Roswell showcase report to get its ID
