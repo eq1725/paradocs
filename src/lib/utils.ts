@@ -72,3 +72,8 @@ export function isValidUrl(string: string): boolean {
     return false
   }
 }
+
+export function estimateReadingTime(text: string): number {
+  if (!text) return 1
+  return Math.max(1, Math.ceil(text.split(/\s+/).filter(Boolean).length / 200))
+}

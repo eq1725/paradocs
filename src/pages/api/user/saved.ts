@@ -2,6 +2,9 @@
  * GET /api/user/saved
  * Returns user's saved reports with pagination
  *
+ * POST /api/user/saved
+ * Saves a report to user's list (idempotent)
+ *
  * DELETE /api/user/saved
  * Removes a report from saved list
  */
@@ -99,6 +102,44 @@ export default async function handler(
       })
     } catch (error) {
       console.error('Error fetching saved reports:', error)
+      return res.status(500).json({ error: 'Internal server error' })
+    }
+  }
+
+  if (req.method === 'POST') {
+    try {
+      const { report_id } = req.body
+
+      if (!report_id) {
+        return res.status(400).json({ error: 'report_id is required' })
+      }
+
+      // Check if already saved
+      const { data: existing } = await supabase
+        .from('saved_reports')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('report_id', report_id)
+        .single()
+
+      if (existing) {
+        return res.status(200).json({ success: true, saved_id: existing.id, already_saved: true })
+      }
+
+      const { data: inserted, error } = await supabase
+        .from('saved_reports')
+        .insert({ user_id: user.id, report_id })
+        .select('id')
+        .single()
+
+      if (error) {
+        console.error('Error saving report:', error)
+        throw error
+      }
+
+      return res.status(201).json({ success: true, saved_id: inserted.id })
+    } catch (error) {
+      console.error('Error saving report:', error)
       return res.status(500).json({ error: 'Internal server error' })
     }
   }

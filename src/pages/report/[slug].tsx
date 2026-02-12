@@ -5,15 +5,15 @@ import Head from 'next/head'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import {
-  ArrowLeft, MapPin, Calendar, Clock, Users, Eye,
+  MapPin, Calendar, Clock, Users, Eye,
   ThumbsUp, ThumbsDown, MessageCircle, Share2, Bookmark,
-  Award, ExternalLink, AlertTriangle
+  Award, AlertTriangle, Check, ChevronRight
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { ReportWithDetails, CommentWithUser } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG, CONTENT_TYPE_CONFIG } from '@/lib/constants'
 import type { ContentType } from '@/lib/database.types'
-import { formatDate, formatRelativeDate, classNames } from '@/lib/utils'
+import { formatDate, formatRelativeDate, classNames, estimateReadingTime } from '@/lib/utils'
 import RelatedReports from '@/components/RelatedReports'
 import MediaGallery from '@/components/MediaGallery'
 import ReportAIInsight from '@/components/reports/ReportAIInsight'
@@ -41,6 +41,11 @@ export default function ReportPage() {
   const [newComment, setNewComment] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
   const [showTour, setShowTour] = useState(false)
+  const [isSaved, setIsSaved] = useState(false)
+  const [savedId, setSavedId] = useState<string | null>(null)
+  const [savingReport, setSavingReport] = useState(false)
+  const [copiedShare, setCopiedShare] = useState(false)
+  const [userVote, setUserVote] = useState<1 | -1 | null>(null)
 
   useEffect(() => {
     if (slug) {
@@ -66,7 +71,9 @@ export default function ReportPage() {
 
   async function checkUser() {
     const { data: { session } } = await supabase.auth.getSession()
-    setUser(session?.user || null)
+    const currentUser = session?.user || null
+    setUser(currentUser)
+    return currentUser
   }
 
   async function loadReport() {
@@ -103,6 +110,32 @@ export default function ReportPage() {
         .eq('report_id', reportData.id)
         .order('is_primary', { ascending: false })
 
+      // Load user vote and saved state
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        const [{ data: voteData }, { data: savedData }] = await Promise.all([
+          supabase
+            .from('votes')
+            .select('vote_type')
+            .eq('user_id', session.user.id)
+            .eq('report_id', reportData.id)
+            .single(),
+          supabase
+            .from('saved_reports')
+            .select('id')
+            .eq('user_id', session.user.id)
+            .eq('report_id', reportData.id)
+            .single()
+        ])
+        setUserVote(voteData?.vote_type as 1 | -1 | null ?? null)
+        setIsSaved(!!savedData)
+        setSavedId(savedData?.id || null)
+      } else {
+        setUserVote(null)
+        setIsSaved(false)
+        setSavedId(null)
+      }
+
       // Increment view count
       await supabase
         .from('reports')
@@ -124,7 +157,6 @@ export default function ReportPage() {
     if (!user || !report) return
 
     try {
-      // Check existing vote
       const { data: existing } = await supabase
         .from('votes')
         .select('*')
@@ -133,23 +165,39 @@ export default function ReportPage() {
         .single()
 
       if (existing) {
-        // Remove vote if same type, otherwise update
         if (existing.vote_type === voteType) {
+          // Remove vote — toggle off
           await supabase.from('votes').delete().eq('id', existing.id)
+          setUserVote(null)
+          setReport(prev => prev ? {
+            ...prev,
+            upvotes: prev.upvotes - (voteType === 1 ? 1 : 0),
+            downvotes: prev.downvotes - (voteType === -1 ? 1 : 0),
+          } : prev)
         } else {
+          // Switch vote
           await supabase.from('votes').update({ vote_type: voteType }).eq('id', existing.id)
+          setUserVote(voteType)
+          setReport(prev => prev ? {
+            ...prev,
+            upvotes: prev.upvotes + (voteType === 1 ? 1 : -1),
+            downvotes: prev.downvotes + (voteType === -1 ? 1 : -1),
+          } : prev)
         }
       } else {
-        // Create new vote
+        // New vote
         await supabase.from('votes').insert({
           user_id: user.id,
           report_id: report.id,
           vote_type: voteType,
         })
+        setUserVote(voteType)
+        setReport(prev => prev ? {
+          ...prev,
+          upvotes: prev.upvotes + (voteType === 1 ? 1 : 0),
+          downvotes: prev.downvotes + (voteType === -1 ? 1 : 0),
+        } : prev)
       }
-
-      // Reload report to get updated counts
-      loadReport()
     } catch (error) {
       console.error('Error voting:', error)
     }
@@ -172,6 +220,56 @@ export default function ReportPage() {
     } finally {
       setSubmittingComment(false)
     }
+  }
+
+  async function handleSave() {
+    if (!user || !report || savingReport) return
+    setSavingReport(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) return
+
+      if (isSaved && savedId) {
+        // Unsave
+        await fetch('/api/user/saved', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ saved_id: savedId }),
+        })
+        setIsSaved(false)
+        setSavedId(null)
+      } else {
+        // Save
+        const resp = await fetch('/api/user/saved', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ report_id: report.id }),
+        })
+        const data = await resp.json()
+        if (data.success) {
+          setIsSaved(true)
+          setSavedId(data.saved_id)
+        }
+      }
+    } catch (error) {
+      console.error('Error saving report:', error)
+    } finally {
+      setSavingReport(false)
+    }
+  }
+
+  function handleShare() {
+    const url = window.location.href
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedShare(true)
+      setTimeout(() => setCopiedShare(false), 2000)
+    }).catch(() => {
+      // Fallback for older browsers
+      if (navigator.share) {
+        navigator.share({ title: report?.title, url })
+      }
+    })
   }
 
   if (loading) {
@@ -212,14 +310,21 @@ export default function ReportPage() {
         <div className="lg:flex lg:gap-8">
           {/* Main content */}
           <article className="flex-1 max-w-4xl overflow-hidden">
-        {/* Back link */}
-        <button
-          onClick={() => router.back()}
-          className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-6"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </button>
+        {/* Breadcrumb nav */}
+        <nav className="flex items-center gap-1.5 text-sm text-gray-400 mb-6 overflow-hidden">
+          <Link href="/explore" className="hover:text-white transition-colors shrink-0">
+            Explore
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 shrink-0 text-gray-600" />
+          <Link
+            href={`/explore?category=${report.category}`}
+            className="hover:text-white transition-colors shrink-0"
+          >
+            {categoryConfig.label}
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 shrink-0 text-gray-600" />
+          <span className="text-gray-500 truncate">{report.title}</span>
+        </nav>
 
         {/* Non-Experiencer Content Notice — only for news/discussion and research content */}
         {isNonExperiencer && (
@@ -271,15 +376,9 @@ export default function ReportPage() {
             )}
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-4">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold text-white">
-              {report.title}
-            </h1>
-            <button className="btn btn-primary text-sm flex items-center gap-2 shrink-0 w-fit">
-              <Bookmark className="w-4 h-4" />
-              Save
-            </button>
-          </div>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold text-white mb-4">
+            {report.title}
+          </h1>
 
           {/* Only show summary if it adds value beyond the title AND description */}
           {(() => {
@@ -337,6 +436,12 @@ export default function ReportPage() {
                 {report.witness_count} witnesses
               </span>
             )}
+            {report.description && (
+              <span className="flex items-center gap-1.5">
+                <Clock className="w-4 h-4" />
+                {estimateReadingTime(report.description)} min read
+              </span>
+            )}
           </div>
         </header>
 
@@ -382,24 +487,25 @@ export default function ReportPage() {
             </div>
           )}
 
-          {/* Tags */}
-          {report.tags && report.tags.length > 0 && (
-            <div className="mt-6 flex flex-wrap gap-2">
-              {report.tags.map((tag, i) => (
-                <Link
-                  key={i}
-                  href={`/search?q=${encodeURIComponent(tag)}`}
-                  className="px-3 py-1 rounded-full text-xs bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"
-                >
-                  #{tag}
-                </Link>
-              ))}
-            </div>
-          )}
         </div>
 
-        {/* Sidebar info */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8" data-tour-step="info-grid">
+        {/* Tags */}
+        {report.tags && report.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-6 sm:mb-8">
+            {report.tags.map((tag, i) => (
+              <Link
+                key={i}
+                href={`/search?q=${encodeURIComponent(tag)}`}
+                className="px-3 py-1.5 rounded-full text-xs bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/5 transition-colors"
+              >
+                #{tag}
+              </Link>
+            ))}
+          </div>
+        )}
+
+        {/* Info grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8" data-tour-step="info-grid">
           {/* Content Type */}
           <div className="glass-card p-4 sm:p-5">
             <h4 className="text-xs sm:text-sm text-gray-400 mb-2">Content Type</h4>
@@ -465,43 +571,71 @@ export default function ReportPage() {
         </div>
 
         {/* Actions bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 py-4 border-y border-white/10 mb-6 sm:mb-8">
-          <div className="flex items-center gap-3 sm:gap-4">
-            <button
-              onClick={() => handleVote(1)}
-              disabled={!user}
-              className="flex items-center gap-1.5 sm:gap-2 text-gray-400 hover:text-green-400 disabled:opacity-50"
-            >
-              <ThumbsUp className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span className="text-sm">{report.upvotes}</span>
-            </button>
-            <button
-              onClick={() => handleVote(-1)}
-              disabled={!user}
-              className="flex items-center gap-1.5 sm:gap-2 text-gray-400 hover:text-red-400 disabled:opacity-50"
-            >
-              <ThumbsDown className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span className="text-sm">{report.downvotes}</span>
-            </button>
-            <span className="flex items-center gap-1.5 sm:gap-2 text-gray-400">
-              <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span className="text-sm">{report.view_count}</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className="btn btn-ghost text-xs sm:text-sm">
-              <Bookmark className="w-4 h-4" />
-              <span className="hidden sm:inline">Save</span>
-            </button>
-            <button className="btn btn-ghost text-xs sm:text-sm">
-              <Share2 className="w-4 h-4" />
-              <span className="hidden sm:inline">Share</span>
-            </button>
+        <div className="sticky bottom-0 z-40 -mx-3 sm:-mx-4 px-3 sm:px-4 py-3 bg-black/80 backdrop-blur-md border-t border-white/10 mb-6 sm:mb-8">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <button
+                onClick={() => handleVote(1)}
+                disabled={!user}
+                className={classNames(
+                  'flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 transition-colors',
+                  userVote === 1 ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
+                )}
+              >
+                <ThumbsUp className="w-4 h-4 sm:w-5 sm:h-5" fill={userVote === 1 ? 'currentColor' : 'none'} />
+                <span className="text-sm">{report.upvotes}</span>
+              </button>
+              <button
+                onClick={() => handleVote(-1)}
+                disabled={!user}
+                className={classNames(
+                  'flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 transition-colors',
+                  userVote === -1 ? 'text-red-400' : 'text-gray-400 hover:text-red-400'
+                )}
+              >
+                <ThumbsDown className="w-4 h-4 sm:w-5 sm:h-5" fill={userVote === -1 ? 'currentColor' : 'none'} />
+                <span className="text-sm">{report.downvotes}</span>
+              </button>
+              <span className="flex items-center gap-1.5 sm:gap-2 text-gray-400">
+                <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="text-sm">{report.view_count}</span>
+              </span>
+              <button
+                onClick={() => document.getElementById('comments')?.scrollIntoView({ behavior: 'smooth' })}
+                className="flex items-center gap-1.5 sm:gap-2 text-gray-400 hover:text-primary-400 transition-colors"
+              >
+                <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="text-sm">{comments.length}</span>
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSave}
+                disabled={!user || savingReport}
+                className={classNames(
+                  'btn btn-ghost text-xs sm:text-sm transition-colors',
+                  isSaved ? 'text-primary-400' : ''
+                )}
+              >
+                <Bookmark className="w-4 h-4" fill={isSaved ? 'currentColor' : 'none'} />
+                <span className="hidden sm:inline">{isSaved ? 'Saved' : 'Save'}</span>
+              </button>
+              <button
+                onClick={handleShare}
+                className={classNames(
+                  'btn btn-ghost text-xs sm:text-sm transition-colors',
+                  copiedShare ? 'text-green-400' : ''
+                )}
+              >
+                {copiedShare ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+                <span className="hidden sm:inline">{copiedShare ? 'Copied!' : 'Share'}</span>
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Comments */}
-        <section>
+        <section id="comments">
           <h3 className="text-xl font-display font-semibold text-white mb-6 flex items-center gap-2">
             <MessageCircle className="w-5 h-5" />
             Comments ({comments.length})
