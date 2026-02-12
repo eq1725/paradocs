@@ -41,65 +41,187 @@ async function getAuthenticatedUser(req: NextApiRequest) {
 }
 
 /**
- * Clean a Reddit title without replacing it entirely.
- * Preserves the unique content but fixes formatting issues.
+ * Smart Reddit title cleaner.
+ * Strips filler phrases, converts questions to statements, fixes formatting,
+ * and trims to a headline-length result — all without AI.
  */
 function cleanRedditTitle(title: string): { cleaned: string; wasChanged: boolean } {
   let cleaned = title;
 
-  // Remove Reddit meta brackets: [Serious], [Update], [OC], etc.
-  cleaned = cleaned.replace(/\[(?:Serious|Update|OC|Original|Repost|Long|Short|True|Meta|Debunked)\]\s*/gi, '');
-  // Remove trailing brackets too
-  cleaned = cleaned.replace(/\s*\[(?:Serious|Update|OC|Original|Repost|Long|Short|True|Meta|Debunked)\]$/gi, '');
+  // ── Step 1: Remove Reddit meta brackets ──
+  cleaned = cleaned.replace(/\[(?:Serious|Update|OC|Original|Repost|Long|Short|True|Meta|Debunked|Genuine|Real|Discussion|Question|Experience|Story|Advice|Help)\]\s*/gi, '');
+  cleaned = cleaned.replace(/\s*\[(?:Serious|Update|OC|Original|Repost|Long|Short|True|Meta|Debunked|Genuine|Real|Discussion|Question|Experience|Story|Advice|Help)\]$/gi, '');
 
-  // Fix ALL CAPS (but not short acronyms like "UFO" or "CIA")
+  // ── Step 2: Fix ALL CAPS ──
   if (cleaned.length > 15 && cleaned === cleaned.toUpperCase()) {
     cleaned = cleaned.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
-    // Restore common paranormal acronyms
-    cleaned = cleaned.replace(/\bUfo\b/g, 'UFO');
-    cleaned = cleaned.replace(/\bUap\b/g, 'UAP');
-    cleaned = cleaned.replace(/\bEvp\b/g, 'EVP');
-    cleaned = cleaned.replace(/\bEmf\b/g, 'EMF');
-    cleaned = cleaned.replace(/\bNde\b/g, 'NDE');
-    cleaned = cleaned.replace(/\bObe\b/g, 'OBE');
-    cleaned = cleaned.replace(/\bMib\b/g, 'MIB');
   }
 
-  // Fix all lowercase (but preserve short titles that might be stylistic)
+  // ── Step 3: Fix all lowercase ──
   if (cleaned.length > 15 && cleaned === cleaned.toLowerCase()) {
-    // Capitalize first letter of each sentence
-    cleaned = cleaned.replace(/(^|[.!?]\s+)([a-z])/g, (_, pre, letter) => pre + letter.toUpperCase());
-    // Ensure first char is capitalized
     cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
   }
 
-  // Trim excessive length but keep the content meaningful
-  // For very long titles (>120 chars), truncate at a natural break point
-  if (cleaned.length > 120) {
-    // Try to cut at sentence boundary
-    const sentenceEnd = cleaned.substring(0, 120).lastIndexOf('. ');
-    const commaBreak = cleaned.substring(0, 120).lastIndexOf(', ');
-    const dashBreak = cleaned.substring(0, 120).lastIndexOf(' - ');
+  // Restore paranormal acronyms after case fixes
+  cleaned = cleaned.replace(/\bUfo(s)?\b/g, 'UFO$1');
+  cleaned = cleaned.replace(/\bUap(s)?\b/g, 'UAP$1');
+  cleaned = cleaned.replace(/\bEvp(s)?\b/g, 'EVP$1');
+  cleaned = cleaned.replace(/\bEmf\b/g, 'EMF');
+  cleaned = cleaned.replace(/\bNde(s)?\b/g, 'NDE$1');
+  cleaned = cleaned.replace(/\bObe(s)?\b/g, 'OBE$1');
+  cleaned = cleaned.replace(/\bMib\b/g, 'MIB');
+  cleaned = cleaned.replace(/\bNhi\b/gi, 'NHI');
+  cleaned = cleaned.replace(/\bCia\b/gi, 'CIA');
+  cleaned = cleaned.replace(/\bFbi\b/gi, 'FBI');
 
-    if (sentenceEnd > 60) {
-      cleaned = cleaned.substring(0, sentenceEnd + 1);
-    } else if (dashBreak > 60) {
-      cleaned = cleaned.substring(0, dashBreak);
-    } else if (commaBreak > 60) {
-      cleaned = cleaned.substring(0, commaBreak);
+  // ── Step 4: Strip filler openings ──
+  // These patterns remove conversational openers while keeping the substance.
+  // Order matters — more specific patterns first.
+  const fillerPatterns = [
+    // "I just wanted to share" / "I wanted to post about"
+    /^I\s+(?:just\s+)?(?:want(?:ed)?|need(?:ed)?)\s+to\s+(?:share|post|tell|talk)\s*(?:about|my|this|that|the)?\s*/i,
+    // "So basically" / "So last night" / "So I was"
+    /^So\s+(?:basically\s+)?(?=\w)/i,
+    // "Okay so" / "Ok so" / "Alright so"
+    /^(?:Okay|Ok|Alright|Well)\s+(?:so\s+)?/i,
+    // "Long story short" / "TLDR"
+    /^(?:Long story short|TLDR|TL;DR)[,:]?\s*/i,
+    // "Not sure if this belongs here but"
+    /^(?:Not sure (?:if|where)|I'm not sure (?:if|where)).*?(?:but|however)\s*/i,
+    // "I don't know if anyone else" / "I don't know what I saw but"
+    /^I\s+don'?t\s+know\s+(?:if|what|how).*?(?:but|however|,)\s*/i,
+    // "This happened to me" / "This happened when"
+    /^This\s+(?:happened|occurred)\s+(?:to\s+(?:me|us)\s+)?/i,
+    // "I think I" → keep "I"
+    /^I\s+(?:think|believe|feel like)\s+/i,
+    // "Has anyone else" / "Does anyone else" / "Anyone else"
+    /^(?:Has|Does|Did|Can|Could|Would|Do)\s+(?:anyone|anybody|someone)\s+(?:else\s+)?(?:ever\s+)?/i,
+    /^Anyone\s+(?:else\s+)?(?:ever\s+)?/i,
+    // "DAE" (Does Anyone Else)
+    /^DAE\s+/i,
+    // "Am I the only one who"
+    /^Am\s+I\s+the\s+only\s+one\s+(?:who|that|to)\s*/i,
+    // "I'm curious" / "Just curious"
+    /^(?:I'?m\s+|Just\s+)?curious[,:]?\s*(?:about\s+|if\s+|whether\s+)?/i,
+    // "For those who" / "For anyone who"
+    /^For\s+(?:those|anyone|people)\s+(?:who|that)\s+/i,
+  ];
+
+  for (const pattern of fillerPatterns) {
+    const before = cleaned;
+    cleaned = cleaned.replace(pattern, '');
+    if (cleaned !== before && cleaned.length > 0) {
+      // Capitalize first letter after stripping
+      cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+      break; // Only strip one filler pattern
     } else {
-      // Fall back to word boundary
-      const spaceBreak = cleaned.substring(0, 117).lastIndexOf(' ');
-      cleaned = cleaned.substring(0, spaceBreak > 60 ? spaceBreak : 117) + '...';
+      cleaned = before; // Revert if it emptied the string
     }
   }
 
-  // Remove leading/trailing whitespace and fix double spaces
-  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  // ── Step 5: Strip trailing filler ──
+  const trailingPatterns = [
+    /\s*[\-–—]\s*(?:anyone else|thoughts\??|help|advice|what do you think|is this normal|am I crazy).*$/i,
+    /\s*[,.]?\s+(?:and I'?m (?:still )?(?:freaking|scared|terrified|shaking|confused|baffled|curious)).*$/i,
+    /\s*[,.]?\s+(?:what (?:was|is|could|should|do|did) (?:it|this|that|I)).*$/i,
+    /\s*[,.]?\s+(?:has this happened to anyone).*$/i,
+    /\s*[,.]?\s+(?:I need (?:help|advice|answers|opinions)).*$/i,
+    /\s*[,.]?\s+(?:please (?:help|read|share|advise)).*$/i,
+  ];
 
-  // Remove trailing punctuation that looks weird for a title (multiple periods, etc.)
+  for (const pattern of trailingPatterns) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+
+  // ── Step 6: Convert questions to statements ──
+  if (cleaned.endsWith('?')) {
+    // "Have you ever seen a shadow figure?" → "Shadow Figure Sighting"
+    // But only for short questions — long questions often have good content
+    cleaned = cleaned.replace(/\?$/, '');
+
+    // Strip question openers
+    cleaned = cleaned.replace(/^(?:Have\s+you\s+ever|Has\s+anyone\s+ever|Did\s+(?:anyone|you)\s+(?:ever\s+)?)\s*/i, '');
+    cleaned = cleaned.replace(/^(?:What\s+(?:is|are|was|were|do you (?:think|call)))\s+/i, '');
+    cleaned = cleaned.replace(/^(?:Why\s+(?:do|does|did|is|are|would))\s+/i, '');
+    cleaned = cleaned.replace(/^(?:How\s+(?:do|does|did|can|could|would)\s+(?:you\s+)?(?:explain\s+)?)/i, '');
+    cleaned = cleaned.replace(/^(?:Is\s+(?:it|this|that|there)\s+)/i, '');
+    cleaned = cleaned.replace(/^(?:Could\s+(?:this|it|that)\s+(?:be|have been)\s+)/i, '');
+    cleaned = cleaned.replace(/^(?:Would\s+(?:this|it|that)\s+(?:be|count as)\s+)/i, '');
+    // Strip leftover bare verbs after question stripping: "see X" → "X", "hear X" → "X"
+    cleaned = cleaned.replace(/^(?:seen?|hear(?:d)?|notice(?:d)?|experience(?:d)?|felt?|encounter(?:ed)?|witness(?:ed)?|spot(?:ted)?)\s+/i, '');
+    // Strip "a/an/the/any" articles left at the start
+    cleaned = cleaned.replace(/^(?:a|an|the|any|some)\s+/i, '');
+
+    if (cleaned.length > 0) {
+      cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+    }
+  }
+
+  // ── Step 7: Strip "I saw/heard/experienced" openers ──
+  // "I saw a large triangle craft over my house" → "Large Triangle Craft Over My House"
+  const narrativeOpeners = [
+    /^I\s+(?:just\s+)?(?:saw|seen|spotted|noticed|witnessed|observed|caught)\s+(?:a\s+|an\s+|the\s+|some\s+|what\s+(?:looked|appeared|seemed)\s+(?:like|to be)\s+(?:a\s+|an\s+)?)?/i,
+    /^I\s+(?:just\s+)?(?:heard|felt|sensed|experienced|encountered|had)\s+(?:a\s+|an\s+|the\s+|some\s+)?(?:strange\s+|weird\s+|bizarre\s+|unexplained\s+)?/i,
+    /^(?:My\s+(?:friend|brother|sister|mom|dad|wife|husband|partner|family|dog|cat)\s+and\s+)?I\s+(?:were|was)\s+/i,
+    /^(?:We|Me and my\s+\w+)\s+(?:were|was|saw|heard|noticed|spotted|experienced)\s+/i,
+    /^Last\s+(?:night|week|month|year|summer|winter|spring|fall)\s+/i,
+    /^(?:A\s+few|A\s+couple(?:\s+of)?|About\s+\d+)\s+(?:days|weeks|months|years|nights)\s+ago\s*,?\s*/i,
+    /^(?:When\s+I\s+was\s+(?:a\s+(?:kid|child|teen|teenager)|young|\d+))\s*,?\s*/i,
+    /^(?:Growing up|Back in \d{4}|Back when I was)\s*,?\s*/i,
+  ];
+
+  for (const pattern of narrativeOpeners) {
+    const before = cleaned;
+    cleaned = cleaned.replace(pattern, '');
+    if (cleaned !== before && cleaned.length > 10) {
+      cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+      break;
+    } else {
+      cleaned = before;
+    }
+  }
+
+  // ── Step 8: Smart trim for length ──
+  if (cleaned.length > 100) {
+    // Try to cut at natural break points
+    const breaks = [
+      { idx: cleaned.substring(0, 100).lastIndexOf('. '), min: 40 },
+      { idx: cleaned.substring(0, 100).lastIndexOf(' - '), min: 40 },
+      { idx: cleaned.substring(0, 100).lastIndexOf(' — '), min: 40 },
+      { idx: cleaned.substring(0, 100).lastIndexOf(', '), min: 50 },
+      { idx: cleaned.substring(0, 100).lastIndexOf(' and '), min: 40 },
+      { idx: cleaned.substring(0, 97).lastIndexOf(' '), min: 50 },
+    ];
+
+    for (const { idx, min } of breaks) {
+      if (idx > min) {
+        cleaned = cleaned.substring(0, idx);
+        break;
+      }
+    }
+
+    // Final hard limit
+    if (cleaned.length > 100) {
+      const lastSpace = cleaned.substring(0, 97).lastIndexOf(' ');
+      cleaned = cleaned.substring(0, lastSpace > 50 ? lastSpace : 97) + '...';
+    }
+  }
+
+  // ── Step 9: Final cleanup ──
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  cleaned = cleaned.replace(/^[,.\-–—:;\s]+/, ''); // Remove leading punctuation
+  cleaned = cleaned.replace(/[,;:\-–—]+$/, ''); // Remove trailing punctuation (keep . ! ?)
   cleaned = cleaned.replace(/\.{2,}$/, '...');
-  cleaned = cleaned.replace(/[,;:]$/, '');
+
+  // Ensure first char is capitalized
+  if (cleaned.length > 0) {
+    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  }
+
+  // Safety: if we've trimmed too aggressively, revert to original
+  if (cleaned.length < 10) {
+    return { cleaned: title, wasChanged: false };
+  }
 
   return {
     cleaned,
