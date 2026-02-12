@@ -279,10 +279,66 @@ export default async function handler(
     let duplicateSkipped = 0;
     let deadUrlSkipped = 0;
     let mediaPrimaryFlagged = 0;
+    let mediaPrimaryArchived = 0;
+    let mediaRecovered = 0;
     let classificationCounts = { 'media-primary': 0, 'text-primary': 0, 'link-primary': 0 };
     const sampleMedia: Array<{ title: string; type: string; url: string }> = [];
     const sampleFiltered: Array<{ title: string; url: string; reason: string }> = [];
     const sampleFlagged: Array<{ title: string; contentClass: string; reason: string }> = [];
+    const sampleArchived: Array<{ title: string; reason: string }> = [];
+
+    // Helper: attempt media recovery from Arctic Shift for a specific report
+    async function tryArcticRecovery(report: any): Promise<Array<{ type: 'image' | 'video'; url: string }>> {
+      const postId = (report.original_report_id || '').replace('reddit-', '');
+      if (!postId || postId.startsWith('comment-')) return [];
+
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 8000);
+
+        const arcticResponse = await fetch(
+          `https://arctic-shift.photon-reddit.com/api/posts/search?ids=${postId}`,
+          {
+            headers: { 'Accept': 'application/json', 'User-Agent': 'ParaDocs/1.0' },
+            signal: controller.signal
+          }
+        );
+        clearTimeout(timer);
+
+        if (!arcticResponse.ok) return [];
+
+        const arcticData = await arcticResponse.json();
+        const posts = Array.isArray(arcticData) ? arcticData : (arcticData.data || []);
+        const post = posts[0];
+        if (!post) return [];
+
+        const mediaItems: Array<{ type: 'image' | 'video'; url: string }> = [];
+
+        // Reddit video
+        if (post.is_video && post.media?.reddit_video?.fallback_url) {
+          mediaItems.push({ type: 'video', url: post.media.reddit_video.fallback_url });
+        }
+
+        // Gallery
+        if (post.gallery_data?.items && post.media_metadata) {
+          for (const item of post.gallery_data.items) {
+            const meta = post.media_metadata[item.media_id];
+            if (meta?.s?.u) {
+              mediaItems.push({ type: 'image', url: meta.s.u.replace(/&amp;/g, '&') });
+            }
+          }
+        }
+
+        // Direct image URL (i.redd.it, imgur, etc.)
+        if (post.url && /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(post.url)) {
+          mediaItems.push({ type: 'image', url: post.url });
+        }
+
+        return mediaItems;
+      } catch {
+        return [];
+      }
+    }
 
     // Helper: get existing media URLs for a report (URL-level dedup)
     async function getExistingMediaUrls(reportId: string): Promise<Set<string>> {
@@ -405,22 +461,38 @@ export default async function handler(
         if (mediaUrls.length === 0) {
           noMediaInText++;
 
-          // If media-primary with no media found at all, flag it
+          // If media-primary with no media in text, attempt Arctic Shift recovery
           if (contentClass === 'media-primary') {
             mediaPrimaryFlagged++;
-            if (!dryRun) {
-              const tags = report.tags || [];
-              if (!tags.includes('media-missing')) {
-                await supabase
-                  .from('reports')
-                  .update({ tags: [...tags, 'media-missing'] })
-                  .eq('id', report.id);
+            const recovered = await tryArcticRecovery(report);
+            if (recovered.length > 0) {
+              const recoveryResult = await insertMediaForReport(report, recovered);
+              if (recoveryResult.inserted > 0) {
+                mediaRecovered += recoveryResult.inserted;
+                mediaInserted += recoveryResult.inserted;
+                if (sampleMedia.length < 5) {
+                  sampleMedia.push({
+                    title: (report.title || '').substring(0, 50) + ' [recovered]',
+                    type: recovered[0].type,
+                    url: recovered[0].url.substring(0, 80)
+                  });
+                }
+                continue; // Successfully recovered — move on
               }
+              deadUrlSkipped += recoveryResult.dead;
             }
-            if (sampleFlagged.length < 3) {
-              sampleFlagged.push({
+
+            // Recovery failed — archive the report
+            if (!dryRun) {
+              await supabase
+                .from('reports')
+                .update({ status: 'archived', tags: [...(report.tags || []), 'media-missing'] })
+                .eq('id', report.id);
+              mediaPrimaryArchived++;
+            }
+            if (sampleArchived.length < 5) {
+              sampleArchived.push({
                 title: (report.title || '').substring(0, 60),
-                contentClass,
                 reason: 'no-media-found'
               });
             }
@@ -435,22 +507,38 @@ export default async function handler(
         filteredJunk += result.junked;
         deadUrlSkipped += result.dead;
 
-        // If media-primary and ALL media was dead/junk, flag the report
+        // If media-primary and ALL text media was dead/junk, try Arctic recovery
         if (contentClass === 'media-primary' && result.inserted === 0) {
           mediaPrimaryFlagged++;
-          if (!dryRun) {
-            const tags = report.tags || [];
-            if (!tags.includes('media-missing')) {
-              await supabase
-                .from('reports')
-                .update({ tags: [...tags, 'media-missing'] })
-                .eq('id', report.id);
+          const recovered = await tryArcticRecovery(report);
+          if (recovered.length > 0) {
+            const recoveryResult = await insertMediaForReport(report, recovered);
+            if (recoveryResult.inserted > 0) {
+              mediaRecovered += recoveryResult.inserted;
+              mediaInserted += recoveryResult.inserted;
+              if (sampleMedia.length < 5) {
+                sampleMedia.push({
+                  title: (report.title || '').substring(0, 50) + ' [recovered]',
+                  type: recovered[0].type,
+                  url: recovered[0].url.substring(0, 80)
+                });
+              }
+              continue; // Successfully recovered
             }
+            deadUrlSkipped += recoveryResult.dead;
           }
-          if (sampleFlagged.length < 3) {
-            sampleFlagged.push({
+
+          // Recovery failed — archive the report
+          if (!dryRun) {
+            await supabase
+              .from('reports')
+              .update({ status: 'archived', tags: [...(report.tags || []), 'media-missing'] })
+              .eq('id', report.id);
+            mediaPrimaryArchived++;
+          }
+          if (sampleArchived.length < 5) {
+            sampleArchived.push({
               title: (report.title || '').substring(0, 60),
-              contentClass,
               reason: result.dead > 0 ? 'all-media-dead' : 'all-media-junk'
             });
           }
@@ -566,10 +654,13 @@ export default async function handler(
         duplicateSkipped,
         deadUrlSkipped,
         mediaPrimaryFlagged,
+        mediaPrimaryArchived,
+        mediaRecovered,
         classificationCounts,
         sampleMedia,
         sampleFiltered,
-        sampleFlagged
+        sampleFlagged,
+        sampleArchived
       },
       nextOffset,
       totalRemaining: count ? count - reports.length : undefined
