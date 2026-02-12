@@ -697,6 +697,44 @@ async function processBatch(
         }
       } else {
         progress.inserted++;
+
+        // Insert media for the new report (mirroring engine.ts pattern)
+        if (report.media && report.media.length > 0) {
+          // Look up the inserted report ID
+          const { data: insertedReport } = await supabase
+            .from('reports')
+            .select('id')
+            .eq('original_report_id', report.original_report_id)
+            .eq('source_type', report.source_type)
+            .single();
+
+          if (insertedReport) {
+            const seenUrls = new Set<string>();
+
+            for (const mediaItem of report.media) {
+              // Skip duplicate URLs
+              const normalizedUrl = mediaItem.url.replace(/&amp;/g, '&').toLowerCase();
+              if (seenUrls.has(normalizedUrl)) continue;
+              seenUrls.add(normalizedUrl);
+
+              // Skip known broken patterns
+              if (normalizedUrl.includes('deleted') ||
+                  normalizedUrl.includes('removed') ||
+                  normalizedUrl.includes('if you are looking for an image')) {
+                continue;
+              }
+
+              await supabase.from('report_media').insert({
+                report_id: insertedReport.id,
+                media_type: mediaItem.type,
+                url: mediaItem.url,
+                thumbnail_url: mediaItem.thumbnailUrl || null,
+                caption: mediaItem.caption || null,
+                is_primary: mediaItem.isPrimary || false
+              });
+            }
+          }
+        }
       }
 
     } catch (error) {

@@ -93,6 +93,23 @@ Guidelines:
 - Help researchers understand what makes this report interesting or notable
 - Maintain scientific rigor while remaining accessible and respectful to witnesses
 
+SOURCE-AWARE ANALYSIS:
+Many reports come from Reddit and other community platforms. When analyzing these:
+- The FULL ACCOUNT/DESCRIPTION is the primary source of truth — weight it far more heavily than the title
+- Reddit titles are often vague, clickbait, or tangential (e.g., a title about "video quality" on a post that describes a genuine cryptid encounter)
+- Informal writing style, casual language, and unpolished grammar reflect authentic first-person testimony, NOT low credibility
+- Posts tagged "comment-experience" are brief testimonies extracted from Reddit comment threads — they are raw but often genuine
+- Technical mentions (video editing, camera settings, etc.) usually mean the witness is describing their evidence capture process, not that the report is about technology
+- Do NOT let the title mislead your analysis — always read the full account before forming conclusions
+
+CREDIBILITY FACTORS FOR COMMUNITY-SOURCED REPORTS:
+- Vivid, specific descriptive details → Positive (authentic eyewitness recall)
+- Multiple witnesses mentioned → Positive (corroboration)
+- Specific locations and times → Positive (verifiable details)
+- Informal language or casual tone → Neutral (platform-appropriate, not an indicator of credibility)
+- Raw, unpolished narrative → Neutral to Positive (authentic voice, less likely fabricated)
+- Very short accounts → Neutral (may be brief but genuine; assess content quality over length)
+
 CRITICAL: Distinguish between actual EXPERIENCER REPORTS (first-hand witness accounts) and other content types:
 - experiencer_report: First-hand witness account describing what they personally saw/experienced
 - historical_case: A documented historical case being discussed (not first-hand)
@@ -300,6 +317,22 @@ function buildReportPrompt(report: Report & { phenomenon_type?: { name: string }
 
   prompt += `\n**Current Credibility Rating:** ${report.credibility}\n`
   prompt += `**Source:** ${report.source_type}\n`
+
+  // Add source-specific context for Reddit reports
+  if (report.source_type === 'reddit' || report.source_type === 'reddit-comments') {
+    prompt += `\n**Source Context:** This report was sourced from Reddit`
+    if ((report as any).source_label) {
+      prompt += ` (${(report as any).source_label})`
+    }
+    prompt += `. The title is the original Reddit post title and may not accurately describe the paranormal experience. Please base your analysis primarily on the Full Account above, not the title.\n`
+    if (report.tags && report.tags.includes('comment-experience')) {
+      prompt += `**Note:** This is a comment-experience — a first-person testimony extracted from a Reddit comment thread. It may be brief but represents a direct witness account.\n`
+    }
+  }
+
+  if (report.tags && report.tags.length > 0) {
+    prompt += `**Tags:** ${report.tags.join(', ')}\n`
+  }
 
   prompt += `\n---\n\n`
 

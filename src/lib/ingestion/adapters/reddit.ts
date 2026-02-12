@@ -3,6 +3,7 @@
 // (Reddit blocks direct server-side requests from cloud environments)
 
 import { SourceAdapter, AdapterResult, ScrapedReport, ScrapedMediaItem } from '../types';
+import { improveTitle, forceGenerateTitle } from '../filters/title-improver';
 
 // Rate limiting helper
 function delay(ms: number): Promise<void> {
@@ -530,14 +531,17 @@ async function fetchPostComments(
         ? description.substring(0, 197) + '...'
         : description;
 
-      // Create a title from the first sentence or truncate
-      const firstSentence = description.match(/^[^.!?]+[.!?]/);
-      const title = firstSentence
-        ? (firstSentence[0].length > 100 ? firstSentence[0].substring(0, 97) + '...' : firstSentence[0])
-        : (description.substring(0, 97) + '...');
-
       // Convert UTC timestamp to date
       const eventDate = new Date(comment.created_utc * 1000).toISOString().split('T')[0];
+
+      // Generate a descriptive title from the comment content
+      // Use forceGenerateTitle to create phenomenon-aware titles like "Shadow Figure Encounter — r/Paranormal"
+      // instead of just using the first sentence which is often generic
+      const generatedTitle = forceGenerateTitle(description, category, undefined, eventDate);
+      const title = `${generatedTitle} — r/${subreddit}`;
+      const originalTitle = description.length > 100
+        ? description.substring(0, 97) + '...'
+        : description;
 
       // Extract tags
       const tags: string[] = [subreddit.toLowerCase(), 'comment-experience'];
@@ -552,6 +556,7 @@ async function fetchPostComments(
 
       reports.push({
         title,
+        original_title: originalTitle,
         summary,
         description,
         category,
@@ -687,8 +692,15 @@ function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
     tags.push('has-media');
   }
 
+  // Improve title using pattern-based title improver (free, no AI cost)
+  const rawTitle = post.title.length > 150 ? post.title.substring(0, 147) + '...' : post.title;
+  const titleResult = improveTitle(rawTitle, description, category, locationName, eventDate);
+  const finalTitle = titleResult.title;
+  const originalTitle = titleResult.wasImproved ? rawTitle : undefined;
+
   return {
-    title: post.title.length > 150 ? post.title.substring(0, 147) + '...' : post.title,
+    title: finalTitle,
+    original_title: originalTitle,
     summary,
     description,
     category,
