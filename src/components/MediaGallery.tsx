@@ -25,6 +25,26 @@ function isExternalLink(item: MediaItem): boolean {
   return false
 }
 
+// Convert a URL to an embeddable player URL (if supported)
+function getEmbedUrl(url: string): string | null {
+  try {
+    const u = new URL(url)
+    // Archive.org: /details/ID → /embed/ID
+    if (u.hostname === 'archive.org' && u.pathname.startsWith('/details/')) {
+      const id = u.pathname.replace('/details/', '')
+      return `https://archive.org/embed/${id}`
+    }
+    // YouTube: /watch?v=ID → /embed/ID
+    if (u.hostname.includes('youtube.com') && u.searchParams.get('v')) {
+      return `https://www.youtube.com/embed/${u.searchParams.get('v')}`
+    }
+    if (u.hostname === 'youtu.be') {
+      return `https://www.youtube.com/embed${u.pathname}`
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
 // Get a short label for the source domain
 function getSourceLabel(url: string): string {
   try {
@@ -201,33 +221,61 @@ export default function MediaGallery({ media, className }: MediaGalleryProps) {
         )}
       </div>
 
-      {/* External Links — Documents, Videos, Audio from external sources */}
+      {/* External Media — Embeddable videos, documents, audio from external sources */}
       {externalMedia.length > 0 && (
-        <div className="mt-3 space-y-2">
-          {externalMedia.map((item) => (
-            <a
-              key={item.id}
-              href={item.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 p-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all group"
-            >
-              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
-                {item.media_type === 'video' ? (
-                  <Film className="w-5 h-5 text-purple-400" />
-                ) : item.media_type === 'audio' ? (
-                  <Volume2 className="w-5 h-5 text-blue-400" />
-                ) : (
-                  <FileText className="w-5 h-5 text-emerald-400" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-white/90 truncate">{item.caption || 'External resource'}</p>
-                <p className="text-xs text-white/50">{getSourceLabel(item.url)}</p>
-              </div>
-              <ExternalLink className="w-4 h-4 text-white/30 group-hover:text-white/60 flex-shrink-0 transition-colors" />
-            </a>
-          ))}
+        <div className="mt-3 space-y-3">
+          {externalMedia.map((item) => {
+            const embedUrl = getEmbedUrl(item.url)
+
+            // Embeddable video/audio — render inline player
+            if (embedUrl && (item.media_type === 'video' || item.media_type === 'audio')) {
+              return (
+                <div key={item.id} className="rounded-lg overflow-hidden border border-white/10">
+                  <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                    <iframe
+                      src={embedUrl}
+                      className="absolute inset-0 w-full h-full"
+                      allowFullScreen
+                      allow="autoplay; encrypted-media"
+                      title={item.caption || 'Media player'}
+                    />
+                  </div>
+                  {item.caption && (
+                    <div className="px-3 py-2 bg-white/5">
+                      <p className="text-xs text-white/70">{item.caption}</p>
+                      <p className="text-xs text-white/40 mt-0.5">{getSourceLabel(item.url)}</p>
+                    </div>
+                  )}
+                </div>
+              )
+            }
+
+            // Non-embeddable — render as external link card
+            return (
+              <a
+                key={item.id}
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 p-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all group"
+              >
+                <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
+                  {item.media_type === 'video' ? (
+                    <Film className="w-5 h-5 text-purple-400" />
+                  ) : item.media_type === 'audio' ? (
+                    <Volume2 className="w-5 h-5 text-blue-400" />
+                  ) : (
+                    <FileText className="w-5 h-5 text-emerald-400" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white/90 truncate">{item.caption || 'External resource'}</p>
+                  <p className="text-xs text-white/50">{getSourceLabel(item.url)}</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-white/30 group-hover:text-white/60 flex-shrink-0 transition-colors" />
+              </a>
+            )
+          })}
         </div>
       )}
 
