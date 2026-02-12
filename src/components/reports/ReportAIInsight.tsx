@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useState } from 'react'
-import { Sparkles, RefreshCw, Shield, AlertCircle, History, ChevronDown, ChevronUp, AlertTriangle, FileText } from 'lucide-react'
+import { Sparkles, RefreshCw, Shield, AlertCircle, History, ChevronDown, ChevronUp, AlertTriangle, FileText, BookOpen } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 
 interface CredibilityFactor {
@@ -42,6 +42,7 @@ interface ContentTypeAssessment {
   confidence: 'high' | 'medium' | 'low'
   reasoning: string
   is_first_hand_account: boolean
+  contains_first_hand_accounts?: boolean
 }
 
 interface ReportInsight {
@@ -180,29 +181,45 @@ export default function ReportAIInsight({ reportSlug, className }: Props) {
         {insight.title}
       </h4>
 
-      {/* Content Type Assessment Warning */}
+      {/* Content Type Assessment */}
       {insight.content_type_assessment && !insight.content_type_assessment.is_first_hand_account && (
-        <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-amber-400">
-                Not a First-Hand Account
-              </p>
-              <p className="text-xs text-gray-400 mt-1">
-                {insight.content_type_assessment.reasoning}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Suggested classification: {
-                  insight.content_type_assessment.suggested_type === 'news_discussion' ? 'News & Discussion' :
-                  insight.content_type_assessment.suggested_type === 'historical_case' ? 'Historical Case' :
-                  insight.content_type_assessment.suggested_type === 'research_analysis' ? 'Research & Analysis' :
-                  'Experiencer Report'
-                } ({insight.content_type_assessment.confidence} confidence)
-              </p>
+        insight.content_type_assessment.suggested_type === 'historical_case' && insight.content_type_assessment.contains_first_hand_accounts ? (
+          <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+            <div className="flex items-start gap-2">
+              <BookOpen className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-blue-400">
+                  Historical Case — Contains First-Hand Accounts
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {insight.content_type_assessment.reasoning}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-400">
+                  Not a First-Hand Account
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {insight.content_type_assessment.reasoning}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Suggested classification: {
+                    insight.content_type_assessment.suggested_type === 'news_discussion' ? 'News & Discussion' :
+                    insight.content_type_assessment.suggested_type === 'historical_case' ? 'Historical Case' :
+                    insight.content_type_assessment.suggested_type === 'research_analysis' ? 'Research & Analysis' :
+                    'Experiencer Report'
+                  } ({insight.content_type_assessment.confidence} confidence)
+                </p>
+              </div>
+            </div>
+          </div>
+        )
       )}
 
       {/* Main Narrative */}

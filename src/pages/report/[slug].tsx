@@ -707,7 +707,7 @@ export default function ReportPage() {
 
           {/* Sidebar with related reports and patterns */}
           <aside className="lg:w-80 flex-shrink-0 mt-8 lg:mt-0" data-tour-step="sidebar">
-            <div className="lg:sticky lg:top-8 space-y-6">
+            <div className="lg:sticky lg:top-20 space-y-6">
               <RelatedReports
                 reportId={report.id}
                 category={report.category}

@@ -66,6 +66,7 @@ export interface ContentTypeAssessment {
   confidence: 'high' | 'medium' | 'low'
   reasoning: string
   is_first_hand_account: boolean
+  contains_first_hand_accounts?: boolean
 }
 
 interface InsightGenerationResult {
@@ -112,11 +113,13 @@ CREDIBILITY FACTORS FOR COMMUNITY-SOURCED REPORTS:
 
 CRITICAL: Distinguish between actual EXPERIENCER REPORTS (first-hand witness accounts) and other content types:
 - experiencer_report: First-hand witness account describing what they personally saw/experienced
-- historical_case: A documented historical case being discussed (not first-hand)
+- historical_case: A documented historical case being discussed — may be a compilation that synthesizes multiple first-hand witness accounts, sworn testimony, or official documents. These are valuable archival records even though the submitter is not the original witness.
 - news_discussion: News articles, discussions about paranormal topics, commentary, or meta-discussions
 - research_analysis: Academic research or investigative analysis
 
 Flag content that is NOT a first-hand experiencer report - this is important for database quality.
+
+IMPORTANT NUANCE for historical_case: If the report contains or references specific first-hand witness testimony (named witnesses, direct quotes, sworn affidavits, military personnel accounts, etc.), set "Contains First-Hand Accounts: yes" in your assessment. Historical compilations that preserve first-hand testimony are highly valuable even though the report itself is not a single first-hand account. Only flag "Not a First-Hand Account" warnings for news_discussion and research_analysis content — NOT for historical_case content that contains documented witness testimony.
 
 Your analysis should help both researchers and the general public understand the context and significance of reports.`
 
@@ -367,6 +370,7 @@ SIMILAR_CASES:
 CONTENT_TYPE_ASSESSMENT:
 Type: [experiencer_report / historical_case / news_discussion / research_analysis]
 Is First-Hand Account: [yes / no]
+Contains First-Hand Accounts: [yes / no — only relevant for historical_case type; yes if the report includes named witness testimony, direct quotes, sworn statements, or documented first-hand accounts from identified individuals]
 Confidence: [high / medium / low]
 Reasoning: [1 sentence explaining why you classified it this way]`
 
@@ -465,6 +469,7 @@ function parseInsightResponse(
     const contentText = contentTypeMatch[1]
     const typeMatch = contentText.match(/Type:\s*(experiencer_report|historical_case|news_discussion|research_analysis)/i)
     const firstHandMatch = contentText.match(/Is First-Hand Account:\s*(yes|no)/i)
+    const containsFirstHandMatch = contentText.match(/Contains First-Hand Accounts:\s*(yes|no)/i)
     const confidenceMatch = contentText.match(/Confidence:\s*(high|medium|low)/i)
     const reasoningMatch = contentText.match(/Reasoning:\s*([^\n]+)/i)
 
@@ -473,6 +478,9 @@ function parseInsightResponse(
     }
     if (firstHandMatch) {
       content_type_assessment.is_first_hand_account = firstHandMatch[1].toLowerCase() === 'yes'
+    }
+    if (containsFirstHandMatch) {
+      content_type_assessment.contains_first_hand_accounts = containsFirstHandMatch[1].toLowerCase() === 'yes'
     }
     if (confidenceMatch) {
       content_type_assessment.confidence = confidenceMatch[1].toLowerCase() as 'high' | 'medium' | 'low'
