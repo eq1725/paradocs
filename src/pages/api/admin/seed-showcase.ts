@@ -61,7 +61,7 @@ The case file includes official military communications, sworn affidavits from o
   latitude: 33.3943,
   longitude: -104.5230,
   event_date: '1947-07-08',
-  event_time: 'Morning',
+  event_time: null,
   event_date_approximate: false,
   event_duration_minutes: null,
   witness_count: 30,
