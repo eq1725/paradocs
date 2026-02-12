@@ -22,26 +22,54 @@ async function getAuthenticatedUser(req: NextApiRequest) {
 
 // ─── Download external image → Supabase Storage ─────────────────────────
 
+async function getWikimediaDirectUrl(commonsFileName: string): Promise<string | null> {
+  // Use the Wikimedia Commons API to resolve a filename to a direct download URL
+  // This API is designed for programmatic access and won't return 403
+  try {
+    const apiUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=File:${encodeURIComponent(commonsFileName)}&prop=imageinfo&iiprop=url&format=json&origin=*`;
+    const resp = await fetch(apiUrl);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const pages = data?.query?.pages;
+    if (!pages) return null;
+    const page = Object.values(pages)[0] as any;
+    return page?.imageinfo?.[0]?.url || null;
+  } catch {
+    return null;
+  }
+}
+
 async function downloadAndUploadImage(
   supabase: ReturnType<typeof createClient>,
-  sourceUrl: string,
-  fileName: string
+  commonsFileName: string,
+  storageName: string
 ): Promise<string | null> {
   try {
-    const response = await fetch(sourceUrl, {
-      headers: { 'User-Agent': 'ParaDocs/1.0 (https://discoverparadocs.com; research project)' }
+    // Step 1: Resolve the actual download URL via the Wikimedia API
+    const directUrl = await getWikimediaDirectUrl(commonsFileName);
+    if (!directUrl) {
+      console.error(`Could not resolve Wikimedia URL for: ${commonsFileName}`);
+      return null;
+    }
+
+    // Step 2: Download the image binary
+    const response = await fetch(directUrl, {
+      headers: {
+        'User-Agent': 'ParaDocsBot/1.0 (https://discoverparadocs.com; williamschaseh@gmail.com) node-fetch',
+      },
     });
     if (!response.ok) {
-      console.error(`Failed to fetch image ${sourceUrl}: ${response.status}`);
+      console.error(`Failed to download ${commonsFileName}: ${response.status} ${response.statusText}`);
       return null;
     }
 
     const contentType = response.headers.get('content-type') || 'image/jpeg';
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    console.log(`Downloaded ${commonsFileName}: ${buffer.length} bytes`);
 
-    const storagePath = `showcase/${fileName}`;
-
+    // Step 3: Upload to Supabase Storage
+    const storagePath = `showcase/${storageName}`;
     const { error } = await supabase.storage
       .from(MEDIA_BUCKET)
       .upload(storagePath, buffer, {
@@ -51,17 +79,19 @@ async function downloadAndUploadImage(
       });
 
     if (error) {
-      console.error(`Failed to upload ${fileName}:`, error.message);
+      console.error(`Failed to upload ${storageName}:`, error.message);
       return null;
     }
 
+    // Step 4: Get the public URL
     const { data: { publicUrl } } = supabase.storage
       .from(MEDIA_BUCKET)
       .getPublicUrl(storagePath);
 
+    console.log(`Uploaded ${storageName} → ${publicUrl}`);
     return publicUrl;
   } catch (err: any) {
-    console.error(`Error downloading image ${sourceUrl}:`, err.message);
+    console.error(`Error processing image ${commonsFileName}:`, err.message);
     return null;
   }
 }
@@ -160,34 +190,41 @@ Whether one accepts the Project Mogul explanation or believes something far more
 };
 
 // Media items — Public domain and historically significant
+// commonsFile = exact filename on Wikimedia Commons (used to resolve download URL via API)
+// storageName = filename in our Supabase storage bucket
 const SHOWCASE_MEDIA = [
   {
     media_type: 'image',
-    url: 'https://upload.wikimedia.org/wikipedia/commons/1/1e/RoswellDailyRecordJuly8%2C1947.jpg',
+    commonsFile: 'RoswellDailyRecordJuly8,1947.jpg',
+    storageName: 'roswell-daily-record-1947.jpg',
     caption: 'Roswell Daily Record, July 8, 1947 — Front page headline: "RAAF Captures Flying Saucer On Ranch in Roswell Region." This was the original announcement before the military retraction.',
     is_primary: true,
   },
   {
     media_type: 'image',
-    url: 'https://upload.wikimedia.org/wikipedia/commons/4/4b/Ramey_and_Marcel_with_debris.jpg',
+    commonsFile: 'Ramey_and_Marcel_with_debris.jpg',
+    storageName: 'ramey-marcel-debris-1947.jpg',
     caption: 'Brigadier General Roger Ramey and Colonel Thomas DuBose examine debris in Ramey\'s office at Fort Worth Army Air Field, July 8, 1947. Major Jesse Marcel later claimed this was substituted material, not the actual debris from the Foster Ranch.',
     is_primary: false,
   },
   {
     media_type: 'image',
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Roswell_UFO_Museum.jpg/1280px-Roswell_UFO_Museum.jpg',
+    commonsFile: 'Roswell_UFO_Museum.jpg',
+    storageName: 'roswell-ufo-museum.jpg',
     caption: 'The International UFO Museum and Research Center in Roswell, New Mexico — founded in 1991 by Walter Haut, the RAAF officer who issued the original "flying disc" press release.',
     is_primary: false,
   },
   {
     media_type: 'image',
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Roswell_nm.jpg/1280px-Roswell_nm.jpg',
+    commonsFile: 'Roswell_nm.jpg',
+    storageName: 'roswell-new-mexico-aerial.jpg',
     caption: 'Aerial view of Roswell, New Mexico — the town that became synonymous with UFO phenomena after the July 1947 incident.',
     is_primary: false,
   },
   {
     media_type: 'image',
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/ProjectMogulBalloonTrainFlightNo.2.jpg/800px-ProjectMogulBalloonTrainFlightNo.2.jpg',
+    commonsFile: 'ProjectMogulBalloonTrainFlightNo.2.jpg',
+    storageName: 'project-mogul-balloon.jpg',
     caption: 'A Project Mogul balloon train in flight — the U.S. Air Force\'s 1994 official explanation attributed the Roswell debris to this classified high-altitude surveillance program.',
     is_primary: false,
   },
@@ -209,6 +246,13 @@ export default async function handler(
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
+    // Ensure the storage bucket exists and is public
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const bucketExists = buckets?.some(b => b.name === MEDIA_BUCKET);
+    if (!bucketExists) {
+      await supabase.storage.createBucket(MEDIA_BUCKET, { public: true });
+    }
+
     // Check if showcase report already exists
     const { data: existing } = await supabase
       .from('reports')
@@ -238,18 +282,24 @@ export default async function handler(
 
       let mediaInserted = 0;
       let imagesDownloaded = 0;
+      const errors: string[] = [];
       for (const mediaItem of SHOWCASE_MEDIA) {
-        // Download image to Supabase storage
-        const fileName = mediaItem.url.split('/').pop()?.replace(/%2C/g, ',') || `roswell-${mediaInserted}.jpg`;
-        const storedUrl = await downloadAndUploadImage(supabase, mediaItem.url, fileName);
-        if (storedUrl) imagesDownloaded++;
+        // Download from Wikimedia Commons → Supabase Storage
+        const storedUrl = await downloadAndUploadImage(supabase, mediaItem.commonsFile, mediaItem.storageName);
+        if (storedUrl) {
+          imagesDownloaded++;
+        } else {
+          errors.push(`Failed: ${mediaItem.commonsFile}`);
+        }
 
         const { error: mediaError } = await supabase
           .from('report_media')
           .insert({
             report_id: existing.id,
-            ...mediaItem,
-            url: storedUrl || mediaItem.url, // Fall back to original if download fails
+            media_type: mediaItem.media_type,
+            url: storedUrl || `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(mediaItem.commonsFile)}?width=1024`,
+            caption: mediaItem.caption,
+            is_primary: mediaItem.is_primary,
           });
         if (!mediaError) mediaInserted++;
       }
@@ -262,6 +312,7 @@ export default async function handler(
         url: `/report/${SHOWCASE_SLUG}`,
         mediaInserted,
         imagesDownloaded,
+        errors: errors.length > 0 ? errors : undefined,
       });
     }
 
@@ -279,25 +330,26 @@ export default async function handler(
       });
     }
 
-    // Download images to Supabase storage and insert media
+    // Download images from Wikimedia Commons → Supabase Storage, then insert media
     let mediaInserted = 0;
     let imagesDownloaded = 0;
     for (const mediaItem of SHOWCASE_MEDIA) {
-      const fileName = mediaItem.url.split('/').pop()?.replace(/%2C/g, ',') || `roswell-${mediaInserted}.jpg`;
-      const storedUrl = await downloadAndUploadImage(supabase, mediaItem.url, fileName);
+      const storedUrl = await downloadAndUploadImage(supabase, mediaItem.commonsFile, mediaItem.storageName);
       if (storedUrl) imagesDownloaded++;
 
       const { error: mediaError } = await supabase
         .from('report_media')
         .insert({
           report_id: inserted.id,
-          ...mediaItem,
-          url: storedUrl || mediaItem.url,
+          media_type: mediaItem.media_type,
+          url: storedUrl || `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(mediaItem.commonsFile)}?width=1024`,
+          caption: mediaItem.caption,
+          is_primary: mediaItem.is_primary,
         });
       if (!mediaError) {
         mediaInserted++;
       } else {
-        console.error('Media insert error:', mediaError.message, mediaItem.url);
+        console.error('Media insert error:', mediaError.message, mediaItem.commonsFile);
       }
     }
 
