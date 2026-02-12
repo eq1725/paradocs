@@ -8,7 +8,6 @@ interface TourStep {
   title: string
   description: string
   icon: React.ReactNode
-  position?: 'top' | 'bottom' | 'left' | 'right'
 }
 
 const TOUR_STEPS: TourStep[] = [
@@ -17,58 +16,54 @@ const TOUR_STEPS: TourStep[] = [
     title: 'Comprehensive Case Files',
     description: 'Every case is categorized, dated, and located. See the content type, phenomenon category, credibility rating, and key details at a glance.',
     icon: <BookOpen className="w-5 h-5" />,
-    position: 'bottom',
   },
   {
     targetSelector: '[data-tour-step="media"]',
     title: 'All Evidence, One Place',
     description: 'Photos, videos, documents — we compile every piece of available media for each case. Click any image to view it full size.',
     icon: <Eye className="w-5 h-5" />,
-    position: 'bottom',
   },
   {
     targetSelector: '[data-tour-step="description"]',
     title: 'The Full Story',
     description: 'Read the complete account with evidence tags showing what physical proof, photos, or official reports exist for this case.',
     icon: <Layers className="w-5 h-5" />,
-    position: 'top',
   },
   {
     targetSelector: '[data-tour-step="info-grid"]',
     title: 'At-a-Glance Details',
     description: 'Content type, credibility assessment, source tracking, and timeline — key metadata organized into quick-reference cards.',
     icon: <BarChart3 className="w-5 h-5" />,
-    position: 'top',
   },
   {
     targetSelector: '[data-tour-step="ai-insight"]',
     title: 'AI-Powered Analysis',
     description: 'Our AI analyzes each case for credibility indicators, cross-references patterns across thousands of reports, and provides an objective assessment.',
     icon: <Brain className="w-5 h-5" />,
-    position: 'top',
   },
   {
     targetSelector: '[data-tour-step="location-map"]',
     title: 'Geographic Intelligence',
     description: 'See exactly where events occurred and discover nearby reports. Patterns emerge when you see cases plotted on a map.',
     icon: <MapPin className="w-5 h-5" />,
-    position: 'top',
   },
   {
     targetSelector: '[data-tour-step="environmental"]',
     title: 'Scientific Context',
     description: 'Moon phase, weather conditions, and structured observation data — the environmental and academic context surrounding each event.',
     icon: <Compass className="w-5 h-5" />,
-    position: 'top',
   },
   {
     targetSelector: '[data-tour-step="sidebar"]',
     title: 'Connected Cases',
     description: 'Discover related reports, pattern connections, and linked phenomena. Every case is part of a larger picture — explore the web of connections.',
     icon: <Sparkles className="w-5 h-5" />,
-    position: 'left',
   },
 ]
+
+// Tooltip is roughly this tall — used for scroll calculations
+const TOOLTIP_HEIGHT = 200
+const TOOLTIP_GAP = 16
 
 // ─── Component ───────────────────────────────────────────────────────────
 
@@ -90,13 +85,15 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
   const isLast = currentStep === TOUR_STEPS.length - 1
 
   // ─── Position calculation ──────────────────────────────────
+  // Always uses absolute positioning (relative to document).
+  // Tooltip goes below target by default, or above if below
+  // would go off-screen.
 
   const updatePosition = useCallback(() => {
     if (!step) return
 
     const target = document.querySelector(step.targetSelector)
     if (!target) {
-      // If target not found, skip to next step or finish
       if (!isLast) {
         setCurrentStep(prev => prev + 1)
       } else {
@@ -106,55 +103,51 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
     }
 
     const rect = target.getBoundingClientRect()
-    setTargetRect(rect)
+    // For very tall elements (like the description), cap the spotlight
+    // so it doesn't cover the entire viewport. Show the top portion.
+    const maxSpotlightHeight = Math.min(rect.height, window.innerHeight * 0.4)
+    const cappedRect = {
+      top: rect.top,
+      left: rect.left,
+      width: rect.width,
+      height: maxSpotlightHeight,
+      bottom: rect.top + maxSpotlightHeight,
+      right: rect.right,
+    }
+    setTargetRect(cappedRect as DOMRect)
 
-    // Calculate tooltip position
-    const padding = 16
+    // Calculate tooltip placement
     const tooltipWidth = Math.min(380, window.innerWidth - 32)
     const isMobile = window.innerWidth < 768
 
+    // Determine if tooltip goes below or above the (capped) target
+    const spaceBelow = window.innerHeight - cappedRect.bottom
+    const placeBelow = spaceBelow >= TOOLTIP_HEIGHT + TOOLTIP_GAP
+
     let style: React.CSSProperties = {
+      position: 'absolute',
       width: isMobile ? 'calc(100vw - 32px)' : `${tooltipWidth}px`,
       maxWidth: '380px',
     }
 
     if (isMobile) {
-      // Mobile: always position below target, centered
+      // Mobile: always below, full width
       style.left = '16px'
-      style.top = `${rect.bottom + padding + window.scrollY}px`
-      style.position = 'absolute'
+      style.top = `${cappedRect.bottom + TOOLTIP_GAP + window.scrollY}px`
+    } else if (placeBelow) {
+      // Below the target
+      style.top = `${cappedRect.bottom + TOOLTIP_GAP + window.scrollY}px`
+      style.left = `${Math.max(16, Math.min(rect.left, window.innerWidth - tooltipWidth - 16))}px`
     } else {
-      // Desktop: position based on step preference
-      const pos = step.position || 'bottom'
-
-      switch (pos) {
-        case 'bottom':
-          style.top = `${rect.bottom + padding + window.scrollY}px`
-          style.left = `${Math.max(16, Math.min(rect.left, window.innerWidth - tooltipWidth - 16))}px`
-          style.position = 'absolute'
-          break
-        case 'top':
-          style.bottom = `${window.innerHeight - rect.top + padding - window.scrollY}px`
-          style.left = `${Math.max(16, Math.min(rect.left, window.innerWidth - tooltipWidth - 16))}px`
-          style.position = 'fixed'
-          break
-        case 'left':
-          style.top = `${rect.top + window.scrollY}px`
-          style.right = `${window.innerWidth - rect.left + padding}px`
-          style.position = 'absolute'
-          break
-        case 'right':
-          style.top = `${rect.top + window.scrollY}px`
-          style.left = `${rect.right + padding}px`
-          style.position = 'absolute'
-          break
-      }
+      // Above the target
+      style.top = `${cappedRect.top - TOOLTIP_HEIGHT - TOOLTIP_GAP + window.scrollY}px`
+      style.left = `${Math.max(16, Math.min(rect.left, window.innerWidth - tooltipWidth - 16))}px`
     }
 
     setTooltipStyle(style)
   }, [step, currentStep, isLast])
 
-  // ─── Scroll to target and update position ──────────────────
+  // ─── Scroll to target, ensuring both target + tooltip are visible ──────
 
   useEffect(() => {
     if (!step) return
@@ -163,21 +156,33 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
 
     const target = document.querySelector(step.targetSelector)
     if (target) {
-      // Scroll target into view with some padding
       const rect = target.getBoundingClientRect()
-      const scrollTop = window.scrollY + rect.top - 120 // 120px from top for breathing room
+      const maxSpotlightHeight = Math.min(rect.height, window.innerHeight * 0.4)
+
+      // We need the target (capped height) + tooltip + gap to be visible.
+      // Scroll so the top of the target is about 30% from the top of the viewport.
+      // This leaves room for the target and the tooltip below it.
+      const desiredTargetTopInViewport = window.innerHeight * 0.15
+      const scrollTarget = window.scrollY + rect.top - desiredTargetTopInViewport
+
+      // Also check: if tooltip goes below, make sure we scroll enough
+      // that the bottom of tooltip is visible
+      const totalNeededHeight = maxSpotlightHeight + TOOLTIP_GAP + TOOLTIP_HEIGHT + 40 // 40px bottom breathing room
+      const minScrollToShowAll = window.scrollY + rect.top - (window.innerHeight - totalNeededHeight)
+
+      const scrollTo = Math.max(0, Math.max(scrollTarget, minScrollToShowAll))
 
       window.scrollTo({
-        top: Math.max(0, scrollTop),
+        top: scrollTo,
         behavior: currentStep === 0 ? 'auto' : 'smooth',
       })
 
-      // Wait for scroll to finish, then position tooltip
+      // Wait for scroll to settle, then calculate tooltip position
       const timer = setTimeout(() => {
         updatePosition()
         setIsAnimating(false)
         if (!isVisible) setIsVisible(true)
-      }, currentStep === 0 ? 100 : 500)
+      }, currentStep === 0 ? 150 : 600)
 
       return () => clearTimeout(timer)
     } else {
@@ -186,22 +191,12 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
     }
   }, [currentStep, step, updatePosition])
 
-  // ─── Resize and scroll listener ────────────────────────────
+  // ─── Resize listener (no scroll listener — we control scroll) ──────────
 
   useEffect(() => {
     const handleResize = () => updatePosition()
-    const handleScroll = () => {
-      // Debounced reposition on scroll
-      requestAnimationFrame(updatePosition)
-    }
-
     window.addEventListener('resize', handleResize)
-    window.addEventListener('scroll', handleScroll, { passive: true })
-
-    return () => {
-      window.removeEventListener('resize', handleResize)
-      window.removeEventListener('scroll', handleScroll)
-    }
+    return () => window.removeEventListener('resize', handleResize)
   }, [updatePosition])
 
   // ─── ResizeObserver for target element changes ─────────────
@@ -290,7 +285,6 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
         style={{ zIndex: 9997 }}
         onClick={(e) => {
           e.stopPropagation()
-          // Don't auto-close on backdrop click — user should use buttons
         }}
       />
 
