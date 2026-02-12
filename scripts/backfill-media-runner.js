@@ -4,6 +4,10 @@
  * Extracts media URLs from existing Reddit report descriptions
  * and inserts them into the report_media table.
  *
+ * Features:
+ *   - URL-level deduplication (won't insert same URL twice per report)
+ *   - Junk media filtering (logos, tracking pixels, Reddit system images, etc.)
+ *
  * Two modes:
  *   "text" (default) - Fast, free: extracts URLs from description text
  *   "arctic" - Slower: fetches original posts from Arctic Shift API
@@ -53,6 +57,8 @@
   let totalMediaFound = saved?.totalMediaFound || 0;
   let totalMediaInserted = saved?.totalMediaInserted || 0;
   let totalAlreadyHas = saved?.totalAlreadyHas || 0;
+  let totalJunkFiltered = saved?.totalJunkFiltered || 0;
+  let totalDuplicates = saved?.totalDuplicates || 0;
   let batchCount = saved?.batchCount || 0;
   let done = false;
   let errors = 0;
@@ -64,6 +70,8 @@
 
   console.log('='.repeat(60));
   console.log(`MEDIA BACKFILL RUNNER - Mode: ${MODE.toUpperCase()}`);
+  console.log('  ✓ URL-level deduplication enabled');
+  console.log('  ✓ Junk media filtering enabled');
   console.log('='.repeat(60));
   if (saved) {
     console.log(`%cRESUMING from batch ${batchCount}, offset ${offset}`, 'color: #4CAF50; font-weight: bold');
@@ -139,7 +147,9 @@
     totalProcessed += result.results.processed;
     totalMediaFound += result.results.mediaFound;
     totalMediaInserted += result.results.mediaInserted;
-    totalAlreadyHas += result.results.alreadyHasMedia;
+    totalAlreadyHas += result.results.alreadyHasMedia || 0;
+    totalJunkFiltered += result.results.filteredJunk || 0;
+    totalDuplicates += result.results.duplicateSkipped || 0;
 
     const batchTime = Date.now() - batchStart;
     batchTimes.push(batchTime);
@@ -159,18 +169,30 @@
 
     const pct = ((totalProcessed / estimatedTotal) * 100).toFixed(2);
 
+    const junkStr = result.results.filteredJunk ? `, -${result.results.filteredJunk} junk` : '';
+    const dupeStr = result.results.duplicateSkipped ? `, -${result.results.duplicateSkipped} dupes` : '';
+
     console.log(
-      `[Batch ${batchCount}] +${result.results.processed} checked, +${result.results.mediaInserted} media inserted, +${result.results.alreadyHasMedia} already had ` +
+      `[Batch ${batchCount}] +${result.results.processed} checked, +${result.results.mediaInserted} inserted${junkStr}${dupeStr} ` +
       `| %c${pct}%` +
       `%c | Total: ${totalProcessed.toLocaleString()} | ~${rate}/min | ETA: ${etaMin}m`,
       'color: #4CAF50; font-weight: bold',
       'color: inherit'
     );
 
+    // Show sample media periodically
     if (result.results.sampleMedia && result.results.sampleMedia.length > 0 && batchCount % 10 === 1) {
       console.log('  Sample media found:');
       result.results.sampleMedia.forEach(s => {
         console.log(`    📸 [${s.type}] "${s.title}" → ${s.url}`);
+      });
+    }
+
+    // Show filtered junk samples periodically
+    if (result.results.sampleFiltered && result.results.sampleFiltered.length > 0 && batchCount % 20 === 1) {
+      console.log('  %cFiltered out (junk):', 'color: #9E9E9E');
+      result.results.sampleFiltered.forEach(s => {
+        console.log(`    🚫 "${s.title}" → ${s.url}`);
       });
     }
 
@@ -198,9 +220,10 @@
   console.log('='.repeat(60));
   console.log(`Total batches this session: ${batchCount - (saved?.batchCount || 0)}`);
   console.log(`Total reports checked: ${totalProcessed.toLocaleString()}`);
-  console.log(`Already had media: ${totalAlreadyHas.toLocaleString()}`);
   console.log(`New media found: ${totalMediaFound.toLocaleString()}`);
   console.log(`Media records inserted: ${totalMediaInserted.toLocaleString()}`);
+  console.log(`Junk media filtered: ${totalJunkFiltered.toLocaleString()}`);
+  console.log(`Duplicates skipped: ${totalDuplicates.toLocaleString()}`);
   console.log(`Session time: ${totalTime}s`);
   console.log(`Average rate: ${(totalProcessed / (totalTime / 60)).toFixed(0)} reports/min`);
   if (!done) {
@@ -213,14 +236,16 @@
     processed: totalProcessed,
     mediaFound: totalMediaFound,
     mediaInserted: totalMediaInserted,
-    alreadyHasMedia: totalAlreadyHas,
+    junkFiltered: totalJunkFiltered,
+    duplicatesSkipped: totalDuplicates,
     timeSeconds: parseFloat(totalTime),
     done
   };
 
   function saveProgress() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      offset, totalProcessed, totalMediaFound, totalMediaInserted, totalAlreadyHas, batchCount,
+      offset, totalProcessed, totalMediaFound, totalMediaInserted, totalAlreadyHas,
+      totalJunkFiltered, totalDuplicates, batchCount,
       savedAt: new Date().toISOString()
     }));
   }
