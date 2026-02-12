@@ -1,73 +1,65 @@
 // ═══════════════════════════════════════════════════════════════════════
-// ROSWELL SHOWCASE — Browser-Side Media Upload Script
+// ROSWELL SHOWCASE — Browser-Side Media Upload Script v2
 // Run this in the browser console on beta.discoverparadocs.com
-// It downloads all images through the browser (no server-side blocking)
-// then uploads each to Supabase storage via the API, and seeds the report.
+// Uses verified Wikimedia Commons filenames + computed hash paths
 // ═══════════════════════════════════════════════════════════════════════
 
 const MEDIA_LIST = [
-  // ─── PHOTOGRAPHS ───────────────────────────────────────────────
+  // ─── PHOTOGRAPHS (verified Wikimedia Commons filenames) ──────────
   {
-    sourceUrl: 'https://upload.wikimedia.org/wikipedia/commons/1/1e/RoswellDailyRecordJuly8%2C1947.jpg',
-    storageName: 'roswell-daily-record-1947.jpg',
+    sourceUrl: 'https://upload.wikimedia.org/wikipedia/commons/0/0a/Roswell_Daily_Record._July_8%2C_1947._RAAF_Captures_Flying_Saucer_On_Ranch_in_Roswell_Region.webp',
+    storageName: 'roswell-daily-record-1947.webp',
     media_type: 'image',
     caption: 'Roswell Daily Record, July 8, 1947 — Front page headline: "RAAF Captures Flying Saucer On Ranch in Roswell Region." This was the original announcement before the military retraction.',
     is_primary: true,
   },
   {
-    sourceUrl: 'https://upload.wikimedia.org/wikipedia/commons/4/4b/Ramey_and_Marcel_with_debris.jpg',
-    storageName: 'ramey-marcel-debris-1947.jpg',
+    sourceUrl: 'https://upload.wikimedia.org/wikipedia/commons/9/92/Brig_General_Ramey_Roswell_debris.jpg',
+    storageName: 'ramey-roswell-debris-1947.jpg',
     media_type: 'image',
-    caption: 'Brigadier General Roger Ramey and Colonel Thomas DuBose examine debris in Ramey\'s office at Fort Worth Army Air Field, July 8, 1947. Major Jesse Marcel later claimed this was substituted material, not the actual debris from the Foster Ranch.',
+    caption: 'Brigadier General Roger Ramey examines debris in his office at Fort Worth Army Air Field, July 8, 1947. The military claimed this was a weather balloon, but witnesses disputed that account.',
     is_primary: false,
   },
   {
-    sourceUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Roswell_UFO_Museum.jpg/1280px-Roswell_UFO_Museum.jpg',
+    sourceUrl: 'https://upload.wikimedia.org/wikipedia/commons/8/8a/Marcel-roswell-debris_0.jpg',
+    storageName: 'marcel-roswell-debris-1947.jpg',
+    media_type: 'image',
+    caption: 'Major Jesse Marcel poses with debris recovered from the Foster Ranch. Marcel later claimed the material displayed at the press event was substituted — not the actual wreckage he recovered in the field.',
+    is_primary: false,
+  },
+  {
+    sourceUrl: 'https://upload.wikimedia.org/wikipedia/commons/a/af/Maj_Jesse_A_Marcel_of_Houma.jpg',
+    storageName: 'jesse-marcel-portrait.jpg',
+    media_type: 'image',
+    caption: 'Major Jesse A. Marcel of Houma, Louisiana — the intelligence officer at Roswell AAF who first recovered debris from the Foster Ranch. His testimony decades later was central to the Roswell controversy.',
+    is_primary: false,
+  },
+  {
+    sourceUrl: 'https://upload.wikimedia.org/wikipedia/commons/a/a3/UFO_Museum%2C_Roswell%2C_NM.JPG',
     storageName: 'roswell-ufo-museum.jpg',
     media_type: 'image',
-    caption: 'The International UFO Museum and Research Center in Roswell, New Mexico — founded in 1991 by Walter Haut, the RAAF officer who issued the original "flying disc" press release.',
+    caption: 'The International UFO Museum and Research Center in Roswell, New Mexico — founded in 1991 by Walter Haut, the RAAF public information officer who issued the original "flying disc" press release in 1947.',
     is_primary: false,
   },
   {
-    sourceUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Roswell_nm.jpg/1280px-Roswell_nm.jpg',
-    storageName: 'roswell-new-mexico-aerial.jpg',
+    sourceUrl: 'https://upload.wikimedia.org/wikipedia/commons/5/5f/Roswell_Crash_1947.jpg',
+    storageName: 'roswell-crash-1947.jpg',
     media_type: 'image',
-    caption: 'Aerial view of Roswell, New Mexico — the town that became synonymous with UFO phenomena after the July 1947 incident.',
+    caption: 'Photograph associated with the 1947 Roswell crash — wreckage from the incident that became the most famous UFO case in history.',
     is_primary: false,
   },
   {
-    sourceUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/ProjectMogulBalloonTrainFlightNo.2.jpg/800px-ProjectMogulBalloonTrainFlightNo.2.jpg',
-    storageName: 'project-mogul-balloon.jpg',
+    sourceUrl: 'https://upload.wikimedia.org/wikipedia/commons/b/b0/General_Ramey_with_Roswell_Memo.png',
+    storageName: 'ramey-roswell-memo.png',
     media_type: 'image',
-    caption: 'A Project Mogul balloon train in flight — the U.S. Air Force\'s 1994 official explanation attributed the Roswell debris to this classified high-altitude surveillance program.',
-    is_primary: false,
-  },
-  {
-    sourceUrl: 'https://upload.wikimedia.org/wikipedia/commons/7/7f/Mogul_balloon_train_USAF_1995.png',
-    storageName: 'project-mogul-diagram-usaf-1995.png',
-    media_type: 'image',
-    caption: 'Project Mogul balloon train configuration — USAF diagram from the 1995 report showing the arrangement of balloons, radar reflectors, and acoustic sensors used in the classified surveillance program.',
-    is_primary: false,
-  },
-  {
-    sourceUrl: 'https://upload.wikimedia.org/wikipedia/commons/8/81/Roswell_crash_site_2.png',
-    storageName: 'roswell-crash-site-map.png',
-    media_type: 'image',
-    caption: 'Map showing the location of the Roswell debris field on the Foster Ranch and other key sites related to the July 1947 incident.',
-    is_primary: false,
-  },
-  {
-    sourceUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/USAF_Roswell_Report_cover.jpg/800px-USAF_Roswell_Report_cover.jpg',
-    storageName: 'usaf-roswell-report-cover.jpg',
-    media_type: 'image',
-    caption: 'Cover of the 1994 U.S. Air Force report "The Roswell Report: Fact Versus Fiction in the New Mexico Desert" — the official investigation that attributed the debris to Project Mogul.',
+    caption: 'Brigadier General Ramey holding a memo — the so-called "Ramey Memo" visible in his hand has been subject to decades of analysis by researchers attempting to decipher its contents about the Roswell debris.',
     is_primary: false,
   },
 
   // ─── GOVERNMENT DOCUMENTS ──────────────────────────────────────
   {
     sourceUrl: 'https://vault.fbi.gov/Roswell%20UFO/Roswell%20UFO%20Part%2001%20%28Final%29/view',
-    storageName: null, // External link, not uploaded
+    storageName: null,
     media_type: 'document',
     caption: 'FBI Vault — Declassified FBI documents related to the Roswell UFO incident, including internal memos and communications from 1947.',
     is_primary: false,
@@ -118,7 +110,7 @@ async function downloadImage(url) {
     const blob = await resp.blob();
     return blob;
   } catch (err) {
-    console.error(`  ✗ Download failed: ${url.slice(0, 60)}... — ${err.message}`);
+    console.error(`  ✗ Download failed: ${url.slice(0, 80)}... — ${err.message}`);
     return null;
   }
 }
@@ -151,8 +143,8 @@ async function uploadToSupabase(base64, storageName, contentType, token) {
 
 async function runUpload() {
   const token = getToken();
-  console.log('🛸 Starting Roswell Showcase Media Upload...');
-  console.log(`   ${MEDIA_LIST.length} total media items`);
+  console.log('🛸 Starting Roswell Showcase Media Upload v2...');
+  console.log(`   ${MEDIA_LIST.length} total media items (${MEDIA_LIST.filter(m => m.storageName).length} images + ${MEDIA_LIST.filter(m => !m.storageName).length} external links)`);
 
   const uploadedMedia = [];
   let uploaded = 0;
