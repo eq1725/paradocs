@@ -198,7 +198,8 @@ export default function ReportPage() {
   const categoryConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
   const credibilityConfig = CREDIBILITY_CONFIG[report.credibility]
   const contentTypeConfig = CONTENT_TYPE_CONFIG[(report as any).content_type as ContentType] || CONTENT_TYPE_CONFIG.experiencer_report
-  const isNonExperiencer = (report as any).content_type && (report as any).content_type !== 'experiencer_report'
+  const reportContentType = (report as any).content_type as ContentType | undefined
+  const isNonExperiencer = reportContentType && reportContentType !== 'experiencer_report' && reportContentType !== 'historical_case'
 
   return (
     <>
@@ -220,7 +221,7 @@ export default function ReportPage() {
           Back
         </button>
 
-        {/* Non-Experiencer Content Notice */}
+        {/* Non-Experiencer Content Notice — only for news/discussion and research content */}
         {isNonExperiencer && (
           <div className="mb-6 p-4 bg-gray-800/50 border border-gray-700 rounded-lg flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />

@@ -105,7 +105,7 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
     const rect = target.getBoundingClientRect()
     // For very tall elements (like the description), cap the spotlight
     // so it doesn't cover the entire viewport. Show the top portion.
-    const maxSpotlightHeight = Math.min(rect.height, window.innerHeight * 0.4)
+    const maxSpotlightHeight = Math.min(rect.height, window.innerHeight * 0.45)
     const cappedRect = {
       top: rect.top,
       left: rect.left,
@@ -124,6 +124,9 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
     const spaceBelow = window.innerHeight - cappedRect.bottom
     const placeBelow = spaceBelow >= TOOLTIP_HEIGHT + TOOLTIP_GAP
 
+    // For sidebar step, position tooltip to the left of the sidebar
+    const isSidebarStep = step.targetSelector.includes('sidebar')
+
     let style: React.CSSProperties = {
       position: 'absolute',
       width: isMobile ? 'calc(100vw - 32px)' : `${tooltipWidth}px`,
@@ -134,6 +137,10 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
       // Mobile: always below, full width
       style.left = '16px'
       style.top = `${cappedRect.bottom + TOOLTIP_GAP + window.scrollY}px`
+    } else if (isSidebarStep && rect.left > tooltipWidth + 32) {
+      // Sidebar: position tooltip to the left of the sidebar
+      style.top = `${cappedRect.top + window.scrollY}px`
+      style.left = `${rect.left - tooltipWidth - TOOLTIP_GAP}px`
     } else if (placeBelow) {
       // Below the target
       style.top = `${cappedRect.bottom + TOOLTIP_GAP + window.scrollY}px`
@@ -154,21 +161,38 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
 
     setIsAnimating(true)
 
+    const isSidebarStep = step.targetSelector.includes('sidebar')
+
     const target = document.querySelector(step.targetSelector)
     if (target) {
       const rect = target.getBoundingClientRect()
-      const maxSpotlightHeight = Math.min(rect.height, window.innerHeight * 0.4)
+      const maxSpotlightHeight = Math.min(rect.height, window.innerHeight * 0.45)
 
-      // We need the target (capped height) + tooltip + gap to be visible.
-      // Scroll so the top of the target is about 30% from the top of the viewport.
-      // This leaves room for the target and the tooltip below it.
-      const desiredTargetTopInViewport = window.innerHeight * 0.15
-      const scrollTarget = window.scrollY + rect.top - desiredTargetTopInViewport
+      // For sticky sidebar: unstick it temporarily by scrolling to the
+      // absolute top of the element (its offset from document top).
+      // Use a more generous top margin so the element + spotlight padding is fully visible.
+      const elementAbsoluteTop = window.scrollY + rect.top
+
+      // Desired position: element top at ~20% from viewport top
+      // This gives comfortable room for both the spotlight + tooltip below
+      const desiredTargetTopInViewport = window.innerHeight * 0.2
+
+      // For sidebar, scroll so the top of the aside is visible
+      // The sticky positioning means we need to scroll to where the aside starts in the document
+      let scrollTarget: number
+      if (isSidebarStep) {
+        // For sticky elements, get the actual document position
+        const htmlEl = target as HTMLElement
+        const offsetTop = htmlEl.offsetTop
+        scrollTarget = offsetTop - desiredTargetTopInViewport
+      } else {
+        scrollTarget = elementAbsoluteTop - desiredTargetTopInViewport
+      }
 
       // Also check: if tooltip goes below, make sure we scroll enough
       // that the bottom of tooltip is visible
-      const totalNeededHeight = maxSpotlightHeight + TOOLTIP_GAP + TOOLTIP_HEIGHT + 40 // 40px bottom breathing room
-      const minScrollToShowAll = window.scrollY + rect.top - (window.innerHeight - totalNeededHeight)
+      const totalNeededHeight = maxSpotlightHeight + TOOLTIP_GAP + TOOLTIP_HEIGHT + 60
+      const minScrollToShowAll = elementAbsoluteTop - (window.innerHeight - totalNeededHeight)
 
       const scrollTo = Math.max(0, Math.max(scrollTarget, minScrollToShowAll))
 
@@ -178,11 +202,14 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
       })
 
       // Wait for scroll to settle, then calculate tooltip position
+      // Use longer delay for sidebar since sticky repositioning takes time
+      const delay = currentStep === 0 ? 150 : (isSidebarStep ? 800 : 600)
       const timer = setTimeout(() => {
+        // Recalculate after scroll — important for sticky elements
         updatePosition()
         setIsAnimating(false)
         if (!isVisible) setIsVisible(true)
-      }, currentStep === 0 ? 150 : 600)
+      }, delay)
 
       return () => clearTimeout(timer)
     } else {
