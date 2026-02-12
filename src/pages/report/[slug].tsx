@@ -29,14 +29,22 @@ const LocationMap = dynamic(
   { ssr: false, loading: () => <div className="h-64 bg-white/5 rounded-lg animate-pulse" /> }
 )
 
-export default function ReportPage() {
-  const router = useRouter()
-  const { slug } = router.query
+interface ReportPageProps {
+  slug: string
+  initialReport?: any
+  initialMedia?: any[]
+  initialComments?: any[]
+  fetchError?: boolean
+}
 
-  const [report, setReport] = useState<ReportWithDetails | null>(null)
-  const [comments, setComments] = useState<CommentWithUser[]>([])
-  const [media, setMedia] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+export default function ReportPage({ slug: propSlug, initialReport, initialMedia, initialComments, fetchError }: ReportPageProps) {
+  const router = useRouter()
+  const slug = propSlug || router.query.slug
+
+  const [report, setReport] = useState<ReportWithDetails | null>(initialReport || null)
+  const [comments, setComments] = useState<CommentWithUser[]>(initialComments || [])
+  const [media, setMedia] = useState<any[]>(initialMedia || [])
+  const [loading, setLoading] = useState(!initialReport && !fetchError)
   const [user, setUser] = useState<any>(null)
   const [newComment, setNewComment] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
@@ -49,8 +57,16 @@ export default function ReportPage() {
 
   useEffect(() => {
     if (slug) {
-      loadReport()
-      checkUser()
+      if (initialReport) {
+        // Data came from server — just load user-specific state + increment views
+        loadUserState(initialReport.id)
+        incrementViewCount(initialReport.id, initialReport.view_count)
+        checkUser()
+      } else if (!fetchError) {
+        // No server data and no error — client-side fallback fetch
+        loadReport()
+        checkUser()
+      }
     }
   }, [slug])
 
@@ -74,6 +90,47 @@ export default function ReportPage() {
     const currentUser = session?.user || null
     setUser(currentUser)
     return currentUser
+  }
+
+  // Load user-specific state (votes, saved) — called when report data came from server
+  async function loadUserState(reportId: string) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        const [{ data: voteData }, { data: savedData }] = await Promise.all([
+          supabase
+            .from('votes')
+            .select('vote_type')
+            .eq('user_id', session.user.id)
+            .eq('report_id', reportId)
+            .single(),
+          supabase
+            .from('saved_reports')
+            .select('id')
+            .eq('user_id', session.user.id)
+            .eq('report_id', reportId)
+            .single()
+        ])
+        setUserVote(voteData?.vote_type as 1 | -1 | null ?? null)
+        setIsSaved(!!savedData)
+        setSavedId((savedData as any)?.id || null)
+      }
+    } catch (e) {
+      // User state is non-critical — fail silently
+    }
+  }
+
+  // Increment view count — fire and forget
+  async function incrementViewCount(reportId: string, currentCount: number) {
+    try {
+      await supabase
+        .from('reports')
+        .update({ view_count: currentCount + 1 })
+        .eq('id', reportId)
+      setReport(prev => prev ? { ...prev, view_count: currentCount + 1 } : prev)
+    } catch (e) {
+      // Non-critical — fail silently
+    }
   }
 
   async function loadReport() {
@@ -285,10 +342,29 @@ export default function ReportPage() {
   if (!report) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-16 text-center">
-        <p className="text-gray-400">Report not found</p>
-        <Link href="/explore" className="text-primary-400 hover:text-primary-300 mt-4 inline-block">
-          Browse all reports
-        </Link>
+        {fetchError ? (
+          <>
+            <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-white mb-2">Temporarily Unavailable</h2>
+            <p className="text-gray-400 mb-6">We&apos;re experiencing a brief service interruption. This page will be back shortly.</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors mr-3"
+            >
+              Try Again
+            </button>
+            <Link href="/explore" className="text-primary-400 hover:text-primary-300 inline-block">
+              Browse all reports
+            </Link>
+          </>
+        ) : (
+          <>
+            <p className="text-gray-400">Report not found</p>
+            <Link href="/explore" className="text-primary-400 hover:text-primary-300 mt-4 inline-block">
+              Browse all reports
+            </Link>
+          </>
+        )}
       </div>
     )
   }
@@ -756,10 +832,61 @@ export async function getStaticPaths() {
 }
 
 export async function getStaticProps({ params }: { params: { slug: string } }) {
-  return {
-    props: {
-      slug: params.slug
-    },
-    revalidate: 60 // Revalidate every 60 seconds
+  try {
+    const { createClient } = await import('@supabase/supabase-js')
+    const sb = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
+    // Fetch report data at build/revalidation time
+    const { data: reportData, error: reportError } = await sb
+      .from('reports')
+      .select(`*, phenomenon_type:phenomenon_types(*)`)
+      .eq('slug', params.slug)
+      .eq('status', 'approved')
+      .single()
+
+    if (reportError || !reportData) {
+      return { notFound: true }
+    }
+
+    // Fetch media
+    const { data: mediaData } = await sb
+      .from('report_media')
+      .select('*')
+      .eq('report_id', (reportData as any).id)
+      .order('is_primary', { ascending: false })
+
+    // Fetch comments
+    const { data: commentsData } = await sb
+      .from('comments')
+      .select(`*, user:profiles(*)`)
+      .eq('report_id', (reportData as any).id)
+      .eq('is_deleted', false)
+      .order('created_at', { ascending: true })
+
+    return {
+      props: {
+        slug: params.slug,
+        initialReport: reportData,
+        initialMedia: mediaData || [],
+        initialComments: commentsData || [],
+      },
+      revalidate: 120 // Revalidate every 2 minutes
+    }
+  } catch (error) {
+    // If Supabase is down, return a fallback that shows an error state
+    // but still allows the page to render from cache if available
+    return {
+      props: {
+        slug: params.slug,
+        initialReport: null,
+        initialMedia: [],
+        initialComments: [],
+        fetchError: true,
+      },
+      revalidate: 30 // Retry sooner when there's an error
+    }
   }
 }
