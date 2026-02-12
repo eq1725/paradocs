@@ -4,7 +4,6 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ADMIN_EMAIL = 'williamschaseh@gmail.com';
-const MEDIA_BUCKET = 'report-media';
 
 async function getAuthenticatedUser(req: NextApiRequest) {
   const authHeader = req.headers.authorization;
@@ -18,87 +17,6 @@ async function getAuthenticatedUser(req: NextApiRequest) {
   const { data: { user }, error } = await userClient.auth.getUser();
   if (error || !user) return null;
   return user;
-}
-
-// ─── Download external image → Supabase Storage ─────────────────────────
-
-const UA = 'ParaDocsBot/1.0 (https://discoverparadocs.com; williamschaseh@gmail.com)';
-
-async function tryDownload(url: string): Promise<{ buffer: Buffer; contentType: string } | null> {
-  try {
-    const response = await fetch(url, {
-      headers: { 'User-Agent': UA, 'Accept': 'image/*,*/*' },
-      redirect: 'follow',
-    });
-    if (!response.ok) {
-      console.error(`  ✗ ${response.status} from ${url.slice(0, 80)}`);
-      return null;
-    }
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
-    const arrayBuffer = await response.arrayBuffer();
-    return { buffer: Buffer.from(arrayBuffer), contentType };
-  } catch (err: any) {
-    console.error(`  ✗ Error fetching ${url.slice(0, 80)}: ${err.message}`);
-    return null;
-  }
-}
-
-async function downloadAndUploadImage(
-  supabase: ReturnType<typeof createClient>,
-  downloadUrl: string,
-  storageName: string
-): Promise<string | null> {
-  try {
-    // Try downloading the image — try multiple URL strategies
-    const commonsFile = downloadUrl.split('/').pop() || '';
-    const urls = [
-      // 1. Direct upload.wikimedia.org URL
-      downloadUrl,
-      // 2. Special:FilePath redirect (designed for bots)
-      `https://commons.wikimedia.org/wiki/Special:FilePath/${commonsFile}`,
-      // 3. Wikimedia REST API thumbnail
-      `https://commons.wikimedia.org/w/thumb.php?f=${commonsFile}&w=1280`,
-    ];
-
-    let result: { buffer: Buffer; contentType: string } | null = null;
-    for (const url of urls) {
-      console.log(`  Trying: ${url.slice(0, 80)}...`);
-      result = await tryDownload(url);
-      if (result && result.buffer.length > 1000) break; // Got a real image
-    }
-
-    if (!result || result.buffer.length < 1000) {
-      console.error(`Failed all download attempts for: ${storageName}`);
-      return null;
-    }
-
-    console.log(`  ✓ Downloaded ${storageName}: ${result.buffer.length} bytes`);
-
-    // Upload to Supabase Storage
-    const storagePath = `showcase/${storageName}`;
-    const { error } = await supabase.storage
-      .from(MEDIA_BUCKET)
-      .upload(storagePath, result.buffer, {
-        contentType: result.contentType,
-        upsert: true,
-        cacheControl: '31536000',
-      });
-
-    if (error) {
-      console.error(`Failed to upload ${storageName}:`, error.message);
-      return null;
-    }
-
-    const { data: { publicUrl } } = supabase.storage
-      .from(MEDIA_BUCKET)
-      .getPublicUrl(storagePath);
-
-    console.log(`  ✓ Uploaded → ${publicUrl}`);
-    return publicUrl;
-  } catch (err: any) {
-    console.error(`Error processing ${storageName}:`, err.message);
-    return null;
-  }
 }
 
 // ─── Roswell Incident — Showcase Report Data ────────────────────────────
@@ -176,14 +94,15 @@ Whether one accepts the Project Mogul explanation or believes something far more
   has_physical_evidence: true,
   has_photo_video: true,
   has_official_report: true,
-  evidence_summary: 'Physical debris recovered from the Foster Ranch (metallic foil, I-beams with symbols, parchment-like material). Photographs from Gen. Ramey\'s Fort Worth press conference. Official RAAF press release confirming "flying disc" recovery. Two U.S. Air Force reports (1994, 1997). Over 30 sworn witness affidavits. Roswell Daily Record front page. Congressional inquiry records.',
+  evidence_summary: 'Physical debris recovered from the Foster Ranch (metallic foil, I-beams with symbols, parchment-like material). Photographs from Gen. Ramey\'s Fort Worth press conference. Official RAAF press release confirming "flying disc" recovery. Two U.S. Air Force reports (1994, 1997). GAO investigation (1995). FBI Vault documents. Over 30 sworn witness affidavits. Walter Haut deathbed affidavit (2002). Roswell Daily Record front page. Congressional inquiry records. UTA Library archival photograph collection.',
   source_type: 'curated',
-  source_reference: 'Historical research compilation — primary sources include RAAF press releases, Roswell Daily Record archives, USAF reports (1994/1997), witness affidavits, and investigative research by Stanton Friedman, Kevin Randle, and Donald Schmitt.',
+  source_reference: 'Historical research compilation — primary sources include RAAF press releases, Roswell Daily Record archives, Fort Worth Star-Telegram Photograph Collection (UTA Libraries), USAF reports (1994/1997), GAO Report NSIAD-95-187, FBI Vault declassified files, NSA declassified documents, National Archives Project Blue Book records, witness affidavits, and investigative research by Stanton Friedman, Kevin Randle, Donald Schmitt, Thomas Carey.',
   tags: [
     'roswell', 'crash-retrieval', 'military', 'cover-up', 'debris',
     'new-mexico', '1947', 'historical', 'ufo-crash', 'government-secrecy',
     'physical-evidence', 'multiple-witnesses', 'project-mogul', 'jesse-marcel',
     'walter-haut', 'first-hand-testimony', 'sworn-affidavit', 'witness-testimony',
+    'declassified', 'fbi-vault', 'air-force-report', 'gao-investigation',
     'showcase'
   ],
   upvotes: 0,
@@ -194,49 +113,9 @@ Whether one accepts the Project Mogul explanation or believes something far more
   submitter_was_witness: false,
 };
 
-// Media items — Public domain and historically significant
-// downloadUrl = direct Wikimedia URL for server-side download
-// storageName = filename in our Supabase storage bucket
-const SHOWCASE_MEDIA = [
-  {
-    media_type: 'image',
-    downloadUrl: 'https://upload.wikimedia.org/wikipedia/commons/1/1e/RoswellDailyRecordJuly8%2C1947.jpg',
-    storageName: 'roswell-daily-record-1947.jpg',
-    caption: 'Roswell Daily Record, July 8, 1947 — Front page headline: "RAAF Captures Flying Saucer On Ranch in Roswell Region." This was the original announcement before the military retraction.',
-    is_primary: true,
-  },
-  {
-    media_type: 'image',
-    // Different Wikimedia file — smaller version of the Marcel/debris photo
-    downloadUrl: 'https://upload.wikimedia.org/wikipedia/commons/7/71/Marcel_roswell_debris.jpg',
-    storageName: 'marcel-roswell-debris.jpg',
-    caption: 'Major Jesse Marcel posing with debris recovered from the Foster Ranch near Roswell, July 1947. Marcel later stated the actual debris had unusual properties unlike any known material.',
-    is_primary: false,
-  },
-  {
-    media_type: 'image',
-    downloadUrl: 'https://upload.wikimedia.org/wikipedia/commons/e/ef/Roswell_UFO_Museum.jpg',
-    storageName: 'roswell-ufo-museum.jpg',
-    caption: 'The International UFO Museum and Research Center in Roswell, New Mexico — founded in 1991 by Walter Haut, the RAAF officer who issued the original "flying disc" press release.',
-    is_primary: false,
-  },
-  {
-    media_type: 'image',
-    // NASA public domain — New Mexico from space
-    downloadUrl: 'https://upload.wikimedia.org/wikipedia/commons/d/d5/Roswell_Museum_and_Art_Center.jpg',
-    storageName: 'roswell-museum-art-center.jpg',
-    caption: 'The Roswell Museum and Art Center in Roswell, New Mexico — the city that became synonymous with UFO phenomena after the July 1947 incident.',
-    is_primary: false,
-  },
-  {
-    media_type: 'image',
-    // Alternate Project Mogul image — USAF 1995 diagram
-    downloadUrl: 'https://upload.wikimedia.org/wikipedia/commons/7/7f/Mogul_balloon_train_USAF_1995.png',
-    storageName: 'project-mogul-balloon-usaf.png',
-    caption: 'Project Mogul balloon train configuration — USAF diagram from the 1995 report. The Air Force attributed the Roswell debris to this classified high-altitude surveillance program.',
-    is_primary: false,
-  },
-];
+// ─── Seed handler ────────────────────────────────────────────────────────
+// Accepts optional `media` array in POST body (uploaded by browser script).
+// If no media provided, uses whatever is already in storage.
 
 export default async function handler(
   req: NextApiRequest,
@@ -253,14 +132,11 @@ export default async function handler(
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  try {
-    // Ensure the storage bucket exists and is public
-    const { data: buckets } = await supabase.storage.listBuckets();
-    const bucketExists = buckets?.some(b => b.name === MEDIA_BUCKET);
-    if (!bucketExists) {
-      await supabase.storage.createBucket(MEDIA_BUCKET, { public: true });
-    }
+  // Accept media list from the request body (provided by browser upload script)
+  // Format: [{ media_type, url, caption, is_primary }]
+  const mediaFromBody: any[] | undefined = req.body?.media;
 
+  try {
     // Check if showcase report already exists
     const { data: existing } = await supabase
       .from('reports')
@@ -269,7 +145,7 @@ export default async function handler(
       .single();
 
     if (existing) {
-      // Update existing instead of failing
+      // Update existing
       const { error: updateError } = await supabase
         .from('reports')
         .update({
@@ -279,37 +155,39 @@ export default async function handler(
         .eq('id', existing.id);
 
       if (updateError) {
-        return res.status(500).json({ error: 'Failed to update existing showcase report', details: updateError.message });
+        return res.status(500).json({ error: 'Failed to update', details: updateError.message });
       }
 
-      // Delete existing media and re-insert
-      await supabase
-        .from('report_media')
-        .delete()
-        .eq('report_id', existing.id);
+      // Re-insert media if provided
+      if (mediaFromBody && mediaFromBody.length > 0) {
+        await supabase
+          .from('report_media')
+          .delete()
+          .eq('report_id', existing.id);
 
-      let mediaInserted = 0;
-      let imagesDownloaded = 0;
-      const errors: string[] = [];
-      for (const mediaItem of SHOWCASE_MEDIA) {
-        // Download from Wikimedia Commons → Supabase Storage
-        const storedUrl = await downloadAndUploadImage(supabase, mediaItem.downloadUrl, mediaItem.storageName);
-        if (storedUrl) {
-          imagesDownloaded++;
-        } else {
-          errors.push(`Failed: ${mediaItem.storageName}`);
+        let mediaInserted = 0;
+        for (const m of mediaFromBody) {
+          const { error } = await supabase
+            .from('report_media')
+            .insert({
+              report_id: existing.id,
+              media_type: m.media_type || 'image',
+              url: m.url,
+              caption: m.caption || '',
+              is_primary: m.is_primary || false,
+            });
+          if (!error) mediaInserted++;
         }
 
-        const { error: mediaError } = await supabase
-          .from('report_media')
-          .insert({
-            report_id: existing.id,
-            media_type: mediaItem.media_type,
-            url: storedUrl || mediaItem.downloadUrl,
-            caption: mediaItem.caption,
-            is_primary: mediaItem.is_primary,
-          });
-        if (!mediaError) mediaInserted++;
+        return res.status(200).json({
+          success: true,
+          action: 'updated',
+          reportId: existing.id,
+          slug: SHOWCASE_SLUG,
+          url: `/report/${SHOWCASE_SLUG}`,
+          mediaInserted,
+          totalMediaProvided: mediaFromBody.length,
+        });
       }
 
       return res.status(200).json({
@@ -318,9 +196,7 @@ export default async function handler(
         reportId: existing.id,
         slug: SHOWCASE_SLUG,
         url: `/report/${SHOWCASE_SLUG}`,
-        mediaInserted,
-        imagesDownloaded,
-        errors: errors.length > 0 ? errors : undefined,
+        note: 'Report text updated. No media provided in body — existing media unchanged.',
       });
     }
 
@@ -338,30 +214,24 @@ export default async function handler(
       });
     }
 
-    // Download images from Wikimedia Commons → Supabase Storage, then insert media
+    // Insert media if provided
     let mediaInserted = 0;
-    let imagesDownloaded = 0;
-    for (const mediaItem of SHOWCASE_MEDIA) {
-      const storedUrl = await downloadAndUploadImage(supabase, mediaItem.downloadUrl, mediaItem.storageName);
-      if (storedUrl) imagesDownloaded++;
-
-      const { error: mediaError } = await supabase
-        .from('report_media')
-        .insert({
-          report_id: inserted.id,
-          media_type: mediaItem.media_type,
-          url: storedUrl || mediaItem.downloadUrl,
-          caption: mediaItem.caption,
-          is_primary: mediaItem.is_primary,
-        });
-      if (!mediaError) {
-        mediaInserted++;
-      } else {
-        console.error('Media insert error:', mediaError.message, mediaItem.storageName);
+    if (mediaFromBody && mediaFromBody.length > 0) {
+      for (const m of mediaFromBody) {
+        const { error } = await supabase
+          .from('report_media')
+          .insert({
+            report_id: inserted.id,
+            media_type: m.media_type || 'image',
+            url: m.url,
+            caption: m.caption || '',
+            is_primary: m.is_primary || false,
+          });
+        if (!error) mediaInserted++;
       }
     }
 
-    // Try to link to existing phenomena
+    // Link to phenomena
     let phenomenaLinked = 0;
     const { data: phenomena } = await supabase
       .from('phenomenon_types')
@@ -372,7 +242,6 @@ export default async function handler(
     if (phenomena) {
       for (const p of phenomena) {
         const nameL = p.name.toLowerCase();
-        // Link to UFO/crash related phenomena with high confidence
         if (
           nameL.includes('ufo') || nameL.includes('uap') ||
           nameL.includes('crash') || nameL.includes('retrieval') ||
