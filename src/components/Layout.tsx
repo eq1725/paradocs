@@ -86,7 +86,7 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex items-center justify-between h-14 sm:h-16">
             {/* Logo */}
             <Link href="/" className="flex items-center mr-8">
-              <span className="font-sans font-black text-2xl text-white tracking-tight">Paradocs</span>
+              <span className="font-sans font-black text-2xl text-white tracking-tight">Paradocs<span className="text-primary-500">.</span></span>
             </Link>
 
             {/* Desktop Navigation - Text only, no icons for cleaner look */}
@@ -400,7 +400,7 @@ export default function Layout({ children }: LayoutProps) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="col-span-2 md:col-span-1">
               <Link href="/" className="inline-block mb-4">
-                <span className="font-display font-bold text-xl text-white tracking-tight">Paradocs</span>
+                <span className="font-display font-bold text-xl text-white tracking-tight">Paradocs<span className="text-primary-500">.</span></span>
               </Link>
               <p className="text-sm text-gray-500">
                 The world's largest database of paranormal phenomena. Where mysteries meet discovery.
@@ -433,7 +433,7 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-white/5 text-center text-sm text-gray-500">
-            © {new Date().getFullYear()} Paradocs. All rights reserved.
+            © {new Date().getFullYear()} Paradocs<span className="text-primary-500">.</span> All rights reserved.
           </div>
         </div>
       </footer>
