@@ -20,7 +20,7 @@ import ReportAIInsight from '@/components/reports/ReportAIInsight'
 import PatternConnections from '@/components/reports/PatternConnections'
 import EnvironmentalContext from '@/components/reports/EnvironmentalContext'
 import AcademicObservationPanel from '@/components/reports/AcademicObservationPanel'
-import ReportPhenomena from '@/components/reports/ReportPhenomena'
+// ReportPhenomena removed from report page — tagging lives in admin/dashboard instead
 import OnboardingTour, { hasCompletedOnboarding } from '@/components/OnboardingTour'
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
@@ -724,8 +724,6 @@ export default function ReportPage() {
               {/* Pattern Connections */}
               <PatternConnections reportSlug={slug as string} />
 
-              {/* Related Phenomena */}
-              <ReportPhenomena reportSlug={slug as string} isAuthenticated={!!user} />
             </div>
           </aside>
         </div>
