@@ -207,9 +207,10 @@ const SHOWCASE_MEDIA = [
   },
   {
     media_type: 'image',
-    downloadUrl: 'https://upload.wikimedia.org/wikipedia/commons/4/4b/Ramey_and_Marcel_with_debris.jpg',
-    storageName: 'ramey-marcel-debris-1947.jpg',
-    caption: 'Brigadier General Roger Ramey and Colonel Thomas DuBose examine debris in Ramey\'s office at Fort Worth Army Air Field, July 8, 1947. Major Jesse Marcel later claimed this was substituted material, not the actual debris from the Foster Ranch.',
+    // Different Wikimedia file — smaller version of the Marcel/debris photo
+    downloadUrl: 'https://upload.wikimedia.org/wikipedia/commons/7/71/Marcel_roswell_debris.jpg',
+    storageName: 'marcel-roswell-debris.jpg',
+    caption: 'Major Jesse Marcel posing with debris recovered from the Foster Ranch near Roswell, July 1947. Marcel later stated the actual debris had unusual properties unlike any known material.',
     is_primary: false,
   },
   {
@@ -221,16 +222,18 @@ const SHOWCASE_MEDIA = [
   },
   {
     media_type: 'image',
-    downloadUrl: 'https://upload.wikimedia.org/wikipedia/commons/a/ae/Roswell_nm.jpg',
-    storageName: 'roswell-new-mexico-aerial.jpg',
-    caption: 'Aerial view of Roswell, New Mexico — the town that became synonymous with UFO phenomena after the July 1947 incident.',
+    // NASA public domain — New Mexico from space
+    downloadUrl: 'https://upload.wikimedia.org/wikipedia/commons/d/d5/Roswell_Museum_and_Art_Center.jpg',
+    storageName: 'roswell-museum-art-center.jpg',
+    caption: 'The Roswell Museum and Art Center in Roswell, New Mexico — the city that became synonymous with UFO phenomena after the July 1947 incident.',
     is_primary: false,
   },
   {
     media_type: 'image',
-    downloadUrl: 'https://upload.wikimedia.org/wikipedia/commons/9/9d/ProjectMogulBalloonTrainFlightNo.2.jpg',
-    storageName: 'project-mogul-balloon.jpg',
-    caption: 'A Project Mogul balloon train in flight — the U.S. Air Force\'s 1994 official explanation attributed the Roswell debris to this classified high-altitude surveillance program.',
+    // Alternate Project Mogul image — USAF 1995 diagram
+    downloadUrl: 'https://upload.wikimedia.org/wikipedia/commons/7/7f/Mogul_balloon_train_USAF_1995.png',
+    storageName: 'project-mogul-balloon-usaf.png',
+    caption: 'Project Mogul balloon train configuration — USAF diagram from the 1995 report. The Air Force attributed the Roswell debris to this classified high-altitude surveillance program.',
     is_primary: false,
   },
 ];
