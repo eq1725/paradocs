@@ -1,15 +1,40 @@
 'use client'
 
 import React, { useState } from 'react'
-import { X, ChevronLeft, ChevronRight, Play, Pause, Volume2, VolumeX, Maximize2 } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Play, Pause, Volume2, VolumeX, Maximize2, FileText, ExternalLink, Film } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 
 interface MediaItem {
   id: string
   url: string
-  media_type: 'image' | 'video' | 'audio'
+  media_type: 'image' | 'video' | 'audio' | 'document'
   caption?: string | null
   is_primary?: boolean
+}
+
+// Check if a URL is a direct media file (not a webpage link)
+function isDirectMediaUrl(url: string): boolean {
+  const mediaExtensions = /\.(mp4|webm|ogg|mp3|wav|m4a|flac|avi|mov)(\?|$)/i
+  return mediaExtensions.test(url)
+}
+
+// Check if a media item should render as an external link
+function isExternalLink(item: MediaItem): boolean {
+  if (item.media_type === 'document') return true
+  if ((item.media_type === 'video' || item.media_type === 'audio') && !isDirectMediaUrl(item.url)) return true
+  return false
+}
+
+// Get a short label for the source domain
+function getSourceLabel(url: string): string {
+  try {
+    const host = new URL(url).hostname.replace('www.', '')
+    if (host.includes('fbi.gov')) return 'FBI Vault'
+    if (host.includes('nsa.gov')) return 'NSA Archives'
+    if (host.includes('gao.gov')) return 'GAO Report'
+    if (host.includes('archive.org')) return 'Internet Archive'
+    return host
+  } catch { return 'External' }
 }
 
 interface MediaGalleryProps {
@@ -24,7 +49,18 @@ export default function MediaGallery({ media, className }: MediaGalleryProps) {
 
   if (!media || media.length === 0) return null
 
-  const selectedMedia = selectedIndex !== null ? media[selectedIndex] : null
+  // Separate images from external links (documents, non-direct videos)
+  const imageMedia = media.filter(item => !isExternalLink(item))
+  const externalMedia = media.filter(item => isExternalLink(item))
+
+  // Sort to put primary image first
+  const sortedMedia = [...imageMedia].sort((a, b) => {
+    if (a.is_primary && !b.is_primary) return -1
+    if (!a.is_primary && b.is_primary) return 1
+    return 0
+  })
+
+  const selectedMedia = selectedIndex !== null ? sortedMedia[selectedIndex] : null
 
   const openLightbox = (index: number) => {
     setSelectedIndex(index)
@@ -44,7 +80,7 @@ export default function MediaGallery({ media, className }: MediaGalleryProps) {
   }
 
   const goToNext = () => {
-    if (selectedIndex !== null && selectedIndex < media.length - 1) {
+    if (selectedIndex !== null && selectedIndex < sortedMedia.length - 1) {
       setSelectedIndex(selectedIndex + 1)
       setIsPlaying(false)
     }
@@ -55,13 +91,6 @@ export default function MediaGallery({ media, className }: MediaGalleryProps) {
     if (e.key === 'ArrowLeft') goToPrevious()
     if (e.key === 'ArrowRight') goToNext()
   }
-
-  // Sort to put primary image first
-  const sortedMedia = [...media].sort((a, b) => {
-    if (a.is_primary && !b.is_primary) return -1
-    if (!a.is_primary && b.is_primary) return 1
-    return 0
-  })
 
   return (
     <>
@@ -172,6 +201,36 @@ export default function MediaGallery({ media, className }: MediaGalleryProps) {
         )}
       </div>
 
+      {/* External Links — Documents, Videos, Audio from external sources */}
+      {externalMedia.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {externalMedia.map((item) => (
+            <a
+              key={item.id}
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 p-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all group"
+            >
+              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
+                {item.media_type === 'video' ? (
+                  <Film className="w-5 h-5 text-purple-400" />
+                ) : item.media_type === 'audio' ? (
+                  <Volume2 className="w-5 h-5 text-blue-400" />
+                ) : (
+                  <FileText className="w-5 h-5 text-emerald-400" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-white/90 truncate">{item.caption || 'External resource'}</p>
+                <p className="text-xs text-white/50">{getSourceLabel(item.url)}</p>
+              </div>
+              <ExternalLink className="w-4 h-4 text-white/30 group-hover:text-white/60 flex-shrink-0 transition-colors" />
+            </a>
+          ))}
+        </div>
+      )}
+
       {/* Lightbox */}
       {selectedMedia && (
         <div
@@ -197,7 +256,7 @@ export default function MediaGallery({ media, className }: MediaGalleryProps) {
               <ChevronLeft className="w-10 h-10" />
             </button>
           )}
-          {selectedIndex !== null && selectedIndex < media.length - 1 && (
+          {selectedIndex !== null && selectedIndex < sortedMedia.length - 1 && (
             <button
               onClick={(e) => { e.stopPropagation(); goToNext() }}
               className="absolute right-4 p-2 text-white/70 hover:text-white transition-colors z-10"
@@ -246,7 +305,7 @@ export default function MediaGallery({ media, className }: MediaGalleryProps) {
 
             {/* Counter */}
             <p className="text-center text-white/50 mt-2 text-xs">
-              {selectedIndex !== null ? selectedIndex + 1 : 0} / {media.length}
+              {selectedIndex !== null ? selectedIndex + 1 : 0} / {sortedMedia.length}
             </p>
           </div>
         </div>
