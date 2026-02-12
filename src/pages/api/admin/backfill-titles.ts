@@ -252,7 +252,9 @@ export default async function handler(
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    if (mode === 'restore') {
+    if (mode === 'reset') {
+      return await handleResetMode(supabase, requestedBatchSize || 1000, offset, dryRun, res);
+    } else if (mode === 'restore') {
       return await handleRestoreMode(supabase, requestedBatchSize || 500, offset, dryRun, res);
     } else if (mode === 'clean') {
       return await handleCleanMode(supabase, requestedBatchSize || 500, offset, dryRun, res);
@@ -269,6 +271,84 @@ export default async function handler(
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
+}
+
+/**
+ * RESET MODE: Null out original_title where it equals title
+ * This re-enables reports for clean mode processing after a previous run
+ * marked them as "processed" without actually changing anything.
+ */
+async function handleResetMode(
+  supabase: any,
+  batchSize: number,
+  offset: number,
+  dryRun: boolean,
+  res: NextApiResponse
+) {
+  // Use RPC or raw SQL approach: find reports where original_title = title
+  const { data: reports, error, count } = await supabase
+    .from('reports')
+    .select('id', { count: 'exact' })
+    .in('source_type', ['reddit', 'reddit-comments'])
+    .not('original_title', 'is', null)
+    .order('created_at', { ascending: true })
+    .range(offset, offset + batchSize - 1);
+
+  if (error) throw new Error(`Database query error: ${error.message}`);
+
+  if (!reports || reports.length === 0) {
+    return res.status(200).json({
+      success: true, done: true, mode: 'reset',
+      results: { processed: 0, reset: 0, skippedChanged: 0 },
+      nextOffset: offset
+    });
+  }
+
+  // For each report, check if title === original_title and null it out
+  // We need to fetch both fields
+  const { data: fullReports, error: fullError } = await supabase
+    .from('reports')
+    .select('id, title, original_title')
+    .in('source_type', ['reddit', 'reddit-comments'])
+    .not('original_title', 'is', null)
+    .order('created_at', { ascending: true })
+    .range(offset, offset + batchSize - 1);
+
+  if (fullError) throw new Error(`Database query error: ${fullError.message}`);
+
+  let resetCount = 0;
+  let skippedChanged = 0;
+
+  if (!dryRun) {
+    const CHUNK_SIZE = 100;
+    const toReset = (fullReports || []).filter((r: any) => r.title === r.original_title);
+    const changed = (fullReports || []).filter((r: any) => r.title !== r.original_title);
+    skippedChanged = changed.length;
+
+    for (let i = 0; i < toReset.length; i += CHUNK_SIZE) {
+      const chunk = toReset.slice(i, i + CHUNK_SIZE);
+      const ids = chunk.map((r: any) => r.id);
+      await supabase
+        .from('reports')
+        .update({ original_title: null })
+        .in('id', ids);
+      resetCount += ids.length;
+    }
+  }
+
+  return res.status(200).json({
+    success: true,
+    done: (fullReports || []).length < batchSize,
+    mode: 'reset',
+    dryRun,
+    results: {
+      processed: (fullReports || []).length,
+      reset: resetCount,
+      skippedChanged
+    },
+    nextOffset: offset + (fullReports || []).length,
+    totalRemaining: count ? count - (fullReports || []).length : undefined
+  });
 }
 
 /**
