@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ADMIN_EMAIL = 'williamschaseh@gmail.com';
+const MEDIA_BUCKET = 'report-media';
 
 async function getAuthenticatedUser(req: NextApiRequest) {
   const authHeader = req.headers.authorization;
@@ -17,6 +18,52 @@ async function getAuthenticatedUser(req: NextApiRequest) {
   const { data: { user }, error } = await userClient.auth.getUser();
   if (error || !user) return null;
   return user;
+}
+
+// ─── Download external image → Supabase Storage ─────────────────────────
+
+async function downloadAndUploadImage(
+  supabase: ReturnType<typeof createClient>,
+  sourceUrl: string,
+  fileName: string
+): Promise<string | null> {
+  try {
+    const response = await fetch(sourceUrl, {
+      headers: { 'User-Agent': 'ParaDocs/1.0 (https://discoverparadocs.com; research project)' }
+    });
+    if (!response.ok) {
+      console.error(`Failed to fetch image ${sourceUrl}: ${response.status}`);
+      return null;
+    }
+
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const storagePath = `showcase/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from(MEDIA_BUCKET)
+      .upload(storagePath, buffer, {
+        contentType,
+        upsert: true,
+        cacheControl: '31536000',
+      });
+
+    if (error) {
+      console.error(`Failed to upload ${fileName}:`, error.message);
+      return null;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from(MEDIA_BUCKET)
+      .getPublicUrl(storagePath);
+
+    return publicUrl;
+  } catch (err: any) {
+    console.error(`Error downloading image ${sourceUrl}:`, err.message);
+    return null;
+  }
 }
 
 // ─── Roswell Incident — Showcase Report Data ────────────────────────────
@@ -190,12 +237,19 @@ export default async function handler(
         .eq('report_id', existing.id);
 
       let mediaInserted = 0;
+      let imagesDownloaded = 0;
       for (const mediaItem of SHOWCASE_MEDIA) {
+        // Download image to Supabase storage
+        const fileName = mediaItem.url.split('/').pop()?.replace(/%2C/g, ',') || `roswell-${mediaInserted}.jpg`;
+        const storedUrl = await downloadAndUploadImage(supabase, mediaItem.url, fileName);
+        if (storedUrl) imagesDownloaded++;
+
         const { error: mediaError } = await supabase
           .from('report_media')
           .insert({
             report_id: existing.id,
             ...mediaItem,
+            url: storedUrl || mediaItem.url, // Fall back to original if download fails
           });
         if (!mediaError) mediaInserted++;
       }
@@ -207,6 +261,7 @@ export default async function handler(
         slug: SHOWCASE_SLUG,
         url: `/report/${SHOWCASE_SLUG}`,
         mediaInserted,
+        imagesDownloaded,
       });
     }
 
@@ -224,14 +279,20 @@ export default async function handler(
       });
     }
 
-    // Insert media
+    // Download images to Supabase storage and insert media
     let mediaInserted = 0;
+    let imagesDownloaded = 0;
     for (const mediaItem of SHOWCASE_MEDIA) {
+      const fileName = mediaItem.url.split('/').pop()?.replace(/%2C/g, ',') || `roswell-${mediaInserted}.jpg`;
+      const storedUrl = await downloadAndUploadImage(supabase, mediaItem.url, fileName);
+      if (storedUrl) imagesDownloaded++;
+
       const { error: mediaError } = await supabase
         .from('report_media')
         .insert({
           report_id: inserted.id,
           ...mediaItem,
+          url: storedUrl || mediaItem.url,
         });
       if (!mediaError) {
         mediaInserted++;
