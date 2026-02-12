@@ -40,6 +40,13 @@ export type ContentType =
   | 'news_discussion'       // News, articles, discussions about paranormal topics
   | 'research_analysis'     // Academic or research-based analysis
 
+export type ReportLinkType =
+  | 'witness_account'
+  | 'related_case'
+  | 'follow_up'
+  | 'source_material'
+  | 'debunk'
+
 export type UserRole =
   | 'user'
   | 'contributor'
@@ -168,6 +175,7 @@ export interface Database {
           created_at: string
           updated_at: string
           published_at: string | null
+          case_group: string | null
         }
         Insert: {
           id?: string
@@ -178,6 +186,7 @@ export interface Database {
           phenomenon_type_id?: string | null
           category: PhenomenonCategory
           content_type?: ContentType
+          case_group?: string | null
           tags?: string[]
           location_name?: string | null
           location_description?: string | null
@@ -260,6 +269,33 @@ export interface Database {
           created_at?: string
           updated_at?: string
           published_at?: string | null
+          case_group?: string | null
+        }
+      }
+      report_links: {
+        Row: {
+          id: string
+          source_report_id: string
+          target_report_id: string
+          link_type: ReportLinkType
+          description: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          source_report_id: string
+          target_report_id: string
+          link_type: ReportLinkType
+          description?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          source_report_id?: string
+          target_report_id?: string
+          link_type?: ReportLinkType
+          description?: string | null
+          created_at?: string
         }
       }
       comments: {
@@ -441,6 +477,7 @@ export type Vote = Database['public']['Tables']['votes']['Row']
 export type SavedReport = Database['public']['Tables']['saved_reports']['Row']
 export type ReportMedia = Database['public']['Tables']['report_media']['Row']
 export type DataSource = Database['public']['Tables']['data_sources']['Row']
+export type ReportLink = Database['public']['Tables']['report_links']['Row']
 
 // Report Tags for multi-tagging
 export interface ReportTag {

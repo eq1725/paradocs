@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Layers, MapPin, Calendar, ArrowRight, Sparkles, ChevronDown } from 'lucide-react'
+import { Layers, ArrowRight, Sparkles, ChevronDown, LinkIcon } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { Report, PhenomenonCategory, PhenomenonType } from '@/lib/database.types'
+import { Report, PhenomenonCategory, PhenomenonType, ReportLinkType } from '@/lib/database.types'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { classNames, formatDate } from '@/lib/utils'
 
@@ -12,6 +12,7 @@ interface RelatedReportsProps {
   reportId: string
   category: PhenomenonCategory
   phenomenonTypeId?: string | null
+  caseGroup?: string | null
   tags?: string[]
   location?: {
     country?: string | null
@@ -22,106 +23,189 @@ interface RelatedReportsProps {
 
 interface RelatedReport extends Report {
   phenomenon_type?: PhenomenonType | null
-  relation_type: 'same_type' | 'same_category' | 'shared_tags' | 'same_location' | 'cross_disciplinary'
+  relation_type: 'linked' | 'same_case' | 'same_type' | 'same_category' | 'shared_tags' | 'same_location' | 'cross_disciplinary'
   relevance_score: number
+  link_type?: ReportLinkType
 }
 
 // Type for Supabase query results with joined phenomenon_type
 type ReportQueryResult = Report & { phenomenon_type?: PhenomenonType | null }
 
+type TabKey = 'all' | 'case' | 'same_category' | 'cross_disciplinary'
+
 export default function RelatedReports({
   reportId,
   category,
   phenomenonTypeId,
+  caseGroup,
   tags = [],
   location,
   limit = 6
 }: RelatedReportsProps) {
   const [relatedReports, setRelatedReports] = useState<RelatedReport[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'all' | 'same_category' | 'cross_disciplinary'>('all')
+  const [activeTab, setActiveTab] = useState<TabKey>('all')
   const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
     loadRelatedReports()
-  }, [reportId, category, phenomenonTypeId])
+  }, [reportId, category, phenomenonTypeId, caseGroup])
 
   async function loadRelatedReports() {
     setLoading(true)
     try {
       const allRelated: RelatedReport[] = []
+      const seenIds = new Set<string>()
+      seenIds.add(reportId) // exclude current report
 
-      // 1. Same phenomenon type (highest relevance)
-      if (phenomenonTypeId) {
-        const { data: sameType } = await supabase
-          .from('reports')
-          .select('*, phenomenon_type:phenomenon_types(*)')
-          .eq('phenomenon_type_id', phenomenonTypeId)
-          .eq('status', 'approved')
-          .neq('id', reportId)
-          .order('created_at', { ascending: false })
-          .limit(5)
+      // ── TIER 1: Explicit links from report_links table ──
+      try {
+        const { data: linksAsSource } = await supabase
+          .from('report_links' as any)
+          .select('target_report_id, link_type')
+          .eq('source_report_id', reportId) as any
 
-        if (sameType) {
-          (sameType as ReportQueryResult[]).forEach(r => {
-            allRelated.push({
-              ...r,
-              relation_type: 'same_type',
-              relevance_score: 1.0
-            })
-          })
+        const { data: linksAsTarget } = await supabase
+          .from('report_links' as any)
+          .select('source_report_id, link_type')
+          .eq('target_report_id', reportId) as any
+
+        const linkedIds: { id: string; linkType: string }[] = []
+        if (linksAsSource) {
+          linksAsSource.forEach((l: any) => linkedIds.push({ id: l.target_report_id, linkType: l.link_type }))
         }
-      }
+        if (linksAsTarget) {
+          linksAsTarget.forEach((l: any) => linkedIds.push({ id: l.source_report_id, linkType: l.link_type }))
+        }
 
-      // 2. Same category but different type
-      const { data: sameCategory } = await supabase
-        .from('reports')
-        .select('*, phenomenon_type:phenomenon_types(*)')
-        .eq('category', category)
-        .eq('status', 'approved')
-        .neq('id', reportId)
-        .neq('phenomenon_type_id', phenomenonTypeId || '')
-        .order('upvotes', { ascending: false })
-        .limit(5)
+        if (linkedIds.length > 0) {
+          const uniqueLinkedIds = linkedIds.filter(l => !seenIds.has(l.id))
+          const idList = uniqueLinkedIds.map(l => l.id)
 
-      if (sameCategory) {
-        (sameCategory as ReportQueryResult[]).forEach(r => {
-          if (!allRelated.find(ar => ar.id === r.id)) {
-            allRelated.push({
-              ...r,
-              relation_type: 'same_category',
-              relevance_score: 0.8
-            })
+          if (idList.length > 0) {
+            const { data: linkedReports } = await supabase
+              .from('reports')
+              .select('*, phenomenon_type:phenomenon_types(*)')
+              .in('id', idList)
+              .eq('status', 'approved')
+
+            if (linkedReports) {
+              (linkedReports as ReportQueryResult[]).forEach(r => {
+                const linkInfo = uniqueLinkedIds.find(l => l.id === r.id)
+                seenIds.add(r.id)
+                allRelated.push({
+                  ...r,
+                  relation_type: 'linked',
+                  relevance_score: 1.0,
+                  link_type: linkInfo?.linkType as ReportLinkType,
+                })
+              })
+            }
           }
-        })
+        }
+      } catch {
+        // report_links table may not exist yet — silently skip
       }
 
-      // 3. Same location (geographic clustering)
-      if (location?.country) {
-        const { data: sameLocation } = await supabase
+      // ── TIER 2: Same case_group ──
+      if (caseGroup) {
+        const { data: caseReports } = await supabase
           .from('reports')
           .select('*, phenomenon_type:phenomenon_types(*)')
-          .eq('country', location.country)
+          .eq('case_group' as any, caseGroup)
           .eq('status', 'approved')
-          .neq('id', reportId)
-          .neq('category', category)
-          .order('event_date', { ascending: false })
-          .limit(3)
+          .order('created_at', { ascending: false })
+          .limit(10)
 
-        if (sameLocation) {
-          (sameLocation as ReportQueryResult[]).forEach(r => {
-            if (!allRelated.find(ar => ar.id === r.id)) {
+        if (caseReports) {
+          (caseReports as ReportQueryResult[]).forEach(r => {
+            if (!seenIds.has(r.id)) {
+              seenIds.add(r.id)
               allRelated.push({
                 ...r,
-                relation_type: 'same_location',
-                relevance_score: 0.6
+                relation_type: 'same_case',
+                relevance_score: 0.95,
               })
             }
           })
         }
       }
 
-      // 4. Cross-disciplinary - reports from related categories
+      // ── TIER 3: Dynamic discovery (existing logic) ──
+
+      // 3a. Same phenomenon type
+      if (phenomenonTypeId) {
+        const { data: sameType } = await supabase
+          .from('reports')
+          .select('*, phenomenon_type:phenomenon_types(*)')
+          .eq('phenomenon_type_id', phenomenonTypeId)
+          .eq('status', 'approved')
+          .order('created_at', { ascending: false })
+          .limit(5)
+
+        if (sameType) {
+          (sameType as ReportQueryResult[]).forEach(r => {
+            if (!seenIds.has(r.id)) {
+              seenIds.add(r.id)
+              allRelated.push({
+                ...r,
+                relation_type: 'same_type',
+                relevance_score: 0.8,
+              })
+            }
+          })
+        }
+      }
+
+      // 3b. Same category but different type
+      const { data: sameCategory } = await supabase
+        .from('reports')
+        .select('*, phenomenon_type:phenomenon_types(*)')
+        .eq('category', category)
+        .eq('status', 'approved')
+        .neq('phenomenon_type_id', phenomenonTypeId || '')
+        .order('upvotes', { ascending: false })
+        .limit(5)
+
+      if (sameCategory) {
+        (sameCategory as ReportQueryResult[]).forEach(r => {
+          if (!seenIds.has(r.id)) {
+            seenIds.add(r.id)
+            allRelated.push({
+              ...r,
+              relation_type: 'same_category',
+              relevance_score: 0.7,
+            })
+          }
+        })
+      }
+
+      // 3c. Same location (geographic clustering)
+      if (location?.country) {
+        const { data: sameLocation } = await supabase
+          .from('reports')
+          .select('*, phenomenon_type:phenomenon_types(*)')
+          .eq('country', location.country)
+          .eq('status', 'approved')
+          .neq('category', category)
+          .order('event_date', { ascending: false })
+          .limit(3)
+
+        if (sameLocation) {
+          (sameLocation as ReportQueryResult[]).forEach(r => {
+            if (!seenIds.has(r.id)) {
+              seenIds.add(r.id)
+              allRelated.push({
+                ...r,
+                relation_type: 'same_location',
+                relevance_score: 0.5,
+              })
+            }
+          })
+        }
+      }
+
+      // 3d. Cross-disciplinary
       const relatedCategories = getRelatedCategories(category)
       if (relatedCategories.length > 0) {
         const { data: crossDisciplinary } = await supabase
@@ -129,17 +213,17 @@ export default function RelatedReports({
           .select('*, phenomenon_type:phenomenon_types(*)')
           .in('category', relatedCategories)
           .eq('status', 'approved')
-          .neq('id', reportId)
           .order('upvotes', { ascending: false })
           .limit(5)
 
         if (crossDisciplinary) {
           (crossDisciplinary as ReportQueryResult[]).forEach(r => {
-            if (!allRelated.find(ar => ar.id === r.id)) {
+            if (!seenIds.has(r.id)) {
+              seenIds.add(r.id)
               allRelated.push({
                 ...r,
                 relation_type: 'cross_disciplinary',
-                relevance_score: 0.5
+                relevance_score: 0.4,
               })
             }
           })
@@ -173,8 +257,19 @@ export default function RelatedReports({
     return relationships[cat] || []
   }
 
+  const caseCount = relatedReports.filter(r =>
+    r.relation_type === 'linked' || r.relation_type === 'same_case'
+  ).length
+  const sameCategoryCount = relatedReports.filter(r =>
+    r.relation_type === 'same_type' || r.relation_type === 'same_category'
+  ).length
+  const crossDisciplinaryCount = relatedReports.filter(r =>
+    r.relation_type === 'cross_disciplinary' || r.relation_type === 'same_location'
+  ).length
+
   const filteredReports = relatedReports.filter(r => {
     if (activeTab === 'all') return true
+    if (activeTab === 'case') return r.relation_type === 'linked' || r.relation_type === 'same_case'
     if (activeTab === 'same_category') return r.relation_type === 'same_type' || r.relation_type === 'same_category'
     if (activeTab === 'cross_disciplinary') return r.relation_type === 'cross_disciplinary' || r.relation_type === 'same_location'
     return true
@@ -205,12 +300,19 @@ export default function RelatedReports({
     return null
   }
 
-  const sameCategoryCount = relatedReports.filter(r =>
-    r.relation_type === 'same_type' || r.relation_type === 'same_category'
-  ).length
-  const crossDisciplinaryCount = relatedReports.filter(r =>
-    r.relation_type === 'cross_disciplinary' || r.relation_type === 'same_location'
-  ).length
+  // Build tabs dynamically — only show tabs that have results
+  const tabs: { key: TabKey; label: string; count?: number; icon?: React.ReactNode }[] = [
+    { key: 'all', label: 'All' },
+  ]
+  if (caseCount > 0) {
+    tabs.push({ key: 'case', label: 'Case', count: caseCount, icon: <LinkIcon className="w-3 h-3 inline mr-1 -mt-0.5" /> })
+  }
+  if (sameCategoryCount > 0) {
+    tabs.push({ key: 'same_category', label: 'Similar', count: sameCategoryCount })
+  }
+  if (crossDisciplinaryCount > 0) {
+    tabs.push({ key: 'cross_disciplinary', label: 'Cross-Field', count: crossDisciplinaryCount, icon: <Sparkles className="w-3 h-3 inline mr-1 -mt-0.5" /> })
+  }
 
   return (
     <div className="glass-card p-4 sm:p-5">
@@ -224,30 +326,30 @@ export default function RelatedReports({
       </div>
 
       {/* Compact filter tabs — single row, scrollable */}
-      <div className="flex gap-1.5 mb-3 overflow-x-auto no-scrollbar">
-        {[
-          { key: 'all' as const, label: 'All' },
-          { key: 'same_category' as const, label: 'Similar', count: sameCategoryCount },
-          { key: 'cross_disciplinary' as const, label: 'Cross-Field', count: crossDisciplinaryCount },
-        ].map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => { setActiveTab(tab.key); setExpanded(false) }}
-            className={classNames(
-              'px-2.5 py-1 rounded-md text-xs whitespace-nowrap transition-all',
-              activeTab === tab.key
-                ? tab.key === 'cross_disciplinary'
-                  ? 'bg-violet-500/20 text-violet-400 font-medium'
-                  : 'bg-primary-500/20 text-primary-400 font-medium'
-                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-300'
-            )}
-          >
-            {tab.key === 'cross_disciplinary' && <Sparkles className="w-3 h-3 inline mr-1 -mt-0.5" />}
-            {tab.label}
-            {tab.count !== undefined && <span className="ml-1 opacity-60">{tab.count}</span>}
-          </button>
-        ))}
-      </div>
+      {tabs.length > 1 && (
+        <div className="flex gap-1.5 mb-3 overflow-x-auto no-scrollbar">
+          {tabs.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => { setActiveTab(tab.key); setExpanded(false) }}
+              className={classNames(
+                'px-2.5 py-1 rounded-md text-xs whitespace-nowrap transition-all',
+                activeTab === tab.key
+                  ? tab.key === 'case'
+                    ? 'bg-red-500/20 text-red-400 font-medium'
+                    : tab.key === 'cross_disciplinary'
+                      ? 'bg-violet-500/20 text-violet-400 font-medium'
+                      : 'bg-primary-500/20 text-primary-400 font-medium'
+                  : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-300'
+              )}
+            >
+              {tab.icon}
+              {tab.label}
+              {tab.count !== undefined && <span className="ml-1 opacity-60">{tab.count}</span>}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Report cards */}
       <div className="space-y-1.5">
@@ -269,7 +371,12 @@ export default function RelatedReports({
                 </p>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <RelationDot type={report.relation_type} />
-                  {report.phenomenon_type && (
+                  {report.link_type && (
+                    <span className="text-[11px] text-gray-500 truncate">
+                      {linkTypeLabels[report.link_type] || report.link_type}
+                    </span>
+                  )}
+                  {!report.link_type && report.phenomenon_type && (
                     <span className="text-[11px] text-gray-500 truncate">
                       {report.phenomenon_type.name}
                     </span>
@@ -314,9 +421,19 @@ export default function RelatedReports({
   )
 }
 
-// Compact colored dot indicator instead of verbose text badges
+const linkTypeLabels: Record<string, string> = {
+  witness_account: 'Witness account',
+  related_case: 'Related case',
+  follow_up: 'Follow-up',
+  source_material: 'Source material',
+  debunk: 'Debunk',
+}
+
+// Compact colored dot indicator
 function RelationDot({ type }: { type: RelatedReport['relation_type'] }) {
   const colors: Record<string, string> = {
+    linked: 'bg-red-400',
+    same_case: 'bg-orange-400',
     same_type: 'bg-green-400',
     same_category: 'bg-blue-400',
     same_location: 'bg-cyan-400',
@@ -324,6 +441,8 @@ function RelationDot({ type }: { type: RelatedReport['relation_type'] }) {
     shared_tags: 'bg-amber-400',
   }
   const labels: Record<string, string> = {
+    linked: 'Linked report',
+    same_case: 'Same case',
     same_type: 'Same type',
     same_category: 'Same category',
     same_location: 'Same region',

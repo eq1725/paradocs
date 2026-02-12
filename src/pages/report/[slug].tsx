@@ -712,6 +712,7 @@ export default function ReportPage() {
                 reportId={report.id}
                 category={report.category}
                 phenomenonTypeId={report.phenomenon_type_id}
+                caseGroup={(report as any).case_group}
                 tags={report.tags}
                 location={{
                   country: report.country,
