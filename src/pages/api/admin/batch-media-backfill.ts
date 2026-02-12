@@ -110,6 +110,82 @@ function isJunkMedia(url: string): boolean {
   return false;
 }
 
+// ── Content viability classifier ──────────────────────────────────────
+// Determines whether a post is media-primary (worthless without media)
+// or text-primary (valuable on its own)
+type ContentClass = 'media-primary' | 'text-primary' | 'link-primary';
+
+function classifyContent(title: string, description: string): ContentClass {
+  const titleLower = (title || '').toLowerCase();
+  const descLen = (description || '').length;
+  const descLower = (description || '').toLowerCase();
+
+  // Visual content keywords in the title
+  const mediaTitleSignals = /\b(photo|picture|image|video|footage|film|frame|captured|caught on|recording|evp|screenshot|pic |pics |look at this|check this out|what is this|what did i)\b/i;
+  const hasMediaTitle = mediaTitleSignals.test(titleLower);
+
+  // External link signals
+  const linkSignals = /\b(youtube\.com|youtu\.be|vimeo\.com|dailymotion|streamable|twitter\.com|x\.com|tiktok\.com|news|article)\b/i;
+  const hasLinkInDesc = linkSignals.test(descLower);
+
+  // Short description = likely just a media share or link share
+  const isShortDesc = descLen < 200;
+  const isVeryShortDesc = descLen < 50;
+
+  // Long narrative text = text-primary
+  const isLongDesc = descLen > 500;
+
+  // Narrative personal experience signals
+  const narrativeSignals = /\b(i was|i saw|i heard|i felt|i experienced|my friend|we were|last night|years ago|happened to me|this happened|true story)\b/i;
+  const hasNarrative = narrativeSignals.test(descLower);
+
+  // If it's mostly a link post with little text
+  if (hasLinkInDesc && isShortDesc) return 'link-primary';
+
+  // Long narrative = text-primary regardless of title
+  if (isLongDesc && hasNarrative) return 'text-primary';
+  if (descLen > 1000) return 'text-primary';
+
+  // Media title signals + short description = media-primary
+  if (hasMediaTitle && isShortDesc) return 'media-primary';
+
+  // Very short description with no narrative = likely media-primary
+  if (isVeryShortDesc && !hasNarrative) return 'media-primary';
+
+  // Default: if there's reasonable text, it's text-primary
+  if (descLen > 200) return 'text-primary';
+
+  // Short but has narrative content
+  if (hasNarrative) return 'text-primary';
+
+  // Ambiguous short posts without clear signals — conservative: text-primary
+  return 'text-primary';
+}
+
+// ── Media URL validation ─────────────────────────────────────────────
+// HEAD request to check if a media URL is still live
+async function isMediaUrlLive(url: string, timeoutMs = 5000): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    const response = await fetch(url, {
+      method: 'HEAD',
+      signal: controller.signal,
+      headers: { 'User-Agent': 'ParaDocs/1.0' },
+      redirect: 'follow'
+    });
+
+    clearTimeout(timer);
+
+    // 200-399 = live, 404/410/403 = dead
+    return response.status >= 200 && response.status < 400;
+  } catch {
+    // Network error, timeout, abort = treat as dead
+    return false;
+  }
+}
+
 function extractMediaUrlsFromText(text: string): Array<{ type: 'image' | 'video'; url: string }> {
   if (!text) return [];
   const results: Array<{ type: 'image' | 'video'; url: string }> = [];
@@ -198,8 +274,12 @@ export default async function handler(
     let noMediaInText = 0;
     let filteredJunk = 0;
     let duplicateSkipped = 0;
+    let deadUrlSkipped = 0;
+    let mediaPrimaryFlagged = 0;
+    let classificationCounts = { 'media-primary': 0, 'text-primary': 0, 'link-primary': 0 };
     const sampleMedia: Array<{ title: string; type: string; url: string }> = [];
     const sampleFiltered: Array<{ title: string; url: string; reason: string }> = [];
+    const sampleFlagged: Array<{ title: string; contentClass: string; reason: string }> = [];
 
     // Helper: get existing media URLs for a report (URL-level dedup)
     async function getExistingMediaUrls(reportId: string): Promise<Set<string>> {
@@ -216,14 +296,15 @@ export default async function handler(
       return urls;
     }
 
-    // Helper: insert media with URL-level dedup & junk filter
+    // Helper: insert media with URL-level dedup, junk filter, and liveness check
     async function insertMediaForReport(
       report: any,
       mediaItems: Array<{ type: 'image' | 'video'; url: string }>
-    ): Promise<{ inserted: number; duped: number; junked: number }> {
+    ): Promise<{ inserted: number; duped: number; junked: number; dead: number }> {
       let inserted = 0;
       let duped = 0;
       let junked = 0;
+      let dead = 0;
 
       // Filter junk first
       const cleanItems: typeof mediaItems = [];
@@ -242,14 +323,14 @@ export default async function handler(
         }
       }
 
-      if (cleanItems.length === 0) return { inserted: 0, duped: 0, junked };
+      if (cleanItems.length === 0) return { inserted: 0, duped: 0, junked, dead: 0 };
 
       // Get existing URLs for this report
       const existingUrls = await getExistingMediaUrls(report.id);
 
       // Deduplicate within batch
       const batchSeen = new Set<string>();
-      let primarySet = existingUrls.size === 0; // first insert is primary only if report has no media yet
+      let primarySet = existingUrls.size === 0;
 
       for (const media of cleanItems) {
         const normalized = media.url.toLowerCase();
@@ -258,6 +339,20 @@ export default async function handler(
           continue;
         }
         batchSeen.add(normalized);
+
+        // Validate URL is still live
+        const isLive = await isMediaUrlLive(media.url);
+        if (!isLive) {
+          dead++;
+          if (sampleFiltered.length < 5) {
+            sampleFiltered.push({
+              title: (report.title || '').substring(0, 40),
+              url: media.url.substring(0, 80),
+              reason: 'dead-url'
+            });
+          }
+          continue;
+        }
 
         if (!dryRun) {
           const { error: insertError } = await supabase
@@ -271,7 +366,7 @@ export default async function handler(
 
           if (!insertError) {
             inserted++;
-            primarySet = false; // only first new one is primary
+            primarySet = false;
           }
         } else {
           inserted++;
@@ -290,11 +385,15 @@ export default async function handler(
         }
       }
 
-      return { inserted, duped, junked };
+      return { inserted, duped, junked, dead };
     }
 
     for (const report of reports) {
       processed++;
+
+      // Classify content type
+      const contentClass = classifyContent(report.title || '', report.description || '');
+      classificationCounts[contentClass]++;
 
       if (mode === 'text') {
         // Extract media URLs from description text
@@ -302,6 +401,27 @@ export default async function handler(
 
         if (mediaUrls.length === 0) {
           noMediaInText++;
+
+          // If media-primary with no media found at all, flag it
+          if (contentClass === 'media-primary') {
+            mediaPrimaryFlagged++;
+            if (!dryRun) {
+              const tags = report.tags || [];
+              if (!tags.includes('media-missing')) {
+                await supabase
+                  .from('reports')
+                  .update({ tags: [...tags, 'media-missing'] })
+                  .eq('id', report.id);
+              }
+            }
+            if (sampleFlagged.length < 3) {
+              sampleFlagged.push({
+                title: (report.title || '').substring(0, 60),
+                contentClass,
+                reason: 'no-media-found'
+              });
+            }
+          }
           continue;
         }
 
@@ -310,6 +430,28 @@ export default async function handler(
         mediaInserted += result.inserted;
         duplicateSkipped += result.duped;
         filteredJunk += result.junked;
+        deadUrlSkipped += result.dead;
+
+        // If media-primary and ALL media was dead/junk, flag the report
+        if (contentClass === 'media-primary' && result.inserted === 0) {
+          mediaPrimaryFlagged++;
+          if (!dryRun) {
+            const tags = report.tags || [];
+            if (!tags.includes('media-missing')) {
+              await supabase
+                .from('reports')
+                .update({ tags: [...tags, 'media-missing'] })
+                .eq('id', report.id);
+            }
+          }
+          if (sampleFlagged.length < 3) {
+            sampleFlagged.push({
+              title: (report.title || '').substring(0, 60),
+              contentClass,
+              reason: result.dead > 0 ? 'all-media-dead' : 'all-media-junk'
+            });
+          }
+        }
 
         if (result.inserted > 0 && sampleMedia.length < 3) {
           sampleMedia.push({
@@ -369,6 +511,21 @@ export default async function handler(
                 mediaInserted += result.inserted;
                 duplicateSkipped += result.duped;
                 filteredJunk += result.junked;
+                deadUrlSkipped += result.dead;
+
+                // Flag media-primary posts with all dead media
+                if (contentClass === 'media-primary' && result.inserted === 0) {
+                  mediaPrimaryFlagged++;
+                  if (!dryRun) {
+                    const tags = report.tags || [];
+                    if (!tags.includes('media-missing')) {
+                      await supabase
+                        .from('reports')
+                        .update({ tags: [...tags, 'media-missing'] })
+                        .eq('id', report.id);
+                    }
+                  }
+                }
 
                 if (result.inserted > 0 && sampleMedia.length < 3) {
                   sampleMedia.push({
@@ -404,8 +561,12 @@ export default async function handler(
         noMediaInText,
         filteredJunk,
         duplicateSkipped,
+        deadUrlSkipped,
+        mediaPrimaryFlagged,
+        classificationCounts,
         sampleMedia,
-        sampleFiltered
+        sampleFiltered,
+        sampleFlagged
       },
       nextOffset,
       totalRemaining: count ? count - reports.length : undefined

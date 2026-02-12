@@ -113,6 +113,29 @@ Source Data (Reddit, MUFON, etc.)
 - **Junk filter** (`isJunkMedia`): Catches Reddit system images, logos, favicons, tracking pixels, ad network URLs, CSS assets, placeholder images
 - **Dedup**: URL-level (not just report-level). Checks existing `report_media` rows by URL before inserting. Also deduplicates within each batch.
 - **Two modes**: `text` (extract URLs from description, free/fast) and `arctic` (fetch from Arctic Shift API for videos/galleries, slower)
+- **URL validation**: HEAD requests to verify media is still live before inserting. Dead URLs are skipped.
+
+### Content Viability Check (Critical Quality Gate)
+
+Not all Reddit posts have standalone value. The pipeline must classify each post and handle accordingly:
+
+**Post Categories:**
+| Category | Description | Signals | Without Media |
+|----------|-------------|---------|---------------|
+| **Media-primary** | Post's value IS the media (shared photo, video, EVP) | Short description (<200 chars), title references visual content ("photo", "picture", "video", "film", "footage", "captured", "look at"), `is_self: false`, has media URLs | **Worthless** — skip or flag |
+| **Text-primary** | Post's value is the written narrative/experience | Long description (>500 chars), paragraphs of text, personal account, `is_self: true` | **Still valuable** — keep |
+| **Link-primary** | Post links to external content (article, YouTube) | Description is mostly a URL, links to youtube/news/external | **Depends** — check if link works |
+
+**Pipeline Behavior:**
+1. During media extraction, classify each report as media-primary or text-primary
+2. Validate media URLs with HEAD requests (is the link still live?)
+3. If media-primary + all media dead → tag as `media-missing`, exclude from display
+4. If text-primary + media dead → keep report, just skip dead media insertion
+5. If text-primary + no media at all → totally fine, keep as-is
+
+**Why this matters:** The Patterson-Gimlin film report example — a post sharing Frame 350 of the famous Bigfoot film. Without the image, it's an empty shell. We had ~2.7% of posts yielding media from text mode; many of the remaining 97% are text-primary and fine without media. But some are media-primary with dead links and should be excluded.
+
+**Implementation location:** `batch-media-backfill.ts` for backfill, `reddit.ts` adapter for live ingestion.
 
 ---
 
@@ -146,6 +169,8 @@ All batch operations use browser console scripts that:
 | Feb 2026 | Free regex over AI title improvement | AI would cost $300-500 for Haiku across 2M reports |
 | Feb 2026 | Perfect pipeline before bulk ingest | Re-processing 2M+ records per change is unsustainable |
 | Feb 2026 | Keep existing 2M for development | Useful for load testing, search perf, UI at scale |
+| Feb 2026 | Add content viability check to pipeline | Media-primary posts with dead links are worthless shells — skip them |
+| Feb 2026 | Validate media URLs before inserting | Prevents 404s on the site, avoids cluttering DB with dead links |
 
 ---
 
