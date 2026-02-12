@@ -57,7 +57,7 @@ Marcel broke his silence in 1978 when contacted by nuclear physicist and UFO res
 Marcel's account was corroborated by his son Jesse Marcel Jr., who published "The Roswell Legacy" detailing his own firsthand experience handling the debris as an 11-year-old boy. Both father and son maintained their accounts consistently until their respective deaths.`,
       category: 'ufo',
       event_date: '1947-07-07',
-      event_time: 'morning',
+      event_time: '08:00:00',
       location_name: 'Foster Ranch / Roswell Army Air Field',
       location_description: 'J.B. Foster sheep ranch, approximately 75 miles NW of Roswell, New Mexico; then Roswell Army Air Field',
       state_province: 'New Mexico',
@@ -133,7 +133,7 @@ Haut's affidavit affirmed that the original "flying disc" press release he issue
 Walter Haut died on December 15, 2005, at age 83. His sealed affidavit was published in 2007 in the book "Witness to Roswell" by Donald Schmitt and Tom Carey.`,
       category: 'ufo',
       event_date: '1947-07-08',
-      event_time: 'morning',
+      event_time: '08:00:00',
       location_name: 'Roswell Army Air Field',
       location_description: 'Roswell Army Air Field (now Roswell International Air Center), Roswell, New Mexico',
       state_province: 'New Mexico',
@@ -176,7 +176,7 @@ Importantly, DuBose did not claim to know what the actual debris was — he did 
 Thomas DuBose was later promoted to Brigadier General before his retirement. He died in 1992, the year after providing his testimony.`,
       category: 'ufo',
       event_date: '1947-07-08',
-      event_time: 'afternoon',
+      event_time: '14:00:00',
       location_name: 'Fort Worth Army Air Field',
       location_description: 'Brigadier General Ramey\'s office, Fort Worth Army Air Field (now Carswell Air Force Base), Fort Worth, Texas',
       state_province: 'Texas',
@@ -242,74 +242,11 @@ Thomas DuBose was later promoted to Brigadier General before his retirement. He 
 
   console.log('');
   console.log(`📊 Reports: ${inserted} created, ${skipped} skipped`);
-
-  // ─── LINK AS RELATED REPORTS ───────────────────────────────────────
-  // Create related_reports entries linking each witness to the showcase
-  let linked = 0;
-  for (const witnessId of insertedIds) {
-    if (witnessId === showcase.id) continue;
-
-    // Check if link already exists
-    const { data: existingLink } = await supabase
-      .from('related_reports')
-      .select('id')
-      .eq('report_id', showcase.id)
-      .eq('related_report_id', witnessId)
-      .single();
-
-    if (existingLink) {
-      console.log(`⏭️  Link exists for ${witnessId}`);
-      continue;
-    }
-
-    // Link witness → showcase (both directions)
-    const { error: linkErr1 } = await supabase
-      .from('related_reports')
-      .insert({
-        report_id: showcase.id,
-        related_report_id: witnessId,
-        relation_type: 'same_location',
-        relevance_score: 0.95,
-      });
-
-    const { error: linkErr2 } = await supabase
-      .from('related_reports')
-      .insert({
-        report_id: witnessId,
-        related_report_id: showcase.id,
-        relation_type: 'same_location',
-        relevance_score: 0.95,
-      });
-
-    if (!linkErr1 && !linkErr2) {
-      linked++;
-      console.log(`🔗 Linked witness ${witnessId} ↔ showcase`);
-    } else {
-      console.warn('⚠️  Link error:', linkErr1 || linkErr2);
-    }
-  }
-
-  // Also cross-link witnesses to each other
-  let crossLinked = 0;
-  for (let i = 0; i < insertedIds.length; i++) {
-    for (let j = i + 1; j < insertedIds.length; j++) {
-      const { error } = await supabase
-        .from('related_reports')
-        .insert({
-          report_id: insertedIds[i],
-          related_report_id: insertedIds[j],
-          relation_type: 'same_location',
-          relevance_score: 0.85,
-        });
-
-      if (!error) crossLinked++;
-    }
-  }
-
   console.log('');
   console.log('══════════════════════════════════');
-  console.log(`✅ Done! ${inserted} reports created, ${linked} linked to showcase, ${crossLinked} cross-linked`);
-  console.log('Refresh the Roswell report page to see witness reports in Related Reports sidebar.');
+  console.log(`✅ Done! ${inserted} reports created.`);
+  console.log('Related Reports sidebar will discover them automatically via shared category/location.');
+  console.log('Refresh the Roswell report page to see witness reports.');
 
   // ─── INVALIDATE CACHED AI INSIGHT ──────────────────────────────────
   // Mark the existing insight as stale so it regenerates with new prompt
