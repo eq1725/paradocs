@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Layers, MapPin, Calendar, ArrowRight, Sparkles } from 'lucide-react'
+import { Layers, MapPin, Calendar, ArrowRight, Sparkles, ChevronDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonCategory, PhenomenonType } from '@/lib/database.types'
 import { CATEGORY_CONFIG } from '@/lib/constants'
@@ -40,6 +40,7 @@ export default function RelatedReports({
   const [relatedReports, setRelatedReports] = useState<RelatedReport[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'all' | 'same_category' | 'cross_disciplinary'>('all')
+  const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
     loadRelatedReports()
@@ -121,7 +122,6 @@ export default function RelatedReports({
       }
 
       // 4. Cross-disciplinary - reports from related categories
-      // Based on category relationships (e.g., UFOs often relate to consciousness)
       const relatedCategories = getRelatedCategories(category)
       if (relatedCategories.length > 0) {
         const { data: crossDisciplinary } = await supabase
@@ -148,7 +148,7 @@ export default function RelatedReports({
 
       // Sort by relevance and limit
       allRelated.sort((a, b) => b.relevance_score - a.relevance_score)
-      setRelatedReports(allRelated.slice(0, limit * 2)) // Get more for filtering
+      setRelatedReports(allRelated.slice(0, limit * 2))
     } catch (error) {
       console.error('Error loading related reports:', error)
     } finally {
@@ -156,7 +156,6 @@ export default function RelatedReports({
     }
   }
 
-  // Define relationships between categories for cross-disciplinary analysis
   function getRelatedCategories(cat: PhenomenonCategory): PhenomenonCategory[] {
     const relationships: Record<PhenomenonCategory, PhenomenonCategory[]> = {
       ufos_aliens: ['consciousness_practices', 'psychic_phenomena', 'psychological_experiences'],
@@ -179,18 +178,23 @@ export default function RelatedReports({
     if (activeTab === 'same_category') return r.relation_type === 'same_type' || r.relation_type === 'same_category'
     if (activeTab === 'cross_disciplinary') return r.relation_type === 'cross_disciplinary' || r.relation_type === 'same_location'
     return true
-  }).slice(0, limit)
+  })
+
+  // Show first 4 collapsed, rest on expand
+  const INITIAL_COUNT = 4
+  const visibleReports = expanded ? filteredReports.slice(0, limit) : filteredReports.slice(0, INITIAL_COUNT)
+  const hasMore = filteredReports.length > INITIAL_COUNT
 
   if (loading) {
     return (
-      <div className="glass-card p-5">
-        <h3 className="font-medium text-white mb-4 flex items-center gap-2">
+      <div className="glass-card p-4 sm:p-5">
+        <h3 className="font-medium text-white mb-3 flex items-center gap-2 text-sm">
           <Layers className="w-4 h-4" />
           Related Reports
         </h3>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="skeleton h-16 rounded-lg" />
+            <div key={i} className="skeleton h-14 rounded-lg" />
           ))}
         </div>
       </div>
@@ -201,146 +205,136 @@ export default function RelatedReports({
     return null
   }
 
+  const sameCategoryCount = relatedReports.filter(r =>
+    r.relation_type === 'same_type' || r.relation_type === 'same_category'
+  ).length
   const crossDisciplinaryCount = relatedReports.filter(r =>
     r.relation_type === 'cross_disciplinary' || r.relation_type === 'same_location'
   ).length
 
   return (
-    <div className="glass-card p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-medium text-white flex items-center gap-2">
-          <Layers className="w-4 h-4" />
+    <div className="glass-card p-4 sm:p-5">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-medium text-white flex items-center gap-2 text-sm">
+          <Layers className="w-4 h-4 text-primary-400" />
           Related Reports
+          <span className="text-xs text-gray-500 font-normal">({relatedReports.length})</span>
         </h3>
-        {crossDisciplinaryCount > 0 && (
-          <span className="text-xs bg-violet-500/20 text-violet-400 px-2 py-1 rounded-full flex items-center gap-1">
-            <Sparkles className="w-3 h-3" />
-            {crossDisciplinaryCount} cross-disciplinary
-          </span>
-        )}
       </div>
 
-      {/* Tab filters */}
-      <div className="flex gap-2 mb-4">
-        <button
-          onClick={() => setActiveTab('all')}
-          className={classNames(
-            'px-3 py-1 rounded-full text-xs transition-colors',
-            activeTab === 'all'
-              ? 'bg-primary-500/20 text-primary-400'
-              : 'bg-white/5 text-gray-400 hover:bg-white/10'
-          )}
-        >
-          All ({relatedReports.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('same_category')}
-          className={classNames(
-            'px-3 py-1 rounded-full text-xs transition-colors',
-            activeTab === 'same_category'
-              ? 'bg-primary-500/20 text-primary-400'
-              : 'bg-white/5 text-gray-400 hover:bg-white/10'
-          )}
-        >
-          Same Category
-        </button>
-        <button
-          onClick={() => setActiveTab('cross_disciplinary')}
-          className={classNames(
-            'px-3 py-1 rounded-full text-xs transition-colors',
-            activeTab === 'cross_disciplinary'
-              ? 'bg-violet-500/20 text-violet-400'
-              : 'bg-white/5 text-gray-400 hover:bg-white/10'
-          )}
-        >
-          Cross-Disciplinary
-        </button>
+      {/* Compact filter tabs — single row, scrollable */}
+      <div className="flex gap-1.5 mb-3 overflow-x-auto no-scrollbar">
+        {[
+          { key: 'all' as const, label: 'All' },
+          { key: 'same_category' as const, label: 'Similar', count: sameCategoryCount },
+          { key: 'cross_disciplinary' as const, label: 'Cross-Field', count: crossDisciplinaryCount },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => { setActiveTab(tab.key); setExpanded(false) }}
+            className={classNames(
+              'px-2.5 py-1 rounded-md text-xs whitespace-nowrap transition-all',
+              activeTab === tab.key
+                ? tab.key === 'cross_disciplinary'
+                  ? 'bg-violet-500/20 text-violet-400 font-medium'
+                  : 'bg-primary-500/20 text-primary-400 font-medium'
+                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-300'
+            )}
+          >
+            {tab.key === 'cross_disciplinary' && <Sparkles className="w-3 h-3 inline mr-1 -mt-0.5" />}
+            {tab.label}
+            {tab.count !== undefined && <span className="ml-1 opacity-60">{tab.count}</span>}
+          </button>
+        ))}
       </div>
 
-      {/* Related reports list */}
-      <div className="space-y-3">
-        {filteredReports.map((report) => {
+      {/* Report cards */}
+      <div className="space-y-1.5">
+        {visibleReports.map((report) => {
           const config = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
           return (
             <Link
               key={report.id}
               href={`/report/${report.slug}`}
-              className="block p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors group"
+              className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-white/[0.06] transition-colors group"
             >
-              <div className="flex items-start gap-3">
-                <span className="text-lg">{config.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white font-medium line-clamp-1 group-hover:text-primary-400">
-                    {report.title}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                    {report.phenomenon_type && (
-                      <span>{report.phenomenon_type.name}</span>
-                    )}
-                    {report.event_date && (
-                      <>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {formatDate(report.event_date, 'MMM yyyy')}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                  {/* Relation indicator */}
-                  <div className="mt-1">
-                    <RelationBadge type={report.relation_type} category={report.category} />
-                  </div>
+              {/* Category icon */}
+              <span className="text-base flex-shrink-0 leading-none">{config.icon}</span>
+
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] text-white/90 font-medium line-clamp-1 group-hover:text-primary-400 transition-colors">
+                  {report.title}
+                </p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <RelationDot type={report.relation_type} />
+                  {report.phenomenon_type && (
+                    <span className="text-[11px] text-gray-500 truncate">
+                      {report.phenomenon_type.name}
+                    </span>
+                  )}
+                  {report.event_date && (
+                    <>
+                      <span className="text-gray-600 text-[10px]">·</span>
+                      <span className="text-[11px] text-gray-500 whitespace-nowrap">
+                        {formatDate(report.event_date, 'MMM yyyy')}
+                      </span>
+                    </>
+                  )}
                 </div>
-                <ArrowRight className="w-4 h-4 text-gray-500 group-hover:text-primary-400 flex-shrink-0" />
               </div>
+
+              {/* Arrow */}
+              <ArrowRight className="w-3.5 h-3.5 text-gray-600 group-hover:text-primary-400 flex-shrink-0 transition-colors" />
             </Link>
           )
         })}
       </div>
 
-      {/* View more link */}
+      {/* Show more / less toggle */}
+      {hasMore && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-full mt-2 py-1.5 text-xs text-gray-400 hover:text-gray-300 transition-colors flex items-center justify-center gap-1"
+        >
+          <ChevronDown className={classNames('w-3.5 h-3.5 transition-transform', expanded && 'rotate-180')} />
+          {expanded ? 'Show less' : `Show ${filteredReports.length - INITIAL_COUNT} more`}
+        </button>
+      )}
+
+      {/* Explore link */}
       <Link
         href={`/explore?category=${category}`}
-        className="block mt-4 text-center text-sm text-primary-400 hover:text-primary-300"
+        className="block mt-2 pt-2 border-t border-white/5 text-center text-xs text-primary-400/80 hover:text-primary-300 transition-colors"
       >
-        Explore more in this category
+        Explore more in this category →
       </Link>
     </div>
   )
 }
 
-function RelationBadge({ type, category }: { type: RelatedReport['relation_type'], category: PhenomenonCategory }) {
-  const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
-
-  switch (type) {
-    case 'same_type':
-      return (
-        <span className="text-xs text-green-400/70">
-          Same phenomenon type
-        </span>
-      )
-    case 'same_category':
-      return (
-        <span className={classNames('text-xs', config.color.replace('text-', 'text-').replace('500', '400/70'))}>
-          {config.label}
-        </span>
-      )
-    case 'same_location':
-      return (
-        <span className="text-xs text-cyan-400/70 flex items-center gap-1">
-          <MapPin className="w-3 h-3" />
-          Same region
-        </span>
-      )
-    case 'cross_disciplinary':
-      return (
-        <span className="text-xs text-violet-400/70 flex items-center gap-1">
-          <Sparkles className="w-3 h-3" />
-          Cross-disciplinary connection
-        </span>
-      )
-    default:
-      return null
+// Compact colored dot indicator instead of verbose text badges
+function RelationDot({ type }: { type: RelatedReport['relation_type'] }) {
+  const colors: Record<string, string> = {
+    same_type: 'bg-green-400',
+    same_category: 'bg-blue-400',
+    same_location: 'bg-cyan-400',
+    cross_disciplinary: 'bg-violet-400',
+    shared_tags: 'bg-amber-400',
   }
+  const labels: Record<string, string> = {
+    same_type: 'Same type',
+    same_category: 'Same category',
+    same_location: 'Same region',
+    cross_disciplinary: 'Cross-field',
+    shared_tags: 'Shared tags',
+  }
+
+  return (
+    <span
+      className={classNames('w-1.5 h-1.5 rounded-full flex-shrink-0', colors[type] || 'bg-gray-400')}
+      title={labels[type] || type}
+    />
+  )
 }
