@@ -43,7 +43,7 @@ const IMAGE_URL_PATTERNS = [
   /https?:\/\/[^\s\)\]"]+\.(jpg|jpeg|png|gif|webp)(\?[^\s\)\]"]*)?\b/gi,
   /https?:\/\/i\.redd\.it\/[a-zA-Z0-9_-]+/gi,
   /https?:\/\/i\.imgur\.com\/[a-zA-Z0-9_-]+/gi,
-  /https?:\/\/preview\.redd\.it\/[^\s\)\]"]+/gi,
+  // Note: preview.redd.it excluded — URLs expire for archived posts
 ];
 
 const VIDEO_URL_PATTERNS = [
@@ -67,6 +67,9 @@ function isJunkMedia(url: string): boolean {
   // Reddit default/placeholder thumbnails
   if (/\/(default|self|nsfw|spoiler|image)\.(png|jpg)$/i.test(lower)) return true;
   if (/\/thumb\b/i.test(lower) && /redd/i.test(lower)) return true;
+
+  // Reddit preview CDN — URLs expire for archived posts, always dead
+  if (/preview\.redd\.it/i.test(lower)) return true;
 
   // Common non-content patterns
   if (/favicon/i.test(lower)) return true;
