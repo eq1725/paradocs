@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { X, ChevronRight, ChevronLeft, Sparkles, MapPin, Brain, Eye, Layers, BarChart3, BookOpen, Compass } from 'lucide-react'
+import { X, ChevronRight, ChevronLeft, Sparkles, MapPin, Brain, Eye, Layers, BarChart3, BookOpen, Compass, LayoutDashboard } from 'lucide-react'
 
 // ─── Tour Step Configuration ─────────────────────────────────────────────
 
@@ -58,6 +58,12 @@ const TOUR_STEPS: TourStep[] = [
     title: 'Connected Cases',
     description: 'Discover related reports, pattern connections, and linked phenomena. Every case is part of a larger picture — explore the web of connections.',
     icon: <Sparkles className="w-5 h-5" />,
+  },
+  {
+    targetSelector: '[data-tour-step="header"]',
+    title: 'Your Investigation Awaits',
+    description: 'That\'s the tour! Your Dashboard has even more — a Constellation Map of connected phenomena, Research Streaks, an Investigation Journal, and personalized Weekly Reports. Go explore.',
+    icon: <LayoutDashboard className="w-5 h-5" />,
   },
 ]
 

@@ -25,6 +25,7 @@ import { UsageMeter } from '@/components/dashboard/UsageMeter'
 import { UpgradeCard } from '@/components/dashboard/UpgradeCard'
 import { TierBadge } from '@/components/dashboard/TierBadge'
 import ResearchStreak from '@/components/dashboard/ResearchStreak'
+import DashboardTour, { hasDashboardTourCompleted } from '@/components/dashboard/DashboardTour'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { supabase } from '@/lib/supabase'
 import type { TierName } from '@/lib/subscription'
@@ -164,6 +165,16 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showDashboardTour, setShowDashboardTour] = useState(false)
+
+  // Show dashboard tour for first-time visitors
+  useEffect(() => {
+    if (!loading && stats && !hasDashboardTourCompleted()) {
+      // Small delay to let the page render first
+      const timer = setTimeout(() => setShowDashboardTour(true), 800)
+      return () => clearTimeout(timer)
+    }
+  }, [loading, stats])
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -414,6 +425,11 @@ export default function DashboardPage() {
           {/* Upgrade Card (for non-enterprise users) */}
           {tierName && tierName !== 'enterprise' && (
             <UpgradeCard currentTier={tierName} variant="full" />
+          )}
+
+          {/* Dashboard Feature Tour */}
+          {showDashboardTour && (
+            <DashboardTour onComplete={() => setShowDashboardTour(false)} />
           )}
 
           {/* Reputation Score */}
