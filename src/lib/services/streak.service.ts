@@ -90,11 +90,11 @@ export async function logActivity(
     loggedThisSession.add(dedupeKey)
 
     // Call the RPC that logs activity + updates streak atomically
-    const { data, error } = await supabase.rpc('log_activity_and_update_streak', {
+    const { data, error } = await (supabase.rpc as any)('log_activity_and_update_streak', {
       p_user_id: userId,
       p_activity_type: activityType,
       p_metadata: metadata,
-    }) as any
+    })
 
     if (error) {
       console.error('Error logging activity:', error)

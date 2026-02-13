@@ -6,7 +6,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import {
   MapPin, Calendar, Clock, Users, Eye,
-  ThumbsUp, ThumbsDown, MessageCircle, Share2, Bookmark,
+  ThumbsUp, ThumbsDown, MessageCircle, Share2, Bookmark, BookOpen,
   Award, AlertTriangle, Check, ChevronRight, ChevronDown
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -826,6 +826,15 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                 {copiedShare ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
                 <span className="hidden sm:inline">{copiedShare ? 'Copied!' : 'Share'}</span>
               </button>
+              {user && (
+                <Link
+                  href={`/dashboard/journal/new?report_id=${report.id}&report_title=${encodeURIComponent(report.title)}&report_slug=${report.slug}&report_category=${report.category}`}
+                  className="btn btn-ghost text-xs sm:text-sm"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span className="hidden sm:inline">Journal</span>
+                </Link>
+              )}
             </div>
           </div>
         </div>

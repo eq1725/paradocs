@@ -16,6 +16,7 @@ import {
   Bookmark,
   Sparkles,
   Stars,
+  BookOpen,
   CreditCard,
   Settings,
   ChevronLeft,
@@ -61,6 +62,11 @@ const navItems: NavItem[] = [
     href: '/dashboard/constellation',
     label: 'My Constellation',
     icon: Stars
+  },
+  {
+    href: '/dashboard/journal',
+    label: 'Journal',
+    icon: BookOpen
   },
   {
     href: '/dashboard/insights',
