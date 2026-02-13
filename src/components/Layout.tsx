@@ -400,7 +400,7 @@ export default function Layout({ children }: LayoutProps) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="col-span-2 md:col-span-1">
               <Link href="/" className="inline-block mb-4">
-                <span className="font-display font-bold text-xl text-white tracking-tight">Paradocs<span className="text-primary-500">.</span></span>
+                <span className="font-sans font-black text-2xl text-white tracking-tight">Paradocs<span className="text-primary-500">.</span></span>
               </Link>
               <p className="text-sm text-gray-500">
                 The world's largest database of paranormal phenomena. Where mysteries meet discovery.
