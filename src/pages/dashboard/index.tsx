@@ -24,6 +24,7 @@ import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { UsageMeter } from '@/components/dashboard/UsageMeter'
 import { UpgradeCard } from '@/components/dashboard/UpgradeCard'
 import { TierBadge } from '@/components/dashboard/TierBadge'
+import ResearchStreak from '@/components/dashboard/ResearchStreak'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { supabase } from '@/lib/supabase'
 import type { TierName } from '@/lib/subscription'
@@ -378,6 +379,9 @@ export default function DashboardPage() {
               </span>
             </div>
           </Link>
+
+          {/* Research Streak */}
+          <ResearchStreak compact />
 
           {/* Quick Actions */}
           <div className="p-6 bg-gray-900 rounded-xl border border-gray-800">

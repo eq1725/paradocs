@@ -15,6 +15,7 @@ import { CATEGORY_CONFIG, CREDIBILITY_CONFIG, CONTENT_TYPE_CONFIG } from '@/lib/
 import type { ContentType } from '@/lib/database.types'
 import { formatDate, formatRelativeDate, classNames, estimateReadingTime } from '@/lib/utils'
 import RelatedReports from '@/components/RelatedReports'
+import { logActivity } from '@/lib/services/streak.service'
 import MediaGallery from '@/components/MediaGallery'
 // Lazy load below-fold components for faster initial page render
 const ReportAIInsight = dynamic(
@@ -193,6 +194,8 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
       if (typeof window !== 'undefined') {
         sessionStorage.setItem(viewKey, '1')
       }
+      // Log activity for streak tracking (non-blocking)
+      logActivity('view_report', { report_id: reportId }).catch(() => {})
     } catch (e) {
       // Non-critical — fail silently
     }
