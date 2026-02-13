@@ -69,6 +69,39 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const [copiedShare, setCopiedShare] = useState(false)
   const [userVote, setUserVote] = useState<1 | -1 | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [parentCase, setParentCase] = useState<{ slug: string; title: string } | null>(null)
+
+  // Load parent case report when this report belongs to a case group
+  useEffect(() => {
+    if (!report || !(report as any).case_group) {
+      setParentCase(null)
+      return
+    }
+    // Find the showcase/parent report in this case group (not ourselves)
+    async function loadParentCase() {
+      try {
+        const { data } = await supabase
+          .from('report_links' as any)
+          .select('source_report_id')
+          .eq('target_report_id', report!.id)
+          .eq('link_type', 'witness_account')
+          .limit(1) as any
+        if (data && data.length > 0) {
+          const { data: parentData } = await supabase
+            .from('reports')
+            .select('slug, title')
+            .eq('id', data[0].source_report_id)
+            .single()
+          if (parentData) {
+            setParentCase(parentData)
+          }
+        }
+      } catch {
+        // Silently skip if report_links doesn't exist
+      }
+    }
+    loadParentCase()
+  }, [report?.id])
 
   useEffect(() => {
     if (slug) {
@@ -457,6 +490,30 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           <ChevronRight className="w-3.5 h-3.5 shrink-0 text-gray-600" />
           <span className="text-gray-500 truncate">{report.title}</span>
         </nav>
+
+        {/* Parent Case Banner — link back to main case report */}
+        {parentCase && (
+          <div className="mb-4 p-3 bg-primary-500/10 border border-primary-500/30 rounded-lg flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center flex-shrink-0">
+              <ChevronRight className="w-4 h-4 text-primary-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-primary-400/70 uppercase tracking-wider font-medium">Part of Case File</p>
+              <Link
+                href={`/report/${parentCase.slug}`}
+                className="text-primary-300 hover:text-primary-200 font-medium transition-colors truncate block"
+              >
+                {parentCase.title}
+              </Link>
+            </div>
+            <Link
+              href={`/report/${parentCase.slug}`}
+              className="text-xs text-primary-400 hover:text-primary-300 transition-colors flex items-center gap-1 flex-shrink-0"
+            >
+              View Case <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+        )}
 
         {/* Non-Experiencer Content Notice — only for news/discussion and research content */}
         {isNonExperiencer && (
