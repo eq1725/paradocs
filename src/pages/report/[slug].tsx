@@ -72,13 +72,21 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
 
   useEffect(() => {
     if (slug) {
-      if (initialReport) {
-        // Data came from server — just load user-specific state + increment views
+      // Check if initialReport matches the current slug — during client-side navigation
+      // between report pages, initialReport may hold stale data from the previous page
+      const initialMatchesSlug = initialReport && initialReport.slug === slug
+
+      if (initialMatchesSlug) {
+        // Data came from server and matches current slug — just load user-specific state
+        setReport(initialReport)
+        setMedia(initialMedia || [])
+        setComments(initialComments || [])
+        setLoading(false)
         loadUserState(initialReport.id)
         incrementViewCount(initialReport.id, initialReport.view_count)
         checkUser()
       } else if (!fetchError) {
-        // No server data and no error — client-side fallback fetch
+        // No matching server data — client-side fetch (handles navigation between reports)
         loadReport()
         checkUser()
       }
@@ -157,6 +165,11 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
 
   async function loadReport() {
     setLoading(true)
+    // Reset stale state from previous report during client-side navigation
+    setUserVote(null)
+    setIsSaved(false)
+    setSavedId(null)
+    setSidebarOpen(false)
     try {
       // Load report
       const { data: reportData, error: reportError } = await supabase
