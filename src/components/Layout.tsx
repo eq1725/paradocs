@@ -433,7 +433,7 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-white/5 text-center text-sm text-gray-500">
-            © {new Date().getFullYear()} Paradocs<span className="text-primary-500">.</span> All rights reserved.
+            © {new Date().getFullYear()} <span className="font-sans font-black text-white tracking-tight">Paradocs<span className="text-primary-500">.</span></span> All rights reserved.
           </div>
         </div>
       </footer>
