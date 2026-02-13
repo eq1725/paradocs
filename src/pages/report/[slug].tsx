@@ -77,6 +77,8 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
       setParentCase(null)
       return
     }
+    // Reset immediately so stale banner doesn't linger during navigation
+    setParentCase(null)
     // Find the showcase/parent report in this case group (not ourselves)
     async function loadParentCase() {
       try {
@@ -203,6 +205,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     setIsSaved(false)
     setSavedId(null)
     setSidebarOpen(false)
+    setParentCase(null)
     try {
       // Load report
       const { data: reportData, error: reportError } = await supabase

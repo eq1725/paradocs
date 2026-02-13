@@ -58,177 +58,82 @@ export default function RelatedReports({
       const seenIds = new Set<string>()
       seenIds.add(reportId) // exclude current report
 
-      // ── TIER 1: Explicit links from report_links table ──
-      try {
-        const { data: linksAsSource } = await supabase
-          .from('report_links' as any)
-          .select('target_report_id, link_type')
-          .eq('source_report_id', reportId) as any
-
-        const { data: linksAsTarget } = await supabase
-          .from('report_links' as any)
-          .select('source_report_id, link_type')
-          .eq('target_report_id', reportId) as any
-
-        const linkedIds: { id: string; linkType: string }[] = []
-        if (linksAsSource) {
-          linksAsSource.forEach((l: any) => linkedIds.push({ id: l.target_report_id, linkType: l.link_type }))
-        }
-        if (linksAsTarget) {
-          linksAsTarget.forEach((l: any) => linkedIds.push({ id: l.source_report_id, linkType: l.link_type }))
-        }
-
-        if (linkedIds.length > 0) {
-          const uniqueLinkedIds = linkedIds.filter(l => !seenIds.has(l.id))
-          const idList = uniqueLinkedIds.map(l => l.id)
-
-          if (idList.length > 0) {
-            const { data: linkedReports } = await supabase
-              .from('reports')
-              .select('*, phenomenon_type:phenomenon_types(*)')
-              .in('id', idList)
-              .eq('status', 'approved')
-
-            if (linkedReports) {
-              (linkedReports as ReportQueryResult[]).forEach(r => {
-                const linkInfo = uniqueLinkedIds.find(l => l.id === r.id)
-                seenIds.add(r.id)
-                allRelated.push({
-                  ...r,
-                  relation_type: 'linked',
-                  relevance_score: 1.0,
-                  link_type: linkInfo?.linkType as ReportLinkType,
-                })
-              })
-            }
-          }
-        }
-      } catch {
-        // report_links table may not exist yet — silently skip
-      }
-
-      // ── TIER 2: Same case_group ──
-      if (caseGroup) {
-        const { data: caseReports } = await supabase
-          .from('reports')
-          .select('*, phenomenon_type:phenomenon_types(*)')
-          .eq('case_group' as any, caseGroup)
-          .eq('status', 'approved')
-          .order('created_at', { ascending: false })
-          .limit(10)
-
-        if (caseReports) {
-          (caseReports as ReportQueryResult[]).forEach(r => {
-            if (!seenIds.has(r.id)) {
-              seenIds.add(r.id)
-              allRelated.push({
-                ...r,
-                relation_type: 'same_case',
-                relevance_score: 0.95,
-              })
-            }
-          })
-        }
-      }
-
-      // ── TIER 3: Dynamic discovery (existing logic) ──
-
-      // 3a. Same phenomenon type
-      if (phenomenonTypeId) {
-        const { data: sameType } = await supabase
-          .from('reports')
-          .select('*, phenomenon_type:phenomenon_types(*)')
-          .eq('phenomenon_type_id', phenomenonTypeId)
-          .eq('status', 'approved')
-          .order('created_at', { ascending: false })
-          .limit(5)
-
-        if (sameType) {
-          (sameType as ReportQueryResult[]).forEach(r => {
-            if (!seenIds.has(r.id)) {
-              seenIds.add(r.id)
-              allRelated.push({
-                ...r,
-                relation_type: 'same_type',
-                relevance_score: 0.8,
-              })
-            }
-          })
-        }
-      }
-
-      // 3b. Same category but different type
-      const { data: sameCategory } = await supabase
-        .from('reports')
-        .select('*, phenomenon_type:phenomenon_types(*)')
-        .eq('category', category)
-        .eq('status', 'approved')
-        .neq('phenomenon_type_id', phenomenonTypeId || '')
-        .order('upvotes', { ascending: false })
-        .limit(5)
-
-      if (sameCategory) {
-        (sameCategory as ReportQueryResult[]).forEach(r => {
+      // Helper to add results with deduplication
+      const addResults = (reports: ReportQueryResult[] | null, relationType: RelatedReport['relation_type'], score: number, linkMap?: Map<string, string>) => {
+        if (!reports) return
+        reports.forEach(r => {
           if (!seenIds.has(r.id)) {
             seenIds.add(r.id)
             allRelated.push({
               ...r,
-              relation_type: 'same_category',
-              relevance_score: 0.7,
+              relation_type: relationType,
+              relevance_score: score,
+              link_type: linkMap?.get(r.id) as ReportLinkType | undefined,
             })
           }
         })
       }
 
-      // 3c. Same location (geographic clustering)
-      if (location?.country) {
-        const { data: sameLocation } = await supabase
-          .from('reports')
-          .select('*, phenomenon_type:phenomenon_types(*)')
-          .eq('country', location.country)
-          .eq('status', 'approved')
-          .neq('category', category)
-          .order('event_date', { ascending: false })
-          .limit(3)
+      // ── Fire ALL independent queries in parallel ──
+      const [linksSourceResult, linksTargetResult, caseResult, sameTypeResult, sameCategoryResult, sameLocationResult, crossDisciplinaryResult] = await Promise.all([
+        // Tier 1: Explicit links (source)
+        Promise.resolve(supabase.from('report_links' as any).select('target_report_id, link_type').eq('source_report_id', reportId)).then(r => r as any).catch(() => ({ data: null })),
+        // Tier 1: Explicit links (target)
+        Promise.resolve(supabase.from('report_links' as any).select('source_report_id, link_type').eq('target_report_id', reportId)).then(r => r as any).catch(() => ({ data: null })),
+        // Tier 2: Same case_group
+        caseGroup
+          ? supabase.from('reports').select('*, phenomenon_type:phenomenon_types(*)').eq('case_group' as any, caseGroup).eq('status', 'approved').order('created_at', { ascending: false }).limit(10)
+          : Promise.resolve({ data: null }),
+        // Tier 3a: Same phenomenon type
+        phenomenonTypeId
+          ? supabase.from('reports').select('*, phenomenon_type:phenomenon_types(*)').eq('phenomenon_type_id', phenomenonTypeId).eq('status', 'approved').order('created_at', { ascending: false }).limit(5)
+          : Promise.resolve({ data: null }),
+        // Tier 3b: Same category, different type
+        supabase.from('reports').select('*, phenomenon_type:phenomenon_types(*)').eq('category', category).eq('status', 'approved').neq('phenomenon_type_id', phenomenonTypeId || '').order('upvotes', { ascending: false }).limit(5),
+        // Tier 3c: Same location
+        location?.country
+          ? supabase.from('reports').select('*, phenomenon_type:phenomenon_types(*)').eq('country', location.country).eq('status', 'approved').neq('category', category).order('event_date', { ascending: false }).limit(3)
+          : Promise.resolve({ data: null }),
+        // Tier 3d: Cross-disciplinary
+        (() => {
+          const relatedCategories = getRelatedCategories(category)
+          return relatedCategories.length > 0
+            ? supabase.from('reports').select('*, phenomenon_type:phenomenon_types(*)').in('category', relatedCategories).eq('status', 'approved').order('upvotes', { ascending: false }).limit(5)
+            : Promise.resolve({ data: null })
+        })(),
+      ])
 
-        if (sameLocation) {
-          (sameLocation as ReportQueryResult[]).forEach(r => {
-            if (!seenIds.has(r.id)) {
-              seenIds.add(r.id)
-              allRelated.push({
-                ...r,
-                relation_type: 'same_location',
-                relevance_score: 0.5,
-              })
-            }
-          })
+      // ── Process Tier 1: Explicit links ──
+      const linkedIds: { id: string; linkType: string }[] = []
+      if (linksSourceResult?.data) {
+        linksSourceResult.data.forEach((l: any) => linkedIds.push({ id: l.target_report_id, linkType: l.link_type }))
+      }
+      if (linksTargetResult?.data) {
+        linksTargetResult.data.forEach((l: any) => linkedIds.push({ id: l.source_report_id, linkType: l.link_type }))
+      }
+
+      if (linkedIds.length > 0) {
+        const uniqueLinkedIds = linkedIds.filter(l => !seenIds.has(l.id))
+        const idList = uniqueLinkedIds.map(l => l.id)
+
+        if (idList.length > 0) {
+          const { data: linkedReports } = await supabase
+            .from('reports')
+            .select('*, phenomenon_type:phenomenon_types(*)')
+            .in('id', idList)
+            .eq('status', 'approved')
+
+          const linkMap = new Map(uniqueLinkedIds.map(l => [l.id, l.linkType]))
+          addResults(linkedReports as ReportQueryResult[] | null, 'linked', 1.0, linkMap)
         }
       }
 
-      // 3d. Cross-disciplinary
-      const relatedCategories = getRelatedCategories(category)
-      if (relatedCategories.length > 0) {
-        const { data: crossDisciplinary } = await supabase
-          .from('reports')
-          .select('*, phenomenon_type:phenomenon_types(*)')
-          .in('category', relatedCategories)
-          .eq('status', 'approved')
-          .order('upvotes', { ascending: false })
-          .limit(5)
-
-        if (crossDisciplinary) {
-          (crossDisciplinary as ReportQueryResult[]).forEach(r => {
-            if (!seenIds.has(r.id)) {
-              seenIds.add(r.id)
-              allRelated.push({
-                ...r,
-                relation_type: 'cross_disciplinary',
-                relevance_score: 0.4,
-              })
-            }
-          })
-        }
-      }
+      // ── Process Tier 2 & 3 (already fetched in parallel) ──
+      addResults(caseResult?.data as ReportQueryResult[] | null, 'same_case', 0.95)
+      addResults(sameTypeResult?.data as ReportQueryResult[] | null, 'same_type', 0.8)
+      addResults(sameCategoryResult?.data as ReportQueryResult[] | null, 'same_category', 0.7)
+      addResults(sameLocationResult?.data as ReportQueryResult[] | null, 'same_location', 0.5)
+      addResults(crossDisciplinaryResult?.data as ReportQueryResult[] | null, 'cross_disciplinary', 0.4)
 
       // Sort by relevance and limit
       allRelated.sort((a, b) => b.relevance_score - a.relevance_score)
