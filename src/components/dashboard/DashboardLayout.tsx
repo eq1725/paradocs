@@ -17,6 +17,7 @@ import {
   Sparkles,
   Stars,
   BookOpen,
+  Newspaper,
   CreditCard,
   Settings,
   ChevronLeft,
@@ -67,6 +68,11 @@ const navItems: NavItem[] = [
     href: '/dashboard/journal',
     label: 'Journal',
     icon: BookOpen
+  },
+  {
+    href: '/dashboard/digests',
+    label: 'Weekly Reports',
+    icon: Newspaper
   },
   {
     href: '/dashboard/insights',

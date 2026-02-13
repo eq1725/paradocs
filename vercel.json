@@ -12,6 +12,10 @@
     {
       "path": "/api/cron/analyze-patterns-v2",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-digest",
+      "schedule": "0 14 * * 1"
     }
   ]
 }
