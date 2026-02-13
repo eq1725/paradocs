@@ -17,7 +17,8 @@ import {
   AlertCircle,
   ArrowRight,
   Sparkles,
-  BarChart3
+  BarChart3,
+  Stars
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { UsageMeter } from '@/components/dashboard/UsageMeter'
@@ -338,6 +339,46 @@ export default function DashboardPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* Constellation Preview */}
+          <Link
+            href="/dashboard/constellation"
+            className="block p-6 bg-gray-950 rounded-xl border border-gray-800 hover:border-primary-500/30 transition-all group overflow-hidden relative"
+          >
+            {/* Decorative background stars */}
+            <div className="absolute inset-0 opacity-30">
+              {[
+                { x: '15%', y: '20%', s: 2 }, { x: '80%', y: '15%', s: 1.5 },
+                { x: '45%', y: '70%', s: 2.5 }, { x: '70%', y: '45%', s: 1 },
+                { x: '25%', y: '80%', s: 1.8 }, { x: '90%', y: '75%', s: 1.2 },
+                { x: '55%', y: '25%', s: 2 }, { x: '10%', y: '55%', s: 1.5 },
+              ].map((star, i) => (
+                <div
+                  key={i}
+                  className="absolute rounded-full bg-primary-400"
+                  style={{
+                    left: star.x,
+                    top: star.y,
+                    width: `${star.s}px`,
+                    height: `${star.s}px`,
+                    boxShadow: `0 0 ${star.s * 2}px rgba(139, 92, 246, 0.5)`,
+                  }}
+                />
+              ))}
+            </div>
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-2">
+                <Stars className="w-5 h-5 text-primary-400" />
+                <h3 className="text-lg font-semibold text-white group-hover:text-primary-300 transition-colors">My Constellation</h3>
+              </div>
+              <p className="text-gray-400 text-sm mb-3">
+                Explore your research universe — see how phenomena connect and discover new fields.
+              </p>
+              <span className="text-primary-400 text-sm flex items-center gap-1 group-hover:gap-2 transition-all">
+                View Map <ArrowRight className="w-4 h-4" />
+              </span>
+            </div>
+          </Link>
+
           {/* Quick Actions */}
           <div className="p-6 bg-gray-900 rounded-xl border border-gray-800">
             <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>

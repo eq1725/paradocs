@@ -15,6 +15,7 @@ import {
   FileText,
   Bookmark,
   Sparkles,
+  Stars,
   CreditCard,
   Settings,
   ChevronLeft,
@@ -55,6 +56,11 @@ const navItems: NavItem[] = [
     href: '/dashboard/saved',
     label: 'Saved Reports',
     icon: Bookmark
+  },
+  {
+    href: '/dashboard/constellation',
+    label: 'My Constellation',
+    icon: Stars
   },
   {
     href: '/dashboard/insights',
