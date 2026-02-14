@@ -74,7 +74,7 @@ export default function ConstellationMap({
     const svg = d3.select(svgRef.current)
     const { width, height } = dimensions
     const isMobile = width < 500
-    const padding = compact ? 30 : isMobile ? 24 : 60
+    const padding = compact ? 30 : isMobile ? 50 : 60
 
     // Clear previous render
     svg.selectAll('*').remove()
@@ -89,7 +89,7 @@ export default function ConstellationMap({
       .attr('width', '200%').attr('height', '200%')
 
     glowFilter.append('feGaussianBlur')
-      .attr('stdDeviation', compact ? 4 : isMobile ? 5 : 8)
+      .attr('stdDeviation', compact ? 4 : isMobile ? 3 : 8)
       .attr('result', 'blur')
 
     glowFilter.append('feMerge')
@@ -276,7 +276,7 @@ export default function ConstellationMap({
     // Outer glow ring (for active stars)
     nodeElements.filter(d => d.isUserInterest)
       .append('circle')
-      .attr('r', compact ? 16 : isMobile ? 18 : 28)
+      .attr('r', compact ? 16 : isMobile ? 14 : 28)
       .attr('fill', d => d.glowColor)
       .attr('opacity', 0.15)
       .attr('filter', 'url(#star-glow)')
@@ -285,7 +285,7 @@ export default function ConstellationMap({
     nodeElements.append('circle')
       .attr('r', d => {
         if (compact) return d.isUserInterest ? 8 : 4
-        if (isMobile) return d.isUserInterest ? 10 : 5
+        if (isMobile) return d.isUserInterest ? 8 : 3
         return d.isUserInterest ? 14 : 8
       })
       .attr('fill', d => d.isUserInterest ? d.glowColor : '#4b5563')
@@ -299,42 +299,50 @@ export default function ConstellationMap({
       .attr('fill', 'white')
       .attr('opacity', 0.9)
 
-    // Icon emoji (full mode only)
+    // Icon emoji and labels (full mode only)
     if (!compact) {
-      nodeElements.append('text')
-        .attr('text-anchor', 'middle')
-        .attr('dy', d => d.isUserInterest
-          ? (isMobile ? -16 : -24)
-          : (isMobile ? -10 : -16))
-        .attr('font-size', d => d.isUserInterest
-          ? (isMobile ? '13px' : '18px')
-          : (isMobile ? '10px' : '14px'))
-        .attr('opacity', d => d.isUserInterest ? 1 : 0.5)
-        .text(d => d.icon)
+      if (isMobile) {
+        // ── Mobile: minimal — small icon above active nodes only, short label below ──
+        const activeNodes = nodeElements.filter(d => d.isUserInterest)
 
-      // Label — truncate long names on mobile to prevent overflow
-      const mobileLabel = (label: string) => {
-        if (!isMobile) return label
-        if (label.length <= 10) return label
-        // Use first word for long multi-word labels
-        const firstWord = label.split(/[\s&]/)[0]
-        return firstWord.length > 10 ? firstWord.slice(0, 9) + '…' : firstWord
-      }
+        activeNodes.append('text')
+          .attr('text-anchor', 'middle')
+          .attr('dy', -14)
+          .attr('font-size', '12px')
+          .text(d => d.icon)
 
-      nodeElements.append('text')
-        .attr('text-anchor', 'middle')
-        .attr('dy', d => d.isUserInterest
-          ? (isMobile ? 20 : 30)
-          : (isMobile ? 14 : 22))
-        .attr('fill', d => d.isUserInterest ? '#e5e7eb' : '#6b7280')
-        .attr('font-size', d => d.isUserInterest
-          ? (isMobile ? '9px' : '12px')
-          : (isMobile ? '7px' : '10px'))
-        .attr('font-weight', d => d.isUserInterest ? '600' : '400')
-        .text(d => mobileLabel(d.label))
+        // Short label — first word only for long names
+        const shortLabel = (label: string) => {
+          if (label.length <= 8) return label
+          return label.split(/[\s&]/)[0]
+        }
 
-      // Report count badge (if stats available) — hide on mobile for less clutter
-      if (!isMobile) {
+        activeNodes.append('text')
+          .attr('text-anchor', 'middle')
+          .attr('dy', 18)
+          .attr('fill', '#e5e7eb')
+          .attr('font-size', '8px')
+          .attr('font-weight', '600')
+          .text(d => shortLabel(d.label))
+
+      } else {
+        // ── Desktop: full icons and labels on all nodes ──
+        nodeElements.append('text')
+          .attr('text-anchor', 'middle')
+          .attr('dy', d => d.isUserInterest ? -24 : -16)
+          .attr('font-size', d => d.isUserInterest ? '18px' : '14px')
+          .attr('opacity', d => d.isUserInterest ? 1 : 0.5)
+          .text(d => d.icon)
+
+        nodeElements.append('text')
+          .attr('text-anchor', 'middle')
+          .attr('dy', d => d.isUserInterest ? 30 : 22)
+          .attr('fill', d => d.isUserInterest ? '#e5e7eb' : '#6b7280')
+          .attr('font-size', d => d.isUserInterest ? '12px' : '10px')
+          .attr('font-weight', d => d.isUserInterest ? '600' : '400')
+          .text(d => d.label)
+
+        // Report count badge
         nodeElements.filter(d => d.reportCount > 0)
           .append('text')
           .attr('text-anchor', 'middle')
@@ -347,8 +355,8 @@ export default function ConstellationMap({
 
     // Pulse animation on active nodes
     if (!compact) {
-      const pulseStart = isMobile ? 10 : 14
-      const pulseEnd = isMobile ? 22 : 35
+      const pulseStart = isMobile ? 8 : 14
+      const pulseEnd = isMobile ? 18 : 35
 
       nodeElements.filter(d => d.isUserInterest)
         .append('circle')
