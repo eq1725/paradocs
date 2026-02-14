@@ -138,9 +138,32 @@ export default function ConstellationPage() {
     <DashboardLayout title="My Constellation">
       <div className="max-w-7xl mx-auto space-y-6">
 
-        {/* Header stats row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {/* Interests count */}
+        {/* Mobile: compact horizontal stat strip */}
+        <div className="flex sm:hidden items-center gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+          <div className="flex items-center gap-1.5 bg-gray-900 border border-gray-800 rounded-full px-3 py-1.5 shrink-0">
+            <Stars className="w-3.5 h-3.5 text-primary-400" />
+            <span className="text-white text-sm font-semibold">{userInterests.length}</span>
+            <span className="text-gray-500 text-xs">interests</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-gray-900 border border-gray-800 rounded-full px-3 py-1.5 shrink-0">
+            <Flame className="w-3.5 h-3.5 text-orange-400" />
+            <span className="text-white text-sm font-semibold">{streak?.current_streak || 0}</span>
+            <span className="text-gray-500 text-xs">day streak</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-gray-900 border border-gray-800 rounded-full px-3 py-1.5 shrink-0">
+            <BookOpen className="w-3.5 h-3.5 text-blue-400" />
+            <span className="text-white text-sm font-semibold">{journalCount}</span>
+            <span className="text-gray-500 text-xs">notes</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-gray-900 border border-gray-800 rounded-full px-3 py-1.5 shrink-0">
+            <TrendingUp className="w-3.5 h-3.5 text-green-400" />
+            <span className="text-white text-sm font-semibold">{stats.reduce((sum, s) => sum + s.trendingCount, 0)}</span>
+            <span className="text-gray-500 text-xs">new</span>
+          </div>
+        </div>
+
+        {/* Desktop: stat cards grid */}
+        <div className="hidden sm:grid grid-cols-4 gap-3">
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
             <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
               <Stars className="w-3.5 h-3.5" />
@@ -149,22 +172,14 @@ export default function ConstellationPage() {
             <div className="text-2xl font-bold text-white">{userInterests.length}</div>
             <div className="text-gray-500 text-xs">of 10 fields</div>
           </div>
-
-          {/* Research streak */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
             <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
               <Flame className="w-3.5 h-3.5 text-orange-400" />
               Research Streak
             </div>
-            <div className="text-2xl font-bold text-white">
-              {streak?.current_streak || 0}
-            </div>
-            <div className="text-gray-500 text-xs">
-              {streak?.current_streak === 1 ? 'day' : 'days'} consecutive
-            </div>
+            <div className="text-2xl font-bold text-white">{streak?.current_streak || 0}</div>
+            <div className="text-gray-500 text-xs">{streak?.current_streak === 1 ? 'day' : 'days'} consecutive</div>
           </div>
-
-          {/* Journal entries */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
             <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
               <BookOpen className="w-3.5 h-3.5 text-blue-400" />
@@ -173,16 +188,12 @@ export default function ConstellationPage() {
             <div className="text-2xl font-bold text-white">{journalCount}</div>
             <div className="text-gray-500 text-xs">research notes</div>
           </div>
-
-          {/* Trending this week */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
             <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
               <TrendingUp className="w-3.5 h-3.5 text-green-400" />
               New This Week
             </div>
-            <div className="text-2xl font-bold text-white">
-              {stats.reduce((sum, s) => sum + s.trendingCount, 0)}
-            </div>
+            <div className="text-2xl font-bold text-white">{stats.reduce((sum, s) => sum + s.trendingCount, 0)}</div>
             <div className="text-gray-500 text-xs">reports added</div>
           </div>
         </div>
@@ -248,11 +259,45 @@ export default function ConstellationPage() {
         {/* Suggested explorations */}
         {suggestions.length > 0 && (
           <div>
-            <h2 className="text-white font-semibold text-lg flex items-center gap-2 mb-4">
+            <h2 className="text-white font-semibold text-lg flex items-center gap-2 mb-3 sm:mb-4">
               <Compass className="w-5 h-5 text-amber-400" />
               Suggested Explorations
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+
+            {/* Mobile: compact list */}
+            <div className="sm:hidden space-y-2">
+              {suggestions.map(suggestion => {
+                const node = getNode(suggestion.category)
+                if (!node) return null
+                return (
+                  <button
+                    key={suggestion.category}
+                    onClick={() => setSelectedCategory(suggestion.category)}
+                    className="w-full flex items-center gap-3 bg-gray-900 border border-gray-800 active:border-primary-500/30 rounded-xl p-3 text-left transition-all"
+                  >
+                    <span className="text-xl shrink-0">{node.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-white font-medium text-sm">{node.label}</div>
+                      <div className="text-gray-500 text-xs truncate">{suggestion.reason}</div>
+                    </div>
+                    <div className="flex gap-0.5 shrink-0">
+                      {[0.3, 0.5, 0.7, 0.9].map((threshold, i) => (
+                        <div
+                          key={i}
+                          className={classNames(
+                            'w-1.5 h-1.5 rounded-full',
+                            suggestion.strength >= threshold ? 'bg-amber-400' : 'bg-gray-800'
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Desktop: card grid */}
+            <div className="hidden sm:grid grid-cols-2 lg:grid-cols-3 gap-4">
               {suggestions.map(suggestion => {
                 const node = getNode(suggestion.category)
                 if (!node) return null
@@ -270,7 +315,6 @@ export default function ConstellationPage() {
                       </div>
                     </div>
                     <p className="text-gray-400 text-sm line-clamp-2">{node.description}</p>
-                    {/* Connection strength indicator */}
                     <div className="flex items-center gap-1.5 mt-3">
                       <span className="text-gray-600 text-xs">Connection:</span>
                       <div className="flex gap-0.5">
@@ -293,12 +337,19 @@ export default function ConstellationPage() {
         )}
 
         {/* How it works */}
-        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
-          <h3 className="text-white font-semibold flex items-center gap-2 mb-3">
+        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 sm:p-6">
+          <h3 className="text-white font-semibold flex items-center gap-2 mb-3 text-sm sm:text-base">
             <Info className="w-4 h-4 text-gray-400" />
             How Your Constellation Works
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+          {/* Mobile: inline compact list */}
+          <div className="sm:hidden space-y-2 text-xs">
+            <p><span className="text-primary-400 font-medium">Bright Stars</span> <span className="text-gray-500">— Fields you follow. Tap to explore.</span></p>
+            <p><span className="text-amber-400 font-medium">Connections</span> <span className="text-gray-500">— Lines show how phenomena relate.</span></p>
+            <p><span className="text-gray-300 font-medium">Dim Stars</span> <span className="text-gray-500">— Unexplored fields. Tap to add.</span></p>
+          </div>
+          {/* Desktop: 3-column grid */}
+          <div className="hidden sm:grid grid-cols-3 gap-4 text-sm">
             <div>
               <p className="text-primary-400 font-medium mb-1">Bright Stars</p>
               <p className="text-gray-400">Fields you&apos;re actively following. Click to see reports, trends, and connections.</p>

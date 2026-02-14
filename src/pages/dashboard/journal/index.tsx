@@ -62,22 +62,31 @@ export default function JournalListPage() {
     <DashboardLayout title="Investigation Journal">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-              <BookOpen className="w-6 h-6 text-blue-400" />
-              Investigation Journal
+        <div className="mb-6">
+          <div className="flex items-center justify-between gap-3 mb-1">
+            <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+              <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400 shrink-0" />
+              <span>Investigation Journal</span>
             </h2>
-            <p className="text-gray-400 text-sm mt-1">
-              {total > 0
-                ? `${total} ${total === 1 ? 'entry' : 'entries'} in your research log`
-                : 'Your personal research notebook'
-              }
-            </p>
+            {/* Desktop button */}
+            <Link
+              href="/dashboard/journal/new"
+              className="hidden sm:flex items-center gap-2 px-4 py-2.5 bg-primary-600 hover:bg-primary-500 text-white rounded-lg font-medium text-sm transition-colors shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              New Entry
+            </Link>
           </div>
+          <p className="text-gray-400 text-sm">
+            {total > 0
+              ? `${total} ${total === 1 ? 'entry' : 'entries'} in your research log`
+              : 'Your personal research notebook'
+            }
+          </p>
+          {/* Mobile: full-width button */}
           <Link
             href="/dashboard/journal/new"
-            className="flex items-center gap-2 px-4 py-2.5 bg-primary-600 hover:bg-primary-500 text-white rounded-lg font-medium text-sm transition-colors shrink-0"
+            className="sm:hidden flex items-center justify-center gap-2 w-full mt-3 px-4 py-3 bg-primary-600 active:bg-primary-500 text-white rounded-xl font-medium text-sm transition-colors"
           >
             <Plus className="w-4 h-4" />
             New Entry
@@ -169,21 +178,21 @@ export default function JournalListPage() {
             )}
           </>
         ) : (
-          <div className="text-center py-16">
-            <BookOpen className="w-16 h-16 text-gray-700 mx-auto mb-4" />
-            <h3 className="text-white text-lg font-semibold mb-2">
+          <div className="text-center py-10 sm:py-16 px-4">
+            <BookOpen className="w-12 h-12 sm:w-16 sm:h-16 text-gray-700 mx-auto mb-3 sm:mb-4" />
+            <h3 className="text-white text-base sm:text-lg font-semibold mb-2">
               {search || typeFilter ? 'No matching entries' : 'Start Your Research Journal'}
             </h3>
-            <p className="text-gray-400 text-sm max-w-md mx-auto mb-6">
+            <p className="text-gray-400 text-xs sm:text-sm max-w-sm mx-auto mb-5 sm:mb-6">
               {search || typeFilter
                 ? 'Try adjusting your search or filters.'
-                : 'Record observations, track hypotheses, document connections between phenomena, and build a personal knowledge base that grows with your research.'
+                : 'Record observations, track hypotheses, and build a personal knowledge base that grows with your research.'
               }
             </p>
             {!search && !typeFilter && (
               <Link
                 href="/dashboard/journal/new"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 hover:bg-primary-500 text-white rounded-lg font-medium transition-colors"
+                className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-3 bg-primary-600 hover:bg-primary-500 active:bg-primary-500 text-white rounded-xl sm:rounded-lg font-medium text-sm transition-colors"
               >
                 <Plus className="w-5 h-5" />
                 Create Your First Entry
