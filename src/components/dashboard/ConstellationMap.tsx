@@ -73,7 +73,8 @@ export default function ConstellationMap({
 
     const svg = d3.select(svgRef.current)
     const { width, height } = dimensions
-    const padding = compact ? 30 : 60
+    const isMobile = width < 500
+    const padding = compact ? 30 : isMobile ? 24 : 60
 
     // Clear previous render
     svg.selectAll('*').remove()
@@ -88,7 +89,7 @@ export default function ConstellationMap({
       .attr('width', '200%').attr('height', '200%')
 
     glowFilter.append('feGaussianBlur')
-      .attr('stdDeviation', compact ? 4 : 8)
+      .attr('stdDeviation', compact ? 4 : isMobile ? 5 : 8)
       .attr('result', 'blur')
 
     glowFilter.append('feMerge')
@@ -120,7 +121,7 @@ export default function ConstellationMap({
       .attr('width', '200%').attr('height', '200%')
 
     hoverGlow.append('feGaussianBlur')
-      .attr('stdDeviation', compact ? 6 : 12)
+      .attr('stdDeviation', compact ? 6 : isMobile ? 8 : 12)
       .attr('result', 'blur')
 
     hoverGlow.append('feMerge')
@@ -209,9 +210,9 @@ export default function ConstellationMap({
       .attr('stroke-width', d => {
         const sourceActive = userInterests.includes(d.source)
         const targetActive = userInterests.includes(d.target)
-        if (sourceActive && targetActive) return compact ? 1.5 : 2
-        if (sourceActive || targetActive) return compact ? 0.8 : 1.2
-        return compact ? 0.3 : 0.5
+        if (sourceActive && targetActive) return compact ? 1.5 : isMobile ? 1.5 : 2
+        if (sourceActive || targetActive) return compact ? 0.8 : isMobile ? 0.8 : 1.2
+        return compact ? 0.3 : isMobile ? 0.3 : 0.5
       })
       .attr('stroke-dasharray', d => {
         const sourceActive = userInterests.includes(d.source)
@@ -245,9 +246,9 @@ export default function ConstellationMap({
           })
           .attr('stroke-width', (e: any) => {
             if (e.source === d.id || e.target === d.id) {
-              return compact ? 2 : 3
+              return compact ? 2 : isMobile ? 2 : 3
             }
-            return compact ? 0.2 : 0.3
+            return compact ? 0.2 : isMobile ? 0.2 : 0.3
           })
       })
       .on('mouseleave', () => {
@@ -266,16 +267,16 @@ export default function ConstellationMap({
           .attr('stroke-width', (d: any) => {
             const sourceActive = userInterests.includes(d.source)
             const targetActive = userInterests.includes(d.target)
-            if (sourceActive && targetActive) return compact ? 1.5 : 2
-            if (sourceActive || targetActive) return compact ? 0.8 : 1.2
-            return compact ? 0.3 : 0.5
+            if (sourceActive && targetActive) return compact ? 1.5 : isMobile ? 1.5 : 2
+            if (sourceActive || targetActive) return compact ? 0.8 : isMobile ? 0.8 : 1.2
+            return compact ? 0.3 : isMobile ? 0.3 : 0.5
           })
       })
 
     // Outer glow ring (for active stars)
     nodeElements.filter(d => d.isUserInterest)
       .append('circle')
-      .attr('r', compact ? 16 : 28)
+      .attr('r', compact ? 16 : isMobile ? 18 : 28)
       .attr('fill', d => d.glowColor)
       .attr('opacity', 0.15)
       .attr('filter', 'url(#star-glow)')
@@ -284,6 +285,7 @@ export default function ConstellationMap({
     nodeElements.append('circle')
       .attr('r', d => {
         if (compact) return d.isUserInterest ? 8 : 4
+        if (isMobile) return d.isUserInterest ? 10 : 5
         return d.isUserInterest ? 14 : 8
       })
       .attr('fill', d => d.isUserInterest ? d.glowColor : '#4b5563')
@@ -293,7 +295,7 @@ export default function ConstellationMap({
     // Inner bright core
     nodeElements.filter(d => d.isUserInterest)
       .append('circle')
-      .attr('r', compact ? 3 : 5)
+      .attr('r', compact ? 3 : isMobile ? 3 : 5)
       .attr('fill', 'white')
       .attr('opacity', 0.9)
 
@@ -301,35 +303,56 @@ export default function ConstellationMap({
     if (!compact) {
       nodeElements.append('text')
         .attr('text-anchor', 'middle')
-        .attr('dy', d => d.isUserInterest ? -24 : -16)
-        .attr('font-size', d => d.isUserInterest ? '18px' : '14px')
+        .attr('dy', d => d.isUserInterest
+          ? (isMobile ? -16 : -24)
+          : (isMobile ? -10 : -16))
+        .attr('font-size', d => d.isUserInterest
+          ? (isMobile ? '13px' : '18px')
+          : (isMobile ? '10px' : '14px'))
         .attr('opacity', d => d.isUserInterest ? 1 : 0.5)
         .text(d => d.icon)
 
-      // Label
+      // Label — truncate long names on mobile to prevent overflow
+      const mobileLabel = (label: string) => {
+        if (!isMobile) return label
+        if (label.length <= 10) return label
+        // Use first word for long multi-word labels
+        const firstWord = label.split(/[\s&]/)[0]
+        return firstWord.length > 10 ? firstWord.slice(0, 9) + '…' : firstWord
+      }
+
       nodeElements.append('text')
         .attr('text-anchor', 'middle')
-        .attr('dy', d => d.isUserInterest ? 30 : 22)
+        .attr('dy', d => d.isUserInterest
+          ? (isMobile ? 20 : 30)
+          : (isMobile ? 14 : 22))
         .attr('fill', d => d.isUserInterest ? '#e5e7eb' : '#6b7280')
-        .attr('font-size', d => d.isUserInterest ? '12px' : '10px')
+        .attr('font-size', d => d.isUserInterest
+          ? (isMobile ? '9px' : '12px')
+          : (isMobile ? '7px' : '10px'))
         .attr('font-weight', d => d.isUserInterest ? '600' : '400')
-        .text(d => d.label)
+        .text(d => mobileLabel(d.label))
 
-      // Report count badge (if stats available)
-      nodeElements.filter(d => d.reportCount > 0)
-        .append('text')
-        .attr('text-anchor', 'middle')
-        .attr('dy', d => d.isUserInterest ? 44 : 36)
-        .attr('fill', '#9ca3af')
-        .attr('font-size', '9px')
-        .text(d => `${d.reportCount} reports`)
+      // Report count badge (if stats available) — hide on mobile for less clutter
+      if (!isMobile) {
+        nodeElements.filter(d => d.reportCount > 0)
+          .append('text')
+          .attr('text-anchor', 'middle')
+          .attr('dy', d => d.isUserInterest ? 44 : 36)
+          .attr('fill', '#9ca3af')
+          .attr('font-size', '9px')
+          .text(d => `${d.reportCount} reports`)
+      }
     }
 
     // Pulse animation on active nodes
     if (!compact) {
+      const pulseStart = isMobile ? 10 : 14
+      const pulseEnd = isMobile ? 22 : 35
+
       nodeElements.filter(d => d.isUserInterest)
         .append('circle')
-        .attr('r', 14)
+        .attr('r', pulseStart)
         .attr('fill', 'none')
         .attr('stroke', d => d.glowColor)
         .attr('stroke-width', 1)
@@ -338,12 +361,12 @@ export default function ConstellationMap({
           const pulse = d3.select(this)
           function doPulse() {
             pulse
-              .attr('r', 14)
+              .attr('r', pulseStart)
               .attr('opacity', 0.6)
               .transition()
               .duration(2000)
               .ease(d3.easeCubicOut)
-              .attr('r', 35)
+              .attr('r', pulseEnd)
               .attr('opacity', 0)
               .on('end', () => {
                 setTimeout(doPulse, 1000 + Math.random() * 3000)
@@ -360,7 +383,7 @@ export default function ConstellationMap({
         svg.append('circle')
           .attr('cx', selectedData.x)
           .attr('cy', selectedData.y)
-          .attr('r', compact ? 20 : 40)
+          .attr('r', compact ? 20 : isMobile ? 25 : 40)
           .attr('fill', 'none')
           .attr('stroke', selectedData.glowColor)
           .attr('stroke-width', 2)
