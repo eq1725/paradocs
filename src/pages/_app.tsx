@@ -22,7 +22,7 @@ export default function App({ Component, pageProps }: AppProps) {
         <meta name="description" content="Explore, analyze, and contribute to the world's largest database of paranormal phenomena. UFO sightings, cryptid encounters, ghost reports, and unexplained events." />
 
         {/* Viewport - viewport-fit=cover for edge-to-edge on iOS */}
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 
         {/* Favicon */}
         <link rel="icon" href="/favicon.ico" />

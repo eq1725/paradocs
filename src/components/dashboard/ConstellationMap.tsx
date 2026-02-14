@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
 import {
   CONSTELLATION_NODES,
@@ -35,6 +35,7 @@ interface D3Edge extends ConstellationEdge {
 
 const BACKGROUND_STARS = generateBackgroundStars(200)
 const COMPACT_BACKGROUND_STARS = generateBackgroundStars(60, 99)
+const MOBILE_BG_STARS = generateBackgroundStars(40, 77)
 
 export default function ConstellationMap({
   userInterests,
@@ -48,6 +49,9 @@ export default function ConstellationMap({
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
   const [hoveredNode, setHoveredNode] = useState<PhenomenonCategory | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
+
+  // Mobile: skip D3 entirely, render native HTML grid
+  const isMobileView = !compact && dimensions.width > 0 && dimensions.width < 500
 
   // Resize observer
   useEffect(() => {
@@ -67,14 +71,14 @@ export default function ConstellationMap({
     return () => observer.disconnect()
   }, [])
 
-  // Build the D3 visualization
+  // Build the D3 visualization (desktop / compact only)
   useEffect(() => {
+    if (isMobileView) return
     if (!svgRef.current || dimensions.width === 0) return
 
     const svg = d3.select(svgRef.current)
     const { width, height } = dimensions
-    const isMobile = width < 500
-    const padding = compact ? 30 : isMobile ? 50 : 60
+    const padding = compact ? 30 : 60
 
     // Clear previous render
     svg.selectAll('*').remove()
@@ -89,7 +93,7 @@ export default function ConstellationMap({
       .attr('width', '200%').attr('height', '200%')
 
     glowFilter.append('feGaussianBlur')
-      .attr('stdDeviation', compact ? 4 : isMobile ? 3 : 8)
+      .attr('stdDeviation', compact ? 4 : 8)
       .attr('result', 'blur')
 
     glowFilter.append('feMerge')
@@ -121,7 +125,7 @@ export default function ConstellationMap({
       .attr('width', '200%').attr('height', '200%')
 
     hoverGlow.append('feGaussianBlur')
-      .attr('stdDeviation', compact ? 6 : isMobile ? 8 : 12)
+      .attr('stdDeviation', compact ? 6 : 12)
       .attr('result', 'blur')
 
     hoverGlow.append('feMerge')
@@ -210,9 +214,9 @@ export default function ConstellationMap({
       .attr('stroke-width', d => {
         const sourceActive = userInterests.includes(d.source)
         const targetActive = userInterests.includes(d.target)
-        if (sourceActive && targetActive) return compact ? 1.5 : isMobile ? 1.5 : 2
-        if (sourceActive || targetActive) return compact ? 0.8 : isMobile ? 0.8 : 1.2
-        return compact ? 0.3 : isMobile ? 0.3 : 0.5
+        if (sourceActive && targetActive) return compact ? 1.5 : 2
+        if (sourceActive || targetActive) return compact ? 0.8 : 1.2
+        return compact ? 0.3 : 0.5
       })
       .attr('stroke-dasharray', d => {
         const sourceActive = userInterests.includes(d.source)
@@ -246,9 +250,9 @@ export default function ConstellationMap({
           })
           .attr('stroke-width', (e: any) => {
             if (e.source === d.id || e.target === d.id) {
-              return compact ? 2 : isMobile ? 2 : 3
+              return compact ? 2 : 3
             }
-            return compact ? 0.2 : isMobile ? 0.2 : 0.3
+            return compact ? 0.2 : 0.3
           })
       })
       .on('mouseleave', () => {
@@ -267,16 +271,16 @@ export default function ConstellationMap({
           .attr('stroke-width', (d: any) => {
             const sourceActive = userInterests.includes(d.source)
             const targetActive = userInterests.includes(d.target)
-            if (sourceActive && targetActive) return compact ? 1.5 : isMobile ? 1.5 : 2
-            if (sourceActive || targetActive) return compact ? 0.8 : isMobile ? 0.8 : 1.2
-            return compact ? 0.3 : isMobile ? 0.3 : 0.5
+            if (sourceActive && targetActive) return compact ? 1.5 : 2
+            if (sourceActive || targetActive) return compact ? 0.8 : 1.2
+            return compact ? 0.3 : 0.5
           })
       })
 
     // Outer glow ring (for active stars)
     nodeElements.filter(d => d.isUserInterest)
       .append('circle')
-      .attr('r', compact ? 16 : isMobile ? 14 : 28)
+      .attr('r', compact ? 16 : 28)
       .attr('fill', d => d.glowColor)
       .attr('opacity', 0.15)
       .attr('filter', 'url(#star-glow)')
@@ -285,7 +289,6 @@ export default function ConstellationMap({
     nodeElements.append('circle')
       .attr('r', d => {
         if (compact) return d.isUserInterest ? 8 : 4
-        if (isMobile) return d.isUserInterest ? 8 : 3
         return d.isUserInterest ? 14 : 8
       })
       .attr('fill', d => d.isUserInterest ? d.glowColor : '#4b5563')
@@ -295,72 +298,42 @@ export default function ConstellationMap({
     // Inner bright core
     nodeElements.filter(d => d.isUserInterest)
       .append('circle')
-      .attr('r', compact ? 3 : isMobile ? 3 : 5)
+      .attr('r', compact ? 3 : 5)
       .attr('fill', 'white')
       .attr('opacity', 0.9)
 
-    // Icon emoji and labels (full mode only)
+    // Icons and labels (full mode only)
     if (!compact) {
-      if (isMobile) {
-        // ── Mobile: minimal — small icon above active nodes only, short label below ──
-        const activeNodes = nodeElements.filter(d => d.isUserInterest)
+      nodeElements.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('dy', d => d.isUserInterest ? -24 : -16)
+        .attr('font-size', d => d.isUserInterest ? '18px' : '14px')
+        .attr('opacity', d => d.isUserInterest ? 1 : 0.5)
+        .text(d => d.icon)
 
-        activeNodes.append('text')
-          .attr('text-anchor', 'middle')
-          .attr('dy', -14)
-          .attr('font-size', '12px')
-          .text(d => d.icon)
+      nodeElements.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('dy', d => d.isUserInterest ? 30 : 22)
+        .attr('fill', d => d.isUserInterest ? '#e5e7eb' : '#6b7280')
+        .attr('font-size', d => d.isUserInterest ? '12px' : '10px')
+        .attr('font-weight', d => d.isUserInterest ? '600' : '400')
+        .text(d => d.label)
 
-        // Short label — first word only for long names
-        const shortLabel = (label: string) => {
-          if (label.length <= 8) return label
-          return label.split(/[\s&]/)[0]
-        }
-
-        activeNodes.append('text')
-          .attr('text-anchor', 'middle')
-          .attr('dy', 18)
-          .attr('fill', '#e5e7eb')
-          .attr('font-size', '8px')
-          .attr('font-weight', '600')
-          .text(d => shortLabel(d.label))
-
-      } else {
-        // ── Desktop: full icons and labels on all nodes ──
-        nodeElements.append('text')
-          .attr('text-anchor', 'middle')
-          .attr('dy', d => d.isUserInterest ? -24 : -16)
-          .attr('font-size', d => d.isUserInterest ? '18px' : '14px')
-          .attr('opacity', d => d.isUserInterest ? 1 : 0.5)
-          .text(d => d.icon)
-
-        nodeElements.append('text')
-          .attr('text-anchor', 'middle')
-          .attr('dy', d => d.isUserInterest ? 30 : 22)
-          .attr('fill', d => d.isUserInterest ? '#e5e7eb' : '#6b7280')
-          .attr('font-size', d => d.isUserInterest ? '12px' : '10px')
-          .attr('font-weight', d => d.isUserInterest ? '600' : '400')
-          .text(d => d.label)
-
-        // Report count badge
-        nodeElements.filter(d => d.reportCount > 0)
-          .append('text')
-          .attr('text-anchor', 'middle')
-          .attr('dy', d => d.isUserInterest ? 44 : 36)
-          .attr('fill', '#9ca3af')
-          .attr('font-size', '9px')
-          .text(d => `${d.reportCount} reports`)
-      }
+      // Report count badge
+      nodeElements.filter(d => d.reportCount > 0)
+        .append('text')
+        .attr('text-anchor', 'middle')
+        .attr('dy', d => d.isUserInterest ? 44 : 36)
+        .attr('fill', '#9ca3af')
+        .attr('font-size', '9px')
+        .text(d => `${d.reportCount} reports`)
     }
 
     // Pulse animation on active nodes
     if (!compact) {
-      const pulseStart = isMobile ? 8 : 14
-      const pulseEnd = isMobile ? 18 : 35
-
       nodeElements.filter(d => d.isUserInterest)
         .append('circle')
-        .attr('r', pulseStart)
+        .attr('r', 14)
         .attr('fill', 'none')
         .attr('stroke', d => d.glowColor)
         .attr('stroke-width', 1)
@@ -369,12 +342,12 @@ export default function ConstellationMap({
           const pulse = d3.select(this)
           function doPulse() {
             pulse
-              .attr('r', pulseStart)
+              .attr('r', 14)
               .attr('opacity', 0.6)
               .transition()
               .duration(2000)
               .ease(d3.easeCubicOut)
-              .attr('r', pulseEnd)
+              .attr('r', 35)
               .attr('opacity', 0)
               .on('end', () => {
                 setTimeout(doPulse, 1000 + Math.random() * 3000)
@@ -391,7 +364,7 @@ export default function ConstellationMap({
         svg.append('circle')
           .attr('cx', selectedData.x)
           .attr('cy', selectedData.y)
-          .attr('r', compact ? 20 : isMobile ? 25 : 40)
+          .attr('r', compact ? 20 : 40)
           .attr('fill', 'none')
           .attr('stroke', selectedData.glowColor)
           .attr('stroke-width', 2)
@@ -424,9 +397,83 @@ export default function ConstellationMap({
       setIsInitialized(true)
     }
 
-  }, [dimensions, userInterests, stats, selectedNode, compact, isInitialized, onNodeClick])
+  }, [dimensions, userInterests, stats, selectedNode, compact, isInitialized, onNodeClick, isMobileView])
 
-  // Hovered node tooltip (outside SVG for better styling)
+  // ═══════════════════════════════════════════════════════
+  // MOBILE: Native HTML grid of tappable star cards
+  // ═══════════════════════════════════════════════════════
+  if (isMobileView) {
+    const statsMap = new Map(stats.map(s => [s.category, s]))
+
+    return (
+      <div ref={containerRef} className="relative w-full h-full">
+        <div className="w-full h-full relative overflow-hidden px-3 py-4">
+          {/* Subtle background stars */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {MOBILE_BG_STARS.map((star, i) => (
+              <div
+                key={i}
+                className="absolute rounded-full bg-white"
+                style={{
+                  left: `${star.x * 100}%`,
+                  top: `${star.y * 100}%`,
+                  width: star.size * 2,
+                  height: star.size * 2,
+                  opacity: star.opacity,
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Star card grid */}
+          <div className="relative z-10 grid grid-cols-3 gap-2.5 h-full content-center">
+            {CONSTELLATION_NODES.map(node => {
+              const isActive = userInterests.includes(node.id)
+              const isSelected = selectedNode === node.id
+
+              return (
+                <button
+                  key={node.id}
+                  onClick={() => onNodeClick?.(node.id)}
+                  className="flex flex-col items-center justify-center rounded-xl py-3 px-1 transition-all active:scale-95"
+                  style={{
+                    background: isActive
+                      ? `radial-gradient(ellipse at center, ${node.glowColor}08 0%, rgba(17,24,39,0.7) 70%)`
+                      : 'rgba(17,24,39,0.3)',
+                    border: isActive
+                      ? `1px solid ${node.glowColor}44`
+                      : '1px solid rgba(55, 65, 81, 0.25)',
+                    boxShadow: isSelected
+                      ? `0 0 0 2px ${node.glowColor}88, 0 0 20px ${node.glowColor}33`
+                      : isActive
+                        ? `0 0 16px ${node.glowColor}18`
+                        : 'none',
+                  }}
+                >
+                  <span
+                    className="text-lg leading-none"
+                    style={{ opacity: isActive ? 1 : 0.3, filter: isActive ? 'none' : 'grayscale(1)' }}
+                  >
+                    {node.icon}
+                  </span>
+                  <span
+                    className="text-[10px] mt-1.5 text-center leading-tight"
+                    style={{ color: isActive ? '#e5e7eb' : '#4b5563', fontWeight: isActive ? 500 : 400 }}
+                  >
+                    {node.label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // DESKTOP / COMPACT: D3 SVG star map
+  // ═══════════════════════════════════════════════════════
   const hoveredData = hoveredNode ? CONSTELLATION_NODES.find(n => n.id === hoveredNode) : null
 
   return (
