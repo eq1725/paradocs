@@ -29,6 +29,10 @@ const CATEGORY_ORDER = [
   'consciousness_practices',
   'psychological_experiences',
   'biological_factors',
+  'perception_sensory',
+  'religion_mythology',
+  'esoteric_practices',
+  'combination',
 ]
 
 export default function PhenomenaPage() {
@@ -256,8 +260,8 @@ function PhenomenonCard({ phenomenon }: { phenomenon: Phenomenon }) {
           <div className="flex items-center justify-between text-xs">
             <span className={classNames(
               'px-2 py-1 rounded-full',
-              config?.bgClass || 'bg-gray-800',
-              config?.textClass || 'text-gray-400'
+              config?.bgColor || 'bg-gray-800',
+              config?.color || 'text-gray-400'
             )}>
               {config?.label}
             </span>

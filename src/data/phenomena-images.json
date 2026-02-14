@@ -49,6 +49,36 @@
       "slug": "poltergeist",
       "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Poltergeist-Enfield-Hodgson.png/440px-Poltergeist-Enfield-Hodgson.png",
       "image_credit": "Enfield Poltergeist photo - Fair use"
+    },
+    {
+      "slug": "crop-circles",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Crop_circles_Swirl.jpg/640px-Crop_circles_Swirl.jpg",
+      "image_credit": "Crop circle aerial photo - CC BY-SA 3.0"
+    },
+    {
+      "slug": "bermuda-triangle",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/Bermuda_Triangle_%28clear%29.png/440px-Bermuda_Triangle_%28clear%29.png",
+      "image_credit": "Bermuda Triangle map - Public Domain"
+    },
+    {
+      "slug": "ball-lightning",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Ball_lightning.png/440px-Ball_lightning.png",
+      "image_credit": "Ball lightning illustration - Public Domain"
+    },
+    {
+      "slug": "near-death-experience",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Hieronymus_Bosch_013.jpg/440px-Hieronymus_Bosch_013.jpg",
+      "image_credit": "Ascent of the Blessed by Hieronymus Bosch - Public Domain"
+    },
+    {
+      "slug": "ouija-board",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/English_ouija_board.jpg/640px-English_ouija_board.jpg",
+      "image_credit": "Ouija board - Public Domain"
+    },
+    {
+      "slug": "stigmata",
+      "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Giotto_-_Legend_of_St_Francis_-_-19-_-_Stigmatization_of_St_Francis.jpg/440px-Giotto_-_Legend_of_St_Francis_-_-19-_-_Stigmatization_of_St_Francis.jpg",
+      "image_credit": "Stigmatization of St Francis by Giotto - Public Domain"
     }
   ],
   "category_defaults": {
@@ -56,6 +86,12 @@
     "ufos_aliens": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/PurportedUFO2.jpg/640px-PurportedUFO2.jpg",
     "ghosts_hauntings": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/A_spectre_is_haunting_Europe_-_the_spectre_of_communism_%28cropped%29.jpg/440px-A_spectre_is_haunting_Europe_-_the_spectre_of_communism_%28cropped%29.jpg",
     "psychic_phenomena": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/ESP_and_Psychic_Powers.jpg/440px-ESP_and_Psychic_Powers.jpg",
-    "psychological_experiences": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Phrenology_by_Robmaurobr.jpg/440px-Phrenology_by_Robmaurobr.jpg"
+    "psychological_experiences": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Phrenology_by_Robmaurobr.jpg/440px-Phrenology_by_Robmaurobr.jpg",
+    "consciousness_practices": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Mandala_gross.jpg/440px-Mandala_gross.jpg",
+    "biological_factors": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Gray728.svg/440px-Gray728.svg.png",
+    "perception_sensory": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/Kanizsa_triangle.svg/440px-Kanizsa_triangle.svg.png",
+    "religion_mythology": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/La_cr%C3%A9ation_de_Adam.jpg/640px-La_cr%C3%A9ation_de_Adam.jpg",
+    "esoteric_practices": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Camille_Flammarion_-_Flammarion.jpg/440px-Camille_Flammarion_-_Flammarion.jpg",
+    "combination": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/Questionmark_encridge.svg/440px-Questionmark_encridge.svg.png"
   }
 }

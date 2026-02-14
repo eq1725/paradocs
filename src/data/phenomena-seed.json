@@ -262,6 +262,42 @@
       "regions": ["Gévaudan", "France"]
     },
     {
+      "name": "Chupacabra",
+      "aliases": ["Goat Sucker"],
+      "category": "cryptids",
+      "icon": "🐐",
+      "brief_description": "Creature reported to attack and drain blood from livestock, particularly goats",
+      "key_characteristics": ["spines on back", "red eyes", "drains blood", "3-4 feet tall"],
+      "regions": ["Puerto Rico", "Mexico", "American Southwest"]
+    },
+    {
+      "name": "Mothman",
+      "aliases": ["Point Pleasant Creature"],
+      "category": "cryptids",
+      "icon": "🦋",
+      "brief_description": "Winged humanoid creature first reported in Point Pleasant, West Virginia in 1966",
+      "key_characteristics": ["7 feet tall", "giant wings", "glowing red eyes", "disaster omen"],
+      "regions": ["Point Pleasant, West Virginia", "Chicago"]
+    },
+    {
+      "name": "Jersey Devil",
+      "aliases": ["Leeds Devil"],
+      "category": "cryptids",
+      "icon": "😈",
+      "brief_description": "Legendary creature said to inhabit the Pine Barrens of New Jersey",
+      "key_characteristics": ["bat wings", "forked tail", "hooves", "kangaroo-like body", "screaming"],
+      "regions": ["Pine Barrens, New Jersey"]
+    },
+    {
+      "name": "Loch Ness Monster",
+      "aliases": ["Nessie", "Loch Ness Creature"],
+      "category": "cryptids",
+      "icon": "🦕",
+      "brief_description": "Large aquatic creature said to inhabit Loch Ness in Scotland",
+      "key_characteristics": ["long neck", "humped back", "plesiosaur-like", "dark colored", "shy"],
+      "regions": ["Loch Ness, Scotland"]
+    },
+    {
       "name": "Black Triangle UFO",
       "aliases": ["TR-3B", "Triangle Craft", "Flying Triangle"],
       "category": "ufos_aliens",
@@ -424,6 +460,15 @@
       "regions": ["Belgium"]
     },
     {
+      "name": "Men in Black",
+      "aliases": ["MIB", "Dark Suited Men"],
+      "category": "ufos_aliens",
+      "icon": "🕴️",
+      "brief_description": "Mysterious figures in black suits who allegedly harass UFO witnesses",
+      "key_characteristics": ["black suits", "pale skin", "odd behavior", "threaten witnesses", "black cars"],
+      "regions": ["Global", "United States"]
+    },
+    {
       "name": "Shadow Person",
       "aliases": ["Shadow Figure", "Shadow Being", "Dark Watcher"],
       "category": "ghosts_hauntings",
@@ -541,22 +586,22 @@
       "regions": ["Global"]
     },
     {
-      "name": "Near-Death Experience",
-      "aliases": ["NDE", "Clinical Death Experience"],
-      "category": "psychological_experiences",
-      "icon": "💫",
-      "brief_description": "Profound experience reported by those who nearly died or were clinically dead",
-      "key_characteristics": ["tunnel of light", "life review", "deceased relatives", "out-of-body", "peace"],
-      "regions": ["Global"]
+      "name": "Phantom Hitchhiker",
+      "aliases": ["Vanishing Hitchhiker", "Ghost Hitchhiker"],
+      "category": "ghosts_hauntings",
+      "icon": "🚗",
+      "brief_description": "Ghostly figure who hitchhikes before mysteriously vanishing from the vehicle",
+      "key_characteristics": ["requests ride", "vanishes from car", "later found to be deceased", "recurring location"],
+      "regions": ["Global", "Resurrection Mary, Chicago"]
     },
     {
-      "name": "Out-of-Body Experience",
-      "aliases": ["OBE", "Astral Projection", "OOBE"],
-      "category": "consciousness_practices",
-      "icon": "🧘",
-      "brief_description": "Experience of consciousness separating from the physical body",
-      "key_characteristics": ["floating sensation", "seeing own body", "silver cord", "vivid awareness"],
-      "regions": ["Global"]
+      "name": "Phantom Ship",
+      "aliases": ["Ghost Ship", "Spectral Vessel"],
+      "category": "ghosts_hauntings",
+      "icon": "⛵",
+      "brief_description": "Ghostly ship seen sailing, often associated with disaster or death",
+      "key_characteristics": ["glowing ship", "appears in storms", "death omen", "famous examples"],
+      "regions": ["Cape of Good Hope", "Great Lakes", "Global"]
     },
     {
       "name": "Remote Viewing",
@@ -604,15 +649,6 @@
       "regions": ["Global", "Strong research in Asia"]
     },
     {
-      "name": "Shared Death Experience",
-      "aliases": ["SDE", "Empathic Death Experience"],
-      "category": "psychological_experiences",
-      "icon": "👥",
-      "brief_description": "Experience where living persons share aspects of a dying person's transition",
-      "key_characteristics": ["shared visions", "mist leaving body", "tunnel experience", "loved ones present"],
-      "regions": ["Global"]
-    },
-    {
       "name": "Crisis Apparition",
       "aliases": ["Death Bed Vision", "Veridical Apparition"],
       "category": "psychic_phenomena",
@@ -631,105 +667,6 @@
       "regions": ["Global"]
     },
     {
-      "name": "Time Slip",
-      "aliases": ["Time Warp", "Temporal Anomaly"],
-      "category": "unexplained",
-      "icon": "⏰",
-      "brief_description": "Experience of briefly traveling to or glimpsing another time period",
-      "key_characteristics": ["past scene witnessed", "disorientation", "different era clothing", "buildings changed"],
-      "regions": ["Bold Street Liverpool", "Versailles", "Global"]
-    },
-    {
-      "name": "Missing Time",
-      "aliases": ["Lost Time", "Time Loss"],
-      "category": "unexplained",
-      "icon": "⌛",
-      "brief_description": "Period of time for which a person has no memory, often associated with UFOs",
-      "key_characteristics": ["gap in memory", "arriving late", "hypnotic recall", "UFO association"],
-      "regions": ["Global"]
-    },
-    {
-      "name": "Glitch in the Matrix",
-      "aliases": ["Reality Glitch", "Simulation Error"],
-      "category": "unexplained",
-      "icon": "🖥️",
-      "brief_description": "Experience suggesting reality is a simulation with occasional errors",
-      "key_characteristics": ["déjà vu", "objects appearing/disappearing", "reality shifts", "impossible events"],
-      "regions": ["Global"]
-    },
-    {
-      "name": "Mandela Effect",
-      "aliases": ["False Memory Effect", "Collective Misremembering"],
-      "category": "unexplained",
-      "icon": "🌀",
-      "brief_description": "Phenomenon where many people share the same false memory",
-      "key_characteristics": ["collective false memory", "brand names", "historical events", "movie quotes"],
-      "regions": ["Global"]
-    },
-    {
-      "name": "Spontaneous Human Combustion",
-      "aliases": ["SHC"],
-      "category": "unexplained",
-      "icon": "🔥",
-      "brief_description": "Alleged phenomenon where a human body ignites without external source",
-      "key_characteristics": ["body burned", "surroundings intact", "no external ignition", "extremities remain"],
-      "regions": ["Global"]
-    },
-    {
-      "name": "Ball Lightning",
-      "aliases": ["Globe Lightning", "Thunderbolt"],
-      "category": "unexplained",
-      "icon": "⚡",
-      "brief_description": "Unexplained atmospheric phenomenon of luminous spherical objects during storms",
-      "key_characteristics": ["glowing sphere", "floats", "passes through objects", "explosive or silent"],
-      "regions": ["Global"]
-    },
-    {
-      "name": "Crop Circles",
-      "aliases": ["Crop Formations", "Agriglyphs"],
-      "category": "unexplained",
-      "icon": "🌾",
-      "brief_description": "Patterns created by flattening crops, often of unknown origin",
-      "key_characteristics": ["geometric patterns", "bent not broken stems", "overnight appearance", "node changes"],
-      "regions": ["Wiltshire, England", "Global"]
-    },
-    {
-      "name": "Cattle Mutilation",
-      "aliases": ["Animal Mutilation", "Livestock Mutilation"],
-      "category": "unexplained",
-      "icon": "🐄",
-      "brief_description": "Unexplained deaths and precise surgical removal of tissue from livestock",
-      "key_characteristics": ["surgical precision", "no blood", "specific organs removed", "no tracks"],
-      "regions": ["American Midwest", "South America", "Global"]
-    },
-    {
-      "name": "Phantom Hitchhiker",
-      "aliases": ["Vanishing Hitchhiker", "Ghost Hitchhiker"],
-      "category": "unexplained",
-      "icon": "🚗",
-      "brief_description": "Ghostly figure who hitchhikes before mysteriously vanishing from the vehicle",
-      "key_characteristics": ["requests ride", "vanishes from car", "later found to be deceased", "recurring location"],
-      "regions": ["Global", "Resurrection Mary, Chicago"]
-    },
-    {
-      "name": "Phantom Ship",
-      "aliases": ["Ghost Ship", "Spectral Vessel"],
-      "category": "unexplained",
-      "icon": "⛵",
-      "brief_description": "Ghostly ship seen sailing, often associated with disaster or death",
-      "key_characteristics": ["glowing ship", "appears in storms", "death omen", "famous examples"],
-      "regions": ["Cape of Good Hope", "Great Lakes", "Global"]
-    },
-    {
-      "name": "Men in Black",
-      "aliases": ["MIB", "Dark Suited Men"],
-      "category": "ufos_aliens",
-      "icon": "🕴️",
-      "brief_description": "Mysterious figures in black suits who allegedly harass UFO witnesses",
-      "key_characteristics": ["black suits", "pale skin", "odd behavior", "threaten witnesses", "black cars"],
-      "regions": ["Global", "United States"]
-    },
-    {
       "name": "Tulpa",
       "aliases": ["Thoughtform", "Egregore"],
       "category": "psychic_phenomena",
@@ -737,6 +674,24 @@
       "brief_description": "Entity created through focused thought and meditation",
       "key_characteristics": ["created by mind", "gains independence", "Tibetan Buddhism origin", "Philip experiment"],
       "regions": ["Tibet", "Global"]
+    },
+    {
+      "name": "Near-Death Experience",
+      "aliases": ["NDE", "Clinical Death Experience"],
+      "category": "psychological_experiences",
+      "icon": "💫",
+      "brief_description": "Profound experience reported by those who nearly died or were clinically dead",
+      "key_characteristics": ["tunnel of light", "life review", "deceased relatives", "out-of-body", "peace"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Shared Death Experience",
+      "aliases": ["SDE", "Empathic Death Experience"],
+      "category": "psychological_experiences",
+      "icon": "👥",
+      "brief_description": "Experience where living persons share aspects of a dying person's transition",
+      "key_characteristics": ["shared visions", "mist leaving body", "tunnel experience", "loved ones present"],
+      "regions": ["Global"]
     },
     {
       "name": "Sleep Paralysis",
@@ -748,9 +703,81 @@
       "regions": ["Global"]
     },
     {
+      "name": "Time Slip",
+      "aliases": ["Time Warp", "Temporal Anomaly"],
+      "category": "perception_sensory",
+      "icon": "⏰",
+      "brief_description": "Experience of briefly traveling to or glimpsing another time period",
+      "key_characteristics": ["past scene witnessed", "disorientation", "different era clothing", "buildings changed"],
+      "regions": ["Bold Street Liverpool", "Versailles", "Global"]
+    },
+    {
+      "name": "Missing Time",
+      "aliases": ["Lost Time", "Time Loss"],
+      "category": "psychological_experiences",
+      "icon": "⌛",
+      "brief_description": "Period of time for which a person has no memory, often associated with UFOs",
+      "key_characteristics": ["gap in memory", "arriving late", "hypnotic recall", "UFO association"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Glitch in the Matrix",
+      "aliases": ["Reality Glitch", "Simulation Error"],
+      "category": "psychological_experiences",
+      "icon": "🖥️",
+      "brief_description": "Experience suggesting reality is a simulation with occasional errors",
+      "key_characteristics": ["déjà vu", "objects appearing/disappearing", "reality shifts", "impossible events"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Mandela Effect",
+      "aliases": ["False Memory Effect", "Collective Misremembering"],
+      "category": "psychological_experiences",
+      "icon": "🌀",
+      "brief_description": "Phenomenon where many people share the same false memory",
+      "key_characteristics": ["collective false memory", "brand names", "historical events", "movie quotes"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Spontaneous Human Combustion",
+      "aliases": ["SHC"],
+      "category": "biological_factors",
+      "icon": "🔥",
+      "brief_description": "Alleged phenomenon where a human body ignites without external source",
+      "key_characteristics": ["body burned", "surroundings intact", "no external ignition", "extremities remain"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Ball Lightning",
+      "aliases": ["Globe Lightning", "Thunderbolt"],
+      "category": "perception_sensory",
+      "icon": "⚡",
+      "brief_description": "Unexplained atmospheric phenomenon of luminous spherical objects during storms",
+      "key_characteristics": ["glowing sphere", "floats", "passes through objects", "explosive or silent"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Crop Circles",
+      "aliases": ["Crop Formations", "Agriglyphs"],
+      "category": "combination",
+      "icon": "🌾",
+      "brief_description": "Patterns created by flattening crops, often of unknown origin",
+      "key_characteristics": ["geometric patterns", "bent not broken stems", "overnight appearance", "node changes"],
+      "regions": ["Wiltshire, England", "Global"]
+    },
+    {
+      "name": "Cattle Mutilation",
+      "aliases": ["Animal Mutilation", "Livestock Mutilation"],
+      "category": "combination",
+      "icon": "🐄",
+      "brief_description": "Unexplained deaths and precise surgical removal of tissue from livestock",
+      "key_characteristics": ["surgical precision", "no blood", "specific organs removed", "no tracks"],
+      "regions": ["American Midwest", "South America", "Global"]
+    },
+    {
       "name": "Skinwalker Ranch",
       "aliases": ["Sherman Ranch", "UFO Ranch"],
-      "category": "unexplained",
+      "category": "combination",
       "icon": "🏚️",
       "brief_description": "Utah property known for numerous paranormal phenomena reports",
       "key_characteristics": ["UFOs", "cattle mutilations", "poltergeist activity", "cryptid sightings", "portal"],
@@ -759,47 +786,506 @@
     {
       "name": "Bermuda Triangle",
       "aliases": ["Devil's Triangle"],
-      "category": "unexplained",
+      "category": "combination",
       "icon": "🔻",
       "brief_description": "Region in the Atlantic where ships and aircraft allegedly disappear mysteriously",
       "key_characteristics": ["disappearances", "compass anomalies", "time distortion", "electronic fog"],
       "regions": ["Atlantic Ocean", "Miami-Bermuda-Puerto Rico"]
     },
     {
-      "name": "Chupacabra",
-      "aliases": ["Goat Sucker"],
-      "category": "cryptids",
-      "icon": "🐐",
-      "brief_description": "Creature reported to attack and drain blood from livestock, particularly goats",
-      "key_characteristics": ["spines on back", "red eyes", "drains blood", "3-4 feet tall"],
-      "regions": ["Puerto Rico", "Mexico", "American Southwest"]
+      "name": "Out-of-Body Experience",
+      "aliases": ["OBE", "Astral Projection", "OOBE"],
+      "category": "consciousness_practices",
+      "icon": "🧘",
+      "brief_description": "Experience of consciousness separating from the physical body",
+      "key_characteristics": ["floating sensation", "seeing own body", "silver cord", "vivid awareness"],
+      "regions": ["Global"]
     },
     {
-      "name": "Mothman",
-      "aliases": ["Point Pleasant Creature"],
-      "category": "cryptids",
-      "icon": "🦋",
-      "brief_description": "Winged humanoid creature first reported in Point Pleasant, West Virginia in 1966",
-      "key_characteristics": ["7 feet tall", "giant wings", "glowing red eyes", "disaster omen"],
-      "regions": ["Point Pleasant, West Virginia", "Chicago"]
+      "name": "Infrasound Effects",
+      "aliases": ["Subsonic Frequency", "Low Frequency Sound"],
+      "category": "biological_factors",
+      "icon": "🔊",
+      "brief_description": "Physiological effects of sound frequencies below human hearing range",
+      "key_characteristics": ["below 20Hz frequency", "chest vibrations", "anxiety response", "shivers and chills"],
+      "regions": ["Global", "Industrial areas", "Concert venues"]
     },
     {
-      "name": "Jersey Devil",
-      "aliases": ["Leeds Devil"],
-      "category": "cryptids",
-      "icon": "😈",
-      "brief_description": "Legendary creature said to inhabit the Pine Barrens of New Jersey",
-      "key_characteristics": ["bat wings", "forked tail", "hooves", "kangaroo-like body", "screaming"],
-      "regions": ["Pine Barrens, New Jersey"]
+      "name": "Electromagnetic Hypersensitivity",
+      "aliases": ["EHS", "Microwave Sickness"],
+      "category": "biological_factors",
+      "icon": "⚡",
+      "brief_description": "Alleged sensitivity to electromagnetic fields causing various symptoms",
+      "key_characteristics": ["reported near power lines", "headaches and fatigue", "burning sensations", "neurological effects"],
+      "regions": ["Global", "Urban areas"]
     },
     {
-      "name": "Loch Ness Monster",
-      "aliases": ["Nessie", "Loch Ness Creature"],
-      "category": "cryptids",
-      "icon": "🦕",
-      "brief_description": "Large aquatic creature said to inhabit Loch Ness in Scotland",
-      "key_characteristics": ["long neck", "humped back", "plesiosaur-like", "dark colored", "shy"],
-      "regions": ["Loch Ness, Scotland"]
+      "name": "Temporal Lobe Epilepsy",
+      "aliases": ["TLE", "Complex Partial Seizures"],
+      "category": "biological_factors",
+      "icon": "🧠",
+      "brief_description": "Neurological condition that can produce vivid visions and spiritual experiences",
+      "key_characteristics": ["seizures in temporal lobe", "mystical visions", "out-of-body sensations", "paranormal feelings"],
+      "regions": ["Global", "Medical research"]
+    },
+    {
+      "name": "Endogenous DMT Theory",
+      "aliases": ["Spirit Molecule", "DMT Hypothesis"],
+      "category": "biological_factors",
+      "icon": "🌈",
+      "brief_description": "Theory that the brain produces DMT naturally, causing paranormal experiences",
+      "key_characteristics": ["pineal gland secretion", "near-death visions", "psychedelic experiences", "entity encounters"],
+      "regions": ["Global", "Neuroscience research"]
+    },
+    {
+      "name": "Carbon Monoxide Poisoning",
+      "aliases": ["CO Poisoning"],
+      "category": "biological_factors",
+      "icon": "☠️",
+      "brief_description": "Toxic gas exposure causing hallucinations often mistaken for hauntings",
+      "key_characteristics": ["invisible gas", "produces hallucinations", "dizziness and confusion", "mimics ghost encounters"],
+      "regions": ["Global", "Homes with faulty furnaces"]
+    },
+    {
+      "name": "Narcolepsy",
+      "aliases": ["Narcolepsy with Cataplexy"],
+      "category": "biological_factors",
+      "icon": "😴",
+      "brief_description": "Sleep disorder causing sudden daytime sleep and hallucinations",
+      "key_characteristics": ["sudden sleep attacks", "sleep paralysis", "hypnagogic hallucinations", "entity visions"],
+      "regions": ["Global", "Medical diagnosis"]
+    },
+    {
+      "name": "Charles Bonnet Syndrome",
+      "aliases": ["CBS"],
+      "category": "biological_factors",
+      "icon": "👁️",
+      "brief_description": "Condition where visual loss causes complex hallucinations",
+      "key_characteristics": ["loss of eyesight", "vivid hallucinations", "geometric patterns", "ghost sightings"],
+      "regions": ["Global", "Among visually impaired"]
+    },
+    {
+      "name": "Migraine Aura",
+      "aliases": ["Visual Migraine"],
+      "category": "biological_factors",
+      "icon": "💥",
+      "brief_description": "Visual disturbances preceding migraine headaches",
+      "key_characteristics": ["flashing lights", "zigzag patterns", "tunnel vision", "scotomas (blind spots)"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Hypoxia-induced Hallucinations",
+      "aliases": ["Oxygen Deprivation Hallucinations"],
+      "category": "biological_factors",
+      "icon": "🌫️",
+      "brief_description": "Hallucinations caused by low oxygen levels in the brain",
+      "key_characteristics": ["confusion", "visions of light", "tunnel effect", "celestial beings", "euphoria"],
+      "regions": ["Global", "High altitude areas"]
+    },
+    {
+      "name": "Tinnitus",
+      "aliases": ["Ringing in Ears", "Unexplained Sounds"],
+      "category": "biological_factors",
+      "icon": "👂",
+      "brief_description": "Perception of sound in the absence of external noise",
+      "key_characteristics": ["constant ringing", "buzzing or hissing", "causes of paranormal sounds", "frequency variations"],
+      "regions": ["Global", "Estimated 50 million affected"]
+    },
+    {
+      "name": "Pareidolia",
+      "aliases": ["Pattern Recognition Error"],
+      "category": "perception_sensory",
+      "icon": "👤",
+      "brief_description": "Tendency to perceive familiar patterns in random stimuli",
+      "key_characteristics": ["faces in shadows", "figures in clouds", "ghost sightings", "misinterpretation"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Apophenia",
+      "aliases": ["Pattern Seeking", "Meaningful Coincidence"],
+      "category": "perception_sensory",
+      "icon": "🔗",
+      "brief_description": "Human tendency to see connections between unrelated events",
+      "key_characteristics": ["pattern finding", "conspiracy thinking", "synchronicity belief", "meaningful coincidence"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Hypnagogia",
+      "aliases": ["Hypnagogic State", "Border of Sleep"],
+      "category": "perception_sensory",
+      "icon": "🌙",
+      "brief_description": "Transitional state between wakefulness and sleep with vivid experiences",
+      "key_characteristics": ["sleep paralysis", "hallucinations", "entity encounters", "vibrations and sounds"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Sensory Deprivation Effects",
+      "aliases": ["Isolation Tank Hallucinations"],
+      "category": "perception_sensory",
+      "icon": "🫧",
+      "brief_description": "Hallucinations and perceptual anomalies from sensory isolation",
+      "key_characteristics": ["visual hallucinations", "entity visions", "altered consciousness", "out-of-body sensations"],
+      "regions": ["Global", "Isolation tanks and caves"]
+    },
+    {
+      "name": "Ganzfeld Effect",
+      "aliases": ["Sensory Flooding"],
+      "category": "perception_sensory",
+      "icon": "⚪",
+      "brief_description": "Altered perception from uniform sensory stimulation",
+      "key_characteristics": ["uniform visual field", "tunnel vision", "hallucinations", "dissociative state"],
+      "regions": ["Global", "Research labs"]
+    },
+    {
+      "name": "Ideomotor Effect",
+      "aliases": ["Facilitated Communication"],
+      "category": "perception_sensory",
+      "icon": "💫",
+      "brief_description": "Involuntary movements made without conscious intention",
+      "key_characteristics": ["ouija board movement", "pendulum divination", "automatic responses", "self-deception"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Visual Snow Syndrome",
+      "aliases": ["Persistent Visual Snow", "VBS"],
+      "category": "perception_sensory",
+      "icon": "❄️",
+      "brief_description": "Visual phenomenon resembling television static covering entire visual field",
+      "key_characteristics": ["constant snow-like pattern", "complimentary floaters", "light sensitivity", "eye floaters"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Phantom Sounds",
+      "aliases": ["Auditory Phantoms", "Hearing Voices"],
+      "category": "perception_sensory",
+      "icon": "🎵",
+      "brief_description": "Unexplained sounds or voices perceived without external source",
+      "key_characteristics": ["music or voices", "environmental sounds", "whispers", "paranormal audio"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Angels",
+      "aliases": ["Celestial Beings", "Divine Messengers"],
+      "category": "religion_mythology",
+      "icon": "😇",
+      "brief_description": "Spiritual beings reported in religious traditions and personal encounters",
+      "key_characteristics": ["luminous presence", "wings", "divine messages", "protective entities"],
+      "regions": ["Global", "Abrahamic religions"]
+    },
+    {
+      "name": "Djinn",
+      "aliases": ["Jinn", "Genie"],
+      "category": "religion_mythology",
+      "icon": "🌪️",
+      "brief_description": "Supernatural beings from Islamic and Arabian mythology",
+      "key_characteristics": ["shape-shifters", "created from fire", "intelligent beings", "can be good or evil"],
+      "regions": ["Middle East", "Islamic cultures", "Global"]
+    },
+    {
+      "name": "Fairies and Fae Folk",
+      "aliases": ["The Sidhe", "Fairy Folk", "Wee Folk"],
+      "category": "religion_mythology",
+      "icon": "🧚",
+      "brief_description": "Supernatural creatures from European folklore and mythology",
+      "key_characteristics": ["small humanoids", "magical abilities", "mischievous nature", "interdimensional beings"],
+      "regions": ["Britain", "Ireland", "Europe", "Celtic cultures"]
+    },
+    {
+      "name": "Marian Apparitions",
+      "aliases": ["Virgin Mary Sightings", "Marian Visions"],
+      "category": "religion_mythology",
+      "icon": "👩",
+      "brief_description": "Reported sightings and encounters with the Virgin Mary",
+      "key_characteristics": ["luminous figure", "divine messages", "miraculous healing", "historical sites"],
+      "regions": ["Fatima Portugal", "Lourdes France", "Global"]
+    },
+    {
+      "name": "Stigmata",
+      "aliases": ["Wounds of Christ"],
+      "category": "religion_mythology",
+      "icon": "🩸",
+      "brief_description": "Spontaneous appearance of Christ's wounds on the body of believers",
+      "key_characteristics": ["bleeding palms and feet", "crown of thorns marks", "religious ecstasy", "spontaneous origin"],
+      "regions": ["Global", "Catholic tradition"]
+    },
+    {
+      "name": "Demonic Possession",
+      "aliases": ["Spirit Possession", "Devil Possession"],
+      "category": "religion_mythology",
+      "icon": "👹",
+      "brief_description": "Belief that evil spirits or demons inhabit and control the human body",
+      "key_characteristics": ["personality change", "speaking in unknown languages", "superhuman strength", "religious exorcism"],
+      "regions": ["Global", "Religious traditions"]
+    },
+    {
+      "name": "Miracles",
+      "aliases": ["Weeping Statues", "Divine Intervention"],
+      "category": "religion_mythology",
+      "icon": "✨",
+      "brief_description": "Events attributed to divine intervention defying natural law",
+      "key_characteristics": ["weeping statues", "water to wine", "spontaneous healing", "unexplained phenomena"],
+      "regions": ["Global", "Religious sites"]
+    },
+    {
+      "name": "Incorruptible Saints",
+      "aliases": ["Uncorrupted Bodies", "Sacred Remains"],
+      "category": "religion_mythology",
+      "icon": "⚰️",
+      "brief_description": "Bodies of saints that allegedly do not decompose naturally",
+      "key_characteristics": ["preserved bodies", "no decay smell", "centuries unchanged", "religious significance"],
+      "regions": ["Europe", "Catholic tradition", "Religious sites"]
+    },
+    {
+      "name": "Resurrection Appearances",
+      "aliases": ["Post-Mortem Visions"],
+      "category": "religion_mythology",
+      "icon": "🙏",
+      "brief_description": "Encounters with deceased individuals after their death",
+      "key_characteristics": ["appearance to loved ones", "physical manifestation", "spiritual messages", "biblical accounts"],
+      "regions": ["Global", "Religious tradition"]
+    },
+    {
+      "name": "Voodoo and Spiritual Practices",
+      "aliases": ["Hoodoo", "Obeah"],
+      "category": "religion_mythology",
+      "icon": "🕯️",
+      "brief_description": "African-derived spiritual practices involving supernatural elements",
+      "key_characteristics": ["spirit communication", "magical rituals", "ancestral worship", "mystical practices"],
+      "regions": ["Haiti", "New Orleans", "Africa", "Caribbean"]
+    },
+    {
+      "name": "Astral Projection",
+      "aliases": ["Astral Travel", "Out-of-Body Travel"],
+      "category": "esoteric_practices",
+      "icon": "🌟",
+      "brief_description": "Deliberate practice of separating consciousness from the body",
+      "key_characteristics": ["vibration state", "silver cord", "parallel dimensions", "controlled exploration"],
+      "regions": ["Global", "Esoteric traditions"]
+    },
+    {
+      "name": "Tarot and Divination",
+      "aliases": ["Tarot Reading", "Card Divination"],
+      "category": "esoteric_practices",
+      "icon": "🃏",
+      "brief_description": "Practice of using cards to divine future events and spiritual insights",
+      "key_characteristics": ["78 cards", "symbolic meanings", "spreads and layouts", "intuitive interpretation"],
+      "regions": ["Global", "Western esotericism"]
+    },
+    {
+      "name": "Scrying and Crystal Gazing",
+      "aliases": ["Scrying", "Mirror Gazing"],
+      "category": "esoteric_practices",
+      "icon": "🔮",
+      "brief_description": "Practice of gazing into reflective surfaces to receive visions",
+      "key_characteristics": ["crystal ball", "water gazing", "mirror scrying", "trance-like state"],
+      "regions": ["Global", "Esoteric traditions"]
+    },
+    {
+      "name": "Séances and Mediumship",
+      "aliases": ["Spirit Communication", "Channeling"],
+      "category": "esoteric_practices",
+      "icon": "👻",
+      "brief_description": "Gatherings to contact spirits and receive messages from the deceased",
+      "key_characteristics": ["table tipping", "automatic writing", "trance channeling", "spirit messages"],
+      "regions": ["Global", "Victorian tradition"]
+    },
+    {
+      "name": "Dowsing",
+      "aliases": ["Water Witching", "Divining Rod"],
+      "category": "esoteric_practices",
+      "icon": "🌿",
+      "brief_description": "Practice of using divining rods to locate hidden substances or water",
+      "key_characteristics": ["dowsing rod", "bent wire", "water location", "mineral detection"],
+      "regions": ["Global", "Ancient practice"]
+    },
+    {
+      "name": "Ley Lines",
+      "aliases": ["Dragon Lines", "Earth Energy Lines"],
+      "category": "esoteric_practices",
+      "icon": "🗺️",
+      "brief_description": "Hypothetical lines of mystical energy connecting sacred sites",
+      "key_characteristics": ["geometric patterns", "stone circles", "UFO sightings", "energy vortexes"],
+      "regions": ["Global", "Earth mysteries"]
+    },
+    {
+      "name": "Aura Reading",
+      "aliases": ["Aura Interpretation", "Energy Field Reading"],
+      "category": "esoteric_practices",
+      "icon": "🌈",
+      "brief_description": "Claimed ability to perceive and interpret energetic fields around bodies",
+      "key_characteristics": ["colored light fields", "health indicators", "emotional states", "spiritual development"],
+      "regions": ["Global", "New Age practices"]
+    },
+    {
+      "name": "Ouija Board",
+      "aliases": ["Spiritualist Board", "Talking Board"],
+      "category": "esoteric_practices",
+      "icon": "📋",
+      "brief_description": "Board game designed to facilitate communication with spirits",
+      "key_characteristics": ["letters and numbers", "planchette movement", "spirit contact", "paranormal claims"],
+      "regions": ["Global", "Popular culture"]
+    },
+    {
+      "name": "Pendulum Divination",
+      "aliases": ["Pendulum Reading"],
+      "category": "esoteric_practices",
+      "icon": "🔗",
+      "brief_description": "Use of a hanging weight to answer yes/no questions and divine information",
+      "key_characteristics": ["swinging motion", "pendulum reactions", "intuitive messages", "guidance seeking"],
+      "regions": ["Global", "Esoteric practice"]
+    },
+    {
+      "name": "Akashic Records",
+      "aliases": ["Cosmic Memory", "Universal Database"],
+      "category": "esoteric_practices",
+      "icon": "📚",
+      "brief_description": "Esoteric belief in a cosmic record of all events and knowledge",
+      "key_characteristics": ["universal memory", "past life access", "spiritual knowledge", "mystical access"],
+      "regions": ["Global", "Theosophy"]
+    },
+    {
+      "name": "Lucid Dreaming",
+      "aliases": ["Conscious Dreaming"],
+      "category": "consciousness_practices",
+      "icon": "💤",
+      "brief_description": "State of being aware of and controlling one's dream state",
+      "key_characteristics": ["dream awareness", "reality checks", "controlled actions", "vivid exploration"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Shamanic Journeying",
+      "aliases": ["Shamanism", "Spirit Journey"],
+      "category": "consciousness_practices",
+      "icon": "🥁",
+      "brief_description": "Spiritual practice of entering altered states to communicate with spirit realms",
+      "key_characteristics": ["drumming", "trance state", "spirit guides", "healing rituals"],
+      "regions": ["Global", "Indigenous traditions"]
+    },
+    {
+      "name": "Holotropic Breathwork",
+      "aliases": ["Conscious Breathing"],
+      "category": "consciousness_practices",
+      "icon": "💨",
+      "brief_description": "Breathing technique designed to induce altered states of consciousness",
+      "key_characteristics": ["rapid breathing", "music guidance", "emotional release", "spiritual experiences"],
+      "regions": ["Global", "Modern practice"]
+    },
+    {
+      "name": "Float Tank Experiences",
+      "aliases": ["Isolation Tank", "Sensory Deprivation"],
+      "category": "consciousness_practices",
+      "icon": "💧",
+      "brief_description": "Altered consciousness achieved through sensory isolation in salt water tanks",
+      "key_characteristics": ["weightlessness", "visual hallucinations", "deep meditation", "mystical experiences"],
+      "regions": ["Global", "Modern wellness"]
+    },
+    {
+      "name": "Meditation-induced Visions",
+      "aliases": ["Meditation Visions"],
+      "category": "consciousness_practices",
+      "icon": "🧘",
+      "brief_description": "Spiritual experiences and visions arising from deep meditative states",
+      "key_characteristics": ["inner light", "entity encounters", "divine beings", "spiritual insights"],
+      "regions": ["Global", "Eastern traditions"]
+    },
+    {
+      "name": "Psychedelic Experiences",
+      "aliases": ["Psychedelic Visions"],
+      "category": "consciousness_practices",
+      "icon": "🌈",
+      "brief_description": "Altered consciousness states induced by psychedelic substances",
+      "key_characteristics": ["visual distortions", "entity encounters", "mystical experiences", "dimensional shifts"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Hypnotic Regression",
+      "aliases": ["Hypnosis Regression", "Past Life Regression"],
+      "category": "consciousness_practices",
+      "icon": "🕳️",
+      "brief_description": "Hypnotic technique to access memories and experiences",
+      "key_characteristics": ["deep hypnosis", "past life memories", "childhood memories", "alien abduction recall"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Binaural Beat Effects",
+      "aliases": ["Brain Wave Entrainment"],
+      "category": "consciousness_practices",
+      "icon": "🎧",
+      "brief_description": "Auditory illusion and neurological response to frequency differences",
+      "key_characteristics": ["frequency following", "brainwave synchronization", "altered consciousness", "meditation aid"],
+      "regions": ["Global", "Modern wellness"]
+    },
+    {
+      "name": "Déjà Vu",
+      "aliases": ["Already Seen", "False Familiarity"],
+      "category": "psychological_experiences",
+      "icon": "🔄",
+      "brief_description": "Sensation of having experienced a current situation before",
+      "key_characteristics": ["false familiarity", "brief duration", "temporal shift feeling", "memory glitch"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Jamais Vu",
+      "aliases": ["Never Seen", "Inverse Déjà Vu"],
+      "category": "psychological_experiences",
+      "icon": "❓",
+      "brief_description": "Sensation of unfamiliarity with a situation that should be known",
+      "key_characteristics": ["strange familiarity loss", "word alienation", "disorientation", "memory disruption"],
+      "regions": ["Global"]
+    },
+    {
+      "name": "Depersonalization/Derealization",
+      "aliases": ["DPDR", "Detachment Disorder"],
+      "category": "psychological_experiences",
+      "icon": "👽",
+      "brief_description": "Dissociative state where person feels detached from body or reality",
+      "key_characteristics": ["observer perspective", "reality feels unreal", "emotional numbness", "dream-like state"],
+      "regions": ["Global", "Anxiety condition"]
+    },
+    {
+      "name": "Dissociative Fugue",
+      "aliases": ["Fugue State", "Fugue Amnesia"],
+      "category": "psychological_experiences",
+      "icon": "🚗",
+      "brief_description": "Dissociative state involving travel and loss of identity",
+      "key_characteristics": ["memory loss", "assumption of new identity", "travel during fugue", "recovery confusion"],
+      "regions": ["Global", "Psychiatric condition"]
+    },
+    {
+      "name": "Cotard Delusion",
+      "aliases": ["Cotard's Delusion", "Walking Corpse Syndrome"],
+      "category": "psychological_experiences",
+      "icon": "☠️",
+      "brief_description": "Delusional belief that one is dead or decomposing",
+      "key_characteristics": ["belief one is dead", "living corpse sensation", "self-mutilation risk", "rare condition"],
+      "regions": ["Global", "Psychiatric disorder"]
+    },
+    {
+      "name": "Capgras Syndrome",
+      "aliases": ["Capgras Delusion"],
+      "category": "psychological_experiences",
+      "icon": "👤",
+      "brief_description": "Delusional belief that a loved one has been replaced by an impostor",
+      "key_characteristics": ["identity replacement belief", "duplicate persons", "logical contradictions", "emotional incongruence"],
+      "regions": ["Global", "Psychiatric disorder"]
+    },
+    {
+      "name": "Alice in Wonderland Syndrome",
+      "aliases": ["AIWS", "Todd's Syndrome"],
+      "category": "psychological_experiences",
+      "icon": "📏",
+      "brief_description": "Neurological condition causing distorted perception of body size and space",
+      "key_characteristics": ["body size distortion", "spatial disorientation", "migraine association", "surreal experiences"],
+      "regions": ["Global", "Rare condition"]
+    },
+    {
+      "name": "Folie à Deux",
+      "aliases": ["Shared Psychotic Disorder"],
+      "category": "psychological_experiences",
+      "icon": "👯",
+      "brief_description": "Psychiatric condition where delusional beliefs are transmitted between individuals",
+      "key_characteristics": ["shared delusions", "two people affected", "transmission of ideas", "separation resolves"],
+      "regions": ["Global", "Psychological disorder"]
     }
   ]
 }

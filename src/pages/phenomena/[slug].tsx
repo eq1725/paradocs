@@ -165,8 +165,8 @@ export default function PhenomenonPage() {
                 <div className="flex items-center gap-3 mb-2">
                   <span className={classNames(
                     'px-3 py-1 rounded-full text-xs sm:text-sm',
-                    config?.bgClass || 'bg-gray-800',
-                    config?.textClass || 'text-gray-400'
+                    config?.bgColor || 'bg-gray-800',
+                    config?.color || 'text-gray-400'
                   )}>
                     {config?.label}
                   </span>
@@ -420,7 +420,7 @@ export default function PhenomenonPage() {
                           <span>{report.location_name || report.country || 'Unknown'}</span>
                           <div className="flex items-center gap-3">
                             {credConfig && (
-                              <span className={credConfig.textClass}>{credConfig.label}</span>
+                              <span className={credConfig.color}>{credConfig.label}</span>
                             )}
                             <span className="flex items-center gap-1">
                               <Eye className="w-3 h-3" />
