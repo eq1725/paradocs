@@ -1,7 +1,8 @@
 /**
  * Dashboard Overview Page
  *
- * Main dashboard showing user stats, usage, and quick actions.
+ * Engagement-focused dashboard: streak & CTA up top, smart stats,
+ * recent activity, and sidebar with constellation + quick actions.
  */
 
 import React, { useEffect, useState } from 'react'
@@ -18,7 +19,8 @@ import {
   ArrowRight,
   Sparkles,
   BarChart3,
-  Stars
+  Stars,
+  Plus,
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { UsageMeter } from '@/components/dashboard/UsageMeter'
@@ -73,45 +75,6 @@ interface DashboardStats {
   }>
 }
 
-function StatCard({
-  label,
-  value,
-  icon: Icon,
-  trend,
-  href
-}: {
-  label: string
-  value: number | string
-  icon: React.ElementType
-  trend?: { value: number; positive: boolean }
-  href?: string
-}) {
-  const content = (
-    <div className="p-4 sm:p-6 bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors">
-      <div className="flex items-center gap-3 sm:gap-4">
-        <div className="p-2.5 sm:p-3 bg-gray-800 rounded-lg shrink-0">
-          <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-gray-400 text-xs sm:text-sm truncate">{label}</p>
-          <p className="text-xl sm:text-2xl font-bold text-white">{value}</p>
-          {trend && (
-            <p className={`text-xs sm:text-sm ${trend.positive ? 'text-green-400' : 'text-red-400'}`}>
-              {trend.positive ? '+' : ''}{trend.value}%
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-
-  if (href) {
-    return <Link href={href}>{content}</Link>
-  }
-
-  return content
-}
-
 function RecentActivityItem({
   report
 }: {
@@ -124,10 +87,10 @@ function RecentActivityItem({
   }
 }) {
   const statusConfig = {
-    pending: { icon: Clock, color: 'text-amber-400', bg: 'bg-amber-900/30' },
-    approved: { icon: CheckCircle, color: 'text-green-400', bg: 'bg-green-900/30' },
-    rejected: { icon: XCircle, color: 'text-red-400', bg: 'bg-red-900/30' },
-    draft: { icon: AlertCircle, color: 'text-gray-400', bg: 'bg-gray-800' }
+    pending: { icon: Clock, color: 'text-amber-400', bg: 'bg-amber-900/30', label: 'Pending' },
+    approved: { icon: CheckCircle, color: 'text-green-400', bg: 'bg-green-900/30', label: 'Approved' },
+    rejected: { icon: XCircle, color: 'text-red-400', bg: 'bg-red-900/30', label: 'Rejected' },
+    draft: { icon: AlertCircle, color: 'text-gray-400', bg: 'bg-gray-800', label: 'Draft' }
   }
 
   const config = statusConfig[report.status as keyof typeof statusConfig] || statusConfig.draft
@@ -135,26 +98,29 @@ function RecentActivityItem({
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    })
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+    if (diffDays === 0) return 'Today'
+    if (diffDays === 1) return 'Yesterday'
+    if (diffDays < 7) return `${diffDays}d ago`
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
   return (
     <Link
       href={`/report/${report.slug}`}
-      className="flex items-center gap-4 p-4 bg-gray-900 rounded-lg border border-gray-800 hover:border-gray-700 transition-colors"
+      className="flex items-center gap-3 p-3 bg-gray-900 rounded-lg border border-gray-800 hover:border-gray-700 transition-colors"
     >
-      <div className={`p-2 rounded-lg ${config.bg}`}>
-        <Icon className={`w-5 h-5 ${config.color}`} />
+      <div className={`p-1.5 rounded-lg ${config.bg} shrink-0`}>
+        <Icon className={`w-4 h-4 ${config.color}`} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-white font-medium truncate">{report.title}</p>
-        <p className="text-sm text-gray-400">{formatDate(report.created_at)}</p>
+        <p className="text-white text-sm font-medium truncate">{report.title}</p>
+        <p className="text-xs text-gray-500">{formatDate(report.created_at)}</p>
       </div>
-      <span className={`text-sm ${config.color} capitalize`}>{report.status}</span>
+      <span className={`text-xs ${config.color} shrink-0`}>{config.label}</span>
     </Link>
   )
 }
@@ -170,7 +136,6 @@ export default function DashboardPage() {
   // Show dashboard tour for first-time visitors
   useEffect(() => {
     if (!loading && stats && !hasDashboardTourCompleted()) {
-      // Small delay to let the page render first
       const timer = setTimeout(() => setShowDashboardTour(true), 800)
       return () => clearTimeout(timer)
     }
@@ -212,14 +177,14 @@ export default function DashboardPage() {
   if (loading || subscriptionLoading) {
     return (
       <DashboardLayout title="Dashboard">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-32 bg-gray-900 rounded-xl animate-pulse" />
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 h-96 bg-gray-900 rounded-xl animate-pulse" />
-          <div className="h-96 bg-gray-900 rounded-xl animate-pulse" />
+        <div className="space-y-4">
+          <div className="h-20 bg-gray-900 rounded-xl animate-pulse" />
+          <div className="grid grid-cols-3 gap-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-24 bg-gray-900 rounded-xl animate-pulse" />
+            ))}
+          </div>
+          <div className="h-64 bg-gray-900 rounded-xl animate-pulse" />
         </div>
       </DashboardLayout>
     )
@@ -243,55 +208,183 @@ export default function DashboardPage() {
     )
   }
 
+  const reportsTotal = stats?.reports.total || 0
+  const reportsApproved = stats?.reports.approved || 0
+  const reportsPending = stats?.reports.pending || 0
+  const reportsRejected = stats?.reports.rejected || 0
+  const savedTotal = stats?.saved.total || 0
+
   return (
     <DashboardLayout title="Dashboard">
-      {/* Welcome Section */}
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-white mb-2">
-          Welcome back{stats?.profile.display_name ? `, ${stats.profile.display_name}` : ''}!
-        </h2>
-        <p className="text-gray-400">
-          Here's an overview of your paranormal research activity.
-        </p>
+      {/* ── Hero: Welcome + Submit CTA ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-white">
+            Welcome back{stats?.profile.display_name ? `, ${stats.profile.display_name}` : ''}
+          </h2>
+          <p className="text-gray-500 text-sm mt-0.5">
+            Here&apos;s your research overview.
+          </p>
+        </div>
+        <Link
+          href="/submit"
+          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white rounded-lg font-medium text-sm transition-colors shrink-0"
+        >
+          <Plus className="w-4 h-4" />
+          Submit Report
+        </Link>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
-        <StatCard
-          label="Total Reports"
-          value={stats?.reports.total || 0}
-          icon={FileText}
+      {/* ── Research Streak (prominent, drives daily engagement) ── */}
+      <div className="mb-5">
+        <ResearchStreak compact />
+      </div>
+
+      {/* ── Smart Stat Cards (3 cards: Reports, Saved, Activity) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+        {/* My Reports — shows total with status breakdown */}
+        <Link
           href="/dashboard/reports"
-        />
-        <StatCard
-          label="Approved"
-          value={stats?.reports.approved || 0}
-          icon={CheckCircle}
-        />
-        <StatCard
-          label="Pending Review"
-          value={stats?.reports.pending || 0}
-          icon={Clock}
-        />
-        <StatCard
-          label="Saved Reports"
-          value={stats?.saved.total || 0}
-          icon={Bookmark}
+          className="p-4 bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors group"
+        >
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 bg-gray-800 rounded-lg shrink-0">
+              <FileText className="w-5 h-5 text-purple-400" />
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs">My Reports</p>
+              <p className="text-2xl font-bold text-white">{reportsTotal}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {reportsApproved > 0 && (
+              <span className="inline-flex items-center gap-1 text-[11px] text-green-400 bg-green-400/10 rounded-full px-2 py-0.5">
+                <CheckCircle className="w-3 h-3" /> {reportsApproved} approved
+              </span>
+            )}
+            {reportsPending > 0 && (
+              <span className="inline-flex items-center gap-1 text-[11px] text-amber-400 bg-amber-400/10 rounded-full px-2 py-0.5">
+                <Clock className="w-3 h-3" /> {reportsPending} pending
+              </span>
+            )}
+            {reportsRejected > 0 && (
+              <span className="inline-flex items-center gap-1 text-[11px] text-red-400 bg-red-400/10 rounded-full px-2 py-0.5">
+                <XCircle className="w-3 h-3" /> {reportsRejected}
+              </span>
+            )}
+            {reportsTotal === 0 && (
+              <span className="text-[11px] text-gray-600">No reports yet</span>
+            )}
+          </div>
+        </Link>
+
+        {/* Saved Collection */}
+        <Link
           href="/dashboard/saved"
-        />
+          className="p-4 bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors group"
+        >
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 bg-gray-800 rounded-lg shrink-0">
+              <Bookmark className="w-5 h-5 text-blue-400" />
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs">Saved Collection</p>
+              <p className="text-2xl font-bold text-white">{savedTotal}</p>
+            </div>
+          </div>
+          <span className="text-[11px] text-gray-500 group-hover:text-blue-400 flex items-center gap-1 transition-colors">
+            Browse saved reports <ArrowRight className="w-3 h-3" />
+          </span>
+        </Link>
+
+        {/* Explore — drives discovery */}
+        <Link
+          href="/dashboard/constellation"
+          className="p-4 bg-gray-950 rounded-xl border border-gray-800 hover:border-primary-500/30 transition-colors group relative overflow-hidden"
+        >
+          {/* Decorative stars */}
+          <div className="absolute inset-0 opacity-20 pointer-events-none">
+            {[
+              { x: '20%', y: '15%', s: 2 }, { x: '75%', y: '25%', s: 1.5 },
+              { x: '40%', y: '80%', s: 2.5 }, { x: '85%', y: '60%', s: 1.2 },
+            ].map((star, i) => (
+              <div
+                key={i}
+                className="absolute rounded-full bg-primary-400"
+                style={{
+                  left: star.x,
+                  top: star.y,
+                  width: `${star.s}px`,
+                  height: `${star.s}px`,
+                  boxShadow: `0 0 ${star.s * 2}px rgba(139, 92, 246, 0.5)`,
+                }}
+              />
+            ))}
+          </div>
+          <div className="relative">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-primary-600/20 rounded-lg shrink-0">
+                <Stars className="w-5 h-5 text-primary-400" />
+              </div>
+              <div>
+                <p className="text-gray-500 text-xs">Constellation</p>
+                <p className="text-sm font-semibold text-white group-hover:text-primary-300 transition-colors">Explore Your Map</p>
+              </div>
+            </div>
+            <span className="text-[11px] text-primary-400/70 group-hover:text-primary-400 flex items-center gap-1 transition-colors">
+              See how phenomena connect <ArrowRight className="w-3 h-3" />
+            </span>
+          </div>
+        </Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content Area */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Usage Overview */}
-          <div className="p-6 bg-gray-900 rounded-xl border border-gray-800">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-white">Usage This Month</h3>
+      {/* ── Main Content Grid ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Left column: Activity + Usage */}
+        <div className="lg:col-span-2 space-y-5">
+          {/* Recent Activity */}
+          <div className="p-4 sm:p-5 bg-gray-900 rounded-xl border border-gray-800">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold text-white">Recent Activity</h3>
+              <Link
+                href="/dashboard/reports"
+                className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
+              >
+                View All
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            {stats?.recent_activity && stats.recent_activity.length > 0 ? (
+              <div className="space-y-2">
+                {stats.recent_activity.map(report => (
+                  <RecentActivityItem key={report.id} report={report} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <FileText className="w-10 h-10 text-gray-700 mx-auto mb-3" />
+                <p className="text-gray-400 text-sm mb-1">No recent activity</p>
+                <p className="text-gray-600 text-xs mb-4">Submit your first report to get started</p>
+                <Link
+                  href="/submit"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Submit Report
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Usage Overview — compact */}
+          <div className="p-4 sm:p-5 bg-gray-900 rounded-xl border border-gray-800">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold text-white">Usage This Month</h3>
               {tierName && <TierBadge tier={tierName} size="sm" />}
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-4">
               <UsageMeter
                 label="Reports Submitted"
                 current={stats?.subscription?.usage.reports_submitted || 0}
@@ -314,109 +407,40 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
-
-          {/* Recent Activity */}
-          <div className="p-6 bg-gray-900 rounded-xl border border-gray-800">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-white">Recent Activity</h3>
-              <Link
-                href="/dashboard/reports"
-                className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
-              >
-                View All
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-
-            {stats?.recent_activity && stats.recent_activity.length > 0 ? (
-              <div className="space-y-3">
-                {stats.recent_activity.map(report => (
-                  <RecentActivityItem key={report.id} report={report} />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <FileText className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400">No recent activity</p>
-                <Link
-                  href="/submit"
-                  className="inline-block mt-4 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors"
-                >
-                  Submit Your First Report
-                </Link>
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Constellation Preview */}
-          <Link
-            href="/dashboard/constellation"
-            className="block p-6 bg-gray-950 rounded-xl border border-gray-800 hover:border-primary-500/30 transition-all group overflow-hidden relative"
-          >
-            {/* Decorative background stars */}
-            <div className="absolute inset-0 opacity-30">
-              {[
-                { x: '15%', y: '20%', s: 2 }, { x: '80%', y: '15%', s: 1.5 },
-                { x: '45%', y: '70%', s: 2.5 }, { x: '70%', y: '45%', s: 1 },
-                { x: '25%', y: '80%', s: 1.8 }, { x: '90%', y: '75%', s: 1.2 },
-                { x: '55%', y: '25%', s: 2 }, { x: '10%', y: '55%', s: 1.5 },
-              ].map((star, i) => (
-                <div
-                  key={i}
-                  className="absolute rounded-full bg-primary-400"
-                  style={{
-                    left: star.x,
-                    top: star.y,
-                    width: `${star.s}px`,
-                    height: `${star.s}px`,
-                    boxShadow: `0 0 ${star.s * 2}px rgba(139, 92, 246, 0.5)`,
-                  }}
-                />
-              ))}
-            </div>
-            <div className="relative">
-              <div className="flex items-center gap-2 mb-2">
-                <Stars className="w-5 h-5 text-primary-400" />
-                <h3 className="text-lg font-semibold text-white group-hover:text-primary-300 transition-colors">My Constellation</h3>
-              </div>
-              <p className="text-gray-400 text-sm mb-3">
-                Explore your research universe — see how phenomena connect and discover new fields.
-              </p>
-              <span className="text-primary-400 text-sm flex items-center gap-1 group-hover:gap-2 transition-all">
-                View Map <ArrowRight className="w-4 h-4" />
-              </span>
-            </div>
-          </Link>
-
-          {/* Research Streak */}
-          <ResearchStreak compact />
-
+        {/* Right column: Quick Actions + Upgrade */}
+        <div className="space-y-5">
           {/* Quick Actions */}
-          <div className="p-6 bg-gray-900 rounded-xl border border-gray-800">
-            <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-            <div className="space-y-3">
+          <div className="p-4 sm:p-5 bg-gray-900 rounded-xl border border-gray-800">
+            <h3 className="text-base font-semibold text-white mb-3">Quick Actions</h3>
+            <div className="space-y-2">
               <Link
                 href="/submit"
-                className="flex items-center gap-3 p-3 bg-purple-600 hover:bg-purple-500 rounded-lg text-white transition-colors"
+                className="flex items-center gap-3 p-3 bg-purple-600 hover:bg-purple-500 rounded-lg text-white text-sm transition-colors"
               >
-                <FileText className="w-5 h-5" />
+                <Plus className="w-4 h-4" />
                 <span className="font-medium">Submit New Report</span>
               </Link>
               <Link
                 href="/map"
-                className="flex items-center gap-3 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition-colors"
+                className="flex items-center gap-3 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 text-sm transition-colors"
               >
-                <TrendingUp className="w-5 h-5" />
+                <TrendingUp className="w-4 h-4" />
                 <span>Explore Sightings Map</span>
               </Link>
               <Link
-                href="/insights"
-                className="flex items-center gap-3 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition-colors"
+                href="/dashboard/journal/new"
+                className="flex items-center gap-3 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 text-sm transition-colors"
               >
-                <Sparkles className="w-5 h-5" />
+                <FileText className="w-4 h-4" />
+                <span>New Journal Entry</span>
+              </Link>
+              <Link
+                href="/insights"
+                className="flex items-center gap-3 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 text-sm transition-colors"
+              >
+                <Sparkles className="w-4 h-4" />
                 <span>View AI Insights</span>
               </Link>
             </div>
@@ -431,7 +455,6 @@ export default function DashboardPage() {
           {showDashboardTour && (
             <DashboardTour onComplete={() => setShowDashboardTour(false)} />
           )}
-
         </div>
       </div>
     </DashboardLayout>

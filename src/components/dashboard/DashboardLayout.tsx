@@ -342,13 +342,13 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
               </div>
             </header>
 
-            {/* Mobile Title Bar - pt-14 for header + safe-area-pt for notch */}
-            <div className="md:hidden px-4 py-4 bg-gray-950 mobile-title-offset">
-              <h1 className="text-xl font-semibold text-white">{title}</h1>
+            {/* Mobile Title Bar - pt for header + safe-area-pt for notch + extra breathing room */}
+            <div className="md:hidden px-4 pb-3 bg-gray-950 mobile-title-offset">
+              <h1 className="text-lg font-semibold text-white">{title}</h1>
             </div>
 
             {/* Page Content */}
-            <div className="flex-1 p-4 md:p-6 overflow-auto pb-20 md:pb-6">
+            <div className="flex-1 p-4 md:p-6 overflow-x-hidden overflow-y-auto pb-20 md:pb-6">
               {children}
             </div>
           </main>
@@ -376,9 +376,9 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
         .dashboard-mobile-header-positioned {
           top: env(safe-area-inset-top, 0px);
         }
-        /* Mobile title offset: header height (56px) + safe area for notch */
+        /* Mobile title offset: header height (56px) + safe area for notch + 12px breathing room */
         .mobile-title-offset {
-          padding-top: calc(3.5rem + env(safe-area-inset-top, 0px));
+          padding-top: calc(4.25rem + env(safe-area-inset-top, 0px));
         }
       `}</style>
     </>

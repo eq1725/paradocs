@@ -2,6 +2,7 @@
  * UsageMeter Component
  *
  * Displays usage progress for a specific limit (reports, API calls, etc.)
+ * For unlimited tiers, shows a clear "no cap" indicator instead of a full bar.
  */
 
 import React from 'react'
@@ -49,10 +50,33 @@ export function UsageMeter({
   const config = sizeConfig[size]
 
   const getBarColor = () => {
-    if (isUnlimited) return 'bg-green-500'
     if (isAtLimit) return 'bg-red-500'
     if (isNearLimit) return 'bg-amber-500'
     return 'bg-purple-500'
+  }
+
+  // Unlimited tier: show usage count with infinity badge, no progress bar
+  if (isUnlimited) {
+    return (
+      <div className={`space-y-1 ${config.gap}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {icon && <span className="text-gray-400">{icon}</span>}
+            <span className={`text-gray-300 ${config.text}`}>{label}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-white ${config.text} font-medium`}>
+              {current.toLocaleString()} used
+            </span>
+            <span className="text-[10px] font-medium text-green-400 bg-green-400/10 border border-green-500/20 rounded-full px-2 py-0.5">
+              ∞ No limit
+            </span>
+          </div>
+        </div>
+        {/* Subtle unfilled bar with dashed style to indicate "no cap" */}
+        <div className={`w-full rounded-full ${config.height} border border-dashed border-gray-700 bg-transparent`} />
+      </div>
+    )
   }
 
   return (
@@ -63,19 +87,13 @@ export function UsageMeter({
           <span className={`text-gray-300 ${config.text}`}>{label}</span>
         </div>
         <span className={`text-gray-400 ${config.text}`}>
-          {isUnlimited ? (
-            <span className="text-green-400">Unlimited</span>
-          ) : (
-            <>
-              <span className={isAtLimit ? 'text-red-400' : 'text-white'}>
-                {current.toLocaleString()}
-              </span>
-              <span className="text-gray-500"> / </span>
-              <span>{limit.toLocaleString()}</span>
-              {showPercentage && (
-                <span className="text-gray-500 ml-2">({percentage}%)</span>
-              )}
-            </>
+          <span className={isAtLimit ? 'text-red-400' : 'text-white'}>
+            {current.toLocaleString()}
+          </span>
+          <span className="text-gray-500"> / </span>
+          <span>{limit.toLocaleString()}</span>
+          {showPercentage && (
+            <span className="text-gray-500 ml-2">({percentage}%)</span>
           )}
         </span>
       </div>
@@ -83,11 +101,11 @@ export function UsageMeter({
       <div className={`w-full bg-gray-700 rounded-full ${config.height} overflow-hidden`}>
         <div
           className={`${config.height} rounded-full transition-all duration-300 ${getBarColor()}`}
-          style={{ width: isUnlimited ? '100%' : `${percentage}%` }}
+          style={{ width: `${percentage}%` }}
         />
       </div>
 
-      {isAtLimit && !isUnlimited && (
+      {isAtLimit && (
         <p className="text-xs text-red-400">
           You've reached your limit. Upgrade to continue.
         </p>
