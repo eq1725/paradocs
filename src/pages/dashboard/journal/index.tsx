@@ -99,11 +99,11 @@ export default function JournalListPage() {
           </form>
 
           {/* Type filter */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
             <button
               onClick={() => handleTypeFilter('')}
               className={classNames(
-                'px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors',
+                'px-3 py-2.5 sm:py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0',
                 !typeFilter
                   ? 'bg-primary-600 text-white'
                   : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
@@ -116,7 +116,7 @@ export default function JournalListPage() {
                 key={type}
                 onClick={() => handleTypeFilter(type)}
                 className={classNames(
-                  'px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors',
+                  'px-3 py-2.5 sm:py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0',
                   typeFilter === type
                     ? 'bg-primary-600 text-white'
                     : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'

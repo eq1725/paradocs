@@ -36,7 +36,7 @@ export default async function handler(
       const {
         page = '1',
         limit = '10',
-        sort = 'saved_at',
+        sort = 'created_at',
         order = 'desc'
       } = req.query
 
@@ -49,8 +49,7 @@ export default async function handler(
         .from('saved_reports')
         .select(`
           id,
-          saved_at,
-          notes,
+          created_at,
           reports:report_id (
             id,
             title,
@@ -61,7 +60,7 @@ export default async function handler(
             event_date,
             created_at,
             view_count,
-            credibility_score
+            credibility
           )
         `, { count: 'exact' })
         .eq('user_id', user.id)
@@ -83,8 +82,7 @@ export default async function handler(
       // Transform data to flatten the structure
       const reports = (savedReports || []).map((item: any) => ({
         saved_id: item.id,
-        saved_at: item.saved_at,
-        notes: item.notes,
+        saved_at: item.created_at,
         ...(item.reports as any)
       }))
 

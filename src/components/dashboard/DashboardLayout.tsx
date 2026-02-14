@@ -204,7 +204,7 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
           <div className="flex items-center justify-between h-14 px-4">
             <Link href="/" className="flex items-center gap-2 text-white">
               <ChevronLeft className="w-4 h-4" />
-              <span className="font-semibold">ParaDocs</span>
+              <span className="font-sans font-black text-xl tracking-tight">Paradocs<span className="text-primary-500">.</span></span>
             </Link>
             <div className="flex items-center gap-2">
               <button className="p-2 text-gray-400 hover:text-white transition-colors relative">
@@ -289,7 +289,7 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
             <div className="p-4 border-b border-gray-800">
               <Link href="/" className="flex items-center gap-2 text-white hover:text-purple-400 transition-colors">
                 <ChevronLeft className="w-4 h-4" />
-                <span className="font-semibold">ParaDocs</span>
+                <span className="font-sans font-black text-xl tracking-tight">Paradocs<span className="text-primary-500">.</span></span>
               </Link>
             </div>
 

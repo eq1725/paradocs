@@ -27,7 +27,6 @@ import { supabase } from '@/lib/supabase'
 interface SavedReport {
   saved_id: string
   saved_at: string
-  notes: string | null
   id: string
   title: string
   slug: string
@@ -37,7 +36,7 @@ interface SavedReport {
   event_date: string
   created_at: string
   view_count: number
-  credibility_score: number
+  credibility: string
 }
 
 interface PaginationInfo {

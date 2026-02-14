@@ -188,9 +188,9 @@ export default function ConstellationPage() {
         </div>
 
         {/* Main constellation area */}
-        <div className="relative bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden" style={{ minHeight: '500px' }}>
+        <div className="relative bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden">
           {/* The map */}
-          <div className="w-full" style={{ height: '60vh', minHeight: '500px' }}>
+          <div className="w-full" style={{ height: 'clamp(320px, 55vh, 600px)' }}>
             <ConstellationMap
               userInterests={userInterests}
               stats={stats}
@@ -229,7 +229,7 @@ export default function ConstellationPage() {
           />
 
           {/* Legend (bottom-left) */}
-          <div className="absolute bottom-4 left-4 bg-gray-900/90 backdrop-blur-sm border border-gray-800 rounded-lg px-3 py-2 text-xs space-y-1.5">
+          <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4 bg-gray-900/90 backdrop-blur-sm border border-gray-800 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-xs space-y-1 sm:space-y-1.5">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-primary-400 shadow-[0_0_6px_rgba(139,92,246,0.5)]" />
               <span className="text-gray-300">Your interests</span>
@@ -252,7 +252,7 @@ export default function ConstellationPage() {
               <Compass className="w-5 h-5 text-amber-400" />
               Suggested Explorations
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {suggestions.map(suggestion => {
                 const node = getNode(suggestion.category)
                 if (!node) return null

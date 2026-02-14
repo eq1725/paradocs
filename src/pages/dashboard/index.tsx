@@ -432,50 +432,6 @@ export default function DashboardPage() {
             <DashboardTour onComplete={() => setShowDashboardTour(false)} />
           )}
 
-          {/* Reputation Score */}
-          <div className="p-6 bg-gray-900 rounded-xl border border-gray-800">
-            <h3 className="text-lg font-semibold text-white mb-4">Reputation Score</h3>
-            <div className="flex items-center gap-4">
-              <div className="relative w-20 h-20">
-                <svg className="w-full h-full transform -rotate-90">
-                  <circle
-                    cx="40"
-                    cy="40"
-                    r="36"
-                    fill="none"
-                    stroke="#374151"
-                    strokeWidth="8"
-                  />
-                  <circle
-                    cx="40"
-                    cy="40"
-                    r="36"
-                    fill="none"
-                    stroke="#9333ea"
-                    strokeWidth="8"
-                    strokeDasharray={`${(stats?.profile.reputation_score || 0) * 2.26} 226`}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xl font-bold text-white">
-                    {stats?.profile.reputation_score || 0}
-                  </span>
-                </div>
-              </div>
-              <div>
-                <p className="text-gray-400 text-sm">
-                  Based on your report accuracy and community engagement.
-                </p>
-                <Link
-                  href="/faq#reputation"
-                  className="text-sm text-purple-400 hover:text-purple-300"
-                >
-                  Learn more →
-                </Link>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </DashboardLayout>
