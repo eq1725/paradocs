@@ -129,7 +129,7 @@ export default function PhenomenonPage() {
                 alt=""
                 className="w-full h-full object-cover opacity-10"
                 referrerPolicy="no-referrer"
-                crossOrigin="anonymous"
+                loading="lazy"
               />
             </div>
           )}
@@ -153,7 +153,7 @@ export default function PhenomenonPage() {
                     alt={phenomenon.name}
                     className="w-full h-full object-cover rounded-2xl"
                     referrerPolicy="no-referrer"
-                    crossOrigin="anonymous"
+                    loading="lazy"
                   />
                 ) : (
                   <span className="text-5xl sm:text-7xl">{phenomenon.icon || config?.icon}</span>

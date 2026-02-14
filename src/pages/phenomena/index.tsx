@@ -233,7 +233,7 @@ function PhenomenonCard({ phenomenon }: { phenomenon: Phenomenon }) {
               alt={phenomenon.name}
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"
-              crossOrigin="anonymous"
+              loading="lazy"
             />
           ) : (
             <span className="text-6xl opacity-50 group-hover:opacity-70 transition-opacity">
