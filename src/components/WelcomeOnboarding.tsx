@@ -64,7 +64,7 @@ export default function WelcomeOnboarding({ onComplete, authToken }: WelcomeOnbo
           const state = data.address?.state || ''
           const country = data.address?.country || ''
           setLocationInput([city, state, country].filter(Boolean).join(', '))
-        } catch {
+        } catch (_e) {
           setLocationInput(`${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)}`)
         }
         setGeoLoading(false)
@@ -104,7 +104,7 @@ export default function WelcomeOnboarding({ onComplete, authToken }: WelcomeOnbo
       const res = await fetch(`/api/reports?limit=1&sort=rating${catFilter}`)
       const data = await res.json()
       if (data.reports?.[0]) setRevealReport(data.reports[0])
-    } catch { /* fallback */ }
+    } catch (_e) { /* fallback */ }
     setRevealLoading(false)
   }
 
