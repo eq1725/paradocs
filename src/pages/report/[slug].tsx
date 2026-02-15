@@ -38,7 +38,7 @@ const AcademicObservationPanel = dynamic(
   () => import('@/components/reports/AcademicObservationPanel'),
   { ssr: false, loading: () => <div className="h-32 bg-white/5 rounded-lg animate-pulse" /> }
 )
-// ReportPhenomena removed from report page — tagging lives in admin/dashboard instead
+// ReportPhenomena removed from report page â tagging lives in admin/dashboard instead
 import FormattedDescription from '@/components/FormattedDescription'
 import OnboardingTour, { hasCompletedOnboarding } from '@/components/OnboardingTour'
 import AskTheUnknown from '@/components/AskTheUnknown'
@@ -62,6 +62,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const slug = propSlug || router.query.slug
 
   const [report, setReport] = useState<ReportWithDetails | null>(initialReport || null)
+  const [scrollProgress, setScrollProgress] = useState(0)
   const [comments, setComments] = useState<CommentWithUser[]>(initialComments || [])
   const [media, setMedia] = useState<any[]>(initialMedia || [])
   const [loading, setLoading] = useState(!initialReport && !fetchError)
@@ -125,12 +126,12 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
 
   useEffect(() => {
     if (slug) {
-      // Check if initialReport matches the current slug — during client-side navigation
+      // Check if initialReport matches the current slug â during client-side navigation
       // between report pages, initialReport may hold stale data from the previous page
       const initialMatchesSlug = initialReport && initialReport.slug === slug
 
       if (initialMatchesSlug) {
-        // Data came from server and matches current slug — just load user-specific state
+        // Data came from server and matches current slug â just load user-specific state
         setReport(initialReport)
         setMedia(initialMedia || [])
         setComments(initialComments || [])
@@ -139,7 +140,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         incrementViewCount(initialReport.id, initialReport.view_count)
         checkUser()
       } else if (!fetchError) {
-        // No matching server data — client-side fetch (handles navigation between reports)
+        // No matching server data â client-side fetch (handles navigation between reports)
         loadReport()
         checkUser()
       }
@@ -168,7 +169,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     return currentUser
   }
 
-  // Load user-specific state (votes, saved) — called when report data came from server
+  // Load user-specific state (votes, saved) â called when report data came from server
   async function loadUserState(reportId: string) {
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -192,11 +193,11 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         setSavedId((savedData as any)?.id || null)
       }
     } catch (e) {
-      // User state is non-critical — fail silently
+      // User state is non-critical â fail silently
     }
   }
 
-  // Increment view count — deduplicated per session to avoid inflation
+  // Increment view count â deduplicated per session to avoid inflation
   async function incrementViewCount(reportId: string, currentCount: number) {
     try {
       const viewKey = `viewed_${reportId}`
@@ -214,7 +215,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
       // Log activity for streak tracking (non-blocking)
       logActivity('view_report', { report_id: reportId }).catch(() => {})
     } catch (e) {
-      // Non-critical — fail silently
+      // Non-critical â fail silently
     }
   }
 
@@ -314,7 +315,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
 
       if (existing) {
         if (existing.vote_type === voteType) {
-          // Remove vote — toggle off
+          // Remove vote â toggle off
           await supabase.from('votes').delete().eq('id', existing.id)
           setUserVote(null)
           setReport(prev => prev ? {
@@ -516,7 +517,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           <span className="text-gray-500 truncate">{report.title}</span>
         </nav>
 
-        {/* Parent Case Banner — link back to main case report */}
+        {/* Parent Case Banner â link back to main case report */}
         {parentCase && (
           <div className="mb-4 p-3 bg-primary-500/10 border border-primary-500/30 rounded-lg flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center flex-shrink-0">
@@ -540,7 +541,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           </div>
         )}
 
-        {/* Non-Experiencer Content Notice — only for news/discussion and research content */}
+        {/* Non-Experiencer Content Notice â only for news/discussion and research content */}
         {isNonExperiencer && (
           <div className="mb-6 p-4 bg-gray-800/50 border border-gray-700 rounded-lg flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
@@ -609,7 +610,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
 
             // Don't show if summary (minus trailing ...) matches start of description
             // This handles truncated summaries like "text here..."
-            const summaryClean = summaryLower.replace(/\.{2,}$/, '').replace(/…$/, '').trim();
+            const summaryClean = summaryLower.replace(/\.{2,}$/, '').replace(/â¦$/, '').trim();
             if (descLower.startsWith(summaryClean.slice(0, 50))) return null;
 
             // Don't show if first 50 chars match (handles various truncation styles)
