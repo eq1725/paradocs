@@ -65,27 +65,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const [newComment, setNewComment] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
   const [showTour, setShowTour] = useState(false)
-
-  // Reading progress bar state
-  const [readingProgress, setReadingProgress] = useState(0)
-  const [showStickyReactions, setShowStickyReactions] = useState(false)
-  const reactionsRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const scrollTop = window.scrollY
-      const docHeight = document.documentElement.scrollHeight - window.innerHeight
-      setReadingProgress(docHeight > 0 ? Math.min((scrollTop / docHeight) * 100, 100) : 0)
-
-      // Show sticky reactions when original reactions are out of view
-      if (reactionsRef.current) {
-        const rect = reactionsRef.current.getBoundingClientRect()
-        setShowStickyReactions(rect.bottom < 0)
-      }
-    }
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
   const [isSaved, setIsSaved] = useState(false)
   const [savedId, setSavedId] = useState<string | null>(null)
   const [savingReport, setSavingReport] = useState(false)
@@ -121,7 +100,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             setParentCase(parentData)
           }
         }
-      } catch (_e) {
+      } catch {
         // Silently skip if report_links doesn't exist
       }
     }
@@ -498,14 +477,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           <meta key={i} property="article:tag" content={tag} />
         ))}
       </Head>
-
-      {/* Reading Progress Bar */}
-      <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-transparent">
-        <div
-          className="h-full bg-gradient-to-r from-primary-500 to-purple-500 transition-all duration-150"
-          style={{ width: `${readingProgress}%` }}
-        />
-      </div>
 
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <div className="lg:flex lg:gap-8">
@@ -959,15 +930,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               sidebarOpen ? 'block' : 'hidden lg:block'
             )}>
               <RelatedReports
-                {/* Share Your Experience CTA */}
-                <div className="glass-card p-6 text-center mb-6">
-                  <h3 className="text-lg font-semibold text-white mb-2">Have You Seen Something Similar?</h3>
-                  <p className="text-sm text-gray-400 mb-4">Your experience could help build a more complete picture of this phenomenon.</p>
-                  <Link href="/submit" className="btn btn-primary inline-flex items-center gap-2">
-                    Share Your Experience
-                  </Link>
-                </div>
-
                 reportId={report.id}
                 category={report.category}
                 phenomenonTypeId={report.phenomenon_type_id}
@@ -1002,27 +964,12 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           }}
         />
       )}
-      <AskTheUnknown
-      {/* Sticky Reaction Bar */}
-      {showStickyReactions && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-gray-900/95 backdrop-blur-lg border-t border-white/10 py-2 px-4 animate-fade-in">
-          <div className="max-w-4xl mx-auto flex items-center justify-between">
-            <span className="text-sm text-gray-400 truncate mr-4">{report.title}</span>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-500">{report.upvotes || 0} reactions</span>
-              <span className="text-xs text-gray-500">{report.comment_count || 0} comments</span>
-            </div>
-          </div>
-        </div>
-      )}
-        context={{
-          type: 'report',
-          title: report.title,
-          location: report.location_text || report.location || '',
-          summary: report.summary || '',
-          phenomenon: report.phenomenon_type?.name || ''
-        }}
-      />
+
+        <AskTheUnknown
+          contextType="report"
+          contextId={slug as string}
+          contextTitle={report?.title}
+        />
     </>
   )
 }
