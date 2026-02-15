@@ -107,6 +107,21 @@ export default function AskTheUnknown({ context, suggestedQuestions }: AskTheUnk
     sendMessage(input)
   }
 
+  function renderMarkdown(text) {
+    var html = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g, "<em>$1</em>")
+      .replace(/`(.+?)`/g, "<code class=\"bg-white/10 px-1 rounded text-xs\">$1</code>")
+      .replace(/^# (.+)$/gm, "<div class=\"font-bold text-base mt-2 mb-1\">$1</div>")
+      .replace(/^## (.+)$/gm, "<div class=\"font-semibold text-sm mt-2 mb-1\">$1</div>")
+      .replace(/^- (.+)$/gm, "<div class=\"pl-3\">\u2022 $1</div>")
+      .replace(/\n/g, "<br />")
+    return html
+  }
+
   return (
     <>
       {/* Floating Action Button */}
@@ -186,7 +201,7 @@ export default function AskTheUnknown({ context, suggestedQuestions }: AskTheUnk
                     ? 'bg-primary-500/20 text-white rounded-br-sm'
                     : 'bg-white/5 text-gray-300 rounded-tl-sm'
                 }`}>
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  <div className="text-sm" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
                 </div>
               </div>
             ))}
