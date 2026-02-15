@@ -108,20 +108,38 @@ export default function AskTheUnknown({ context, suggestedQuestions }: AskTheUnk
   }
 
   function renderMarkdown(text) {
+    if (!text) return ""
     var html = text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*(.+?)\*/g, "<em>$1</em>")
-      .replace(/`(.+?)`/g, "<code class=\"bg-white/10 px-1 rounded text-xs\">$1</code>")
-      .replace(/^# (.+)$/gm, "<div class=\"font-bold text-base mt-2 mb-1\">$1</div>")
-      .replace(/^## (.+)$/gm, "<div class=\"font-semibold text-sm mt-2 mb-1\">$1</div>")
-      .replace(/^- (.+)$/gm, "<div class=\"pl-3\">\u2022 $1</div>")
-      .replace(/\n/g, "<br />")
-    return html
+    // Escape HTML
+    html = html.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    // Code blocks (triple backtick)
+    html = html.replace(/```([\s\S]*?)```/g, function(m, code) {
+      return '<pre class="bg-white/10 rounded p-2 my-2 text-xs overflow-x-auto"><code>' + code.trim() + '</code></pre>'
+    })
+    // Inline code
+    html = html.replace(/`(.+?)`/g, '<code class="bg-white/10 px-1 rounded text-xs">$1</code>')
+    // Bold
+    html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    // Italic
+    html = html.replace(/\*(.+?)\*/g, "<em>$1</em>")
+    // Headers
+    html = html.replace(/^### (.+)$/gm, '<div class="font-semibold text-sm mt-2 mb-1">$1</div>')
+    html = html.replace(/^## (.+)$/gm, '<div class="font-semibold text-sm mt-2 mb-1">$1</div>')
+    html = html.replace(/^# (.+)$/gm, '<div class="font-bold text-base mt-2 mb-1">$1</div>')
+    // Horizontal rule
+    html = html.replace(/^---$/gm, '<hr class="border-white/20 my-2" />')
+    // Numbered lists
+    html = html.replace(/^(\d+)\. (.+)$/gm, '<div class="pl-3"><span class="text-primary-400 mr-1">$1.</span> $2</div>')
+    // Bullet lists
+    html = html.replace(/^- (.+)$/gm, '<div class="pl-3">\u2022 $1</div>')
+    // Links
+    html = html.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener" class="text-primary-400 underline hover:text-primary-300">$1</a>')
+    // Paragraphs (double newline)
+    html = html.replace(/\n\n/g, '</p><p class="mt-2">')
+    // Single newlines
+    html = html.replace(/\n/g, "<br />")
+    return '<p>' + html + '</p>'
   }
-
   return (
     <>
       {/* Floating Action Button */}
