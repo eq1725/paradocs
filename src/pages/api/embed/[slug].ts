@@ -59,8 +59,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   var r = result.data;
   var icon = categoryIcons[r.category] || '\uD83D\uDD2E';
-  var catLabel = r.category ? r.category.charAt(0).toUpperCase() + r.category.slice(1) : 'Unknown';
-  var score = Math.round((r.credibility || 0) * 100);
+  var catLabel = r.category ? r.category.split('_').map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(' ') : 'Unknown';
+  var credMap = { 'low': 25, 'medium': 50, 'high': 75, 'very_high': 95 };
+  var score = typeof r.credibility === 'number' ? Math.round(r.credibility * 100) : (credMap[r.credibility] || 50);
   var teaser = (r.description || '').substring(0, 120);
   if ((r.description || '').length > 120) teaser += '...';
   var reportUrl = baseUrl + '/report/' + (r.slug || r.id);
