@@ -74,7 +74,19 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const [parentCase, setParentCase] = useState<{ slug: string; title: string } | null>(null)
 
   // Load parent case report when this report belongs to a case group
-  useEffect(() => {
+  // Reading progress bar
+  useEffect(function() {
+    var handleScroll = function() {
+      var winHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      if (winHeight > 0) {
+        setScrollProgress(Math.min(100, (window.scrollY / winHeight) * 100));
+      }
+    };
+    window.addEventListener('scroll', handleScroll);
+    return function() { window.removeEventListener('scroll', handleScroll); };
+  }, []);
+
+    useEffect(() => {
     if (!report || !(report as any).case_group) {
       setParentCase(null)
       return
@@ -419,6 +431,8 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
       <div className="max-w-4xl mx-auto px-4 py-16 text-center">
         {fetchError ? (
           <>
+      {/* Reading progress bar */}
+      <div style={{ position: 'fixed', top: 0, left: 0, width: scrollProgress + '%', height: '3px', background: 'linear-gradient(90deg, #5b63f1, #8b5cf6)', zIndex: 9999, transition: 'width 0.1s ease-out' }} />
             <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-white mb-2">Temporarily Unavailable</h2>
             <p className="text-gray-400 mb-6">We&apos;re experiencing a brief service interruption. This page will be back shortly.</p>
@@ -964,6 +978,24 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           }}
         />
       )}
+
+        {/* Share Your Experience CTA */}
+        <div className="mt-8 mb-12 mx-auto max-w-2xl">
+          <div className="relative overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-r from-purple-500/5 via-indigo-500/5 to-purple-500/5 p-6 sm:p-8 text-center">
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-indigo-500/5 animate-pulse" style={{ animationDuration: '4s' }} />
+            <div className="relative">
+              <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">Have you seen something similar?</h3>
+              <p className="text-gray-400 text-sm sm:text-base mb-5">Your experience could help others understand the unexplained. Every report matters.</p>
+              <a
+                href="/submit"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-105"
+                style={{ background: 'linear-gradient(135deg, #5b63f1, #4f46e5)', boxShadow: '0 2px 16px rgba(91, 99, 241, 0.4)' }}
+              >
+                Share Your Experience
+              </a>
+            </div>
+          </div>
+        </div>
 
         <AskTheUnknown
           contextType="report"
