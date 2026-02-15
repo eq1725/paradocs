@@ -1,6 +1,20 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  async redirects() {
+    return [
+      {
+        source: '/encyclopedia',
+        destination: '/phenomena',
+        permanent: true,
+      },
+      {
+        source: '/encyclopedia/:slug',
+        destination: '/phenomena/:slug',
+        permanent: true,
+      },
+    ]
+  },
   typescript: {
     // Temporarily ignore TypeScript errors to allow deployment
     // TODO: Fix Supabase type generation for new tables
