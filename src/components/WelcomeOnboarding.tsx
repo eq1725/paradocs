@@ -1,4 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { X, ChevronRight, MapPin, Bell, Sparkles, Loader2, ExternalLink } from 'lucide-react';
+import { CATEGORY_CONFIG } from '@/lib/constants';
+import { PhenomenonCategory } from '@/lib/database.types';
+
+interface RevealReport {
+  title: string;
+  slug: string;
+  location_text: string;
+  summary: string;
+  phenomenon_type?: { name: string; category: PhenomenonCategory };
+  report_count?: number;
+  avg_credibility?: number;
+}
 
 interface WelcomeOnboardingProps {
   onComplete: () => void;
@@ -6,43 +19,386 @@ interface WelcomeOnboardingProps {
   authToken?: string;
 }
 
-export default function WelcomeOnboarding({ onComplete }: WelcomeOnboardingProps) {
+const INTEREST_CATEGORIES = Object.entries(CATEGORY_CONFIG)
+  .filter(([key]) => key !== 'combination')
+  .map(([key, val]) => ({
+    key: key as PhenomenonCategory,
+    label: val.label,
+    icon: val.icon,
+    description: val.description,
+    color: val.color,
+    bgColor: val.bgColor,
+  }));
+
+export default function WelcomeOnboarding({ onComplete, authToken }: WelcomeOnboardingProps) {
+  const [step, setStep] = useState(0);
+  const [selectedCategories, setSelectedCategories] = useState<PhenomenonCategory[]>([]);
+  const [locationInput, setLocationInput] = useState('');
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoCoords, setGeoCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [digestOptIn, setDigestOptIn] = useState(true);
+  const [revealReport, setRevealReport] = useState<RevealReport | null>(null);
+  const [revealLoading, setRevealLoading] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
+
+  var toggleCategory = function(cat: PhenomenonCategory) {
+    setSelectedCategories(function(prev) {
+      if (prev.includes(cat)) {
+        return prev.filter(function(c) { return c !== cat; });
+      }
+      if (prev.length < 3) {
+        return prev.concat([cat]);
+      }
+      return prev;
+    });
+  };
+
+  var requestGeolocation = function() {
+    if (!navigator.geolocation) return;
+    setGeoLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      function(pos) {
+        setGeoCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        var url = 'https://nominatim.openstreetmap.org/reverse?lat=' + pos.coords.latitude + '&lon=' + pos.coords.longitude + '&format=json';
+        fetch(url).then(function(res) {
+          return res.json();
+        }).then(function(data) {
+          var city = data.address?.city || data.address?.town || data.address?.village || '';
+          var state = data.address?.state || '';
+          var country = data.address?.country || '';
+          setLocationInput([city, state, country].filter(Boolean).join(', '));
+        }).catch(function() {
+          setLocationInput(pos.coords.latitude.toFixed(2) + ', ' + pos.coords.longitude.toFixed(2));
+        }).finally(function() {
+          setGeoLoading(false);
+        });
+      },
+      function() { setGeoLoading(false); },
+      { enableHighAccuracy: false, timeout: 10000 }
+    );
+  };
+
+  var saveAndReveal = function() {
+    setRevealLoading(true);
+    setStep(3);
+
+    var doSave = authToken ? fetch('/api/user/personalization', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + authToken
+      },
+      body: JSON.stringify(function() {
+        var body: Record<string, unknown> = { interested_categories: selectedCategories };
+        if (locationInput) {
+          var parts = locationInput.split(',').map(function(s) { return s.trim(); });
+          if (parts.length >= 2) {
+            body.location_city = parts[0];
+            body.location_state = parts.length >= 3 ? parts[1] : '';
+            body.location_country = parts[parts.length - 1];
+          }
+          if (geoCoords) {
+            body.location_latitude = geoCoords.lat;
+            body.location_longitude = geoCoords.lng;
+          }
+        }
+        return body;
+      }()),
+    }).catch(function(e) { console.error('Failed to save personalization:', e); }) : Promise.resolve();
+
+    doSave.then(function() {
+      var catFilter = selectedCategories.length > 0 ? '&category=' + selectedCategories[0] : '';
+      return fetch('/api/reports?limit=1&sort=rating' + catFilter);
+    }).then(function(res) {
+      return res.json();
+    }).then(function(data) {
+      if (data.reports && data.reports[0]) {
+        setRevealReport(data.reports[0]);
+      }
+    }).catch(function() {
+      /* fallback */
+    }).finally(function() {
+      setRevealLoading(false);
+    });
+  };
+
+  var finish = function() {
+    localStorage.setItem('paradocs_welcome_complete', 'true');
+    setIsExiting(true);
+    setTimeout(onComplete, 300);
+  };
+
+  var nextStep = function() {
+    if (step === 0 && selectedCategories.length === 0) return;
+    if (step === 2) {
+      saveAndReveal();
+      return;
+    }
+    setStep(function(s) { return s + 1; });
+  };
+
+  var prevStep = function() {
+    if (step > 0 && step < 3) {
+      setStep(function(s) { return s - 1; });
+    }
+  };
+
+  var overlayClass = 'fixed inset-0 z-[10000] flex items-center justify-center p-4 transition-opacity duration-300';
+  if (isExiting) {
+    overlayClass = overlayClass + ' opacity-0';
+  } else {
+    overlayClass = overlayClass + ' opacity-100';
+  }
+
   return (
     <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'rgba(0, 0, 0, 0.85)',
-      }}
+      className={overlayClass}
+      style={{ background: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(12px)' }}
     >
-      <div style={{ background: '#1a1a2e', borderRadius: 16, padding: 32, maxWidth: 480, width: '100%', color: 'white', textAlign: 'center' as const }}>
-        <h2 style={{ fontSize: 24, fontWeight: 700 }}>Welcome to ParaDocs</h2>
-        <p style={{ color: '#9ca3af', marginTop: 8, fontSize: 14 }}>Explore the unknown</p>
-        <button
-          onClick={() => {
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('paradocs_welcome_complete', 'true');
-            }
-            onComplete();
-          }}
-          style={{
-            marginTop: 24,
-            padding: '10px 24px',
-            borderRadius: 12,
-            background: 'linear-gradient(135deg, #5b63f1, #4f46e5)',
-            color: 'white',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: 14,
-            fontWeight: 500,
-          }}
-        >
-          Start Exploring
+      <div
+        className="relative w-full max-w-lg rounded-2xl border overflow-hidden"
+        style={{
+          background: 'linear-gradient(180deg, rgba(20, 20, 40, 0.98) 0%, rgba(10, 10, 25, 0.98) 100%)',
+          borderColor: 'rgba(91, 99, 241, 0.2)',
+          boxShadow: '0 0 60px rgba(91, 99, 241, 0.15), 0 25px 80px rgba(0, 0, 0, 0.6)'
+        }}
+      >
+        <button onClick={finish} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors z-10">
+          <X className="w-5 h-5" />
         </button>
+
+        {step < 3 && (
+          <div className="flex gap-1.5 px-6 pt-6">
+            {[0, 1, 2].map(function(i) {
+              return (
+                <div
+                  key={i}
+                  className="h-1 flex-1 rounded-full transition-all duration-500"
+                  style={{
+                    background: i <= step
+                      ? 'linear-gradient(90deg, #5b63f1, #8b5cf6)'
+                      : 'rgba(255, 255, 255, 0.1)'
+                  }}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        {step === 0 && (
+          <div className="p-6">
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-bold text-white mb-2">What draws you in?</h2>
+              <p className="text-gray-400 text-sm">Pick up to 3 topics that fascinate you</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 max-h-[340px] overflow-y-auto pr-1">
+              {INTEREST_CATEGORIES.map(function(cat) {
+                var selected = selectedCategories.includes(cat.key);
+                var btnClass = 'flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all duration-200';
+                if (selected) {
+                  btnClass = btnClass + ' border-purple-500/50 bg-purple-500/10';
+                } else {
+                  btnClass = btnClass + ' border-gray-700/50 bg-gray-800/30 hover:border-gray-600/50 hover:bg-gray-800/50';
+                }
+                var labelClass = selected ? 'text-sm font-medium text-white' : 'text-sm font-medium text-gray-300';
+                return (
+                  <button key={cat.key} onClick={function() { toggleCategory(cat.key); }} className={btnClass}>
+                    <span className="text-xl flex-shrink-0">{cat.icon}</span>
+                    <span className={labelClass}>{cat.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex justify-between items-center mt-6">
+              <span className="text-xs text-gray-500">{selectedCategories.length}/3 selected</span>
+              <button
+                onClick={nextStep}
+                disabled={selectedCategories.length === 0}
+                className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{
+                  background: selectedCategories.length > 0
+                    ? 'linear-gradient(135deg, #5b63f1, #4f46e5)'
+                    : 'rgba(91, 99, 241, 0.3)',
+                  boxShadow: selectedCategories.length > 0
+                    ? '0 2px 12px rgba(91, 99, 241, 0.3)'
+                    : 'none'
+                }}
+              >
+                Continue <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 1 && (
+          <div className="p-6">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-purple-500/10 mb-3">
+                <MapPin className="w-6 h-6 text-purple-400" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">Where are you based?</h2>
+              <p className="text-gray-400 text-sm">{"We'll show you reports near your area"}</p>
+            </div>
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={locationInput}
+                onChange={function(e) { setLocationInput(e.target.value); }}
+                placeholder="City, State, Country"
+                className="w-full px-4 py-3 rounded-xl border border-gray-700/50 bg-gray-800/50 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30"
+              />
+              <button
+                onClick={requestGeolocation}
+                disabled={geoLoading}
+                className="flex items-center gap-2 w-full px-4 py-3 rounded-xl border border-gray-700/50 bg-gray-800/30 text-gray-300 text-sm hover:border-purple-500/30 hover:bg-gray-800/50 transition-all"
+              >
+                {geoLoading
+                  ? <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                  : <MapPin className="w-4 h-4 text-purple-400" />
+                }
+                {geoLoading ? 'Detecting location...' : 'Use my current location'}
+              </button>
+            </div>
+            <div className="flex justify-between items-center mt-6">
+              <button onClick={prevStep} className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Back</button>
+              <div className="flex items-center gap-3">
+                <button onClick={function() { setStep(2); }} className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Skip</button>
+                <button
+                  onClick={nextStep}
+                  className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all"
+                  style={{
+                    background: 'linear-gradient(135deg, #5b63f1, #4f46e5)',
+                    boxShadow: '0 2px 12px rgba(91, 99, 241, 0.3)'
+                  }}
+                >
+                  Continue <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="p-6">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-purple-500/10 mb-3">
+                <Bell className="w-6 h-6 text-purple-400" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">Stay in the loop</h2>
+              <p className="text-gray-400 text-sm">Choose how you want to hear from us</p>
+            </div>
+            <div className="space-y-3">
+              <label className="flex items-center justify-between p-4 rounded-xl border border-gray-700/50 bg-gray-800/30 cursor-pointer hover:border-purple-500/30 transition-all">
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">{"\u{1F4E7}"}</span>
+                  <div>
+                    <div className="text-sm font-medium text-white">Weekly Digest</div>
+                    <div className="text-xs text-gray-500">Curated paranormal insights, every week</div>
+                  </div>
+                </div>
+                <div
+                  onClick={function() { setDigestOptIn(!digestOptIn); }}
+                  className={digestOptIn ? 'relative w-11 h-6 rounded-full cursor-pointer transition-colors duration-200 bg-purple-500' : 'relative w-11 h-6 rounded-full cursor-pointer transition-colors duration-200 bg-gray-600'}
+                >
+                  <div
+                    className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200"
+                    style={{ left: '2px', transform: digestOptIn ? 'translateX(20px)' : 'translateX(0)' }}
+                  />
+                </div>
+              </label>
+              <div className="flex items-center justify-between p-4 rounded-xl border border-gray-700/30 bg-gray-800/20 opacity-50">
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">{"\u{1F514}"}</span>
+                  <div>
+                    <div className="text-sm font-medium text-gray-400">Push Notifications</div>
+                    <div className="text-xs text-gray-600">Coming soon</div>
+                  </div>
+                </div>
+                <div className="w-11 h-6 rounded-full bg-gray-700" />
+              </div>
+            </div>
+            <div className="flex justify-between items-center mt-6">
+              <button onClick={prevStep} className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Back</button>
+              <button
+                onClick={nextStep}
+                className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all"
+                style={{
+                  background: 'linear-gradient(135deg, #5b63f1, #4f46e5)',
+                  boxShadow: '0 2px 12px rgba(91, 99, 241, 0.3)'
+                }}
+              >
+                {"Show Me What's Out There"} <Sparkles className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="p-6 text-center">
+            {revealLoading ? (
+              <div className="py-12">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-500/10 mb-4 animate-pulse">
+                  <Sparkles className="w-8 h-8 text-purple-400" />
+                </div>
+                <h2 className="text-xl font-bold text-white mb-2">Searching the unknown...</h2>
+                <p className="text-gray-400 text-sm">Finding something near you</p>
+                <Loader2 className="w-6 h-6 animate-spin text-purple-400 mx-auto mt-4" />
+              </div>
+            ) : (
+              <div className="py-4">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-500/10 mb-4">
+                  <Sparkles className="w-8 h-8 text-purple-400" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">We found something for you</h2>
+                {locationInput ? (
+                  <p className="text-gray-400 text-sm mb-4">{'Based on your interests near ' + locationInput.split(',')[0]}</p>
+                ) : (
+                  <p className="text-gray-400 text-sm mb-4">Based on your interests</p>
+                )}
+                {revealReport ? (
+                  <a
+                    href={'/report/' + revealReport.slug}
+                    className="block p-4 rounded-xl border border-purple-500/20 bg-purple-500/5 hover:border-purple-500/40 hover:bg-purple-500/10 transition-all text-left group mt-2"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <h3 className="text-white font-semibold text-base group-hover:text-purple-300 transition-colors">{revealReport.title}</h3>
+                        {revealReport.location_text && (
+                          <p className="text-gray-500 text-xs mt-1 flex items-center gap-1">
+                            <MapPin className="w-3 h-3" /> {revealReport.location_text}
+                          </p>
+                        )}
+                        {revealReport.summary && (
+                          <p className="text-gray-400 text-sm mt-2 line-clamp-2">{revealReport.summary}</p>
+                        )}
+                        {revealReport.phenomenon_type && (
+                          <span className="inline-block mt-2 px-2 py-0.5 rounded-full text-xs bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                            {revealReport.phenomenon_type.name}
+                          </span>
+                        )}
+                      </div>
+                      <ExternalLink className="w-4 h-4 text-gray-500 group-hover:text-purple-400 transition-colors flex-shrink-0 mt-1" />
+                    </div>
+                  </a>
+                ) : (
+                  <div className="p-4 rounded-xl border border-gray-700/30 bg-gray-800/20 mt-2">
+                    <p className="text-gray-400 text-sm">Start exploring to discover reports tailored to you.</p>
+                  </div>
+                )}
+                <button
+                  onClick={finish}
+                  className="mt-6 px-8 py-3 rounded-xl text-sm font-medium text-white transition-all"
+                  style={{
+                    background: 'linear-gradient(135deg, #5b63f1, #4f46e5)',
+                    boxShadow: '0 2px 16px rgba(91, 99, 241, 0.4)'
+                  }}
+                >
+                  Start Exploring
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
