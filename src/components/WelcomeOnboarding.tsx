@@ -1,22 +1,22 @@
-import React, { useState } from 'react'
-import { X, ChevronRight, MapPin, Bell, Sparkles, Loader2, ExternalLink } from 'lucide-react'
-import { CATEGORY_CONFIG } from '@/lib/constants'
-import { PhenomenonCategory } from '@/lib/database.types'
+import React, { useState } from 'react';
+import { X, ChevronRight, MapPin, Bell, Sparkles, Loader2, ExternalLink } from 'lucide-react';
+import { CATEGORY_CONFIG } from '@/lib/constants';
+import { PhenomenonCategory } from '@/lib/database.types';
 
 interface RevealReport {
-  title: string
-  slug: string
-  location_text: string
-  summary: string
-  phenomenon_type?: { name: string; category: PhenomenonCategory }
-  report_count?: number
-  avg_credibility?: number
+  title: string;
+  slug: string;
+  location_text: string;
+  summary: string;
+  phenomenon_type?: { name: string; category: PhenomenonCategory };
+  report_count?: number;
+  avg_credibility?: number;
 }
 
 interface WelcomeOnboardingProps {
-  onComplete: () => void
-  userId?: string
-  authToken?: string
+  onComplete: () => void;
+  userId?: string;
+  authToken?: string;
 }
 
 const INTEREST_CATEGORIES = Object.entries(CATEGORY_CONFIG)
@@ -28,105 +28,107 @@ const INTEREST_CATEGORIES = Object.entries(CATEGORY_CONFIG)
     description: val.description,
     color: val.color,
     bgColor: val.bgColor,
-  }))
+  }));
 
 export default function WelcomeOnboarding({ onComplete, authToken }: WelcomeOnboardingProps) {
-  const [step, setStep] = useState(0)
-  const [selectedCategories, setSelectedCategories] = useState<PhenomenonCategory[]>([])
-  const [locationInput, setLocationInput] = useState('')
-  const [geoLoading, setGeoLoading] = useState(false)
-  const [geoCoords, setGeoCoords] = useState<{ lat: number; lng: number } | null>(null)
-  const [digestOptIn, setDigestOptIn] = useState(true)
-  const [revealReport, setRevealReport] = useState<RevealReport | null>(null)
-  const [revealLoading, setRevealLoading] = useState(false)
-  const [isExiting, setIsExiting] = useState(false)
+  const [step, setStep] = useState(0);
+  const [selectedCategories, setSelectedCategories] = useState<PhenomenonCategory[]>([]);
+  const [locationInput, setLocationInput] = useState('');
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoCoords, setGeoCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [digestOptIn, setDigestOptIn] = useState(true);
+  const [revealReport, setRevealReport] = useState<RevealReport | null>(null);
+  const [revealLoading, setRevealLoading] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
 
-  function toggleCategory(cat: PhenomenonCategory) {
+  const toggleCategory = (cat: PhenomenonCategory) => {
     setSelectedCategories(prev =>
       prev.includes(cat)
         ? prev.filter(c => c !== cat)
         : prev.length < 3 ? [...prev, cat] : prev
-    )
-  }
+    );
+  };
 
-  function requestGeolocation() {
-    if (!navigator.geolocation) return
-    setGeoLoading(true)
+  const requestGeolocation = () => {
+    if (!navigator.geolocation) return;
+    setGeoLoading(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        setGeoCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setGeoCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         try {
           const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`
-          )
-          const data = await res.json()
-          const city = data.address?.city || data.address?.town || data.address?.village || ''
-          const state = data.address?.state || ''
-          const country = data.address?.country || ''
-          setLocationInput([city, state, country].filter(Boolean).join(', '))
+            "https://nominatim.openstreetmap.org/reverse?lat=" + pos.coords.latitude + "&lon=" + pos.coords.longitude + "&format=json"
+          );
+          const data = await res.json();
+          const city = data.address?.city || data.address?.town || data.address?.village || '';
+          const state = data.address?.state || '';
+          const country = data.address?.country || '';
+          setLocationInput([city, state, country].filter(Boolean).join(', '));
         } catch (_e) {
-          setLocationInput(`${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)}`)
+          setLocationInput(pos.coords.latitude.toFixed(2) + ", " + pos.coords.longitude.toFixed(2));
         }
-        setGeoLoading(false)
+        setGeoLoading(false);
       },
       () => setGeoLoading(false),
       { enableHighAccuracy: false, timeout: 10000 }
-    )
-  }
+    );
+  };
 
-  async function saveAndReveal() {
-    setRevealLoading(true)
-    setStep(3)
+  const saveAndReveal = async () => {
+    setRevealLoading(true);
+    setStep(3);
     if (authToken) {
       try {
-        const body: Record<string, unknown> = { interested_categories: selectedCategories }
+        const body: Record<string, unknown> = { interested_categories: selectedCategories };
         if (locationInput) {
-          const parts = locationInput.split(',').map(s => s.trim())
+          const parts = locationInput.split(',').map(s => s.trim());
           if (parts.length >= 2) {
-            body.location_city = parts[0]
-            body.location_state = parts.length >= 3 ? parts[1] : ''
-            body.location_country = parts[parts.length - 1]
+            body.location_city = parts[0];
+            body.location_state = parts.length >= 3 ? parts[1] : '';
+            body.location_country = parts[parts.length - 1];
           }
           if (geoCoords) {
-            body.location_latitude = geoCoords.lat
-            body.location_longitude = geoCoords.lng
+            body.location_latitude = geoCoords.lat;
+            body.location_longitude = geoCoords.lng;
           }
         }
         await fetch('/api/user/personalization', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+          headers: { 'Content-Type': 'application/json', 'Authorization': "Bearer " + authToken },
           body: JSON.stringify(body),
-        })
-      } catch (e) { console.error('Failed to save personalization:', e) }
+        });
+      } catch (e) { console.error('Failed to save personalization:', e); }
     }
     try {
-      const catFilter = selectedCategories.length > 0 ? `&category=${selectedCategories[0]}` : ''
-      const res = await fetch(`/api/reports?limit=1&sort=rating${catFilter}`)
-      const data = await res.json()
-      if (data.reports?.[0]) setRevealReport(data.reports[0])
+      const catFilter = selectedCategories.length > 0 ? ("&category=" + selectedCategories[0]) : '';
+      const res = await fetch("/api/reports?limit=1&sort=rating" + catFilter);
+      const data = await res.json();
+      if (data.reports?.[0]) setRevealReport(data.reports[0]);
     } catch (_e) { /* fallback */ }
-    setRevealLoading(false)
-  }
+    setRevealLoading(false);
+  };
 
-  function finish() {
-    localStorage.setItem('paradocs_welcome_complete', 'true')
-    setIsExiting(true)
-    setTimeout(onComplete, 300)
-  }
+  const finish = () => {
+    localStorage.setItem('paradocs_welcome_complete', 'true');
+    setIsExiting(true);
+    setTimeout(onComplete, 300);
+  };
 
-  function nextStep() {
-    if (step === 0 && selectedCategories.length === 0) return
-    if (step === 2) { saveAndReveal(); return }
-    setStep(s => s + 1)
-  }
+  const nextStep = () => {
+    if (step === 0 && selectedCategories.length === 0) return;
+    if (step === 2) { saveAndReveal(); return; }
+    setStep(s => s + 1);
+  };
 
-  function prevStep() {
-    if (step > 0 && step < 3) setStep(s => s - 1)
-  }
+  const prevStep = () => {
+    if (step > 0 && step < 3) setStep(s => s - 1);
+  };
+
+  const overlayClass = "fixed inset-0 z-[10000] flex items-center justify-center p-4 transition-opacity duration-300 " + (isExiting ? "opacity-0" : "opacity-100");
 
   return (
     <div
-      className={`fixed inset-0 z-[10000] flex items-center justify-center p-4 transition-opacity duration-300 ${isExiting ? 'opacity-0' : 'opacity-100'}`}
+      className={overlayClass}
       style={{ background: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(12px)' }}
     >
       <div className="relative w-full max-w-lg rounded-2xl border overflow-hidden" style={{ background: 'linear-gradient(180deg, rgba(20, 20, 40, 0.98) 0%, rgba(10, 10, 25, 0.98) 100%)', borderColor: 'rgba(91, 99, 241, 0.2)', boxShadow: '0 0 60px rgba(91, 99, 241, 0.15), 0 25px 80px rgba(0, 0, 0, 0.6)' }}>
