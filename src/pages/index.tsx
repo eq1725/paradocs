@@ -288,7 +288,7 @@ export default function Home() {
             </form>
 
             {/* Animated stats counter */}
-            <div ref={statsRef} className="mt-12 flex flex-wrap justify-center gap-8 md:gap-16">
+            <div ref={statsRef} className={"mt-12 flex flex-wrap justify-center gap-8 md:gap-16 transition-opacity duration-700 " + (statsVisible ? "opacity-100" : "opacity-0")}>
               <div className="text-center">
                 <p className="text-3xl md:text-4xl font-display font-bold text-white tabular-nums">
                   {statsVisible ? animatedTotal.toLocaleString() : stats.total.toLocaleString()}
