@@ -1,12 +1,9 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import Head from 'next/head'
-import {
-  Search, ArrowRight, MapPin, TrendingUp, Users,
-  FileText, Compass, Map as MapIcon, BarChart3, Sparkles
-} from 'lucide-react'
+import { Search, ArrowRight, MapPin, TrendingUp, Users, FileText, Compass, Map as MapIcon, BarChart3, Sparkles, Eye, ChevronRight, Send, Globe, Shield, MessageCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonType } from '@/lib/database.types'
 import { Phenomenon } from '@/lib/services/phenomena.service'
@@ -15,7 +12,6 @@ import ReportCard from '@/components/ReportCard'
 import { TrendingPatternsWidget } from '@/components/patterns'
 import { hasCompletedOnboarding } from '@/components/OnboardingTour'
 
-// Default fallback stats (reasonable estimates, updated periodically)
 const DEFAULT_STATS = { total: 258000, thisMonth: 1000, locations: 14 }
 const STATS_CACHE_KEY = 'paradocs_homepage_stats'
 
@@ -25,22 +21,50 @@ function getCachedStats() {
     const cached = localStorage.getItem(STATS_CACHE_KEY)
     if (cached) {
       const parsed = JSON.parse(cached)
-      // Use cached if it has reasonable values
       if (parsed.total > 0) return parsed
     }
-  } catch (e) {
-    // Ignore localStorage errors
-  }
+  } catch (e) {}
   return DEFAULT_STATS
 }
 
 function setCachedStats(stats: { total: number; thisMonth: number; locations: number }) {
   if (typeof window === 'undefined') return
-  try {
-    localStorage.setItem(STATS_CACHE_KEY, JSON.stringify(stats))
-  } catch (e) {
-    // Ignore localStorage errors
-  }
+  try { localStorage.setItem(STATS_CACHE_KEY, JSON.stringify(stats)) } catch (e) {}
+}
+
+// Animated count-up hook
+function useCountUp(target: number, duration: number = 2000, start: boolean = true) {
+  const [count, setCount] = useState(0)
+  const startTime = useRef<number | null>(null)
+  const rafId = useRef<number>(0)
+
+  useEffect(() => {
+    if (!start || target <= 0) return
+    startTime.current = null
+    
+    function animate(timestamp: number) {
+      if (!startTime.current) startTime.current = timestamp
+      const progress = Math.min((timestamp - startTime.current) / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3) // ease-out cubic
+      setCount(Math.floor(eased * target))
+      if (progress < 1) rafId.current = requestAnimationFrame(animate)
+    }
+    
+    rafId.current = requestAnimationFrame(animate)
+    return () => cancelAnimationFrame(rafId.current)
+  }, [target, duration, start])
+
+  return count
+}
+
+// Ghost card preview data type
+interface PreviewCard {
+  title: string
+  location: string
+  phenomenon: string
+  category: string
+  slug: string
+  teaser: string
 }
 
 export default function Home() {
@@ -51,15 +75,44 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [showTourCTA, setShowTourCTA] = useState(false)
+  const [statsVisible, setStatsVisible] = useState(false)
+  const [previewCards, setPreviewCards] = useState<PreviewCard[]>([])
+  const [activePreview, setActivePreview] = useState(0)
+  const [emailInput, setEmailInput] = useState('')
+  const [emailSubmitting, setEmailSubmitting] = useState(false)
+  const [emailSuccess, setEmailSuccess] = useState(false)
+  const [userCount, setUserCount] = useState(0)
+  const statsRef = useRef<HTMLDivElement>(null)
 
-  // Show tour CTA for users who haven't completed onboarding
+  const animatedTotal = useCountUp(stats.total, 2500, statsVisible)
+  const animatedLocations = useCountUp(stats.locations, 1800, statsVisible)
+  const animatedMonth = useCountUp(stats.thisMonth, 1500, statsVisible)
+
+  // Intersection observer for stats animation
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setStatsVisible(true) },
+      { threshold: 0.3 }
+    )
+    if (statsRef.current) observer.observe(statsRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  // Auto-rotate preview cards
+  useEffect(() => {
+    if (previewCards.length <= 1) return
+    const interval = setInterval(() => {
+      setActivePreview(prev => (prev + 1) % previewCards.length)
+    }, 4000)
+    return () => clearInterval(interval)
+  }, [previewCards.length])
+
   useEffect(() => {
     if (typeof window !== 'undefined' && !hasCompletedOnboarding()) {
       setShowTourCTA(true)
     }
   }, [])
 
-  // Load cached stats immediately on mount
   useEffect(() => {
     setStats(getCachedStats())
     loadData()
@@ -67,7 +120,6 @@ export default function Home() {
 
   async function loadData() {
     try {
-      // Featured reports
       const { data: featured } = await supabase
         .from('reports')
         .select('*, phenomenon_type:phenomenon_types(*)')
@@ -76,7 +128,6 @@ export default function Home() {
         .order('created_at', { ascending: false })
         .limit(3)
 
-      // Recent reports
       const { data: recent } = await supabase
         .from('reports')
         .select('*, phenomenon_type:phenomenon_types(*)')
@@ -84,11 +135,35 @@ export default function Home() {
         .order('created_at', { ascending: false })
         .limit(6)
 
-      // Fetch stats from server API (handles pagination and exact counts)
+      // Build preview cards from top reports
+      const { data: topReports } = await supabase
+        .from('reports')
+        .select('title, location_text, summary, slug, phenomenon_types(name, category)')
+        .eq('status', 'approved')
+        .not('summary', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (topReports) {
+        setPreviewCards(topReports.map((r: any) => ({
+          title: r.title || 'Untitled Report',
+          location: r.location_text || 'Unknown Location',
+          phenomenon: r.phenomenon_types?.name || 'Unknown',
+          category: r.phenomenon_types?.category || '',
+          slug: r.slug || '',
+          teaser: (r.summary || '').substring(0, 120) + '...'
+        })))
+      }
+
       const statsResponse = await fetch('/api/public/stats')
       const statsData = statsResponse.ok ? await statsResponse.json() : { total: 0, thisMonth: 0, countries: 0 }
 
-      // Featured phenomena for encyclopedia section
+      // Get approximate user count
+      const { count: uCount } = await supabase
+        .from('user_profiles')
+        .select('id', { count: 'exact', head: true })
+      setUserCount(uCount || 0)
+
       const { data: phenomena } = await supabase
         .from('phenomena')
         .select('*')
@@ -100,16 +175,13 @@ export default function Home() {
       setFeaturedReports(featured || [])
       setRecentReports(recent || [])
 
-      // Update stats and cache for next visit
       const newStats = {
         total: statsData.total || 0,
         thisMonth: statsData.thisMonth || 0,
         locations: statsData.countries || 0
       }
       setStats(newStats)
-      if (newStats.total > 0) {
-        setCachedStats(newStats)
-      }
+      if (newStats.total > 0) setCachedStats(newStats)
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
@@ -124,6 +196,27 @@ export default function Home() {
     }
   }
 
+  async function handleEmailSignup(e: React.FormEvent) {
+    e.preventDefault()
+    if (!emailInput.trim() || emailSubmitting) return
+    setEmailSubmitting(true)
+    try {
+      const res = await fetch('/api/beta-signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailInput.trim(), source: 'homepage_digest' })
+      })
+      if (res.ok) {
+        setEmailSuccess(true)
+        setEmailInput('')
+      }
+    } catch (e) {
+      console.error('Email signup error:', e)
+    } finally {
+      setEmailSubmitting(false)
+    }
+  }
+
   const categories = Object.entries(CATEGORY_CONFIG).slice(0, 6)
 
   return (
@@ -135,8 +228,23 @@ export default function Home() {
       {/* Hero Section */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-primary-900/20 via-transparent to-transparent" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32 relative">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-28 relative">
           <div className="text-center max-w-4xl mx-auto">
+
+            {/* Social proof badge */}
+            {userCount > 0 && (
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 mb-8 animate-fade-in">
+                <div className="flex -space-x-2">
+                  <div className="w-6 h-6 rounded-full bg-primary-500/30 border border-primary-400/50" />
+                  <div className="w-6 h-6 rounded-full bg-purple-500/30 border border-purple-400/50" />
+                  <div className="w-6 h-6 rounded-full bg-amber-500/30 border border-amber-400/50" />
+                </div>
+                <span className="text-sm text-gray-300">
+                  Join <span className="text-white font-semibold">{userCount.toLocaleString()}+</span> researchers tracking the unexplained
+                </span>
+              </div>
+            )}
+
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold text-white leading-tight">
               Where Mysteries Meet{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-purple-400">
@@ -144,55 +252,72 @@ export default function Home() {
               </span>
             </h1>
             <p className="mt-6 text-lg md:text-xl text-gray-400 max-w-2xl mx-auto">
-              Explore the world's largest database of paranormal phenomena.
-              Discover UFO sightings, cryptid encounters, ghost reports, and unexplained events.
+              Explore the world's largest database of paranormal phenomena. Discover UFO sightings, cryptid encounters, ghost reports, and unexplained events.
             </p>
 
-            {/* Search */}
-            <form onSubmit={handleSearch} className="mt-10 max-w-xl mx-auto">
+            {/* Dual CTA buttons */}
+            <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link
+                href="/explore"
+                className="btn btn-primary px-8 py-4 text-lg font-semibold flex items-center gap-2 w-full sm:w-auto justify-center"
+              >
+                <Compass className="w-5 h-5" />
+                Start Exploring
+              </Link>
+              <Link
+                href="/submit"
+                className="px-8 py-4 text-lg font-semibold flex items-center gap-2 rounded-xl border border-white/20 text-white hover:bg-white/5 transition-colors w-full sm:w-auto justify-center"
+              >
+                <MessageCircle className="w-5 h-5" />
+                Share Your Experience
+              </Link>
+            </div>
+
+            {/* Search bar - now secondary */}
+            <form onSubmit={handleSearch} className="mt-8 max-w-xl mx-auto">
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                 <input
                   type="text"
-                  placeholder="Search reports..."
+                  placeholder="Search 258,000+ reports..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 text-lg"
+                  className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
                 />
-                <button
-                  type="submit"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 btn btn-primary px-6"
-                >
-                  Search
-                </button>
               </div>
             </form>
 
-            {/* Quick stats */}
-            <div className="mt-12 flex flex-wrap justify-center gap-8 md:gap-16">
+            {/* Animated stats counter */}
+            <div ref={statsRef} className="mt-12 flex flex-wrap justify-center gap-8 md:gap-16">
               <div className="text-center">
-                <p className="text-3xl md:text-4xl font-display font-bold text-white">
-                  {stats.total.toLocaleString()}
+                <p className="text-3xl md:text-4xl font-display font-bold text-white tabular-nums">
+                  {statsVisible ? animatedTotal.toLocaleString() : stats.total.toLocaleString()}
                 </p>
-                <p className="text-sm text-gray-500">Reports</p>
+                <p className="text-sm text-gray-500 flex items-center justify-center gap-1">
+                  <FileText className="w-3.5 h-3.5" /> Reports Analyzed
+                </p>
               </div>
               <div className="text-center">
-                <p className="text-3xl md:text-4xl font-display font-bold text-white">
-                  {stats.locations}
+                <p className="text-3xl md:text-4xl font-display font-bold text-white tabular-nums">
+                  {statsVisible ? animatedLocations : stats.locations}
                 </p>
-                <p className="text-sm text-gray-500">Countries</p>
+                <p className="text-sm text-gray-500 flex items-center justify-center gap-1">
+                  <Globe className="w-3.5 h-3.5" /> Countries
+                </p>
               </div>
               <div className="text-center">
-                <p className="text-3xl md:text-4xl font-display font-bold text-white">
-                  +{stats.thisMonth}
+                <p className="text-3xl md:text-4xl font-display font-bold text-white tabular-nums">
+                  +{statsVisible ? animatedMonth.toLocaleString() : stats.thisMonth.toLocaleString()}
                 </p>
-                <p className="text-sm text-gray-500">This Month</p>
+                <p className="text-sm text-gray-500 flex items-center justify-center gap-1">
+                  <TrendingUp className="w-3.5 h-3.5" /> This Month
+                </p>
               </div>
             </div>
 
             {/* Tour CTA for new users */}
             {showTourCTA && (
-              <div className="mt-10 animate-fade-in">
+              <div className="mt-8 animate-fade-in">
                 <Link
                   href="/report/the-roswell-incident-july-1947-showcase?tour=true"
                   className="inline-flex items-center gap-3 px-6 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-105"
@@ -211,6 +336,66 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Ghost Card Preview Carousel */}
+      {previewCards.length > 0 && (
+        <section className="py-8 -mt-8 relative z-10">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="relative h-48 sm:h-44">
+              {previewCards.map((card, i) => {
+                const isActive = i === activePreview
+                const isPrev = i === (activePreview - 1 + previewCards.length) % previewCards.length
+                const isNext = i === (activePreview + 1) % previewCards.length
+                if (!isActive && !isPrev && !isNext) return null
+
+                return (
+                  <Link
+                    key={i}
+                    href={`/report/${card.slug}`}
+                    className={`absolute inset-x-0 mx-auto max-w-2xl transition-all duration-700 ease-out ${
+                      isActive
+                        ? 'opacity-100 scale-100 translate-y-0 z-20'
+                        : isPrev
+                        ? 'opacity-40 scale-95 -translate-y-4 z-10'
+                        : 'opacity-40 scale-95 translate-y-4 z-10'
+                    }`}
+                  >
+                    <div className="glass-card p-5 sm:p-6 border border-white/10 hover:border-primary-500/30 transition-colors cursor-pointer">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="px-2 py-0.5 rounded-full bg-primary-500/20 text-primary-300 text-xs font-medium">
+                              {card.phenomenon}
+                            </span>
+                            <span className="text-xs text-gray-500 flex items-center gap-1">
+                              <MapPin className="w-3 h-3" /> {card.location}
+                            </span>
+                          </div>
+                          <h3 className="text-lg font-display font-semibold text-white truncate">{card.title}</h3>
+                          <p className="mt-2 text-sm text-gray-400 line-clamp-2">{card.teaser}</p>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-gray-500 shrink-0 mt-1" />
+                      </div>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+            {/* Dots indicator */}
+            <div className="flex justify-center gap-2 mt-2">
+              {previewCards.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setActivePreview(i)}
+                  className={`w-2 h-2 rounded-full transition-all ${
+                    i === activePreview ? 'bg-primary-400 w-6' : 'bg-white/20 hover:bg-white/40'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Categories Grid */}
       <section className="py-12 border-t border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -218,10 +403,7 @@ export default function Home() {
             <h2 className="text-xl font-display font-bold text-white">
               Explore by Category
             </h2>
-            <Link
-              href="/explore"
-              className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1"
-            >
+            <Link href="/explore" className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1">
               View all <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
@@ -242,30 +424,24 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Trending Patterns - Moved up for AI differentiation */}
+      {/* Trending Patterns */}
       <section className="py-12 border-t border-white/5 bg-gradient-to-b from-purple-900/10 to-transparent">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <TrendingPatternsWidget limit={3} showHeader={true} variant="inline" />
         </div>
       </section>
 
-      {/* Reports Section - Combined Featured + Recent */}
+      {/* Reports Section */}
       <section className="py-12 border-t border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Featured Reports - Highlight row */}
           {featuredReports.length > 0 && (
             <div className="mb-10">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-amber-400" />
-                  <h2 className="text-xl font-display font-bold text-white">
-                    Featured Reports
-                  </h2>
+                  <h2 className="text-xl font-display font-bold text-white">Featured Reports</h2>
                 </div>
-                <Link
-                  href="/explore?featured=true"
-                  className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1"
-                >
+                <Link href="/explore?featured=true" className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1">
                   View all <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
@@ -277,16 +453,10 @@ export default function Home() {
             </div>
           )}
 
-          {/* Recent Reports */}
           <div>
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-display font-bold text-white">
-                Latest Reports
-              </h2>
-              <Link
-                href="/explore"
-                className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1"
-              >
+              <h2 className="text-xl font-display font-bold text-white">Latest Reports</h2>
+              <Link href="/explore" className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1">
                 Explore all <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
@@ -307,21 +477,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Phenomena Encyclopedia - Secondary discovery */}
+      {/* Phenomena Encyclopedia */}
       {featuredPhenomena.length > 0 && (
         <section className="py-12 border-t border-white/5">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-xl font-display font-bold text-white">
-                  Phenomena Encyclopedia
-                </h2>
+                <h2 className="text-xl font-display font-bold text-white">Phenomena Encyclopedia</h2>
                 <p className="text-gray-400 text-sm mt-1">Creatures, entities, and unexplained phenomena</p>
               </div>
-              <Link
-                href="/phenomena"
-                className="text-sm text-amber-400 hover:text-amber-300 flex items-center gap-1"
-              >
+              <Link href="/phenomena" className="text-sm text-amber-400 hover:text-amber-300 flex items-center gap-1">
                 Browse all <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
@@ -342,7 +507,7 @@ export default function Home() {
                       />
                     ) : (
                       <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-                        <span className="text-3xl">{phenomenon.icon || '❓'}</span>
+                        <span className="text-3xl">{phenomenon.icon || '\u2753'}</span>
                       </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
@@ -358,74 +523,88 @@ export default function Home() {
         </section>
       )}
 
-      {/* Quick Links - Condensed */}
+      {/* Quick Links */}
       <section className="py-12 border-t border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <Link href="/explore" className="glass-card p-5 group flex items-start gap-4">
               <Compass className="w-8 h-8 text-primary-400 shrink-0" />
               <div>
-                <h3 className="font-display font-semibold text-white group-hover:text-primary-400 transition-colors">
-                  Explore
-                </h3>
-                <p className="mt-1 text-gray-400 text-xs hidden sm:block">
-                  Browse with powerful filters
-                </p>
+                <h3 className="font-display font-semibold text-white group-hover:text-primary-400 transition-colors">Explore</h3>
+                <p className="mt-1 text-gray-400 text-xs hidden sm:block">Browse with powerful filters</p>
               </div>
             </Link>
             <Link href="/phenomena" className="glass-card p-5 group flex items-start gap-4">
               <Sparkles className="w-8 h-8 text-amber-400 shrink-0" />
               <div>
-                <h3 className="font-display font-semibold text-white group-hover:text-amber-400 transition-colors">
-                  Encyclopedia
-                </h3>
-                <p className="mt-1 text-gray-400 text-xs hidden sm:block">
-                  Bigfoot, Mothman & more
-                </p>
+                <h3 className="font-display font-semibold text-white group-hover:text-amber-400 transition-colors">Encyclopedia</h3>
+                <p className="mt-1 text-gray-400 text-xs hidden sm:block">Bigfoot, Mothman & more</p>
               </div>
             </Link>
             <Link href="/map" className="glass-card p-5 group flex items-start gap-4">
               <MapIcon className="w-8 h-8 text-green-400 shrink-0" />
               <div>
-                <h3 className="font-display font-semibold text-white group-hover:text-green-400 transition-colors">
-                  Global Map
-                </h3>
-                <p className="mt-1 text-gray-400 text-xs hidden sm:block">
-                  Visualize sightings worldwide
-                </p>
+                <h3 className="font-display font-semibold text-white group-hover:text-green-400 transition-colors">Global Map</h3>
+                <p className="mt-1 text-gray-400 text-xs hidden sm:block">Visualize sightings worldwide</p>
               </div>
             </Link>
             <Link href="/insights" className="glass-card p-5 group flex items-start gap-4">
               <TrendingUp className="w-8 h-8 text-purple-400 shrink-0" />
               <div>
-                <h3 className="font-display font-semibold text-white group-hover:text-purple-400 transition-colors">
-                  AI Insights
-                </h3>
-                <p className="mt-1 text-gray-400 text-xs hidden sm:block">
-                  Patterns & anomalies
-                </p>
+                <h3 className="font-display font-semibold text-white group-hover:text-purple-400 transition-colors">AI Insights</h3>
+                <p className="mt-1 text-gray-400 text-xs hidden sm:block">Patterns & anomalies</p>
               </div>
             </Link>
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
+      {/* Email Capture + CTA Section */}
       <section className="py-16 border-t border-white/5 bg-gradient-to-b from-transparent to-primary-900/10">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl md:text-3xl font-display font-bold text-white">
-            Have a Report to Share?
+            Stay Connected to the Unknown
           </h2>
           <p className="mt-3 text-gray-400">
-            Witnessed something unexplainable? Your experience matters.
+            Get weekly paranormal insights, trending sightings, and new discoveries delivered to your inbox.
           </p>
-          <Link
-            href="/submit"
-            className="mt-6 inline-flex btn btn-primary px-6 py-3"
-          >
-            <FileText className="w-5 h-5" />
-            Submit a Report
-          </Link>
+
+          {emailSuccess ? (
+            <div className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-green-500/10 border border-green-500/30 text-green-300">
+              <Shield className="w-5 h-5" />
+              <span>You're in! Check your inbox for a welcome message.</span>
+            </div>
+          ) : (
+            <form onSubmit={handleEmailSignup} className="mt-6 max-w-md mx-auto flex gap-2">
+              <input
+                type="email"
+                placeholder="your@email.com"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                required
+                className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+              />
+              <button
+                type="submit"
+                disabled={emailSubmitting}
+                className="btn btn-primary px-6 py-3 flex items-center gap-2"
+              >
+                <Send className="w-4 h-4" />
+                {emailSubmitting ? '...' : 'Subscribe'}
+              </button>
+            </form>
+          )}
+
+          <div className="mt-10 pt-8 border-t border-white/5">
+            <h3 className="text-lg font-display font-semibold text-white">Have a Report to Share?</h3>
+            <p className="mt-2 text-gray-400 text-sm">
+              Witnessed something unexplainable? Your experience matters.
+            </p>
+            <Link href="/submit" className="mt-4 inline-flex btn btn-primary px-6 py-3">
+              <FileText className="w-5 h-5" />
+              Submit a Report
+            </Link>
+          </div>
         </div>
       </section>
     </>
