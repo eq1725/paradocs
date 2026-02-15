@@ -25,6 +25,10 @@ const ReportAIInsight = dynamic(
 const PatternConnections = dynamic(
   () => import('@/components/reports/PatternConnections'),
   { ssr: false, loading: () => <div className="h-24 bg-white/5 rounded-lg animate-pulse" /> }
+const ConnectionCards = dynamic(
+  () => import('@/components/reports/ConnectionCards'),
+  { ssr: false, loading: () => <div className="h-24 bg-white/5 rounded-lg animate-pulse" /> }
+)
 )
 const EnvironmentalContext = dynamic(
   () => import('@/components/reports/EnvironmentalContext'),
@@ -780,6 +784,9 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           <EnvironmentalContext reportSlug={slug as string} />
           <AcademicObservationPanel reportSlug={slug as string} />
         </div>
+
+        {/* Did You Know? Connection Cards */}
+        <ConnectionCards reportSlug={slug as string} className="mb-6 sm:mb-8" />
 
         {/* Actions bar */}
         <div className="sticky bottom-0 z-40 -mx-3 sm:-mx-4 px-3 sm:px-4 py-3 bg-black/80 backdrop-blur-md border-t border-white/10 mb-6 sm:mb-8">
