@@ -29,7 +29,7 @@ interface BaselineStatus {
 
 const PATTERN_TYPES = [
   { value: '', label: 'All Types' },
-  { value: 'geographic_cluster', label: 'Geographic Clusters' },
+  { value: 'regional_concentration', label: 'Geographic Clusters' },
   { value: 'temporal_anomaly', label: 'Temporal Anomalies' },
   { value: 'seasonal_pattern', label: 'Seasonal Patterns' },
   { value: 'flap_wave', label: 'Flap Waves' },
@@ -152,7 +152,7 @@ export default function InsightsPage() {
     {
       icon: MapPin,
       label: 'Geographic Clusters',
-      value: patternsByType['geographic_cluster']?.length || 0,
+      value: patternsByType['regional_concentration']?.length || 0,
       color: 'text-emerald-400'
     },
     {
