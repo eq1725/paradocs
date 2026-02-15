@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
+import AskTheUnknown from '@/components/AskTheUnknown'
 
 interface Phenomenon {
   id: string
@@ -573,6 +574,15 @@ export default function PhenomenonPage() {
           )}
         </div>
       </div>
+      <AskTheUnknown
+        context={{
+          type: 'phenomenon',
+          name: phenomenon.name,
+          category: phenomenon.category,
+          description: phenomenon.ai_description || phenomenon.ai_summary || '',
+          reportCount: phenomenon.report_count
+        }}
+      />
     </>
   )
 }
