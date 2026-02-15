@@ -95,7 +95,7 @@ export default function PhenomenaPage() {
             </h1>
             <p className="text-lg text-gray-400 max-w-3xl">
               Explore our comprehensive database of paranormal phenomena, from cryptids like Bigfoot and Mothman
-              to UFO classifications and haunting types. Each entry includes AI-generated descriptions,
+              to UFO classifications and haunting types. Each entry includes detailed descriptions,
               historical context, and links to related reports.
             </p>
           </div>
