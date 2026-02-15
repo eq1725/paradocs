@@ -45,7 +45,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   var isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
   var query = supabase
     .from('reports')
-    .select('id, title, slug, description, category, location, date_of_event, credibility_score, view_count');
+    .select('id, title, slug, description, category, location_name, event_date, credibility, view_count');
   if (isUuid) {
     query = query.or('slug.eq.' + slug + ',id.eq.' + slug);
   } else {
@@ -54,13 +54,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   var result = await query.single();
 
   if (result.error || !result.data) {
-    return res.status(404).json({ error: 'Report not found', debug: { hasUrl: !!supabaseUrl, hasKey: !!supabaseKey, slug: slug, isUuid: isUuid, resultError: result.error ? result.error.message : null, resultStatus: result.status } });
+    return res.status(404).json({ error: 'Report not found' });
   }
 
   var r = result.data;
   var icon = categoryIcons[r.category] || '\uD83D\uDD2E';
   var catLabel = r.category ? r.category.charAt(0).toUpperCase() + r.category.slice(1) : 'Unknown';
-  var score = Math.round((r.credibility_score || 0) * 100);
+  var score = Math.round((r.credibility || 0) * 100);
   var teaser = (r.description || '').substring(0, 120);
   if ((r.description || '').length > 120) teaser += '...';
   var reportUrl = baseUrl + '/report/' + (r.slug || r.id);
@@ -72,8 +72,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (format === 'json') {
     return res.status(200).json({
       id: r.id, title: r.title, slug: r.slug, category: r.category,
-      icon: icon, location: r.location || '', date_of_event: r.date_of_event || '',
-      credibility_score: r.credibility_score, score_percent: score,
+      icon: icon, location: r.location_name_name || '', date_of_event: r.event_date || '',
+      credibility: r.credibility, score_percent: score,
       view_count: r.view_count || 0, teaser: teaser, url: reportUrl
     });
   }
