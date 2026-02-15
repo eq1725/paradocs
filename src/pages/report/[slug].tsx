@@ -1,5 +1,5 @@
 // Report detail page - updated Jan 29, 2026
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import Link from 'next/link'
@@ -34,7 +34,7 @@ const AcademicObservationPanel = dynamic(
   () => import('@/components/reports/AcademicObservationPanel'),
   { ssr: false, loading: () => <div className="h-32 bg-white/5 rounded-lg animate-pulse" /> }
 )
-// ReportPhenomena removed from report page — tagging lives in admin/dashboard instead
+// ReportPhenomena removed from report page â tagging lives in admin/dashboard instead
 import FormattedDescription from '@/components/FormattedDescription'
 import OnboardingTour, { hasCompletedOnboarding } from '@/components/OnboardingTour'
 import AskTheUnknown from '@/components/AskTheUnknown'
@@ -65,6 +65,27 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const [newComment, setNewComment] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
   const [showTour, setShowTour] = useState(false)
+
+  // Reading progress bar state
+  const [readingProgress, setReadingProgress] = useState(0)
+  const [showStickyReactions, setShowStickyReactions] = useState(false)
+  const reactionsRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.scrollY
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight
+      setReadingProgress(docHeight > 0 ? Math.min((scrollTop / docHeight) * 100, 100) : 0)
+
+      // Show sticky reactions when original reactions are out of view
+      if (reactionsRef.current) {
+        const rect = reactionsRef.current.getBoundingClientRect()
+        setShowStickyReactions(rect.bottom < 0)
+      }
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
   const [isSaved, setIsSaved] = useState(false)
   const [savedId, setSavedId] = useState<string | null>(null)
   const [savingReport, setSavingReport] = useState(false)
@@ -109,12 +130,12 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
 
   useEffect(() => {
     if (slug) {
-      // Check if initialReport matches the current slug — during client-side navigation
+      // Check if initialReport matches the current slug â during client-side navigation
       // between report pages, initialReport may hold stale data from the previous page
       const initialMatchesSlug = initialReport && initialReport.slug === slug
 
       if (initialMatchesSlug) {
-        // Data came from server and matches current slug — just load user-specific state
+        // Data came from server and matches current slug â just load user-specific state
         setReport(initialReport)
         setMedia(initialMedia || [])
         setComments(initialComments || [])
@@ -123,7 +144,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         incrementViewCount(initialReport.id, initialReport.view_count)
         checkUser()
       } else if (!fetchError) {
-        // No matching server data — client-side fetch (handles navigation between reports)
+        // No matching server data â client-side fetch (handles navigation between reports)
         loadReport()
         checkUser()
       }
@@ -152,7 +173,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     return currentUser
   }
 
-  // Load user-specific state (votes, saved) — called when report data came from server
+  // Load user-specific state (votes, saved) â called when report data came from server
   async function loadUserState(reportId: string) {
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -176,11 +197,11 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         setSavedId((savedData as any)?.id || null)
       }
     } catch (e) {
-      // User state is non-critical — fail silently
+      // User state is non-critical â fail silently
     }
   }
 
-  // Increment view count — deduplicated per session to avoid inflation
+  // Increment view count â deduplicated per session to avoid inflation
   async function incrementViewCount(reportId: string, currentCount: number) {
     try {
       const viewKey = `viewed_${reportId}`
@@ -198,7 +219,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
       // Log activity for streak tracking (non-blocking)
       logActivity('view_report', { report_id: reportId }).catch(() => {})
     } catch (e) {
-      // Non-critical — fail silently
+      // Non-critical â fail silently
     }
   }
 
@@ -298,7 +319,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
 
       if (existing) {
         if (existing.vote_type === voteType) {
-          // Remove vote — toggle off
+          // Remove vote â toggle off
           await supabase.from('votes').delete().eq('id', existing.id)
           setUserVote(null)
           setReport(prev => prev ? {
@@ -478,6 +499,14 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         ))}
       </Head>
 
+      {/* Reading Progress Bar */}
+      <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-transparent">
+        <div
+          className="h-full bg-gradient-to-r from-primary-500 to-purple-500 transition-all duration-150"
+          style={{ width: `${readingProgress}%` }}
+        />
+      </div>
+
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <div className="lg:flex lg:gap-8">
           {/* Main content */}
@@ -498,7 +527,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           <span className="text-gray-500 truncate">{report.title}</span>
         </nav>
 
-        {/* Parent Case Banner — link back to main case report */}
+        {/* Parent Case Banner â link back to main case report */}
         {parentCase && (
           <div className="mb-4 p-3 bg-primary-500/10 border border-primary-500/30 rounded-lg flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center flex-shrink-0">
@@ -522,7 +551,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           </div>
         )}
 
-        {/* Non-Experiencer Content Notice — only for news/discussion and research content */}
+        {/* Non-Experiencer Content Notice â only for news/discussion and research content */}
         {isNonExperiencer && (
           <div className="mb-6 p-4 bg-gray-800/50 border border-gray-700 rounded-lg flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
@@ -591,7 +620,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
 
             // Don't show if summary (minus trailing ...) matches start of description
             // This handles truncated summaries like "text here..."
-            const summaryClean = summaryLower.replace(/\.{2,}$/, '').replace(/…$/, '').trim();
+            const summaryClean = summaryLower.replace(/\.{2,}$/, '').replace(/â¦$/, '').trim();
             if (descLower.startsWith(summaryClean.slice(0, 50))) return null;
 
             // Don't show if first 50 chars match (handles various truncation styles)
@@ -930,6 +959,15 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               sidebarOpen ? 'block' : 'hidden lg:block'
             )}>
               <RelatedReports
+                {/* Share Your Experience CTA */}
+                <div className="glass-card p-6 text-center mb-6">
+                  <h3 className="text-lg font-semibold text-white mb-2">Have You Seen Something Similar?</h3>
+                  <p className="text-sm text-gray-400 mb-4">Your experience could help build a more complete picture of this phenomenon.</p>
+                  <Link href="/submit" className="btn btn-primary inline-flex items-center gap-2">
+                    Share Your Experience
+                  </Link>
+                </div>
+
                 reportId={report.id}
                 category={report.category}
                 phenomenonTypeId={report.phenomenon_type_id}
@@ -965,6 +1003,18 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         />
       )}
       <AskTheUnknown
+      {/* Sticky Reaction Bar */}
+      {showStickyReactions && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-gray-900/95 backdrop-blur-lg border-t border-white/10 py-2 px-4 animate-fade-in">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <span className="text-sm text-gray-400 truncate mr-4">{report.title}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-500">{report.upvotes || 0} reactions</span>
+              <span className="text-xs text-gray-500">{report.comment_count || 0} comments</span>
+            </div>
+          </div>
+        </div>
+      )}
         context={{
           type: 'report',
           title: report.title,
