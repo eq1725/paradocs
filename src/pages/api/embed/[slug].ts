@@ -54,7 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   var result = await query.single();
 
   if (result.error || !result.data) {
-    return res.status(404).json({ error: 'Report not found' });
+    return res.status(404).json({ error: 'Report not found', debug: { hasUrl: !!supabaseUrl, hasKey: !!supabaseKey, slug: slug, isUuid: isUuid, resultError: result.error ? result.error.message : null, resultStatus: result.status } });
   }
 
   var r = result.data;
