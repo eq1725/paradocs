@@ -37,6 +37,7 @@ const AcademicObservationPanel = dynamic(
 // ReportPhenomena removed from report page — tagging lives in admin/dashboard instead
 import FormattedDescription from '@/components/FormattedDescription'
 import OnboardingTour, { hasCompletedOnboarding } from '@/components/OnboardingTour'
+import AskTheUnknown from '@/components/AskTheUnknown'
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
 const LocationMap = dynamic(
@@ -963,6 +964,15 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           }}
         />
       )}
+      <AskTheUnknown
+        context={{
+          type: 'report',
+          title: report.title,
+          location: report.location_text || report.location || '',
+          summary: report.summary || '',
+          phenomenon: report.phenomenon_type?.name || ''
+        }}
+      />
     </>
   )
 }
