@@ -72,7 +72,7 @@ export default function ExplorePage() {
           setBaselineCount(data.total || 0)
           setTotalCount(data.total || 0)
         }
-      } catch {
+      } catch (_e) {
         setBaselineCount(0)
       }
     }
@@ -323,7 +323,7 @@ export default function ExplorePage() {
             }
             const { count: exactCount } = await countQuery
             setTotalCount(exactCount || 0)
-          } catch {
+          } catch (_e) {
             // Fallback to estimate if count query fails
             setTotalCount((data?.length || 0) + ((data?.length || 0) === perPage ? (page * perPage) : 0))
           }
@@ -561,7 +561,7 @@ export default function ExplorePage() {
                       : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
                   )}
                 >
-                  ðï¸ Experiencer Reports
+                  Ã°ÂÂÂÃ¯Â¸Â Experiencer Reports
                 </button>
                 <button
                   onClick={() => { setContentType('all'); setPage(1) }}
@@ -583,7 +583,7 @@ export default function ExplorePage() {
                       : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
                   )}
                 >
-                  ð° News & Discussion
+                  Ã°ÂÂÂ° News & Discussion
                 </button>
               </div>
             </div>
