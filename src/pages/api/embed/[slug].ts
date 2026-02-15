@@ -41,11 +41,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   var supabase = createClient(supabaseUrl, supabaseKey);
-  var result = await supabase
+  // Check if slug looks like a UUID to avoid PostgreSQL type error
+  var isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+  var query = supabase
     .from('reports')
-    .select('id, title, slug, description, category, location, date_of_event, credibility_score, view_count')
-    .or('slug.eq.' + slug + ',id.eq.' + slug)
-    .single();
+    .select('id, title, slug, description, category, location, date_of_event, credibility_score, view_count');
+  if (isUuid) {
+    query = query.or('slug.eq.' + slug + ',id.eq.' + slug);
+  } else {
+    query = query.eq('slug', slug);
+  }
+  var result = await query.single();
 
   if (result.error || !result.data) {
     return res.status(404).json({ error: 'Report not found' });
@@ -57,7 +63,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   var score = Math.round((r.credibility_score || 0) * 100);
   var teaser = (r.description || '').substring(0, 120);
   if ((r.description || '').length > 120) teaser += '...';
-  var reportUrl = baseUrl + '/story/' + (r.slug || r.id);
+  var reportUrl = baseUrl + '/report/' + (r.slug || r.id);
 
   // Allow CORS for embeds
   res.setHeader('Access-Control-Allow-Origin', '*');
