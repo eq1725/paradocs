@@ -25,10 +25,10 @@ const ReportAIInsight = dynamic(
 const PatternConnections = dynamic(
   () => import('@/components/reports/PatternConnections'),
   { ssr: false, loading: () => <div className="h-24 bg-white/5 rounded-lg animate-pulse" /> }
+)
 const ConnectionCards = dynamic(
   () => import('@/components/reports/ConnectionCards'),
   { ssr: false, loading: () => <div className="h-24 bg-white/5 rounded-lg animate-pulse" /> }
-)
 )
 const EnvironmentalContext = dynamic(
   () => import('@/components/reports/EnvironmentalContext'),
