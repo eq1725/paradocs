@@ -73,6 +73,7 @@ export default function PhenomenaPage() {
   // Group by category
   const groupedPhenomena = CATEGORY_ORDER.reduce((acc, cat) => {
     const items = filteredPhenomena.filter(p => p.category === cat)
+      .sort((a, b) => a.name.localeCompare(b.name))
     if (items.length > 0) {
       acc[cat] = items
     }
