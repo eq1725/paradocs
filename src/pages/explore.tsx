@@ -1,9 +1,9 @@
 'use client'
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
-import { Search, SlidersHorizontal, X, ChevronDown, Sparkles, ArrowRight } from 'lucide-react'
+import { Search, SlidersHorizontal, X, ChevronDown, Sparkles, ArrowRight, TrendingUp, MapPin, Heart, Clock, ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonType, PhenomenonCategory, CredibilityLevel, ContentType } from '@/lib/database.types'
@@ -14,6 +14,31 @@ import ReportCard from '@/components/ReportCard'
 import { classNames } from '@/lib/utils'
 import AskTheUnknown from '@/components/AskTheUnknown'
 import WelcomeOnboarding, { hasCompletedWelcome } from '@/components/WelcomeOnboarding'
+
+interface FeedReport {
+  id: string
+  title: string
+  slug: string
+  summary: string | null
+  category: string
+  country: string | null
+  city: string | null
+  state_province: string | null
+  event_date: string | null
+  credibility: string | null
+  upvotes: number
+  view_count: number
+  comment_count: number
+  created_at: string
+  phenomenon_type?: { name: string; category: string; slug: string } | null
+}
+
+interface FeedSection {
+  id: string
+  title: string
+  subtitle: string
+  reports: FeedReport[]
+}
 
 type SortOption = 'newest' | 'oldest' | 'popular' | 'most_viewed'
 
@@ -26,6 +51,12 @@ export default function ExplorePage() {
     if (!hasCompletedWelcome()) setShowWelcome(true)
   }, [])
   const [loading, setLoading] = useState(true)
+
+  // Feed state
+  const [feedSections, setFeedSections] = useState<FeedSection[]>([])
+  const [feedLoading, setFeedLoading] = useState(true)
+  const [activeView, setActiveView] = useState<'feed' | 'browse'>('feed')
+
   const [showFilters, setShowFilters] = useState(false)
   const [totalCount, setTotalCount] = useState(0)
   const [baselineCount, setBaselineCount] = useState(0)
@@ -313,6 +344,41 @@ export default function ExplorePage() {
     loadReports()
   }, [loadReports])
 
+  // Fetch personalized feed
+  useEffect(() => {
+    async function fetchFeed() {
+      setFeedLoading(true)
+      try {
+        const res = await fetch('/api/feed/personalized')
+        if (res.ok) {
+          const data = await res.json()
+          setFeedSections(data.sections?.filter((s: FeedSection) => s.reports.length > 0) || [])
+        }
+      } catch (err) {
+        console.error('Feed fetch error:', err)
+      } finally {
+        setFeedLoading(false)
+      }
+    }
+    fetchFeed()
+  }, [])
+
+  const scrollContainer = (id: string, direction: 'left' | 'right') => {
+    const el = document.getElementById(id)
+    if (el) el.scrollBy({ left: direction === 'left' ? -320 : 320, behavior: 'smooth' })
+  }
+
+  const getSectionIcon = (id: string) => {
+    switch (id) {
+      case 'for_you': return <Sparkles className="w-5 h-5 text-primary-400" />
+      case 'trending': return <TrendingUp className="w-5 h-5 text-orange-400" />
+      case 'near_you': return <MapPin className="w-5 h-5 text-blue-400" />
+      case 'because_saved': return <Heart className="w-5 h-5 text-pink-400" />
+      case 'recent': return <Clock className="w-5 h-5 text-emerald-400" />
+      default: return <Sparkles className="w-5 h-5 text-gray-400" />
+    }
+  }
+
   function clearFilters() {
     setCategory('all')
     setSelectedCategories([])
@@ -350,6 +416,34 @@ export default function ExplorePage() {
           </p>
         </div>
 
+        {/* View Toggle */}
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setActiveView('feed')}
+            className={classNames(
+              'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
+              activeView === 'feed'
+                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
+                : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
+            )}
+          >
+            <Sparkles className="w-4 h-4" />
+            Discover
+          </button>
+          <button
+            onClick={() => setActiveView('browse')}
+            className={classNames(
+              'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
+              activeView === 'browse'
+                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
+                : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
+            )}
+          >
+            <Search className="w-4 h-4" />
+            Browse All
+          </button>
+        </div>
+
         {/* Pattern Insights Banner */}
         <Link
           href="/insights"
@@ -369,195 +463,281 @@ export default function ExplorePage() {
           </div>
         </Link>
 
-        {/* Content Type Filter - Prominent toggle for report types */}
-        <div className="mb-6 p-3 sm:p-4 glass-card">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <span className="text-sm text-gray-400 whitespace-nowrap">Show:</span>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => { setContentType('primary'); setPage(1) }}
-                className={classNames(
-                  'px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5',
-                  contentType === 'primary'
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                    : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
-                )}
-              >
-                👁️ Experiencer Reports
-              </button>
-              <button
-                onClick={() => { setContentType('all'); setPage(1) }}
-                className={classNames(
-                  'px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
-                  contentType === 'all'
-                    ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
-                    : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
-                )}
-              >
-                All Content
-              </button>
-              <button
-                onClick={() => { setContentType('news_discussion'); setPage(1) }}
-                className={classNames(
-                  'px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5',
-                  contentType === 'news_discussion'
-                    ? 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
-                    : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
-                )}
-              >
-                📰 News & Discussion
-              </button>
-            </div>
-          </div>
-          {contentType === 'primary' && (
-            <p className="text-xs text-gray-500 mt-2">
-              Showing first-hand witness accounts, documented historical cases, and research reports
-            </p>
-          )}
-          {contentType === 'news_discussion' && (
-            <p className="text-xs text-gray-500 mt-2">
-              Showing news articles, community discussions, and commentary (not first-hand accounts)
-            </p>
-          )}
-        </div>
-
-        <div className="mb-6">
-          <CategoryFilter
-            selected={category}
-            onChange={(cat) => { setCategory(cat); setPage(1) }}
-          />
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-            <input
-              type="text"
-              placeholder="Search reports..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setPage(1) }}
-              className="w-full pl-10 pr-4 py-2.5"
-            />
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={classNames(
-                'btn',
-                showFilters || hasActiveFilters ? 'btn-primary' : 'btn-secondary'
-              )}
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-              Filters
-              {hasActiveFilters && <span className="w-2 h-2 rounded-full bg-white" />}
-            </button>
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as SortOption)}
-              className="bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm"
-            >
-              <option value="newest">Newest First</option>
-              <option value="oldest">Oldest First</option>
-              <option value="popular">Most Popular</option>
-              <option value="most_viewed">Most Viewed</option>
-            </select>
-          </div>
-        </div>
-
-        {showFilters && (
-          <div className="glass-card p-6 mb-6 animate-fade-in">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium text-white">Advanced Filters</h3>
-              {hasActiveFilters && (
-                <button onClick={clearFilters} className="text-sm text-gray-400 hover:text-white flex items-center gap-1">
-                  <X className="w-4 h-4" />
-                  Clear all
+        {/* === FEED VIEW === */}
+        {activeView === 'feed' && (
+          <div className="space-y-8">
+            {feedLoading ? (
+              <div className="space-y-6">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i}>
+                    <div className="h-6 w-48 skeleton rounded mb-3" />
+                    <div className="flex gap-4 overflow-hidden">
+                      {[...Array(4)].map((_, j) => (
+                        <div key={j} className="glass-card p-4 min-w-[280px] h-40 skeleton rounded-lg flex-shrink-0" />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : feedSections.length === 0 ? (
+              <div className="text-center py-12">
+                <Sparkles className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+                <p className="text-gray-400">Complete your profile to get personalized recommendations.</p>
+                <button onClick={() => setActiveView('browse')} className="mt-3 text-primary-400 hover:text-primary-300 text-sm">
+                  Browse all reports instead
                 </button>
-              )}
-            </div>
-
-            <div className="mb-6">
-              <label className="block text-sm text-gray-400 mb-2">Filter by Phenomenon</label>
-              <SubcategoryFilter
-                selectedCategories={selectedCategories}
-                selectedTypes={selectedTypes}
-                onCategoriesChange={(cats) => { setSelectedCategories(cats); setPage(1) }}
-                onTypesChange={(types) => { setSelectedTypes(types); setPage(1) }}
-                compact
-              />
-            </div>
-
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Country</label>
-                <select value={country} onChange={(e) => { setCountry(e.target.value); setPage(1) }} className="w-full">
-                  <option value="">All countries</option>
-                  {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
               </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Credibility</label>
-                <select value={credibility} onChange={(e) => { setCredibility(e.target.value as CredibilityLevel); setPage(1) }} className="w-full">
-                  <option value="">Any credibility</option>
-                  {Object.entries(CREDIBILITY_CONFIG).map(([key, config]) => <option key={key} value={key}>{config.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Date From</label>
-                <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="w-full" />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Date To</label>
-                <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="w-full" />
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-4 mt-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={hasEvidence} onChange={(e) => { setHasEvidence(e.target.checked); setPage(1) }} className="rounded bg-white/5 border-white/20" />
-                <span className="text-sm text-gray-300">Has evidence</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={hasMedia} onChange={(e) => { setHasMedia(e.target.checked); setPage(1) }} className="rounded bg-white/5 border-white/20" />
-                <span className="text-sm text-gray-300">Has photos/video</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={featured} onChange={(e) => { setFeatured(e.target.checked); setPage(1) }} className="rounded bg-white/5 border-white/20" />
-                <span className="text-sm text-gray-300">Featured only</span>
-              </label>
-            </div>
+            ) : (
+              feedSections.map((section) => (
+                <div key={section.id} className="group/section">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      {getSectionIcon(section.id)}
+                      <div>
+                        <h2 className="text-lg font-semibold text-white">{section.title}</h2>
+                        <p className="text-xs text-gray-500">{section.subtitle}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity">
+                      <button onClick={() => scrollContainer(`feed-${section.id}`, 'left')} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400">
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => scrollContainer(`feed-${section.id}`, 'right')} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400">
+                        <ChevronRightIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div id={`feed-${section.id}`} className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory">
+                    {section.reports.map((report) => (
+                      <Link key={report.id} href={`/report/${report.slug}`} className="min-w-[300px] max-w-[300px] flex-shrink-0 snap-start glass-card p-4 hover:border-primary-500/30 transition-all group/card">
+                        <div className="flex items-start justify-between mb-2">
+                          {report.phenomenon_type && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-primary-500/20 text-primary-400 truncate max-w-[180px]">
+                              {report.phenomenon_type.name}
+                            </span>
+                          )}
+                          {report.credibility && (
+                            <span className={classNames('text-xs px-1.5 py-0.5 rounded',
+                              report.credibility === 'high' ? 'bg-emerald-500/20 text-emerald-400' :
+                              report.credibility === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                              'bg-gray-500/20 text-gray-400'
+                            )}>{report.credibility}</span>
+                          )}
+                        </div>
+                        <h3 className="font-medium text-white text-sm line-clamp-2 mb-2 group-hover/card:text-primary-300 transition-colors">{report.title}</h3>
+                        {report.summary && <p className="text-xs text-gray-500 line-clamp-2 mb-3">{report.summary}</p>}
+                        <div className="flex items-center gap-3 text-xs text-gray-500 mt-auto">
+                          {(report.city || report.country) && (
+                            <span className="flex items-center gap-1 truncate">
+                              <MapPin className="w-3 h-3 flex-shrink-0" />
+                              {[report.city, report.state_province, report.country].filter(Boolean).join(', ')}
+                            </span>
+                          )}
+                          {report.upvotes > 0 && <span>{report.upvotes} reactions</span>}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
 
-        {loading ? (
-          <div className="grid md:grid-cols-2 gap-4">
-            {[...Array(6)].map((_, i) => <div key={i} className="glass-card p-5 h-32 skeleton" />)}
-          </div>
-        ) : reports.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-gray-400">No reports found matching your criteria.</p>
-            {hasActiveFilters && (
-              <button onClick={clearFilters} className="mt-4 text-primary-400 hover:text-primary-300">
-                Clear filters
-              </button>
-            )}
-          </div>
-        ) : (
+        {/* === BROWSE VIEW === */}
+        {activeView === 'browse' && (
           <>
-            <div className="grid md:grid-cols-2 gap-4">
-              {reports.map((report) => <ReportCard key={report.id} report={report as any} />)}
-            </div>
-
-            {totalPages > 1 && (
-              <div className="flex justify-center gap-2 mt-8">
-                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn btn-secondary disabled:opacity-50">
-                  Previous
+          {/* Content Type Filter - Prominent toggle for report types */}
+          <div className="mb-6 p-3 sm:p-4 glass-card">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <span className="text-sm text-gray-400 whitespace-nowrap">Show:</span>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => { setContentType('primary'); setPage(1) }}
+                  className={classNames(
+                    'px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5',
+                    contentType === 'primary'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
+                  )}
+                >
+                  ðï¸ Experiencer Reports
                 </button>
-                <span className="flex items-center px-4 text-gray-400">Page {page} of {totalPages}</span>
-                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn btn-secondary disabled:opacity-50">
-                  Next
+                <button
+                  onClick={() => { setContentType('all'); setPage(1) }}
+                  className={classNames(
+                    'px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
+                    contentType === 'all'
+                      ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
+                      : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
+                  )}
+                >
+                  All Content
+                </button>
+                <button
+                  onClick={() => { setContentType('news_discussion'); setPage(1) }}
+                  className={classNames(
+                    'px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5',
+                    contentType === 'news_discussion'
+                      ? 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
+                      : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
+                  )}
+                >
+                  ð° News & Discussion
                 </button>
               </div>
+            </div>
+            {contentType === 'primary' && (
+              <p className="text-xs text-gray-500 mt-2">
+                Showing first-hand witness accounts, documented historical cases, and research reports
+              </p>
             )}
+            {contentType === 'news_discussion' && (
+              <p className="text-xs text-gray-500 mt-2">
+                Showing news articles, community discussions, and commentary (not first-hand accounts)
+              </p>
+            )}
+          </div>
+  
+          <div className="mb-6">
+            <CategoryFilter
+              selected={category}
+              onChange={(cat) => { setCategory(cat); setPage(1) }}
+            />
+          </div>
+  
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                type="text"
+                placeholder="Search reports..."
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setPage(1) }}
+                className="w-full pl-10 pr-4 py-2.5"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={classNames(
+                  'btn',
+                  showFilters || hasActiveFilters ? 'btn-primary' : 'btn-secondary'
+                )}
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+                Filters
+                {hasActiveFilters && <span className="w-2 h-2 rounded-full bg-white" />}
+              </button>
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as SortOption)}
+                className="bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm"
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="popular">Most Popular</option>
+                <option value="most_viewed">Most Viewed</option>
+              </select>
+            </div>
+          </div>
+  
+          {showFilters && (
+            <div className="glass-card p-6 mb-6 animate-fade-in">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-medium text-white">Advanced Filters</h3>
+                {hasActiveFilters && (
+                  <button onClick={clearFilters} className="text-sm text-gray-400 hover:text-white flex items-center gap-1">
+                    <X className="w-4 h-4" />
+                    Clear all
+                  </button>
+                )}
+              </div>
+  
+              <div className="mb-6">
+                <label className="block text-sm text-gray-400 mb-2">Filter by Phenomenon</label>
+                <SubcategoryFilter
+                  selectedCategories={selectedCategories}
+                  selectedTypes={selectedTypes}
+                  onCategoriesChange={(cats) => { setSelectedCategories(cats); setPage(1) }}
+                  onTypesChange={(types) => { setSelectedTypes(types); setPage(1) }}
+                  compact
+                />
+              </div>
+  
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Country</label>
+                  <select value={country} onChange={(e) => { setCountry(e.target.value); setPage(1) }} className="w-full">
+                    <option value="">All countries</option>
+                    {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Credibility</label>
+                  <select value={credibility} onChange={(e) => { setCredibility(e.target.value as CredibilityLevel); setPage(1) }} className="w-full">
+                    <option value="">Any credibility</option>
+                    {Object.entries(CREDIBILITY_CONFIG).map(([key, config]) => <option key={key} value={key}>{config.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Date From</label>
+                  <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="w-full" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Date To</label>
+                  <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="w-full" />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-4 mt-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={hasEvidence} onChange={(e) => { setHasEvidence(e.target.checked); setPage(1) }} className="rounded bg-white/5 border-white/20" />
+                  <span className="text-sm text-gray-300">Has evidence</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={hasMedia} onChange={(e) => { setHasMedia(e.target.checked); setPage(1) }} className="rounded bg-white/5 border-white/20" />
+                  <span className="text-sm text-gray-300">Has photos/video</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={featured} onChange={(e) => { setFeatured(e.target.checked); setPage(1) }} className="rounded bg-white/5 border-white/20" />
+                  <span className="text-sm text-gray-300">Featured only</span>
+                </label>
+              </div>
+            </div>
+          )}
+  
+          {loading ? (
+            <div className="grid md:grid-cols-2 gap-4">
+              {[...Array(6)].map((_, i) => <div key={i} className="glass-card p-5 h-32 skeleton" />)}
+            </div>
+          ) : reports.length === 0 ? (
+            <div className="text-center py-16">
+              <p className="text-gray-400">No reports found matching your criteria.</p>
+              {hasActiveFilters && (
+                <button onClick={clearFilters} className="mt-4 text-primary-400 hover:text-primary-300">
+                  Clear filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="grid md:grid-cols-2 gap-4">
+                {reports.map((report) => <ReportCard key={report.id} report={report as any} />)}
+              </div>
+  
+              {totalPages > 1 && (
+                <div className="flex justify-center gap-2 mt-8">
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn btn-secondary disabled:opacity-50">
+                    Previous
+                  </button>
+                  <span className="flex items-center px-4 text-gray-400">Page {page} of {totalPages}</span>
+                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn btn-secondary disabled:opacity-50">
+                    Next
+                  </button>
+                </div>
+              )}
+            </>
+          )}
           </>
         )}
       </div>
