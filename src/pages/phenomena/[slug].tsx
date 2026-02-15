@@ -16,6 +16,10 @@ import {
   ExternalLink,
   Eye,
   ThumbsUp,
+  Image,
+  Video,
+  Play,
+  ZoomIn,
 } from 'lucide-react'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
@@ -40,6 +44,19 @@ interface Phenomenon {
   first_reported_date: string | null
   last_reported_date: string | null
   primary_regions: string[]
+  image_gallery: GalleryItem[] | null
+}
+
+interface GalleryItem {
+  url: string
+  thumbnail_url?: string
+  type: 'image' | 'video' | 'illustration'
+  caption?: string
+  source?: string
+  source_url?: string
+  license?: string
+  width?: number
+  height?: number
 }
 
 interface RelatedReport {
@@ -63,7 +80,7 @@ export default function PhenomenonPage() {
   const [phenomenon, setPhenomenon] = useState<Phenomenon | null>(null)
   const [reports, setReports] = useState<RelatedReport[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'reports'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'media' | 'reports'>('overview')
 
   useEffect(() => {
     if (slug && typeof slug === 'string') {
@@ -240,6 +257,17 @@ export default function PhenomenonPage() {
                 History
               </button>
               <button
+                onClick={() => setActiveTab('media')}
+                className={classNames(
+                  'py-4 border-b-2 font-medium transition-colors whitespace-nowrap text-sm sm:text-base',
+                  activeTab === 'media'
+                    ? 'border-purple-500 text-white'
+                    : 'border-transparent text-gray-400 hover:text-white'
+                )}
+              >
+                Media {phenomenon.image_gallery && phenomenon.image_gallery.length > 0 ? `(${phenomenon.image_gallery.length})` : ''}
+              </button>
+              <button
                 onClick={() => setActiveTab('reports')}
                 className={classNames(
                   'py-4 border-b-2 font-medium transition-colors whitespace-nowrap text-sm sm:text-base',
@@ -335,7 +363,7 @@ export default function PhenomenonPage() {
                           <h4 className="text-sm text-white font-medium line-clamp-1">{report.title}</h4>
                           <p className="text-xs text-gray-400 mt-1">
                             {report.location_name || report.country || 'Unknown location'}
-                            {report.event_date && ` • ${new Date(report.event_date).toLocaleDateString()}`}
+                            {report.event_date && ` â¢ ${new Date(report.event_date).toLocaleDateString()}`}
                           </p>
                         </Link>
                       ))}
@@ -387,7 +415,115 @@ export default function PhenomenonPage() {
             </div>
           )}
 
-          {activeTab === 'reports' && (
+          {activeTab === 'media' && (
+            <div>
+              {phenomenon.image_gallery && phenomenon.image_gallery.length > 0 ? (
+                <div className="space-y-8">
+                  {/* Images Section */}
+                  {phenomenon.image_gallery.filter(item => item.type !== 'video').length > 0 && (
+                    <section>
+                      <h2 className="flex items-center gap-3 text-xl font-semibold text-white mb-6">
+                        <span className="text-purple-400"><Image className="w-5 h-5" /></span>
+                        Images & Illustrations
+                      </h2>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {phenomenon.image_gallery.filter(item => item.type !== 'video').map((item, i) => (
+                          <a
+                            key={i}
+                            href={item.source_url || item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group block bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-purple-500/50 transition-all"
+                          >
+                            <div className="relative aspect-video bg-gray-800">
+                              <img
+                                src={item.thumbnail_url || item.url}
+                                alt={item.caption || phenomenon.name}
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
+                                loading="lazy"
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                <ZoomIn className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            </div>
+                            {item.caption && (
+                              <div className="p-3">
+                                <p className="text-sm text-gray-300 line-clamp-2">{item.caption}</p>
+                                {item.source && (
+                                  <p className="text-xs text-gray-500 mt-1">Source: {item.source}</p>
+                                )}
+                              </div>
+                            )}
+                          </a>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  {/* Videos Section */}
+                  {phenomenon.image_gallery.filter(item => item.type === 'video').length > 0 && (
+                    <section>
+                      <h2 className="flex items-center gap-3 text-xl font-semibold text-white mb-6">
+                        <span className="text-purple-400"><Video className="w-5 h-5" /></span>
+                        Videos & Documentaries
+                      </h2>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {phenomenon.image_gallery.filter(item => item.type === 'video').map((item, i) => {
+                          const youtubeId = item.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/)?.[1]
+                          return (
+                            <div key={i} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                              {youtubeId ? (
+                                <div className="aspect-video">
+                                  <iframe
+                                    src={`https://www.youtube.com/embed/${youtubeId}`}
+                                    title={item.caption || phenomenon.name}
+                                    className="w-full h-full"
+                                    allowFullScreen
+                                    loading="lazy"
+                                  />
+                                </div>
+                              ) : (
+                                <a
+                                  href={item.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block relative aspect-video bg-gray-800"
+                                >
+                                  {item.thumbnail_url && (
+                                    <img src={item.thumbnail_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  )}
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <Play className="w-12 h-12 text-white/80" />
+                                  </div>
+                                </a>
+                              )}
+                              {item.caption && (
+                                <div className="p-3">
+                                  <p className="text-sm text-gray-300 line-clamp-2">{item.caption}</p>
+                                  {item.source && (
+                                    <p className="text-xs text-gray-500 mt-1">{item.source}</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </section>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Image className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                  <p className="text-gray-400">No media gallery available for this phenomenon yet.</p>
+                  <p className="text-gray-500 text-sm mt-2">Media will be added as research continues.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+                    {activeTab === 'reports' && (
             <div>
               <p className="text-gray-400 mb-6">
                 Showing {reports.length} reports related to {phenomenon.name}
