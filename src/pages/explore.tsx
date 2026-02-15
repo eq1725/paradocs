@@ -561,7 +561,7 @@ export default function ExplorePage() {
                       : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
                   )}
                 >
-                  Ã°ÂÂÂÃ¯Â¸Â Experiencer Reports
+                  👁️ Experiencer Reports
                 </button>
                 <button
                   onClick={() => { setContentType('all'); setPage(1) }}
@@ -583,7 +583,7 @@ export default function ExplorePage() {
                       : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
                   )}
                 >
-                  Ã°ÂÂÂ° News & Discussion
+                  📰 News & Discussion
                 </button>
               </div>
             </div>
