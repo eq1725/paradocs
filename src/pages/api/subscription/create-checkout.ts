@@ -28,11 +28,14 @@ export default async function handler(
   try {
     var supabase = createServerClient();
 
-    // Get authenticated user from session cookie
-    var userResult = await supabase.auth.getUser(
-      req.cookies['sb-bhkbctdmwnowfmqpksed-auth-token'] ||
-      (req.headers.authorization || '').replace('Bearer ', '')
-    );
+    // Get authenticated user from Authorization header
+    var authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    var token = authHeader.replace('Bearer ', '');
+    var userResult = await supabase.auth.getUser(token);
 
     if (!userResult.data.user) {
       return res.status(401).json({ error: 'Not authenticated' });
