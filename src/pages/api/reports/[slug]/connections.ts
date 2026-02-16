@@ -70,11 +70,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       var relatedResult = await supabase
         .from('reports')
-        .select('id, title, slug, category, phenomenon_type_id, credibility_score')
+        .select('id, title, slug, category, phenomenon_type_id')
         .neq('id', reportId)
         .eq('status', 'approved')
         .or(orFilters.join(','))
-        .order('credibility_score', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false })
         .limit(maxResults);
 
       if (relatedResult.error) {
