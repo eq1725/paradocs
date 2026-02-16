@@ -43,6 +43,7 @@ interface NotificationSettings {
   email_report_updates: boolean
   email_weekly_digest: boolean
   email_marketing: boolean
+  smart_alerts: boolean
 }
 
 function SettingsSection({
@@ -134,7 +135,8 @@ export default function SettingsPage() {
     email_new_comments: true,
     email_report_updates: true,
     email_weekly_digest: false,
-    email_marketing: false
+    email_marketing: false,
+    smart_alerts: true
   })
 
   // Personalization state
@@ -475,6 +477,12 @@ export default function SettingsPage() {
               description="Receive a weekly summary of paranormal activity in your area"
               checked={notifications.email_weekly_digest}
               onChange={(checked) => setNotifications(n => ({ ...n, email_weekly_digest: checked }))}
+            />
+            <Toggle
+              label="Smart match alerts"
+              description="Get notified when new reports match your interests and location (max 3/week)"
+              checked={notifications.smart_alerts}
+              onChange={(checked) => setNotifications(n => ({ ...n, smart_alerts: checked }))}
             />
             <Toggle
               label="Marketing emails"
