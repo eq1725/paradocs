@@ -105,6 +105,7 @@ function FeatureValue({ value }: { value: boolean | string }) {
   if (value === true) {
     return <Check className="w-5 h-5 text-green-400" />
   }
+  // String values like "view_only", "email", "full", etc.
   return (
     <span className="text-sm text-gray-300 capitalize">
       {value.replace(/_/g, ' ')}
@@ -288,12 +289,22 @@ export default function SubscriptionPage() {
     const tier = tiers.find(t => t.id === tierId)
     if (!tier) return
 
+    // For paid tiers, redirect to Stripe checkout
     if (tier.price_monthly > 0) {
       setChangingTier(tierId)
       try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) {
+          alert('Please sign in to upgrade your plan.')
+          setChangingTier(null)
+          return
+        }
         const resp = await fetch('/api/subscription/create-checkout', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + session.access_token
+          },
           body: JSON.stringify({ plan: tier.name, interval: 'monthly' })
         })
         const data = await resp.json()
@@ -310,6 +321,7 @@ export default function SubscriptionPage() {
       return
     }
 
+    // For free tier (downgrade), use direct tier change
     const confirmMessage = `Are you sure you want to downgrade to ${tier.display_name}? Some features may be lost.`
     if (!confirm(confirmMessage)) return
 
@@ -382,6 +394,7 @@ export default function SubscriptionPage() {
             </div>
           </div>
 
+          {/* Quick stats */}
           <div className="flex flex-wrap gap-6">
             {usage && limits && (
               <>
@@ -408,6 +421,7 @@ export default function SubscriptionPage() {
           </div>
         </div>
 
+        {/* Usage meters */}
         {usage && limits && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 pt-6 border-t border-gray-800">
             <UsageMeter
@@ -434,6 +448,7 @@ export default function SubscriptionPage() {
         )}
       </div>
 
+      {/* Plan Selection */}
       <h3 className="text-lg font-semibold text-white mb-6">Available Plans</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {tiers
@@ -450,6 +465,7 @@ export default function SubscriptionPage() {
           ))}
       </div>
 
+      {/* FAQ / Info */}
       <div className="mt-12 p-6 bg-gray-900 rounded-xl border border-gray-800">
         <h3 className="text-lg font-semibold text-white mb-4">
           Frequently Asked Questions
