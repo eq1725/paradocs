@@ -86,10 +86,10 @@ export default async function handler(
             .insert({
               user_id: userId,
               tier_id: tierResult.data.id,
-              plan_name: plan,
               status: 'active',
-              stripe_subscription_id: session.subscription,
-              stripe_customer_id: session.customer,
+              payment_provider: 'stripe',
+              payment_subscription_id: session.subscription,
+              payment_customer_id: session.customer,
               started_at: new Date().toISOString()
             });
 
@@ -118,7 +118,7 @@ export default async function handler(
 
         await (supabase.from('user_subscriptions') as any)
           .update({ status: mappedStatus })
-          .eq('stripe_subscription_id', subscription.id);
+          .eq('payment_subscription_id', subscription.id);
 
         console.log('[StripeWebhook] Subscription updated: ' + subscription.id + ' status=' + mappedStatus);
       }
@@ -131,7 +131,7 @@ export default async function handler(
           status: 'cancelled',
           cancelled_at: new Date().toISOString()
         })
-        .eq('stripe_subscription_id', deletedSub.id);
+        .eq('payment_subscription_id', deletedSub.id);
 
       // Revert user to free tier
       if (delUserId) {
@@ -156,7 +156,7 @@ export default async function handler(
       if (failedSubId) {
         await (supabase.from('user_subscriptions') as any)
           .update({ status: 'past_due' })
-          .eq('stripe_subscription_id', failedSubId);
+          .eq('payment_subscription_id', failedSubId);
 
         console.log('[StripeWebhook] Payment failed for subscription: ' + failedSubId);
       }
