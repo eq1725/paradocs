@@ -45,7 +45,7 @@ export default function PaywallGate(props: PaywallGateProps) {
     {
       id: 'basic',
       name: 'Basic',
-      price: '$4.99',
+      price: '$9',
       period: '/mo',
       features: [
         '25 reports per month',
@@ -59,7 +59,7 @@ export default function PaywallGate(props: PaywallGateProps) {
     {
       id: 'pro',
       name: 'Pro',
-      price: '$9.99',
+      price: '$29',
       period: '/mo',
       badge: 'Most Popular',
       features: [
