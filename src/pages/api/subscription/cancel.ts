@@ -19,10 +19,13 @@ export default async function handler(
   try {
     var supabase = createServerClient();
 
-    var userResult = await supabase.auth.getUser(
-      req.cookies['sb-bhkbctdmwnowfmqpksed-auth-token'] ||
-      (req.headers.authorization || '').replace('Bearer ', '')
-    );
+    var authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    var token = authHeader.replace('Bearer ', '');
+    var userResult = await supabase.auth.getUser(token);
 
     if (!userResult.data.user) {
       return res.status(401).json({ error: 'Not authenticated' });
@@ -30,6 +33,7 @@ export default async function handler(
 
     var user = userResult.data.user;
 
+    // Get the active subscription
     var subResult = await (supabase
       .from('user_subscriptions') as any)
       .select('payment_subscription_id')
@@ -52,10 +56,12 @@ export default async function handler(
       apiVersion: '2023-10-16' as any
     });
 
+    // Cancel at period end (not immediately)
     await stripe.subscriptions.update(subResult.data.payment_subscription_id, {
       cancel_at_period_end: true
     });
 
+    // Update local record
     await (supabase.from('user_subscriptions') as any)
       .update({
         status: 'cancelled',
