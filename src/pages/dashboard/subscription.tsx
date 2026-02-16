@@ -293,18 +293,9 @@ export default function SubscriptionPage() {
     if (tier.price_monthly > 0) {
       setChangingTier(tierId)
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) {
-          alert('Please sign in to upgrade your plan.')
-          setChangingTier(null)
-          return
-        }
         const resp = await fetch('/api/subscription/create-checkout', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + session.access_token
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ plan: tier.name, interval: 'monthly' })
         })
         const data = await resp.json()

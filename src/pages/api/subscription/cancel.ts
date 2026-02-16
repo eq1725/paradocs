@@ -19,13 +19,10 @@ export default async function handler(
   try {
     var supabase = createServerClient();
 
-    var authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-
-    var token = authHeader.replace('Bearer ', '');
-    var userResult = await supabase.auth.getUser(token);
+    var userResult = await supabase.auth.getUser(
+      req.cookies['sb-bhkbctdmwnowfmqpksed-auth-token'] ||
+      (req.headers.authorization || '').replace('Bearer ', '')
+    );
 
     if (!userResult.data.user) {
       return res.status(401).json({ error: 'Not authenticated' });
