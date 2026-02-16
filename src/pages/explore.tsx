@@ -349,7 +349,13 @@ export default function ExplorePage() {
     async function fetchFeed() {
       setFeedLoading(true)
       try {
-        const res = await fetch('/api/feed/personalized')
+        // Get auth token for personalized sections
+        const { data: { session } } = await supabase.auth.getSession()
+        const headers: Record<string, string> = {}
+        if (session?.access_token) {
+          headers['Authorization'] = 'Bearer ' + session.access_token
+        }
+        const res = await fetch('/api/feed/personalized', { headers })
         if (res.ok) {
           const data = await res.json()
           setFeedSections(data.sections?.filter((s: FeedSection) => s.reports.length > 0) || [])
@@ -482,7 +488,8 @@ export default function ExplorePage() {
             ) : feedSections.length === 0 ? (
               <div className="text-center py-12">
                 <Sparkles className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400">Complete your profile to get personalized recommendations.</p>
+                <p className="text-gray-400">No reports available right now. Check back soon!</p>
+              <p className="text-xs text-gray-500 mt-2">Sign in and complete your profile for personalized recommendations.</p>
                 <button onClick={() => setActiveView('browse')} className="mt-3 text-primary-400 hover:text-primary-300 text-sm">
                   Browse all reports instead
                 </button>
