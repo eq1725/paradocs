@@ -471,6 +471,8 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
 
   return (
     <>
+      {/* Reading progress bar */}
+      <div style={{ position: 'fixed', top: 0, left: 0, width: scrollProgress + '%', height: '3px', background: 'linear-gradient(90deg, #5b63f1, #8b5cf6)', zIndex: 9999, transition: 'width 0.1s ease-out' }} />
       <Head>
         <title>{report.title} - ParaDocs</title>
         <meta name="description" content={report.summary || report.description?.slice(0, 160)} />
