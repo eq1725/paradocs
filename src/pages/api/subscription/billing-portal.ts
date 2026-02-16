@@ -19,10 +19,13 @@ export default async function handler(
   try {
     var supabase = createServerClient();
 
-    var userResult = await supabase.auth.getUser(
-      req.cookies['sb-bhkbctdmwnowfmqpksed-auth-token'] ||
-      (req.headers.authorization || '').replace('Bearer ', '')
-    );
+    var authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    var token = authHeader.replace('Bearer ', '');
+    var userResult = await supabase.auth.getUser(token);
 
     if (!userResult.data.user) {
       return res.status(401).json({ error: 'Not authenticated' });
@@ -30,6 +33,7 @@ export default async function handler(
 
     var user = userResult.data.user;
 
+    // Get stripe customer ID from profile
     var profileResult = await (supabase
       .from('profiles') as any)
       .select('stripe_customer_id')
