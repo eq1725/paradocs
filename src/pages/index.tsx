@@ -70,7 +70,7 @@ interface PreviewCard {
 
 export default function Home() {
   // A/B Test: Hero headline variants
-  const heroAB = useABTest('hero_headline_v1', ['control', 'variant_b']);
+  const heroAB = useABTest('hero_headline_v2', ['A', 'B', 'C', 'D', 'E']);
 
   const [featuredReports, setFeaturedReports] = useState<(Report & { phenomenon_type?: PhenomenonType })[]>([])
   const [recentReports, setRecentReports] = useState<(Report & { phenomenon_type?: PhenomenonType })[]>([])
@@ -249,24 +249,29 @@ export default function Home() {
               </div>
             )}
 
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold text-white leading-tight">
-              {heroAB.variant === 'control' ? (
-                <>Have You Experienced Something{" "}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-purple-400">
-                  You Can&apos;t Explain?
-                </span></>
-              ) : (
-                <>The World&apos;s Largest Database of{" "}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-purple-400">
-                  Unexplained Encounters
-                </span></>
-              )}
-            </h1>
-            <p className="mt-6 text-lg md:text-xl text-gray-400 max-w-2xl mx-auto">
-              {heroAB.variant === 'control'
-                ? "You\u2019re not alone. Explore 878+ documented encounters across 14 countries \u2014 and share your own."
-                : "878+ documented encounters across 14 countries. Search, explore, and contribute to the unknown."}
-            </p>
+{(() => {
+              const headlines: Record<string, { main: string; accent: string; sub: string }> = {
+                A: { main: "Have You Experienced Something", accent: "You Can\u2019t Explain?", sub: "You\u2019re not alone. Explore 878+ documented encounters across 14 countries \u2014 and share your own." },
+                B: { main: "The World\u2019s Largest Database of", accent: "Unexplained Encounters", sub: "878+ documented encounters across 14 countries. Search, explore, and contribute to the unknown." },
+                C: { main: "What If Everything You\u2019ve Been Told", accent: "Is Wrong?", sub: "878+ verified encounters. 14 countries. Exposed patterns the mainstream won\u2019t talk about." },
+                D: { main: "Join the Researchers Tracking What", accent: "Can\u2019t Be Explained", sub: "A growing community documenting 878+ encounters across 14 countries. Your experience matters." },
+                E: { main: "Something Strange Is Happening", accent: "\u2014 And We\u2019re Documenting It", sub: "878+ encounters logged across 14 countries. Explore the evidence or submit your own." },
+              };
+              const h = headlines[heroAB.variant] || headlines.A;
+              return (
+                <>
+                  <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold text-white leading-tight">
+                    {h.main}{" "}
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-purple-400">
+                      {h.accent}
+                    </span>
+                  </h1>
+                  <p className="mt-6 text-lg md:text-xl text-gray-400 max-w-2xl mx-auto">
+                    {h.sub}
+                  </p>
+                </>
+              );
+            })()}
 
             {/* Dual CTA buttons */}
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
