@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import Link from 'next/link'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import StatsCard from '@/components/admin/StatsCard'
@@ -409,6 +410,13 @@ export default function AdminDashboard() {
               {tab.label}
             </button>
           ))}
+          <Link
+            href="/admin/ab-testing"
+            className="px-4 py-3 font-medium transition-colors border-b-2 -mb-px whitespace-nowrap text-gray-400 border-transparent hover:text-purple-400 hover:border-purple-400"
+          >
+            <span className="mr-2">🧪</span>
+            A/B Testing
+          </Link>
         </div>
 
         {/* Overview Tab */}
