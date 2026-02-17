@@ -11,6 +11,7 @@ import { CATEGORY_CONFIG } from '@/lib/constants'
 import ReportCard from '@/components/ReportCard'
 import { TrendingPatternsWidget } from '@/components/patterns'
 import { hasCompletedOnboarding } from '@/components/OnboardingTour'
+import { useABTest } from '@/lib/ab-testing'
 
 const DEFAULT_STATS = { total: 258000, thisMonth: 1000, locations: 14 }
 const STATS_CACHE_KEY = 'paradocs_homepage_stats'
@@ -68,6 +69,9 @@ interface PreviewCard {
 }
 
 export default function Home() {
+  // A/B Test: Hero headline variants
+  const heroAB = useABTest('hero_headline_v1', ['control', 'variant_b']);
+
   const [featuredReports, setFeaturedReports] = useState<(Report & { phenomenon_type?: PhenomenonType })[]>([])
   const [recentReports, setRecentReports] = useState<(Report & { phenomenon_type?: PhenomenonType })[]>([])
   const [featuredPhenomena, setFeaturedPhenomena] = useState<Phenomenon[]>([])
