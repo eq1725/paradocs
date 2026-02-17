@@ -1,48 +1,39 @@
-/**
- * API: POST /api/ab/track
- *
- * Receives A/B test impression and conversion events.
- * Stores to Supabase ab_events table for analysis.
- */
-
-import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
-var supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-var supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+var supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+var supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  var body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-  var experimentId = body.experiment_id;
-  var variant = body.variant;
-  var event = body.event;
-  var userId = body.user_id || 'anonymous';
-  var metadata = body.metadata || {};
+  try {
+    var { test_name, variant, event_type, session_id, page_path, metadata } = req.body;
 
-  if (!experimentId || !variant || !event) {
-    return res.status(400).json({ error: 'experiment_id, variant, and event required' });
-  }
+    if (!test_name || !variant || !event_type || !session_id) {
+      return res.status(400).json({ error: 'Missing required fields: test_name, variant, event_type, session_id' });
+    }
 
-  var supabase = createClient(supabaseUrl, supabaseKey);
+    var supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  var insertResult = await supabase
-    .from('ab_events')
-    .insert({
-      experiment_id: experimentId,
+    var { error } = await supabase.from('ab_events').insert({
+      test_name: test_name,
       variant: variant,
-      event_type: event,
-      user_id: userId,
-      metadata: metadata,
-      created_at: new Date().toISOString()
+      event_type: event_type,
+      session_id: session_id,
+      page_path: page_path || null,
+      metadata: metadata || {},
     });
 
-  if (insertResult.error) {
-    console.error('AB track error:', insertResult.error.message);
-  }
+    if (error) {
+      console.error('A/B track insert error:', error);
+      return res.status(500).json({ error: 'Failed to track event' });
+    }
 
-  return res.status(200).json({ ok: true });
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    console.error('A/B track error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 }
