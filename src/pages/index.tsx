@@ -138,7 +138,7 @@ export default function Home() {
       // Build preview cards from top reports
       const { data: topReports } = await supabase
         .from('reports')
-        .select('title, location_text, summary, slug, phenomenon_types(name, category)')
+        .select('title, location_name, summary, slug, phenomenon_types(name, category)')
         .eq('status', 'approved')
         .not('summary', 'is', null)
         .order('created_at', { ascending: false })
@@ -147,7 +147,7 @@ export default function Home() {
       if (topReports) {
         setPreviewCards(topReports.map((r: any) => ({
           title: r.title || 'Untitled Report',
-          location: r.location_text || 'Unknown Location',
+          location: r.location_name || 'Unknown Location',
           phenomenon: r.phenomenon_types?.name || 'Unknown',
           category: r.phenomenon_types?.category || '',
           slug: r.slug || '',
