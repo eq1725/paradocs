@@ -250,19 +250,29 @@ export default function Home() {
             )}
 
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold text-white leading-tight">
-              Have You Experienced Something{'}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-purple-400">
-                You Can't Explain?
-              </span>
+              {heroAB.variant === 'control' ? (
+                <>Have You Experienced Something{" "}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-purple-400">
+                  You Can&apos;t Explain?
+                </span></>
+              ) : (
+                <>The World&apos;s Largest Database of{" "}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-purple-400">
+                  Unexplained Encounters
+                </span></>
+              )}
             </h1>
             <p className="mt-6 text-lg md:text-xl text-gray-400 max-w-2xl mx-auto">
-              You're not alone. Explore 878+ documented encounters across 14 countries \u2014 and share your own.
+              {heroAB.variant === 'control'
+                ? "You\u2019re not alone. Explore 878+ documented encounters across 14 countries \u2014 and share your own."
+                : "878+ documented encounters across 14 countries. Search, explore, and contribute to the unknown."}
             </p>
 
             {/* Dual CTA buttons */}
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
                 href="/explore"
+                onClick={function() { heroAB.trackClick('start_exploring'); }}
                 className="btn btn-primary px-8 py-4 text-lg font-semibold flex items-center gap-2 w-full sm:w-auto justify-center"
               >
                 <Compass className="w-5 h-5" />
