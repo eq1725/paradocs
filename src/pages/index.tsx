@@ -160,7 +160,7 @@ export default function Home() {
 
       // Get approximate user count
       const { count: uCount } = await supabase
-        .from('user_profiles')
+        .from('profiles')
         .select('id', { count: 'exact', head: true })
       setUserCount(uCount || 0)
 
