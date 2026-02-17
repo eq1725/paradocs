@@ -246,13 +246,13 @@ export default function Home() {
             )}
 
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold text-white leading-tight">
-              Where Mysteries Meet{' '}
+              Have You Experienced Something{'}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-purple-400">
-                Discovery
+                You Can't Explain?
               </span>
             </h1>
             <p className="mt-6 text-lg md:text-xl text-gray-400 max-w-2xl mx-auto">
-              Explore the world's largest database of paranormal phenomena. Discover UFO sightings, cryptid encounters, ghost reports, and unexplained events.
+              You're not alone. Explore 878+ documented encounters across 14 countries \u2014 and share your own.
             </p>
 
             {/* Dual CTA buttons */}
