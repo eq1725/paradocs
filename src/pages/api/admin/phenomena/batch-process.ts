@@ -7,7 +7,7 @@
  */
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
-import { generatePhenomenonContent } from '@/lib/services/phenomena.service';
+import { generatePhenomenonContent, generateQuickFacts } from '@/lib/services/phenomena.service';
 
 var ADMIN_EMAIL = 'williamschaseh@gmail.com';
 
@@ -246,6 +246,63 @@ export default async function handler(req, res) {
         nextOffset: offset + batchSize,
         totalReports: totalResult.count,
         results: { processed: reports.length, matches: totalMatches, linked: totalLinked }
+      });
+    }
+
+    if (action === 'generate_quick_facts') {
+      // Get phenomena without quick facts
+      const { data: phenomena } = await supabase
+        .from('phenomena')
+        .select('id, name')
+        .eq('status', 'active')
+        .is('ai_quick_facts', null)
+        .order('report_count', { ascending: false })
+        .range(offset, offset + batchSize - 1);
+
+      if (!phenomena || phenomena.length === 0) {
+        return res.status(200).json({
+          success: true,
+          done: true,
+          message: 'All phenomena have quick facts',
+          results: { processed: 0, success: 0, failed: 0 }
+        });
+      }
+
+      let success = 0;
+      let failed = 0;
+      const details: { name: string; status: string }[] = [];
+
+      for (const p of phenomena) {
+        try {
+          const result = await generateQuickFacts(p.id);
+          if (result) {
+            success++;
+            details.push({ name: p.name, status: 'success' });
+          } else {
+            failed++;
+            details.push({ name: p.name, status: 'failed' });
+          }
+          // Rate limit (lighter than full content)
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error) {
+          failed++;
+          details.push({ name: p.name, status: 'error' });
+        }
+      }
+
+      // Check if more to process
+      const { count } = await supabase
+        .from('phenomena')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active')
+        .is('ai_quick_facts', null);
+
+      return res.status(200).json({
+        success: true,
+        done: (count || 0) === 0,
+        nextOffset: offset + batchSize,
+        remaining: count || 0,
+        results: { processed: phenomena.length, success, failed, details }
       });
     }
 
