@@ -82,12 +82,28 @@ export default function PhenomenonPage() {
   const [reports, setReports] = useState<RelatedReport[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'media' | 'reports'>('overview')
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; caption?: string; source?: string } | null>(null)
 
   useEffect(() => {
     if (slug && typeof slug === 'string') {
       loadPhenomenon(slug)
     }
   }, [slug])
+
+  // ESC key closes lightbox
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightboxImage(null)
+    }
+    if (lightboxImage) {
+      document.addEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = 'hidden'
+    }
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = ''
+    }
+  }, [lightboxImage])
 
   async function loadPhenomenon(phenomenonSlug: string) {
     try {
@@ -364,7 +380,7 @@ export default function PhenomenonPage() {
                           <h4 className="text-sm text-white font-medium line-clamp-1">{report.title}</h4>
                           <p className="text-xs text-gray-400 mt-1">
                             {report.location_name || report.country || 'Unknown location'}
-                            {report.event_date && ` â¢ ${new Date(report.event_date).toLocaleDateString()}`}
+                            {report.event_date && ` Ã¢ÂÂ¢ ${new Date(report.event_date).toLocaleDateString()}`}
                           </p>
                         </Link>
                       ))}
@@ -429,12 +445,10 @@ export default function PhenomenonPage() {
                       </h2>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {phenomenon.image_gallery.filter(item => item.type !== 'video').map((item, i) => (
-                          <a
+                          <button
                             key={i}
-                            href={item.source_url || item.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="group block bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-purple-500/50 transition-all"
+                            onClick={() => setLightboxImage({ url: item.url, caption: item.caption, source: item.source })}
+                            className="group block bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-purple-500/50 transition-all text-left cursor-pointer"
                           >
                             <div className="relative aspect-video bg-gray-800">
                               <img
@@ -456,7 +470,7 @@ export default function PhenomenonPage() {
                                 )}
                               </div>
                             )}
-                          </a>
+                          </button>
                         ))}
                       </div>
                     </section>
@@ -583,6 +597,40 @@ export default function PhenomenonPage() {
           reportCount: phenomenon.report_count
         }}
       />
+
+
+      {/* Image Lightbox Modal */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 cursor-pointer"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div className="relative max-w-5xl max-h-[90vh] w-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setLightboxImage(null)}
+              className="absolute -top-10 right-0 text-white/70 hover:text-white text-sm flex items-center gap-1 transition-colors"
+            >
+              Press ESC or click outside to close
+            </button>
+            <img
+              src={lightboxImage.url}
+              alt={lightboxImage.caption || phenomenon.name}
+              className="max-w-full max-h-[80vh] object-contain rounded-lg"
+              referrerPolicy="no-referrer"
+            />
+            {(lightboxImage.caption || lightboxImage.source) && (
+              <div className="mt-4 text-center max-w-2xl">
+                {lightboxImage.caption && (
+                  <p className="text-white text-sm">{lightboxImage.caption}</p>
+                )}
+                {lightboxImage.source && (
+                  <p className="text-gray-500 text-xs mt-1">Source: {lightboxImage.source}</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   )
 }
