@@ -69,12 +69,13 @@ function formatInlineText(text: string): React.ReactNode[] {
       // URL — make it clickable
       const url = match[1].replace(/[.,;:!?)]+$/, '') // Strip trailing punctuation
       const trailingPunct = match[1].slice(url.length)
+      const isInternal = url.includes('discoverparadocs.com') || url.includes('paradocs.com')
+      const displayUrl = isInternal ? url.replace(/https?:\/\/(beta\.|www\.)?(discoverparadocs|paradocs)\.com/, '') : url
       parts.push(
         <a
           key={`${match.index}-link`}
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
+          href={isInternal ? displayUrl : url}
+          {...(!isInternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
           className="text-primary-400 hover:text-primary-300 underline underline-offset-2 break-all"
         >
           {url}
