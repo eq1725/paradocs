@@ -46,6 +46,17 @@ export interface Phenomenon {
   last_reported_date: string | null;
   primary_regions: string[];
   status: string;
+  ai_quick_facts?: {
+    origin?: string;
+    first_documented?: string;
+    classification?: string;
+    danger_level?: string;
+    typical_encounter?: string;
+    evidence_types?: string;
+    active_period?: string;
+    notable_feature?: string;
+    cultural_significance?: string;
+  } | null;
 }
 
 export interface PhenomenonMatch {
@@ -372,6 +383,90 @@ Respond in JSON format:
     return true;
   } catch (error) {
     console.error('[Phenomena] Error generating content:', error);
+    return false;
+  }
+}
+
+/**
+ * Generate quick facts for a phenomenon (lightweight AI call)
+ */
+export async function generateQuickFacts(phenomenonId: string): Promise<boolean> {
+  // Get the phenomenon
+  const { data: phenomenon, error } = await getSupabaseAdmin()
+    .from('phenomena')
+    .select('id, name, aliases, category, ai_summary, ai_description, primary_regions, first_reported_date, last_reported_date, report_count')
+    .eq('id', phenomenonId)
+    .single();
+
+  if (error || !phenomenon) {
+    console.error('[Phenomena] Phenomenon not found for quick facts:', phenomenonId);
+    return false;
+  }
+
+  const prompt = `You are an expert on paranormal phenomena, cryptids, UFOs, and unexplained events.
+
+Generate structured quick facts for this phenomenon:
+
+NAME: ${phenomenon.name}
+ALIASES: ${phenomenon.aliases?.join(', ') || 'None'}
+CATEGORY: ${phenomenon.category}
+SUMMARY: ${phenomenon.ai_summary || 'No summary available'}
+REGIONS: ${phenomenon.primary_regions?.join(', ') || 'Unknown'}
+
+Generate exactly these 9 fields as a JSON object. Each value should be a concise string (1-2 sentences max). Be factual and specific. If information is truly unknown, use "Unknown" or "Not well documented".
+
+{
+  "origin": "Geographic origin - city, state/province, country (e.g. 'Point Pleasant, West Virginia, USA')",
+  "first_documented": "Year or era first documented (e.g. '1966' or 'Ancient Greece, circa 500 BCE')",
+  "classification": "Scientific or paranormal classification (e.g. 'Winged humanoid cryptid')",
+  "danger_level": "One of: 'Low — generally harmless', 'Moderate — exercise caution', 'High — associated with danger/disasters', or 'Unknown — insufficient data'",
+  "typical_encounter": "Brief description of how people typically encounter this (e.g. 'Nocturnal visual sightings near wooded areas')",
+  "evidence_types": "Types of evidence available (e.g. 'Eyewitness testimony, disputed photographs, footprint casts')",
+  "active_period": "When most active (e.g. '1966-1967 (peak), sporadic reports ongoing')",
+  "notable_feature": "Most distinctive characteristic (e.g. 'Glowing red eyes, 10-15 foot wingspan')",
+  "cultural_significance": "Cultural impact in 1-2 sentences (e.g. 'Major pop culture icon with annual festival in Point Pleasant')"
+}
+
+Respond with ONLY the JSON object, no other text.`;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 500,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const content = response.content[0];
+    if (content.type !== 'text') {
+      return false;
+    }
+
+    // Parse JSON from response
+    const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error('[Phenomena] Failed to parse quick facts response for:', phenomenon.name);
+      return false;
+    }
+
+    const quickFacts = JSON.parse(jsonMatch[0]);
+
+    // Update the phenomenon with quick facts
+    const { error: updateError } = await getSupabaseAdmin()
+      .from('phenomena')
+      .update({
+        ai_quick_facts: quickFacts,
+      })
+      .eq('id', phenomenonId);
+
+    if (updateError) {
+      console.error('[Phenomena] Error updating quick facts:', updateError);
+      return false;
+    }
+
+    console.log('[Phenomena] Generated quick facts for:', phenomenon.name);
+    return true;
+  } catch (error) {
+    console.error('[Phenomena] Error generating quick facts:', error);
     return false;
   }
 }
