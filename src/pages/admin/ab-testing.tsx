@@ -217,7 +217,7 @@ export default function ABTestingDashboard() {
               {selectedTestData && (
                 <>
                   {/* Variant Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {Object.entries(selectedTestData.variants).map(function([variantName, data]) {
                       var winner = getWinner(selectedTestData!)
                       var isWinning = winner === variantName
@@ -232,7 +232,7 @@ export default function ABTestingDashboard() {
                         >
                           <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-semibold capitalize">
-                              {variantName === 'control' ? '🎨 Control (A)' : '🧪 Variant B'}
+                              {({A: '🎨 Variant A', B: '🏢 Variant B', C: '🔮 Variant C', D: '🤝 Variant D', E: '⚡ Variant E', control: '🎨 Control (A)', variant_b: '🧪 Variant B'}[variantName] || variantName)}
                             </h3>
                             {isWinning && (
                               <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">
@@ -240,6 +240,24 @@ export default function ABTestingDashboard() {
                               </span>
                             )}
                           </div>
+
+                          {(() => {
+                            const labels: Record<string, { angle: string; headline: string }> = {
+                              A: { angle: "Identity/Emotional", headline: "Have You Experienced Something You Can\u2019t Explain?" },
+                              B: { angle: "Authority/Scale", headline: "The World\u2019s Largest Database of Unexplained Encounters" },
+                              C: { angle: "Curiosity/Mystery", headline: "What If Everything You\u2019ve Been Told Is Wrong?" },
+                              D: { angle: "Community/Belonging", headline: "Join the Researchers Tracking What Can\u2019t Be Explained" },
+                              E: { angle: "Action/Urgency", headline: "Something Strange Is Happening \u2014 And We\u2019re Documenting It" },
+                              control: { angle: "Identity/Emotional", headline: "Have You Experienced Something You Can\u2019t Explain?" },
+                              variant_b: { angle: "Authority/Scale", headline: "The World\u2019s Largest Database of Unexplained Encounters" },
+                            };
+                            const info = labels[variantName];
+                            return info ? (
+                              <div className="mt-3 text-xs text-gray-500">
+                                <span className="text-gray-400 font-medium">{info.angle}:</span> &quot;{info.headline}&quot;
+                              </div>
+                            ) : null;
+                          })()}
 
                           <div className="grid grid-cols-2 gap-4">
                             <div className="bg-gray-900/50 rounded-lg p-4">
@@ -271,16 +289,8 @@ export default function ABTestingDashboard() {
                             </div>
                           </div>
 
-                          {variantName === 'control' && (
-                            <div className="mt-3 text-xs text-gray-500">
-                              Headline: &quot;Have You Experienced Something You Can&apos;t Explain?&quot;
-                            </div>
-                          )}
-                          {variantName === 'variant_b' && (
-                            <div className="mt-3 text-xs text-gray-500">
-                              Headline: &quot;The World&apos;s Largest Database of Unexplained Encounters&quot;
-                            </div>
-                          )}
+                          
+                          
                         </div>
                       )
                     })}
