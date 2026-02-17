@@ -5,83 +5,106 @@
  * 1. Generate AI content for phenomena without it
  * 2. Link all reports to phenomena
  */
-
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { generatePhenomenonContent } from '@/lib/services/phenomena.service';
 
-const ADMIN_EMAIL = 'williamschaseh@gmail.com';
+var ADMIN_EMAIL = 'williamschaseh@gmail.com';
 
 // Supabase admin client
 function getSupabaseAdmin() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  var supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  var supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   return createClient(supabaseUrl, supabaseServiceKey);
 }
 
 // Helper to get user from cookies/headers
-async function getAuthenticatedUser(req: NextApiRequest): Promise<{ id: string; email: string } | null> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+function getAuthenticatedUser(req) {
+  return new Promise(function(resolve) {
+    var supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    var supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (!error && user) {
-      return { id: user.id, email: user.email || '' };
+    // Check for admin key auth (service role key in x-admin-key header)
+    var adminKey = req.headers['x-admin-key'] || (req.body && req.body.adminKey);
+    if (adminKey === process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      resolve({ id: 'admin', email: ADMIN_EMAIL });
+      return;
     }
-  }
 
-  const cookies = req.headers.cookie || '';
-  const accessTokenMatch = cookies.match(/sb-[^-]+-auth-token=([^;]+)/);
-  if (accessTokenMatch) {
-    try {
-      const tokenData = JSON.parse(decodeURIComponent(accessTokenMatch[1]));
-      if (tokenData?.access_token) {
-        const supabaseWithToken = createClient(supabaseUrl, supabaseAnonKey, {
-          global: { headers: { Authorization: `Bearer ${tokenData.access_token}` } },
-        });
-        const { data: { user } } = await supabaseWithToken.auth.getUser();
-        if (user) {
-          return { id: user.id, email: user.email || '' };
+    var authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      var token = authHeader.substring(7);
+      var supabase = createClient(supabaseUrl, supabaseAnonKey);
+      supabase.auth.getUser(token).then(function(result) {
+        if (!result.error && result.data.user) {
+          resolve({ id: result.data.user.id, email: result.data.user.email || '' });
+        } else {
+          checkCookies();
         }
-      }
-    } catch (e) { /* ignore */ }
-  }
+      }).catch(function() { checkCookies(); });
+      return;
+    }
 
-  return null;
+    checkCookies();
+
+    function checkCookies() {
+      var cookies = req.headers.cookie || '';
+      var accessTokenMatch = cookies.match(/sb-[^-]+-auth-token=([^;]+)/);
+      if (accessTokenMatch) {
+        try {
+          var tokenData = JSON.parse(decodeURIComponent(accessTokenMatch[1]));
+          if (tokenData && tokenData.access_token) {
+            var supabaseWithToken = createClient(supabaseUrl, supabaseAnonKey, {
+              global: { headers: { Authorization: 'Bearer ' + tokenData.access_token } },
+            });
+            supabaseWithToken.auth.getUser().then(function(result) {
+              if (result.data.user) {
+                resolve({ id: result.data.user.id, email: result.data.user.email || '' });
+              } else {
+                resolve(null);
+              }
+            }).catch(function() { resolve(null); });
+            return;
+          }
+        } catch (e) { /* ignore */ }
+      }
+      resolve(null);
+    }
+  });
 }
 
 // Escape regex special characters
-function escapeRegex(str: string): string {
+function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const user = await getAuthenticatedUser(req);
+  var user = await getAuthenticatedUser(req);
   if (!user || user.email !== ADMIN_EMAIL) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const supabase = getSupabaseAdmin();
-  const { action, batchSize = 100, offset = 0 } = req.body;
+  var supabase = getSupabaseAdmin();
+  var action = req.body.action;
+  var batchSize = req.body.batchSize || 10;
+  var offset = req.body.offset || 0;
 
   try {
     if (action === 'generate_content') {
       // Get phenomena without AI content
-      const { data: phenomena } = await supabase
+      var phenomenaResult = await supabase
         .from('phenomena')
         .select('id, name')
         .eq('status', 'active')
         .is('ai_description', null)
         .order('report_count', { ascending: false })
         .range(offset, offset + batchSize - 1);
+
+      var phenomena = phenomenaResult.data;
 
       if (!phenomena || phenomena.length === 0) {
         return res.status(200).json({
@@ -92,13 +115,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
       }
 
-      let success = 0;
-      let failed = 0;
-      const details: { name: string; status: string }[] = [];
+      var success = 0;
+      var failed = 0;
+      var details = [];
 
-      for (const p of phenomena) {
+      for (var i = 0; i < phenomena.length; i++) {
+        var p = phenomena[i];
         try {
-          const result = await generatePhenomenonContent(p.id);
+          var result = await generatePhenomenonContent(p.id);
           if (result) {
             success++;
             details.push({ name: p.name, status: 'success' });
@@ -107,7 +131,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             details.push({ name: p.name, status: 'failed' });
           }
           // Rate limit
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise(function(resolve) { setTimeout(resolve, 2000); });
         } catch (error) {
           failed++;
           details.push({ name: p.name, status: 'error' });
@@ -115,7 +139,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       // Check if more to process
-      const { count } = await supabase
+      var countResult = await supabase
         .from('phenomena')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'active')
@@ -123,34 +147,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       return res.status(200).json({
         success: true,
-        done: (count || 0) === 0,
+        done: (countResult.count || 0) === 0,
         nextOffset: offset + batchSize,
-        remaining: count || 0,
-        results: { processed: phenomena.length, success, failed, details }
+        remaining: countResult.count || 0,
+        results: { processed: phenomena.length, success: success, failed: failed, details: details }
       });
     }
 
     if (action === 'link_reports') {
       // Get phenomena patterns
-      const { data: phenomena } = await supabase
+      var phenomenaResult2 = await supabase
         .from('phenomena')
         .select('id, name, aliases, category')
         .eq('status', 'active');
 
-      const phenomenaPatterns = (phenomena || []).map(p => ({
-        id: p.id,
-        name: p.name,
-        category: p.category,
-        patterns: [p.name.toLowerCase(), ...(p.aliases || []).map((a: string) => a.toLowerCase())]
-      }));
+      var phenomenaPatterns = (phenomenaResult2.data || []).map(function(p) {
+        return {
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          patterns: [p.name.toLowerCase()].concat((p.aliases || []).map(function(a) { return a.toLowerCase(); }))
+        };
+      });
 
       // Get reports batch
-      const { data: reports } = await supabase
+      var reportsResult = await supabase
         .from('reports')
         .select('id, title, summary, description, category')
         .eq('status', 'approved')
         .order('created_at', { ascending: true })
         .range(offset, offset + batchSize - 1);
+
+      var reports = reportsResult.data;
 
       if (!reports || reports.length === 0) {
         return res.status(200).json({
@@ -161,17 +189,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
       }
 
-      let totalMatches = 0;
-      let totalLinked = 0;
+      var totalMatches = 0;
+      var totalLinked = 0;
 
-      for (const report of reports) {
-        const searchText = [report.title || '', report.summary || '', report.description || ''].join(' ').toLowerCase();
+      for (var j = 0; j < reports.length; j++) {
+        var report = reports[j];
+        var searchText = [report.title || '', report.summary || '', report.description || ''].join(' ').toLowerCase();
 
-        for (const phenomenon of phenomenaPatterns) {
-          for (const pattern of phenomenon.patterns) {
-            const regex = new RegExp(`\\b${escapeRegex(pattern)}\\b`, 'i');
+        for (var k = 0; k < phenomenaPatterns.length; k++) {
+          var phenomenon = phenomenaPatterns[k];
+          var matched = false;
+          for (var m = 0; m < phenomenon.patterns.length; m++) {
+            var pattern = phenomenon.patterns[m];
+            var regex = new RegExp('\\b' + escapeRegex(pattern) + '\\b', 'i');
             if (regex.test(searchText)) {
-              let confidence = 0.6;
+              var confidence = 0.6;
               if (regex.test((report.title || '').toLowerCase())) {
                 confidence = 0.85;
               } else if (regex.test((report.summary || '').toLowerCase())) {
@@ -179,58 +211,62 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               }
 
               totalMatches++;
-              const { error } = await supabase
+              var upsertResult = await supabase
                 .from('report_phenomena')
                 .upsert({
                   report_id: report.id,
                   phenomenon_id: phenomenon.id,
-                  confidence,
+                  confidence: confidence,
                   tagged_by: 'auto',
-                }, { onConflict: 'report_id,phenomenon_id', ignoreDuplicates: true });
+                }, {
+                  onConflict: 'report_id,phenomenon_id',
+                  ignoreDuplicates: true
+                });
 
-              if (!error) totalLinked++;
+              if (!upsertResult.error) totalLinked++;
+              matched = true;
               break;
             }
           }
+          if (matched) break;
         }
       }
 
-      // Check total approved reports
-      const { count: totalReports } = await supabase
+      // Check total
+      var totalResult = await supabase
         .from('reports')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'approved');
 
-      const done = offset + batchSize >= (totalReports || 0);
+      var done = offset + batchSize >= (totalResult.count || 0);
 
       return res.status(200).json({
         success: true,
-        done,
+        done: done,
         nextOffset: offset + batchSize,
-        totalReports,
+        totalReports: totalResult.count,
         results: { processed: reports.length, matches: totalMatches, linked: totalLinked }
       });
     }
 
     if (action === 'status') {
-      // Get current status
-      const { count: totalPhenomena } = await supabase
+      var totalPhenomena = await supabase
         .from('phenomena')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'active');
 
-      const { count: phenomenaWithContent } = await supabase
+      var phenomenaWithContent = await supabase
         .from('phenomena')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'active')
         .not('ai_description', 'is', null);
 
-      const { count: totalReports } = await supabase
+      var totalReports = await supabase
         .from('reports')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'approved');
 
-      const { count: linkedReports } = await supabase
+      var linkedReports = await supabase
         .from('report_phenomena')
         .select('report_id', { count: 'exact', head: true });
 
@@ -238,33 +274,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         success: true,
         status: {
           phenomena: {
-            total: totalPhenomena || 0,
-            withContent: phenomenaWithContent || 0,
-            needsContent: (totalPhenomena || 0) - (phenomenaWithContent || 0)
+            total: totalPhenomena.count || 0,
+            withContent: phenomenaWithContent.count || 0,
+            needsContent: (totalPhenomena.count || 0) - (phenomenaWithContent.count || 0)
           },
           reports: {
-            total: totalReports || 0,
-            linked: linkedReports || 0
+            total: totalReports.count || 0,
+            linked: linkedReports.count || 0
           }
         }
       });
     }
 
     return res.status(400).json({ error: 'Invalid action. Use: generate_content, link_reports, or status' });
-
   } catch (error) {
     console.error('[BatchProcess] Error:', error);
-    return res.status(500).json({
-      error: 'Processing failed',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
+    return res.status(500).json({ error: 'Processing failed', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 }
 
-export const config = {
+export var config = {
   api: {
     bodyParser: { sizeLimit: '1mb' },
     responseLimit: false,
   },
-  maxDuration: 300, // 5 minute timeout
+  maxDuration: 300,
 };
