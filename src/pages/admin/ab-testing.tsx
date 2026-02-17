@@ -172,17 +172,17 @@ export default function ABTestingDashboard() {
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <Link href="/admin" className="text-gray-400 hover:text-white transition-colors">
-                  \u2190 Admin Dashboard
+                  ← Admin Dashboard
                 </Link>
               </div>
-              <h1 className="text-3xl font-bold">\ud83e\uddea A/B Testing Dashboard</h1>
+              <h1 className="text-3xl font-bold">🧪 A/B Testing Dashboard</h1>
               <p className="text-gray-400 mt-1">Monitor experiments and conversion rates</p>
             </div>
             <button
               onClick={function() { loadABData() }}
               className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors"
             >
-              \ud83d\udd04 Refresh Data
+              🔄 Refresh Data
             </button>
           </div>
 
@@ -232,11 +232,11 @@ export default function ABTestingDashboard() {
                         >
                           <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-semibold capitalize">
-                              {variantName === 'control' ? '\ud83c\udfa8 Control (A)' : '\ud83e\uddea Variant B'}
+                              {variantName === 'control' ? '🎨 Control (A)' : '🧪 Variant B'}
                             </h3>
                             {isWinning && (
                               <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">
-                                \ud83c\udfc6 Leading
+                                🏆 Leading
                               </span>
                             )}
                           </div>
