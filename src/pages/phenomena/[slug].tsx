@@ -46,6 +46,17 @@ interface Phenomenon {
   last_reported_date: string | null
   primary_regions: string[]
   image_gallery: GalleryItem[] | null
+  ai_quick_facts?: {
+    origin?: string
+    first_documented?: string
+    classification?: string
+    danger_level?: string
+    typical_encounter?: string
+    evidence_types?: string
+    active_period?: string
+    notable_feature?: string
+    cultural_significance?: string
+  } | null
 }
 
 interface GalleryItem {
@@ -362,6 +373,105 @@ export default function PhenomenonPage() {
                         <dt className="text-sm text-gray-400">Most Recent</dt>
                         <dd className="text-white">{new Date(phenomenon.last_reported_date).toLocaleDateString()}</dd>
                       </div>
+                    )}
+
+                    {/* AI-Generated Quick Facts */}
+                    {phenomenon.ai_quick_facts && (
+                      <>
+                        <div className="border-t border-gray-700 my-2" />
+
+                        {phenomenon.ai_quick_facts.origin && (
+                          <div>
+                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
+                              <span className="text-xs">📍</span> Origin
+                            </dt>
+                            <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.origin}</dd>
+                          </div>
+                        )}
+
+                        {phenomenon.ai_quick_facts.classification && (
+                          <div>
+                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
+                              <span className="text-xs">🔬</span> Classification
+                            </dt>
+                            <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.classification}</dd>
+                          </div>
+                        )}
+
+                        {phenomenon.ai_quick_facts.first_documented && (
+                          <div>
+                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
+                              <span className="text-xs">📜</span> First Documented
+                            </dt>
+                            <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.first_documented}</dd>
+                          </div>
+                        )}
+
+                        {phenomenon.ai_quick_facts.danger_level && (
+                          <div>
+                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
+                              <span className="text-xs">⚠️</span> Danger Level
+                            </dt>
+                            <dd className={classNames(
+                              'text-sm mt-1 font-medium',
+                              phenomenon.ai_quick_facts.danger_level.toLowerCase().includes('high') || phenomenon.ai_quick_facts.danger_level.toLowerCase().includes('dangerous')
+                                ? 'text-red-400'
+                                : phenomenon.ai_quick_facts.danger_level.toLowerCase().includes('moderate') || phenomenon.ai_quick_facts.danger_level.toLowerCase().includes('caution')
+                                  ? 'text-yellow-400'
+                                  : phenomenon.ai_quick_facts.danger_level.toLowerCase().includes('low') || phenomenon.ai_quick_facts.danger_level.toLowerCase().includes('benign') || phenomenon.ai_quick_facts.danger_level.toLowerCase().includes('harmless')
+                                    ? 'text-green-400'
+                                    : 'text-gray-300'
+                            )}>
+                              {phenomenon.ai_quick_facts.danger_level}
+                            </dd>
+                          </div>
+                        )}
+
+                        {phenomenon.ai_quick_facts.typical_encounter && (
+                          <div>
+                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
+                              <span className="text-xs">👁️</span> Typical Encounter
+                            </dt>
+                            <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.typical_encounter}</dd>
+                          </div>
+                        )}
+
+                        {phenomenon.ai_quick_facts.evidence_types && (
+                          <div>
+                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
+                              <span className="text-xs">📝</span> Evidence
+                            </dt>
+                            <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.evidence_types}</dd>
+                          </div>
+                        )}
+
+                        {phenomenon.ai_quick_facts.active_period && (
+                          <div>
+                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
+                              <span className="text-xs">⌛</span> Active Period
+                            </dt>
+                            <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.active_period}</dd>
+                          </div>
+                        )}
+
+                        {phenomenon.ai_quick_facts.notable_feature && (
+                          <div>
+                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
+                              <span className="text-xs">⭐</span> Notable Feature
+                            </dt>
+                            <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.notable_feature}</dd>
+                          </div>
+                        )}
+
+                        {phenomenon.ai_quick_facts.cultural_significance && (
+                          <div>
+                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
+                              <span className="text-xs">🌍</span> Cultural Significance
+                            </dt>
+                            <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.cultural_significance}</dd>
+                          </div>
+                        )}
+                      </>
                     )}
                   </dl>
                 </div>
