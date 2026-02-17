@@ -296,6 +296,49 @@ export default function ABTestingDashboard() {
                     })}
                   </div>
 
+                  {/* Test Summary Table */}
+                  <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6 mb-8">
+                    <h3 className="text-lg font-semibold text-white mb-4">📋 Current Test Variants</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="border-b border-gray-700">
+                            <th className="pb-3 pr-4 text-sm font-semibold text-gray-300">Variant</th>
+                            <th className="pb-3 pr-4 text-sm font-semibold text-gray-300">Angle</th>
+                            <th className="pb-3 text-sm font-semibold text-gray-300">Headline</th>
+                          </tr>
+                        </thead>
+                        <tbody className="text-sm">
+                          <tr className="border-b border-gray-700/50">
+                            <td className="py-3 pr-4"><span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 font-bold">A</span></td>
+                            <td className="py-3 pr-4 text-gray-400">Identity / Emotional</td>
+                            <td className="py-3 text-gray-200">“Have You Experienced Something You Can’t Explain?”</td>
+                          </tr>
+                          <tr className="border-b border-gray-700/50">
+                            <td className="py-3 pr-4"><span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 font-bold">B</span></td>
+                            <td className="py-3 pr-4 text-gray-400">Authority / Scale</td>
+                            <td className="py-3 text-gray-200">“The World’s Largest Database of Unexplained Encounters”</td>
+                          </tr>
+                          <tr className="border-b border-gray-700/50">
+                            <td className="py-3 pr-4"><span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-500/20 text-red-400 font-bold">C</span></td>
+                            <td className="py-3 pr-4 text-gray-400">Curiosity / Mystery</td>
+                            <td className="py-3 text-gray-200">“What If Everything You’ve Been Told Is Wrong?”</td>
+                          </tr>
+                          <tr className="border-b border-gray-700/50">
+                            <td className="py-3 pr-4"><span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-yellow-500/20 text-yellow-400 font-bold">D</span></td>
+                            <td className="py-3 pr-4 text-gray-400">Community / Belonging</td>
+                            <td className="py-3 text-gray-200">“Join the Researchers Tracking What Can’t Be Explained”</td>
+                          </tr>
+                          <tr>
+                            <td className="py-3 pr-4"><span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-green-500/20 text-green-400 font-bold">E</span></td>
+                            <td className="py-3 pr-4 text-gray-400">Action / Urgency</td>
+                            <td className="py-3 text-gray-200">“Something Strange Is Happening — And We’re Documenting It”</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
                   {/* Recent Events Table */}
                   <div className="bg-gray-800/50 rounded-lg border border-gray-700/50 overflow-hidden">
                     <div className="p-4 border-b border-gray-700/50">
