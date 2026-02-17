@@ -7,7 +7,7 @@
  */
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
-import { generatePhenomenonContent } from '@/lib/services/phenomena.service';
+import { generatePhenomenonContent, generateQuickFacts } from '@/lib/services/phenomena.service';
 
 var ADMIN_EMAIL = 'williamschaseh@gmail.com';
 
@@ -246,6 +246,64 @@ export default async function handler(req, res) {
         nextOffset: offset + batchSize,
         totalReports: totalResult.count,
         results: { processed: reports.length, matches: totalMatches, linked: totalLinked }
+      });
+    }
+
+    if (action === 'generate_quick_facts') {
+      // Get phenomena without quick facts
+      var qfResult = await supabase
+        .from('phenomena')
+        .select('id, name')
+        .eq('status', 'active')
+        .is('ai_quick_facts', null)
+        .order('report_count', { ascending: false })
+        .range(offset, offset + batchSize - 1);
+
+      var qfPhenomena = qfResult.data;
+
+      if (!qfPhenomena || qfPhenomena.length === 0) {
+        return res.status(200).json({
+          success: true,
+          done: true,
+          message: 'All phenomena have quick facts',
+          results: { processed: 0, success: 0, failed: 0 }
+        });
+      }
+
+      var qfSuccess = 0;
+      var qfFailed = 0;
+      var qfDetails = [];
+
+      for (var qi = 0; qi < qfPhenomena.length; qi++) {
+        var qp = qfPhenomena[qi];
+        try {
+          var qfRes = await generateQuickFacts(qp.id);
+          if (qfRes) {
+            qfSuccess++;
+            qfDetails.push({ name: qp.name, status: 'success' });
+          } else {
+            qfFailed++;
+            qfDetails.push({ name: qp.name, status: 'failed' });
+          }
+          await new Promise(function(resolve) { setTimeout(resolve, 1000); });
+        } catch (error) {
+          qfFailed++;
+          qfDetails.push({ name: qp.name, status: 'error' });
+        }
+      }
+
+      var qfCountResult = await supabase
+        .from('phenomena')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active')
+        .is('ai_quick_facts', null);
+
+      return res.status(200).json({
+        success: true,
+        done: (qfCountResult.count || 0) === 0,
+        nextOffset: offset + batchSize,
+        remaining: qfCountResult.count || 0,
+        results: { processed: qfPhenomena.length, success: qfSuccess, failed: qfFailed, details: qfDetails }
       });
     }
 
