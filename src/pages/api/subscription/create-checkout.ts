@@ -4,18 +4,20 @@
  * Creates a Stripe Checkout session for upgrading to a paid plan.
  * Returns the checkout URL for the client to redirect to.
  *
- * Body: { plan: 'basic' | 'pro', interval: 'monthly' | 'yearly' }
+ * Body: { plan: 'basic' | 'pro' | 'enterprise', interval: 'monthly' | 'yearly' }
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createServerClient } from '@/lib/supabase';
 
-// Hardcoded Stripe price IDs (test mode) with env var override
+// Stripe price IDs (test mode) with env var override
 var STRIPE_PRICES: Record<string, string> = {
   basic_monthly: process.env.STRIPE_PRICE_BASIC_MONTHLY || 'price_1T1HGTHMHkQBcyeVDyKOX9fC',
   basic_yearly: process.env.STRIPE_PRICE_BASIC_YEARLY || 'price_1T1HGTHMHkQBcyeVQdtTr9ko',
   pro_monthly: process.env.STRIPE_PRICE_PRO_MONTHLY || 'price_1T1HGbHMHkQBcyeVbgm9hrb7',
   pro_yearly: process.env.STRIPE_PRICE_PRO_YEARLY || 'price_1T1HGbHMHkQBcyeVZWetRS39',
+  enterprise_monthly: process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY || 'price_1T2EDxHMHkQBcyeVcVsNEN7V',
+  enterprise_yearly: process.env.STRIPE_PRICE_ENTERPRISE_YEARLY || 'price_1T2EDxHMHkQBcyeVz3RMH74K',
 };
 
 export default async function handler(
@@ -45,14 +47,6 @@ export default async function handler(
     var user = userResult.data.user;
     var plan = req.body.plan || 'pro';
     var interval = req.body.interval || 'monthly';
-
-    // Enterprise tier is contact-only, not self-serve
-    if (plan === 'enterprise') {
-      return res.status(400).json({
-        error: 'Enterprise plans require a custom agreement. Please contact us at support@discoverparadocs.com'
-      });
-    }
-
     var priceKey = plan + '_' + interval;
     var priceId = STRIPE_PRICES[priceKey];
 
@@ -73,7 +67,7 @@ export default async function handler(
     try {
       Stripe = (await import('stripe')).default;
     } catch (e) {
-      // Stripe not installed — return mock checkout
+      // Stripe not installed \u2014 return mock checkout
       return res.status(200).json({
         url: (process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com') +
           '/dashboard/settings?checkout=mock&plan=' + plan,
