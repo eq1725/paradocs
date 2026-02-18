@@ -220,32 +220,46 @@ function TierCard({
           ))}
       </div>
 
-      <button
-        onClick={() => onSelect(tier.id)}
-        disabled={isCurrentTier || loading}
-        className={`
-          w-full py-3 px-4 rounded-lg font-medium text-white transition-colors
-          flex items-center justify-center gap-2
-          ${isCurrentTier
-            ? 'bg-gray-700 cursor-not-allowed'
-            : colors.button
-          }
-          disabled:opacity-50
-        `}
-      >
-        {loading ? (
-          <Loader2 className="w-5 h-5 animate-spin" />
-        ) : isCurrentTier ? (
-          'Current Plan'
-        ) : tier.price_monthly === 0 ? (
-          'Downgrade'
-        ) : (
-          <>
-            Upgrade
-            <ArrowRight className="w-4 h-4" />
-          </>
-        )}
-      </button>
+      {tier.name === 'enterprise' && !isCurrentTier ? (
+        <a
+          href="mailto:support@discoverparadocs.com?subject=Enterprise%20Plan%20Inquiry"
+          className={`
+            w-full py-3 px-4 rounded-lg font-medium text-white transition-colors
+            flex items-center justify-center gap-2
+            ${colors.button}
+          `}
+        >
+          Contact Us
+          <ArrowRight className="w-4 h-4" />
+        </a>
+      ) : (
+        <button
+          onClick={() => onSelect(tier.id)}
+          disabled={isCurrentTier || loading}
+          className={`
+            w-full py-3 px-4 rounded-lg font-medium text-white transition-colors
+            flex items-center justify-center gap-2
+            ${isCurrentTier
+              ? 'bg-gray-700 cursor-not-allowed'
+              : colors.button
+            }
+            disabled:opacity-50
+          `}
+        >
+          {loading ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : isCurrentTier ? (
+            'Current Plan'
+          ) : tier.price_monthly === 0 ? (
+            'Downgrade'
+          ) : (
+            <>
+              Upgrade
+              <ArrowRight className="w-4 h-4" />
+            </>
+          )}
+        </button>
+      )}
     </div>
   )
 }
