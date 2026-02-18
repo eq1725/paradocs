@@ -14,7 +14,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const { slug } = req.query;
+  var slug = req.query.slug;
 
   if (typeof slug !== 'string') {
     return res.status(400).json({ error: 'Invalid slug' });
@@ -22,22 +22,27 @@ export default async function handler(
 
   if (req.method === 'GET') {
     try {
-      const phenomenon = await getPhenomenonBySlug(slug);
+      // Prevent stale cache on client-side navigation
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+
+      var phenomenon = await getPhenomenonBySlug(slug);
 
       if (!phenomenon) {
         return res.status(404).json({ error: 'Phenomenon not found' });
       }
 
       // Get related reports
-      const reports = await getPhenomenonReports(phenomenon.id, 20);
+      var reports = await getPhenomenonReports(phenomenon.id, 20);
 
       // Check if AI content needs to be generated
-      const needsContent = !phenomenon.ai_description || !phenomenon.ai_history;
+      var needsContent = !phenomenon.ai_description || !phenomenon.ai_history;
 
       return res.status(200).json({
-        phenomenon,
-        reports,
-        needsContent,
+        phenomenon: phenomenon,
+        reports: reports,
+        needsContent: needsContent,
       });
     } catch (error) {
       console.error('[API] Phenomenon detail error:', error);
@@ -49,19 +54,19 @@ export default async function handler(
 
   if (req.method === 'POST') {
     // Generate/regenerate AI content
-    const { action } = req.body;
+    var action = req.body.action;
 
     if (action === 'generate_content') {
       try {
-        const phenomenon = await getPhenomenonBySlug(slug);
+        var phenomenon = await getPhenomenonBySlug(slug);
         if (!phenomenon) {
           return res.status(404).json({ error: 'Phenomenon not found' });
         }
 
-        const success = await generatePhenomenonContent(phenomenon.id);
+        var success = await generatePhenomenonContent(phenomenon.id);
 
         if (success) {
-          const updated = await getPhenomenonBySlug(slug);
+          var updated = await getPhenomenonBySlug(slug);
           return res.status(200).json({
             success: true,
             phenomenon: updated,
