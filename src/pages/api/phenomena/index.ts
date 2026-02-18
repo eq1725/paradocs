@@ -15,9 +15,14 @@ export default async function handler(
   }
 
   try {
-    const { category } = req.query;
+    // Prevent stale cache on client-side navigation
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
 
-    let phenomena;
+    var category = req.query.category;
+
+    var phenomena;
     if (category && typeof category === 'string') {
       phenomena = await getPhenomenaByCategory(category);
     } else {
@@ -25,7 +30,7 @@ export default async function handler(
     }
 
     return res.status(200).json({
-      phenomena,
+      phenomena: phenomena,
       count: phenomena.length,
     });
   } catch (error) {
