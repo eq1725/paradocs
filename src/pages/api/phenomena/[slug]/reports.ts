@@ -2,9 +2,6 @@
  * API: GET /api/phenomena/[slug]/reports
  * Get paginated reports linked to a phenomenon
  *
- * This endpoint ensures consistency between the Encyclopedia and Explore page
- * by using the same query logic and only returning approved reports.
- *
  * Query params:
  * - page: Page number (default: 1)
  * - limit: Items per page (default: 12, max: 100)
@@ -27,41 +24,48 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { slug } = req.query;
+  var slug = req.query.slug;
 
   if (typeof slug !== 'string') {
     return res.status(400).json({ error: 'Invalid slug' });
   }
 
   try {
+    // Prevent stale cache on client-side navigation
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
     // Get the phenomenon
-    const phenomenon = await getPhenomenonBySlug(slug);
+    var phenomenon = await getPhenomenonBySlug(slug);
 
     if (!phenomenon) {
       return res.status(404).json({ error: 'Phenomenon not found' });
     }
 
     // Parse query params
-    const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 12));
-    const sort = (req.query.sort as string) || 'newest';
-    const search = req.query.search as string;
-    const category = req.query.category as string;
-    const country = req.query.country as string;
-    const credibility = req.query.credibility as string;
+    var page = Math.max(1, parseInt(req.query.page) || 1);
+    var limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 12));
+    var sort = req.query.sort || 'newest';
+    var search = req.query.search;
+    var category = req.query.category;
+    var country = req.query.country;
+    var credibility = req.query.credibility;
 
-    const supabase = createServerClient();
+    var supabase = createServerClient();
 
     // Step 1: Get all report IDs linked to this phenomenon
-    const { data: linkedReports, error: linkError } = await supabase
+    var linkResult = await supabase
       .from('report_phenomena')
       .select('report_id, confidence')
       .eq('phenomenon_id', phenomenon.id);
 
-    if (linkError) {
-      console.error('[API] Error fetching linked reports:', linkError);
-      throw linkError;
+    if (linkResult.error) {
+      console.error('[API] Error fetching linked reports:', linkResult.error);
+      throw linkResult.error;
     }
+
+    var linkedReports = linkResult.data;
 
     if (!linkedReports || linkedReports.length === 0) {
       return res.status(200).json({
@@ -73,8 +77,8 @@ export default async function handler(
         },
         reports: [],
         pagination: {
-          page,
-          limit,
+          page: page,
+          limit: limit,
           total: 0,
           totalPages: 0,
         },
@@ -82,11 +86,11 @@ export default async function handler(
     }
 
     // Create a map of report_id -> confidence for later use
-    const confidenceMap = new Map(linkedReports.map(r => [r.report_id, r.confidence]));
-    const reportIds = linkedReports.map(r => r.report_id);
+    var confidenceMap = new Map(linkedReports.map(function(r) { return [r.report_id, r.confidence]; }));
+    var reportIds = linkedReports.map(function(r) { return r.report_id; });
 
     // Step 2: Query reports with filters
-    let query = supabase
+    var query = supabase
       .from('reports')
       .select('*, phenomenon_type:phenomenon_types(id, name, icon)', { count: 'exact' })
       .in('id', reportIds)
@@ -94,7 +98,7 @@ export default async function handler(
 
     // Apply additional filters
     if (search) {
-      query = query.or(`title.ilike.%${search}%,summary.ilike.%${search}%`);
+      query = query.or('title.ilike.%' + search + '%,summary.ilike.%' + search + '%');
     }
     if (category) {
       query = query.eq('category', category);
@@ -123,21 +127,22 @@ export default async function handler(
     }
 
     // Apply pagination
-    const from = (page - 1) * limit;
+    var from = (page - 1) * limit;
     query = query.range(from, from + limit - 1);
 
-    const { data, count, error } = await query;
+    var result = await query;
 
-    if (error) {
-      console.error('[API] Phenomenon reports error:', error);
-      throw error;
+    if (result.error) {
+      console.error('[API] Phenomenon reports error:', result.error);
+      throw result.error;
     }
 
     // Add confidence scores to reports
-    const reports = (data || []).map(report => ({
-      ...report,
-      match_confidence: confidenceMap.get(report.id) || 0,
-    }));
+    var reports = (result.data || []).map(function(report) {
+      return Object.assign({}, report, {
+        match_confidence: confidenceMap.get(report.id) || 0
+      });
+    });
 
     return res.status(200).json({
       phenomenon: {
@@ -146,12 +151,12 @@ export default async function handler(
         slug: phenomenon.slug,
         icon: phenomenon.icon,
       },
-      reports,
+      reports: reports,
       pagination: {
-        page,
-        limit,
-        total: count || 0,
-        totalPages: Math.ceil((count || 0) / limit),
+        page: page,
+        limit: limit,
+        total: result.count || 0,
+        totalPages: Math.ceil((result.count || 0) / limit),
       },
     });
   } catch (error) {
