@@ -1,11 +1,23 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import { Search, Grid3X3, List, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, Grid3X3, List, ChevronRight, ChevronDown, ChevronUp, AlertTriangle, MapPin, Tag } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
+
+interface QuickFacts {
+  origin?: string
+  first_documented?: string
+  classification?: string
+  danger_level?: string
+  typical_encounter?: string
+  evidence_types?: string
+  active_period?: string
+  notable_feature?: string
+  cultural_significance?: string
+}
 
 interface Phenomenon {
   id: string
@@ -17,6 +29,31 @@ interface Phenomenon {
   report_count: number
   primary_image_url: string | null
   aliases: string[]
+  ai_quick_facts?: QuickFacts | null
+}
+
+// Category-specific gradient backgrounds for entries without images
+const CATEGORY_GRADIENTS: Record<string, string> = {
+  cryptids: 'from-emerald-950 via-gray-900 to-gray-950',
+  ufos_aliens: 'from-indigo-950 via-gray-900 to-gray-950',
+  ghosts_hauntings: 'from-slate-900 via-purple-950/50 to-gray-950',
+  psychic_phenomena: 'from-violet-950 via-gray-900 to-gray-950',
+  consciousness_practices: 'from-amber-950/80 via-gray-900 to-gray-950',
+  psychological_experiences: 'from-cyan-950 via-gray-900 to-gray-950',
+  biological_factors: 'from-rose-950 via-gray-900 to-gray-950',
+  perception_sensory: 'from-orange-950 via-gray-900 to-gray-950',
+  religion_mythology: 'from-yellow-950/80 via-gray-900 to-gray-950',
+  esoteric_practices: 'from-fuchsia-950 via-gray-900 to-gray-950',
+  combination: 'from-teal-950 via-gray-900 to-gray-950',
+}
+
+const DANGER_COLORS: Record<string, { bg: string; text: string }> = {
+  'Low': { bg: 'bg-green-900/60', text: 'text-green-400' },
+  'Moderate': { bg: 'bg-yellow-900/60', text: 'text-yellow-400' },
+  'High': { bg: 'bg-orange-900/60', text: 'text-orange-400' },
+  'Extreme': { bg: 'bg-red-900/60', text: 'text-red-400' },
+  'Unknown': { bg: 'bg-gray-800/60', text: 'text-gray-400' },
+  'Varies': { bg: 'bg-purple-900/60', text: 'text-purple-400' },
 }
 
 type ViewMode = 'grid' | 'list'
@@ -281,50 +318,96 @@ export default function PhenomenaPage() {
 
 function PhenomenonCard({ phenomenon }: { phenomenon: Phenomenon }) {
   const config = CATEGORY_CONFIG[phenomenon.category as keyof typeof CATEGORY_CONFIG]
+  const [imgError, setImgError] = useState(false)
+  const gradient = CATEGORY_GRADIENTS[phenomenon.category] || 'from-gray-800 to-gray-900'
+  const qf = phenomenon.ai_quick_facts
+  const hasImage = phenomenon.primary_image_url && !imgError
+
+  // Normalize danger level for color lookup
+  const dangerKey = qf?.danger_level?.split(' ')?.[0] || ''
+  const dangerStyle = DANGER_COLORS[dangerKey] || null
 
   return (
     <Link href={`/phenomena/${phenomenon.slug}`}>
-      <div className="group bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-purple-500/50 transition-all hover:shadow-lg hover:shadow-purple-500/10">
-        {/* Image or Icon */}
-        <div className="aspect-video bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
-          {phenomenon.primary_image_url ? (
+      <div className="group bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-purple-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 hover:scale-[1.02]">
+        {/* Image area */}
+        <div className={classNames(
+          'aspect-video relative overflow-hidden',
+          !hasImage ? `bg-gradient-to-br ${gradient}` : ''
+        )}>
+          {hasImage ? (
             <img
-              src={phenomenon.primary_image_url}
+              src={phenomenon.primary_image_url!}
               alt={phenomenon.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               referrerPolicy="no-referrer"
               loading="lazy"
+              onError={() => setImgError(true)}
             />
           ) : (
-            <span className="text-6xl opacity-50 group-hover:opacity-70 transition-opacity">
-              {phenomenon.icon || config?.icon}
-            </span>
+            <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+              <span className="text-5xl opacity-40 group-hover:opacity-60 group-hover:scale-110 transition-all duration-300">
+                {phenomenon.icon || config?.icon}
+              </span>
+              <span className="text-xs text-gray-500 uppercase tracking-widest font-medium">
+                {config?.label}
+              </span>
+            </div>
+          )}
+
+          {/* Quick fact pills overlaid on image */}
+          {qf && (
+            <div className="absolute bottom-2 left-2 flex flex-wrap gap-1.5">
+              {dangerStyle && qf.danger_level && (
+                <span className={classNames(
+                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold backdrop-blur-sm',
+                  dangerStyle.bg, dangerStyle.text
+                )}>
+                  <AlertTriangle className="w-2.5 h-2.5" />
+                  {qf.danger_level.split(' ')[0]}
+                </span>
+              )}
+              {qf.classification && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-900/70 text-gray-300 backdrop-blur-sm">
+                  <Tag className="w-2.5 h-2.5" />
+                  {qf.classification.length > 20 ? qf.classification.substring(0, 18) + '...' : qf.classification}
+                </span>
+              )}
+            </div>
           )}
         </div>
 
         {/* Content */}
         <div className="p-4">
           <div className="flex items-start justify-between gap-2 mb-2">
-            <h3 className="text-lg font-semibold text-white group-hover:text-purple-400 transition-colors">
+            <h3 className="text-lg font-semibold text-white group-hover:text-purple-400 transition-colors leading-tight">
               {phenomenon.name}
             </h3>
-            <ChevronRight className="w-5 h-5 text-gray-500 group-hover:text-purple-400 transition-colors flex-shrink-0" />
+            <ChevronRight className="w-5 h-5 text-gray-500 group-hover:text-purple-400 group-hover:translate-x-0.5 transition-all flex-shrink-0 mt-0.5" />
           </div>
 
           {phenomenon.ai_summary && (
-            <p className="text-sm text-gray-400 line-clamp-2 mb-3">
+            <p className="text-sm text-gray-400 line-clamp-2 mb-3 leading-relaxed">
               {phenomenon.ai_summary}
             </p>
           )}
 
           <div className="flex items-center justify-between text-xs">
-            <span className={classNames(
-              'px-2 py-1 rounded-full',
-              config?.bgColor || 'bg-gray-800',
-              config?.color || 'text-gray-400'
-            )}>
-              {config?.label}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className={classNames(
+                'px-2 py-1 rounded-full',
+                config?.bgColor || 'bg-gray-800',
+                config?.color || 'text-gray-400'
+              )}>
+                {config?.label}
+              </span>
+              {qf?.origin && (
+                <span className="hidden sm:inline-flex items-center gap-1 text-gray-500">
+                  <MapPin className="w-3 h-3" />
+                  {qf.origin.length > 15 ? qf.origin.substring(0, 13) + '...' : qf.origin}
+                </span>
+              )}
+            </div>
             <span className="text-gray-500">
               {phenomenon.report_count} report{phenomenon.report_count !== 1 ? 's' : ''}
             </span>
