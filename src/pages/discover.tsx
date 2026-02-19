@@ -238,6 +238,17 @@ export default function DiscoverPage() {
       <Head>
         <title>Discover - Paradocs</title>
         <meta name="description" content="Scroll through the world's most fascinating paranormal phenomena. Cryptids, UFOs, ghosts, and unexplained events — one swipe at a time." />
+        <meta property="og:title" content="Discover - Paradocs" />
+        <meta property="og:description" content="Scroll through 500+ documented paranormal phenomena. Cryptids, UFOs, ghosts, and unexplained events — one swipe at a time." />
+        <meta property="og:image" content="https://beta.discoverparadocs.com/api/og/discover" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://beta.discoverparadocs.com/discover" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Discover - Paradocs" />
+        <meta name="twitter:description" content="Scroll through 500+ documented paranormal phenomena." />
+        <meta name="twitter:image" content="https://beta.discoverparadocs.com/api/og/discover" />
       </Head>
 
       {/* Fixed header - minimal chrome */}
