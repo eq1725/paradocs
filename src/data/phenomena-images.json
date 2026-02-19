@@ -82,7 +82,7 @@
     }
   ],
   "category_defaults": {
-    "cryptids": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/16/Outdoors-man-silhouette.svg/440px-Outdoors-man-silhouette.svg.png",
+    "cryptids": "https://bhkbctdmwnowfmqpksed.supabase.co/storage/v1/object/public/phenomena-images/default-cryptid.jpg",
     "ufos_aliens": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/PurportedUFO2.jpg/640px-PurportedUFO2.jpg",
     "ghosts_hauntings": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/A_spectre_is_haunting_Europe_-_the_spectre_of_communism_%28cropped%29.jpg/440px-A_spectre_is_haunting_Europe_-_the_spectre_of_communism_%28cropped%29.jpg",
     "psychic_phenomena": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/ESP_and_Psychic_Powers.jpg/440px-ESP_and_Psychic_Powers.jpg",
