@@ -66,6 +66,7 @@ export default function Layout({ children }: LayoutProps) {
   // Main navigation - optimized for serial position effect (important items first/last)
   // Home removed (logo handles it), Analytics moved to footer/dashboard
   const navigation = [
+    { name: 'Discover', href: '/discover', icon: Sparkles },
     { name: 'Explore', href: '/explore', icon: Compass },
     { name: 'Map', href: '/map', icon: Map },
     { name: 'Encyclopedia', href: '/phenomena', icon: BookOpen },
