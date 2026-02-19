@@ -5,7 +5,7 @@ import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 
 // Pages that should NOT have the main app layout (nav, footer, etc.)
-const STANDALONE_PAGES = ['/beta-access', '/survey']
+const STANDALONE_PAGES = ['/beta-access', '/survey', '/discover']
 
 // Pages/routes that have their own complete layout (like DashboardLayout)
 const CUSTOM_LAYOUT_PREFIXES = ['/dashboard']
