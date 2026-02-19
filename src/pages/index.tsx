@@ -276,12 +276,12 @@ export default function Home() {
             {/* Dual CTA buttons */}
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
-                href="/explore"
+                href="/discover"
                 onClick={function() { heroAB.trackClick('start_exploring'); }}
                 className="btn btn-primary px-8 py-4 text-lg font-semibold flex items-center gap-2 w-full sm:w-auto justify-center"
               >
-                <Compass className="w-5 h-5" />
-                Start Exploring
+                <Sparkles className="w-5 h-5" />
+                Start Discovering
               </Link>
               <Link
                 href="/submit"
