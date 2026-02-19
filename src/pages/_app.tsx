@@ -3,6 +3,12 @@ import type { AppProps } from 'next/app'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
+import dynamic from 'next/dynamic'
+
+const ThreeTapOnboarding = dynamic(
+  () => import('@/components/ThreeTapOnboarding'),
+  { ssr: false }
+)
 
 // Pages that should NOT have the main app layout (nav, footer, etc.)
 const STANDALONE_PAGES = ['/beta-access', '/survey', '/discover']
@@ -58,6 +64,7 @@ export default function App({ Component, pageProps }: AppProps) {
           <Component {...pageProps} />
         </Layout>
       )}
+      <ThreeTapOnboarding />
     </>
   )
 }
