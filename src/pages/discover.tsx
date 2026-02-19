@@ -237,9 +237,9 @@ export default function DiscoverPage() {
     <>
       <Head>
         <title>Discover - Paradocs</title>
-        <meta name="description" content="Scroll through the world's most fascinating paranormal phenomena. Cryptids, UFOs, ghosts, and unexplained events — one swipe at a time." />
+        <meta name="description" content="Scroll through the world's most fascinating paranormal phenomena. Cryptids, UFOs, ghosts, and unexplained events â one swipe at a time." />
         <meta property="og:title" content="Discover - Paradocs" />
-        <meta property="og:description" content="Scroll through 500+ documented paranormal phenomena. Cryptids, UFOs, ghosts, and unexplained events — one swipe at a time." />
+        <meta property="og:description" content="Scroll through 500+ documented paranormal phenomena. Cryptids, UFOs, ghosts, and unexplained events â one swipe at a time." />
         <meta property="og:image" content="https://beta.discoverparadocs.com/api/og/discover" />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
@@ -416,6 +416,79 @@ interface DiscoverCardProps {
   onRef: (node: HTMLDivElement | null) => void
 }
 
+
+function StoryHook({ summary, description, isActive, slug }: { summary: string | null, description: string | null, isActive: boolean, slug: string }) {
+  const [expanded, setExpanded] = React.useState(false)
+  const [visible, setVisible] = React.useState(false)
+  const timerRef = React.useRef<NodeJS.Timeout | null>(null)
+
+  React.useEffect(() => {
+    if (isActive && description) {
+      timerRef.current = setTimeout(() => {
+        setExpanded(true)
+        // Fade in after expand
+        setTimeout(() => setVisible(true), 50)
+      }, 1500)
+    } else {
+      setExpanded(false)
+      setVisible(false)
+    }
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [isActive, description])
+
+  // Get hook text: first ~400 chars of description, ending at sentence boundary
+  const hookText = React.useMemo(() => {
+    if (!description) return null
+    if (description.length <= 400) return description
+    const cut = description.substring(0, 400)
+    const lastPeriod = cut.lastIndexOf('. ')
+    return lastPeriod > 200 ? cut.substring(0, lastPeriod + 1) : cut + '...'
+  }, [description])
+
+  if (!summary && !hookText) return null
+
+  return (
+    <div className={classNames(
+      'max-w-2xl mb-6 transition-all duration-500 delay-100',
+      isActive ? 'opacity-100 translate-y-0' : 'opacity-60 translate-y-2'
+    )}>
+      {/* Summary - always visible initially */}
+      <p className={classNames(
+        'text-base sm:text-lg text-gray-300 leading-relaxed transition-all duration-500',
+        expanded ? 'opacity-0 h-0 overflow-hidden' : 'opacity-100'
+      )}>
+        {summary}
+      </p>
+
+      {/* Expanded story hook */}
+      {hookText && (
+        <div className={classNames(
+          'transition-all duration-700 ease-out overflow-hidden',
+          expanded ? 'max-h-[300px] opacity-100' : 'max-h-0 opacity-0'
+        )}>
+          <p className={classNames(
+            'text-base sm:text-lg text-gray-200 leading-relaxed transition-opacity duration-500',
+            visible ? 'opacity-100' : 'opacity-0'
+          )}>
+            {hookText}
+          </p>
+          {description && description.length > 400 && (
+            <Link
+              href={`/phenomena/${slug}`}
+              className="inline-flex items-center gap-1 mt-2 text-sm text-purple-400 hover:text-purple-300 transition-colors"
+            >
+              Keep reading
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DiscoverCard({ item, index, isActive, user, imgError, onImageError, onRef }: DiscoverCardProps) {
   const config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
   const gradient = CARD_GRADIENTS[item.category] || 'from-gray-950/90 to-gray-950'
@@ -490,17 +563,15 @@ function DiscoverCard({ item, index, isActive, user, imgError, onImageError, onR
           </p>
         )}
 
-        {/* Summary */}
-        {item.ai_summary && (
-          <p className={classNames(
-            'text-base sm:text-lg text-gray-300 max-w-2xl leading-relaxed mb-6 line-clamp-3 transition-all duration-500 delay-100',
-            isActive ? 'opacity-100 translate-y-0' : 'opacity-60 translate-y-2'
-          )}>
-            {item.ai_summary}
-          </p>
-        )}
+        {/* Story Hook - expands from summary to description */}
+            <StoryHook 
+              summary={item.ai_summary}
+              description={item.ai_description}
+              isActive={isActive}
+              slug={item.slug}
+            />
 
-        {/* Quick fact pills */}
+            {/* Quick fact pills */}
         {qf && (
           <div className={classNames(
             'flex flex-wrap gap-2 mb-6 transition-all duration-500 delay-200',
