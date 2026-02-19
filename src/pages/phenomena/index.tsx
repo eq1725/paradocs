@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import { Search, Grid3X3, List, ChevronRight } from 'lucide-react'
+import { Search, Grid3X3, List, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
 
@@ -41,6 +41,27 @@ export default function PhenomenaPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | 'all'>('all')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
+
+  function toggleCategory(cat: string) {
+    setCollapsedCategories(prev => {
+      const next = new Set(prev)
+      if (next.has(cat)) {
+        next.delete(cat)
+      } else {
+        next.add(cat)
+      }
+      return next
+    })
+  }
+
+  function expandAll() {
+    setCollapsedCategories(new Set())
+  }
+
+  function collapseAll() {
+    setCollapsedCategories(new Set(CATEGORY_ORDER))
+  }
 
   useEffect(() => {
     loadPhenomena()
@@ -171,27 +192,65 @@ export default function PhenomenaPage() {
             </div>
           ) : selectedCategory === 'all' ? (
             // Grouped view when showing all categories
-            <div className="space-y-12">
+            <div className="space-y-4">
+              {/* Expand/Collapse All controls */}
+              <div className="flex items-center justify-end gap-3 mb-2">
+                <button
+                  onClick={expandAll}
+                  className="text-sm text-gray-400 hover:text-purple-400 transition-colors flex items-center gap-1"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                  Expand All
+                </button>
+                <span className="text-gray-700">|</span>
+                <button
+                  onClick={collapseAll}
+                  className="text-sm text-gray-400 hover:text-purple-400 transition-colors flex items-center gap-1"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                  Collapse All
+                </button>
+              </div>
+
               {Object.entries(groupedPhenomena).map(([category, items]) => {
                 const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG]
+                const isCollapsed = collapsedCategories.has(category)
                 return (
-                  <section key={category}>
-                    <div className="flex items-center gap-3 mb-6">
-                      <span className="text-3xl">{config?.icon}</span>
-                      <h2 className="text-2xl font-bold text-white">{config?.label}</h2>
-                      <span className="text-gray-500 text-sm">({items.length})</span>
-                    </div>
-                    {viewMode === 'grid' ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {items.map(phenomenon => (
-                          <PhenomenonCard key={phenomenon.id} phenomenon={phenomenon} />
-                        ))}
+                  <section key={category} className="border border-gray-800 rounded-xl overflow-hidden">
+                    {/* Clickable category header */}
+                    <button
+                      onClick={() => toggleCategory(category)}
+                      className="w-full flex items-center justify-between gap-3 px-5 py-4 bg-gray-900/80 hover:bg-gray-800/80 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{config?.icon}</span>
+                        <h2 className="text-xl font-bold text-white">{config?.label}</h2>
+                        <span className="text-gray-500 text-sm">({items.length})</span>
                       </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {items.map(phenomenon => (
-                          <PhenomenonListItem key={phenomenon.id} phenomenon={phenomenon} />
-                        ))}
+                      <ChevronDown
+                        className={classNames(
+                          'w-5 h-5 text-gray-400 transition-transform duration-200',
+                          isCollapsed ? '-rotate-90' : 'rotate-0'
+                        )}
+                      />
+                    </button>
+
+                    {/* Collapsible content */}
+                    {!isCollapsed && (
+                      <div className="p-4 pt-2">
+                        {viewMode === 'grid' ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            {items.map(phenomenon => (
+                              <PhenomenonCard key={phenomenon.id} phenomenon={phenomenon} />
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {items.map(phenomenon => (
+                              <PhenomenonListItem key={phenomenon.id} phenomenon={phenomenon} />
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </section>
