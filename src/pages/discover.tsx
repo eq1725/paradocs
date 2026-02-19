@@ -241,10 +241,13 @@ export default function DiscoverPage() {
       </Head>
 
       {/* Fixed header - minimal chrome */}
-      <div className="fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between bg-gradient-to-b from-gray-950 via-gray-950/80 to-transparent pointer-events-none">
+      <div className="fixed top-0 left-0 right-0 z-50 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between bg-gradient-to-b from-gray-950 via-gray-950/80 to-transparent pointer-events-none">
         <Link href="/" className="pointer-events-auto">
           <span className="text-xl font-bold text-white tracking-tight">Paradocs<span className="text-purple-500">.</span></span>
         </Link>
+        <span className="text-xs text-gray-400 bg-gray-900/50 backdrop-blur-sm px-3 py-1 rounded-full pointer-events-none">
+          {currentIndex + 1} / {items.length}{hasMore ? '+' : ''}
+        </span>
         <div className="flex items-center gap-3 pointer-events-auto">
           {!user ? (
             <Link
@@ -266,19 +269,14 @@ export default function DiscoverPage() {
       </div>
 
       {/* Progress indicator */}
-      <div className="fixed top-0 left-0 right-0 z-40 h-0.5 bg-gray-900">
+      <div className="fixed top-0 left-0 right-0 z-[55] h-0.5 bg-gray-900">
         <div
           className="h-full bg-purple-500 transition-all duration-300"
           style={{ width: items.length > 0 ? `${((currentIndex + 1) / items.length) * 100}%` : '0%' }}
         />
       </div>
 
-      {/* Card counter */}
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40">
-        <span className="text-xs text-gray-500 bg-gray-900/50 backdrop-blur-sm px-3 py-1 rounded-full">
-          {currentIndex + 1} / {items.length}{hasMore ? '+' : ''}
-        </span>
-      </div>
+
 
       {/* Main scroll container */}
       <div
