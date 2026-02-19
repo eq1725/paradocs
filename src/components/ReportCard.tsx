@@ -74,7 +74,7 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
             </div>
           </div>
           <div className="p-6">
-            <h2 className="text-xl font-display font-semibold text-white group-hover:text-primary-400 transition-colors">
+            <h2 className="text-xl font-display font-semibold text-white group-hover:text-primary-400 transition-colors line-clamp-1">
               {report.title}
             </h2>
             <p className="mt-2 text-gray-400 text-sm line-clamp-2">
