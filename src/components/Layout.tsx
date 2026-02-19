@@ -209,16 +209,16 @@ export default function Layout({ children }: LayoutProps) {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-xl border-t border-white/10 safe-area-pb">
         <div className="flex items-center justify-around h-16">
           <Link
-            href="/explore"
+            href="/discover"
             className={classNames(
               'flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors',
-              router.pathname === '/explore' || router.pathname.startsWith('/explore')
+              router.pathname === '/discover' || router.pathname.startsWith('/discover')
                 ? 'text-primary-400'
                 : 'text-gray-400 hover:text-white'
             )}
           >
-            <Compass className="w-5 h-5" />
-            <span className="text-xs mt-1">Explore</span>
+            <Sparkles className="w-5 h-5" />
+            <span className="text-xs mt-1">Discover</span>
           </Link>
           <Link
             href="/map"
@@ -434,7 +434,7 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-white/5 text-center text-sm text-gray-500">
-            © {new Date().getFullYear()} <span className="font-sans font-black text-white tracking-tight">Paradocs<span className="text-primary-500">.</span></span> All rights reserved.
+            Â© {new Date().getFullYear()} <span className="font-sans font-black text-white tracking-tight">Paradocs<span className="text-primary-500">.</span></span> All rights reserved.
           </div>
         </div>
       </footer>
