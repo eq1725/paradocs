@@ -102,32 +102,14 @@ export default function Home() {
     return () => observer.disconnect()
   }, [])
 
-  // Auto-rotate preview cards (pauses on hover)
+  // Auto-rotate preview cards (slower + pause on hover)
   const [carouselPaused, setCarouselPaused] = useState(false)
-  const [carouselProgress, setCarouselProgress] = useState(0)
-  const CAROUSEL_DURATION = 8000
-
   useEffect(() => {
-    if (previewCards.length <= 1) return
-    let startTime = Date.now()
-    let rafId: number
-    function tick() {
-      if (!carouselPaused) {
-        const elapsed = Date.now() - startTime
-        const progress = Math.min(elapsed / CAROUSEL_DURATION, 1)
-        setCarouselProgress(progress)
-        if (elapsed >= CAROUSEL_DURATION) {
-          setActivePreview(prev => (prev + 1) % previewCards.length)
-          startTime = Date.now()
-          setCarouselProgress(0)
-        }
-      } else {
-        startTime = Date.now() - (carouselProgress * CAROUSEL_DURATION)
-      }
-      rafId = requestAnimationFrame(tick)
-    }
-    rafId = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(rafId)
+    if (previewCards.length <= 1 || carouselPaused) return
+    const interval = setInterval(() => {
+      setActivePreview(prev => (prev + 1) % previewCards.length)
+    }, 8000)
+    return () => clearInterval(interval)
   }, [previewCards.length, carouselPaused])
 
   useEffect(() => {
@@ -378,7 +360,7 @@ export default function Home() {
       {previewCards.length > 0 && (
         <section className="py-8 -mt-8 relative z-10">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="relative h-56 sm:h-52" onMouseEnter={() => setCarouselPaused(true)} onMouseLeave={() => setCarouselPaused(false)} onTouchStart={() => setCarouselPaused(true)} onTouchEnd={() => setCarouselPaused(false)}>
+            <div className="relative h-56 sm:h-52" onMouseEnter={() => setCarouselPaused(true)} onMouseLeave={() => setCarouselPaused(false)} onTouchStart={() => setCarouselPaused(true)} onTouchEnd={() => { setTimeout(() => setCarouselPaused(false), 2000) }}>
               {previewCards.map((card, i) => {
                 const isActive = i === activePreview
                 const isPrev = i === (activePreview - 1 + previewCards.length) % previewCards.length
@@ -397,13 +379,7 @@ export default function Home() {
                         : 'opacity-40 scale-95 translate-y-4 z-10'
                     }`}
                   >
-                    <div className="glass-card p-5 sm:p-6 border border-white/10 hover:border-primary-500/30 transition-colors cursor-pointer relative overflow-hidden">
-                    {/* Story progress bar */}
-                    {isActive && (
-                      <div className="absolute top-0 left-0 right-0 h-0.5 bg-white/5">
-                        <div className="h-full bg-primary-500/60" style={{ width: `${carouselProgress * 100}%` }} />
-                      </div>
-                    )}
+                    <div className="glass-card p-5 sm:p-6 border border-white/10 hover:border-primary-500/30 transition-colors cursor-pointer">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2">
