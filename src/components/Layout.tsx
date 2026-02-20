@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import {
   Search, Menu, X, Home, Compass, Map, PlusCircle,
-  BarChart3, User, LogOut, LogIn, Settings, LayoutDashboard, BookOpen, Sparkles
+  BarChart3, User, LogOut, LogIn, Settings, LayoutDashboard, BookOpen, Sparkles,
+  Flame, Bookmark, Star
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Profile } from '@/lib/database.types'
@@ -63,14 +64,13 @@ export default function Layout({ children }: LayoutProps) {
     }
   }
 
-  // Main navigation - optimized for serial position effect (important items first/last)
-  // Home removed (logo handles it), Analytics moved to footer/dashboard
+  // Main navigation - core browse experience first, discovery/insights as bookends
   const navigation = [
-    { name: 'Discover', href: '/discover', icon: Sparkles },
     { name: 'Explore', href: '/explore', icon: Compass },
     { name: 'Map', href: '/map', icon: Map },
     { name: 'Encyclopedia', href: '/phenomena', icon: BookOpen },
     { name: 'Insights', href: '/insights', icon: Sparkles },
+    { name: 'Discover', href: '/discover', icon: Flame },
   ]
 
   return (
@@ -90,7 +90,7 @@ export default function Layout({ children }: LayoutProps) {
               <span className="font-sans font-black text-2xl text-white tracking-tight">Paradocs<span className="text-primary-500">.</span></span>
             </Link>
 
-            {/* Desktop Navigation - Text only, no icons for cleaner look */}
+            {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-1">
               {navigation.map((item) => {
                 const isActive = router.pathname === item.href ||
@@ -100,13 +100,16 @@ export default function Layout({ children }: LayoutProps) {
                     key={item.name}
                     href={item.href}
                     className={classNames(
-                      'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                      'relative px-4 py-2 rounded-lg text-sm font-medium transition-all',
                       isActive
-                        ? 'bg-white/15 text-white shadow-sm'
+                        ? 'text-white'
                         : 'text-gray-400 hover:text-white hover:bg-white/5'
                     )}
                   >
                     {item.name}
+                    {isActive && (
+                      <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-primary-500 rounded-full" />
+                    )}
                   </Link>
                 )
               })}
@@ -211,7 +214,7 @@ export default function Layout({ children }: LayoutProps) {
           <Link
             href="/explore"
             className={classNames(
-              'flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors',
+              'flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors relative',
               router.pathname === '/explore' || router.pathname.startsWith('/explore')
                 ? 'text-primary-400'
                 : 'text-gray-400 hover:text-white'
@@ -219,11 +222,14 @@ export default function Layout({ children }: LayoutProps) {
           >
             <Compass className="w-5 h-5" />
             <span className="text-xs mt-1">Explore</span>
+            {(router.pathname === '/explore' || router.pathname.startsWith('/explore')) && (
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary-500 rounded-full" />
+            )}
           </Link>
           <Link
             href="/map"
             className={classNames(
-              'flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors',
+              'flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors relative',
               router.pathname === '/map'
                 ? 'text-primary-400'
                 : 'text-gray-400 hover:text-white'
@@ -231,19 +237,28 @@ export default function Layout({ children }: LayoutProps) {
           >
             <Map className="w-5 h-5" />
             <span className="text-xs mt-1">Map</span>
+            {router.pathname === '/map' && (
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary-500 rounded-full" />
+            )}
           </Link>
+          {/* Center FAB: Discover for everyone - the hook that pulls casual users in */}
           <Link
-            href="/submit"
+            href="/discover"
             className="flex flex-col items-center justify-center flex-1 h-full py-2"
           >
-            <div className="flex items-center justify-center w-12 h-12 -mt-4 rounded-full bg-primary-600 text-white shadow-lg shadow-primary-600/30">
-              <PlusCircle className="w-6 h-6" />
+            <div className={classNames(
+              'flex items-center justify-center w-12 h-12 -mt-4 rounded-full shadow-lg transition-all',
+              router.pathname === '/discover'
+                ? 'bg-primary-500 text-white shadow-primary-500/40 scale-110'
+                : 'bg-primary-600 text-white shadow-primary-600/30'
+            )}>
+              <Flame className="w-6 h-6" />
             </div>
           </Link>
           <Link
             href="/phenomena"
             className={classNames(
-              'flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors',
+              'flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors relative',
               router.pathname === '/phenomena' || router.pathname.startsWith('/phenomena')
                 ? 'text-primary-400'
                 : 'text-gray-400 hover:text-white'
@@ -251,11 +266,14 @@ export default function Layout({ children }: LayoutProps) {
           >
             <BookOpen className="w-5 h-5" />
             <span className="text-xs mt-1">Encyclopedia</span>
+            {(router.pathname === '/phenomena' || router.pathname.startsWith('/phenomena')) && (
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary-500 rounded-full" />
+            )}
           </Link>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className={classNames(
-              'flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors',
+              'flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors relative',
               mobileMenuOpen ? 'text-primary-400' : 'text-gray-400 hover:text-white'
             )}
           >
@@ -292,9 +310,9 @@ export default function Layout({ children }: LayoutProps) {
               </form>
             </div>
 
-            {/* DISCOVER Section */}
+            {/* BROWSE Section */}
             <div className="px-4 pt-4 pb-2">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Discover</p>
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Browse</p>
               <div className="space-y-1">
                 <Link
                   href="/"
@@ -303,6 +321,14 @@ export default function Layout({ children }: LayoutProps) {
                 >
                   <Home className="w-5 h-5" />
                   <span>Home</span>
+                </Link>
+                <Link
+                  href="/discover"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                >
+                  <Flame className="w-5 h-5" />
+                  <span>Discover Feed</span>
                 </Link>
                 <Link
                   href="/insights"
@@ -319,6 +345,21 @@ export default function Layout({ children }: LayoutProps) {
                 >
                   <BarChart3 className="w-5 h-5" />
                   <span>Analytics</span>
+                </Link>
+              </div>
+            </div>
+
+            {/* ACTIONS Section */}
+            <div className="px-4 pt-2 pb-2">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Actions</p>
+              <div className="space-y-1">
+                <Link
+                  href="/submit"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                >
+                  <PlusCircle className="w-5 h-5 text-primary-400" />
+                  <span>Submit Report</span>
                 </Link>
               </div>
             </div>
