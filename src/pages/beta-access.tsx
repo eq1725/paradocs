@@ -229,7 +229,7 @@ export default function BetaAccessPage() {
 
         {/* Footer */}
         <footer className="p-6 text-center text-gray-500 text-sm">
-          © {new Date().getFullYear()} Paradocs. All rights reserved.
+          {'\u00A9'} {new Date().getFullYear()} Paradocs. All rights reserved.
         </footer>
       </div>
 
