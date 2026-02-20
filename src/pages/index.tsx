@@ -519,11 +519,7 @@ export default function Home() {
 
             {/* Secondary Stories Row */}
             {spotlightStories.length > 1 && (
-              <div className={`grid grid-cols-1 gap-3 mt-4 ${
-                spotlightStories.length >= 4 ? 'sm:grid-cols-3' :
-                spotlightStories.length === 3 ? 'sm:grid-cols-2 lg:grid-cols-3' :
-                'sm:grid-cols-2'
-              } sm:gap-4`}>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 sm:gap-4">
                 {spotlightStories.slice(1, 4).map((story, i) => (
                   <Link
                     key={story.id}
@@ -566,6 +562,31 @@ export default function Home() {
                     </div>
                   </Link>
                 ))}
+                {/* Fill remaining slots with CTA card to keep 3-column balance */}
+                {spotlightStories.slice(1, 4).length < 3 && (
+                  <Link
+                    href="/explore"
+                    className="group glass-card overflow-hidden flex flex-col border border-dashed border-white/10 hover:border-primary-500/30 hover:bg-white/[0.03] transition-all duration-300 items-center justify-center text-center"
+                    style={{ minHeight: '220px' }}
+                  >
+                    <div className="p-6 flex flex-col items-center gap-3">
+                      <div className="w-14 h-14 rounded-2xl bg-primary-500/10 border border-primary-500/20 flex items-center justify-center group-hover:bg-primary-500/20 group-hover:border-primary-500/40 transition-all">
+                        <Search className="w-6 h-6 text-primary-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-display font-semibold text-white group-hover:text-primary-300 transition-colors">
+                          Explore All Reports
+                        </h3>
+                        <p className="mt-1 text-xs text-gray-500 leading-relaxed">
+                          Browse {stats.total.toLocaleString()}+ documented encounters with powerful filters
+                        </p>
+                      </div>
+                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary-400 mt-1">
+                        Start exploring <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                      </span>
+                    </div>
+                  </Link>
+                )}
               </div>
             )}
           </div>
