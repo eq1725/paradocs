@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { X, TrendingUp, BookOpen, Compass, Plus, Check, ArrowRight, Sparkles } from 'lucide-react'
+import { X, TrendingUp, BookOpen, Compass, Plus, Check, ArrowRight, Sparkles, Eye, Star } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PhenomenonCategory } from '@/lib/database.types'
 import { CATEGORY_CONFIG } from '@/lib/constants'
@@ -14,12 +14,40 @@ import {
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
 
+interface UserMapData {
+  categoryStats: Record<string, { views: number; saves: number; uniquePhenomena: number }>
+  phenomenonNodes: Array<{
+    id: string
+    name: string
+    slug: string
+    category: string
+    imageUrl: string | null
+    dangerLevel: string | null
+    firstViewed: string
+    viewCount: number
+    isSaved: boolean
+  }>
+  trail: Array<{ phenomenonId: string; timestamp: string; category: string }>
+  stats: {
+    totalViewed: number
+    totalPhenomena: number
+    categoriesExplored: number
+    totalCategories: number
+    currentStreak: number
+    longestStreak: number
+    totalSaved: number
+    rank: string
+    rankLevel: number
+  }
+}
+
 interface ConstellationPanelProps {
   category: PhenomenonCategory | null
   onClose: () => void
   userInterests: PhenomenonCategory[]
   onToggleInterest: (category: PhenomenonCategory) => void
   stats?: ConstellationStats[]
+  userMapData?: UserMapData | null
 }
 
 interface TrendingReport {
@@ -37,6 +65,7 @@ export default function ConstellationPanel({
   userInterests,
   onToggleInterest,
   stats = [],
+  userMapData,
 }: ConstellationPanelProps) {
   const [trendingReports, setTrendingReports] = useState<TrendingReport[]>([])
   const [reportCount, setReportCount] = useState(0)
@@ -160,6 +189,56 @@ export default function ConstellationPanel({
                 </div>
               </div>
             )}
+
+            {/* Personal Discoveries in this category */}
+            {userMapData && category && (() => {
+              const catPhenomena = userMapData.phenomenonNodes.filter(p => p.category === category)
+              const catStats = userMapData.categoryStats[category]
+              if (catPhenomena.length === 0 && !catStats) return null
+              return (
+                <div>
+                  <h3 className="text-white font-semibold text-sm flex items-center gap-2 mb-3">
+                    <Eye className="w-4 h-4 text-amber-400" />
+                    Your Discoveries
+                    {catStats && (
+                      <span className="text-gray-500 font-normal text-xs ml-auto">
+                        {catStats.uniquePhenomena} explored
+                      </span>
+                    )}
+                  </h3>
+                  {catPhenomena.length > 0 ? (
+                    <div className="space-y-2">
+                      {catPhenomena.slice(0, 5).map(p => (
+                        <Link
+                          key={p.id}
+                          href={`/report/${p.slug}`}
+                          className="flex items-center gap-3 p-2.5 bg-gray-800/40 hover:bg-gray-800/70 rounded-lg transition-colors group"
+                        >
+                          {p.imageUrl ? (
+                            <img src={p.imageUrl} alt={p.name} className="w-8 h-8 rounded object-cover shrink-0"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded bg-gray-700 flex items-center justify-center shrink-0">
+                              <Star className="w-3 h-3 text-gray-500" />
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="text-gray-200 text-sm font-medium group-hover:text-white truncate">{p.name}</div>
+                            <div className="text-gray-500 text-xs">
+                              {p.viewCount}x viewed
+                              {p.isSaved && ' · Saved'}
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : catStats ? (
+                    <p className="text-gray-500 text-sm">{catStats.views} views in this category</p>
+                  ) : null}
+                </div>
+              )
+            })()}
 
             {/* Trending Reports */}
             <div>
