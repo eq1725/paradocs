@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase'
 import { Profile } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
 import { Avatar } from '@/components/AvatarSelector'
+import NavigationHelper from '@/components/NavigationHelper'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -390,6 +391,9 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       )}
 
+      {/* Navigation helper: floating back button + scroll restoration */}
+      <NavigationHelper />
+
       {/* Main content - accounts for header + safe area (Dynamic Island) + bottom nav */}
       <main className="main-content-pt pb-20 md:pb-0 min-h-screen">
         {children}
@@ -434,7 +438,7 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-white/5 text-center text-sm text-gray-500">
-            Â© {new Date().getFullYear()} <span className="font-sans font-black text-white tracking-tight">Paradocs<span className="text-primary-500">.</span></span> All rights reserved.
+            ÃÂ© {new Date().getFullYear()} <span className="font-sans font-black text-white tracking-tight">Paradocs<span className="text-primary-500">.</span></span> All rights reserved.
           </div>
         </div>
       </footer>
