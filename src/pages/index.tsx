@@ -11,7 +11,6 @@ import { CATEGORY_CONFIG } from '@/lib/constants'
 import ReportCard from '@/components/ReportCard'
 import { TrendingPatternsWidget } from '@/components/patterns'
 import { hasCompletedOnboarding } from '@/components/OnboardingTour'
-import { useABTest } from '@/lib/ab-testing'
 
 const DEFAULT_STATS = { total: 258000, thisMonth: 1000, locations: 14 }
 const STATS_CACHE_KEY = 'paradocs_homepage_stats'
@@ -68,10 +67,24 @@ interface PreviewCard {
   teaser: string
 }
 
-export default function Home() {
-  // A/B Test: Hero headline variants
-  const heroAB = useABTest('hero_headline_v2', ['A', 'B', 'C', 'D', 'E']);
+// Cinematic spotlight story
+interface SpotlightStory {
+  id: string
+  title: string
+  slug: string
+  teaser: string
+  location: string
+  eventDate: string
+  witnessCount: number
+  hasEvidence: boolean
+  hasMedia: boolean
+  category: string
+  phenomenon: string
+  imageUrl: string | null
+  imageCaption: string | null
+}
 
+export default function Home() {
   const [featuredReports, setFeaturedReports] = useState<(Report & { phenomenon_type?: PhenomenonType })[]>([])
   const [recentReports, setRecentReports] = useState<(Report & { phenomenon_type?: PhenomenonType })[]>([])
   const [featuredPhenomena, setFeaturedPhenomena] = useState<Phenomenon[]>([])
@@ -82,6 +95,8 @@ export default function Home() {
   const [statsVisible, setStatsVisible] = useState(false)
   const [previewCards, setPreviewCards] = useState<PreviewCard[]>([])
   const [activePreview, setActivePreview] = useState(0)
+  const [spotlightStories, setSpotlightStories] = useState<SpotlightStory[]>([])
+  const [spotlightImageLoaded, setSpotlightImageLoaded] = useState(false)
   const [emailInput, setEmailInput] = useState('')
   const [emailSubmitting, setEmailSubmitting] = useState(false)
   const [emailSuccess, setEmailSuccess] = useState(false)
@@ -102,15 +117,14 @@ export default function Home() {
     return () => observer.disconnect()
   }, [])
 
-  // Auto-rotate preview cards (slower + pause on hover)
-  const [carouselPaused, setCarouselPaused] = useState(false)
+  // Auto-rotate preview cards
   useEffect(() => {
-    if (previewCards.length <= 1 || carouselPaused) return
+    if (previewCards.length <= 1) return
     const interval = setInterval(() => {
       setActivePreview(prev => (prev + 1) % previewCards.length)
-    }, 8000)
+    }, 4000)
     return () => clearInterval(interval)
-  }, [previewCards.length, carouselPaused])
+  }, [previewCards.length])
 
   useEffect(() => {
     if (typeof window !== 'undefined' && !hasCompletedOnboarding()) {
@@ -143,7 +157,7 @@ export default function Home() {
       // Build preview cards from top reports
       const { data: topReports } = await supabase
         .from('reports')
-        .select('title, location_name, summary, slug, phenomenon_types(name, category)')
+        .select('title, location_text, summary, slug, phenomenon_types(name, category)')
         .eq('status', 'approved')
         .not('summary', 'is', null)
         .order('created_at', { ascending: false })
@@ -152,12 +166,62 @@ export default function Home() {
       if (topReports) {
         setPreviewCards(topReports.map((r: any) => ({
           title: r.title || 'Untitled Report',
-          location: r.location_name || 'Unknown Location',
+          location: r.location_text || 'Unknown Location',
           phenomenon: r.phenomenon_types?.name || 'Unknown',
           category: r.phenomenon_types?.category || '',
           slug: r.slug || '',
-          teaser: (() => { const s = r.summary || ''; if (s.length <= 300) return s; const cut = s.substring(0, 300); const lp = cut.lastIndexOf('. '); return lp > 120 ? cut.substring(0, lp + 1) : cut + '...'; })()
+          teaser: (r.summary || '').substring(0, 120) + '...'
         })))
+      }
+
+      // Fetch spotlight stories - reports with media images for cinematic hero
+      const { data: spotlightData } = await supabase
+        .from('reports')
+        .select(`
+          id, title, slug, summary, location_name, event_date, witness_count,
+          has_physical_evidence, has_photo_video, category,
+          phenomenon_type:phenomenon_types(name),
+          report_media(url, caption, media_type, is_primary)
+        `)
+        .eq('status', 'approved')
+        .eq('has_photo_video', true)
+        .order('view_count', { ascending: false })
+        .limit(15)
+
+      if (spotlightData) {
+        const stories: SpotlightStory[] = spotlightData
+          .map((r: any) => {
+            const images = (r.report_media || []).filter((m: any) =>
+              m.media_type === 'image' || m.url?.match(/\.(jpg|jpeg|png|webp|gif)/i)
+            )
+            const primaryImage = images.find((m: any) => m.is_primary) || images[0]
+            return {
+              id: r.id,
+              title: r.title,
+              slug: r.slug,
+              teaser: (r.summary || '').substring(0, 220),
+              location: r.location_name || '',
+              eventDate: r.event_date
+                ? new Date(r.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+                : '',
+              witnessCount: r.witness_count || 0,
+              hasEvidence: r.has_physical_evidence,
+              hasMedia: r.has_photo_video,
+              category: r.category || '',
+              phenomenon: (r.phenomenon_type as any)?.name || '',
+              imageUrl: primaryImage?.url || null,
+              imageCaption: primaryImage?.caption || null,
+            }
+          })
+          .filter((s: SpotlightStory) => s.imageUrl)
+
+        // Prioritize Roswell as the lead story if present
+        const roswellIdx = stories.findIndex((s) => s.slug?.includes('roswell'))
+        if (roswellIdx > 0) {
+          const [roswell] = stories.splice(roswellIdx, 1)
+          stories.unshift(roswell)
+        }
+        setSpotlightStories(stories.slice(0, 4))
       }
 
       const statsResponse = await fetch('/api/public/stats')
@@ -165,7 +229,7 @@ export default function Home() {
 
       // Get approximate user count
       const { count: uCount } = await supabase
-        .from('profiles')
+        .from('user_profiles')
         .select('id', { count: 'exact', head: true })
       setUserCount(uCount || 0)
 
@@ -233,7 +297,7 @@ export default function Home() {
       {/* Hero Section */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-primary-900/20 via-transparent to-transparent" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-14 relative">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-20 relative">
           <div className="text-center max-w-4xl mx-auto">
 
             {/* Social proof badge */}
@@ -250,39 +314,24 @@ export default function Home() {
               </div>
             )}
 
-{(() => {
-              const headlines: Record<string, { main: string; accent: string; sub: string }> = {
-                A: { main: "Have You Experienced Something", accent: "You Can\u2019t Explain?", sub: "You\u2019re not alone. Explore 878+ documented encounters across 14 countries \u2014 and share your own." },
-                B: { main: "The World\u2019s Largest Database of", accent: "Unexplained Encounters", sub: "878+ documented encounters across 14 countries. Search, explore, and contribute to the unknown." },
-                C: { main: "What If Everything You\u2019ve Been Told", accent: "Is Wrong?", sub: "878+ verified encounters. 14 countries. Exposed patterns the mainstream won\u2019t talk about." },
-                D: { main: "Join the Researchers Tracking What", accent: "Can\u2019t Be Explained", sub: "A growing community documenting 878+ encounters across 14 countries. Your experience matters." },
-                E: { main: "Something Strange Is Happening", accent: "\u2014 And We\u2019re Documenting It", sub: "878+ encounters logged across 14 countries. Explore the evidence or submit your own." },
-              };
-              const h = headlines[heroAB.variant] || headlines.A;
-              return (
-                <>
-                  <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold text-white leading-tight">
-                    {h.main}{" "}
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-purple-400">
-                      {h.accent}
-                    </span>
-                  </h1>
-                  <p className="mt-6 text-lg md:text-xl text-gray-400 max-w-2xl mx-auto">
-                    {h.sub}
-                  </p>
-                </>
-              );
-            })()}
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold text-white leading-tight">
+              Where Mysteries Meet{' '}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-purple-400">
+                Discovery
+              </span>
+            </h1>
+            <p className="mt-6 text-lg md:text-xl text-gray-400 max-w-2xl mx-auto">
+              Explore the world's largest database of paranormal phenomena. Discover UFO sightings, cryptid encounters, ghost reports, and unexplained events.
+            </p>
 
             {/* Dual CTA buttons */}
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
-                href="/discover"
-                onClick={function() { heroAB.trackClick('start_exploring'); }}
+                href="/explore"
                 className="btn btn-primary px-8 py-4 text-lg font-semibold flex items-center gap-2 w-full sm:w-auto justify-center"
               >
-                <Sparkles className="w-5 h-5" />
-                Start Discovering
+                <Compass className="w-5 h-5" />
+                Start Exploring
               </Link>
               <Link
                 href="/submit"
@@ -356,26 +405,178 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Ghost Card Preview Carousel */}
-      {previewCards.length > 0 && (
+      {/* Cinematic Story Spotlight */}
+      {spotlightStories.length > 0 ? (
+        <section className="py-4 -mt-4 relative z-10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            {/* Primary Featured Story - Full-width cinematic card */}
+            <Link
+              href={`/report/${spotlightStories[0]?.slug}`}
+              className="block group"
+            >
+              <div className="relative rounded-2xl overflow-hidden" style={{ minHeight: '420px' }}>
+                {/* Background Image */}
+                {spotlightStories[0]?.imageUrl && (
+                  <img
+                    src={spotlightStories[0].imageUrl}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-[1.2s] group-hover:scale-105"
+                    onLoad={() => setSpotlightImageLoaded(true)}
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
+                )}
+                {/* Fallback gradient when no image or loading */}
+                <div className={`absolute inset-0 transition-opacity duration-700 ${
+                  spotlightImageLoaded && spotlightStories[0]?.imageUrl ? 'opacity-0' : 'opacity-100'
+                } bg-gradient-to-br from-primary-900 via-gray-900 to-purple-900`} />
+
+                {/* Cinematic gradient overlays */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-black/10" />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
+                {/* Subtle vignette */}
+                <div className="absolute inset-0" style={{ boxShadow: 'inset 0 0 120px 40px rgba(0,0,0,0.4)' }} />
+
+                {/* Content overlay */}
+                <div className="relative z-10 p-6 sm:p-8 md:p-12 flex flex-col justify-end" style={{ minHeight: '420px' }}>
+                  {/* Top: Featured badge - positioned absolutely */}
+                  <div className="absolute top-6 left-6 sm:top-8 sm:left-8 md:top-12 md:left-12 flex items-center gap-3">
+                    <span className="px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest"
+                      style={{ background: 'rgba(91, 99, 241, 0.35)', border: '1px solid rgba(91, 99, 241, 0.5)', color: '#a5b4fc' }}>
+                      Featured Investigation
+                    </span>
+                  </div>
+
+                  {/* Bottom content */}
+                  {spotlightStories[0]?.phenomenon && (
+                    <span className="text-primary-400 text-sm font-medium tracking-wider uppercase mb-2">
+                      {spotlightStories[0].phenomenon}
+                    </span>
+                  )}
+
+                  <h2 className="text-2xl sm:text-3xl md:text-5xl font-display font-bold text-white leading-tight max-w-3xl">
+                    {spotlightStories[0]?.title}
+                  </h2>
+
+                  {/* Location & Date */}
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-3">
+                    {spotlightStories[0]?.location && (
+                      <span className="flex items-center gap-1.5 text-sm text-gray-300">
+                        <MapPin className="w-4 h-4 text-primary-400" />
+                        {spotlightStories[0].location}
+                      </span>
+                    )}
+                    {spotlightStories[0]?.eventDate && (
+                      <span className="text-sm text-gray-400">{spotlightStories[0].eventDate}</span>
+                    )}
+                  </div>
+
+                  {/* Teaser */}
+                  <p className="mt-4 text-base sm:text-lg text-gray-300 max-w-2xl line-clamp-3 leading-relaxed">
+                    {spotlightStories[0]?.teaser}
+                  </p>
+
+                  {/* Evidence pills */}
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-5">
+                    {spotlightStories[0]?.witnessCount > 0 && (
+                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-sm text-gray-200"
+                        style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
+                        <Users className="w-3.5 h-3.5 text-amber-400" />
+                        {spotlightStories[0].witnessCount} Witnesses
+                      </span>
+                    )}
+                    {spotlightStories[0]?.hasEvidence && (
+                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-sm text-gray-200"
+                        style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
+                        <Shield className="w-3.5 h-3.5 text-green-400" />
+                        Physical Evidence
+                      </span>
+                    )}
+                    {spotlightStories[0]?.hasMedia && (
+                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-sm text-gray-200"
+                        style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
+                        <Eye className="w-3.5 h-3.5 text-blue-400" />
+                        Photos &amp; Video
+                      </span>
+                    )}
+                  </div>
+
+                  {/* CTA button */}
+                  <div className="mt-6">
+                    <span className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary-500 text-white font-semibold text-sm sm:text-base shadow-lg shadow-primary-500/20 group-hover:bg-primary-400 group-hover:shadow-primary-400/30 transition-all duration-300">
+                      Read the Full Investigation
+                      <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </Link>
+
+            {/* Secondary Stories Row */}
+            {spotlightStories.length > 1 && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-4">
+                {spotlightStories.slice(1, 4).map((story, i) => (
+                  <Link
+                    key={story.id}
+                    href={`/report/${story.slug}`}
+                    className="group glass-card overflow-hidden flex flex-row sm:flex-col border border-white/5 hover:border-primary-500/30 transition-all duration-300"
+                  >
+                    <div className="relative w-28 sm:w-full h-28 sm:h-36 shrink-0 overflow-hidden">
+                      {story.imageUrl ? (
+                        <img
+                          src={story.imageUrl}
+                          alt=""
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        />
+                      ) : null}
+                      <div className={`absolute inset-0 flex items-center justify-center ${story.imageUrl ? 'hidden' : ''} ${
+                        ['bg-gradient-to-br from-emerald-900/60 to-gray-900',
+                         'bg-gradient-to-br from-purple-900/60 to-gray-900',
+                         'bg-gradient-to-br from-amber-900/60 to-gray-900'][i % 3]
+                      }`}>
+                        <span className="text-4xl opacity-40">
+                          {CATEGORY_CONFIG[story.category as keyof typeof CATEGORY_CONFIG]?.icon || '✨'}
+                        </span>
+                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                    </div>
+                    <div className="p-3 sm:p-4 flex-1 min-w-0">
+                      <span className="text-[10px] sm:text-xs font-semibold text-primary-400 uppercase tracking-wider">
+                        {story.phenomenon}
+                      </span>
+                      <h3 className="mt-1 text-sm font-display font-semibold text-white line-clamp-2 group-hover:text-primary-300 transition-colors">
+                        {story.title}
+                      </h3>
+                      <p className="mt-1.5 text-xs text-gray-400 line-clamp-2 hidden sm:block leading-relaxed">
+                        {story.teaser}
+                      </p>
+                      <span className="mt-2 inline-flex items-center gap-1 text-xs text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                        Read more <ArrowRight className="w-3 h-3" />
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      ) : previewCards.length > 0 ? (
+        /* Fallback: Ghost Card Preview Carousel (if no spotlight stories with images) */
         <section className="py-8 -mt-8 relative z-10">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="relative h-56 sm:h-52" onMouseEnter={() => setCarouselPaused(true)} onMouseLeave={() => setCarouselPaused(false)} onTouchStart={() => setCarouselPaused(true)} onTouchEnd={() => { setTimeout(() => setCarouselPaused(false), 2000) }}>
+            <div className="relative h-48 sm:h-44">
               {previewCards.map((card, i) => {
                 const isActive = i === activePreview
                 const isPrev = i === (activePreview - 1 + previewCards.length) % previewCards.length
                 const isNext = i === (activePreview + 1) % previewCards.length
                 if (!isActive && !isPrev && !isNext) return null
-
                 return (
                   <Link
                     key={i}
                     href={`/report/${card.slug}`}
                     className={`absolute inset-x-0 mx-auto max-w-2xl transition-all duration-700 ease-out ${
-                      isActive
-                        ? 'opacity-100 scale-100 translate-y-0 z-20'
-                        : isPrev
-                        ? 'opacity-40 scale-95 -translate-y-4 z-10'
+                      isActive ? 'opacity-100 scale-100 translate-y-0 z-20'
+                        : isPrev ? 'opacity-40 scale-95 -translate-y-4 z-10'
                         : 'opacity-40 scale-95 translate-y-4 z-10'
                     }`}
                   >
@@ -383,15 +584,11 @@ export default function Home() {
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2">
-                            <span className="px-2 py-0.5 rounded-full bg-primary-500/20 text-primary-300 text-xs font-medium">
-                              {card.phenomenon}
-                            </span>
-                            <span className="text-xs text-gray-500 flex items-center gap-1">
-                              <MapPin className="w-3 h-3" /> {card.location}
-                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-primary-500/20 text-primary-300 text-xs font-medium">{card.phenomenon}</span>
+                            <span className="text-xs text-gray-500 flex items-center gap-1"><MapPin className="w-3 h-3" /> {card.location}</span>
                           </div>
                           <h3 className="text-lg font-display font-semibold text-white truncate">{card.title}</h3>
-                          <p className="mt-2 text-sm text-gray-300 leading-relaxed line-clamp-3">{card.teaser}</p>
+                          <p className="mt-2 text-sm text-gray-400 line-clamp-2">{card.teaser}</p>
                         </div>
                         <ChevronRight className="w-5 h-5 text-gray-500 shrink-0 mt-1" />
                       </div>
@@ -400,21 +597,16 @@ export default function Home() {
                 )
               })}
             </div>
-            {/* Dots indicator */}
             <div className="flex justify-center gap-2 mt-2">
               {previewCards.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setActivePreview(i)}
-                  className={`w-2 h-2 rounded-full transition-all ${
-                    i === activePreview ? 'bg-primary-400 w-6' : 'bg-white/20 hover:bg-white/40'
-                  }`}
+                <button key={i} onClick={() => setActivePreview(i)}
+                  className={`w-2 h-2 rounded-full transition-all ${i === activePreview ? 'bg-primary-400 w-6' : 'bg-white/20 hover:bg-white/40'}`}
                 />
               ))}
             </div>
           </div>
         </section>
-      )}
+      ) : null}
 
       {/* Categories Grid */}
       <section className="py-12 border-t border-white/5">
