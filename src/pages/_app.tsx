@@ -5,6 +5,8 @@ import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import dynamic from 'next/dynamic'
 
+import NavigationHelper from '@/components/NavigationHelper'
+
 const ThreeTapOnboarding = dynamic(
   () => import('@/components/ThreeTapOnboarding'),
   { ssr: false }
@@ -64,6 +66,7 @@ export default function App({ Component, pageProps }: AppProps) {
           <Component {...pageProps} />
         </Layout>
       )}
+      <NavigationHelper />
       <ThreeTapOnboarding />
     </>
   )
