@@ -407,20 +407,28 @@ export default function Home() {
 
       {/* Cinematic Story Spotlight */}
       {spotlightStories.length > 0 ? (
-        <section className="py-4 -mt-4 relative z-10">
+        <section className="py-6 -mt-2 relative z-10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            {/* Section header */}
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-1 h-6 rounded-full bg-primary-500" />
+              <h2 className="text-lg font-display font-semibold text-white tracking-wide uppercase">
+                Featured Investigation
+              </h2>
+            </div>
+
             {/* Primary Featured Story - Full-width cinematic card */}
             <Link
               href={`/report/${spotlightStories[0]?.slug}`}
               className="block group"
             >
-              <div className="relative rounded-2xl overflow-hidden" style={{ minHeight: '420px' }}>
+              <div className="relative rounded-2xl overflow-hidden" style={{ minHeight: '520px' }}>
                 {/* Background Image */}
                 {spotlightStories[0]?.imageUrl && (
                   <img
                     src={spotlightStories[0].imageUrl}
                     alt=""
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-[1.2s] group-hover:scale-105"
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-[1.5s] group-hover:scale-[1.03]"
                     onLoad={() => setSpotlightImageLoaded(true)}
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                   />
@@ -430,82 +438,80 @@ export default function Home() {
                   spotlightImageLoaded && spotlightStories[0]?.imageUrl ? 'opacity-0' : 'opacity-100'
                 } bg-gradient-to-br from-primary-900 via-gray-900 to-purple-900`} />
 
-                {/* Cinematic gradient overlays */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-black/10" />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
-                {/* Subtle vignette */}
-                <div className="absolute inset-0" style={{ boxShadow: 'inset 0 0 120px 40px rgba(0,0,0,0.4)' }} />
+                {/* Cinematic gradient overlays - much stronger for readability */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/20" />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 h-2/3 bg-gradient-to-t from-black to-transparent" />
+                {/* Vignette */}
+                <div className="absolute inset-0" style={{ boxShadow: 'inset 0 0 150px 60px rgba(0,0,0,0.5)' }} />
 
                 {/* Content overlay */}
-                <div className="relative z-10 p-6 sm:p-8 md:p-12 flex flex-col justify-end" style={{ minHeight: '420px' }}>
-                  {/* Top: Featured badge - positioned absolutely */}
-                  <div className="absolute top-6 left-6 sm:top-8 sm:left-8 md:top-12 md:left-12 flex items-center gap-3">
-                    <span className="px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest"
-                      style={{ background: 'rgba(91, 99, 241, 0.35)', border: '1px solid rgba(91, 99, 241, 0.5)', color: '#a5b4fc' }}>
-                      Featured Investigation
-                    </span>
-                  </div>
-
+                <div className="relative z-10 p-6 sm:p-10 md:p-14 lg:p-16 flex flex-col justify-end" style={{ minHeight: '520px' }}>
                   {/* Bottom content */}
-                  {spotlightStories[0]?.phenomenon && (
-                    <span className="text-primary-400 text-sm font-medium tracking-wider uppercase mb-2">
-                      {spotlightStories[0].phenomenon}
-                    </span>
-                  )}
-
-                  <h2 className="text-2xl sm:text-3xl md:text-5xl font-display font-bold text-white leading-tight max-w-3xl">
-                    {spotlightStories[0]?.title}
-                  </h2>
-
-                  {/* Location & Date */}
-                  <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-3">
-                    {spotlightStories[0]?.location && (
-                      <span className="flex items-center gap-1.5 text-sm text-gray-300">
-                        <MapPin className="w-4 h-4 text-primary-400" />
-                        {spotlightStories[0].location}
+                  <div className="max-w-2xl">
+                    {spotlightStories[0]?.phenomenon && (
+                      <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-widest mb-4"
+                        style={{ background: 'rgba(91, 99, 241, 0.3)', border: '1px solid rgba(91, 99, 241, 0.4)', color: '#c4b5fd' }}>
+                        {spotlightStories[0].phenomenon}
                       </span>
                     )}
-                    {spotlightStories[0]?.eventDate && (
-                      <span className="text-sm text-gray-400">{spotlightStories[0].eventDate}</span>
-                    )}
-                  </div>
 
-                  {/* Teaser */}
-                  <p className="mt-4 text-base sm:text-lg text-gray-300 max-w-2xl line-clamp-3 leading-relaxed">
-                    {spotlightStories[0]?.teaser}
-                  </p>
+                    <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-display font-bold text-white leading-[1.1] tracking-tight">
+                      {spotlightStories[0]?.title}
+                    </h2>
 
-                  {/* Evidence pills */}
-                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-5">
-                    {spotlightStories[0]?.witnessCount > 0 && (
-                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-sm text-gray-200"
-                        style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
-                        <Users className="w-3.5 h-3.5 text-amber-400" />
-                        {spotlightStories[0].witnessCount} Witnesses
-                      </span>
-                    )}
-                    {spotlightStories[0]?.hasEvidence && (
-                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-sm text-gray-200"
-                        style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
-                        <Shield className="w-3.5 h-3.5 text-green-400" />
-                        Physical Evidence
-                      </span>
-                    )}
-                    {spotlightStories[0]?.hasMedia && (
-                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-sm text-gray-200"
-                        style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
-                        <Eye className="w-3.5 h-3.5 text-blue-400" />
-                        Photos &amp; Video
-                      </span>
-                    )}
-                  </div>
+                    {/* Location & Date */}
+                    <div className="flex flex-wrap items-center gap-4 mt-4">
+                      {spotlightStories[0]?.location && (
+                        <span className="flex items-center gap-2 text-sm text-gray-200">
+                          <MapPin className="w-4 h-4 text-primary-400" />
+                          {spotlightStories[0].location}
+                        </span>
+                      )}
+                      {spotlightStories[0]?.eventDate && (
+                        <span className="text-sm text-gray-400 before:content-['·'] before:mr-4 before:text-gray-600">
+                          {spotlightStories[0].eventDate}
+                        </span>
+                      )}
+                    </div>
 
-                  {/* CTA button */}
-                  <div className="mt-6">
-                    <span className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary-500 text-white font-semibold text-sm sm:text-base shadow-lg shadow-primary-500/20 group-hover:bg-primary-400 group-hover:shadow-primary-400/30 transition-all duration-300">
-                      Read the Full Investigation
-                      <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                    </span>
+                    {/* Teaser */}
+                    <p className="mt-5 text-base sm:text-lg text-gray-300 line-clamp-3 leading-relaxed">
+                      {spotlightStories[0]?.teaser}
+                    </p>
+
+                    {/* Evidence pills */}
+                    <div className="flex flex-wrap items-center gap-2.5 mt-6">
+                      {spotlightStories[0]?.witnessCount > 0 && (
+                        <span className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm text-white font-medium"
+                          style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)', border: '1px solid rgba(251,191,36,0.25)' }}>
+                          <Users className="w-4 h-4 text-amber-400" />
+                          {spotlightStories[0].witnessCount} Witnesses
+                        </span>
+                      )}
+                      {spotlightStories[0]?.hasEvidence && (
+                        <span className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm text-white font-medium"
+                          style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)', border: '1px solid rgba(74,222,128,0.25)' }}>
+                          <Shield className="w-4 h-4 text-green-400" />
+                          Physical Evidence
+                        </span>
+                      )}
+                      {spotlightStories[0]?.hasMedia && (
+                        <span className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm text-white font-medium"
+                          style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)', border: '1px solid rgba(96,165,250,0.25)' }}>
+                          <Eye className="w-4 h-4 text-blue-400" />
+                          Photos &amp; Video
+                        </span>
+                      )}
+                    </div>
+
+                    {/* CTA button */}
+                    <div className="mt-8">
+                      <span className="inline-flex items-center gap-2.5 px-7 py-3.5 rounded-xl bg-primary-500 text-white font-semibold text-base shadow-lg shadow-primary-500/25 group-hover:bg-primary-400 group-hover:shadow-primary-400/30 group-hover:translate-y-[-1px] transition-all duration-300">
+                        Read the Full Investigation
+                        <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -513,19 +519,23 @@ export default function Home() {
 
             {/* Secondary Stories Row */}
             {spotlightStories.length > 1 && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-4">
+              <div className={`grid grid-cols-1 gap-3 mt-4 ${
+                spotlightStories.length >= 4 ? 'sm:grid-cols-3' :
+                spotlightStories.length === 3 ? 'sm:grid-cols-2 lg:grid-cols-3' :
+                'sm:grid-cols-2'
+              } sm:gap-4`}>
                 {spotlightStories.slice(1, 4).map((story, i) => (
                   <Link
                     key={story.id}
                     href={`/report/${story.slug}`}
-                    className="group glass-card overflow-hidden flex flex-row sm:flex-col border border-white/5 hover:border-primary-500/30 transition-all duration-300"
+                    className="group glass-card overflow-hidden flex flex-row sm:flex-col border border-white/5 hover:border-primary-500/30 hover:bg-white/[0.03] transition-all duration-300"
                   >
-                    <div className="relative w-28 sm:w-full h-28 sm:h-36 shrink-0 overflow-hidden">
+                    <div className="relative w-28 sm:w-full h-28 sm:h-44 shrink-0 overflow-hidden">
                       {story.imageUrl ? (
                         <img
                           src={story.imageUrl}
                           alt=""
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                         />
                       ) : null}
@@ -538,19 +548,19 @@ export default function Home() {
                           {CATEGORY_CONFIG[story.category as keyof typeof CATEGORY_CONFIG]?.icon || '✨'}
                         </span>
                       </div>
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                     </div>
                     <div className="p-3 sm:p-4 flex-1 min-w-0">
                       <span className="text-[10px] sm:text-xs font-semibold text-primary-400 uppercase tracking-wider">
                         {story.phenomenon}
                       </span>
-                      <h3 className="mt-1 text-sm font-display font-semibold text-white line-clamp-2 group-hover:text-primary-300 transition-colors">
+                      <h3 className="mt-1.5 text-sm font-display font-semibold text-white line-clamp-2 group-hover:text-primary-300 transition-colors leading-snug">
                         {story.title}
                       </h3>
-                      <p className="mt-1.5 text-xs text-gray-400 line-clamp-2 hidden sm:block leading-relaxed">
+                      <p className="mt-2 text-xs text-gray-400 line-clamp-3 hidden sm:block leading-relaxed">
                         {story.teaser}
                       </p>
-                      <span className="mt-2 inline-flex items-center gap-1 text-xs text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity">
                         Read more <ArrowRight className="w-3 h-3" />
                       </span>
                     </div>
