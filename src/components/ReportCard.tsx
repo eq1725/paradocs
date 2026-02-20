@@ -74,7 +74,7 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
             </div>
           </div>
           <div className="p-6">
-            <h2 className="text-xl font-display font-semibold text-white group-hover:text-primary-400 transition-colors line-clamp-1">
+            <h2 className="text-xl font-display font-semibold text-white group-hover:text-primary-400 transition-colors">
               {report.title}
             </h2>
             <p className="mt-2 text-gray-400 text-sm line-clamp-2">
@@ -160,6 +160,18 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
               {report.summary}
             </p>
             <div className="mt-3 flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+              {credibilityConfig && (
+                <span
+                  title={credibilityConfig.description}
+                  className={classNames(
+                    'px-2 py-0.5 rounded font-medium cursor-help',
+                    credibilityConfig.bgColor,
+                    credibilityConfig.color
+                  )}
+                >
+                  {credibilityConfig.label}
+                </span>
+              )}
               {report.location_name && (
                 <span className="flex items-center gap-1">
                   <MapPin className="w-3 h-3" />
