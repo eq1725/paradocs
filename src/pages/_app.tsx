@@ -5,10 +5,13 @@ import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import dynamic from 'next/dynamic'
 
-import NavigationHelper from '@/components/NavigationHelper'
-
 const ThreeTapOnboarding = dynamic(
   () => import('@/components/ThreeTapOnboarding'),
+  { ssr: false }
+)
+
+const NavigationHelper = dynamic(
+  () => import('@/components/NavigationHelper'),
   { ssr: false }
 )
 
