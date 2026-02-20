@@ -349,13 +349,7 @@ export default function ExplorePage() {
     async function fetchFeed() {
       setFeedLoading(true)
       try {
-        // Get auth token for personalized sections
-        const { data: { session } } = await supabase.auth.getSession()
-        const headers: Record<string, string> = {}
-        if (session?.access_token) {
-          headers['Authorization'] = 'Bearer ' + session.access_token
-        }
-        const res = await fetch('/api/feed/personalized', { headers })
+        const res = await fetch('/api/feed/personalized')
         if (res.ok) {
           const data = await res.json()
           setFeedSections(data.sections?.filter((s: FeedSection) => s.reports.length > 0) || [])
@@ -423,13 +417,13 @@ export default function ExplorePage() {
         </div>
 
         {/* View Toggle */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex items-center gap-3 mb-6">
           <button
             onClick={() => setActiveView('feed')}
             className={classNames(
-              'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
+              'px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2',
               activeView === 'feed'
-                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
+                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30 shadow-lg shadow-primary-500/10'
                 : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
             )}
           >
@@ -439,14 +433,14 @@ export default function ExplorePage() {
           <button
             onClick={() => setActiveView('browse')}
             className={classNames(
-              'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
+              'px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2',
               activeView === 'browse'
-                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
-                : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
+                ? 'bg-gradient-to-r from-primary-500 to-purple-500 text-white border border-primary-400/30 shadow-lg shadow-primary-500/20'
+                : 'bg-gradient-to-r from-primary-500/20 to-purple-500/20 text-primary-300 border border-primary-500/20 hover:from-primary-500/30 hover:to-purple-500/30 hover:text-primary-200 hover:shadow-lg hover:shadow-primary-500/10'
             )}
           >
             <Search className="w-4 h-4" />
-            Browse All
+            Browse All {baselineCount > 0 && <span className="ml-0.5 text-xs opacity-75">({baselineCount.toLocaleString()})</span>}
           </button>
         </div>
 
@@ -472,6 +466,15 @@ export default function ExplorePage() {
         {/* === FEED VIEW === */}
         {activeView === 'feed' && (
           <div className="space-y-8">
+            {/* Credibility Legend - helps new users understand the ratings */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/5 text-xs text-gray-500">
+              <span className="font-medium text-gray-400 mr-1">Credibility Ratings:</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-400"></span> Confirmed</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400"></span> High</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-yellow-400"></span> Medium</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400"></span> Low</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-400"></span> Unverified</span>
+            </div>
             {feedLoading ? (
               <div className="space-y-6">
                 {[...Array(3)].map((_, i) => (
@@ -488,8 +491,7 @@ export default function ExplorePage() {
             ) : feedSections.length === 0 ? (
               <div className="text-center py-12">
                 <Sparkles className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400">No reports available right now. Check back soon!</p>
-              <p className="text-xs text-gray-500 mt-2">Sign in and complete your profile for personalized recommendations.</p>
+                <p className="text-gray-400">Complete your profile to get personalized recommendations.</p>
                 <button onClick={() => setActiveView('browse')} className="mt-3 text-primary-400 hover:text-primary-300 text-sm">
                   Browse all reports instead
                 </button>
@@ -514,36 +516,50 @@ export default function ExplorePage() {
                       </button>
                     </div>
                   </div>
-                  <div id={`feed-${section.id}`} className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory">
-                    {section.reports.map((report) => (
-                      <Link key={report.id} href={`/report/${report.slug}`} className="min-w-[300px] max-w-[300px] flex-shrink-0 snap-start glass-card p-4 hover:border-primary-500/30 transition-all group/card">
-                        <div className="flex items-start justify-between mb-2">
-                          {report.phenomenon_type && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-primary-500/20 text-primary-400 truncate max-w-[180px]">
-                              {report.phenomenon_type.name}
-                            </span>
-                          )}
-                          {report.credibility && (
-                            <span className={classNames('text-xs px-1.5 py-0.5 rounded',
-                              report.credibility === 'high' ? 'bg-emerald-500/20 text-emerald-400' :
-                              report.credibility === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
-                              'bg-gray-500/20 text-gray-400'
-                            )}>{report.credibility}</span>
-                          )}
-                        </div>
-                        <h3 className="font-medium text-white text-sm line-clamp-2 mb-2 group-hover/card:text-primary-300 transition-colors">{report.title}</h3>
-                        {report.summary && <p className="text-xs text-gray-500 line-clamp-2 mb-3">{report.summary}</p>}
-                        <div className="flex items-center gap-3 text-xs text-gray-500 mt-auto">
-                          {(report.city || report.country) && (
-                            <span className="flex items-center gap-1 truncate">
-                              <MapPin className="w-3 h-3 flex-shrink-0" />
-                              {[report.city, report.state_province, report.country].filter(Boolean).join(', ')}
-                            </span>
-                          )}
-                          {report.upvotes > 0 && <span>{report.upvotes} reactions</span>}
-                        </div>
-                      </Link>
-                    ))}
+                  <div className="relative">
+                    <div id={`feed-${section.id}`} className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory pr-8">
+                      {section.reports.map((report) => (
+                        <Link key={report.id} href={`/report/${report.slug}`} className="min-w-[300px] max-w-[300px] flex-shrink-0 snap-start glass-card p-4 hover:border-primary-500/30 transition-all group/card">
+                          <div className="flex items-start justify-between mb-2">
+                            {report.phenomenon_type && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-primary-500/20 text-primary-400 truncate max-w-[180px]">
+                                {report.phenomenon_type.name}
+                              </span>
+                            )}
+                            {report.credibility && (
+                              <span
+                                title={
+                                  report.credibility === 'high' ? 'High credibility: Well-documented with evidence' :
+                                  report.credibility === 'medium' ? 'Medium credibility: Some supporting details' :
+                                  report.credibility === 'low' ? 'Low credibility: Lacks supporting evidence' :
+                                  report.credibility === 'confirmed' ? 'Confirmed: Multiple sources confirm' :
+                                  'Unverified: Not yet reviewed'
+                                }
+                                className={classNames('text-xs px-1.5 py-0.5 rounded cursor-help',
+                                  report.credibility === 'high' ? 'bg-emerald-500/20 text-emerald-400' :
+                                  report.credibility === 'confirmed' ? 'bg-blue-500/20 text-blue-400' :
+                                  report.credibility === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                                  report.credibility === 'low' ? 'bg-red-500/20 text-red-400' :
+                                  'bg-gray-500/20 text-gray-400'
+                                )}>{report.credibility}</span>
+                            )}
+                          </div>
+                          <h3 className="font-medium text-white text-sm line-clamp-2 mb-2 group-hover/card:text-primary-300 transition-colors">{report.title}</h3>
+                          {report.summary && <p className="text-xs text-gray-500 line-clamp-2 mb-3">{report.summary}</p>}
+                          <div className="flex items-center gap-3 text-xs text-gray-500 mt-auto">
+                            {(report.city || report.country) && (
+                              <span className="flex items-center gap-1 truncate">
+                                <MapPin className="w-3 h-3 flex-shrink-0" />
+                                {[report.city, report.state_province, report.country].filter(Boolean).join(', ')}
+                              </span>
+                            )}
+                            {report.upvotes > 0 && <span>{report.upvotes} reactions</span>}
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                    {/* Fade gradient on right edge to indicate scrollability */}
+                    <div className="absolute right-0 top-0 bottom-2 w-12 bg-gradient-to-l from-[#0a0a1a] to-transparent pointer-events-none" />
                   </div>
                 </div>
               ))
