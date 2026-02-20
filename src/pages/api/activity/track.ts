@@ -26,7 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const { action_type, phenomenon_id, category, metadata } = req.body
 
-    if (!action_type || !['view', 'save', 'search', 'explore_category'].includes(action_type)) {
+    if (!action_type || !['view', 'save', 'unsave', 'search', 'explore_category'].includes(action_type)) {
       return res.status(400).json({ error: 'Invalid action_type' })
     }
 
