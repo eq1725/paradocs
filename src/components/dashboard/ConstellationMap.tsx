@@ -12,12 +12,40 @@ import {
 } from '@/lib/constellation-data'
 import { PhenomenonCategory } from '@/lib/database.types'
 
+interface UserMapData {
+  categoryStats: Record<string, { views: number; saves: number; uniquePhenomena: number }>
+  phenomenonNodes: Array<{
+    id: string
+    name: string
+    slug: string
+    category: string
+    imageUrl: string | null
+    dangerLevel: string | null
+    firstViewed: string
+    viewCount: number
+    isSaved: boolean
+  }>
+  trail: Array<{ phenomenonId: string; timestamp: string; category: string }>
+  stats: {
+    totalViewed: number
+    totalPhenomena: number
+    categoriesExplored: number
+    totalCategories: number
+    currentStreak: number
+    longestStreak: number
+    totalSaved: number
+    rank: string
+    rankLevel: number
+  }
+}
+
 interface ConstellationMapProps {
   userInterests: PhenomenonCategory[]
   stats?: ConstellationStats[]
   onNodeClick?: (category: PhenomenonCategory) => void
   selectedNode?: PhenomenonCategory | null
   compact?: boolean
+  userMapData?: UserMapData | null
 }
 
 interface D3Node extends ConstellationNode {
@@ -35,7 +63,6 @@ interface D3Edge extends ConstellationEdge {
 
 const BACKGROUND_STARS = generateBackgroundStars(200)
 const COMPACT_BACKGROUND_STARS = generateBackgroundStars(60, 99)
-
 /**
  * Truncate long labels for small screens.
  * "Ghosts & Hauntings" â†’ "Ghosts", "Multi-Disciplinary" â†’ "Multi", etc.
@@ -52,6 +79,7 @@ export default function ConstellationMap({
   onNodeClick,
   selectedNode,
   compact = false,
+  userMapData,
 }: ConstellationMapProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -321,57 +349,139 @@ export default function ConstellationMap({
           setTimeout(doPulse, Math.random() * 4000)
         })
     }
+ˆËÈ8¥ 8¥ [›ÛY[›Ûˆİ\œÈ
+\Ù\‹Y\ØÛİ™\™Y
+H8¥ 8¥ ˆYˆ
+XÛÛ\Xİ	‰ˆ\Ù\“X\]H	‰ˆ\Ù\“X\]Kœ[›ÛY[›Û“›Ù\Ë›[™İˆ
+HÂˆÛÛœİ[›ÛY[›Û‘Ü›İ\Hİ™Ë˜\[™
+	ÙÉÊK˜]Š	ØÛ\ÜÉË	Ü[›ÛY[›Û‹\İ\œÉÊB‚ˆËÈÜ›İ\[›ÛY[˜HHØ]YÛÜH[™ÜÚ][Ûˆ[H\›İ[™\™[Ø]YÛÜH›ÙBˆÛÛœİ[PØ]H™]ÈX\İš[™Ë\[Ùˆ\Ù\“X\]Kœ[›ÛY[›Û“›Ù\ÏŠ
+Bˆ›Üˆ
+ÛÛœİÙˆ\Ù\“X\]Kœ[›ÛY[›Û“›Ù\ÊHÂˆÛÛœİØ]H˜Ø]YÛÜH	ØÛÛXš[˜][Û‰ÂˆYˆ
+\[PØ]š\ÊØ]
+JH[PØ]œÙ]
+Ø]×JBˆ[PØ]™Ù]
+Ø]
+HKœ\Ú
+
+BˆB‚ˆÛÛœİ[[”İ\œÎˆÈˆ[X™\ÈNˆ[X™\Èˆ\[Ùˆ\Ù\“X\]Kœ[›ÛY[›Û“›Ù\ÖÌNÈ\™[›ÙNˆÓ›ÙHV×HH×B‚ˆ›Üˆ
+ÛÛœİØØ][›ÛY[˜WHÙˆ[PØ]
+HÂˆÛÛœİ\™[›ÙHH›ÙSX\™Ù]
+Ø]\È[›ÛY[›ÛØ]YÛÜJBˆYˆ
+\\™[›ÙJHÛÛ[YB‚ˆÛÛœİÜ˜š]˜Y]\ÈHX]›X^
+ŒX]œ›İ[™
+H
+ˆÛ[\ØØ[JJBˆ[›ÛY[˜K™›Ü‘XXÚ
 
-    // Selected node highlight ring
-    if (selectedNode) {
-      const sd = nodes.find(n => n.id === selectedNode)
-      if (sd) {
-        svg.append('circle').attr('cx', sd.x).attr('cy', sd.y)
-          .attr('r', selectR).attr('fill', 'none')
-          .attr('stroke', sd.glowColor).attr('stroke-width', 2)
-          .attr('stroke-dasharray', '4,4').attr('opacity', 0.8)
-      }
-    }
+JHOˆÂˆÛÛœİ[™ÛHH
+HÈX]›X^
+[›ÛY[˜K›[™İJJH
+ˆX]”H
+ˆˆHX]”HÈ‚ˆËÈYÛYÚ˜[™Û[™\ÜÈÈÜ˜š]ˆÛÛœİš]\”ˆHÜ˜š]˜Y]\È
+È
+H	HÈHJH
+ˆ
+ˆÛ[\ØØ[BˆÛÛœİH\™[›ÙK
+ÈX]˜ÛÜÊ[™ÛJH
+ˆš]\”‚ˆÛÛœİHH\™[›ÙKH
+ÈX]œÚ[Š[™ÛJH
+ˆš]\”‚ˆ[[”İ\œËœ\Ú
+ÈˆNˆK\™[›ÙHJBˆJBˆB‚ˆËÈ˜]È˜Z[[™\ÈÛÛ›™Xİ[™È[›ÛY[›Ûˆİ\œÈÈZ\ˆ\™[Ø]YÛÜBˆ[›ÛY[›Û‘Ü›İ\œÙ[Xİ[
+	Û[™Kœ[‹[[šÉÊBˆ™]J[[”İ\œÊKš›Ú[Š	Û[™IÊBˆ˜]Š	ØÛ\ÜÉË	Ü[‹[[šÉÊBˆ˜]Š	ŞIËOˆœ\™[›ÙK
+K˜]Š	ŞLIËOˆœ\™[›ÙKJBˆ˜]Š	Ş‰ËOˆ
+K˜]Š	ŞL‰ËOˆJBˆ˜]Š	Üİ›ÚÙIËOˆœ\™[›ÙK™ÛİĞÛÛÜŠBˆ˜]Š	Üİ›ÚÙK[ÜXÚ]IËŒMJBˆ˜]Š	Üİ›ÚÙK]ÚY	ËJB‚ˆËÈ˜]È[›ÛY[›Ûˆİ\œÂˆÛÛœİ[”ˆHX]›X^
+‹X]œ›İ[™
+
+ˆÛ[\ØØ[JJBˆÛÛœİ[‘[[Y[ÈH[›ÛY[›Û‘Ü›İ\œÙ[Xİ[
+	ØÚ\˜ÛKœ[‹\İ\‰ÊBˆ™]J[[”İ\œÊKš›Ú[Š	ØÚ\˜ÛIÊBˆ˜]Š	ØÛ\ÜÉË	Ü[‹\İ\‰ÊBˆ˜]Š	ØŞ	ËOˆ
+K˜]Š	ØŞIËOˆJBˆ˜]Š	Ü‰ËOˆœš\ÔØ]™YÈ[”ˆ
+ÈHˆ[”ŠBˆ˜]Š	Ùš[	ËOˆœš\ÔØ]™YÈ	ÈÙ˜˜™Œ	Èˆœ\™[›ÙK™ÛİĞÛÛÜŠBˆ˜]Š	ÛÜXÚ]IËOˆX]›Z[ŠK
+ÈœšY]ĞÛİ[
+ˆŒJJBˆ˜]Š	Ùš[\‰ËOˆœš\ÔØ]™YÈ	İ\›
+Üİ\‹YÛİÊIÈˆ	İ\›
+Ù[KYÛİÊIÊB‚ˆËÈØ]™Yİ\œÈ[ÙHÙ[Bˆ[›ÛY[›Û‘Ü›İ\œÙ[Xİ[Õ‘ĞÚ\˜ÛQ[[Y[\[Ùˆ[[”İ\œÖÌOŠ	ØÚ\˜ÛKœ[‹\İ\‰ÊBˆ™š[\ŠOˆœš\ÔØ]™Y
+Bˆ™XXÚ
+[˜İ[ÛŠ\ÎˆÕ‘ĞÚ\˜ÛQ[[Y[
+HÂˆÛÛœİİ\ˆHËœÙ[Xİ
+\ÊBˆÛÛœİ˜\ÙTˆH\œÙQ›Ø]
+İ\‹˜]Š	Ü‰ÊJBˆ[˜İ[Ûˆ[ÙTØ]™Y
 
-    // Intro animation
-    if (!isInitialized) {
-      svg.attr('opacity', 0).transition().duration(1000).attr('opacity', 1)
-      nodeElements.attr('opacity', 0).transition().delay((_, i) => 200 + i * 100).duration(800).attr('opacity', 1)
-      edgeGroup.selectAll('line').attr('opacity', 0).transition().delay(1200).duration(800).attr('opacity', 1)
-      setIsInitialized(true)
-    }
-
-  }, [dimensions, userInterests, stats, selectedNode, compact, isInitialized, onNodeClick])
-
-  const hoveredData = hoveredNode ? CONSTELLATION_NODES.find(n => n.id === hoveredNode) : null
-
-  return (
-    <div ref={containerRef} className="relative w-full h-full">
-      <svg
-        ref={svgRef}
-        width={dimensions.width}
-        height={dimensions.height}
-        className="bg-transparent"
-        style={{ display: dimensions.width > 0 ? 'block' : 'none' }}
-      />
-
-      {/* Hover tooltip â€” full mode only */}
-      {!compact && hoveredData && (
-        <div
-          className="absolute pointer-events-none bg-gray-900/95 border border-gray-700 rounded-lg px-3 py-2 max-w-xs z-10"
-          style={{ left: '50%', bottom: '16px', transform: 'translateX(-50%)' }}
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-lg">{hoveredData.icon}</span>
-            <span className="text-white font-medium text-sm">{hoveredData.label}</span>
-            {userInterests.includes(hoveredData.id) && (
-              <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary-500/20 text-primary-400">Following</span>
-            )}
-          </div>
-          <p className="text-gray-400 text-xs mt-1">{hoveredData.description}</p>
-          <p className="text-gray-500 text-xs mt-1">Click to explore</p>
-        </div>
-      )}
-    </div>
-  )
-}
+HÂˆİ\‹˜[œÚ][ÛŠ
+K™\˜][ÛŠŒ
+K™X\ÙJË™X\ÙTÚ[’[“İ]
+Bˆ˜]Š	Ü‰Ë˜\ÙTˆ
+ÈKJK˜]Š	ÛÜXÚ]IËMJBˆ˜[œÚ][ÛŠ
+K™\˜][ÛŠŒ
+K™X\ÙJË™X\ÙTÚ[’[“İ]
+Bˆ˜]Š	Ü‰Ë˜\ÙTŠK˜]Š	ÛÜXÚ]IËÊBˆ›ÛŠ	Ù[™	Ë[ÙTØ]™Y
+BˆBˆÙ][Y[İ]
+[ÙTØ]™YX]œ˜[™ÛJ
+H
+ˆÌ
+BˆJB‚ˆËÈ[›È[š[X][Ûˆ›Üˆ[›ÛY[›Ûˆİ\œÂˆYˆ
+Z\Ò[š]X[^™Y
+HÂˆ[‘[[Y[Ë˜]Š	ÛÜXÚ]IË
+Bˆ˜[œÚ][ÛŠ
+K™[^JML
+K™\˜][ÛŠŒ
+Bˆ˜]Š	ÛÜXÚ]IËOˆX]›Z[ŠK
+ÈœšY]ĞÛİ[
+ˆŒJJBˆBˆB‚ˆËÈ8¥ 8¥ ^Ü˜][Ûˆ˜Z[
+\Ù\‰ÜÈ›İ\›™^H]
+H8¥ 8¥ ˆYˆ
+XÛÛ\Xİ	‰ˆ\Ù\“X\]H	‰ˆ\Ù\“X\]K˜Z[›[™İˆJHÂˆÛÛœİ˜Z[Ü›İ\Hİ™Ë˜\[™
+	ÙÉÊK˜]Š	ØÛ\ÜÉË	İ˜Z[	ÊB‚ˆËÈX\˜Z[[šY\ÈÈÛÛÜ™[˜]\ÈšXHZ\ˆ[›ÛY[›Û‰ÜÈØ]YÛÜH›ÙBˆÛÛœİ˜Z[Ú[ÎˆÈˆ[X™\ÈNˆ[X™\ˆV×HH×Bˆ›Üˆ
+ÛÛœİ[HÙˆ\Ù\“X\]K˜Z[œÛXÙJLŒ
+JHÂˆÛÛœİØ]›ÙHH›ÙSX\™Ù]
+[K˜Ø]YÛÜH\È[›ÛY[›ÛØ]YÛÜJBˆYˆ
+Ø]›ÙJHÂˆËÈÙ™œÙ]ÛYÚHœ›ÛHÙ[\ˆÈ]›ÚYİ™\›\[™ÈH›ÙBˆÛÛœİH
+X]œ˜[™ÛJ
+HHJH
+ˆŒ
+ˆÛ[\ØØ[BˆÛÛœİHH
+X]œ˜[™ÛJ
+HHJH
+ˆŒ
+ˆÛ[\ØØ[Bˆ˜Z[Ú[Ëœ\Ú
+ÈˆØ]›ÙK
+ÈNˆØ]›ÙKH
+ÈHJBˆBˆB‚ˆYˆ
+˜Z[Ú[Ë›[™İˆJHÂˆÛÛœİ[™QÙ[ˆHË›[™OÈˆ[X™\ÈNˆ[X™\ˆOŠ
+Bˆ
+Oˆ
+KJOˆJBˆ˜İ\™JË˜İ\™PØ]][›ÛK˜[JJJB‚ˆ˜Z[Ü›İ\˜\[™
+	Ü]	ÊBˆ˜]Š	Ù	Ë[™QÙ[Š˜Z[Ú[ÊJBˆ˜]Š	Ùš[	Ë	Û›Û™IÊBˆ˜]Š	Üİ›ÚÙIË	Ü™Ø˜JLÎKL‹‹ŒŠIÊBˆ˜]Š	Üİ›ÚÙK]ÚY	ËKJBˆ˜]Š	Üİ›ÚÙKY\Ú\œ˜^IË	Í‹	ÊBˆ˜]Š	Üİ›ÚÙK[[™XØ\	Ë	Ü›İ[™	ÊBˆBˆB‚ˆËÈÙ[XİY›ÙHYÚYÚš[™ÂˆYˆ
+Ù[XİY›ÙJHÂˆÛÛœİÙH›Ù\Ë™š[™
+ˆOˆ‹šYOOHÙ[XİY›ÙJBˆYˆ
+Ù
+HÂˆİ™Ë˜\[™
+	ØÚ\˜ÛIÊK˜]Š	ØŞ	ËÙ
+K˜]Š	ØŞIËÙJBˆ˜]Š	Ü‰ËÙ[XİŠK˜]Š	Ùš[	Ë	Û›Û™IÊBˆ˜]Š	Üİ›ÚÙIËÙ™ÛİĞÛÛÜŠK˜]Š	Üİ›ÚÙK]ÚY	ËŠBˆ˜]Š	Üİ›ÚÙKY\Ú\œ˜^IË	Í	ÊK˜]Š	ÛÜXÚ]IË
+BˆBˆB‚ˆËÈ[›È[š[X][Û‚ˆYˆ
+Z\Ò[š]X[^™Y
+HÂˆİ™Ë˜]Š	ÛÜXÚ]IË
+K˜[œÚ][ÛŠ
+K™\˜][ÛŠL
+K˜]Š	ÛÜXÚ]IËJBˆ›ÙQ[[Y[Ë˜]Š	ÛÜXÚ]IË
+K˜[œÚ][ÛŠ
+K™[^J
+ËJHOˆŒ
+ÈH
+ˆL
+K™\˜][ÛŠ
+K˜]Š	ÛÜXÚ]IËJBˆYÙQÜ›İ\œÙ[Xİ[
+	Û[™IÊK˜]Š	ÛÜXÚ]IË
+K˜[œÚ][ÛŠ
+K™[^JLŒ
+K™\˜][ÛŠ
+K˜]Š	ÛÜXÚ]IËJBˆÙ]\Ò[š]X[^™Y
+YJBˆB‚ˆKÙ[Y[œÚ[ÛœË\Ù\’[\™\İËİ]ËÙ[XİY›ÙKÛÛ\Xİ\Ò[š]X[^™YÛ“›ÙPÛXÚË\Ù\“X\]WJB‚ˆÛÛœİİ™\™Y]HHİ™\™Y›ÙHÈÓÓ”ÕSUSÓ—Ó“ÑTË™š[™
+ˆOˆ‹šYOOHİ™\™Y›ÙJHˆ[‚ˆ™]\›ˆ
+ˆ]ˆ™Y^ØÛÛZ[™\”™YŸHÛ\ÜÓ˜[YOHœ™[]]™HËY[Y[‚ˆİ™Âˆ™Y^Üİ™Ô™YŸBˆÚY^Ù[Y[œÚ[ÛœËÚYBˆZYÚ^Ù[Y[œÚ[ÛœËšZYÚBˆÛ\ÜÓ˜[YOH˜™Ë]˜[œÜ\™[‚ˆİ[O^ŞÈ\Ü^Nˆ[Y[œÚ[ÛœËÚYˆÈ	Ø›ØÚÉÈˆ	Û›Û™IÈ_BˆÏ‚‚ˆËÊˆİ™\ˆÛÛ\8 %[[ÙHÛ›H
+‹ßBˆÈXÛÛ\Xİ	‰ˆİ™\™Y]H	‰ˆ
+ˆ]‚ˆÛ\ÜÓ˜[YOH˜XœÛÛ]HÚ[\‹Y]™[Ë[›Û™H™ËYÜ˜^KNLÎMH›Ü™\ˆ›Ü™\‹YÜ˜^KMÌ›İ[™Y[ÈLÈKLˆX^]Ë^È‹LL‚ˆİ[O^ŞÈYˆ	ÍL	IË›İÛNˆ	ÌMœ	Ë˜[œÙ›Ü›Nˆ	İ˜[œÛ]V
+ML	JIÈ_Bˆ‚ˆ]ˆÛ\ÜÓ˜[YOH™›^][\ËXÙ[\ˆØ\Lˆ‚ˆÜ[ˆÛ\ÜÓ˜[YOH^[ÈÚİ™\™Y]KšXÛÛŸOÜÜ[‚ˆÜ[ˆÛ\ÜÓ˜[YOH^]Ú]H›Û[YY][H^\ÛHÚİ™\™Y]K›X™[OÜÜ[‚ˆİ\Ù\’[\™\İËš[˜ÛY\Êİ™\™Y]KšY
+H	‰ˆ
+ˆÜ[ˆÛ\ÜÓ˜[YOH^^ÈLKHKLH›İ[™YY[™Ë\š[X\KMLÌŒ^\š[X\KM‘›ÛİÚ[™ÏÜÜ[‚ˆ
+_BˆÙ]‚ˆÛ\ÜÓ˜[YOH^YÜ˜^KM^^È]LHÚİ™\™Y]K™\ØÜš\[ÛŸOÜ‚ˆÛ\ÜÓ˜[YOH^YÜ˜^KML^^È]LHÛXÚÈÈ^Ü™OÜ‚ˆÙ]‚ˆ
+_BˆÙ]‚ˆ
+BŸB
