@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/router'
 import { ArrowLeft } from 'lucide-react'
 import { classNames } from '@/lib/utils'
@@ -41,6 +41,60 @@ interface NavCtx {
   referrerPath: string
   referrerLabel: string
   scrollY: number
+}
+
+// Robust scroll restoration that watches for DOM changes
+function restoreScrollPosition(targetY: number) {
+  if (targetY <= 0) return
+
+  let attempts = 0
+  const maxAttempts = 50
+  const maxDuration = 5000
+  const startTime = Date.now()
+
+  function tryScroll() {
+    const docHeight = document.documentElement.scrollHeight
+    const viewHeight = window.innerHeight
+
+    // If the page is tall enough to scroll to our target, do it
+    if (docHeight >= targetY + viewHeight * 0.5 || attempts > 10) {
+      window.scrollTo({ top: targetY, behavior: 'instant' as ScrollBehavior })
+    }
+
+    attempts++
+    if (attempts >= maxAttempts || Date.now() - startTime > maxDuration) {
+      // Final attempt
+      window.scrollTo({ top: targetY, behavior: 'instant' as ScrollBehavior })
+      return
+    }
+
+    // If we haven't reached target position yet, keep trying
+    if (Math.abs(window.scrollY - targetY) > 50) {
+      requestAnimationFrame(() => {
+        setTimeout(tryScroll, 100)
+      })
+    }
+  }
+
+  // Start restoring with increasing delays
+  setTimeout(tryScroll, 50)
+
+  // Also observe DOM mutations for dynamic content loading
+  const observer = new MutationObserver(() => {
+    const docHeight = document.documentElement.scrollHeight
+    const viewHeight = window.innerHeight
+    if (docHeight >= targetY + viewHeight * 0.3) {
+      window.scrollTo({ top: targetY, behavior: 'instant' as ScrollBehavior })
+      if (Math.abs(window.scrollY - targetY) < 50) {
+        observer.disconnect()
+      }
+    }
+  })
+
+  observer.observe(document.body, { childList: true, subtree: true })
+
+  // Clean up observer after max duration
+  setTimeout(() => observer.disconnect(), maxDuration)
 }
 
 export default function NavigationHelper() {
@@ -108,12 +162,7 @@ export default function NavigationHelper() {
           if (stored) {
             const ctx: NavCtx = JSON.parse(stored)
             if (ctx.referrerPath.split('?')[0] === path && ctx.scrollY > 0) {
-              // Multiple attempts to handle dynamic content loading
-              const restore = () => window.scrollTo({ top: ctx.scrollY, behavior: 'instant' as ScrollBehavior })
-              setTimeout(restore, 50)
-              setTimeout(restore, 200)
-              setTimeout(restore, 500)
-              setTimeout(restore, 1000)
+              restoreScrollPosition(ctx.scrollY)
             }
           }
         } catch {}
