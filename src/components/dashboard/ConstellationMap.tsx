@@ -28,6 +28,7 @@ interface ConstellationMapProps {
   selectedNode?: PhenomenonCategory | null
   compact?: boolean
   userMapData?: UserMapData | null
+  svgRef?: React.MutableRefObject<SVGSVGElement | null>
 }
 
 interface D3Node extends ConstellationNode {
@@ -60,8 +61,10 @@ export default function ConstellationMap({
   selectedNode,
   compact = false,
   userMapData,
+  svgRef: externalSvgRef,
 }: ConstellationMapProps) {
-  const svgRef = useRef<SVGSVGElement>(null)
+  const internalSvgRef = useRef<SVGSVGElement>(null)
+  const svgRef = externalSvgRef || internalSvgRef
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [hoveredNode, setHoveredNode] = useState<PhenomenonCategory | null>(null)
