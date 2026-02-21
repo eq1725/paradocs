@@ -261,7 +261,8 @@ export default function ConstellationPage() {
           </div>
         </div>
 
-        {/* Stats Grid */}
+        {/* Stats Grid - hidden when constellation is empty */}
+        {mapStats && mapStats.totalEntries > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 sm:p-4">
             <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
@@ -301,8 +302,10 @@ export default function ConstellationPage() {
             </div>
           </div>
         </div>
+        )}
 
-        {/* Phase 2/3: Action Buttons - always visible */}
+        {/* Phase 2/3: Action Buttons - hidden when empty */}
+        {mapStats && mapStats.totalEntries > 0 && (
         <div className="flex flex-wrap gap-3">
           <button
             onClick={() => mapStats && mapStats.totalEntries > 0 ? setConnectionDrawerOpen(true) : null}
@@ -338,6 +341,7 @@ export default function ConstellationPage() {
             Share
           </button>
         </div>
+        )}
 
         {/* Main constellation area */}
         <div className="relative bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden">
@@ -389,7 +393,8 @@ export default function ConstellationPage() {
             userMapData={userMapData}
           />
 
-          {/* Legend */}
+          {/* Legend - hidden when empty */}
+          {userMapData && userMapData.entryNodes.length > 0 && (
           <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4 bg-gray-900/90 backdrop-blur-sm border border-gray-800 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-xs space-y-1 sm:space-y-1.5">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.5)]" />
@@ -412,6 +417,7 @@ export default function ConstellationPage() {
               <span className="text-gray-500">Tag connection</span>
             </div>
           </div>
+          )}
         </div>
 
         {/* Recently Logged Entries */}
