@@ -302,37 +302,42 @@ export default function ConstellationPage() {
           </div>
         </div>
 
-        {/* Phase 2/3: Action Buttons */}
-        {mapStats && mapStats.totalEntries > 0 && (
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => setConnectionDrawerOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 border border-gray-700 hover:border-green-500/40 text-gray-300 hover:text-green-400 rounded-xl text-sm font-medium transition-all"
-            >
-              <Link2 className="w-4 h-4" />
-              Draw Connection
-            </button>
-            <button
-              onClick={() => setTheoryPanelOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 border border-gray-700 hover:border-amber-500/40 text-gray-300 hover:text-amber-400 rounded-xl text-sm font-medium transition-all"
-            >
-              <Lightbulb className="w-4 h-4" />
-              Theories
-              {(mapStats?.theoryCount || 0) > 0 && (
-                <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400">
-                  {mapStats.theoryCount}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setShareOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 border border-gray-700 hover:border-purple-500/40 text-gray-300 hover:text-purple-400 rounded-xl text-sm font-medium transition-all"
-            >
-              <Share2 className="w-4 h-4" />
-              Share
-            </button>
-          </div>
-        )}
+        {/* Phase 2/3: Action Buttons - always visible */}
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => mapStats && mapStats.totalEntries > 0 ? setConnectionDrawerOpen(true) : null}
+            disabled={!mapStats || mapStats.totalEntries < 2}
+            title={!mapStats || mapStats.totalEntries < 2 ? 'Log at least 2 entries to draw connections' : 'Draw a connection between entries'}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 border border-gray-700 hover:border-green-500/40 text-gray-300 hover:text-green-400 disabled:opacity-40 disabled:hover:border-gray-700 disabled:hover:text-gray-300 disabled:cursor-not-allowed rounded-xl text-sm font-medium transition-all"
+          >
+            <Link2 className="w-4 h-4" />
+            Draw Connection
+            {!mapStats || mapStats.totalEntries < 2 ? (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-700 text-gray-500">2+ entries</span>
+            ) : null}
+          </button>
+          <button
+            onClick={() => mapStats && mapStats.totalEntries > 0 ? setTheoryPanelOpen(true) : null}
+            disabled={!mapStats || mapStats.totalEntries === 0}
+            title={!mapStats || mapStats.totalEntries === 0 ? 'Log entries first to build theories' : 'Create and manage your theories'}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 border border-gray-700 hover:border-amber-500/40 text-gray-300 hover:text-amber-400 disabled:opacity-40 disabled:hover:border-gray-700 disabled:hover:text-gray-300 disabled:cursor-not-allowed rounded-xl text-sm font-medium transition-all"
+          >
+            <Lightbulb className="w-4 h-4" />
+            Theories
+            {(mapStats?.theoryCount || 0) > 0 && (
+              <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400">
+                {mapStats?.theoryCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setShareOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 border border-gray-700 hover:border-purple-500/40 text-gray-300 hover:text-purple-400 rounded-xl text-sm font-medium transition-all"
+          >
+            <Share2 className="w-4 h-4" />
+            Share
+          </button>
+        </div>
 
         {/* Main constellation area */}
         <div className="relative bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden">
@@ -347,30 +352,27 @@ export default function ConstellationPage() {
             />
           </div>
 
-          {/* Empty state for new users */}
+          {/* Getting started banner for new users - non-blocking */}
           {!personalLoading && (!mapStats || mapStats.totalEntries === 0) && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-950/80 backdrop-blur-sm z-10">
-              <div className="text-center max-w-md px-6">
-                <Stars className="w-12 h-12 text-primary-400 mx-auto mb-4" />
-                <h2 className="text-white text-xl font-bold mb-2">Your Constellation Awaits</h2>
-                <p className="text-gray-400 text-sm mb-6">
-                  Every phenomenon you log becomes a star in your personal constellation.
-                  Explore reports and tap the <Star className="w-3.5 h-3.5 inline text-purple-400" /> Log button
-                  to add your notes, verdict, and tags.
+            <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-gray-950 via-gray-950/95 to-transparent pt-12 pb-4 px-4">
+              <div className="max-w-lg mx-auto text-center">
+                <p className="text-gray-300 text-sm mb-3">
+                  Your constellation is empty. Explore reports and tap the <Star className="w-3.5 h-3.5 inline text-purple-400" /> <span className="text-purple-400 font-medium">Log</span> button to add your first star.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <Link
-                    href="/discover"
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 hover:bg-primary-500 text-white rounded-lg font-medium transition-colors"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Start Discovering
-                  </Link>
+                <div className="flex gap-3 justify-center">
                   <Link
                     href="/explore"
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-medium transition-colors"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-500 text-white rounded-lg text-sm font-medium transition-colors"
                   >
-                    Browse All Reports
+                    <Sparkles className="w-4 h-4" />
+                    Browse Reports
+                  </Link>
+                  <Link
+                    href="/discover"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <Compass className="w-4 h-4" />
+                    Discover
                   </Link>
                 </div>
               </div>
@@ -602,24 +604,49 @@ export default function ConstellationPage() {
           </div>
         )}
 
-        {/* How it works */}
+        {/* How it works - step by step guide */}
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 sm:p-6">
-          <h3 className="text-white font-semibold flex items-center gap-2 mb-3 text-sm sm:text-base">
+          <h3 className="text-white font-semibold flex items-center gap-2 mb-4 text-sm sm:text-base">
             <Info className="w-4 h-4 text-gray-400" />
             How Your Constellation Works
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-            <div>
-              <p className="text-purple-400 font-medium mb-1">Log What Matters</p>
-              <p className="text-gray-400">Find a phenomenon that interests you, then tap the Log button to add your verdict, notes, and research tags.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold shrink-0">1</span>
+                <p className="text-purple-400 font-medium">Log Entries</p>
+              </div>
+              <p className="text-gray-400 pl-8">Browse reports, tap the <Star className="w-3 h-3 inline text-purple-400" /> Log button, and add your verdict, notes, and tags. Each entry becomes a star.</p>
+              {mapStats && mapStats.totalEntries > 0 && (
+                <div className="pl-8 mt-1.5"><span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">Done - {mapStats.totalEntries} logged</span></div>
+              )}
             </div>
-            <div>
-              <p className="text-amber-400 font-medium mb-1">See Connections Form</p>
-              <p className="text-gray-400">Entries sharing the same tags auto-connect. Watch your personal research map grow as you discover patterns.</p>
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-6 h-6 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-xs font-bold shrink-0">2</span>
+                <p className="text-green-400 font-medium">Draw Connections</p>
+              </div>
+              <p className="text-gray-400 pl-8">Spot a pattern between two entries? Use the Draw Connection button to link them and describe the relationship you see.</p>
+              {(mapStats?.drawnConnections || 0) > 0 && (
+                <div className="pl-8 mt-1.5"><span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">Done - {mapStats?.drawnConnections} drawn</span></div>
+              )}
             </div>
-            <div>
-              <p className="text-green-400 font-medium mb-1">Rise Through Ranks</p>
-              <p className="text-gray-400">Progress from Stargazer to Master Archivist by logging entries, using tags, and building connections.</p>
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">3</span>
+                <p className="text-amber-400 font-medium">Build Theories</p>
+              </div>
+              <p className="text-gray-400 pl-8">Group related entries and connections into a theory with a written thesis. Name your hypothesis and track supporting evidence.</p>
+              {(mapStats?.theoryCount || 0) > 0 && (
+                <div className="pl-8 mt-1.5"><span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">Done - {mapStats?.theoryCount} created</span></div>
+              )}
+            </div>
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold shrink-0">4</span>
+                <p className="text-blue-400 font-medium">Share & Rank Up</p>
+              </div>
+              <p className="text-gray-400 pl-8">Share your constellation publicly, export as an image, or copy a link. Progress from Stargazer to Master Archivist as you explore.</p>
             </div>
           </div>
         </div>
