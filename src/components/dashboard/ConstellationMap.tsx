@@ -24,7 +24,7 @@ const VERDICT_COLORS: Record<string, string> = {
 interface ConstellationMapProps {
   userInterests: PhenomenonCategory[]
   stats?: ConstellationStats[]
-  UerNdcLClick?: (category: PhenomenonCategory) => void
+  onNodeClick?: (category: PhenomenonCategory) => void
   selectedNode?: PhenomenonCategory | null
   compact?: boolean
   userMapData?: UserMapData | null
@@ -44,7 +44,7 @@ interface D3Edge extends ConstellationEdge {
   targetNode?: D3Node
 }
 
-const BACKGROUND_STARS = generateBackgroundStars(1500)
+const BACKGROUND_STARS = generateBackgroundStars(200)
 const COMPACT_BACKGROUND_STARS = generateBackgroundStars(60, 99)
 
 function shortLabel(label: string, maxLen: number): string {
@@ -85,7 +85,58 @@ export default function ConstellationMap({
     return () => observer.disconnect()
   }, [])
 
-electAll('*').remove()
+  // ── Build the D3 visualization ──
+  useEffect(() => {
+    if (!svgRef.current || dimensions.width === 0) return
+
+    const svg = d3.select(svgRef.current)
+    const { width, height } = dimensions
+
+    // ── Responsive scale factors ──
+    const isMobile = width < 500
+    const scale = Math.min(width, height) / 600
+    const clampScale = Math.max(0.5, Math.min(scale, 1))
+    const padding = compact ? 30 : Math.max(30, Math.round(60 * clampScale))
+
+    const remapX = (x: number) => isMobile ? 0.08 + x * 0.84 : x
+    const remapY = (y: number) => isMobile ? 0.06 + y * 0.88 : y
+
+    const nodeR = {
+      active: Math.max(6, Math.round(14 * clampScale)),
+      inactive: Math.max(3, Math.round(8 * clampScale)),
+    }
+    const glowR = Math.max(10, Math.round(28 * clampScale))
+    const coreR = Math.max(2, Math.round(5 * clampScale))
+    const iconSize = {
+      active: `${Math.max(12, Math.round(18 * clampScale))}px`,
+      inactive: `${Math.max(9, Math.round(14 * clampScale))}px`,
+    }
+    const labelSize = {
+      active: `${Math.max(7, Math.round(12 * clampScale))}px`,
+      inactive: `${Math.max(6, Math.round(10 * clampScale))}px`,
+    }
+    const iconDy = {
+      active: -Math.max(12, Math.round(24 * clampScale)),
+      inactive: -Math.max(8, Math.round(16 * clampScale)),
+    }
+    const labelDy = {
+      active: Math.max(16, Math.round(30 * clampScale)),
+      inactive: Math.max(12, Math.round(22 * clampScale)),
+    }
+    const labelMaxChars = isMobile ? 10 : 999
+    const blurStd = {
+      glow: Math.max(3, Math.round(8 * clampScale)),
+      hover: Math.max(4, Math.round(12 * clampScale)),
+    }
+    const edgeW = {
+      both: compact ? 1.5 : Math.max(1, 2 * clampScale),
+      one: compact ? 0.8 : Math.max(0.5, 1.2 * clampScale),
+      none: compact ? 0.3 : Math.max(0.2, 0.5 * clampScale),
+    }
+    const pulseR = { start: nodeR.active, end: Math.max(16, Math.round(35 * clampScale)) }
+    const selectR = compact ? 20 : Math.max(16, Math.round(40 * clampScale))
+
+    svg.selectAll('*').remove()
 
     // ── Defs: Glow filters ──
     const defs = svg.append('defs')
@@ -269,7 +320,7 @@ electAll('*').remove()
     // Pulse animation (active nodes, full mode)
     if (!compact) {
       nodeElements.filter(d => d.isUserInterest).append('circle')
-        .attr('r', pulseR.start).attr('fill', 'none').attr('stroke', d => d.gllowColor)
+        .attr('r', pulseR.start).attr('fill', 'none').attr('stroke', d => d.glowColor)
         .attr('stroke-width', 1).attr('opacity', 0)
         .each(function(this: SVGCircleElement) {
           const pulse = d3.select(this)
@@ -317,4 +368,150 @@ electAll('*').remove()
         .attr('class', 'entry-link')
         .attr('x1', d => d.parentNode.x).attr('y1', d => d.parentNode.y)
         .attr('x2', d => d.x).attr('y2', d => d.y)
-        .attr('stroke', d => VEPDE
+        .attr('stroke', d => VERDICT_COLORS[d.entry.verdict] || '#a78bfa')
+        .attr('stroke-opacity', 0.2)
+        .attr('stroke-width', 0.5)
+
+      // Draw verdict-colored entry stars
+      const entryR = Math.max(2, Math.round(4 * clampScale))
+      const entryElements = entryGroup.selectAll('circle.entry-star')
+        .data(allEntryStars).join('circle')
+        .attr('class', 'entry-star')
+        .attr('cx', d => d.x).attr('cy', d => d.y)
+        .attr('r', d => d.entry.verdict === 'compelling' ? entryR + 1.5 : entryR)
+        .attr('fill', d => VERDICT_COLORS[d.entry.verdict] || '#a78bfa')
+        .attr('opacity', d => d.entry.verdict === 'compelling' ? 0.9 : 0.7)
+        .attr('filter', d => d.entry.verdict === 'compelling' ? 'url(#star-glow)' : 'url(#dim-glow)')
+
+      // Compelling entries pulse gently
+      entryGroup.selectAll<SVGCircleElement, typeof allEntryStars[0]>('circle.entry-star')
+        .filter(d => d.entry.verdict === 'compelling')
+        .each(function(this: SVGCircleElement) {
+          const star = d3.select(this)
+          const baseR = parseFloat(star.attr('r'))
+          function pulseCompelling() {
+            star.transition().duration(2000).ease(d3.easeSinInOut)
+              .attr('r', baseR + 1.5).attr('opacity', 0.95)
+              .transition().duration(2000).ease(d3.easeSinInOut)
+              .attr('r', baseR).attr('opacity', 0.7)
+              .on('end', pulseCompelling)
+          }
+          setTimeout(pulseCompelling, Math.random() * 3000)
+        })
+
+      // Intro animation for entry stars
+      if (!isInitialized) {
+        entryElements.attr('opacity', 0)
+          .transition().delay(1500).duration(600)
+          .attr('opacity', d => d.entry.verdict === 'compelling' ? 0.9 : 0.7)
+      }
+
+      // ── Tag-based connections between entries ──
+      if (userMapData.tagConnections.length > 0) {
+        const tagGroup = svg.append('g').attr('class', 'tag-connections')
+        const entryPositions = new Map(allEntryStars.map(s => [s.entry.id, { x: s.x, y: s.y }]))
+
+        for (const conn of userMapData.tagConnections) {
+          // Draw lines between all pairs of entries sharing this tag
+          for (let i = 0; i < conn.entryIds.length; i++) {
+            for (let j = i + 1; j < conn.entryIds.length; j++) {
+              const posA = entryPositions.get(conn.entryIds[i])
+              const posB = entryPositions.get(conn.entryIds[j])
+              if (posA && posB) {
+                tagGroup.append('line')
+                  .attr('x1', posA.x).attr('y1', posA.y)
+                  .attr('x2', posB.x).attr('y2', posB.y)
+                  .attr('stroke', 'rgba(251, 191, 36, 0.3)')
+                  .attr('stroke-width', 1)
+                  .attr('stroke-dasharray', '3,3')
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // ── Exploration trail (chronological logging order) ──
+    if (!compact && userMapData && userMapData.trail.length > 1) {
+      const trailGroup = svg.append('g').attr('class', 'trail')
+
+      const trailPoints: { x: number; y: number }[] = []
+      for (const entry of userMapData.trail.slice(-20)) {
+        const catNode = nodeMap.get(entry.category as PhenomenonCategory)
+        if (catNode) {
+          const jx = (Math.random() - 0.5) * 20 * clampScale
+          const jy = (Math.random() - 0.5) * 20 * clampScale
+          trailPoints.push({ x: catNode.x + jx, y: catNode.y + jy })
+        }
+      }
+
+      if (trailPoints.length > 1) {
+        const lineGen = d3.line<{ x: number; y: number }>()
+          .x(d => d.x).y(d => d.y)
+          .curve(d3.curveCatmullRom.alpha(0.5))
+
+        trailGroup.append('path')
+          .attr('d', lineGen(trailPoints))
+          .attr('fill', 'none')
+          .attr('stroke', 'rgba(139, 92, 246, 0.2)')
+          .attr('stroke-width', 1.5)
+          .attr('stroke-dasharray', '6,4')
+          .attr('stroke-linecap', 'round')
+      }
+    }
+
+    // Selected node highlight ring
+    if (selectedNode) {
+      const sd = nodes.find(n => n.id === selectedNode)
+      if (sd) {
+        svg.append('circle').attr('cx', sd.x).attr('cy', sd.y)
+          .attr('r', selectR).attr('fill', 'none')
+          .attr('stroke', sd.glowColor).attr('stroke-width', 2)
+          .attr('stroke-dasharray', '4,4').attr('opacity', 0.8)
+      }
+    }
+
+    // Intro animation
+    if (!isInitialized) {
+      svg.attr('opacity', 0).transition().duration(1000).attr('opacity', 1)
+      nodeElements.attr('opacity', 0).transition().delay((_, i) => 200 + i * 100).duration(800).attr('opacity', 1)
+      edgeGroup.selectAll('line').attr('opacity', 0).transition().delay(1200).duration(800).attr('opacity', 1)
+      setIsInitialized(true)
+    }
+
+  }, [dimensions, userInterests, stats, selectedNode, compact, isInitialized, onNodeClick, userMapData])
+
+  const hoveredData = hoveredNode ? CONSTELLATION_NODES.find(n => n.id === hoveredNode) : null
+
+  return (
+    <div ref={containerRef} className="relative w-full h-full">
+      <svg
+        ref={svgRef}
+        width={dimensions.width}
+        height={dimensions.height}
+        className="bg-transparent"
+        style={{ display: dimensions.width > 0 ? 'block' : 'none' }}
+      />
+
+      {/* Hover tooltip */}
+      {!compact && hoveredData && (
+        <div
+          className="absolute pointer-events-none bg-gray-900/95 border border-gray-700 rounded-lg px-3 py-2 max-w-xs z-10"
+          style={{ left: '50%', bottom: '16px', transform: 'translateX(-50%)' }}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-lg">{hoveredData.icon}</span>
+            <span className="text-white font-medium text-sm">{hoveredData.label}</span>
+            {userMapData?.categoryStats?.[hoveredData.id] && (
+              <span className="text-xs px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-400">
+                {userMapData.categoryStats[hoveredData.id].entries} logged
+              </span>
+            )}
+          </div>
+          <p className="text-gray-400 text-xs mt-1">{hoveredData.description}</p>
+          <p className="text-gray-500 text-xs mt-1">Click to explore</p>
+        </div>
+      )}
+    </div>
+  )
+}
