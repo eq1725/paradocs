@@ -296,13 +296,13 @@ export default function Home() {
         <meta property="og:title" content="Paradocs - Where Mysteries Meet Discovery" />
         <meta property="og:description" content="Explore the world's largest database of paranormal phenomena. Discover UFO sightings, cryptid encounters, ghost reports, and unexplained events." />
         <meta property="og:type" content="website" />
-        <meta property="og:image" content="https://beta.discoverparadocs.com/api/og/default" />
+        <meta property="og:image" content="https://beta.discoverparadocs.com/api/og/fallback" />
         <meta property="og:url" content="https://beta.discoverparadocs.com" />
         <meta property="og:site_name" content="ParaDocs" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Paradocs - Where Mysteries Meet Discovery" />
         <meta name="twitter:description" content="Explore the world's largest database of paranormal phenomena." />
-        <meta name="twitter:image" content="https://beta.discoverparadocs.com/api/og/default" />
+        <meta name="twitter:image" content="https://beta.discoverparadocs.com/api/og/fallback" />
       </Head>
 
       {/* Hero Section */}
@@ -480,7 +480,7 @@ export default function Home() {
                         </span>
                       )}
                       {spotlightStories[0]?.eventDate && (
-                        <span className="text-sm text-gray-400 before:content-['·'] before:mr-4 before:text-gray-600">
+                        <span className="text-sm text-gray-400 before:content-['Â·'] before:mr-4 before:text-gray-600">
                           {spotlightStories[0].eventDate}
                         </span>
                       )}
@@ -552,7 +552,7 @@ export default function Home() {
                          'bg-gradient-to-br from-amber-900/60 to-gray-900'][i % 3]
                       }`}>
                         <span className="text-4xl opacity-40">
-                          {CATEGORY_CONFIG[story.category as keyof typeof CATEGORY_CONFIG]?.icon || '✨'}
+                          {CATEGORY_CONFIG[story.category as keyof typeof CATEGORY_CONFIG]?.icon || 'â¨'}
                         </span>
                       </div>
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
