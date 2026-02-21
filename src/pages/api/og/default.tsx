@@ -1,8 +1,6 @@
 /**
  * API: GET /api/og/default
- *
- * Generates a default Open Graph image for ParaDocs site-wide sharing.
- * Used as fallback OG image for pages without specific images.
+ * Generates a default Open Graph image for ParaDocs.
  */
 
 import { ImageResponse } from '@vercel/og';
@@ -28,27 +26,25 @@ export default async function handler() {
           fontFamily: 'system-ui, -apple-system, sans-serif',
         },
         children: [
-          // Logo
           {
             type: 'div',
             props: {
               style: {
                 color: '#c084fc',
-                fontSize: '48px',
+                fontSize: '52px',
                 fontWeight: 800,
                 letterSpacing: '4px',
-                marginBottom: '20px',
+                marginBottom: '24px',
               },
-              children: '\u2726 PARADOCS',
+              children: 'PARADOCS',
             },
           },
-          // Tagline
           {
             type: 'div',
             props: {
               style: {
                 color: '#e5e7eb',
-                fontSize: '32px',
+                fontSize: '34px',
                 fontWeight: 600,
                 marginBottom: '16px',
                 textAlign: 'center',
@@ -56,13 +52,12 @@ export default async function handler() {
               children: 'Where Mysteries Meet Discovery',
             },
           },
-          // Description
           {
             type: 'div',
             props: {
               style: {
                 color: '#9ca3af',
-                fontSize: '20px',
+                fontSize: '22px',
                 textAlign: 'center',
                 lineHeight: 1.5,
                 maxWidth: '700px',
@@ -71,69 +66,19 @@ export default async function handler() {
               children: "The world's largest database of paranormal phenomena",
             },
           },
-          // Category bar
           {
             type: 'div',
             props: {
               style: {
                 display: 'flex',
-                gap: '28px',
-                padding: '16px 32px',
-                background: 'rgba(139,92,246,0.1)',
-                borderRadius: '16px',
-                border: '1px solid rgba(139,92,246,0.2)',
+                gap: '16px',
               },
               children: [
-                {
-                  type: 'div',
-                  props: {
-                    style: { display: 'flex', alignItems: 'center', gap: '8px' },
-                    children: [
-                      { type: 'span', props: { style: { fontSize: '22px' }, children: '\uD83D\uDEF8' } },
-                      { type: 'span', props: { style: { color: '#d1d5db', fontSize: '15px' }, children: 'UFOs' } },
-                    ],
-                  },
-                },
-                {
-                  type: 'div',
-                  props: {
-                    style: { display: 'flex', alignItems: 'center', gap: '8px' },
-                    children: [
-                      { type: 'span', props: { style: { fontSize: '22px' }, children: '\uD83E\uDDB6' } },
-                      { type: 'span', props: { style: { color: '#d1d5db', fontSize: '15px' }, children: 'Cryptids' } },
-                    ],
-                  },
-                },
-                {
-                  type: 'div',
-                  props: {
-                    style: { display: 'flex', alignItems: 'center', gap: '8px' },
-                    children: [
-                      { type: 'span', props: { style: { fontSize: '22px' }, children: '\uD83D\uDC7B' } },
-                      { type: 'span', props: { style: { color: '#d1d5db', fontSize: '15px' }, children: 'Ghosts' } },
-                    ],
-                  },
-                },
-                {
-                  type: 'div',
-                  props: {
-                    style: { display: 'flex', alignItems: 'center', gap: '8px' },
-                    children: [
-                      { type: 'span', props: { style: { fontSize: '22px' }, children: '\uD83D\uDD2E' } },
-                      { type: 'span', props: { style: { color: '#d1d5db', fontSize: '15px' }, children: 'Psychic' } },
-                    ],
-                  },
-                },
-                {
-                  type: 'div',
-                  props: {
-                    style: { display: 'flex', alignItems: 'center', gap: '8px' },
-                    children: [
-                      { type: 'span', props: { style: { fontSize: '22px' }, children: '\uD83D\uDC09' } },
-                      { type: 'span', props: { style: { color: '#d1d5db', fontSize: '15px' }, children: 'Myths' } },
-                    ],
-                  },
-                },
+                { type: 'div', props: { style: { padding: '8px 20px', background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '24px', color: '#c084fc', fontSize: '16px', fontWeight: 600 }, children: 'UFOs' } },
+                { type: 'div', props: { style: { padding: '8px 20px', background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '24px', color: '#c084fc', fontSize: '16px', fontWeight: 600 }, children: 'Cryptids' } },
+                { type: 'div', props: { style: { padding: '8px 20px', background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '24px', color: '#c084fc', fontSize: '16px', fontWeight: 600 }, children: 'Ghosts' } },
+                { type: 'div', props: { style: { padding: '8px 20px', background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '24px', color: '#c084fc', fontSize: '16px', fontWeight: 600 }, children: 'Psychic' } },
+                { type: 'div', props: { style: { padding: '8px 20px', background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '24px', color: '#c084fc', fontSize: '16px', fontWeight: 600 }, children: 'Myths' } },
               ],
             },
           },
