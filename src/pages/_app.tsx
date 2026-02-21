@@ -37,14 +37,14 @@ export default function App({ Component, pageProps }: AppProps) {
         <meta property="og:type" content="website" />
         <meta property="og:title" content="Paradocs - The World's Largest Paranormal Database" />
         <meta property="og:description" content="Explore, analyze, and contribute to the world's largest database of paranormal phenomena. UFO sightings, cryptid encounters, ghost reports, and unexplained events." />
-        <meta property="og:image" content="https://beta.discoverparadocs.com/api/og/default" />
+        <meta property="og:image" content="https://beta.discoverparadocs.com/api/og/fallback" />
         <meta property="og:url" content="https://beta.discoverparadocs.com" />
 
         {/* Twitter Card - Default fallback */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Paradocs - The World's Largest Paranormal Database" />
         <meta name="twitter:description" content="Explore, analyze, and contribute to the world's largest database of paranormal phenomena." />
-        <meta name="twitter:image" content="https://beta.discoverparadocs.com/api/og/default" />
+        <meta name="twitter:image" content="https://beta.discoverparadocs.com/api/og/fallback" />
 
         {/* Viewport - viewport-fit=cover for edge-to-edge on iOS */}
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
