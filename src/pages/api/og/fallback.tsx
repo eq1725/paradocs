@@ -6,6 +6,11 @@ export var config = {
 };
 
 export default async function handler(req: NextRequest) {
+  var url = new URL(req.url);
+  var title = url.searchParams.get('title') || 'PARADOCS';
+  var subtitle = url.searchParams.get('subtitle') || 'Where Mysteries Meet Discovery';
+  var desc = url.searchParams.get('desc') || 'The worlds largest database of paranormal phenomena';
+
   return new ImageResponse(
     {
       type: 'div',
@@ -25,21 +30,21 @@ export default async function handler(req: NextRequest) {
             type: 'div',
             props: {
               style: { color: '#c084fc', fontSize: '52px', fontWeight: 800, letterSpacing: '4px', marginBottom: '24px' },
-              children: 'PARADOCS',
+              children: title,
             },
           },
           {
             type: 'div',
             props: {
               style: { color: '#e5e7eb', fontSize: '30px', fontWeight: 600 },
-              children: 'Where Mysteries Meet Discovery',
+              children: subtitle,
             },
           },
           {
             type: 'div',
             props: {
               style: { color: '#9ca3af', fontSize: '20px', marginTop: '16px' },
-              children: 'The worlds largest database of paranormal phenomena',
+              children: desc,
             },
           },
         ],
