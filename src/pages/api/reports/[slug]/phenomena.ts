@@ -27,6 +27,7 @@ export default async function handler(
     .from('reports')
     .select('id, title, summary, description, category, tags')
     .eq('slug', slug)
+    .eq('status', 'approved')
     .single();
 
   if (reportError || !report) {
