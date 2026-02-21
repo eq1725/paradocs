@@ -241,7 +241,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Smart Stat Cards (3 cards: Reports, Saved, Activity) ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
         {/* My Reports — shows total with status breakdown */}
         <Link
           href="/dashboard/reports"
@@ -297,45 +297,7 @@ export default function DashboardPage() {
           </span>
         </Link>
 
-        {/* Explore — drives discovery */}
-        <Link
-          href="/dashboard/constellation"
-          className="p-4 bg-gray-950 rounded-xl border border-gray-800 hover:border-primary-500/30 transition-colors group relative overflow-hidden"
-        >
-          {/* Decorative stars */}
-          <div className="absolute inset-0 opacity-20 pointer-events-none">
-            {[
-              { x: '20%', y: '15%', s: 2 }, { x: '75%', y: '25%', s: 1.5 },
-              { x: '40%', y: '80%', s: 2.5 }, { x: '85%', y: '60%', s: 1.2 },
-            ].map((star, i) => (
-              <div
-                key={i}
-                className="absolute rounded-full bg-primary-400"
-                style={{
-                  left: star.x,
-                  top: star.y,
-                  width: `${star.s}px`,
-                  height: `${star.s}px`,
-                  boxShadow: `0 0 ${star.s * 2}px rgba(139, 92, 246, 0.5)`,
-                }}
-              />
-            ))}
-          </div>
-          <div className="relative">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-primary-600/20 rounded-lg shrink-0">
-                <Stars className="w-5 h-5 text-primary-400" />
-              </div>
-              <div>
-                <p className="text-gray-500 text-xs">Constellation</p>
-                <p className="text-sm font-semibold text-white group-hover:text-primary-300 transition-colors">Explore Your Map</p>
-              </div>
-            </div>
-            <span className="text-[11px] text-primary-400/70 group-hover:text-primary-400 flex items-center gap-1 transition-colors">
-              See how phenomena connect <ArrowRight className="w-3 h-3" />
-            </span>
-          </div>
-        </Link>
+
       </div>
 
       {/* ── Main Content Grid ── */}
