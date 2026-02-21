@@ -1,16 +1,10 @@
 import { ImageResponse } from '@vercel/og';
-import type { NextRequest } from 'next/server';
 
 export var config = {
   runtime: 'edge',
 };
 
-export default async function handler(req: NextRequest) {
-  var url = req.nextUrl;
-  var title = url.searchParams.get('title') || 'PARADOCS';
-  var subtitle = url.searchParams.get('subtitle') || 'Where Mysteries Meet Discovery';
-  var desc = url.searchParams.get('desc') || 'The worlds largest database of paranormal phenomena';
-
+export default function handler() {
   return new ImageResponse(
     {
       type: 'div',
@@ -29,22 +23,22 @@ export default async function handler(req: NextRequest) {
           {
             type: 'div',
             props: {
-              style: { color: '#c084fc', fontSize: '52px', fontWeight: 800, letterSpacing: '4px', marginBottom: '24px' },
-              children: title,
+              style: { color: '#c084fc', fontSize: 52, fontWeight: 800, letterSpacing: 4, marginBottom: 24 },
+              children: 'PARADOCS',
             },
           },
           {
             type: 'div',
             props: {
-              style: { color: '#e5e7eb', fontSize: '30px', fontWeight: 600 },
-              children: subtitle,
+              style: { color: '#e5e7eb', fontSize: 30, fontWeight: 600 },
+              children: 'Where Mysteries Meet Discovery',
             },
           },
           {
             type: 'div',
             props: {
-              style: { color: '#9ca3af', fontSize: '20px', marginTop: '16px' },
-              children: desc,
+              style: { color: '#9ca3af', fontSize: 20, marginTop: 16 },
+              children: 'The worlds largest database of paranormal phenomena',
             },
           },
         ],
