@@ -291,7 +291,7 @@ electAll('*').remove()
       const entriesByCat = new Map<string, EntryNode[]>()
       for (const entry of userMapData.entryNodes) {
         const cat = entry.category || 'combination'
-        if (!entriesByCat.has(cat)) entriesByCat.set(cat, [)
+        if (!entriesByCat.has(cat)) entriesByCat.set(cat, [])
         entriesByCat.get(cat)!.push(entry)
       }
 
