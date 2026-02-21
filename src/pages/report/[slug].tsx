@@ -121,8 +121,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     };
     window.addEventListener('scroll', handleScroll);
     return function() { window.removeEventListener('scroll', handleScroll); };
-  }, []);stener('scroll', handleScroll);
-    return function() { window.removeEventListener('scroll', handleScroll); };
   }, []);
 
     useEffect(() => {
