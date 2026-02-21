@@ -852,91 +852,95 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         <ConnectionCards reportSlug={slug as string} className="mb-6 sm:mb-8" />
 
         {/* Actions bar */}
-        <div className="sticky bottom-0 z-40 -mx-3 sm:-mx-4 px-3 sm:px-4 py-3 bg-black/80 backdrop-blur-md border-t border-white/10 mb-6 sm:mb-8">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <button
-                onClick={() => handleVote(1)}
-                disabled={!user}
-                className={classNames(
-                  'flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 transition-colors',
-                  userVote === 1 ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
-                )}
-              >
-                <ThumbsUp className="w-4 h-4 sm:w-5 sm:h-5" fill={userVote === 1 ? 'currentColor' : 'none'} />
-                <span className="text-sm">{report.upvotes}</span>
-              </button>
-              <button
-                onClick={() => handleVote(-1)}
-                disabled={!user}
-                className={classNames(
-                  'flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 transition-colors',
-                  userVote === -1 ? 'text-red-400' : 'text-gray-400 hover:text-red-400'
-                )}
-              >
-                <ThumbsDown className="w-4 h-4 sm:w-5 sm:h-5" fill={userVote === -1 ? 'currentColor' : 'none'} />
-                <span className="text-sm">{report.downvotes}</span>
-              </button>
-              <span className="flex items-center gap-1.5 sm:gap-2 text-gray-400">
-                <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="text-sm">{report.view_count}</span>
-              </span>
-              <button
-                onClick={() => document.getElementById('comments')?.scrollIntoView({ behavior: 'smooth' })}
-                className="flex items-center gap-1.5 sm:gap-2 text-gray-400 hover:text-primary-400 transition-colors"
-              >
-                <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="text-sm">{comments.length}</span>
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              {user && (
+          <div className="sticky bottom-0 z-40 -mx-3 sm:-mx-4 px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-950/90 backdrop-blur-xl border-t border-white/5 mb-6 sm:mb-8">
+            <div className="flex items-center justify-between gap-2">
+              {/* Engagement stats - compact left group */}
+              <div className="flex items-center gap-1">
                 <button
-                  onClick={() => setLogModalOpen(true)}
+                  onClick={() => handleVote(1)}
+                  disabled={!user}
                   className={classNames(
-                    'btn text-xs sm:text-sm transition-all',
-                    isLogged
-                      ? 'btn-ghost text-purple-400'
-                      : 'bg-purple-600/80 hover:bg-purple-500 text-white border-0'
+                    'flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all disabled:opacity-40',
+                    userVote === 1 ? 'text-green-400 bg-green-400/10' : 'text-gray-500 hover:text-green-400 hover:bg-white/5'
                   )}
                 >
-                  <Star className="w-4 h-4" fill={isLogged ? 'currentColor' : 'none'} />
-                  <span className="hidden sm:inline">{isLogged ? 'Logged' : 'Log'}</span>
+                  <ThumbsUp className="w-3.5 h-3.5" fill={userVote === 1 ? 'currentColor' : 'none'} />
+                  <span className="text-xs font-medium">{report.upvotes}</span>
                 </button>
-              )}
-              <button
-                onClick={handleSave}
-                disabled={!user || savingReport}
-                className={classNames(
-                  'btn btn-ghost text-xs sm:text-sm transition-colors',
-                  isSaved ? 'text-primary-400' : ''
-                )}
-              >
-                <Bookmark className="w-4 h-4" fill={isSaved ? 'currentColor' : 'none'} />
-                <span className="hidden sm:inline">{isSaved ? 'Saved' : 'Save'}</span>
-              </button>
-              <button
-                onClick={handleShare}
-                className={classNames(
-                  'btn btn-ghost text-xs sm:text-sm transition-colors',
-                  copiedShare ? 'text-green-400' : ''
-                )}
-              >
-                {copiedShare ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
-                <span className="hidden sm:inline">{copiedShare ? 'Copied!' : 'Share'}</span>
-              </button>
-              {user && (
-                <Link
-                  href={`/dashboard/journal/new?report_id=${report.id}&report_title=${encodeURIComponent(report.title)}&report_slug=${report.slug}&report_category=${report.category}`}
-                  className="btn btn-ghost text-xs sm:text-sm"
+                <button
+                  onClick={() => handleVote(-1)}
+                  disabled={!user}
+                  className={classNames(
+                    'flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all disabled:opacity-40',
+                    userVote === -1 ? 'text-red-400 bg-red-400/10' : 'text-gray-500 hover:text-red-400 hover:bg-white/5'
+                  )}
                 >
-                  <BookOpen className="w-4 h-4" />
-                  <span className="hidden sm:inline">Journal</span>
-                </Link>
-              )}
+                  <ThumbsDown className="w-3.5 h-3.5" fill={userVote === -1 ? 'currentColor' : 'none'} />
+                  {report.downvotes > 0 && <span className="text-xs font-medium">{report.downvotes}</span>}
+                </button>
+                <div className="w-px h-4 bg-white/10 mx-1 hidden sm:block" />
+                <span className="flex items-center gap-1 px-2 py-1.5 text-gray-500">
+                  <Eye className="w-3.5 h-3.5" />
+                  <span className="text-xs font-medium">{report.view_count >= 1000 ? (report.view_count / 1000).toFixed(1) + 'K' : report.view_count}</span>
+                </span>
+                <button
+                  onClick={() => document.getElementById('comments')?.scrollIntoView({ behavior: 'smooth' })}
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-white/5 transition-all"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span className="text-xs font-medium">{comments.length}</span>
+                </button>
+              </div>
+
+              {/* Action buttons - right group */}
+              <div className="flex items-center gap-1 sm:gap-1.5">
+                {user && (
+                  <button
+                    onClick={() => setLogModalOpen(true)}
+                    className={classNames(
+                      'flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all',
+                      isLogged
+                        ? 'text-purple-400 bg-purple-400/10 border border-purple-400/20'
+                        : 'text-white bg-purple-600 hover:bg-purple-500 shadow-sm shadow-purple-500/20'
+                    )}
+                  >
+                    <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill={isLogged ? 'currentColor' : 'none'} />
+                    <span className="hidden xs:inline">{isLogged ? 'Logged' : 'Log'}</span>
+                  </button>
+                )}
+                <button
+                  onClick={handleSave}
+                  disabled={!user || savingReport}
+                  className={classNames(
+                    'flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all disabled:opacity-40',
+                    isSaved ? 'text-primary-400 bg-primary-400/10' : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  )}
+                >
+                  <Bookmark className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill={isSaved ? 'currentColor' : 'none'} />
+                  <span className="hidden sm:inline">{isSaved ? 'Saved' : 'Save'}</span>
+                </button>
+                <button
+                  onClick={handleShare}
+                  className={classNames(
+                    'flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all',
+                    copiedShare ? 'text-green-400 bg-green-400/10' : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  )}
+                >
+                  {copiedShare ? <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                  <span className="hidden sm:inline">{copiedShare ? 'Copied!' : 'Share'}</span>
+                </button>
+                {user && (
+                  <Link
+                    href={`/dashboard/journal/new?report_id=${report.id}&report_title=${encodeURIComponent(report.title)}&report_slug=${report.slug}&report_category=${report.category}`}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+                  >
+                    <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">Journal</span>
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
         {/* Comments */}
         <section id="comments">
@@ -1064,20 +1068,19 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
       )}
 
         {/* Share Your Experience CTA */}
-        <div className="mt-8 mb-12 mx-auto max-w-2xl">
-          <div className="relative overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-r from-purple-500/5 via-indigo-500/5 to-purple-500/5 p-6 sm:p-8 text-center">
-            <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-indigo-500/5 animate-pulse" style={{ animationDuration: '4s' }} />
-            <div className="relative">
-              <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">Have you seen something similar?</h3>
-              <p className="text-gray-400 text-sm sm:text-base mb-5">Your experience could help others understand the unexplained. Every report matters.</p>
-              <a
-                href="/submit"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-105"
-                style={{ background: 'linear-gradient(135deg, #5b63f1, #4f46e5)', boxShadow: '0 2px 16px rgba(91, 99, 241, 0.4)' }}
-              >
-                Share Your Experience
-              </a>
+        <div className="mt-10 mb-12 mx-auto max-w-xl">
+          <div className="text-center py-8 px-6">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-purple-500/10 border border-purple-500/20 mb-4">
+              <Star className="w-5 h-5 text-purple-400" />
             </div>
+            <h3 className="text-lg font-semibold text-white mb-2">Have you seen something similar?</h3>
+            <p className="text-gray-500 text-sm mb-5 max-w-sm mx-auto">Your experience could help others understand the unexplained.</p>
+            <a
+              href="/submit"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium text-white bg-purple-600 hover:bg-purple-500 transition-colors shadow-sm shadow-purple-500/20"
+            >
+              Share Your Experience
+            </a>
           </div>
         </div>
 
