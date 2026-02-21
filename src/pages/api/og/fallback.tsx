@@ -1,10 +1,11 @@
 import { ImageResponse } from '@vercel/og';
+import type { NextRequest } from 'next/server';
 
 export var config = {
   runtime: 'edge',
 };
 
-export default function handler() {
+export default async function handler(req: NextRequest) {
   return new ImageResponse(
     {
       type: 'div',
