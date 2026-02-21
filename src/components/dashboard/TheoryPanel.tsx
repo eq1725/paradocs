@@ -372,7 +372,7 @@ export default function TheoryPanel({
                 ← Back to list
               </button>
               <button
-                onClick={handleSaved}
+                onClick={handleSave}
                 disabled={saving || !title.trim()}
                 className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
               >
