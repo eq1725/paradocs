@@ -172,6 +172,9 @@ export default function ConstellationMap({
     const statsMap = new Map(stats.map(s => [s.category, s]))
     const catEntryCount = userMapData?.categoryStats || {}
 
+    // ── Blank canvas mode: when user has no logged entries
+    const isEmpty = !userMapData || userMapData.entryNodes.length === 0
+
     const nodes: D3Node[] = CONSTELLATION_NODES.map(n => {
       const rx = remapX(n.x)
       const ry = remapY(n.y)
