@@ -28,8 +28,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Invalid token' })
     }
 
-    // Parallel fetch: constellation entries, total phenomena count, streak
-    const [entriesResult, totalResult, streakResult] = await Promise.all([
+    // Parallel fetch: constellation entries, total phenomena count, streak, connections, theories
+    const [entriesResult, totalResult, streakResult, connectionsResult, theoriesResult] = await Promise.all([
       // User's logged constellation entries with report details
       supabase
         .from('constellation_entries')
@@ -58,11 +58,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .select('current_streak, longest_streak, total_active_days')
         .eq('user_id', user.id)
         .single(),
+
+      // User-drawn connections
+      supabase
+        .from('constellation_connections')
+        .select('id, entry_a_id, entry_b_id, annotation, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false }),
+
+      // User theories
+      supabase
+        .from('constellation_theories')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false }),
     ])
 
     const entries = entriesResult.data || []
     const totalPhenomena = totalResult.count || 592
     const streak = (streakResult as any).data
+    const userConnections = (connectionsResult as any).data || []
+    const userTheories = (theoriesResult as any).data || []
 
     // Build category engagement from logged entries
     const categoryMap: Record<string, {
@@ -146,15 +162,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const connectionsFound = tagConnections.length
 
     // Rank system: Stargazer → Field Researcher → Pattern Seeker → Cartographer → Master Archivist
+    // Updated to include theories (Phase 2)
+    const theoryCount = userTheories.length
+    const drawnConnections = userConnections.length
     let rank = 'Stargazer'
     let rankLevel = 1
-    if (totalEntries >= 50 && categoriesExplored >= 8 && connectionsFound >= 10) {
+    if (totalEntries >= 100 && theoryCount >= 5 && categoriesExplored >= 8) {
       rank = 'Master Archivist'; rankLevel = 5
-    } else if (totalEntries >= 25 && categoriesExplored >= 6 && connectionsFound >= 5) {
+    } else if (totalEntries >= 50 && theoryCount >= 3 && categoriesExplored >= 5) {
       rank = 'Cartographer'; rankLevel = 4
-    } else if (totalEntries >= 10 && uniqueTags >= 5 && connectionsFound >= 2) {
+    } else if (totalEntries >= 25 && theoryCount >= 1) {
       rank = 'Pattern Seeker'; rankLevel = 3
-    } else if (totalEntries >= 3 && hasNotes >= 2) {
+    } else if (totalEntries >= 10 && categoriesExplored >= 3) {
       rank = 'Field Researcher'; rankLevel = 2
     }
 
@@ -174,6 +193,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       categoryStats,
       tagConnections,
       trail,
+      userConnections: userConnections.map((c: any) => ({
+        id: c.id,
+        entryAId: c.entry_a_id,
+        entryBId: c.entry_b_id,
+        annotation: c.annotation || '',
+        createdAt: c.created_at,
+      })),
+      userTheories: userTheories.map((t: any) => ({
+        id: t.id,
+        title: t.title,
+        thesis: t.thesis || '',
+        entry_ids: t.entry_ids || [],
+        connection_ids: t.connection_ids || [],
+        is_public: t.is_public || false,
+        created_at: t.created_at,
+        updated_at: t.updated_at,
+      })),
       stats: {
         totalEntries,
         totalPhenomena,
@@ -182,6 +218,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         uniqueTags,
         notesWritten: hasNotes,
         connectionsFound,
+        drawnConnections,
+        theoryCount,
         currentStreak: streak?.current_streak || 0,
         longestStreak: streak?.longest_streak || 0,
         rank,
