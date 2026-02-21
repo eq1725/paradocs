@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/router'
 import {
   Stars,
@@ -15,10 +15,15 @@ import {
   Link2,
   Sparkles,
   ChevronRight,
+  Lightbulb,
+  Share2,
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import ConstellationMap from '@/components/dashboard/ConstellationMap'
 import ConstellationPanel from '@/components/dashboard/ConstellationPanel'
+import ConnectionDrawer, { ConnectionData } from '@/components/dashboard/ConnectionDrawer'
+import TheoryPanel, { TheoryData } from '@/components/dashboard/TheoryPanel'
+import ShareConstellation from '@/components/dashboard/ShareConstellation'
 import { usePersonalization } from '@/lib/hooks/usePersonalization'
 import { supabase } from '@/lib/supabase'
 import { PhenomenonCategory } from '@/lib/database.types'
@@ -65,6 +70,8 @@ export interface UserMapData {
   categoryStats: Record<string, { entries: number; verdicts: Record<string, number> }>
   tagConnections: Array<{ tag: string; entryIds: string[] }>
   trail: Array<{ entryId: string; reportId: string; category: string; timestamp: string }>
+  userConnections?: ConnectionData[]
+  userTheories?: TheoryData[]
   stats: {
     totalEntries: number
     totalPhenomena: number
@@ -73,6 +80,8 @@ export interface UserMapData {
     uniqueTags: number
     notesWritten: number
     connectionsFound: number
+    drawnConnections?: number
+    theoryCount?: number
     currentStreak: number
     longestStreak: number
     rank: string
@@ -93,8 +102,29 @@ export default function ConstellationPage() {
   const [stats, setStats] = useState<ConstellationStats[]>([])
   const [userMapData, setUserMapData] = useState<UserMapData | null>(null)
   const [statsLoading, setStatsLoading] = useState(true)
+  const [connectionDrawerOpen, setConnectionDrawerOpen] = useState(false)
+  const [theoryPanelOpen, setTheoryPanelOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [userToken, setUserToken] = useState('')
+  const [isProfilePublic, setIsProfilePublic] = useState(false)
+  const [displayName, setDisplayName] = useState('')
+  const svgRef = useRef<SVGSVGElement | null>(null)
 
   const userInterests = personalization?.interested_categories || []
+
+  // Reload user map data (used after creating connections/theories)
+  const reloadUserMap = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) return
+      const result = await fetch('/api/constellation/user-map', {
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      }).then(r => r.json()).catch(() => null)
+      if (result) setUserMapData(result)
+    } catch (err) {
+      console.error('Error reloading user map:', err)
+    }
+  }, [])
 
   // Load category stats (global) + personal constellation data
   useEffect(() => {
@@ -103,6 +133,20 @@ export default function ConstellationPage() {
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session?.user) return
+
+        // Store token for child components
+        setUserToken(session.access_token)
+
+        // Fetch profile info for sharing
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('display_name, constellation_public')
+          .eq('id', session.user.id)
+          .single()
+        if (profile) {
+          setDisplayName(profile.display_name || session.user.email?.split('@')[0] || '')
+          setIsProfilePublic(profile.constellation_public || false)
+        }
 
         // Parallel: global category counts + user map data
         const [categoryCountsResult, userMapResult] = await Promise.all([
@@ -248,10 +292,47 @@ export default function ConstellationPage() {
               <Link2 className="w-3.5 h-3.5 text-green-400" />
               Connections
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-white">{mapStats?.connectionsFound || 0}</div>
-            <div className="text-gray-500 text-xs">via shared tags</div>
+            <div className="text-xl sm:text-2xl font-bold text-white">
+              {(mapStats?.connectionsFound || 0) + (mapStats?.drawnConnections || 0)}
+            </div>
+            <div className="text-gray-500 text-xs">
+              {mapStats?.drawnConnections ? `${mapStats.drawnConnections} drawn · ` : ''}
+              {mapStats?.connectionsFound || 0} via tags
+            </div>
           </div>
         </div>
+
+        {/* Phase 2/3: Action Buttons */}
+        {mapStats && mapStats.totalEntries > 0 && (
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => setConnectionDrawerOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 border border-gray-700 hover:border-green-500/40 text-gray-300 hover:text-green-400 rounded-xl text-sm font-medium transition-all"
+            >
+              <Link2 className="w-4 h-4" />
+              Draw Connection
+            </button>
+            <button
+              onClick={() => setTheoryPanelOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 border border-gray-700 hover:border-amber-500/40 text-gray-300 hover:text-amber-400 rounded-xl text-sm font-medium transition-all"
+            >
+              <Lightbulb className="w-4 h-4" />
+              Theories
+              {(mapStats?.theoryCount || 0) > 0 && (
+                <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400">
+                  {mapStats.theoryCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setShareOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 border border-gray-700 hover:border-purple-500/40 text-gray-300 hover:text-purple-400 rounded-xl text-sm font-medium transition-all"
+            >
+              <Share2 className="w-4 h-4" />
+              Share
+            </button>
+          </div>
+        )}
 
         {/* Main constellation area */}
         <div className="relative bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden">
@@ -262,6 +343,7 @@ export default function ConstellationPage() {
               onNodeClick={setSelectedCategory}
               selectedNode={selectedCategory}
               userMapData={userMapData}
+              svgRef={svgRef}
             />
           </div>
 
@@ -429,6 +511,65 @@ export default function ConstellationPage() {
           </div>
         )}
 
+        {/* User-Drawn Connections (Phase 2) */}
+        {userMapData?.userConnections && userMapData.userConnections.length > 0 && (
+          <div>
+            <h2 className="text-white font-semibold text-lg flex items-center gap-2 mb-3">
+              <Link2 className="w-5 h-5 text-green-400" />
+              Your Drawn Connections
+              <span className="text-gray-500 text-sm font-normal">({userMapData.userConnections.length})</span>
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {userMapData.userConnections.slice(0, 6).map(conn => {
+                const entryA = userMapData.entryNodes.find(e => e.id === conn.entryAId)
+                const entryB = userMapData.entryNodes.find(e => e.id === conn.entryBId)
+                return (
+                  <div key={conn.id} className="bg-gray-900 border border-gray-800 rounded-xl p-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-gray-200 truncate">{entryA?.name || 'Entry'}</span>
+                      <Link2 className="w-3 h-3 text-green-500 shrink-0" />
+                      <span className="text-gray-200 truncate">{entryB?.name || 'Entry'}</span>
+                    </div>
+                    {conn.annotation && (
+                      <p className="text-gray-500 text-xs mt-1 line-clamp-2">{conn.annotation}</p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* User Theories (Phase 2) */}
+        {userMapData?.userTheories && userMapData.userTheories.length > 0 && (
+          <div>
+            <h2 className="text-white font-semibold text-lg flex items-center gap-2 mb-3">
+              <Lightbulb className="w-5 h-5 text-amber-400" />
+              Your Theories
+              <span className="text-gray-500 text-sm font-normal">({userMapData.userTheories.length})</span>
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {userMapData.userTheories.slice(0, 4).map(theory => (
+                <div key={theory.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-white font-medium text-sm">{theory.title}</h3>
+                    {theory.is_public && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400 shrink-0">Public</span>
+                    )}
+                  </div>
+                  {theory.thesis && (
+                    <p className="text-gray-400 text-xs mt-1 line-clamp-2">{theory.thesis}</p>
+                  )}
+                  <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                    <span>{theory.entry_ids?.length || 0} entries</span>
+                    <span>{theory.connection_ids?.length || 0} connections</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Suggested explorations */}
         {suggestions.length > 0 && (
           <div>
@@ -483,6 +624,56 @@ export default function ConstellationPage() {
           </div>
         </div>
       </div>
+
+      {/* Phase 2: Connection Drawer Modal */}
+      {userToken && (
+        <ConnectionDrawer
+          isOpen={connectionDrawerOpen}
+          entries={userMapData?.entryNodes || []}
+          existingConnections={userMapData?.userConnections || []}
+          userToken={userToken}
+          onClose={() => setConnectionDrawerOpen(false)}
+          onConnectionCreated={reloadUserMap}
+          onConnectionDeleted={reloadUserMap}
+        />
+      )}
+
+      {/* Phase 2: Theory Panel Modal */}
+      {userToken && (
+        <TheoryPanel
+          isOpen={theoryPanelOpen}
+          entries={userMapData?.entryNodes || []}
+          connections={userMapData?.userConnections || []}
+          theories={userMapData?.userTheories || []}
+          userToken={userToken}
+          onClose={() => setTheoryPanelOpen(false)}
+          onTheoryChanged={reloadUserMap}
+        />
+      )}
+
+      {/* Phase 3: Share Constellation Modal */}
+      {userToken && (
+        <ShareConstellation
+          isOpen={shareOpen}
+          svgRef={svgRef}
+          stats={{
+            totalEntries: mapStats?.totalEntries || 0,
+            categoriesExplored: mapStats?.categoriesExplored || 0,
+            uniqueTags: mapStats?.uniqueTags || 0,
+            connectionsFound: (mapStats?.connectionsFound || 0) + (mapStats?.drawnConnections || 0),
+            theoriesCount: mapStats?.theoryCount || 0,
+            rank: mapStats?.rank || 'Stargazer',
+            rankLevel: mapStats?.rankLevel || 1,
+          }}
+          username={displayName}
+          isProfilePublic={isProfilePublic}
+          userToken={userToken}
+          onClose={() => setShareOpen(false)}
+          onTogglePublic={async (pub) => {
+            setIsProfilePublic(pub)
+          }}
+        />
+      )}
     </DashboardLayout>
   )
 }
