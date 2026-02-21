@@ -185,7 +185,7 @@ export default function ConstellationMap({
         y: padding + ry * (height - padding * 2),
         fx: padding + rx * (width - padding * 2),
         fy: padding + ry * (height - padding * 2),
-        isUserInterest: isEmpty ? false : (userInterests.includes(n.id) || hasEntries),
+        isUserInterest: hasEntries,
         reportCount: statsMap.get(n.id)?.reportCount || 0,
         trendingCount: statsMap.get(n.id)?.trendingCount || 0,
         entryCount: catEntryCount[n.id]?.entries || 0,
@@ -228,7 +228,6 @@ export default function ConstellationMap({
 
     // ── Category Edges ── (hidden in blank canvas mode)
     const edgeGroup = svg.append('g').attr('class', 'edges')
-    if (isEmpty) edgeGroup.attr('display', 'none')
 
     edgeGroup.selectAll('line')
       .data(edges).join('line')
@@ -292,9 +291,9 @@ export default function ConstellationMap({
 
     // Main star circle
     nodeElements.append('circle')
-      .attr('r', d => d.isUserInterest ? nodeR.active : isEmpty ? 2 : nodeR.inactive)
+      .attr('r', d => d.isUserInterest ? nodeR.active : 2)
       .attr('fill', d => d.isUserInterest ? d.glowColor : '#4b5563')
-      .attr('opacity', d => d.isUserInterest ? 1 : isEmpty ? 0.06 : 0.5)
+      .attr('opacity', d => d.isUserInterest ? 1 : 0.08)
       .attr('filter', d => d.isUserInterest ? 'url(#star-glow)' : 'url(#dim-glow)')
 
     // Inner bright core
@@ -306,12 +305,13 @@ export default function ConstellationMap({
       nodeElements.append('text').attr('text-anchor', 'middle')
         .attr('dy', d => d.isUserInterest ? iconDy.active : iconDy.inactive)
         .attr('font-size', d => d.isUserInterest ? iconSize.active : iconSize.inactive)
-        .attr('opacity', d => d.isUserInterest ? 1 : 0.5)
+        .attr('opacity', d => d.isUserInterest ? 1 : 0.08)
         .text(d => d.icon)
 
       nodeElements.append('text').attr('text-anchor', 'middle')
         .attr('dy', d => d.isUserInterest ? labelDy.active : labelDy.inactive)
         .attr('fill', d => d.isUserInterest ? '#e5e7eb' : '#6b7280')
+        .attr('opacity', d => d.isUserInterest ? 1 : 0.1)
         .attr('font-size', d => d.isUserInterest ? labelSize.active : labelSize.inactive)
         .attr('font-weight', d => d.isUserInterest ? '600' : '400')
         .text(d => shortLabel(d.label, labelMaxChars))
@@ -377,8 +377,8 @@ export default function ConstellationMap({
         .attr('x1', d => d.parentNode.x).attr('y1', d => d.parentNode.y)
         .attr('x2', d => d.x).attr('y2', d => d.y)
         .attr('stroke', d => VERDICT_COLORS[d.entry.verdict] || '#a78bfa')
-        .attr('stroke-opacity', 0.2)
-        .attr('stroke-width', 0.5)
+        .attr('stroke-opacity', d => (d.sourceNode?.isUserInterest && d.targetNode?.isUserInterest) ? 0.2 : 0.03)
+        .attr('stroke-width', d => (d.sourceNode?.isUserInterest && d.targetNode?.isUserInterest) ? 0.5 : 0.3)
 
       // Draw verdict-colored entry stars
       const entryR = Math.max(2, Math.round(4 * clampScale))
