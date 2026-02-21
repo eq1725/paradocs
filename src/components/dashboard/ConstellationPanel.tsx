@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { X, TrendingUp, BookOpen, Compass, Plus, Check, ArrowRight, Sparkles, Eye, Star } from 'lucide-react'
+import { X, TrendingUp, BookOpen, Compass, Plus, Check, ArrowRight, Sparkles, Star, Tag } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PhenomenonCategory } from '@/lib/database.types'
 import { CATEGORY_CONFIG } from '@/lib/constants'
@@ -13,32 +13,14 @@ import {
 } from '@/lib/constellation-data'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
+import type { UserMapData, EntryNode } from '@/pages/dashboard/constellation'
 
-interface UserMapData {
-  categoryStats: Record<string, { views: number; saves: number; uniquePhenomena: number }>
-  phenomenonNodes: Array<{
-    id: string
-    name: string
-    slug: string
-    category: string
-    imageUrl: string | null
-    dangerLevel: string | null
-    firstViewed: string
-    viewCount: number
-    isSaved: boolean
-  }>
-  trail: Array<{ phenomenonId: string; timestamp: string; category: string }>
-  stats: {
-    totalViewed: number
-    totalPhenomena: number
-    categoriesExplored: number
-    totalCategories: number
-    currentStreak: number
-    longestStreak: number
-    totalSaved: number
-    rank: string
-    rankLevel: number
-  }
+// Verdict display config
+const VERDICT_CONFIG: Record<string, { icon: string; color: string; label: string }> = {
+  compelling: { icon: '✦', color: 'text-amber-400', label: 'Compelling' },
+  inconclusive: { icon: '◐', color: 'text-blue-400', label: 'Inconclusive' },
+  skeptical: { icon: '⊘', color: 'text-gray-400', label: 'Skeptical' },
+  needs_info: { icon: '?', color: 'text-purple-400', label: 'Need More Info' },
 }
 
 interface ConstellationPanelProps {
@@ -77,6 +59,12 @@ export default function ConstellationPanel({
   const isFollowing = category ? userInterests.includes(category) : false
   const catStats = category ? stats.find(s => s.category === category) : null
 
+  // Get logged entries for this category
+  const catEntries: EntryNode[] = (userMapData && category)
+    ? userMapData.entryNodes.filter(e => e.category === category)
+    : []
+  const catEntryStats = (userMapData && category) ? userMapData.categoryStats[category] : null
+
   // Load trending reports for this category
   useEffect(() => {
     if (!category) return
@@ -84,7 +72,6 @@ export default function ConstellationPanel({
     async function loadData() {
       setLoading(true)
       try {
-        // Get total report count
         const { count } = await supabase
           .from('reports')
           .select('*', { count: 'exact', head: true })
@@ -93,7 +80,6 @@ export default function ConstellationPanel({
 
         setReportCount(count || 0)
 
-        // Get trending reports (most upvoted recently)
         const { data } = await supabase
           .from('reports')
           .select('id, title, slug, upvotes, view_count, created_at')
@@ -184,61 +170,86 @@ export default function ConstellationPanel({
                   <div className="text-gray-500 text-xs">This week</div>
                 </div>
                 <div className="bg-gray-800/50 rounded-lg p-3 text-center">
-                  <div className="text-purple-400 font-bold text-lg">{catStats.userJournalEntries}</div>
-                  <div className="text-gray-500 text-xs">My notes</div>
+                  <div className="text-purple-400 font-bold text-lg">{catEntryStats?.entries || 0}</div>
+                  <div className="text-gray-500 text-xs">Logged</div>
                 </div>
               </div>
             )}
 
-            {/* Personal Discoveries in this category */}
-            {userMapData && category && (() => {
-              const catPhenomena = userMapData.phenomenonNodes.filter(p => p.category === category)
-              const catStats = userMapData.categoryStats[category]
-              if (catPhenomena.length === 0 && !catStats) return null
-              return (
-                <div>
-                  <h3 className="text-white font-semibold text-sm flex items-center gap-2 mb-3">
-                    <Eye className="w-4 h-4 text-amber-400" />
-                    Your Discoveries
-                    {catStats && (
-                      <span className="text-gray-500 font-normal text-xs ml-auto">
-                        {catStats.uniquePhenomena} explored
-                      </span>
-                    )}
-                  </h3>
-                  {catPhenomena.length > 0 ? (
-                    <div className="space-y-2">
-                      {catPhenomena.slice(0, 5).map(p => (
-                        <Link
-                          key={p.id}
-                          href={`/report/${p.slug}`}
-                          className="flex items-center gap-3 p-2.5 bg-gray-800/40 hover:bg-gray-800/70 rounded-lg transition-colors group"
-                        >
-                          {p.imageUrl ? (
-                            <img src={p.imageUrl} alt={p.name} className="w-8 h-8 rounded object-cover shrink-0"
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                            />
-                          ) : (
-                            <div className="w-8 h-8 rounded bg-gray-700 flex items-center justify-center shrink-0">
-                              <Star className="w-3 h-3 text-gray-500" />
-                            </div>
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <div className="text-gray-200 text-sm font-medium group-hover:text-white truncate">{p.name}</div>
-                            <div className="text-gray-500 text-xs">
-                              {p.viewCount}x viewed
-                              {p.isSaved && ' · Saved'}
-                            </div>
+            {/* Your Logged Entries in this category */}
+            {catEntries.length > 0 && (
+              <div>
+                <h3 className="text-white font-semibold text-sm flex items-center gap-2 mb-3">
+                  <Star className="w-4 h-4 text-purple-400" />
+                  Your Logged Entries
+                  <span className="text-gray-500 font-normal text-xs ml-auto">
+                    {catEntries.length} entries
+                  </span>
+                </h3>
+                <div className="space-y-2">
+                  {catEntries.slice(0, 5).map(entry => {
+                    const vc = VERDICT_CONFIG[entry.verdict] || VERDICT_CONFIG.needs_info
+                    return (
+                      <Link
+                        key={entry.id}
+                        href={`/report/${entry.slug}`}
+                        className="block p-2.5 bg-gray-800/40 hover:bg-gray-800/70 rounded-lg transition-colors group"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={classNames('text-xs', vc.color)}>{vc.icon}</span>
+                          <div className="text-gray-200 text-sm font-medium group-hover:text-white truncate flex-1">
+                            {entry.name}
                           </div>
-                        </Link>
-                      ))}
-                    </div>
-                  ) : catStats ? (
-                    <p className="text-gray-500 text-sm">{catStats.views} views in this category</p>
-                  ) : null}
+                          <span className={classNames('text-[10px] px-1.5 py-0.5 rounded-full',
+                            entry.verdict === 'compelling' ? 'bg-amber-400/15 text-amber-400' :
+                            entry.verdict === 'inconclusive' ? 'bg-blue-400/15 text-blue-400' :
+                            entry.verdict === 'skeptical' ? 'bg-gray-400/15 text-gray-400' :
+                            'bg-purple-400/15 text-purple-400'
+                          )}>
+                            {vc.label}
+                          </span>
+                        </div>
+                        {entry.note && (
+                          <p className="text-gray-500 text-xs line-clamp-2 mt-1">{entry.note}</p>
+                        )}
+                        {entry.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {entry.tags.slice(0, 4).map(tag => (
+                              <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400">
+                                #{tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </Link>
+                    )
+                  })}
                 </div>
-              )
-            })()}
+              </div>
+            )}
+
+            {/* Verdict breakdown for this category */}
+            {catEntryStats && catEntryStats.entries > 0 && (
+              <div>
+                <h3 className="text-white font-semibold text-sm flex items-center gap-2 mb-3">
+                  <BookOpen className="w-4 h-4 text-blue-400" />
+                  Verdict Breakdown
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(VERDICT_CONFIG).map(([key, vc]) => {
+                    const count = catEntryStats.verdicts[key] || 0
+                    if (count === 0) return null
+                    return (
+                      <div key={key} className="flex items-center gap-2 bg-gray-800/30 rounded-lg px-3 py-2">
+                        <span className={vc.color}>{vc.icon}</span>
+                        <span className="text-gray-300 text-xs flex-1">{vc.label}</span>
+                        <span className="text-white font-medium text-sm">{count}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Trending Reports */}
             <div>
@@ -299,7 +310,6 @@ export default function ConstellationPanel({
                             <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary-500/20 text-primary-400">Following</span>
                           )}
                         </div>
-                        {/* Connection strength dots */}
                         <div className="flex gap-0.5">
                           {[0.3, 0.5, 0.7, 0.9].map((threshold, i) => (
                             <div
