@@ -351,11 +351,6 @@ export default function ReportAIInsight({ reportSlug, className }: Props) {
           )}
         </div>
       )}
-
-      {/* Footer */}
-      <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs text-gray-500">
-        <span>Powered by Claude</span>
-      </div>
     </div>
   )
 }
