@@ -6,7 +6,7 @@ export var config = {
 };
 
 export default async function handler(req: NextRequest) {
-  var url = new URL(req.url);
+  var url = req.nextUrl;
   var title = url.searchParams.get('title') || 'PARADOCS';
   var subtitle = url.searchParams.get('subtitle') || 'Where Mysteries Meet Discovery';
   var desc = url.searchParams.get('desc') || 'The worlds largest database of paranormal phenomena';
