@@ -15,6 +15,18 @@ const nextConfig = {
       },
     ]
   },
+  async rewrites() {
+    return {
+      // Fallback rewrites only apply after all pages/files have been checked.
+      // This catches bare /{slug} URLs (e.g. /ego-death) and serves /phenomena/{slug}.
+      fallback: [
+        {
+          source: '/:slug',
+          destination: '/phenomena/:slug',
+        },
+      ],
+    }
+  },
   typescript: {
     // Temporarily ignore TypeScript errors to allow deployment
     // TODO: Fix Supabase type generation for new tables
