@@ -17,10 +17,10 @@ const LIST_PAGES: Record<string, string> = {
 }
 
 // Detail pages where user needs a way back
+// Detail pages where the floating back button should appear
+// Note: /report/ and /phenomena/ pages have their own breadcrumb/back navigation
 function isDetailPage(path: string): boolean {
   return (
-    path.startsWith('/report/') ||
-    (path.startsWith('/phenomena/') && path !== '/phenomena') ||
     path.startsWith('/insights/patterns/') ||
     path.startsWith('/story/') ||
     (path.startsWith('/dashboard/journal/') && path !== '/dashboard/journal' && !path.endsWith('/new'))
@@ -134,11 +134,7 @@ export default function NavigationHelper() {
         }
       } catch {}
       // Fallback: generic back based on page type
-      if (path.startsWith('/report/')) {
-        setBackInfo({ label: 'Explore', path: '/explore' })
-      } else if (path.startsWith('/phenomena/')) {
-        setBackInfo({ label: 'Encyclopedia', path: '/phenomena' })
-      } else if (path.startsWith('/insights/patterns/')) {
+      if (path.startsWith('/insights/patterns/')) {
         setBackInfo({ label: 'Insights', path: '/insights' })
       } else if (path.startsWith('/story/')) {
         setBackInfo({ label: 'Explore', path: '/explore' })
