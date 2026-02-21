@@ -51,7 +51,7 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
   if (variant === 'featured') {
     return (
       <Link href={`/report/${report.slug}`} className="block group">
-        <div className="glass-card overflow-hidden hover:scale-[1.01] transition-transform">
+        <div className="glass-card overflow-hidden hover:scale-[1.01] transition-transform h-full flex flex-col">
           <div className="aspect-video bg-gradient-to-br from-primary-900/50 to-purple-900/50 relative">
             <div className="absolute inset-0 flex items-center justify-center">
               <span className="text-7xl opacity-50 group-hover:scale-110 transition-transform">
