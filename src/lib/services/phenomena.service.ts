@@ -140,12 +140,13 @@ export async function getPhenomenonReports(phenomenonId: string, limit = 20) {
     .from('report_phenomena')
     .select(`
       confidence,
-      report:reports(
+      report:reports!inner(
         id, title, slug, summary, category, location_name, country,
-        event_date, credibility, view_count
+        event_date, credibility, view_count, status
       )
     `)
     .eq('phenomenon_id', phenomenonId)
+    .eq('report.status', 'approved')
     .order('confidence', { ascending: false })
     .limit(limit);
 
