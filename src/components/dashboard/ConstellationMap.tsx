@@ -200,9 +200,6 @@ export default function ConstellationMap({
       targetNode: nodeMap.get(e.target),
     })).filter(e => e.sourceNode && e.targetNode)
 
-    // Blank canvas mode: when user has no logged entries
-    const isEmpty = !userMapData || userMapData.entryNodes.length === 0
-
     // ── Background stars ──
     const bgStars = compact ? COMPACT_BACKGROUND_STARS : BACKGROUND_STARS
     const bgGroup = svg.append('g').attr('class', 'background-stars')
