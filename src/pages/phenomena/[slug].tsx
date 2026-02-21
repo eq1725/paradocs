@@ -196,7 +196,7 @@ export default function PhenomenonPage() {
                   <img
                     src={phenomenon.primary_image_url}
                     alt={phenomenon.name}
-                    className="w-full h-full object-cover rounded-2xl"
+                    className="w-full h-full object-contain rounded-2xl p-1"
                     referrerPolicy="no-referrer"
                     loading="lazy"
                   />
