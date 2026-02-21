@@ -342,40 +342,73 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left column: Activity + Usage */}
         <div className="lg:col-span-2 space-y-5">
-          {/* Recent Activity */}
-          <div className="p-4 sm:p-5 bg-gray-900 rounded-xl border border-gray-800">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-semibold text-white">Recent Activity</h3>
-              <Link
-                href="/dashboard/reports"
-                className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
-              >
-                View All
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
+          {/* Your Constellation — the core feature */}
+          <Link
+            href="/dashboard/constellation"
+            className="block p-5 sm:p-6 bg-gray-950 rounded-xl border border-gray-800 hover:border-primary-500/30 transition-all group relative overflow-hidden"
+          >
+            {/* Decorative star field background */}
+            <div className="absolute inset-0 opacity-30 pointer-events-none">
+              {[
+                { x: '10%', y: '20%', s: 2, o: 0.8 }, { x: '25%', y: '70%', s: 1.5, o: 0.6 },
+                { x: '45%', y: '15%', s: 3, o: 0.9 }, { x: '60%', y: '55%', s: 2, o: 0.7 },
+                { x: '80%', y: '30%', s: 2.5, o: 0.8 }, { x: '70%', y: '75%', s: 1.5, o: 0.5 },
+                { x: '15%', y: '45%', s: 1, o: 0.4 }, { x: '90%', y: '50%', s: 2, o: 0.6 },
+                { x: '35%', y: '85%', s: 1.5, o: 0.5 }, { x: '55%', y: '35%', s: 2.5, o: 0.7 },
+              ].map((star, i) => (
+                <div
+                  key={i}
+                  className="absolute rounded-full bg-primary-400"
+                  style={{
+                    left: star.x, top: star.y,
+                    width: `${star.s}px`, height: `${star.s}px`,
+                    opacity: star.o,
+                    boxShadow: `0 0 ${star.s * 3}px rgba(139, 92, 246, 0.4)`,
+                  }}
+                />
+              ))}
             </div>
 
-            {stats?.recent_activity && stats.recent_activity.length > 0 ? (
-              <div className="space-y-2">
-                {stats.recent_activity.map(report => (
-                  <RecentActivityItem key={report.id} report={report} />
-                ))}
+            <div className="relative">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-primary-600/20 rounded-xl">
+                    <Stars className="w-6 h-6 text-primary-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white group-hover:text-primary-300 transition-colors">
+                      Your Constellation
+                    </h3>
+                    <p className="text-xs text-gray-500">Your personal map of the unexplained</p>
+                  </div>
+                </div>
+                <ArrowRight className="w-5 h-5 text-gray-600 group-hover:text-primary-400 transition-colors" />
               </div>
-            ) : (
-              <div className="text-center py-8">
-                <FileText className="w-10 h-10 text-gray-700 mx-auto mb-3" />
-                <p className="text-gray-400 text-sm mb-1">No recent activity</p>
-                <p className="text-gray-600 text-xs mb-4">Submit your first report to get started</p>
-                <Link
-                  href="/submit"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  Submit Report
-                </Link>
+
+              {/* Constellation mini stats */}
+              <div className="grid grid-cols-3 gap-3 mt-4">
+                <div className="bg-white/5 rounded-lg p-3 text-center">
+                  <p className="text-lg font-bold text-white">{savedTotal}</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">Saved</p>
+                </div>
+                <div className="bg-white/5 rounded-lg p-3 text-center">
+                  <p className="text-lg font-bold text-white">{reportsTotal}</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">Reports</p>
+                </div>
+                <div className="bg-white/5 rounded-lg p-3 text-center">
+                  <p className="text-lg font-bold text-primary-400">
+                    {reportsTotal + savedTotal > 0 ? 'Active' : 'New'}
+                  </p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">Status</p>
+                </div>
               </div>
-            )}
-          </div>
+
+              <p className="text-xs text-primary-400/70 mt-4 group-hover:text-primary-400 transition-colors flex items-center gap-1">
+                {reportsTotal + savedTotal > 0 ? 'Continue building your constellation' : 'Start exploring to light up your first star'}
+                <ArrowRight className="w-3 h-3" />
+              </p>
+            </div>
+          </Link>
 
           {/* Usage Overview — compact */}
           <div className="p-4 sm:p-5 bg-gray-900 rounded-xl border border-gray-800">
@@ -416,11 +449,11 @@ export default function DashboardPage() {
             <h3 className="text-base font-semibold text-white mb-3">Quick Actions</h3>
             <div className="space-y-2">
               <Link
-                href="/submit"
-                className="flex items-center gap-3 p-3 bg-purple-600 hover:bg-purple-500 rounded-lg text-white text-sm transition-colors"
+                href="/discover"
+                className="flex items-center gap-3 p-3 bg-primary-600/20 border border-primary-500/20 hover:border-primary-500/40 rounded-lg text-primary-300 text-sm transition-colors"
               >
-                <Plus className="w-4 h-4" />
-                <span className="font-medium">Submit New Report</span>
+                <Sparkles className="w-4 h-4 text-primary-400" />
+                <span className="font-medium">Discover Something New</span>
               </Link>
               <Link
                 href="/map"
@@ -430,18 +463,18 @@ export default function DashboardPage() {
                 <span>Explore Sightings Map</span>
               </Link>
               <Link
+                href="/submit"
+                className="flex items-center gap-3 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 text-sm transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Submit a Report</span>
+              </Link>
+              <Link
                 href="/dashboard/journal/new"
                 className="flex items-center gap-3 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 text-sm transition-colors"
               >
                 <FileText className="w-4 h-4" />
                 <span>New Journal Entry</span>
-              </Link>
-              <Link
-                href="/insights"
-                className="flex items-center gap-3 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 text-sm transition-colors"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>View AI Insights</span>
               </Link>
             </div>
           </div>
