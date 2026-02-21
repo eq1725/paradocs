@@ -227,8 +227,8 @@ export default function ConstellationMap({
     }
 
     // ── Category Edges ── (hidden in blank canvas mode)
-    if (!isEmpty) {
     const edgeGroup = svg.append('g').attr('class', 'edges')
+    if (isEmpty) edgeGroup.attr('display', 'none')
 
     edgeGroup.selectAll('line')
       .data(edges).join('line')
@@ -251,7 +251,6 @@ export default function ConstellationMap({
         return (!sa && !ta) ? '4,4' : 'none'
       })
 
-    } // end edges (blank canvas guard)
 
     // ── Category Nodes ──
     const nodeGroup = svg.append('g').attr('class', 'nodes')
