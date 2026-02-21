@@ -6,11 +6,9 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 /**
  * GET /api/constellation/user-map
- * Returns personalized constellation data for the authenticated user:
- * - Category engagement levels (how many phenomena viewed per category)
- * - Individual phenomena the user has interacted with
- * - Chronological trail of exploration
- * - Explorer rank and stats
+ * Returns personalized constellation data built from the user's
+ * deliberately logged constellation entries (not passive views).
+ * Each logged entry = a star the user chose to add.
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
@@ -30,29 +28,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Invalid token' })
     }
 
-    // Parallel fetch: user activity, saved reports, total phenomena count
-    const [activityResult, savedResult, totalResult, streakResult] = await Promise.all([
-      // User activity (views, saves)
+    // Parallel fetch: constellation entries, total phenomena count, streak
+    const [entriesResult, totalResult, streakResult] = await Promise.all([
+      // User's logged constellation entries with report details
       supabase
-        .from('user_activity')
-        .select('phenomenon_id, action_type, category, created_at, metadata')
+        .from('constellation_entries')
+        .select(`
+          id,
+          report_id,
+          note,
+          verdict,
+          tags,
+          created_at,
+          updated_at,
+          report:reports(id, title, slug, category, location_name, event_date, summary, primary_image_url)
+        `)
         .eq('user_id', user.id)
-        .order('created_at', { ascending: true })
-        .limit(500),
-
-      // Saved reports
-      supabase
-        .from('saved_reports')
-        .select('report_id, created_at')
-        .eq('user_id', user.id),
+        .order('created_at', { ascending: false }),
 
       // Total phenomena count
       supabase
-        .from('phenomena')
+        .from('reports')
         .select('id', { count: 'exact', head: true })
-        .eq('status', 'active'),
+        .eq('status', 'approved'),
 
-      // User streak
+      // User streak (if table exists)
       supabase
         .from('user_streaks' as any)
         .select('current_streak, longest_streak, total_active_days')
@@ -60,111 +60,130 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .single(),
     ])
 
-    const activities = activityResult.data || []
-    const savedReports = savedResult.data || []
+    const entries = entriesResult.data || []
     const totalPhenomena = totalResult.count || 592
     const streak = (streakResult as any).data
 
-    // Build category engagement map
-    const categoryEngagement: Record<string, { views: number; saves: number; phenomena: Set<string> }> = {}
-    const phenomenaViewed: Map<string, { firstViewed: string; viewCount: number; category: string }> = new Map()
-    const trail: { phenomenonId: string; timestamp: string; category: string }[] = []
-    const savedSet = new Set(savedReports.map((s: any) => s.report_id))
+    // Build category engagement from logged entries
+    const categoryMap: Record<string, {
+      entries: number
+      verdicts: Record<string, number>
+      reportIds: string[]
+    }> = {}
 
-    for (const activity of activities) {
-      const cat = activity.category || 'combination'
+    // Collect all tags and which entries use them (for tag-based connections)
+    const tagToEntries: Record<string, string[]> = {}
+    const allTags = new Set<string>()
 
-      if (!categoryEngagement[cat]) {
-        categoryEngagement[cat] = { views: 0, saves: 0, phenomena: new Set() }
+    // Build entry nodes for the constellation
+    const entryNodes = entries.map((entry: any) => {
+      const report = entry.report
+      const cat = report?.category || 'combination'
+
+      // Category tracking
+      if (!categoryMap[cat]) {
+        categoryMap[cat] = { entries: 0, verdicts: {}, reportIds: [] }
+      }
+      categoryMap[cat].entries++
+      categoryMap[cat].verdicts[entry.verdict] = (categoryMap[cat].verdicts[entry.verdict] || 0) + 1
+      categoryMap[cat].reportIds.push(entry.report_id)
+
+      // Tag tracking
+      const entryTags = entry.tags || []
+      for (const tag of entryTags) {
+        allTags.add(tag)
+        if (!tagToEntries[tag]) tagToEntries[tag] = []
+        tagToEntries[tag].push(entry.id)
       }
 
-      if (activity.action_type === 'view' && activity.phenomenon_id) {
-        categoryEngagement[cat].views++
-        categoryEngagement[cat].phenomena.add(activity.phenomenon_id)
-
-        const existing = phenomenaViewed.get(activity.phenomenon_id)
-        if (existing) {
-          existing.viewCount++
-        } else {
-          phenomenaViewed.set(activity.phenomenon_id, {
-            firstViewed: activity.created_at,
-            viewCount: 1,
-            category: cat,
-          })
-        }
-
-        trail.push({
-          phenomenonId: activity.phenomenon_id,
-          timestamp: activity.created_at,
-          category: cat,
-        })
-      }
-
-      if (activity.action_type === 'save' && activity.phenomenon_id) {
-        categoryEngagement[cat].saves++
-      }
-    }
-
-    // Fetch phenomenon details for viewed ones
-    const phenomenonIds = Array.from(phenomenaViewed.keys()).slice(0, 100)
-    let phenomenaDetails: any[] = []
-
-    if (phenomenonIds.length > 0) {
-      const { data } = await supabase
-        .from('phenomena')
-        .select('id, name, slug, category, primary_image_url, danger_level')
-        .in('id', phenomenonIds)
-
-      phenomenaDetails = data || []
-    }
-
-    // Build phenomenon nodes with user context
-    const phenomenonNodes = phenomenaDetails.map(p => {
-      const userContext = phenomenaViewed.get(p.id)
       return {
-        id: p.id,
-        name: p.name,
-        slug: p.slug,
-        category: p.category,
-        imageUrl: p.primary_image_url,
-        dangerLevel: p.danger_level,
-        firstViewed: userContext?.firstViewed,
-        viewCount: userContext?.viewCount || 0,
-        isSaved: savedSet.has(p.id),
+        id: entry.id,
+        reportId: entry.report_id,
+        name: report?.title || 'Unknown',
+        slug: report?.slug || '',
+        category: cat,
+        imageUrl: report?.primary_image_url || null,
+        locationName: report?.location_name || null,
+        eventDate: report?.event_date || null,
+        summary: report?.summary || null,
+        note: entry.note || '',
+        verdict: entry.verdict || 'needs_info',
+        tags: entryTags,
+        loggedAt: entry.created_at,
+        updatedAt: entry.updated_at,
       }
     })
 
-    // Calculate explorer rank
-    const totalViewed = phenomenaViewed.size
-    const categoriesExplored = Object.keys(categoryEngagement).length
-    let rank = 'Casual Stargazer'
-    let rankLevel = 1
-    if (totalViewed >= 100) { rank = 'Master Cartographer'; rankLevel = 4 }
-    else if (totalViewed >= 50) { rank = 'Seasoned Explorer'; rankLevel = 3 }
-    else if (totalViewed >= 10) { rank = 'Amateur Astronomer'; rankLevel = 2 }
+    // Build tag-based connections (entries that share tags)
+    const tagConnections: Array<{
+      tag: string
+      entryIds: string[]
+    }> = []
 
-    // Serialize category engagement (convert Sets to counts)
-    const categoryStats: Record<string, { views: number; saves: number; uniquePhenomena: number }> = {}
-    for (const [cat, data] of Object.entries(categoryEngagement)) {
-      categoryStats[cat] = {
-        views: data.views,
-        saves: data.saves,
-        uniquePhenomena: data.phenomena.size,
+    for (const [tag, entryIds] of Object.entries(tagToEntries)) {
+      if (entryIds.length > 1) {
+        tagConnections.push({ tag, entryIds })
       }
     }
 
+    // Build category stats
+    const categoryStats: Record<string, {
+      entries: number
+      verdicts: Record<string, number>
+    }> = {}
+    for (const [cat, data] of Object.entries(categoryMap)) {
+      categoryStats[cat] = {
+        entries: data.entries,
+        verdicts: data.verdicts,
+      }
+    }
+
+    // Calculate explorer rank (new system: rewards depth, not just volume)
+    const totalEntries = entries.length
+    const categoriesExplored = Object.keys(categoryMap).length
+    const uniqueTags = allTags.size
+    const hasNotes = entries.filter((e: any) => e.note && e.note.trim().length > 0).length
+    const connectionsFound = tagConnections.length
+
+    // Rank system: Stargazer → Field Researcher → Pattern Seeker → Cartographer → Master Archivist
+    let rank = 'Stargazer'
+    let rankLevel = 1
+    if (totalEntries >= 50 && categoriesExplored >= 8 && connectionsFound >= 10) {
+      rank = 'Master Archivist'; rankLevel = 5
+    } else if (totalEntries >= 25 && categoriesExplored >= 6 && connectionsFound >= 5) {
+      rank = 'Cartographer'; rankLevel = 4
+    } else if (totalEntries >= 10 && uniqueTags >= 5 && connectionsFound >= 2) {
+      rank = 'Pattern Seeker'; rankLevel = 3
+    } else if (totalEntries >= 3 && hasNotes >= 2) {
+      rank = 'Field Researcher'; rankLevel = 2
+    }
+
+    // Build trail (chronological logging order)
+    const trail = entries
+      .slice()
+      .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      .map((entry: any) => ({
+        entryId: entry.id,
+        reportId: entry.report_id,
+        category: entry.report?.category || 'combination',
+        timestamp: entry.created_at,
+      }))
+
     return res.status(200).json({
+      entryNodes,
       categoryStats,
-      phenomenonNodes,
-      trail: trail.slice(-50), // Last 50 trail entries
+      tagConnections,
+      trail,
       stats: {
-        totalViewed,
+        totalEntries,
         totalPhenomena,
         categoriesExplored,
         totalCategories: 11,
+        uniqueTags,
+        notesWritten: hasNotes,
+        connectionsFound,
         currentStreak: streak?.current_streak || 0,
         longestStreak: streak?.longest_streak || 0,
-        totalSaved: savedReports.length,
         rank,
         rankLevel,
       },
@@ -173,18 +192,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error('Constellation user-map error:', err)
     // Return empty data on error (table might not exist yet)
     return res.status(200).json({
+      entryNodes: [],
       categoryStats: {},
-      phenomenonNodes: [],
+      tagConnections: [],
       trail: [],
       stats: {
-        totalViewed: 0,
+        totalEntries: 0,
         totalPhenomena: 592,
         categoriesExplored: 0,
         totalCategories: 11,
+        uniqueTags: 0,
+        notesWritten: 0,
+        connectionsFound: 0,
         currentStreak: 0,
         longestStreak: 0,
-        totalSaved: 0,
-        rank: 'Casual Stargazer',
+        rank: 'Stargazer',
         rankLevel: 1,
       },
     })
