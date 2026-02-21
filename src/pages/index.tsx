@@ -292,6 +292,17 @@ export default function Home() {
     <>
       <Head>
         <title>Paradocs - The World's Largest Paranormal Database</title>
+        <meta name="description" content="Explore the world's largest database of paranormal phenomena. Discover UFO sightings, cryptid encounters, ghost reports, and unexplained events." />
+        <meta property="og:title" content="Paradocs - Where Mysteries Meet Discovery" />
+        <meta property="og:description" content="Explore the world's largest database of paranormal phenomena. Discover UFO sightings, cryptid encounters, ghost reports, and unexplained events." />
+        <meta property="og:type" content="website" />
+        <meta property="og:image" content="https://beta.discoverparadocs.com/api/og/default" />
+        <meta property="og:url" content="https://beta.discoverparadocs.com" />
+        <meta property="og:site_name" content="ParaDocs" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Paradocs - Where Mysteries Meet Discovery" />
+        <meta name="twitter:description" content="Explore the world's largest database of paranormal phenomena." />
+        <meta name="twitter:image" content="https://beta.discoverparadocs.com/api/og/default" />
       </Head>
 
       {/* Hero Section */}
