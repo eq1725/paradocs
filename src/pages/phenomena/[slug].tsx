@@ -345,8 +345,8 @@ export default function PhenomenonPage() {
                 )}
               </div>
 
-              {/* Sidebar */}
-              <div className="space-y-6">
+              {/* Sidebar - shows first on mobile */}
+              <div className="order-first lg:order-none space-y-6">
                 {/* Quick Stats Card */}
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
                   <h3 className="text-lg font-semibold text-white mb-4">Quick Facts</h3>
