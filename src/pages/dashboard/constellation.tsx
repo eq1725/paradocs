@@ -16,14 +16,473 @@ import {
   Sparkles,
   ChevronRight,
 } from 'lucide-react'
-import { DashboardLayout } from 'A/components/dashboard/DashboardLayout'
+import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import ConstellationMap from '@/components/dashboard/ConstellationMap'
 import ConstellationPanel from '@/components/dashboard/ConstellationPanel'
-import { usePersonalization } from 'A/lib/hooks/usePersonalization'
+import { usePersonalization } from '@/lib/hooks/usePersonalization'
 import { supabase } from '@/lib/supabase'
 import { PhenomenonCategory } from '@/lib/database.types'
 import { ConstellationStats, getSuggestedExplorations, getNode } from '@/lib/constellation-data'
 import { classNames } from '@/lib/utils'
-import Link from 'next/link';
+import Link from 'next/link'
 
-// Rest is all distar (fk mattes for now)
+// Verdict display config
+const VERDICT_CONFIG: Record<string, { icon: string; color: string; label: string }> = {
+  compelling: { icon: '✦', color: 'text-amber-400', label: 'Compelling' },
+  inconclusive: { icon: '◐', color: 'text-blue-400', label: 'Inconclusive' },
+  skeptical: { icon: '⊘', color: 'text-gray-400', label: 'Skeptical' },
+  needs_info: { icon: '?', color: 'text-purple-400', label: 'Need More Info' },
+}
+
+// Explorer rank configuration (new system)
+const RANKS = [
+  { name: 'Stargazer', minEntries: 0, icon: '🔭', color: 'text-gray-400', desc: 'Log your first entries' },
+  { name: 'Field Researcher', minEntries: 3, icon: '📋', color: 'text-blue-400', desc: '3+ entries with notes' },
+  { name: 'Pattern Seeker', minEntries: 10, icon: '🔍', color: 'text-purple-400', desc: '10+ entries, 5+ tags, connections' },
+  { name: 'Cartographer', minEntries: 25, icon: '🗺️', color: 'text-amber-400', desc: '25+ entries across 6+ categories' },
+  { name: 'Master Archivist', minEntries: 50, icon: '📜', color: 'text-red-400', desc: '50+ entries, 8+ categories, 10+ connections' },
+]
+
+export interface EntryNode {
+  id: string
+  reportId: string
+  name: string
+  slug: string
+  category: string
+  imageUrl: string | null
+  locationName: string | null
+  eventDate: string | null
+  summary: string | null
+  note: string
+  verdict: string
+  tags: string[]
+  loggedAt: string
+  updatedAt: string
+}
+
+export interface UserMapData {
+  entryNodes: EntryNode[]
+  categoryStats: Record<string, { entries: number; verdicts: Record<string, number> }>
+  tagConnections: Array<{ tag: string; entryIds: string[] }>
+  trail: Array<{ entryId: string; reportId: string; category: string; timestamp: string }>
+  stats: {
+    totalEntries: number
+    totalPhenomena: number
+    categoriesExplored: number
+    totalCategories: number
+    uniqueTags: number
+    notesWritten: number
+    connectionsFound: number
+    currentStreak: number
+    longestStreak: number
+    rank: string
+    rankLevel: number
+  }
+}
+
+export default function ConstellationPage() {
+  const router = useRouter()
+  const {
+    data: personalization,
+    loading: personalLoading,
+    updateInterests,
+    hasInterests,
+  } = usePersonalization()
+
+  const [selectedCategory, setSelectedCategory] = useState<PhenomenonCategory | null>(null)
+  const [stats, setStats] = useState<ConstellationStats[]>([])
+  const [userMapData, setUserMapData] = useState<UserMapData | null>(null)
+  const [statsLoading, setStatsLoading] = useState(true)
+
+  const userInterests = personalization?.interested_categories || []
+
+  // Load category stats (global) + personal constellation data
+  useEffect(() => {
+    async function loadStats() {
+      setStatsLoading(true)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.user) return
+
+        // Parallel: global category counts + user map data
+        const [categoryCountsResult, userMapResult] = await Promise.all([
+          supabase
+            .from('reports')
+            .select('category', { count: 'exact', head: false })
+            .eq('status', 'approved'),
+          fetch('/api/constellation/user-map', {
+            headers: { 'Authorization': `Bearer ${session.access_token}` },
+          }).then(r => r.json()).catch(() => null),
+        ])
+
+        // Process global category counts
+        if (categoryCountsResult.data) {
+          const countMap = new Map<string, number>()
+          categoryCountsResult.data.forEach((r: any) => {
+            countMap.set(r.category, (countMap.get(r.category) || 0) + 1)
+          })
+
+          const weekAgo = new Date()
+          weekAgo.setDate(weekAgo.getDate() - 7)
+          const { data: recentReports } = await supabase
+            .from('reports')
+            .select('category')
+            .eq('status', 'approved')
+            .gte('created_at', weekAgo.toISOString())
+
+          const trendingMap = new Map<string, number>()
+          if (recentReports) {
+            recentReports.forEach((r: any) => {
+              trendingMap.set(r.category, (trendingMap.get(r.category) || 0) + 1)
+            })
+          }
+
+          const categoryStats: ConstellationStats[] = [
+            'ufos_aliens', 'cryptids', 'ghosts_hauntings', 'psychic_phenomena',
+            'consciousness_practices', 'psychological_experiences', 'biological_factors',
+            'perception_sensory', 'religion_mythology', 'esoteric_practices', 'combination'
+          ].map(cat => ({
+            category: cat as PhenomenonCategory,
+            reportCount: countMap.get(cat) || 0,
+            trendingCount: trendingMap.get(cat) || 0,
+            userJournalEntries: userMapResult?.categoryStats?.[cat]?.entries || 0,
+          }))
+
+          setStats(categoryStats)
+        }
+
+        if (userMapResult) {
+          setUserMapData(userMapResult)
+        }
+      } catch (err) {
+        console.error('Error loading constellation stats:', err)
+      } finally {
+        setStatsLoading(false)
+      }
+    }
+
+    loadStats()
+  }, [])
+
+  const handleToggleInterest = useCallback(async (category: PhenomenonCategory) => {
+    const current = userInterests
+    const updated = current.includes(category)
+      ? current.filter(c => c !== category)
+      : [...current, category]
+    await updateInterests(updated)
+  }, [userInterests, updateInterests])
+
+  const suggestions = getSuggestedExplorations(userInterests, 3)
+  const mapStats = userMapData?.stats
+  const currentRank = RANKS.find(r => r.name === mapStats?.rank) || RANKS[0]
+  const nextRank = RANKS[Math.min((currentRank ? RANKS.indexOf(currentRank) : 0) + 1, RANKS.length - 1)]
+  const progressToNext = mapStats
+    ? Math.min(100, Math.round((mapStats.totalEntries / nextRank.minEntries) * 100))
+    : 0
+
+  return (
+    <DashboardLayout title="My Constellation">
+      <div className="max-w-7xl mx-auto space-y-6">
+
+        {/* Explorer Rank Banner */}
+        <div className="bg-gradient-to-r from-gray-900 via-gray-900 to-primary-900/20 border border-gray-800 rounded-2xl p-4 sm:p-6">
+          <div className="flex items-center gap-4">
+            <div className="text-3xl sm:text-4xl">{currentRank.icon}</div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className={classNames('font-bold text-lg sm:text-xl', currentRank.color)}>
+                  {currentRank.name}
+                </span>
+                <Trophy className="w-4 h-4 text-amber-500" />
+              </div>
+              <p className="text-gray-500 text-xs sm:text-sm">
+                {mapStats?.totalEntries || 0} entries logged across {mapStats?.categoriesExplored || 0} categories
+              </p>
+              {/* Progress bar to next rank */}
+              {currentRank !== RANKS[RANKS.length - 1] && nextRank.minEntries > 0 && (
+                <div className="mt-2">
+                  <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                    <span>Next: {nextRank.icon} {nextRank.name}</span>
+                    <span>{mapStats?.totalEntries || 0}/{nextRank.minEntries} entries</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-primary-600 to-primary-400 rounded-full transition-all duration-500"
+                      style={{ width: `${progressToNext}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 sm:p-4">
+            <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+              <Star className="w-3.5 h-3.5 text-purple-400" />
+              Entries Logged
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-white">{mapStats?.totalEntries || 0}</div>
+            <div className="text-gray-500 text-xs">of {mapStats?.totalPhenomena || 592} phenomena</div>
+          </div>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 sm:p-4">
+            <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+              <Compass className="w-3.5 h-3.5 text-blue-400" />
+              Categories
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-white">{mapStats?.categoriesExplored || 0}</div>
+            <div className="text-gray-500 text-xs">of {mapStats?.totalCategories || 11} explored</div>
+          </div>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 sm:p-4">
+            <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+              <Tag className="w-3.5 h-3.5 text-amber-400" />
+              Tags Created
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-white">{mapStats?.uniqueTags || 0}</div>
+            <div className="text-gray-500 text-xs">unique research tags</div>
+          </div>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 sm:p-4">
+            <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+              <Link2 className="w-3.5 h-3.5 text-green-400" />
+              Connections
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-white">{mapStats?.connectionsFound || 0}</div>
+            <div className="text-gray-500 text-xs">via shared tags</div>
+          </div>
+        </div>
+
+        {/* Main constellation area */}
+        <div className="relative bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden">
+          <div className="w-full" style={{ height: 'clamp(320px, 55vh, 600px)' }}>
+            <ConstellationMap
+              userInterests={userInterests}
+              stats={stats}
+              onNodeClick={setSelectedCategory}
+              selectedNode={selectedCategory}
+              userMapData={userMapData}
+            />
+          </div>
+
+          {/* Empty state for new users */}
+          {!personalLoading && (!mapStats || mapStats.totalEntries === 0) && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-950/80 backdrop-blur-sm z-10">
+              <div className="text-center max-w-md px-6">
+                <Stars className="w-12 h-12 text-primary-400 mx-auto mb-4" />
+                <h2 className="text-white text-xl font-bold mb-2">Your Constellation Awaits</h2>
+                <p className="text-gray-400 text-sm mb-6">
+                  Every phenomenon you log becomes a star in your personal constellation.
+                  Explore reports and tap the <Star className="w-3.5 h-3.5 inline text-purple-400" /> Log button
+                  to add your notes, verdict, and tags.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Link
+                    href="/discover"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 hover:bg-primary-500 text-white rounded-lg font-medium transition-colors"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Start Discovering
+                  </Link>
+                  <Link
+                    href="/explore"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-medium transition-colors"
+                  >
+                    Browse All Reports
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Slide-out panel */}
+          <ConstellationPanel
+            category={selectedCategory}
+            onClose={() => setSelectedCategory(null)}
+            userInterests={userInterests}
+            onToggleInterest={handleToggleInterest}
+            stats={stats}
+            userMapData={userMapData}
+          />
+
+          {/* Legend */}
+          <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4 bg-gray-900/90 backdrop-blur-sm border border-gray-800 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-xs space-y-1 sm:space-y-1.5">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.5)]" />
+              <span className="text-gray-300">Compelling</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.5)]" />
+              <span className="text-gray-300">Inconclusive</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-gray-400" />
+              <span className="text-gray-400">Skeptical</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-purple-400" />
+              <span className="text-gray-400">Need More Info</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-px bg-amber-400/50" />
+              <span className="text-gray-500">Tag connection</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Recently Logged Entries */}
+        {userMapData && userMapData.entryNodes.length > 0 && (
+          <div>
+            <h2 className="text-white font-semibold text-lg flex items-center gap-2 mb-3">
+              <Star className="w-5 h-5 text-purple-400" />
+              Your Research Log
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {userMapData.entryNodes.slice(0, 6).map(entry => {
+                const vc = VERDICT_CONFIG[entry.verdict] || VERDICT_CONFIG.needs_info
+                return (
+                  <Link
+                    key={entry.id}
+                    href={`/report/${entry.slug}`}
+                    className="flex items-start gap-3 bg-gray-900 border border-gray-800 hover:border-primary-500/30 rounded-xl p-3 transition-all group"
+                  >
+                    {entry.imageUrl ? (
+                      <img
+                        src={entry.imageUrl}
+                        alt={entry.name}
+                        className="w-10 h-10 rounded-lg object-cover shrink-0 mt-0.5"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center shrink-0 mt-0.5">
+                        <Stars className="w-4 h-4 text-gray-600" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-gray-200 text-sm font-medium group-hover:text-white transition-colors truncate">
+                        {entry.name}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs mt-0.5">
+                        <span className={vc.color}>{vc.icon} {vc.label}</span>
+                      </div>
+                      {entry.note && (
+                        <p className="text-gray-500 text-xs mt-1 line-clamp-1">{entry.note}</p>
+                      )}
+                      {entry.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {entry.tags.slice(0, 3).map(tag => (
+                            <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400">
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-primary-400 transition-colors shrink-0 mt-1" />
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Tag Connections */}
+        {userMapData && userMapData.tagConnections.length > 0 && (
+          <div>
+            <h2 className="text-white font-semibold text-lg flex items-center gap-2 mb-3">
+              <Link2 className="w-5 h-5 text-green-400" />
+              Your Connections
+              <span className="text-gray-500 text-sm font-normal">({userMapData.tagConnections.length} found)</span>
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {userMapData.tagConnections.slice(0, 4).map(conn => {
+                const connectedEntries = userMapData.entryNodes.filter(e => conn.entryIds.includes(e.id))
+                return (
+                  <div
+                    key={conn.tag}
+                    className="bg-gray-900 border border-gray-800 rounded-xl p-3"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-medium">
+                        #{conn.tag}
+                      </span>
+                      <span className="text-gray-500 text-xs">{conn.entryIds.length} entries</span>
+                    </div>
+                    <div className="space-y-1">
+                      {connectedEntries.slice(0, 3).map(entry => (
+                        <Link
+                          key={entry.id}
+                          href={`/report/${entry.slug}`}
+                          className="flex items-center gap-2 text-xs text-gray-400 hover:text-white transition-colors"
+                        >
+                          <span className={VERDICT_CONFIG[entry.verdict]?.color || 'text-gray-400'}>
+                            {VERDICT_CONFIG[entry.verdict]?.icon || '?'}
+                          </span>
+                          <span className="truncate">{entry.name}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Suggested explorations */}
+        {suggestions.length > 0 && (
+          <div>
+            <h2 className="text-white font-semibold text-lg flex items-center gap-2 mb-3 sm:mb-4">
+              <Compass className="w-5 h-5 text-amber-400" />
+              Suggested Explorations
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              {suggestions.map(suggestion => {
+                const node = getNode(suggestion.category)
+                if (!node) return null
+                return (
+                  <button
+                    key={suggestion.category}
+                    onClick={() => setSelectedCategory(suggestion.category)}
+                    className="bg-gray-900 border border-gray-800 hover:border-primary-500/30 rounded-xl p-4 text-left transition-all group"
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-2xl">{node.icon}</span>
+                      <div>
+                        <div className="text-white font-medium group-hover:text-primary-300 transition-colors">{node.label}</div>
+                        <div className="text-gray-500 text-xs">{suggestion.reason}</div>
+                      </div>
+                    </div>
+                    <p className="text-gray-400 text-sm line-clamp-2">{node.description}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* How it works */}
+        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 sm:p-6">
+          <h3 className="text-white font-semibold flex items-center gap-2 mb-3 text-sm sm:text-base">
+            <Info className="w-4 h-4 text-gray-400" />
+            How Your Constellation Works
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+            <div>
+              <p className="text-purple-400 font-medium mb-1">Log What Matters</p>
+              <p className="text-gray-400">Find a phenomenon that interests you, then tap the Log button to add your verdict, notes, and research tags.</p>
+            </div>
+            <div>
+              <p className="text-amber-400 font-medium mb-1">See Connections Form</p>
+              <p className="text-gray-400">Entries sharing the same tags auto-connect. Watch your personal research map grow as you discover patterns.</p>
+            </div>
+            <div>
+              <p className="text-green-400 font-medium mb-1">Rise Through Ranks</p>
+              <p className="text-gray-400">Progress from Stargazer to Master Archivist by logging entries, using tags, and building connections.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </DashboardLayout>
+  )
+}
