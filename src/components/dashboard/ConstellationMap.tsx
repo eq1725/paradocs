@@ -182,7 +182,7 @@ export default function ConstellationMap({
         y: padding + ry * (height - padding * 2),
         fx: padding + rx * (width - padding * 2),
         fy: padding + ry * (height - padding * 2),
-        isUserInterest: userInterests.includes(n.id) || hasEntries,
+        isUserInterest: isEmpty ? false : (userInterests.includes(n.id) || hasEntries),
         reportCount: statsMap.get(n.id)?.reportCount || 0,
         trendingCount: statsMap.get(n.id)?.trendingCount || 0,
         entryCount: catEntryCount[n.id]?.entries || 0,
@@ -196,6 +196,9 @@ export default function ConstellationMap({
       sourceNode: nodeMap.get(e.source),
       targetNode: nodeMap.get(e.target),
     })).filter(e => e.sourceNode && e.targetNode)
+
+    // Blank canvas mode: when user has no logged entries
+    const isEmpty = !userMapData || userMapData.entryNodes.length === 0
 
     // ── Background stars ──
     const bgStars = compact ? COMPACT_BACKGROUND_STARS : BACKGROUND_STARS
@@ -223,7 +226,8 @@ export default function ConstellationMap({
         })
     }
 
-    // ── Category Edges ──
+    // ── Category Edges ── (hidden in blank canvas mode)
+    if (!isEmpty) {
     const edgeGroup = svg.append('g').attr('class', 'edges')
 
     edgeGroup.selectAll('line')
@@ -246,6 +250,8 @@ export default function ConstellationMap({
         const sa = d.sourceNode!.isUserInterest, ta = d.targetNode!.isUserInterest
         return (!sa && !ta) ? '4,4' : 'none'
       })
+
+    } // end edges (blank canvas guard)
 
     // ── Category Nodes ──
     const nodeGroup = svg.append('g').attr('class', 'nodes')
@@ -287,9 +293,9 @@ export default function ConstellationMap({
 
     // Main star circle
     nodeElements.append('circle')
-      .attr('r', d => d.isUserInterest ? nodeR.active : nodeR.inactive)
+      .attr('r', d => d.isUserInterest ? nodeR.active : isEmpty ? 2 : nodeR.inactive)
       .attr('fill', d => d.isUserInterest ? d.glowColor : '#4b5563')
-      .attr('opacity', d => d.isUserInterest ? 1 : 0.5)
+      .attr('opacity', d => d.isUserInterest ? 1 : isEmpty ? 0.06 : 0.5)
       .attr('filter', d => d.isUserInterest ? 'url(#star-glow)' : 'url(#dim-glow)')
 
     // Inner bright core
@@ -297,7 +303,7 @@ export default function ConstellationMap({
       .attr('r', coreR).attr('fill', 'white').attr('opacity', 0.9)
 
     // Icons and labels (full mode only)
-    if (!compact) {
+    if (!compact && !isEmpty) {
       nodeElements.append('text').attr('text-anchor', 'middle')
         .attr('dy', d => d.isUserInterest ? iconDy.active : iconDy.inactive)
         .attr('font-size', d => d.isUserInterest ? iconSize.active : iconSize.inactive)
