@@ -14,7 +14,7 @@ export var config = {
 };
 
 export default async function handler(req: NextRequest) {
-  var url = req.nextUrl;
+  var url = new URL(req.url, 'http://n');
   var title = url.searchParams.get('title') || 'Unexplained Report';
   var category = url.searchParams.get('category') || '';
   var location = url.searchParams.get('location') || '';
