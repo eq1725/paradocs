@@ -42,7 +42,7 @@ export interface DedupResult {
 }
 
 // ============================================================================
-// STRINE SIMILARITY â€” Levenshtein-based with normalization
+// STRING SIMILARITY â€” Levenshtein-based with normalization
 // ============================================================================
 
 /**
@@ -406,47 +406,74 @@ export function findDuplicates(candidates: DedupCandidate[]): DedupResult {
   const blockEntries = Array.from(blocks.entries());
   for (let bi = 0; bi < blockEntries.length; bi++) {
     const [_key, block] = blockEntries[bi];
-    for (let i = 0; i < block.mÑ‹›[™ÝÈJHÂˆ›Üˆ
-]ˆHH
-ÈNÈˆ›ØÚË›[™ÝÈŠÊÊHÂˆÝ[ÛÛ\\™Y
-ÊÎÂˆÛÛœÝX]ÚHÛÛ\\™PØ[™Y]\Ê›ØÚÖÚWK›ØÚÖÚ—JNÂˆYˆ
-X]Ú
-HX]Ú\Ëœ\Ú
-X]Ú
-NÂˆBˆB‚ˆËÈÛÛ\\™H›Ë[ØØ][Ûˆ™\ÜÈYØZ[œÝ\È›ØÚÂˆ›Üˆ
-ÛÛœÝ›ÓØÈÙˆ›ÓØØ][ÛŠHÂˆ›Üˆ
-ÛÛœÝ›ØÚÔ™\ÜÙˆ›ØÚÊHÂˆÝ[ÛÛ\\™Y
-ÊÎÂˆÛÛœÝX]ÚHÛÛ\\™PØ[™Y]\Ê›ÓØË›ØÚÔ™\Ü
-NÂˆYˆ
-X]Ú
-HX]Ú\Ëœ\Ú
-X]Ú
-NÂˆBˆBˆB‚ˆËÈÛÛ\\™H›Ë[ØØ][Ûˆ™\ÜÈYØZ[œÝXXÚÝ\‚ˆ›Üˆ
-]HHÈH›ÓØØ][Û‹›[™ÝÈJÊÊHÂˆ›Üˆ
-]ˆHH
-ÈNÈˆ›ÓØØ][Û‹›[™ÝÈŠÊÊHÂˆÝ[ÛÛ\\™Y
-ÊÎÂˆÛÛœÝX]ÚHÛÛ\\™PØ[™Y]\Ê›ÓØØ][Û–ÚWK›ÓØØ][Û–Ú—JNÂˆYˆ
-X]Ú
-HX]Ú\Ëœ\Ú
-X]Ú
-NÂˆBˆB‚ˆËÈÛÜžHÛÛ™šY[˜ÙH
-YÚ\Ýš\œÝ
-BˆX]Ú\ËœÛÜ
+    for (let i = 0; i < block.length; i++) {
+      for (let j = i + 1; j < block.length; j++) {
+        totalCompared++;
+        const match = compareCandidates(block[i], block[j]);
+        if (match) matches.push(match);
+      }
+    }
 
-KŠHOˆ‹›Ý™\˜[ØÛÜ™HHK›Ý™\˜[ØÛÜ™JNÂ‚ˆ™]\›ˆÂˆÝ[ÛÛ\\™Yˆ\XØ]\Ñ›Ý[™ˆX]Ú\Ë›[™ÝˆX]Ú\Ëˆ\˜][ÛŽˆ]K››ÝÊ
-HHÝ\[YKˆNÂŸB‚‹ÊŠ‚ˆ
-ˆÚXÚÈHÚ[™ÛH[˜ÛÛZ[™È™\ÜYØZ[œÝ^\Ý[™ÈØ[™Y]\Ë‚ˆ
-ˆ\ÙY\š[™È[™Ù\Ý[ÛˆÈ™]™[[œÙ\[™È\XØ]\Ë‚ˆ
-‹Â™^Ü[˜Ý[ÛˆÚXÚÑ›Ü‘\XØ]Jˆ[˜ÛÛZ[™ÎˆY\Ø[™Y]Kˆ^\Ý[™ÎˆY\Ø[™Y]V×BŠNˆY\X]Ú[Âˆ]™\ÝX]ÚˆY\X]Ú[H[Â‚ˆ›Üˆ
-ÛÛœÝØ[™Y]HÙˆ^\Ý[™ÊHÂˆÛÛœÝX]ÚHÛÛ\\™PØ[™Y]\Ê[˜ÛÛZ[™ËØ[™Y]JNÂˆYˆ
-X]Ú	‰ˆ
-X™\ÝX]ÚX]Ú›Ý™\˜[ØÛÜ™Hˆ™\ÝX]Ú›Ý™\˜[ØÛÜ™JJHÂˆ™\ÝX]ÚHX]ÚÂˆBˆB‚ˆ™]\›ˆ™\ÝX]ÚÂŸB‚‹ËÈOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOB‹ËÈÓÓ•S•’P¡$ÅEUŽ%NUì
+    // Compare no-location reports against this block
+    for (const noLoc of noLocation) {
+      for (const blockReport of block) {
+        totalCompared++;
+        const match = compareCandidates(noLoc, blockReport);
+        if (match) matches.push(match);
+      }
+    }
+  }
+
+  // Compare no-location reports against each other
+  for (let i = 0; i < noLocation.length; i++) {
+    for (let j = i + 1; j < noLocation.length; j++) {
+      totalCompared++;
+      const match = compareCandidates(noLocation[i], noLocation[j]);
+      if (match) matches.push(match);
+    }
+  }
+
+  // Sort by confidence (highest first)
+  matches.sort((a, b) => b.overallScore - a.overallScore);
+
+  return {
+    totalCompared,
+    duplicatesFound: matches.length,
+    matches,
+    duration: Date.now() - startTime,
+  };
+}
+
+/**
+ * Check a single incoming report against existing candidates.
+ * Used during ingestion to prevent inserting duplicates.
+ */
+export function checkForDuplicate(
+  incoming: DedupCandidate,
+  existing: DedupCandidate[]
+): DedupMatch | null {
+  let bestMatch: DedupMatch | null = null;
+
+  for (const candidate of existing) {
+    const match = compareCandidates(incoming, candidate);
+    if (match && (!bestMatch || match.overallScore > bestMatch.overallScore)) {
+      bestMatch = match;
+    }
+  }
+
+  return bestMatch;
+}
+
+// ============================================================================
+// CONTENT FINGERPRINT â€” for fast pre-filtering
+// ============================================================================
+
+/**
  * Generate a compact fingerprint for a report.
  * Two reports with the same fingerprint are definitely duplicates.
-  
-/ÂŠ?/ Used as a fast pre-check before running full fuzzy comparison.
-  
-/ÂŠ? generateFingerprint(title: string, eventDate: string | null, location: string | null): string {
+ * Used as a fast pre-check before running full fuzzy comparison.
+ */
+export function generateFingerprint(title: string, eventDate: string | null, location: string | null): string {
   const normalizedTitle = title.toLowerCase()
     .replace(/[^a-z0-9]/g, '')
     .substring(0, 40);
