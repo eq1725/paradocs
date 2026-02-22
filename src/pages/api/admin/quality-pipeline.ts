@@ -2,30 +2,30 @@
 // POST /api/admin/quality-pipeline
 //
 // Actions:
-//   action=score-all       â Score all unscored approved reports
-//   action=score-batch     â Score a batch of N reports (default 100)
-//   action=rescore-all     â Re-score all reports (version mismatch)
-//   action=dedup-scan      â Scan approved reports for duplicates
-//   action=score-single    â Score a single report by ID
-//   action=stats           â Get quality score distribution stats
+//   action=score-all       — Score all unscored approved reports
+//   action=score-batch     — Score a batch of N reports (default 100)
+//   action=rescore-all     — Re-score all reports (version mismatch)
+//   action=dedup-scan      — Scan approved reports for duplicates
+//   action=score-single    — Score a single report by ID
+//   action=stats           — Get quality score distribution stats
+//   action=check           — Diagnostic: verify env vars and imports
 //
 // Requires: CRON_SECRET or admin auth
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
-import { scoreReport, ScoringInput } from '@/lib/ingestion/filters/quality-scorer';
-import {
-  findDuplicates,
-  generateFingerprint,
-  DedupCandidate,
-} from '@/lib/ingestion/dedup';
 
 const SCORER_VERSION = '2.0.0';
 
 function getSupabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URM!;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  if (!url || !key) throw new Error('Missing Supabase env vars');
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error(
+      'Missing Supabase env vars: ' +
+      `url=${url ? 'set' : 'MISSING'}, key=${key ? 'set' : 'MISSING'}`
+    );
+  }
   return createClient(url, key);
 }
 
@@ -42,6 +42,17 @@ function isAuthorized(req: NextApiRequest): boolean {
   return false;
 }
 
+// Dynamic imports to avoid bundling issues with ignoreBuildErrors
+async function loadScorer() {
+  const mod = await import('@/lib/ingestion/filters/quality-scorer');
+  return mod;
+}
+
+async function loadDedup() {
+  const mod = await import('@/lib/ingestion/dedup');
+  return mod;
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -55,6 +66,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     switch (action) {
+      case 'check':
+        return await handleCheck(res);
+
       case 'score-batch':
         return await handleScoreBatch(res, Number(batchSize));
 
@@ -77,7 +91,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       default:
         return res.status(400).json({
           error: 'Unknown action',
-          validActions: ['score-batch', 'score-all', 'rescore-all', 'dedup-scan', 'score-single', 'stats']
+          validActions: ['check', 'score-batch', 'score-all', 'rescore-all', 'dedup-scan', 'score-single', 'stats']
         });
     }
   } catch (error) {
@@ -89,11 +103,60 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 }
 
 // ============================================================================
+// DIAGNOSTIC CHECK
+// ============================================================================
+
+async function handleCheck(res: NextApiResponse) {
+  const checks: Record<string, string> = {};
+
+  // Env vars
+  checks.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ? 'set' : 'MISSING';
+  checks.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ? 'set' : 'MISSING';
+  checks.CRON_SECRET = process.env.CRON_SECRET ? 'set' : 'MISSING';
+  checks.NODE_ENV = process.env.NODE_ENV || 'unknown';
+
+  // Supabase client
+  try {
+    const supabase = getSupabaseAdmin();
+    const { count, error } = await supabase
+      .from('reports')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'approved');
+    checks.supabaseConnection = error ? `error: ${error.message}` : `ok (${count} approved reports)`;
+  } catch (e) {
+    checks.supabaseConnection = `failed: ${e instanceof Error ? e.message : String(e)}`;
+  }
+
+  // Dynamic imports
+  try {
+    const scorer = await loadScorer();
+    checks.qualityScorer = scorer.scoreReport ? 'loaded' : 'loaded but scoreReport missing';
+  } catch (e) {
+    checks.qualityScorer = `import failed: ${e instanceof Error ? e.message : String(e)}`;
+  }
+
+  try {
+    const dedup = await loadDedup();
+    checks.dedup = dedup.findDuplicates ? 'loaded' : 'loaded but findDuplicates missing';
+  } catch (e) {
+    checks.dedup = `import failed: ${e instanceof Error ? e.message : String(e)}`;
+  }
+
+  return res.status(200).json({
+    status: 'ok',
+    scorerVersion: SCORER_VERSION,
+    checks,
+  });
+}
+
+// ============================================================================
 // SCORE A BATCH OF UNSCORED REPORTS
 // ============================================================================
 
 async function handleScoreBatch(res: NextApiResponse, batchSize: number) {
   const supabase = getSupabaseAdmin();
+  const { scoreReport } = await loadScorer();
+  const { generateFingerprint } = await loadDedup();
   const limit = Math.min(batchSize, 500);
 
   // Fetch unscored approved/pending reports
@@ -116,30 +179,7 @@ async function handleScoreBatch(res: NextApiResponse, batchSize: number) {
 
   for (const report of reports) {
     try {
-      const input: ScoringInput = {
-        title: report.title,
-        summary: report.summary,
-        description: report.description,
-        category: report.category,
-        location_name: report.location_name,
-        country: report.country,
-        state_province: report.state_province,
-        city: report.city,
-        latitude: report.latitude,
-        longitude: report.longitude,
-        event_date: report.event_date,
-        event_time: report.event_time,
-        witness_count: report.witness_count,
-        has_physical_evidence: report.has_physical_evidence,
-        has_photo_video: report.has_photo_video,
-        has_official_report: report.has_official_report,
-        evidence_summary: report.evidence_summary,
-        source_type: report.source_type,
-        credibility: report.credibility,
-        tags: report.tags,
-      };
-
-      const result = scoreReport(input);
+      const result = scoreReport(report as any);
       const fingerprint = generateFingerprint(
         report.title,
         report.event_date,
@@ -186,6 +226,8 @@ async function handleScoreBatch(res: NextApiResponse, batchSize: number) {
 
 async function handleScoreAll(res: NextApiResponse) {
   const supabase = getSupabaseAdmin();
+  const { scoreReport } = await loadScorer();
+  const { generateFingerprint } = await loadDedup();
   const batchSize = 200;
   let totalScored = 0;
   let totalErrors = 0;
@@ -209,30 +251,7 @@ async function handleScoreAll(res: NextApiResponse) {
 
     for (const report of reports) {
       try {
-        const input: ScoringInput = {
-          title: report.title,
-          summary: report.summary,
-          description: report.description,
-          category: report.category,
-          location_name: report.location_name,
-          country: report.country,
-          state_province: report.state_province,
-          city: report.city,
-          latitude: report.latitude,
-          longitude: report.longitude,
-          event_date: report.event_date,
-          event_time: report.event_time,
-          witness_count: report.witness_count,
-          has_physical_evidence: report.has_physical_evidence,
-          has_photo_video: report.has_photo_video,
-          has_official_report: report.has_official_report,
-          evidence_summary: report.evidence_summary,
-          source_type: report.source_type,
-          credibility: report.credibility,
-          tags: report.tags,
-        };
-
-        const result = scoreReport(input);
+        const result = scoreReport(report as any);
         const fingerprint = generateFingerprint(report.title, report.event_date, report.location_name);
 
         const { error: updateError } = await supabase
@@ -276,6 +295,8 @@ async function handleScoreAll(res: NextApiResponse) {
 
 async function handleRescoreAll(res: NextApiResponse, batchSize: number) {
   const supabase = getSupabaseAdmin();
+  const { scoreReport } = await loadScorer();
+  const { generateFingerprint } = await loadDedup();
   const limit = Math.min(batchSize, 500);
 
   // Find reports with outdated scorer version
@@ -294,8 +315,7 @@ async function handleRescoreAll(res: NextApiResponse, batchSize: number) {
   let rescored = 0;
   for (const report of reports) {
     try {
-      const input: ScoringInput = report as ScoringInput;
-      const result = scoreReport(input);
+      const result = scoreReport(report as any);
       const fingerprint = generateFingerprint(report.title, report.event_date, report.location_name);
 
       await supabase
@@ -325,16 +345,17 @@ async function handleRescoreAll(res: NextApiResponse, batchSize: number) {
 }
 
 // ============================================================================
-// DEDUP SCAN â find duplicates among approved reports
+// DEDUP SCAN — find duplicates among approved reports
 // ============================================================================
 
 async function handleDedupScan(res: NextApiResponse) {
   const supabase = getSupabaseAdmin();
+  const { findDuplicates, generateFingerprint } = await loadDedup();
 
   // Fetch all approved reports (limited fields for performance)
   const { data: reports, error } = await supabase
     .from('reports')
-    .select('id, title, location_name, city, state_propince, country, latitude, longitude, event_date, source_type, original_report_id, description')
+    .select('id, title, location_name, city, state_province, country, latitude, longitude, event_date, source_type, original_report_id, description')
     .eq('status', 'approved')
     .order('created_at', { ascending: false })
     .limit(2000); // Safety cap
@@ -355,19 +376,19 @@ async function handleDedupScan(res: NextApiResponse) {
   const exactDupes = Array.from(fingerprints.values()).filter(ids => ids.length > 1);
 
   // Second pass: fuzzy matching
-  const candidates: DedupCandidate[] = reports.map(r => ({
+  const candidates = reports.map(r => ({
     id: r.id,
     title: r.title,
     location_name: r.location_name,
     city: r.city,
-    state_propince: r.state_propince,
+    state_province: r.state_province,
     country: r.country,
     latitude: r.latitude,
     longitude: r.longitude,
     event_date: r.event_date,
     source_type: r.source_type,
     original_report_id: r.original_report_id,
-    description: r.description ? r.description.substring(0, 500) : undefined, // Truncate for performance
+    description: r.description ? r.description.substring(0, 500) : undefined,
   }));
 
   const dedupResult = findDuplicates(candidates);
@@ -376,7 +397,6 @@ async function handleDedupScan(res: NextApiResponse) {
   let stored = 0;
   for (const match of dedupResult.matches) {
     try {
-      // Use LEAST/GREATEST to ensure consistent ordering
       const { error: insertError } = await supabase
         .from('duplicate_matches')
         .upsert({
@@ -392,7 +412,7 @@ async function handleDedupScan(res: NextApiResponse) {
           resolution: 'pending',
         }, {
           onConflict: 'idx_duplicate_matches_pair',
-          ignoreDuplicates: false, // Update scores on re-scan
+          ignoreDuplicates: false,
         });
 
       if (!insertError) stored++;
@@ -423,6 +443,8 @@ async function handleDedupScan(res: NextApiResponse) {
 
 async function handleScoreSingle(res: NextApiResponse, reportId: string) {
   const supabase = getSupabaseAdmin();
+  const { scoreReport } = await loadScorer();
+  const { generateFingerprint } = await loadDedup();
 
   const { data: report, error } = await supabase
     .from('reports')
@@ -434,8 +456,7 @@ async function handleScoreSingle(res: NextApiResponse, reportId: string) {
     return res.status(404).json({ error: 'Report not found' });
   }
 
-  const input: ScoringInput = report as ScoringInput;
-  const result = scoreReport(input);
+  const result = scoreReport(report as any);
   const fingerprint = generateFingerprint(report.title, report.event_date, report.location_name);
 
   // Save to DB
@@ -459,7 +480,7 @@ async function handleScoreSingle(res: NextApiResponse, reportId: string) {
 }
 
 // ============================================================================
-// STATS â quality distribution overview
+// STATS — quality distribution overview
 // ============================================================================
 
 async function handleStats(res: NextApiResponse) {
