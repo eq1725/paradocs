@@ -2,23 +2,23 @@
 // POST /api/admin/quality-pipeline
 //
 // Actions:
-//   action=score-all       — Score all unscored approved reports
-//   action=score-batch     — Score a batch of N reports (default 100)
-//   action=rescore-all     — Re-score all reports (version mismatch)
-//   action=dedup-scan      — Scan approved reports for duplicates
-//   action=score-single    — Score a single report by ID
-//   action=stats           — Get quality score distribution stats
+//   action=score-all       â Score all unscored approved reports
+//   action=score-batch     â Score a batch of N reports (default 100)
+//   action=rescore-all     â Re-score all reports (version mismatch)
+//   action=dedup-scan      â Scan approved reports for duplicates
+//   action=score-single    â Score a single report by ID
+//   action=stats           â Get quality score distribution stats
 //
 // Requires: CRON_SECRET or admin auth
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
-import { scoreReport, ScoringInput } from 'A/lib/ingestion/filters/quality-scorer';
+import { scoreReport, ScoringInput } from '@/lib/ingestion/filters/quality-scorer';
 import {
   findDuplicates,
   generateFingerprint,
   DedupCandidate,
-} from 'A/lib/ingestion/dedup';
+} from '@/lib/ingestion/dedup';
 
 const SCORER_VERSION = '2.0.0';
 
@@ -325,7 +325,7 @@ async function handleRescoreAll(res: NextApiResponse, batchSize: number) {
 }
 
 // ============================================================================
-// DEDUP SCAN — find duplicates among approved reports
+// DEDUP SCAN â find duplicates among approved reports
 // ============================================================================
 
 async function handleDedupScan(res: NextApiResponse) {
@@ -459,7 +459,7 @@ async function handleScoreSingle(res: NextApiResponse, reportId: string) {
 }
 
 // ============================================================================
-// STATS — quality distribution overview
+// STATS â quality distribution overview
 // ============================================================================
 
 async function handleStats(res: NextApiResponse) {
