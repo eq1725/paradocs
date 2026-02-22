@@ -22,6 +22,16 @@ export {
   type FilterResult,
 } from './quality-filter';
 
+// Advanced 10-dimension quality scorer (v2)
+export {
+  scoreReport,
+  quickScore,
+  fromScrapedReport,
+  type QualityReport,
+  type ScoringInput,
+  type DimensionScore,
+} from './quality-scorer';
+
 export {
   // Title improvement functions
   improveTitle,
