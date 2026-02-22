@@ -29,11 +29,30 @@ function getSupabaseAdmin() {
   return createClient(url, key);
 }
 
-function isAuthorized(req: NextApiRequest): boolean {
+async function isAuthorized(req: NextApiRequest): Promise<boolean> {
   // Check CRON_SECRET header
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && req.headers.authorization === 'Bearer ' + cronSecret) {
     return true;
+  }
+  // Check Supabase session auth (for admin dashboard)
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ') && authHeader !== 'Bearer ' + cronSecret) {
+    try {
+      const token = authHeader.replace('Bearer ', '');
+      const supabase = getSupabaseAdmin();
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        if (profile?.role === 'admin') return true;
+      }
+    } catch {
+      // Token invalid, fall through
+    }
   }
   // For development, allow without auth if no CRON_SECRET is set
   if (!cronSecret && process.env.NODE_ENV === 'development') {
@@ -58,7 +77,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  if (!isAuthorized(req)) {
+  if (!(await isAuthorized(req))) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
