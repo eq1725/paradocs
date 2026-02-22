@@ -134,10 +134,20 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [ingesting, setIngesting] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'content' | 'activity' | 'sources' | 'jobs'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'content' | 'activity' | 'sources' | 'jobs' | 'quality'>('overview')
   const [analyzingPatterns, setAnalyzingPatterns] = useState(false)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [userSearch, setUserSearch] = useState('')
+  const [qualityData, setQualityData] = useState<{
+    gradeDistribution: Array<{ grade: string; count: number }>
+    unscoredReports: number
+    pendingDuplicates: number
+    scorerVersion: string
+    scoreStats: { average: number; min: number; max: number; totalScored: number }
+  } | null>(null)
+  const [qualityLoading, setQualityLoading] = useState(false)
+  const [scoringAction, setScoringAction] = useState<string | null>(null)
+  const [scoringResult, setScoringResult] = useState<{ success: boolean; message: string; details?: Record<string, any> } | null>(null)
   const [patternResult, setPatternResult] = useState<{
     success: boolean
     message: string
@@ -220,6 +230,22 @@ export default function AdminDashboard() {
       console.error('Failed to load dashboard data:', error)
     }
 
+    // Load quality pipeline stats
+    try {
+      const { data: { session: qSession } } = await supabase.auth.getSession()
+      const qualityRes = await fetch('/api/admin/quality-pipeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(qSession?.access_token && { 'Authorization': `Bearer ${qSession.access_token}` }) },
+        body: JSON.stringify({ action: 'stats' })
+      })
+      if (qualityRes.ok) {
+        const qData = await qualityRes.json()
+        setQualityData(qData)
+      }
+    } catch (error) {
+      console.error('Failed to load quality data:', error)
+    }
+
     // Load recent jobs
     const { data: jobs } = await supabase
       .from('ingestion_jobs')
@@ -234,768 +260,117 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
+  async function runQualityAction(action: string, label: string) {
+    setScoringAction(action)
+    setScoringResult(null)
+    try {
+      const { data: { session: qSession } } = await supabase.auth.getSession()
+      const authHeaders = { 'Content-Type': 'application/json', ...(qSession?.access_token && { 'Authorization': `Bearer ${qSession.access_token}` }) }
+      const response = await fetch('/api/admin/quality-pipeline', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ action })
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setScoringResult({ success: true, message: `${label} completed successfully`, details: data })
+        // Refresh quality data
+        const qRes = await fetch('/api/admin/quality-pipeline', {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({ action: 'stats' })
+        })
+        if (qRes.ok) setQualityData(await qRes.json())
+      } else {
+        setScoringResult({ success: false, message: data.error || `${label} failed` })
+      }
+    } catch (error) {
+      setScoringResult({ success: false, message: error instanceof Error ? error.message : 'Network error' })
+    } finally {
+      setScoringAction(null)
+    }
+  }
+
   async function triggerIngestion(sourceId?: string) {
     setIngesting(sourceId || 'all')
     setMessage(null)
 
     try {
-      const url = sourceId
-        ? `/api/admin/ingest?source=${sourceId}`
-        : '/api/admin/ingest'
+ÛÛœÝ\›HÛÝ\˜ÙRYˆÈØ\KØYZ[‹Ú[™Ù\ÝÜÛÝ\˜ÙOIÜÛÝ\˜ÙRYXˆˆ	ËØ\KØYZ[‹Ú[™Ù\Ý	Â‚ˆÛÛœÝÈ]NˆÈÙ\ÜÚ[ÛˆHHH]ØZ]Ý\X˜\ÙK˜]]™Ù]Ù\ÜÚ[ÛŠ
+B‚ˆÛÛœÝ™\ÜÛœÙHH]ØZ]™]Ú
+\›ÂˆY]Ùˆ	ÔÔÕ	ËˆXY\œÎˆÂˆ	ÐÛÛ[U\IÎˆ	Ø\XØ][Û‹ÚœÛÛ‰Ëˆ‹‹ŠÙ\ÜÚ[ÛË˜XØÙ\Ü×ÝÚÙ[ˆ	‰ˆÂˆ	Ð]]Üš^˜][Û‰Îˆ™X\™\ˆ	ÜÙ\ÜÚ[Û‹˜XØÙ\Ü×ÝÚÙ[ŸXˆJBˆKˆÜ™Y[X[Îˆ	Ú[˜ÛYIÂˆJB‚ˆÛÛœÝ]HH]ØZ]™\ÜÛœÙKšœÛÛŠ
+B‚ˆYˆ
+™\ÜÛœÙK›ÚÊHÂˆÙ]Y\ÜØYÙJÂˆ\Nˆ	ÜÝXØÙ\ÜÉËˆ^ˆ[™Ù\Ý[ÛˆÛÛ\]HH›Ý[™ˆ	Ù]KÝ[™XÛÜ™Ñ›Ý[™K[œÙ\Yˆ	Ù]KÝ[™XÛÜ™Ò[œÙ\YK\]Yˆ	Ù]KÝ[™XÛÜ™Õ\]YXˆJBˆØY]J
+BˆH[ÙHÂˆÙ]Y\ÜØYÙJÂˆ\Nˆ	Ù\œ›Ü‰Ëˆ^ˆ]K™\œ›Üˆ	Ò[™Ù\Ý[Ûˆ˜Z[Y	ÂˆJBˆBˆHØ]Ú
+\œ›ÜŠHÂˆÙ]Y\ÜØYÙJÂˆ\Nˆ	Ù\œ›Ü‰Ëˆ^ˆ\œ›Üˆ[œÝ[˜Ù[Ùˆ\œ›ÜˆÈ\œ›Ü‹›Y\ÜØYÙHˆ	Ó™]ÛÜšÈ\œ›Ü‰ÂˆJBˆHš[˜[HÂˆÙ][™Ù\Ý[™Ê[
+BˆBˆB‚ˆ\Þ[˜È[˜Ý[ÛˆÙÙÛTÛÝ\˜ÙJÛÝ\˜ÙRYˆÝš[™ËÝ\œ™[PXÝ]™Nˆ›ÛÛX[ŠHÂˆÛÛœÝÈ\œ›ÜˆHH]ØZ]Ý\X˜\ÙBˆ™œ›ÛJ	Ù]WÜÛÝ\˜Ù\ÉÊBˆ\]JÈ\×ØXÝ]™NˆXÝ\œ™[PXÝ]™HJBˆ™\J	ÚY	ËÛÝ\˜ÙRY
+B‚ˆYˆ
+Y\œ›ÜŠHÂˆØY]J
+BˆBˆB‚ˆ\Þ[˜È[˜Ý[ÛˆšYÙÙ\”]\›[˜[\Ú\Ê
+HÂˆÙ][˜[^š[™Ô]\›œÊYJBˆÙ]]\›”™\Ý[
+[
+B‚ˆžHÂˆÛÛœÝ™\ÜÛœÙHH]ØZ]™]Ú
+	ËØ\KØYZ[‹ÝšYÙÙ\‹\]\›‹X[˜[\Ú\ÉËÂˆY]Ùˆ	ÔÔÕ	ÂˆJB‚ˆÛÛœÝ]HH]ØZ]™\ÜÛœÙKšœÛÛŠ
+B‚ˆYˆ
+™\ÜÛœÙK›ÚÈ	‰ˆ]KœÝXØÙ\ÜÊHÂˆÙ]]\›”™\Ý[
+ÂˆÝXØÙ\ÜÎˆYKˆY\ÜØYÙNˆ	Ô]\›ˆ[˜[\Ú\ÈÛÛ\]YÝXØÙ\ÜÙ[HIËˆ]Z[ÎˆÂˆ\˜][ÛŽˆ]Kœ™\Ý[Ë™\˜][ÛˆˆØ]YÛÜšY\Ð[˜[^™Yˆ]Kœ™\Ý[Ë˜Ø]YÛÜšY\Ô›ØÙ\ÜÙYˆ™]Ô]\›œÎˆ]Kœ™\Ý[Ë›™]Ô]\›œÈˆ\]Y]\›œÎˆ]Kœ™\Ý[Ë\]Y]\›œÈˆBˆJBˆH[ÙHÂˆÙ]]\›”™\Ý[
+ÂˆÝXØÙ\ÜÎˆ˜[ÙKˆY\ÜØYÙNˆ]K™\œ›Üˆ	Ô]\›ˆ[˜[\Ú\È˜Z[Y	ÂˆJBˆBˆHØ]Ú
+\œ›ÜŠHÂˆÙ]]\›”™\Ý[
+ÂˆÝXØÙ\ÜÎˆ˜[ÙKˆY\ÜØYÙNˆ\œ›Üˆ[œÝ[˜Ù[Ùˆ\œ›ÜˆÈ\œ›Ü‹›Y\ÜØYÙHˆ	Ó™]ÛÜšÈ\œ›Ü‰ÂˆJBˆHš[˜[HÂˆÙ][˜[^š[™Ô]\›œÊ˜[ÙJBˆBˆB‚ˆYˆ
+]]ØY[™ÈØY[™ÊHÂˆ™]\›ˆ
+ˆ]ˆÛ\ÜÓ˜[YOH™›^\ÝYžKXÙ[\ˆ][\ËXÙ[\ˆZ[‹ZVÍLšH‚ˆ]ˆÛ\ÜÓ˜[YOH˜[š[X]K\Ü[ˆ›Ý[™YY[NËN›Ü™\‹X‹Lˆ›Ü™\‹YÜ™Y[‹MLÙ]‚ˆÙ]‚ˆ
+BˆB‚ˆYˆ
+Z\ÐYZ[ŠHÂˆ™]\›ˆ[ˆB‚ˆÛÛœÝX[[™XØ]ÜˆHÝ]ÏËšX[Ý]\ÈOOH	ÚX[IÈÈ	ü'çè‰È‚ˆÝ]ÏËšX[Ý]\ÈOOH	ÝØ\›š[™ÉÈÈ	ü'çèIÈˆ	ü'å-	Â‚ˆ™]\›ˆ
+ˆ‚ˆXY‚ˆ]OÛÛ[X[™Ù[\ˆH\˜YØÜÏÝ]O‚ˆÒXY‚‚ˆ]ˆÛ\ÜÓ˜[YOH›X^]ËMÞ^X]]ÈMKN‚ˆËÊˆXY\ˆ
+‹ßBˆ]ˆÛ\ÜÓ˜[YOH™›^›^XÛÛY™›^\›ÝÈYš][\ËXÙ[\ˆYš\ÝYžKX™]ÙY[ˆØ\MX‹N‚ˆ]‚ˆHÛ\ÜÓ˜[YOH^LÞ›ÛX›Û›^][\ËXÙ[\ˆØ\LÈ‚ˆ[™Ù\Ý[ÛˆÛÛ[X[™Ù[\‚ˆÜ[ˆÛ\ÜÓ˜[YOH^LžžÚX[[™XØ]ÜŸOÜÜ[‚ˆÚO‚ˆÛ\ÜÓ˜[YOH^YÜ˜^KM]LH‚ˆ[Ûš]Üˆ[™ÛÛ›Û]H[™Ù\Ý[ÛˆXÜ›ÜÜÈ[ÛÝ\˜Ù\ÂˆÜ‚ˆÙ]‚ˆ]Û‚ˆÛÛXÚÏ^Ê
+HOˆšYÙÙ\’[™Ù\Ý[ÛŠ
+_Bˆ\ØX›Y^Ú[™Ù\Ý[™ÈOOH[BˆÛ\ÜÓ˜[YOH˜™ËYÜ™Y[‹MŒÝ™\Ž˜™ËYÜ™Y[‹MÌ\ØX›Y˜™ËYÜ˜^KMŒ^]Ú]HMˆKLÈ›Ý[™Y[È›Û[YY][H˜[œÚ][Û‹XÛÛÜœÈÚYÝË[ÈÚYÝËYÜ™Y[‹MLÌŒ‚ˆ‚ˆÚ[™Ù\Ý[™ÈOOH	Ø[	ÈÈ
+ˆÜ[ˆÛ\ÜÓ˜[YOH™›^][\ËXÙ[\ˆØ\Lˆ‚ˆÜ[ˆÛ\ÜÓ˜[YOH˜[š[X]K\Ü[ˆ¸§ìÏÜÜ[ˆ[›š[™È[ÛÝ\˜Ù\Ë‹‹‚ˆÜÜ[‚ˆ
+Hˆ
+ˆ	ü'æ [ˆ[[™Ù\Ý[Û‰Âˆ
+_BˆØ]Û‚ˆÙ]‚‚ˆËÊˆY\ÜØYÙH˜[›™\ˆ
+‹ßBˆÛY\ÜØYÙH	‰ˆ
+ˆ]ˆÛ\ÜÓ˜[YO^ØX‹MˆM›Ý[™Y[È	ÂˆY\ÜØYÙK\HOOH	ÜÝXØÙ\ÜÉÈÈ	Ø™ËYÜ™Y[‹MLÌŒ^YÜ™Y[‹LÌ›Ü™\ˆ›Ü™\‹YÜ™Y[‹MLÌÌ	Èˆ	Ø™Ë\™YMLÌŒ^\™YLÌ›Ü™\ˆ›Ü™\‹\™YMLÌÌ	ÂˆXO‚ˆÛY\ÜØYÙK^BˆÙ]‚ˆ
+_B‚ˆËÊˆXˆ˜]šYØ][Ûˆ
+‹ßBˆ]ˆÛ\ÜÓ˜[YOH™›^Ø\LˆX‹Mˆ›Ü™\‹Xˆ›Ü™\‹YÜ˜^KMÌÝ™\™›ÝË^X]]ÈØÜ›Û˜\‹ZYH‚ˆÖÂˆÈYˆ	ÛÝ™\šY]ÉËX™[ˆ	ÓÝ™\šY]ÉËXÛÛŽˆ	ü'äâ‰ÈKˆÈYˆ	Ý\Ù\œÉËX™[ˆ	Õ\Ù\œÉËXÛÛŽˆ	ü'äiIÈKˆÈYˆ	ØÛÛ[	ËX™[ˆ	ÐÛÛ[	ËXÛÛŽˆ	ü'äæ‰ÈKˆÈYˆ	ØXÝ]š]IËX™[ˆ	ÐXÝ]š]IËXÛÛŽˆ	ü'äâ	ÈKˆÈYˆ	Ü]X[]IËX™[ˆ	Ô]X[]IËXÛÛŽˆ	ø«d	ÈKˆÈYˆ	ÜÛÝ\˜Ù\ÉËX™[ˆ	ÔÛÝ\˜Ù\ÉËXÛÛŽˆ	ü'å#	ÈKˆÈYˆ	Ú›ØœÉËX™[ˆ	Ò›ØœÉËXÛÛŽˆ	ü'äâÉÈBˆK›X\
+XˆOˆ
+ˆ]Û‚ˆÙ^O^ÝX‹šYBˆÛÛXÚÏ^Ê
+HOˆÙ]XÝ]™UXŠX‹šY\È\[ÙˆXÝ]™UXŠ_BˆÛ\ÜÓ˜[YO^ØMKLÈ›Û[YY][H˜[œÚ][Û‹XÛÛÜœÈ›Ü™\‹X‹Lˆ[X‹\Ú]\ÜXÙK[›ÝÜ˜\	ÂˆXÝ]™UXˆOOHX‹šYˆÈ	Ý^YÜ™Y[‹M›Ü™\‹YÜ™Y[‹M	Âˆˆ	Ý^YÜ˜^KM›Ü™\‹]˜[œÜ\™[Ý™\Ž^]Ú]IÂˆXBˆ‚ˆÜ[ˆÛ\ÜÓ˜[YOH›\‹LˆžÝX‹šXÛÛŸOÜÜ[‚ˆÝX‹›X™[BˆØ]Û‚ˆ
+J_Bˆ[šÂˆ™YH‹ØYZ[‹ØX‹]\Ý[™È‚ˆÛ\ÜÓ˜[YOHœMKLÈ›Û[YY][H˜[œÚ][Û‹XÛÛÜœÈ›Ü™\‹X‹Lˆ[X‹\Ú]\ÜXÙK[›ÝÜ˜\^YÜ˜^KM›Ü™\‹]˜[œÜ\™[Ý™\Ž^\\œKMÝ™\Ž˜›Ü™\‹\\œKM‚ˆ‚ˆÜ[ˆÛ\ÜÓ˜[YOH›\‹Lˆ¼'éêÜÜ[‚ˆKÐˆ\Ý[™ÂˆÓ[šÏ‚ˆÙ]‚‚ˆËÊˆÝ™\šY]ÈXˆ
+‹ßBˆØXÝ]™UXˆOOH	ÛÝ™\šY]ÉÈ	‰ˆ
+ˆ]ˆÛ\ÜÓ˜[YOHœÜXÙK^KMˆ‚ˆËÊˆÝ]ÈØ\™È
+‹ßBˆ]ˆÛ\ÜÓ˜[YOH™ÜšYÜšYXÛÛËLHY™ÜšYXÛÛËLˆÎ™ÜšYXÛÛËMØ\M‚ˆÝ]ÐØ\™ˆ]OH•Ý[™\ÜÈ‚ˆ˜[YO^ÜÝ]ÏËÝ[™\ÜÈBˆXÛÛH¼'äæˆ‚ˆÛÛÜH™Ü™Y[ˆ‚ˆÏ‚ˆÝ]ÐØ\™ˆ]OH’[™Ù\ÝYÙ^H‚ˆ˜[YO^ÜÝ]ÏËœ™\ÜÕÙ^HBˆXÛÛH¼'äéH‚ˆÛÛÜH˜›YH‚ˆÏ‚ˆÝ]ÐØ\™ˆ]OHXÝ]™HÛÝ\˜Ù\È‚ˆ˜[YO^Ø	ÜÝ]ÏË˜XÝ]™TÛÝ\˜Ù\ÈHÈ	ÜÝ]ÏËÝ[ÛÝ\˜Ù\ÈXBˆÝX]OHœÛÝ\˜Ù\È[˜X›Y‚ˆXÛÛH¼'å#‚ˆÛÛÜHœ\œH‚ˆÏ‚ˆÝ]ÐØ\™ˆ]OH”Þ\Ý[HX[‚ˆ˜[YO^ÜÝ]ÏËšX[Ý]\ÈOOH	ÚX[IÈÈ	Ð[ÛÛÙ	ÈˆÝ]ÏËšX[Ý]\ÈOOH	ÝØ\›š[™ÉÈÈ	ÐÚXÚÈÛÝ\˜Ù\ÉÈˆ	Ò\ÜÝY\È]XÝY	ßBˆXÛÛ^ÚX[[™XØ]ÜŸBˆÛÛÜ^ÜÝ]ÏËšX[Ý]\ÈOOH	ÚX[IÈÈ	ÙÜ™Y[‰ÈˆÝ]ÏËšX[Ý]\ÈOOH	ÝØ\›š[™ÉÈÈ	ÛÜ˜[™ÙIÈˆ	Ü™Y	ßBˆÏ‚ˆÙ]‚‚ˆËÊˆÛÈÛÛ[[ˆ^[Ý]ˆÛÝ\˜ÙHX[
+ÈXÝ]š]H™YY
+‹ßBˆ]ˆÛ\ÜÓ˜[YOH™ÜšYÜšYXÛÛËLHÎ™ÜšYXÛÛËLˆØ\Mˆ‚ˆÛÝ\˜ÙRX[ÜšYˆÛÝ\˜Ù\Ï^Ù]TÛÝ\˜Ù\ßBˆÛ•ÙÙÛO^ÝÙÙÛTÛÝ\˜Ù_BˆÛ”[’[™Ù\Ý[Û^ÝšYÙÙ\’[™Ù\Ý[ÛŸBˆ[™Ù\Ý[™Ï^Ú[™Ù\Ý[™ßBˆÏ‚ˆXÝ]š]Q™YYX^][\Ï^ÌM_H™Yœ™\Ú[\˜[^ÌÌHÏ‚ˆÙ]‚‚ˆËÊˆ]\›ˆ[˜[\Ú\ÈÙXÝ[Ûˆ
+‹ßBˆ]ˆÛ\ÜÓ˜[YOH˜™ËYÜ˜^KNÍL›Ý[™Y[ÈMˆ›Ü™\ˆ›Ü™\‹YÜ˜^KMÌÍL‚ˆ]ˆÛ\ÜÓ˜[YOH™›^][\ËXÙ[\ˆ\ÝYžKX™]ÙY[ˆX‹M‚ˆ]‚ˆˆÛ\ÜÓ˜[YOH^^›Û\Ù[ZX›Û›^][\ËXÙ[\ˆØ\Lˆ‚ˆÜ[¼'å+ÜÜ[ˆ[Y\™Ù[]\›ˆ[˜[\Ú\ÂˆÚ‚ˆÛ\ÜÓ˜[YOH^YÜ˜^KM^\ÛH]LH‚ˆ[˜[^™H[™\ÜÈÈ]XÝ[\Ü˜[[›ÛX[Y\È[™™YÚ[Û˜[ÛÛ˜Ù[˜][ÛœË‚ˆ[œÈ]]ÛX]XØ[HZ[H]ÈSHUË‚ˆÜ‚ˆÙ]‚ˆ]Û‚ˆÛÛXÚÏ^ÝšYÙÙ\”]\›[˜[\Ú\ßBˆ\ØX›Y^Ø[˜[^š[™Ô]\›œßBˆÛ\ÜÓ˜[YOH˜™Ë\\œKMŒÝ™\Ž˜™Ë\\œKMÌ\ØX›Y˜™ËYÜ˜^KMŒ^]Ú]HMˆKLÈ›Ý[™Y[È›Û[YY][H˜[œÚ][Û‹XÛÛÜœÈÚYÝË[ÈÚYÝË\\œKMLÌŒ‚ˆ‚ˆØ[˜[^š[™Ô]\›œÈÈ
+ˆÜ[ˆÛ\ÜÓ˜[YOH™›^][\ËXÙ[\ˆØ\Lˆ‚ˆÜ[ˆÛ\ÜÓ˜[YOH˜[š[X]K\Ü[ˆ¸§ìÏÜÜ[ˆ[˜[^š[™Ë‹‹‚ˆÜÜ[‚ˆ
+Hˆ
+ˆ	ü'å+[ˆ]\›ˆ[˜[\Ú\ÉÂˆ
+_BˆØ]Û‚ˆÙ]‚‚ˆËÊˆ]\›ˆ[˜[\Ú\È™\Ý[
+‹ßBˆÜ]\›”™\Ý[	‰ˆ
+ˆ]ˆÛ\ÜÓ˜[YO^Ø]MM›Ý[™Y[È	Âˆ]\›”™\Ý[œÝXØÙ\ÜÂˆÈ	Ø™Ë\\œKMLÌŒ^\\œKLÌ›Ü™\ˆ›Ü™\‹\\œKMLÌÌ	Âˆˆ	Ø™Ë\™YMLÌŒ^\™YLÌ›Ü™\ˆ›Ü™\‹\™YMLÌÌ	ÂˆXO‚ˆ]ˆÛ\ÜÓ˜[YOH™›Û[YY][HžÜ]\›”™\Ý[›Y\ÜØYÙ_OÙ]‚ˆÜ]\›”™\Ý[™]Z[È	‰ˆ
+ˆ]ˆÛ\ÜÓ˜[YOH›]Lˆ^\ÛHÜšYÜšYXÛÛËLˆY™ÜšYXÛÛËMØ\M‚ˆ]‚ˆÜ[ˆÛ\ÜÓ˜[YOH^YÜ˜^KM‘\˜][ÛŽÜÜ[žÉÈ	ßBˆÜ[ˆÛ\ÜÓ˜[YOH™›Û[[Û›ÈžÜ]\›”™\Ý[™]Z[Ë™\˜][Û‹Ñš^Y
+J_\ÏÜÜ[‚ˆÙ]‚ˆ]‚ˆÜ[ˆÛ\ÜÓ˜[YOH^YÜ˜^KMØ]YÛÜšY\ÎÜÜ[žÉÈ	ßBˆÜ[ˆÛ\ÜÓ˜[YOH™›Û[[Û›ÈžÜ]\›”™\Ý[™]Z[Ë˜Ø]YÛÜšY\Ð[˜[^™YOÜÜ[‚ˆÙ]‚ˆ]‚ˆÜ[ˆÛ\ÜÓ˜[YOH^YÜ˜^KM“™]È]\›œÎÜÜ[žÉÈ	ßBˆÜ[ˆÛ\ÜÓ˜[YOH™›Û[[Û›È^YÜ™Y[‹MŠÞÜ]\›”™\Ý[™]Z[Ë›™]Ô]\›œßOÜÜ[‚ˆÙ]‚ˆ]‚ˆÜ[ˆÛ\ÜÓ˜[YOH^YÜ˜^KM•\]YÜÜ[žÉÈ	ßBˆÜ[ˆÛ\ÜÓ˜[YOH™›Û[[Û›È^X›YKMžÜ]\›”™\Ý[™]Z[Ë\]Y]\›œßOÜÜ[‚ˆÙ]‚ˆÙ]‚ˆ
+_BˆÙ]‚ˆ
+_BˆÙ]‚ˆÙ]‚ˆ
+_B‚ˆËÊˆ\Ù\œÈXˆ
+‹ßBˆØXÝ]™UXˆOOH	Ý\Ù\œÉÈ	‰ˆ\Ú›Ø\™]H	‰ˆ
+ˆ]ˆÛ\ÜÓ˜[YOHœÜXÙK^KMˆ‚ˆËÊˆ\Ù\ˆÝ]ÈØ\™È
+‹ßBˆ]ˆÛ\ÜÓ˜[YOH™ÜšYÜšYXÛÛËLHY™ÜšYXÛÛËLˆÎ™ÜšYXÛÛËMØ\M‚ˆÝ]ÐØ\™ˆ]OH•Ý[\Ù\œÈ‚ˆ˜[YO^Ù\Ú›Ø\™]K\Ù\œËÝ[BˆXÛÛH¼'äiH‚ˆÛÛÜH˜›YH‚ˆÏ‚ˆÝ]ÐØ\™ˆ]OH“™]ÈÙ^H‚ˆ˜[YO^Ù\Ú›Ø\™]K\Ù\œËÙ^_BˆXÛÛH¼'á¥H‚ˆÛÛÜH™Ü™Y[ˆ‚ˆÏ‚ˆÝ]ÐØ\™ˆ]OH•\ÈÙYZÈ‚ˆ˜[YO^Ù\Ú›Ø\™]K\Ù\œË\ÕÙYZßBˆXÛÛH¼'äáH‚ˆÛÛÜHœ\œH‚ˆÏ‚ˆÝ]ÐØ\™ˆ]OH•\È[Û‚ˆ˜[YO^Ù\Ú›Ø\™]K\Ù\œË\Ó[ÛBˆXÛÛH¼'äáˆ‚ˆÛÛÜH›Ü˜[™ÙH‚ˆÏ‚ˆÙ]‚‚ˆËÊˆ\Ù\œÈžH›ÛH
+‹ßBˆ]ˆÛ\ÜÓ˜[YOH™ÜšYÜšYXÛÛËLHÎ™ÜšYXÛÛËLÈØ\Mˆ‚ˆ]ˆÛ\ÜÓ˜[YOH˜™ËYÜ˜^KNÍL›Ý[™Y[ÈMˆ›Ü™\ˆ›Ü™\‹YÜ˜^KMÌÍL‚ˆÈÛ\ÜÓ˜[YOH^[È›Û\Ù[ZX›ÛX‹M•\Ù\œÈžH›ÛOÚÏ‚ˆ]ˆÛ\ÜÓ˜[YOHœÜXÙK^KLÈ‚ˆÓØš™XÝ™[šY\Ê\Ú›Ø\™]K\Ù\œË˜žT›ÛJK›X\
 
-      const { data: { session } } = await supabase.auth.getSession()
+Ü›ÛKÛÝ[JHOˆ
+ˆ]ˆÙ^O^Ü›Û_HÛ\ÜÓ˜[YOH™›^\ÝYžKX™]ÙY[ˆ][\ËXÙ[\ˆ‚ˆÜ[ˆÛ\ÜÓ˜[YOH˜Ø\][^™H^YÜ˜^KLÌžÜ›Û_OÜÜ[‚ˆÜ[ˆÛ\ÜÓ˜[YOH™›Û[[Û›È^]Ú]H™ËYÜ˜^KMÌLÈKLH›Ý[™YžØÛÝ[OÜÜ[‚ˆÙ]‚ˆ
+J_BˆÙ]‚ˆÙ]‚‚ˆ]ˆÛ\ÜÓ˜[YOH›Î˜ÛÛ\Ü[‹Lˆ™ËYÜ˜^KNÍL›Ý[™Y[ÈMˆ›Ü™\ˆ›Ü™\‹YÜ˜^KMÌÍL‚ˆÈÛ\ÜÓ˜[YOH^[È›Û\Ù[ZX›ÛX‹M•ÜÛÛšX]ÜœÏÚÏ‚ˆ]ˆÛ\ÜÓ˜[YOHœÜXÙK^KLÈ‚ˆÙ\Ú›Ø\™]K˜XÝ]š]KÜÛÛšX]ÜœËœÛXÙJJK›X\
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session?.access_token && {
-            'Authorization': `Bearer ${session.access_token}`
-          })
-        },
-        credentials: 'include'
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        setMessage({
-          type: 'success',
-          text: `Ingestion complete! Found: ${data.totalRecordsFound}, Inserted: ${data.totalRecordsInserted}, Updated: ${data.totalRecordsUpdated}`
-        })
-        loadData()
-      } else {
-        setMessage({
-          type: 'error',
-          text: data.error || 'Ingestion failed'
-        })
-      }
-    } catch (error) {
-      setMessage({
-        type: 'error',
-        text: error instanceof Error ? error.message : 'Network error'
-      })
-    } finally {
-      setIngesting(null)
-    }
-  }
-
-  async function toggleSource(sourceId: string, currentlyActive: boolean) {
-    const { error } = await supabase
-      .from('data_sources')
-      .update({ is_active: !currentlyActive })
-      .eq('id', sourceId)
-
-    if (!error) {
-      loadData()
-    }
-  }
-
-  async function triggerPatternAnalysis() {
-    setAnalyzingPatterns(true)
-    setPatternResult(null)
-
-    try {
-      const response = await fetch('/api/admin/trigger-pattern-analysis', {
-        method: 'POST'
-      })
-
-      const data = await response.json()
-
-      if (response.ok && data.success) {
-        setPatternResult({
-          success: true,
-          message: 'Pattern analysis completed successfully!',
-          details: {
-            duration: data.result?.duration || 0,
-            categoriesAnalyzed: data.result?.categoriesProcessed || 0,
-            newPatterns: data.result?.newPatterns || 0,
-            updatedPatterns: data.result?.updatedPatterns || 0
-          }
-        })
-      } else {
-        setPatternResult({
-          success: false,
-          message: data.error || 'Pattern analysis failed'
-        })
-      }
-    } catch (error) {
-      setPatternResult({
-        success: false,
-        message: error instanceof Error ? error.message : 'Network error'
-      })
-    } finally {
-      setAnalyzingPatterns(false)
-    }
-  }
-
-  if (authLoading || loading) {
-    return (
-      <div className="flex justify-center items-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
-      </div>
-    )
-  }
-
-  if (!isAdmin) {
-    return null
-  }
-
-  const healthIndicator = stats?.healthStatus === 'healthy' ? 'ðŸŸ¢' :
-                          stats?.healthStatus === 'warning' ? 'ðŸŸ¡' : 'ðŸ”´'
-
-  return (
-    <>
-      <Head>
-        <title>Command Center - Paradocs</title>
-      </Head>
-
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3">
-              Ingestion Command Center
-              <span className="text-2xl">{healthIndicator}</span>
-            </h1>
-            <p className="text-gray-400 mt-1">
-              Monitor and control data ingestion across all sources
-            </p>
-          </div>
-          <button
-            onClick={() => triggerIngestion()}
-            disabled={ingesting !== null}
-            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-lg shadow-green-500/20"
-          >
-            {ingesting === 'all' ? (
-              <span className="flex items-center gap-2">
-                <span className="animate-spin">âŸ³</span> Running All Sources...
-              </span>
-            ) : (
-              'ðŸš€ Run All Ingestion'
-            )}
-          </button>
-        </div>
-
-        {/* Message Banner */}
-        {message && (
-          <div className={`mb-6 p-4 rounded-lg ${
-            message.type === 'success' ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-red-500/20 text-red-300 border border-red-500/30'
-          }`}>
-            {message.text}
-          </div>
-        )}
-
-        {/* Tab Navigation */}
-        <div className="flex gap-2 mb-6 border-b border-gray-700 overflow-x-auto scrollbar-hide">
-          {[
-            { id: 'overview', label: 'Overview', icon: 'ðŸ“Š' },
-            { id: 'users', label: 'Users', icon: 'ðŸ‘¥' },
-            { id: 'content', label: 'Content', icon: 'ðŸ“š' },
-            { id: 'activity', label: 'Activity', icon: 'ðŸ“ˆ' },
-            { id: 'sources', label: 'Sources', icon: 'ðŸ”Œ' },
-            { id: 'jobs', label: 'Jobs', icon: 'ðŸ“‹' }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={`px-4 py-3 font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'text-green-400 border-green-400'
-                  : 'text-gray-400 border-transparent hover:text-white'
-              }`}
-            >
-              <span className="mr-2">{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
-          <Link
-            href="/admin/ab-testing"
-            className="px-4 py-3 font-medium transition-colors border-b-2 -mb-px whitespace-nowrap text-gray-400 border-transparent hover:text-purple-400 hover:border-purple-400"
-          >
-            <span className="mr-2">ðŸ§ª</span>
-            A/B Testing
-          </Link>
-        </div>
-
-        {/* Overview Tab */}
-        {activeTab === 'overview' && (
-          <div className="space-y-6">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatsCard
-                title="Total Reports"
-                value={stats?.totalReports || 0}
-                icon="ðŸ“š"
-                color="green"
-              />
-              <StatsCard
-                title="Ingested Today"
-                value={stats?.reportsToday || 0}
-                icon="ðŸ“¥"
-                color="blue"
-              />
-              <StatsCard
-                title="Active Sources"
-                value={`${stats?.activeSources || 0} / ${stats?.totalSources || 0}`}
-                subtitle="sources enabled"
-                icon="ðŸ”Œ"
-                color="purple"
-              />
-              <StatsCard
-                title="System Health"
-                value={stats?.healthStatus === 'healthy' ? 'All Good' : stats?.healthStatus === 'warning' ? 'Check Sources' : 'Issues Detected'}
-                icon={healthIndicator}
-                color={stats?.healthStatus === 'healthy' ? 'green' : stats?.healthStatus === 'warning' ? 'orange' : 'red'}
-              />
-            </div>
-
-            {/* Two Column Layout: Source Health + Activity Feed */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <SourceHealthGrid
-                sources={dataSources}
-                onToggle={toggleSource}
-                onRunIngestion={triggerIngestion}
-                ingesting={ingesting}
-              />
-              <ActivityFeed maxItems={15} refreshInterval={30000} />
-            </div>
-
-            {/* Pattern Analysis Section */}
-            <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700/50">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-xl font-semibold flex items-center gap-2">
-                    <span>ðŸ”®</span> Emergent Pattern Analysis
-                  </h2>
-                  <p className="text-gray-400 text-sm mt-1">
-                    Analyze all reports to detect temporal anomalies and regional concentrations.
-                    Runs automatically daily at 7 AM UTC.
-                  </p>
-                </div>
-                <button
-                  onClick={triggerPatternAnalysis}
-                  disabled={analyzingPatterns}
-                  className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-lg shadow-purple-500/20"
-                >
-                  {analyzingPatterns ? (
-                    <span className="flex items-center gap-2">
-                      <span className="animate-spin">âŸ³</span> Analyzing...
-                    </span>
-                  ) : (
-                    'ðŸ”¬ Run Pattern Analysis'
-                  )}
-                </button>
-              </div>
-
-              {/* Pattern Analysis Result */}
-              {patternResult && (
-                <div className={`mt-4 p-4 rounded-lg ${
-                  patternResult.success
-                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                    : 'bg-red-500/20 text-red-300 border border-red-500/30'
-                }`}>
-                  <div className="font-medium">{patternResult.message}</div>
-                  {patternResult.details && (
-                    <div className="mt-2 text-sm grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div>
-                        <span className="text-gray-400">Duration:</span>{' '}
-                        <span className="font-mono">{patternResult.details.duration.toFixed(1)}s</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-400">Categories:</span>{' '}
-                        <span className="font-mono">{patternResult.details.categoriesAnalyzed}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-400">New Patterns:</span>{' '}
-                        <span className="font-mono text-green-400">+{patternResult.details.newPatterns}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-400">Updated:</span>{' '}
-                        <span className="font-mono text-blue-400">{patternResult.details.updatedPatterns}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Users Tab */}
-        {activeTab === 'users' && dashboardData && (
-          <div className="space-y-6">
-            {/* User Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatsCard
-                title="Total Users"
-                value={dashboardData.users.total}
-                icon="ðŸ‘¥"
-                color="blue"
-              />
-              <StatsCard
-                title="New Today"
-                value={dashboardData.users.today}
-                icon="ðŸ†•"
-                color="green"
-              />
-              <StatsCard
-                title="This Week"
-                value={dashboardData.users.thisWeek}
-                icon="ðŸ“…"
-                color="purple"
-              />
-              <StatsCard
-                title="This Month"
-                value={dashboardData.users.thisMonth}
-                icon="ðŸ“†"
-                color="orange"
-              />
-            </div>
-
-            {/* Users by Role */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700/50">
-                <h3 className="text-lg font-semibold mb-4">Users by Role</h3>
-                <div className="space-y-3">
-                  {Object.entries(dashboardData.users.byRole).map(([role, count]) => (
-                    <div key={role} className="flex justify-between items-center">
-                      <span className="capitalize text-gray-300">{role}</span>
-                      <span className="font-mono text-white bg-gray-700 px-3 py-1 rounded">{count}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="lg:col-span-2 bg-gray-800/50 rounded-lg p-6 border border-gray-700/50">
-                <h3 className="text-lg font-semibold mb-4">Top Contributors</h3>
-                <div className="space-y-3">
-                  {dashboardData.activity.topContributors.slice(0, 5).map((contributor, index) => (
-                    <div key={contributor.id} className="flex items-center gap-3">
-                      <span className="text-gray-500 w-6">{index + 1}.</span>
-                      <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm">
-                        {contributor.avatarUrl ? (
-                          <img src={contributor.avatarUrl} alt="" className="w-8 h-8 rounded-full" />
-                        ) : (
-                          contributor.username?.charAt(0).toUpperCase() || '?'
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-medium">{contributor.displayName || contributor.username}</div>
-                        <div className="text-xs text-gray-400">@{contributor.username}</div>
-                      </div>
-                      <span className="text-green-400 font-mono">{contributor.reportCount} reports</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* User List */}
-            <div className="bg-gray-800/50 rounded-lg border border-gray-700/50">
-              <div className="p-4 border-b border-gray-700 flex items-center gap-4">
-                <h3 className="text-lg font-semibold">All Users</h3>
-                <input
-                  type="text"
-                  placeholder="Search users..."
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                  className="flex-1 max-w-xs bg-gray-700 border-none rounded-lg px-4 py-2 text-sm"
-                />
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-700/50">
-                    <tr>
-                      <th className="text-left p-4">User</th>
-                      <th className="text-left p-4">Role</th>
-                      <th className="text-left p-4">Reports</th>
-                      <th className="text-left p-4">Reputation</th>
-                      <th className="text-left p-4">Joined</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dashboardData.users.list
-                      .filter(user =>
-                        !userSearch ||
-                        user.username?.toLowerCase().includes(userSearch.toLowerCase()) ||
-                        user.displayName?.toLowerCase().includes(userSearch.toLowerCase()) ||
-                        user.email?.toLowerCase().includes(userSearch.toLowerCase())
-                      )
-                      .slice(0, 50)
-                      .map(user => (
-                        <tr key={user.id} className="border-t border-gray-700 hover:bg-gray-700/30 transition-colors">
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm">
-                                {user.avatarUrl ? (
-                                  <img src={user.avatarUrl} alt="" className="w-8 h-8 rounded-full" />
-                                ) : (
-                                  user.username?.charAt(0).toUpperCase() || '?'
-                                )}
-                              </div>
-                              <div>
-                                <div className="font-medium">{user.displayName || user.username}</div>
-                                <div className="text-xs text-gray-400">{user.email || `@${user.username}`}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              user.role === 'admin' ? 'bg-red-500/20 text-red-300' :
-                              user.role === 'moderator' ? 'bg-purple-500/20 text-purple-300' :
-                              user.role === 'contributor' ? 'bg-blue-500/20 text-blue-300' :
-                              'bg-gray-600/50 text-gray-300'
-                            }`}>
-                              {user.role}
-                            </span>
-                          </td>
-                          <td className="p-4">
-                            <span className="text-green-400">{user.reportsSubmitted}</span>
-                            {user.reportsApproved > 0 && (
-                              <span className="text-gray-400 text-sm"> ({user.reportsApproved} approved)</span>
-                            )}
-                          </td>
-                          <td className="p-4 font-mono">{user.reputationScore}</td>
-                          <td className="p-4 text-sm text-gray-400">
-                            {new Date(user.createdAt).toLocaleDateString()}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Content Tab */}
-        {activeTab === 'content' && dashboardData && (
-          <div className="space-y-6">
-            {/* Content Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatsCard
-                title="Total Reports"
-                value={dashboardData.content.totalReports}
-                icon="ðŸ“š"
-                color="green"
-              />
-              <StatsCard
-                title="Pending Review"
-                value={dashboardData.content.pendingReview}
-                icon="â³"
-                color="orange"
-              />
-              <StatsCard
-                title="Approved"
-                value={dashboardData.content.approved}
-                icon="âœ…"
-                color="green"
-              />
-              <StatsCard
-                title="Flagged"
-                value={dashboardData.content.flagged}
-                icon="ðŸš©"
-                color="red"
-              />
-            </div>
-
-            {/* Charts Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Reports by Category */}
-              <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700/50">
-                <h3 className="text-lg font-semibold mb-4">Reports by Category</h3>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={Object.entries(dashboardData.content.byCategory).map(([name, value]) => ({ name: name.replace(/_/g, ' '), value }))}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                      <XAxis dataKey="name" tick={{ fill: '#9ca3af', fontSize: 10 }} angle={-45} textAnchor="end" height={80} />
-                      <YAxis tick={{ fill: '#9ca3af' }} />
-                      <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151' }} />
-                      <Bar dataKey="value" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Reports by Status */}
-              <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700/50">
-                <h3 className="text-lg font-semibold mb-4">Reports by Status</h3>
-                <div className="h-64 flex items-center justify-center">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={Object.entries(dashboardData.content.byStatus).map(([name, value]) => ({ name, value }))}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="value"
-                        label={({ name, value }) => `${name}: ${value}`}
-                      >
-                        {Object.entries(dashboardData.content.byStatus).map(([name]) => (
-                          <Cell key={name} fill={STATUS_COLORS[name] || '#6b7280'} />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-
-            {/* Category Breakdown Table */}
-            <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700/50">
-              <h3 className="text-lg font-semibold mb-4">Category Breakdown</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {Object.entries(dashboardData.content.byCategory)
-                  .sort(([, a], [, b]) => b - a)
-                  .map(([category, count]) => (
-                    <div key={category} className="bg-gray-700/30 rounded-lg p-4">
-                      <div className="text-2xl font-bold" style={{ color: CATEGORY_COLORS[category] || '#9ca3af' }}>
-                        {count}
-                      </div>
-                      <div className="text-sm text-gray-400 capitalize mt-1">
-                        {category.replace(/_/g, ' ')}
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Activity Tab */}
-        {activeTab === 'activity' && dashboardData && (
-          <div className="space-y-6">
-            {/* Activity Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatsCard
-                title="Reports This Week"
-                value={dashboardData.content.reportsThisWeek}
-                icon="ðŸ“"
-                color="green"
-              />
-              <StatsCard
-                title="Comments This Week"
-                value={dashboardData.activity.commentsThisWeek}
-                icon="ðŸ’¬"
-                color="blue"
-              />
-              <StatsCard
-                title="Votes This Week"
-                value={dashboardData.activity.votesThisWeek}
-                icon="ðŸ‘"
-                color="purple"
-              />
-              <StatsCard
-                title="New Users This Week"
-                value={dashboardData.users.thisWeek}
-                icon="ðŸ‘¤"
-                color="orange"
-              />
-            </div>
-
-            {/* Activity Chart */}
-            <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700/50">
-              <h3 className="text-lg font-semibold mb-4">Daily Activity (Last 30 Days)</h3>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={dashboardData.activity.dailyActivity}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fill: '#9ca3af', fontSize: 10 }}
-                      tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    />
-                    <YAxis tick={{ fill: '#9ca3af' }} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151' }}
-                      labelFormatter={(value) => new Date(value).toLocaleDateString()}
-                    />
-                    <Line type="monotone" dataKey="reports" name="Reports" stroke="#22c55e" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="users" name="New Users" stroke="#6366f1" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="comments" name="Comments" stroke="#f59e0b" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Activity Feed */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700/50">
-                <h3 className="text-lg font-semibold mb-4">Today&apos;s Summary</h3>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center p-3 bg-gray-700/30 rounded-lg">
-                    <span className="text-gray-300">Reports Submitted</span>
-                    <span className="font-mono text-green-400 text-xl">{dashboardData.content.reportsToday}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-gray-700/30 rounded-lg">
-                    <span className="text-gray-300">Comments Posted</span>
-                    <span className="font-mono text-blue-400 text-xl">{dashboardData.activity.commentsToday}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-gray-700/30 rounded-lg">
-                    <span className="text-gray-300">Votes Cast</span>
-                    <span className="font-mono text-purple-400 text-xl">{dashboardData.activity.votesToday}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-gray-700/30 rounded-lg">
-                    <span className="text-gray-300">New Users</span>
-                    <span className="font-mono text-orange-400 text-xl">{dashboardData.users.today}</span>
-                  </div>
-                </div>
-              </div>
-
-              <ActivityFeed maxItems={10} refreshInterval={30000} />
-            </div>
-          </div>
-        )}
-
-        {/* Sources Tab */}
-        {activeTab === 'sources' && (
-          <section>
-            <div className="bg-gray-800/50 rounded-lg overflow-hidden border border-gray-700/50">
-              <table className="w-full">
-                <thead className="bg-gray-700/50">
-                  <tr>
-                    <th className="text-left p-4">Source</th>
-                    <th className="text-left p-4">Adapter</th>
-                    <th className="text-left p-4">Status</th>
-                    <th className="text-left p-4">Last Sync</th>
-                    <th className="text-left p-4">Records</th>
-                    <th className="text-left p-4">Errors</th>
-                    <th className="text-left p-4">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dataSources.map(source => (
-                    <tr key={source.id} className="border-t border-gray-700 hover:bg-gray-700/30 transition-colors">
-                      <td className="p-4">
-                        <div className="font-medium">{source.name}</div>
-                        <div className="text-sm text-gray-400">{source.slug}</div>
-                      </td>
-                      <td className="p-4">
-                        <code className="text-sm bg-gray-700 px-2 py-1 rounded">
-                          {source.adapter_type || 'none'}
-                        </code>
-                      </td>
-                      <td className="p-4">
-                        <button
-                          onClick={() => toggleSource(source.id, source.is_active)}
-                          className={`px-3 py-1 rounded text-sm font-medium ${
-                            source.is_active
-                              ? 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
-                              : 'bg-gray-600/50 text-gray-400 hover:bg-gray-600'
-                          }`}
-                        >
-                          {source.is_active ? 'âœ“ Active' : 'Inactive'}
-                        </button>
-                      </td>
-                      <td className="p-4 text-sm text-gray-400">
-                        {source.last_synced_at
-                          ? new Date(source.last_synced_at).toLocaleString()
-                          : 'Never'}
-                      </td>
-                      <td className="p-4">
-                        <span className="text-green-400 font-medium">{(source.total_records || 0).toLocaleString()}</span>
-                      </td>
-                      <td className="p-4">
-                        {source.error_count > 0 ? (
-                          <span className="text-red-400">{source.error_count}</span>
-                        ) : (
-                          <span className="text-gray-500">0</span>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        {source.adapter_type && (
-                          <button
-                            onClick={() => triggerIngestion(source.id)}
-                            disabled={ingesting !== null}
-                            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-4 py-1.5 rounded text-sm font-medium"
-                          >
-                            {ingesting === source.id ? (
-                              <span className="flex items-center gap-1">
-                                <span className="animate-spin">âŸ³</span>
-                              </span>
-                            ) : (
-                              'â–¶ Run'
-                            )}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
-
-        {/* Jobs Tab */}
-        {activeTab === 'jobs' && (
-          <section>
-            <div className="bg-gray-800/50 rounded-lg overflow-hidden border border-gray-700/50">
-              <table className="w-full">
-                <thead className="bg-gray-700/50">
-                  <tr>
-                    <th className="text-left p-4">Source</th>
-                    <th className="text-left p-4">Status</th>
-                    <th className="text-left p-4">Started</th>
-                    <th className="text-left p-4">Duration</th>
-                    <th className="text-left p-4">Found</th>
-                    <th className="text-left p-4">Inserted</th>
-                    <th className="text-left p-4">Updated</th>
-                    <th className="text-left p-4">Error</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentJobs.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="p-8 text-center text-gray-400">
-                        No ingestion jobs yet. Click &quot;Run All Ingestion&quot; to start.
-                      </td>
-                    </tr>
-                  ) : (
-                    recentJobs.map(job => {
-                      const duration = job.started_at && job.completed_at
-                        ? Math.round((new Date(job.completed_at).getTime() - new Date(job.started_at).getTime()) / 1000)
-                        : null
-
-                      return (
-                        <tr key={job.id} className="border-t border-gray-700 hover:bg-gray-700/30 transition-colors">
-                          <td className="p-4 font-medium">{job.data_sources?.name || 'Unknown'}</td>
-                          <td className="p-4">
-                            <span className={`px-2 py-1 rounded text-sm font-medium ${
-                              job.status === 'completed' ? 'bg-green-500/20 text-green-300' :
-                              job.status === 'failed' ? 'bg-red-500/20 text-red-300' :
-                              job.status === 'running' ? 'bg-yellow-500/20 text-yellow-300' :
-                              'bg-gray-600/50 text-gray-400'
-                            }`}>
-                              {job.status}
-                            </span>
-                          </td>
-                          <td className="p-4 text-sm text-gray-400">
-                            {job.started_at ? new Date(job.started_at).toLocaleString() : '-'}
-                          </td>
-                          <td className="p-4 text-sm text-gray-400">
-                            {duration !== null ? `${duration}s` : '-'}
-                          </td>
-                          <td className="p-4">{job.records_found}</td>
-                          <td className="p-4 text-green-400">{job.records_inserted}</td>
-                          <td className="p-4 text-blue-400">{job.records_updated}</td>
-                          <td className="p-4 text-sm text-red-400 max-w-xs truncate" title={job.error_message || ''}>
-                            {job.error_message || '-'}
-                          </td>
-                        </tr>
-                      )
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
-      </div>
-    </>
-  )
-}
+ÛÛšX]Ü‹[™^
+HOˆ
+ˆ]ˆÙ^O^ØÛÛšX]Ü‹šYHÛ\ÜÓ˜[YOH™›^][\ËXÙ[\ˆØ\LÈ‚ˆÜ[ˆÛ\ÜÓ˜[YOH^YÜ˜^KMLËMˆžÚ[™^
+È_KÜÜ[‚ˆ]ˆÛ\ÜÓ˜[YOHËNN›Ý[™YY[™ËYÜ˜^KMÌ›^][\ËXÙ[\ˆ\ÝYžKXÙ[\ˆ^\ÛH‚ˆØÛÛšX]Ü‹˜]˜]\•\›È
+ˆ[YÈÜ˜Ï^ØÛÛšX]Ü‹˜]˜]\•\›H[HˆˆÛ\ÜÓ˜[YOHËNN›Ý[™YY[ˆÏ‚ˆ
+Hˆ
+ˆÛÛšX]Ü‹\Ù\›˜[YOË˜Ú\]
+
+KÕ\\Ø\ÙJ
+H	ÏÉÂˆ
+_BˆÙ]‚ˆ]ˆÛ\ÜÓ˜[YOH™›^LH‚ˆ]ˆÛ\ÜÓ˜[YOH™›Û[YY][HžØÛÛšX]Ü‹™\Ü^S˜[YHÛÛšX]Ü‹\Ù\›˜[Y_OÙ]‚ˆ]ˆÛ\ÜÓ˜[YOH^^È^YÜ˜^KMÆ6öçG&–'WF÷"çW6W&æÖWÓÂöF—cà¢ÂöF—cà¢Ç7â6Æ74æÖSÒ'FW‡BÖw&VVâÓCföçBÖÖöæò#ç¶6öçG&–'WF÷"ç&W÷'D6÷VçGÒ&W÷'G3Â÷7ãà¢ÂöF—cà¢’—Ð¢ÂöF—cà¢ÂöF—cà¢ÂöF—cà ¢²ò¢W6W"Æ—7B¢÷Ð¢ÆF—b6Æ74æÖSÒ&&rÖw&’ÓƒóS&÷VæFVBÖÆr&÷&FW"&÷&FW"Öw&’ÓsóS#à¢ÆF—b6Æ74æÖSÒ'ÓB&÷&FW"Ö"&÷&FW"Öw&’ÓsfÆW‚—FV×2Ö6VçFW"vÓB#à¢Æƒ26Æ74æÖSÒ'FW‡BÖÆrföçB×6VÖ–&öÆB#äÆÂW6W'3Âöƒ3à¢Æ–çW@¢G—SÒ'FW‡B ¢Æ6V†öÆFW#Ò%6V&6‚W6W'2âââ ¢fÇVS×·W6W%6V&6‡Ð¢öä6†ævS×²†R’Óâ6WEW6W%6V&6‚†RçF&vWBçfÇVR—Ð¢6Æ74æÖSÒ&fÆW‚ÓÖ‚×r×‡2&rÖw&’Ós&÷&FW"ÖæöæR&÷VæFVBÖÆr‚ÓB’Ó"FW‡B×6Ò ¢óà¢ÂöF—cà¢ÆF—b6Æ74æÖSÒ&÷fW&fÆ÷r×‚ÖWFò#à¢ÇF&ÆR6Æ74æÖSÒ'rÖgVÆÂ#à¢ÇF†VB6Æ74æÖSÒ&&rÖw&’ÓsóS#à¢ÇG#à¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#åW6W#Â÷Fƒà¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#å&öÆSÂ÷Fƒà¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#å&W÷'G3Â÷Fƒà¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#å&WWFF–öãÂ÷Fƒà¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#ä¦ö–æVCÂ÷Fƒà¢Â÷G#à¢Â÷F†VCà¢ÇF&öG“à¢¶F6†&ö&DFFçW6W'2æÆ—7@¢æf–ÇFW"‡W6W"Óà¢W6W%6V&6‚ÇÀ¢W6W"çW6W&æÖSòçFôÆ÷vW$66R‚’æ–æ6ÇVFW2‡W6W%6V&6‚çFôÆ÷vW$66R‚’’ÇÀ¢W6W"æF—7Æ”æÖSòçFôÆ÷vW$66R‚’æ–æ6ÇVFW2‡W6W%6V&6‚çFôÆ÷vW$66R‚’’ÇÀ¢W6W"æVÖ–ÃòçFôÆ÷vW$66R‚’æ–æ6ÇVFW2‡W6W%6V&6‚çFôÆ÷vW$66R‚’¢¢ç6Æ–6RƒÂS¢æÖ‡W6W"Óâ€¢ÇG"¶W“×·W6W"æ–GÒ6Æ74æÖSÒ&&÷&FW"×B&÷&FW"Öw&’Ós†÷fW#¦&rÖw&’Ósó3G&ç6—F–öâÖ6öÆ÷'2#à¢ÇFB6Æ74æÖSÒ'ÓB#à¢ÆF—b6Æ74æÖSÒ&fÆW‚—FV×2Ö6VçFW"vÓ2#à¢ÆF—b6Æ74æÖSÒ'rÓ‚‚Ó‚&÷VæFVBÖgVÆÂ&rÖw&’ÓsfÆW‚—FV×2Ö6VçFW"§W7F–g’Ö6VçFW"FW‡B×6Ò#à¢·W6W"æfF%W&Âò€¢Æ–Ör7&3×·W6W"æfF%W&ÇÒÇCÒ""6Æ74æÖSÒ'rÓ‚‚Ó‚&÷VæFVBÖgVÆÂ"óà¢’¢€¢W6W"çW6W&æÖSòæ6†$Bƒ’çFõWW$66R‚’ÇÂsòp¢—Ð¢ÂöF—cà¢ÆF—cà¢ÆF—b6Æ74æÖSÒ&föçBÖÖVF—VÒ#ç·W6W"æF—7Æ”æÖRÇÂW6W"çW6W&æÖWÓÂöF—cà¢ÆF—b6Æ74æÖSÒ'FW‡B×‡2FW‡BÖw&’ÓC#ç·W6W"æVÖ–ÂÇÂG·W6W"çW6W&æÖWÖÓÂöF—cà¢ÂöF—cà¢ÂöF—cà¢Â÷FCà¢ÇFB6Æ74æÖSÒ'ÓB#à¢Ç7â6Æ74æÖS×¶‚Ó"’Ó&÷VæFVBFW‡B×‡2föçBÖÖVF—VÒG°¢W6W"ç&öÆRÓÓÒvFÖ–âròv&r×&VBÓSó#FW‡B×&VBÓ3r ¢W6W"ç&öÆRÓÓÒvÖöFW&F÷"ròv&r×W'ÆRÓSó#FW‡B×W'ÆRÓ3r ¢W6W"ç&öÆRÓÓÒv6öçG&–'WF÷"ròv&rÖ&ÇVRÓSó#FW‡BÖ&ÇVRÓ3r ¢v&rÖw&’ÓcóSFW‡BÖw&’Ó3p¢ÖÓà¢·W6W"ç&öÆWÐ¢Â÷7ãà¢Â÷FCà¢ÇFB6Æ74æÖSÒ'ÓB#à¢Ç7â6Æ74æÖSÒ'FW‡BÖw&VVâÓC#ç·W6W"ç&W÷'G57V&Ö—GFVGÓÂ÷7ãà¢·W6W"ç&W÷'G4&÷fVBâbb€¢Ç7â6Æ74æÖSÒ'FW‡BÖw&’ÓCFW‡B×6Ò#â‡·W6W"ç&W÷'G4&÷fVGÒ&÷fVB“Â÷7ãà¢—Ð¢Â÷FCà¢ÇFB6Æ74æÖSÒ'ÓBföçBÖÖöæò#ç·W6W"ç&WWFF–öå66÷&WÓÂ÷FCà¢ÇFB6Æ74æÖSÒ'ÓBFW‡B×6ÒFW‡BÖw&’ÓC#à¢¶æWrFFR‡W6W"æ7&VFVDB’çFôÆö6ÆTFFU7G&–ær‚—Ð¢Â÷FCà¢Â÷G#à¢’—Ð¢Â÷F&öG“à¢Â÷F&ÆSà¢ÂöF—cà¢ÂöF—cà¢ÂöF—cà¢—Ð ¢²ò¢6öçFVçBF"¢÷Ð¢¶7F—fUF"ÓÓÒv6öçFVçBrbbF6†&ö&DFFbb€¢ÆF—b6Æ74æÖSÒ'76R×’Ób#à¢²ò¢6öçFVçB7FG26&G2¢÷Ð¢ÆF—b6Æ74æÖSÒ&w&–Bw&–BÖ6öÇ2ÓÖC¦w&–BÖ6öÇ2Ó"Æs¦w&–BÖ6öÇ2ÓBvÓB#à¢Å7FG46&@¢F—FÆSÒ%F÷FÂ&W÷'G2 ¢fÇVS×¶F6†&ö&DFFæ6öçFVçBçF÷FÅ&W÷'G7Ð¢–6öãÒ/	ù9¢ ¢6öÆ÷#Ò&w&VVâ ¢óà¢Å7FG46&@¢F—FÆSÒ%VæF–ær&Wf–Wr ¢fÇVS×¶F6†&ö&DFFæ6öçFVçBçVæF–æu&Wf–WwÐ¢–6öãÒ.(û2 ¢6öÆ÷#Ò&÷&ævR ¢óà¢Å7FG46&@¢F—FÆSÒ$&÷fVB ¢fÇVS×¶F6†&ö&DFFæ6öçFVçBæ&÷fVGÐ¢–6öãÒ.)ÈR ¢6öÆ÷#Ò&w&VVâ ¢óà¢Å7FG46&@¢F—FÆSÒ$fÆvvVB ¢fÇVS×¶F6†&ö&DFFæ6öçFVçBæfÆvvVGÐ¢–6öãÒ/	ùª’ ¢6öÆ÷#Ò'&VB ¢óà¢ÂöF—cà ¢²ò¢6†'G2&÷r¢÷Ð¢ÆF—b6Æ74æÖSÒ&w&–Bw&–BÖ6öÇ2ÓÆs¦w&–BÖ6öÇ2Ó"vÓb#à¢²ò¢&W÷'G2'’6FVv÷'’¢÷Ð¢ÆF—b6Æ74æÖSÒ&&rÖw&’ÓƒóS&÷VæFVBÖÆrÓb&÷&FW"&÷&FW"Öw&’ÓsóS#à¢Æƒ26Æ74æÖSÒ'FW‡BÖÆrföçB×6VÖ–&öÆBÖ"ÓB#å&W÷'G2'’6FVv÷'“Âöƒ3à¢ÆF—b6Æ74æÖSÒ&‚ÓcB#à¢Å&W7öç6—fT6öçF–æW"v–GFƒÒ#R"†V–v‡CÒ#R#à¢Ä&$6†'BFF×´ö&¦V7BæVçG&–W2†F6†&ö&DFFæ6öçFVçBæ'”6FVv÷'’’æÖ‚…¶æÖRÂfÇVUÒ’Óâ‡²æÖS¢æÖRç&WÆ6R‚õòörÂrr’ÂfÇVRÒ’—Óà¢Ä6'FW6–äw&–B7G&ö¶TF6†'&“Ò#22"7G&ö¶SÒ"33sCS"óà¢Å„†—2FF¶W“Ò&æÖR"F–6³×·²f–ÆÃ¢r3–66brÂföçE6—¦S¢×ÒævÆS×²ÓCWÒFW‡Dæ6†÷#Ò&VæB"†V–v‡C×³ƒÒóà¢Å”†—2F–6³×·²f–ÆÃ¢r3–66br×Òóà¢ÅFööÇF—6öçFVçE7G–ÆS×·²&6¶w&÷VæD6öÆ÷#¢r3c#“3rrÂ&÷&FW#¢s‚6öÆ–B33sCSr×Òóà¢Ä&"FF¶W“Ò'fÇVR"f–ÆÃÒ"3#&3SVR"&F—W3×µ³BÂBÂÂ×Òóà¢Âô&$6†'Cà¢Âõ&W7öç6—fT6öçF–æW#à¢ÂöF—cà¢ÂöF—cà ¢²ò¢&W÷'G2'’7FGW2¢÷Ð¢ÆF—b6Æ74æÖSÒ&&rÖw&’ÓƒóS&÷VæFVBÖÆrÓb&÷&FW"&÷&FW"Öw&’ÓsóS#à¢Æƒ26Æ74æÖSÒ'FW‡BÖÆrföçB×6VÖ–&öÆBÖ"ÓB#å&W÷'G2'’7FGW3Âöƒ3à¢ÆF—b6Æ74æÖSÒ&‚ÓcBfÆW‚—FV×2Ö6VçFW"§W7F–g’Ö6VçFW"#à¢Å&W7öç6—fT6öçF–æW"v–GFƒÒ#R"†V–v‡CÒ#R#à¢Å–T6†'Cà¢Å–P¢FF×´ö&¦V7BæVçG&–W2†F6†&ö&DFFæ6öçFVçBæ'•7FGW2’æÖ‚…¶æÖRÂfÇVUÒ’Óâ‡²æÖRÂfÇVRÒ’—Ð¢7ƒÒ#SR ¢7“Ò#SR ¢–ææW%&F—W3×³cÐ¢÷WFW%&F—W3×³ƒÐ¢FF–ætævÆS×³WÐ¢FF¶W“Ò'fÇVR ¢Æ&VÃ×²‡²æÖRÂfÇVRÒ’ÓâG¶æÖWÓ¢G·fÇVWÖÐ¢à¢´ö&¦V7BæVçG&–W2†F6†&ö&DFFæ6öçFVçBæ'•7FGW2’æÖ‚…¶æÖUÒ’Óâ€¢Ä6VÆÂ¶W“×¶æÖWÒf–ÆÃ×µ5DEU5ô4ôÄõ%5¶æÖUÒÇÂr3f#s#ƒwÒóà¢’—Ð¢Âõ–Sà¢ÅFööÇF—6öçFVçE7G–ÆS×·²&6¶w&÷VæD6öÆ÷#¢r3c#“3rrÂ&÷&FW#¢s‚6öÆ–B33sCSr×Òóà¢Âõ–T6†'Cà¢Âõ&W7öç6—fT6öçF–æW#à¢ÂöF—cà¢ÂöF—cà¢ÂöF—cà ¢²ò¢6FVv÷'’'&V¶F÷vâF&ÆR¢÷Ð¢ÆF—b6Æ74æÖSÒ&&rÖw&’ÓƒóS&÷VæFVBÖÆrÓb&÷&FW"&÷&FW"Öw&’ÓsóS#à¢Æƒ26Æ74æÖSÒ'FW‡BÖÆrföçB×6VÖ–&öÆBÖ"ÓB#ä6FVv÷'’'&V¶F÷vãÂöƒ3à¢ÆF—b6Æ74æÖSÒ&w&–Bw&–BÖ6öÇ2Ó"ÖC¦w&–BÖ6öÇ2Ó2Æs¦w&–BÖ6öÇ2ÓBvÓB#à¢´ö&¦V7BæVçG&–W2†F6†&ö&DFFæ6öçFVçBæ'”6FVv÷'’¢ç6÷'B‚…²ÂÒÂ²Â%Ò’Óâ"Ò¢æÖ‚…¶6FVv÷'’Â6÷VçEÒ’Óâ€¢ÆF—b¶W“×¶6FVv÷'—Ò6Æ74æÖSÒ&&rÖw&’Ósó3&÷VæFVBÖÆrÓB#à¢ÆF—b6Æ74æÖSÒ'FW‡BÓ'†ÂföçBÖ&öÆB"7G–ÆS×·²6öÆ÷#¢4DTtõ%•ô4ôÄõ%5¶6FVv÷'•ÒÇÂr3–66br×Óà¢¶6÷VçGÐ¢ÂöF—cà¢ÆF—b6Æ74æÖSÒ'FW‡B×6ÒFW‡BÖw&’ÓC6—FÆ—¦R×BÓ#à¢¶6FVv÷'’ç&WÆ6R‚õòörÂrr—Ð¢ÂöF—cà¢ÂöF—cà¢’—Ð¢ÂöF—cà¢ÂöF—cà¢ÂöF—cà¢—Ð ¢²ò¢7F—f—G’F"¢÷Ð¢¶7F—fUF"ÓÓÒv7F—f—G’rbbF6†&ö&DFFbb€¢ÆF—b6Æ74æÖSÒ'76R×’Ób#à¢²ò¢7F—f—G’7FG26&G2¢÷Ð¢ÆF—b6Æ74æÖSÒ&w&–Bw&–BÖ6öÇ2ÓÖC¦w&–BÖ6öÇ2Ó"Æs¦w&–BÖ6öÇ2ÓBvÓB#à¢Å7FG46&@¢F—FÆSÒ%&W÷'G2F†—2vVV² ¢fÇVS×¶F6†&ö&DFFæ6öçFVçBç&W÷'G5F†—5vVV·Ð¢–6öãÒ/	ù9Ò ¢6öÆ÷#Ò&w&VVâ ¢óà¢Å7FG46&@¢F—FÆSÒ$6öÖÖVçG2F†—2vVV² ¢fÇVS×¶F6†&ö&DFFæ7F—f—G’æ6öÖÖVçG5F†—5vVV·Ð¢–6öãÒ/	ù*Â ¢6öÆ÷#Ò&&ÇVR ¢óà¢Å7FG46&@¢F—FÆSÒ%f÷FW2F†—2vVV² ¢fÇVS×¶F6†&ö&DFFæ7F—f—G’çf÷FW5F†—5vVV·Ð¢–6öãÒ/	ùÒ ¢6öÆ÷#Ò'W'ÆR ¢óà¢Å7FG46&@¢F—FÆSÒ$æWrW6W'2F†—2vVV² ¢fÇVS×¶F6†&ö&DFFçW6W'2çF†—5vVV·Ð¢–6öãÒ/	ùB ¢6öÆ÷#Ò&÷&ævR ¢óà¢ÂöF—cà ¢²ò¢7F—f—G’6†'B¢÷Ð¢ÆF—b6Æ74æÖSÒ&&rÖw&’ÓƒóS&÷VæFVBÖÆrÓb&÷&FW"&÷&FW"Öw&’ÓsóS#à¢Æƒ26Æ74æÖSÒ'FW‡BÖÆrföçB×6VÖ–&öÆBÖ"ÓB#äF–Ç’7F—f—G’„Æ7B3F—2“Âöƒ3à¢ÆF—b6Æ74æÖSÒ&‚Óƒ#à¢Å&W7öç6—fT6öçF–æW"v–GFƒÒ#R"†V–v‡CÒ#R#à¢ÄÆ–æT6†'BFF×¶F6†&ö&DFFæ7F—f—G’æF–Ç”7F—f—G—Óà¢Ä6'FW6–äw&–B7G&ö¶TF6†'&“Ò#22"7G&ö¶SÒ"33sCS"óà¢Å„†—0¢FF¶W“Ò&FFR ¢F–6³×·²f–ÆÃ¢r3–66brÂföçE6—¦S¢×Ð¢F–6´f÷&ÖGFW#×²‡fÇVR’ÓâæWrFFR‡fÇVR’çFôÆö6ÆTFFU7G&–ær‚vVâÕU2rÂ²ÖöçFƒ¢w6†÷'BrÂF“¢vçVÖW&–2rÒ—Ð¢óà¢Å”†—2F–6³×·²f–ÆÃ¢r3–66br×Òóà¢ÅFööÇF— ¢6öçFVçE7G–ÆS×·²&6¶w&÷VæD6öÆ÷#¢r3c#“3rrÂ&÷&FW#¢s‚6öÆ–B33sCSr×Ð¢Æ&VÄf÷&ÖGFW#×²‡fÇVR’ÓâæWrFFR‡fÇVR’çFôÆö6ÆTFFU7G&–ær‚—Ð¢óà¢ÄÆ–æRG—SÒ&Ööæ÷FöæR"FF¶W“Ò'&W÷'G2"æÖSÒ%&W÷'G2"7G&ö¶SÒ"3#&3SVR"7G&ö¶Uv–GFƒ×³'ÒF÷C×¶fÇ6WÒóà¢ÄÆ–æRG—SÒ&Ööæ÷FöæR"FF¶W“Ò'W6W'2"æÖSÒ$æWrW6W'2"7G&ö¶SÒ"3c3cfc"7G&ö¶Uv–GFƒ×³'ÒF÷C×¶fÇ6WÒóà¢ÄÆ–æRG—SÒ&Ööæ÷FöæR"FF¶W“Ò&6öÖÖVçG2"æÖSÒ$6öÖÖVçG2"7G&ö¶SÒ"6cS–S""7G&ö¶Uv–GFƒ×³'ÒF÷C×¶fÇ6WÒóà¢ÂôÆ–æT6†'Cà¢Âõ&W7öç6—fT6öçF–æW#à¢ÂöF—cà¢ÂöF—cà ¢²ò¢7F—f—G’fVVB¢÷Ð¢ÆF—b6Æ74æÖSÒ&w&–Bw&–BÖ6öÇ2ÓÆs¦w&–BÖ6öÇ2Ó"vÓb#à¢ÆF—b6Æ74æÖSÒ&&rÖw&’ÓƒóS&÷VæFVBÖÆrÓb&÷&FW"&÷&FW"Öw&’ÓsóS#à¢Æƒ26Æ74æÖSÒ'FW‡BÖÆrföçB×6VÖ–&öÆBÖ"ÓB#åFöF’f÷3·27VÖÖ'“Âöƒ3à¢ÆF—b6Æ74æÖSÒ'76R×’ÓB#à¢ÆF—b6Æ74æÖSÒ&fÆW‚§W7F–g’Ö&WGvVVâ—FV×2Ö6VçFW"Ó2&rÖw&’Ósó3&÷VæFVBÖÆr#à¢Ç7â6Æ74æÖSÒ'FW‡BÖw&’Ó3#å&W÷'G27V&Ö—GFVCÂ÷7ãà¢Ç7â6Æ74æÖSÒ&föçBÖÖöæòFW‡BÖw&VVâÓCFW‡B×†Â#ç¶F6†&ö&DFFæ6öçFVçBç&W÷'G5FöF—ÓÂ÷7ãà¢ÂöF—cà¢ÆF—b6Æ74æÖSÒ&fÆW‚§W7F–g’Ö&WGvVVâ—FV×2Ö6VçFW"Ó2&rÖw&’Ósó3&÷VæFVBÖÆr#à¢Ç7â6Æ74æÖSÒ'FW‡BÖw&’Ó3#ä6öÖÖVçG2÷7FVCÂ÷7ãà¢Ç7â6Æ74æÖSÒ&föçBÖÖöæòFW‡BÖ&ÇVRÓCFW‡B×†Â#ç¶F6†&ö&DFFæ7F—f—G’æ6öÖÖVçG5FöF—ÓÂ÷7ãà¢ÂöF—cà¢ÆF—b6Æ74æÖSÒ&fÆW‚§W7F–g’Ö&WGvVVâ—FV×2Ö6VçFW"Ó2&rÖw&’Ósó3&÷VæFVBÖÆr#à¢Ç7â6Æ74æÖSÒ'FW‡BÖw&’Ó3#åf÷FW267CÂ÷7ãà¢Ç7â6Æ74æÖSÒ&föçBÖÖöæòFW‡B×W'ÆRÓCFW‡B×†Â#ç¶F6†&ö&DFFæ7F—f—G’çf÷FW5FöF—ÓÂ÷7ãà¢ÂöF—cà¢ÆF—b6Æ74æÖSÒ&fÆW‚§W7F–g’Ö&WGvVVâ—FV×2Ö6VçFW"Ó2&rÖw&’Ósó3&÷VæFVBÖÆr#à¢Ç7â6Æ74æÖSÒ'FW‡BÖw&’Ó3#äæWrW6W'3Â÷7ãà¢Ç7â6Æ74æÖSÒ&föçBÖÖöæòFW‡BÖ÷&ævRÓCFW‡B×†Â#ç¶F6†&ö&DFFçW6W'2çFöF—ÓÂ÷7ãà¢ÂöF—cà¢ÂöF—cà¢ÂöF—cà ¢Ä7F—f—G”fVVBÖ„—FV×3×³Ò&Vg&W6„–çFW'fÃ×³3Òóà¢ÂöF—cà¢ÂöF—cà¢—Ð ¢²ò¢VÆ—G’F"¢÷Ð¢¶7F—fUF"ÓÓÒwVÆ—G’rbb€¢ÆF—b6Æ74æÖSÒ'76R×’Ób#à¢²ò¢VÆ—G’7FG26&G2¢÷Ð¢ÆF—b6Æ74æÖSÒ&w&–Bw&–BÖ6öÇ2ÓÖC¦w&–BÖ6öÇ2Ó"Æs¦w&–BÖ6öÇ2ÓBvÓB#à¢Å7FG46&@¢F—FÆSÒ%&W÷'G266÷&VB ¢fÇVS×·VÆ—G”FFòç66÷&U7FG2çF÷FÅ66÷&VBÇÂÐ¢7V'F—FÆS×·VÆ—G”FFòöbG²‡VÆ—G”FFç66÷&U7FG2çF÷FÅ66÷&VB²VÆ—G”FFçVç66÷&VE&W÷'G2—ÒF÷FÆ¢rwÐ¢–6öãÒ.*Ù ¢6öÆ÷#Ò&w&VVâ ¢óà¢Å7FG46&@¢F—FÆSÒ$fW&vR66÷&R ¢fÇVS×·VÆ—G”FFòç66÷&U7FG2æfW&vRÇÂÐ¢7V'F—FÆS×·VÆ—G”FFò&ævRG·VÆ—G”FFç66÷&U7FG2æÖ–çÞ(	2G·VÆ—G”FFç66÷&U7FG2æÖ‡Ö¢rwÐ¢–6öãÒ/	ù8¢ ¢6öÆ÷#Ò&&ÇVR ¢óà¢Å7FG46&@¢F—FÆSÒ%Vç66÷&VB&W÷'G2 ¢fÇVS×·VÆ—G”FFòçVç66÷&VE&W÷'G2ÇÂÐ¢7V'F—FÆSÒ&v—F–ær66÷&–ær ¢–6öãÒ.(û2 ¢6öÆ÷#×·VÆ—G”FFbbVÆ—G”FFçVç66÷&VE&W÷'G2âòv÷&ævRr¢vw&VVâwÐ¢óà¢Å7FG46&@¢F—FÆSÒ%VæF–ærGWÆ–6FW2 ¢fÇVS×·VÆ—G”FFòçVæF–ætGWÆ–6FW2ÇÂÐ¢7V'F—FÆSÒ&æVVB&Wf–Wr ¢–6öãÒ/	ùHÒ ¢6öÆ÷#×·VÆ—G”FFbbVÆ—G”FFçVæF–ætGWÆ–6FW2âòw&VBr¢vw&VVâwÐ¢óà¢ÂöF—cà ¢²ò¢w&FRF—7G&–'WF–öâ²66÷&RW‡ÆæF–öâ¢÷Ð¢ÆF—b6Æ74æÖSÒ&w&–Bw&–BÖ6öÇ2ÓÆs¦w&–BÖ6öÇ2Ó"vÓb#à¢²ò¢w&FRF—7G&–'WF–öâ6†'B¢÷Ð¢ÆF—b6Æ74æÖSÒ&&rÖw&’ÓƒóS&÷VæFVBÖÆrÓb&÷&FW"&÷&FW"Öw&’ÓsóS#à¢Æƒ26Æ74æÖSÒ'FW‡BÖÆrföçB×6VÖ–&öÆBÖ"ÓB#äw&FRF—7G&–'WF–öãÂöƒ3à¢·VÆ—G”FFbbVÆ—G”FFæw&FTF—7G&–'WF–öâæÆVæwF‚âò€¢Ãà¢ÆF—b6Æ74æÖSÒ&‚ÓcB#à¢Å&W7öç6—fT6öçF–æW"v–GFƒÒ#R"†V–v‡CÒ#R#à¢Ä&$6†'BFF×·VÆ—G”FFæw&FTF—7G&–'WF–öâç6÷'B‚†Â"’Óâ°¢6öç7B÷&FW"Ò²trÂt"rÂt2rÂtBrÂtbuÓ°¢&WGW&â÷&FW"æ–æFW„öb†æw&FR’Ò÷&FW"æ–æFW„öb†"æw&FR“°¢Ò—Óà¢Ä6'FW6–äw&–B7G&ö¶TF6†'&“Ò#22"7G&ö¶SÒ"33sCS"óà¢Å„†—2FF¶W“Ò&w&FR"F–6³×·²f–ÆÃ¢r3–66brÂföçE6—¦S¢BÂföçEvV–v‡C¢v&öÆBr×Òóà¢Å”†—2F–6³×·²f–ÆÃ¢r3–66br×Òóà¢ÅFööÇF—6öçFVçE7G–ÆS×·²&6¶w&÷VæD6öÆ÷#¢r3c#“3rrÂ&÷&FW#¢s‚6öÆ–B33sCSr×Òóà¢Ä&"FF¶W“Ò&6÷VçB"æÖSÒ%&W÷'G2"&F—W3×µ³BÂBÂÂ×Óà¢·VÆ—G”FFæw&FTF—7G&–'WF–öâæÖ‚†VçG'’’Óâ€¢Ä6VÆÂ¶W“×¶VçG'’æw&FWÒf–ÆÃ×°¢VçG'’æw&FRÓÓÒtròr3#&3SVRr ¢VçG'’æw&FRÓÓÒt"ròr36#ƒ&cbr ¢VçG'’æw&FRÓÓÒt2ròr6cS–S"r ¢VçG'’æw&FRÓÓÒtBròr6c“s3br ¢r6VcCCCBp¢Òóà¢’—Ð¢Âô&#à¢Âô&$6†'Cà¢Âõ&W7öç6—fT6öçF–æW#à¢ÂöF—cà¢ÆF—b6Æ74æÖSÒ&×BÓBw&–Bw&–BÖ6öÇ2ÓRvÓ"#à¢µ²trÂt"rÂt2rÂtBrÂtbuÒæÖ†w&FRÓâ°¢6öç7B—FVÒÒVÆ—G”FFæw&FTF—7G&–'WF–öâæf–æB†BÓâBæw&FRÓÓÒw&FR“°¢6öç7B6÷VçBÒ—FVÓòæ6÷VçBÇÂ°¢6öç7BF÷FÂÒVÆ—G”FFç66÷&U7FG2çF÷FÅ66÷&VBÇÂ°¢6öç7B7BÒÖF‚ç&÷VæB‚†6÷VçBòF÷FÂ’¢“°¢&WGW&â€¢ÆF—b¶W“×¶w&FWÒ6Æ74æÖSÒ'FW‡BÖ6VçFW"#à¢ÆF—b6Æ74æÖS×¶FW‡BÓ'†ÂföçBÖ&öÆBG°¢w&FRÓÓÒtròwFW‡BÖw&VVâÓCr ¢w&FRÓÓÒt"ròwFW‡BÖ&ÇVRÓCr ¢w&FRÓÓÒt2ròwFW‡B×–VÆÆ÷rÓCr ¢w&FRÓÓÒtBròwFW‡BÖ÷&ævRÓCr ¢wFW‡B×&VBÓCp¢ÖÓà¢¶6÷VçGÐ¢ÂöF—cà¢ÆF—b6Æ74æÖSÒ'FW‡B×‡2FW‡BÖw&’ÓC#ç¶w&FWÒ‡·7GÒR“ÂöF—cà¢ÂöF—cà¢“°¢Ò—Ð¢ÂöF—cà¢Âóà¢’¢€¢ÆF—b6Æ74æÖSÒ&‚ÓcBfÆW‚—FV×2Ö6VçFW"§W7F–g’Ö6VçFW"FW‡BÖw&’ÓC#à¢æòVÆ—G’FF–WBâ'Vâ66÷&–ærFò6VRw&FRF—7G&–'WF–öâà¢ÂöF—cà¢—Ð¢ÂöF—cà ¢²ò¢†÷r66÷&–ærv÷&·2¢÷Ð¢ÆF—b6Æ74æÖSÒ&&rÖw&’ÓƒóS&÷VæFVBÖÆrÓb&÷&FW"&÷&FW"Öw&’ÓsóS#à¢Æƒ26Æ74æÖSÒ'FW‡BÖÆrföçB×6VÖ–&öÆBÖ"ÓB#ä†÷rVÆ—G’66÷&–ærv÷&·3Âöƒ3à¢Ç6Æ74æÖSÒ'FW‡BÖw&’ÓCFW‡B×6ÒÖ"ÓB#à¢V6‚&W÷'B—2WfÇVFVBöâÇ7â6Æ74æÖSÒ'FW‡B×v†—FRföçBÖÖVF—VÒ#ãF–ÖVç6–öç3Â÷7ãâvV–v‡FVB'’–×÷'Fæ6Rà¢66÷&W2&R(	3ÂÖVBFòÆWGFW"w&FW2âfW'6–öã¢Æ6öFR6Æ74æÖSÒ'FW‡BÖw&VVâÓC#ç·VÆ—G”FFòç66÷&W%fW'6–öâÇÂs"ããwÓÂö6öFSà¢Â÷à¢ÆF—b6Æ74æÖSÒ'76R×’Ó"ãR#à¢µ°¢²F–Ó¢tWf–FVæ6R7G&VæwF‚rÂvV–v‡C¢sã'‚rÂFW63¢u‡—6–6ÂWf–FVæ6RÂ†÷F÷2÷f–FVòÂöff–6–Â&W÷'G2rÒÀ¢²F–Ó¢tFW67&—F–öâFWF–ÂrÂvV–v‡C¢sã7‚rÂFW63¢uv÷&B6÷VçBÂ6Vç6÷'’FWF–ÂÂÖV7W&VÖVçG2Â&V†f–÷&Âæ÷FW2rÒÀ¢²F–Ó¢u6÷W&6R&VÆ–&–Æ—G’rÂvV–v‡C¢sã‚rÂFW63¢t¶æ÷vâFF&6W266÷&R†–v†W"F†âæöç–Ö÷W27V&Ö—76–öç2rÒÀ¢²F–Ó¢uv—FæW727&VF–&–Æ—G’rÂvV–v‡C¢sã‚rÂFW63¢t×VÇF—ÆRv—FæW76W2ÂæÖVB66÷VçG2Â&öfW76–öæÂ&6¶w&÷VæG2rÒÀ¢²F–Ó¢tæ'&F—fR6ö†W&Væ6RrÂvV–v‡C¢sã‚rÂFW63¢u6VçFVæ6R7G'V7GW&RÂ&w&‚fÆ÷rÂÆöv–6Â6öç6—7FVæ7’rÒÀ¢²F–Ó¢tÆö6F–öâ7V6–f–6—G’rÂvV–v‡C¢sã—‚rÂFW63¢tu26ö÷&F–æFW2ÂæÖVBÆæFÖ&·2Â6—G’÷7FFRö6÷VçG'’rÒÀ¢²F–Ó¢uFV×÷&Â&V6—6–öârÂvV–v‡C¢sã—‚rÂFW63¢u7V6–f–2FFW2ÂF–ÖW2ÂGW&F–öâöbWfVçBrÒÀ¢²F–Ó¢tFF6ö×ÆWFVæW72rÂvV–v‡C¢sã‡‚rÂFW63¢t†÷rÖç’öbF†RB÷76–&ÆRf–VÆG2&R÷VÆFVBrÒÀ¢²F–Ó¢t6öçFVçB÷&–v–æÆ—G’rÂvV–v‡C¢sã‡‚rÂFW63¢u7V6–f–2æÖW2ÂçVÖ&W'2ÂVæ—VRFWF–Ç2g2âvVæW&–2FW‡BrÒÀ¢²F–Ó¢t7&÷72Õ&VfW&Væ6RrÂvV–v‡C¢sãw‚rÂFW63¢uFw2Â6FVv÷&–W2ÂÆ–æ·2Fò&VÆFVB†VæöÖVærÒÀ¢ÒæÖ‚‡²F–ÒÂvV–v‡BÂFW62Ò’Óâ€¢ÆF—b¶W“×¶F–×Ò6Æ74æÖSÒ&fÆW‚—FV×2×7F'BvÓ2FW‡B×6Ò#à¢Ç7â6Æ74æÖSÒ'FW‡BÖw&VVâÓCföçBÖÖöæòFW‡B×‡2&rÖw&VVâÓSó‚ÓãR’ÓãR&÷VæFVB6‡&–æ²Ó#ç·vV–v‡GÓÂ÷7ãà¢ÆF—cà¢Ç7â6Æ74æÖSÒ'FW‡B×v†—FRföçBÖÖVF—VÒ#ç¶F–×ÓÂ÷7ãà¢Ç7â6Æ74æÖSÒ'FW‡BÖw&’ÓS#â(	B¶FW67ÓÂ÷7ãà¢ÂöF—cà¢ÂöF—cà¢’—Ð¢ÂöF—cà¢ÆF—b6Æ74æÖSÒ&×BÓBBÓB&÷&FW"×B&÷&FW"Öw&’Ós#à¢ÆƒB6Æ74æÖSÒ'FW‡B×6ÒföçB×6VÖ–&öÆBFW‡BÖw&’Ó3Ö"Ó"#äw&FR66ÆSÂöƒCà¢ÆF—b6Æ74æÖSÒ&fÆW‚vÓ2FW‡B×‡2#à¢Ç7â6Æ74æÖSÒ'FW‡BÖw&VVâÓC#ä¢ƒ(	3Â÷7ãà¢Ç7â6Æ74æÖSÒ'FW‡BÖ&ÇVRÓC#ä#¢c^(	3s“Â÷7ãà¢Ç7â6Æ74æÖSÒ'FW‡B×–VÆÆ÷rÓC#ä3¢S(	3cCÂ÷7ãà¢Ç7â6Æ74æÖSÒ'FW‡BÖ÷&ævRÓC#äC¢3^(	3C“Â÷7ãà¢Ç7â6Æ74æÖSÒ'FW‡B×&VBÓC#äc¢(	33CÂ÷7ãà¢ÂöF—cà¢ÂöF—cà¢ÂöF—cà¢ÂöF—cà ¢²ò¢—VÆ–æR7F–öç2¢÷Ð¢ÆF—b6Æ74æÖSÒ&&rÖw&’ÓƒóS&÷VæFVBÖÆrÓb&÷&FW"&÷&FW"Öw&’ÓsóS#à¢ÆF—b6Æ74æÖSÒ&fÆW‚—FV×2Ö6VçFW"§W7F–g’Ö&WGvVVâÖ"ÓB#à¢ÆF—cà¢Æƒ26Æ74æÖSÒ'FW‡BÖÆrföçB×6VÖ–&öÆBfÆW‚—FV×2Ö6VçFW"vÓ"#à¢Ç7ãï	ùJsÂ÷7ãâVÆ—G’—VÆ–æR7F–öç0¢Âöƒ3à¢Ç6Æ74æÖSÒ'FW‡BÖw&’ÓCFW‡B×6Ò×BÓ#à¢66÷&RæWr&W÷'G2Â&R×66÷&R÷WFFFVBöæW2Â÷"'VâGWÆ–6FRFWFV7F–öâà¢Â÷à¢ÂöF—cà¢ÂöF—cà ¢ÆF—b6Æ74æÖSÒ&w&–Bw&–BÖ6öÇ2ÓÖC¦w&–BÖ6öÇ2Ó"Æs¦w&–BÖ6öÇ2ÓBvÓ2#à¢Æ'WGFöà¢öä6Æ–6³×²‚’Óâ'VåVÆ—G”7F–öâ‚w66÷&RÖ&F6‚rÂt&F6‚66÷&–ærr—Ð¢F—6&ÆVC×·66÷&–æt7F–öâÓÒçVÆÇÐ¢6Æ74æÖSÒ&&rÖw&VVâÓc†÷fW#¦&rÖw&VVâÓsF—6&ÆVC¦&rÖw&’ÓcFW‡B×v†—FR‚ÓB’Ó2&÷VæFVBÖÆrföçBÖÖVF—VÒG&ç6—F–öâÖ6öÆ÷'2FW‡B×6Ò ¢à¢·66÷&–æt7F–öâÓÓÒw66÷&RÖ&F6‚rò€¢Ç7â6Æ74æÖSÒ&fÆW‚—FV×2Ö6VçFW"§W7F–g’Ö6VçFW"vÓ"#ãÇ7â6Æ74æÖSÒ&æ–ÖFR×7–â#î)û3Â÷7ãâ66÷&–ærââãÂ÷7ãà¢’¢€¢Ãî*Ù66÷&RVç66÷&VB†&F6‚“Âóà¢—Ð¢Âö'WGFöãà¢Æ'WGFöà¢öä6Æ–6³×²‚’Óâ'VåVÆ—G”7F–öâ‚w&W66÷&RÖÆÂrÂu&R×66÷&–ærr—Ð¢F—6&ÆVC×·66÷&–æt7F–öâÓÒçVÆÇÐ¢6Æ74æÖSÒ&&rÖ&ÇVRÓc†÷fW#¦&rÖ&ÇVRÓsF—6&ÆVC¦&rÖw&’ÓcFW‡B×v†—FR‚ÓB’Ó2&÷VæFVBÖÆrföçBÖÖVF—VÒG&ç6—F–öâÖ6öÆ÷'2FW‡B×6Ò ¢à¢·66÷&–æt7F–öâÓÓÒw&W66÷&RÖÆÂrò€¢Ç7â6Æ74æÖSÒ&fÆW‚—FV×2Ö6VçFW"§W7F–g’Ö6VçFW"vÓ"#ãÇ7â6Æ74æÖSÒ&æ–ÖFR×7–â#î)û3Â÷7ãâ&R×66÷&–ærââãÂ÷7ãà¢’¢€¢Ãï	ùHB&R×66÷&R÷WFFFVCÂóà¢—Ð¢Âö'WGFöãà¢Æ'WGFöà¢öä6Æ–6³×²‚’Óâ'VåVÆ—G”7F–öâ‚v6†V6²rÂtF–væ÷7F–26†V6²r—Ð¢F—6&ÆVC×·66÷&–æt7F–öâÓÒçVÆÇÐ¢6Æ74æÖSÒ&&r×W'ÆRÓc†÷fW#¦&r×W'ÆRÓsF—6&ÆVC¦&rÖw&’ÓcFW‡B×v†—FR‚ÓB’Ó2&÷VæFVBÖÆrföçBÖÖVF—VÒG&ç6—F–öâÖ6öÆ÷'2FW‡B×6Ò ¢à¢·66÷&–æt7F–öâÓÓÒv6†V6²rò€¢Ç7â6Æ74æÖSÒ&fÆW‚—FV×2Ö6VçFW"§W7F–g’Ö6VçFW"vÓ"#ãÇ7â6Æ74æÖSÒ&æ–ÖFR×7–â#î)û3Â÷7ãâ6†V6¶–ærââãÂ÷7ãà¢’¢€¢Ãï	ú›¢'VâF–væ÷7F–3Âóà¢—Ð¢Âö'WGFöãà¢Æ'WGFöà¢öä6Æ–6³×²‚’Óâ'VåVÆ—G”7F–öâ‚w66÷&RÖÆÂrÂtgVÆÂ66÷&–ærr—Ð¢F—6&ÆVC×·66÷&–æt7F–öâÓÒçVÆÇÐ¢6Æ74æÖSÒ&&rÖ÷&ævRÓc†÷fW#¦&rÖ÷&ævRÓsF—6&ÆVC¦&rÖw&’ÓcFW‡B×v†—FR‚ÓB’Ó2&÷VæFVBÖÆrföçBÖÖVF—VÒG&ç6—F–öâÖ6öÆ÷'2FW‡B×6Ò ¢à¢·66÷&–æt7F–öâÓÓÒw66÷&RÖÆÂrò€¢Ç7â6Æ74æÖSÒ&fÆW‚—FV×2Ö6VçFW"§W7F–g’Ö6VçFW"vÓ"#ãÇ7â6Æ74æÖSÒ&æ–ÖFR×7–â#î)û3Â÷7ãâ66÷&–ærÆÂââãÂ÷7ãà¢’¢€¢Ãï	ù¨66÷&RÆÂVç66÷&VCÂóà¢—Ð¢Âö'WGFöãà¢ÂöF—cà ¢²ò¢66÷&–ær&W7VÇB¢÷Ð¢·66÷&–æu&W7VÇBbb€¢ÆF—b6Æ74æÖS×¶×BÓBÓB&÷VæFVBÖÆrG°¢66÷&–æu&W7VÇBç7V66W70¢òv&rÖw&VVâÓSó#FW‡BÖw&VVâÓ3&÷&FW"&÷&FW"Öw&VVâÓSó3p¢¢v&r×&VBÓSó#FW‡B×&VBÓ3&÷&FW"&÷&FW"×&VBÓSó3p¢ÖÓà¢ÆF—b6Æ74æÖSÒ&föçBÖÖVF—VÒ#ç·66÷&–æu&W7VÇBæÖW76vWÓÂöF—cà¢·66÷&–æu&W7VÇBæFWF–Ç2bb€¢ÆF—b6Æ74æÖSÒ&×BÓ"FW‡B×6Òw&–Bw&–BÖ6öÇ2Ó"ÖC¦w&–BÖ6öÇ2ÓBvÓ2#à¢´ö&¦V7BæVçG&–W2‡66÷&–æu&W7VÇBæFWF–Ç2¢æf–ÇFW"‚…¶¶W•Ò’Óâ²w7FGW2rÂw66÷&W%fW'6–öârÂv6†V6·2uÒæ–æ6ÇVFW2†¶W’’¢ç6Æ–6RƒÂ‚¢æÖ‚…¶¶W’ÂfÅÒ’Óâ€¢ÆF—b¶W“×¶¶W—Óà¢Ç7â6Æ74æÖSÒ'FW‡BÖw&’ÓC#ç¶¶W’ç&WÆ6R‚ò…´Õ¥Ò’örÂrCr’çG&–Ò‚—Ó£Â÷7ãç²rwÐ¢Ç7â6Æ74æÖSÒ&föçBÖÖöæò#ç·G—VöbfÂÓÓÒvö&¦V7Brò¥4ôâç7G&–æv–g’‡fÂ’¢7G&–ær‡fÂ—ÓÂ÷7ãà¢ÂöF—cà¢’—Ð¢ÂöF—cà¢—Ð¢²ò¢6†÷rF–væ÷7F–26†V6·26W&FVÇ’¢÷Ð¢·66÷&–æu&W7VÇBæFWF–Ç3òæ6†V6·2bb€¢ÆF—b6Æ74æÖSÒ&×BÓ2BÓ2&÷&FW"×B&÷&FW"Öw&’ÓcóS#à¢ÆF—b6Æ74æÖSÒ'FW‡B×‡2föçBÖÖVF—VÒFW‡BÖw&’ÓCÖ"Ó"#å7—7FVÒ6†V6·3£ÂöF—cà¢ÆF—b6Æ74æÖSÒ&w&–Bw&–BÖ6öÇ2Ó"ÖC¦w&–BÖ6öÇ2Ó2vÓ"FW‡B×6Ò#à¢´ö&¦V7BæVçG&–W2‡66÷&–æu&W7VÇBæFWF–Ç2æ6†V6·22&V6÷&CÇ7G&–ærÂ7G&–æsâ’æÖ‚…¶¶W’ÂfÅÒ’Óâ€¢ÆF—b¶W“×¶¶W—Ò6Æ74æÖSÒ&fÆW‚—FV×2Ö6VçFW"vÓ"#à¢Ç7â6Æ74æÖS×·fÂÓÓÒw6WBrÇÂfÂÓÓÒvÆöFVBrÇÂfÂç7F'G5v—F‚‚vö²r’òwFW‡BÖw&VVâÓCr¢wFW‡B×&VBÓCwÓà¢·fÂÓÓÒw6WBrÇÂfÂÓÓÒvÆöFVBrÇÂfÂç7F'G5v—F‚‚vö²r’ò~)É2r¢~)ÉrwÐ¢Â÷7ãà¢Ç7â6Æ74æÖSÒ'FW‡BÖw&’Ó3#ç¶¶W—ÓÂ÷7ãà¢Ç7â6Æ74æÖSÒ'FW‡BÖw&’ÓSFW‡B×‡2G'Væ6FR#ç·fÇÓÂ÷7ãà¢ÂöF—cà¢’—Ð¢ÂöF—cà¢ÂöF—cà¢—Ð¢ÂöF—cà¢—Ð¢ÂöF—cà ¢²ò¢FVGW–æfò¢÷Ð¢ÆF—b6Æ74æÖSÒ&&rÖw&’ÓƒóS&÷VæFVBÖÆrÓb&÷&FW"&÷&FW"Öw&’ÓsóS#à¢Æƒ26Æ74æÖSÒ'FW‡BÖÆrföçB×6VÖ–&öÆBÖ"Ó2fÆW‚—FV×2Ö6VçFW"vÓ"#à¢Ç7ãï	ùHÓÂ÷7ãâFVGWÆ–6F–öâVæv–æP¢Âöƒ3à¢Ç6Æ74æÖSÒ'FW‡BÖw&’ÓCFW‡B×6ÒÖ"ÓB#à¢gW§§’ÖF6†–ær6ö×&W2WfW'’—"öb&÷fVB&W÷'G2W6–ærf÷W"6–Ö–Æ&—G’6–væÇ2À¢V6‚vV–v‡FVBæB6öÖ&–æVB–çFòâ÷fW&ÆÂ6öæf–FVæ6R66÷&Rà¢Â÷à¢ÆF—b6Æ74æÖSÒ&w&–Bw&–BÖ6öÇ2ÓÖC¦w&–BÖ6öÇ2Ó"Æs¦w&–BÖ6öÇ2ÓBvÓB#à¢µ°¢²6–væÃ¢uF—FÆR6–Ö–Æ&—G’rÂÖWF†öC¢uG&–w&ÒÖF6†–æröâæ÷&ÖÆ—¦VBF—FÆW2rÂvV–v‡C¢sCRrÒÀ¢²6–væÃ¢tÆö6F–öâÖF6‚rÂÖWF†öC¢t6—G’÷7FFRö6÷VçG'’²vVöFW6–2F—7Fæ6RƒÂS¶Ò’rÂvV–v‡C¢s#RRrÒÀ¢²6–væÃ¢tFFR&÷†–Ö—G’rÂÖWF†öC¢u6ÖRFFRÒãÂ6ÖRÖöçF‚ÒãrÂ6ÖR–V"Òã2rÂvV–v‡C¢s#RrÒÀ¢²6–væÃ¢t6öçFVçB÷fW&ÆrÂÖWF†öC¢u6†&VB&&Rv÷&G2–âFW67&—F–öç2…DbÔ”Db7G–ÆR’rÂvV–v‡C¢sRRrÒÀ¢ÒæÖ‚‡²6–væÂÂÖWF†öBÂvV–v‡BÒ’Óâ€¢ÆF—b¶W“×·6–væÇÒ6Æ74æÖSÒ&&rÖw&’Ósó3&÷VæFVBÖÆrÓB#à¢ÆF—b6Æ74æÖSÒ'FW‡B×6ÒföçBÖÖVF—VÒFW‡B×v†—FRfÆW‚—FV×2Ö6VçFW"§W7F–g’Ö&WGvVVâ#à¢·6–væÇÐ¢Ç7â6Æ74æÖSÒ'FW‡BÖw&VVâÓCFW‡B×‡2föçBÖÖöæò#ç·vV–v‡GÓÂ÷7ãà¢ÂöF—cà¢ÆF—b6Æ74æÖSÒ'FW‡B×‡2FW‡BÖw&’ÓC×BÓ#ç¶ÖWF†öGÓÂöF—cà¢ÂöF—cà¢’—Ð¢ÂöF—cà¢ÆF—b6Æ74æÖSÒ&×BÓBFW‡B×‡2FW‡BÖw&’ÓS#à¢f–ævW'&–çBÒ4„Ó#Sböb†æ÷&ÖÆ—¦VBF—FÆR²WfVçBFFR²Æö6F–öâ’âW†7Bf–ævW'&–çBÖF6†W2&RfÆvvVB–ÖÖVF–FVÇ’à¢gW§§’ÖF6†W2&÷fRãsR÷fW&ÆÂ6öæf–FVæ6R&R7F÷&VBf÷"ÖçVÂ&Wf–Wrà¢ÂöF—cà¢ÂöF—cà¢ÂöF—cà¢—Ð ¢²ò¢6÷W&6W2F"¢÷Ð¢¶7F—fUF"ÓÓÒw6÷W&6W2rbb€¢Ç6V7F–öãà¢ÆF—b6Æ74æÖSÒ&&rÖw&’ÓƒóS&÷VæFVBÖÆr÷fW&fÆ÷rÖ†–FFVâ&÷&FW"&÷&FW"Öw&’ÓsóS#à¢ÇF&ÆR6Æ74æÖSÒ'rÖgVÆÂ#à¢ÇF†VB6Æ74æÖSÒ&&rÖw&’ÓsóS#à¢ÇG#à¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#å6÷W&6SÂ÷Fƒà¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#äFFW#Â÷Fƒà¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#å7FGW3Â÷Fƒà¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#äÆ7B7–æ3Â÷Fƒà¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#å&V6÷&G3Â÷Fƒà¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#äW'&÷'3Â÷Fƒà¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#ä7F–öç3Â÷Fƒà¢Â÷G#à¢Â÷F†VCà¢ÇF&öG“à¢¶FF6÷W&6W2æÖ‡6÷W&6RÓâ€¢ÇG"¶W“×·6÷W&6Ræ–GÒ6Æ74æÖSÒ&&÷&FW"×B&÷&FW"Öw&’Ós†÷fW#¦&rÖw&’Ósó3G&ç6—F–öâÖ6öÆ÷'2#à¢ÇFB6Æ74æÖSÒ'ÓB#à¢ÆF—b6Æ74æÖSÒ&föçBÖÖVF—VÒ#ç·6÷W&6RææÖWÓÂöF—cà¢ÆF—b6Æ74æÖSÒ'FW‡B×6ÒFW‡BÖw&’ÓC#ç·6÷W&6Rç6ÇVwÓÂöF—cà¢Â÷FCà¢ÇFB6Æ74æÖSÒ'ÓB#à¢Æ6öFR6Æ74æÖSÒ'FW‡B×6Ò&rÖw&’Ós‚Ó"’Ó&÷VæFVB#à¢·6÷W&6RæFFW%÷G—RÇÂvæöæRwÐ¢Âö6öFSà¢Â÷FCà¢ÇFB6Æ74æÖSÒ'ÓB#à¢Æ'WGFöà¢öä6Æ–6³×²‚’ÓâFövvÆU6÷W&6R‡6÷W&6Ræ–BÂ6÷W&6Ræ—5ö7F—fR—Ð¢6Æ74æÖS×¶‚Ó2’Ó&÷VæFVBFW‡B×6ÒföçBÖÖVF—VÒG°¢6÷W&6Ræ—5ö7F—fP¢òv&rÖw&VVâÓSó#FW‡BÖw&VVâÓ3†÷fW#¦&rÖw&VVâÓSó3p¢¢v&rÖw&’ÓcóSFW‡BÖw&’ÓC†÷fW#¦&rÖw&’Ócp¢ÖÐ¢à¢·6÷W&6Ræ—5ö7F—fRò~)É27F—fRr¢t–æ7F—fRwÐ¢Âö'WGFöãà¢Â÷FCà¢ÇFB6Æ74æÖSÒ'ÓBFW‡B×6ÒFW‡BÖw&’ÓC#à¢·6÷W&6RæÆ7E÷7–æ6VEö@¢òæWrFFR‡6÷W&6RæÆ7E÷7–æ6VEöB’çFôÆö6ÆU7G&–ær‚¢¢tæWfW"wÐ¢Â÷FCà¢ÇFB6Æ74æÖSÒ'ÓB#à¢Ç7â6Æ74æÖSÒ'FW‡BÖw&VVâÓCföçBÖÖVF—VÒ#ç²‡6÷W&6RçF÷FÅ÷&V6÷&G2ÇÂ’çFôÆö6ÆU7G&–ær‚—ÓÂ÷7ãà¢Â÷FCà¢ÇFB6Æ74æÖSÒ'ÓB#à¢·6÷W&6RæW'&÷%ö6÷VçBâò€¢Ç7â6Æ74æÖSÒ'FW‡B×&VBÓC#ç·6÷W&6RæW'&÷%ö6÷VçGÓÂ÷7ãà¢’¢€¢Ç7â6Æ74æÖSÒ'FW‡BÖw&’ÓS#ãÂ÷7ãà¢—Ð¢Â÷FCà¢ÇFB6Æ74æÖSÒ'ÓB#à¢·6÷W&6RæFFW%÷G—Rbb€¢Æ'WGFöà¢öä6Æ–6³×²‚’ÓâG&–vvW$–ævW7F–öâ‡6÷W&6Ræ–B—Ð¢F—6&ÆVC×¶–ævW7F–ærÓÒçVÆÇÐ¢6Æ74æÖSÒ&&rÖ&ÇVRÓc†÷fW#¦&rÖ&ÇVRÓsF—6&ÆVC¦&rÖw&’ÓcFW‡B×v†—FR‚ÓB’ÓãR&÷VæFVBFW‡B×6ÒföçBÖÖVF—VÒ ¢à¢¶–ævW7F–ærÓÓÒ6÷W&6Ræ–Bò€¢Ç7â6Æ74æÖSÒ&fÆW‚—FV×2Ö6VçFW"vÓ#à¢Ç7â6Æ74æÖSÒ&æ–ÖFR×7–â#î)û3Â÷7ãà¢Â÷7ãà¢’¢€¢~)kb'Vâp¢—Ð¢Âö'WGFöãà¢—Ð¢Â÷FCà¢Â÷G#à¢’—Ð¢Â÷F&öG“à¢Â÷F&ÆSà¢ÂöF—cà¢Â÷6V7F–öãà¢—Ð ¢²ò¢¦ö'2F"¢÷Ð¢¶7F—fUF"ÓÓÒv¦ö'2rbb€¢Ç6V7F–öãà¢ÆF—b6Æ74æÖSÒ&&rÖw&’ÓƒóS&÷VæFVBÖÆr÷fW&fÆ÷rÖ†–FFVâ&÷&FW"&÷&FW"Öw&’ÓsóS#à¢ÇF&ÆR6Æ74æÖSÒ'rÖgVÆÂ#à¢ÇF†VB6Æ74æÖSÒ&&rÖw&’ÓsóS#à¢ÇG#à¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#å6÷W&6SÂ÷Fƒà¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#å7FGW3Â÷Fƒà¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#å7F'FVCÂ÷Fƒà¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#äGW&F–öãÂ÷Fƒà¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#äf÷VæCÂ÷Fƒà¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#ä–ç6W'FVCÂ÷Fƒà¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#åWFFVCÂ÷Fƒà¢ÇF‚6Æ74æÖSÒ'FW‡BÖÆVgBÓB#äW'&÷#Â÷Fƒà¢Â÷G#à¢Â÷F†VCà¢ÇF&öG“à¢·&V6VçD¦ö'2æÆVæwF‚ÓÓÒò€¢ÇG#à¢ÇFB6öÅ7ã×³‡Ò6Æ74æÖSÒ'Ó‚FW‡BÖ6VçFW"FW‡BÖw&’ÓC#à¢æò–ævW7F–öâ¦ö'2–WBâ6Æ–6²gV÷Cµ'VâÆÂ–ævW7F–öâgV÷C²Fò7F'Bà¢Â÷FCà¢Â÷G#à¢’¢€¢&V6VçD¦ö'2æÖ†¦ö"Óâ°¢6öç7BGW&F–öâÒ¦ö"ç7F'FVEöBbb¦ö"æ6ö×ÆWFVEö@¢òÖF‚ç&÷VæB‚†æWrFFR†¦ö"æ6ö×ÆWFVEöB’ævWEF–ÖR‚’ÒæWrFFR†¦ö"ç7F'FVEöB’ævWEF–ÖR‚’’ò¢¢çVÆÀ ¢&WGW&â€¢ÇG"¶W“×¶¦ö"æ–GÒ6Æ74æÖSÒ&&÷&FW"×B&÷&FW"Öw&’Ós†÷fW#¦&rÖw&’Ósó3G&ç6—F–öâÖ6öÆ÷'2#à¢ÇFB6Æ74æÖSÒ'ÓBföçBÖÖVF—VÒ#ç¶¦ö"æFF÷6÷W&6W3òææÖRÇÂuVæ¶æ÷vâwÓÂ÷FCà¢ÇFB6Æ74æÖSÒ'ÓB#à¢Ç7â6Æ74æÖS×¶‚Ó"’Ó&÷VæFVBFW‡B×6ÒföçBÖÖVF—VÒG°¢¦ö"ç7FGW2ÓÓÒv6ö×ÆWFVBròv&rÖw&VVâÓSó#FW‡BÖw&VVâÓ3r ¢¦ö"ç7FGW2ÓÓÒvf–ÆVBròv&r×&VBÓSó#FW‡B×&VBÓ3r ¢¦ö"ç7FGW2ÓÓÒw'Vææ–ærròv&r×–VÆÆ÷rÓSó#FW‡B×–VÆÆ÷rÓ3r ¢v&rÖw&’ÓcóSFW‡BÖw&’ÓCp¢ÖÓà¢¶¦ö"ç7FGW7Ð¢Â÷7ãà¢Â÷FCà¢ÇFB6Æ74æÖSÒ'ÓBFW‡B×6ÒFW‡BÖw&’ÓC#à¢¶¦ö"ç7F'FVEöBòæWrFFR†¦ö"ç7F'FVEöB’çFôÆö6ÆU7G&–ær‚’¢rÒwÐ¢Â÷FCà¢ÇFB6Æ74æÖSÒ'ÓBFW‡B×6ÒFW‡BÖw&’ÓC#à¢¶GW&F–öâÓÒçVÆÂòG¶GW&F–öç×6¢rÒwÐ¢Â÷FCà¢ÇFB6Æ74æÖSÒ'ÓB#ç¶¦ö"ç&V6÷&G5öf÷VæGÓÂ÷FCà¢ÇFB6Æ74æÖSÒ'ÓBFW‡BÖw&VVâÓC#ç¶¦ö"ç&V6÷&G5ö–ç6W'FVGÓÂ÷FCà¢ÇFB6Æ74æÖSÒ'ÓBFW‡BÖ&ÇVRÓC#ç¶¦ö"ç&V6÷&G5÷WFFVGÓÂ÷FCà¢ÇFB6Æ74æÖSÒ'ÓBFW‡B×6ÒFW‡B×&VBÓCÖ‚×r×‡2G'Væ6FR"F—FÆS×¶¦ö"æW'&÷%öÖW76vRÇÂrwÓà¢¶¦ö"æW'&÷%öÖW76vRÇÂrÒwÐ¢Â÷FCà¢Â÷G#à¢¢Ò¢—Ð¢Â÷F&öG“à¢Â÷F&ÆSà¢ÂöF—cà¢Â÷6V7F–öãà¢—Ð¢ÂöF—cà¢Âóà¢§Ð
