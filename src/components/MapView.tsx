@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { Report } from 'A/lib/database.types'
+import { Report } from '@/lib/database.types'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 
 // Dynamically import Leaflet components (client-side only)
@@ -34,7 +34,7 @@ interface CircleConfig {
 
 interface MapViewProps {
   reports: Report[]
-  Center?: [number, number]
+  center?: [number, number]
   zoom?: number
   height?: string
   onMarkerClick?: (report: Report) => void
@@ -83,7 +83,7 @@ export default function MapView({
   const createIcon = (category: string) => {
     const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
     return L.divIcon({
-      html: `<div style="width: 36px; min-width: 36px; max-width: 36px; height: 36px; min-height: 36px; max-height: 36px; aspect-ratio: 1/1; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; background: rgba(15, 15, 25, 0.95); border: 2px solid rgba(124, 143, 248, 0.6); box-shadow: 0 2px 8px rgba(0,0,0,0.5); line-height: 18; flex-shrink: 0;">${config.icon}</div>`,
+      html: `<div style="width: 36px; min-width: 36px; max-width: 36px; height: 36px; min-height: 36px; max-height: 36px; aspect-ratio: 1/1; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; background: rgba(15, 15, 25, 0.95); border: 2px solid rgba(124, 143, 248, 0.6); box-shadow: 0 2px 8px rgba(0,0,0,0.5); line-height: 1; flex-shrink: 0;">${config.icon}</div>`,
       className: 'custom-div-marker',
       iconSize: [36, 36],
       iconAnchor: [18, 18],
@@ -115,7 +115,7 @@ export default function MapView({
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{{s}}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           noWrap={true}
         />
 
@@ -147,15 +147,15 @@ export default function MapView({
             }}
           >
             <Popup>
-              <div className="min-width-[220px]">
+              <div className="min-w-[220px]">
                 <h3 className="font-medium text-gray-900 text-sm">{report.title}</h3>
                 <p className="text-gray-600 text-xs mt-1">{report.location_name}</p>
-                <p className="text-gray-700 text-xs mt-2 line-clamp-2">{div_report.summary}</p>
+                <p className="text-gray-700 text-xs mt-2 line-clamp-2">{report.summary}</p>
                 <a
                   href={`/report/${report.slug}`}
                   className="inline-block mt-2 text-xs text-blue-600 hover:text-blue-800"
                 >
-                  View details →J
+                  View details →
                 </a>
               </div>
             </Popup>
