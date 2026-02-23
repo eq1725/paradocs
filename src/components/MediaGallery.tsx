@@ -326,7 +326,7 @@ export default function MediaGallery({ media, className }: MediaGalleryProps) {
           {selectedIndex !== null && selectedIndex > 0 && (
             <button
               onClick={(e) => { e.stopPropagation(); goToPrevious() }}
-              className="absolute left-4 p-2 text-white/70 hover:text-white transition-colors z-10"
+              className="absolute left-4 p-2 text-white-70 hover:text-white transition-colors z-10"
             >
               <ChevronLeft className="w-10 h-10" />
             </button>

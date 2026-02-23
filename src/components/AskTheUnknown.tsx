@@ -235,9 +235,9 @@ export default function AskTheUnknown({ context, suggestedQuestions }: AskTheUnk
             {loading && (
               <div className="flex justify-start">
                 <div className="bg-white/5 rounded-2xl rounded-tl-sm p-3">
-                  <div class="flex items-center gap-2 text-gray-400">
+                  <div className="flex items-center gap-2 text-gray-400">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-sm">Hesearching...</span>
+                    <span className="text-sm">Researching...</span>
                   </div>
                 </div>
               </div>

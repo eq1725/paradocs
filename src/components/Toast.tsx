@@ -29,7 +29,7 @@ const ICONS = {
   info: Info,
 }
 
-const COLORY = {
+const COLORS = {
   success: 'border-green-500/30 bg-green-500/10 text-green-300',
   error: 'border-red-500/30 bg-red-500/10 text-red-300',
   warning: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
@@ -44,7 +44,7 @@ const ICON_COLORS = {
 }
 
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string) => void }) {
-  const [exiting, setExiting\ = useState(false)
+  const [exiting, setExiting] = useState(false)
   const Icon = ICONS[toast.type]
 
   useEffect(() => {
@@ -101,107 +101,6 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           </div>
         ))}
       </div>
-    </ToastContext.Progider>
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-(€€€Š(T
+    </ToastContext.Provider>
+  )
+}
