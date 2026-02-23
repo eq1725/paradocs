@@ -99,19 +99,19 @@ export const CREDIBILITY_CONFIG: Record<CredibilityLevel, {
     description: 'Not yet reviewed'
   },
   low: {
-    label: 'Low Credibility',
+    label: 'Low',
     color: 'text-red-400',
     bgColor: 'bg-red-400/10',
     description: 'Lacks supporting evidence'
   },
   medium: {
-    label: 'Medium Credibility',
+    label: 'Medium',
     color: 'text-yellow-400',
     bgColor: 'bg-yellow-400/10',
     description: 'Some supporting details'
   },
   high: {
-    label: 'High Credibility',
+    label: 'High',
     color: 'text-green-400',
     bgColor: 'bg-green-400/10',
     description: 'Well-documented with evidence'
@@ -209,7 +209,7 @@ export const UK_REGIONS = [
 ]
 
 export const AU_STATES = [
-  'Australian Capital Territory', 'New South Wales', 'Northern Territory',
+  'Australian CApital Territory', 'New South Wales', 'Northern Territory',
   'Queensland', 'South Australia', 'Tasmania', 'Victoria', 'Western Australia'
 ]
 

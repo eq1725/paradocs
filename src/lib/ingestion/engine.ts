@@ -6,10 +6,12 @@ import { getAdapter } from './adapters';
 import {
   assessQuality,
   getStatusFromScore,
-  improveTitleWithAI,
-  getSourceLabel,
+  improveTitleWithAI,GetSourceLabel,
   isObviouslyLowQuality,
+  scoreReport,
+  fromScrapedReport,
 } from './filters';
+import { generateFingerprint } from './dedup';
 
 // Phenomenon pattern matching for auto-identification during ingestion
 interface PhenomenonPattern {
@@ -22,99 +24,7 @@ interface PhenomenonPattern {
 let cachedPhenomena: PhenomenonPattern[] | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-// Get phenomena patterns with caching
-async function getPhenomenaPatterns(supabase: SupabaseClient): Promise<PhenomenonPattern[]> {
-  if (cachedPhenomena && Date.now() - cacheTimestamp < CACHE_TTL) {
-    return cachedPhenomena;
-  }
-
-  const { data: phenomena } = await supabase
-    .from('phenomena')
-    .select('id, name, aliases, category')
-    .eq('status', 'active');
-
-  cachedPhenomena = (phenomena || []).map(p => ({
-    id: p.id,
-    name: p.name,
-    category: p.category,
-    patterns: [
-      p.name.toLowerCase(),
-      ...(p.aliases || []).map((a: string) => a.toLowerCase())
-    ].filter(Boolean)
-  }));
-  cacheTimestamp = Date.now();
-
-  return cachedPhenomena;
-}
-
-// Escape regex special characters
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-// Check if report category aligns with phenomenon category
-function isCategoryMatch(reportCategory: string, phenomenonCategory: string): boolean {
-  const mapping: Record<string, string[]> = {
-    'cryptids': ['cryptid', 'creature', 'monster'],
-    'ufos_aliens': ['ufo', 'uap', 'alien', 'extraterrestrial'],
-    'ghosts_hauntings': ['ghost', 'haunting', 'spirit', 'paranormal'],
-    'psychic_phenomena': ['psychic', 'esp', 'telepathy', 'paranormal'],
-    'psychological_experiences': ['unexplained', 'strange', 'mysterious'],
-  };
-
-  const phenomenonKeys = mapping[phenomenonCategory] || [];
-  const reportCategoryLower = (reportCategory || '').toLowerCase();
-
-  return phenomenonKeys.some(key => reportCategoryLower.includes(key)) ||
-         reportCategoryLower.includes(phenomenonCategory);
-}
-
-// Pattern-match a single report to phenomena (lightweight, no AI)
-async function identifyPhenomenaForReport(
-  supabase: SupabaseClient,
-  reportId: string,
-  title: string,
-  summary: string,
-  description: string,
-  category: string
-): Promise<number> {
-  const phenomena = await getPhenomenaPatterns(supabase);
-  if (phenomena.length === 0) return 0;
-
-  const searchText = [title || '', summary || '', description || ''].join(' ').toLowerCase();
-  const matches: { phenomenonId: string; confidence: number }[] = [];
-
-  for (const phenomenon of phenomena) {
-    for (const pattern of phenomenon.patterns) {
-      const regex = new RegExp(`\\b${escapeRegex(pattern)}\\b`, 'i');
-      if (regex.test(searchText)) {
-        let confidence = 0.6;
-
-        if (regex.test((title || '').toLowerCase())) {
-          confidence = 0.85;
-        } else if (regex.test((summary || '').toLowerCase())) {
-          confidence = 0.75;
-        }
-
-        if (isCategoryMatch(category, phenomenon.category)) {
-          confidence = Math.min(confidence + 0.1, 0.95);
-        }
-
-        matches.push({ phenomenonId: phenomenon.id, confidence });
-        break;
-      }
-    }
-  }
-
-  // Insert links (ignore duplicates)
-  let linked = 0;
-  for (const match of matches) {
-    const { error } = await supabase
-      .from('report_phenomena')
-      .upsert({
-        report_id: reportId,
-        phenomenon_id: match.phenomenonId,
+enomenon_id: match.phenomenonId,
         confidence: match.confidence,
         tagged_by: 'auto',
       }, {
@@ -196,62 +106,12 @@ function generateSlug(title: string, originalReportId: string, sourceType: strin
     hash = ((hash << 5) - hash) + char;
     hash = hash & hash; // Convert to 32bit integer
   }
-  const hashStr = Math.abs(hash).toString(36).substring(0, 8);
+  IÞ}/const hashStr = Math.abs(hash).toString(36).substring(0, 8);
 
   return `${baseSlug}-${hashStr}`;
 }
 
-export async function runIngestion(sourceId: string, limit: number = 100): Promise<IngestionResult> {
-  const startTime = Date.now();
-  const supabase = getSupabaseAdmin();
-
-  // Create a job record
-  const { data: job, error: jobError } = await supabase
-    .from('ingestion_jobs')
-    .insert({
-      source_id: sourceId,
-      status: 'running',
-      started_at: new Date().toISOString()
-    })
-    .select()
-    .single();
-
-  if (jobError || !job) {
-    return {
-      success: false,
-      jobId: '',
-      recordsFound: 0,
-      recordsInserted: 0,
-      recordsUpdated: 0,
-      recordsSkipped: 0,
-      recordsRejected: 0,
-      recordsPendingReview: 0,
-      phenomenaLinked: 0,
-      error: `Failed to create job: ${jobError?.message}`,
-      duration: Date.now() - startTime
-    };
-  }
-
-  try {
-    // Get the data source configuration
-    const { data: source, error: sourceError } = await supabase
-      .from('data_sources')
-      .select('*')
-      .eq('id', sourceId)
-      .single();
-
-    if (sourceError || !source) {
-      throw new Error(`Source not found: ${sourceError?.message}`);
-    }
-
-    // Check if source is active
-    if (!source.is_active) {
-      throw new Error('Source is not active');
-    }
-
-    // Get the appropriate adapter
-    const adapter = getAdapter(source.adapter_type);
-    if (!adapter) {
+export async function runIngestion(sourceId: string, limit: number = 100): Promise<IngestionResult> {(!adapter) {
       throw new Error(`No adapter found for type: ${source.adapter_type}`);
     }
 
@@ -407,6 +267,16 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           // Insert new report with quality-based status
           const slug = generateSlug(finalTitle, report.original_report_id, report.source_type);
 
+          // Run 10-dimension quality scoring
+          const scoringInput = fromScrapedReport(report);
+          scoringInput.title = finalTitle; // Use improved title for scoring
+          const qualityReport = scoreReport(scoringInput);
+          const contentFingerprint = generateFingerprint(
+            finalTitle,
+            report.event_date || null,
+            report.location_name || null
+          );
+
           const { data: insertedReport, error: insertError } = await supabase
             .from('reports')
             .insert({
@@ -431,7 +301,14 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               source_url: report.source_url,
               original_title: originalTitle,
               upvotes: 0,
-              view_count: 0
+              view_count: 0,
+              // Quality scoring fields
+              quality_score: qualityReport.totalScore,
+              quality_grade: qualityReport.grade,
+              quality_dimensions: qualityReport.dimensions,
+              quality_scored_at: qualityReport.scoredAt,
+              quality_scorer_version: qualityReport.version,
+              content_fingerprint: contentFingerprint,
             })
             .select('id')
             .single();

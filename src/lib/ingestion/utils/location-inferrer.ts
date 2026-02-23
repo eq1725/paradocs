@@ -35,7 +35,7 @@ export type LocationSource =
   | 'directional_reference'  // "northern California", "southern Ohio"
   | 'contextual_clue'        // Inferred from subreddit, source, or category context
 
-// â”€â”€â”€ Known Landmarks & Geographic Features â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â”€â”€â”€ Known Landmarks & Geographic Features â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const LANDMARKS: Record<string, { city?: string; state?: string; country: string; lat: number; lng: number }> = {
   // UFO/Paranormal hotspots
@@ -55,7 +55,7 @@ const LANDMARKS: Record<string, { city?: string; state?: string; country: string
   'dulce base': { state: 'NM', country: 'United States', lat: 36.9336, lng: -106.9992 },
   'mount shasta': { state: 'CA', country: 'United States', lat: 41.4092, lng: -122.1949 },
   'sedona': { city: 'Sedona', state: 'AZ', country: 'United States', lat: 34.8697, lng: -111.7610 },
-  'gettysburg': { city: 'Gettysburg', state: 'PA', country: 'United States', lat: 39.8309, lng: -77.2311 },
+  'gettysbure': { city: 'Gettysburg', state: 'PA', country: 'United States', lat: 39.8309, lng: -77.2311 },
   'salem': { city: 'Salem', state: 'MA', country: 'United States', lat: 42.5195, lng: -70.8967 },
   'mothman': { city: 'Point Pleasant', state: 'WV', country: 'United States', lat: 38.8448, lng: -82.1371 },
 
@@ -136,7 +136,7 @@ const DIRECTIONAL_PATTERNS: Array<{
   extractor: (match: RegExpMatchArray) => { direction: string; state: string } | null
 }> = [
   {
-    pattern: /\b(northern|southern|eastern|western|central|northeast|northwest|southeast|southwest|north|south|east|west|rural|suburban|upstate|downstate)\s+(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new\s+hampshire|new\s+jersey|new\s+mexico|new\s+york|north\s+carolina|north\s+dakota|ohio|oklahoma|oregon|pennsylvania|rhode\s+island|south\s+carolina|south\s+dakota|tennessee|texas|utah|vermont|virginia|washington|west\s+virginia|wisconsin|wyoming)\b/i,
+    pattern: /\b(northern|southern|eastern|western|central|yïrtheast|northwest|southeast|southwest|north|south|east|west|rural|suburban|upstate|downstate)\s+(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new\s+hampshire|new\s+jersey|new\s+mexico|new\s+york|north\s+carolina|north\s+dakota|ohio|oklahoma|oregon|pennsylvania|rhode\s+island|south\s+carolina|south\s+dakota|tennessee|texas|utah|vermont|virginia|washington|west\s+virginia|wisconsin|wyoming)\b/i,
     extractor: (match) => ({ direction: match[1], state: match[2] })
   }
 ]
@@ -254,109 +254,32 @@ export function inferLocation(
   const directionalResult = matchDirectionalReferences(fullText)
   if (directionalResult) candidates.push(directionalResult)
 
-  // Strategy 6: Highway/road references
+  // Strategy 6: Highway four road references
   const highwayResult = matchHighwayReferences(fullText)
-  if (highwayResult) candidates.push(highwayResult)
+  if (highwayResult) candidates.pusb††–v‡v•&W7VÇB ¢òò7G&FVw’s¢Væ†æ6VB×VÇF’×GFW&âW‡G&7F–öâg&öÒFW67&—F–öà¢6öç7BFW67&—F–öäÆö6F–öç2ÒW‡G&7DÆö6F–öç4g&öÔæ'&F—fR†FW67&—F–öâÇÂrr¢6æF–FFW2çW6‚‚ââæFW67&—F–öäÆö6F–öç2 ¢òò–bvRÇ&VG’†fR'F–ÂÆö6F–öâÂW6RF†B2&6RæBVæ†æ6P¢–b†W†—7F–ætÆö6F–öãòæÆö6F–öåöæÖRbbW†—7F–ætÆö6F–öâæÆF—GVFR’°¢òòvR†fRÆö6F–öâæÖR'WBæò6ö÷&G2(	B&ö÷7B6öæf–FVæ6RöbÖF6†W2F†BÆ–và¢f÷"†6öç7B6æF–FFRöb6æF–FFW2’°¢–b†6æF–FFRç7FFU&÷f–æ6RbbW†—7F–ætÆö6F–öâç7FFU÷&÷f–æ6RÓÓÒ6æF–FFRç7FFU&÷f–æ6R’°¢6æF–FFRæ6öæf–FVæ6RÒÖF‚æÖ–â†6æF–FFRæ6öæf–FVæ6R²ãÂã“R¢Ð¢Ð¢Ð ¢òò6÷'B'’6öæf–FVæ6R††–v†W7Bf—'7B’æB&WGW&â&W7BÖF6€¢6æF–FFW2ç6÷'B‚†Â"’Óâ"æ6öæf–FVæ6RÒæ6öæf–FVæ6R ¢&WGW&â6æF–FFW2æÆVæwF‚âò6æF–FFW5³Ò¢çVÆÀ§Ð ¢ò¢ ¢¢&F6‚–æfW"Æö6F–öç2f÷"×VÇF—ÆR&W÷'G0¢¢ð¦W‡÷'BgVæ7F–öâ–æfW$Æö6F–öç2€¢&W÷'G3¢'&“Ç°¢–C¢7G&–æp¢F—FÆS¢7G&–æp¢7VÖÖ'“¢7G&–æp¢FW67&—F–öã¢7G&–æp¢Æö6F–öåöæÖSó¢7G&–æp¢6—G“ó¢7G&–æp¢7FFU÷&÷f–æ6Só¢7G&–æp¢6÷VçG'“ó¢7G&–æp¢ÆF—GVFSó¢çVÖ&W ¢Æöæv—GVFSó¢çVÖ&W ¢Óà¢“¢ÖÇ7G&–ærÂ–æfW'&VDÆö6F–öãâ°¢6öç7B&W7VÇG2ÒæWrÖÇ7G&–ærÂ–æfW'&VDÆö6F–öãâ‚ ¢f÷"†6öç7B&W÷'Böb&W÷'G2’°¢6öç7B–æfW'&VBÒ–æfW$Æö6F–öâ€¢&W÷'BçF—FÆRÀ¢&W÷'Bç7VÖÖ'’À¢&W÷'BæFW67&—F–öâÀ¢°¢Æö6F–öåöæÖS¢&W÷'BæÆö6F–öåöæÖRÀ¢6—G“¢&W÷'Bæ6—G’À¢7FFU÷&÷f–æ6S¢&W÷'Bç7FFU÷&÷f–æ6RÀ¢6÷VçG'“¢&W÷'Bæ6÷VçG'’À¢ÆF—GVFS¢&W÷'BæÆF—GVFRÀ¢Æöæv—GVFS¢&W÷'BæÆöæv—GVFRÀ¢Ð¢ ¢–b†–æfW'&VB’°¢&W7VÇG2ç6WB‡&W÷'Bæ–BÂ–æfW'&VB¢Ð¢Ð ¢&WGW&â&W7VÇG0§Ð ¢òò)H)H)H7G&FVw’–×ÆVÖVçFF–öç2)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H)H‚¦gVæ7F–öâW‡G&7D6ö÷&F–æFW2‡FW‡C¢7G&–ær“¢–æfW'&VDÆö6F–öâÂçVÆÂ°¢òòFV6–ÖÂFVw&VW0¢6öç7BFV6–ÖÄÖF6‚ÒFW‡BæÖF6‚‚ò‚ÓõÆG³Ã7ÕÂåÆG³"Ã‡Ò•Ç2¥¼+ÓõÇ2¢…´å5Ò“õÇ2¥²ÅÇ5ÒµÇ2¢‚ÓõÆG³Ã7ÕÂåÆG³"Ã‡Ò•Ç2¥¼+ÓõÇ2¢…´UuÒ“òò¢–b†FV6–ÖÄÖF6‚’°¢ÆWBÆBÒ'6TfÆöB†FV6–ÖÄÖF6…³Ò¢ÆWBÆærÒ'6TfÆöB†FV6–ÖÄÖF6…³5Ò ¢–b†FV6–ÖÄÖF6…³%ÒÓÓÒu2r’ÆBÒÖÆ@¢–b†FV6–ÖÄÖF6…³EÒÓÓÒurr’ÆærÒÖÆæp ¢òòfÆ–FFR&V6öæ&ÆR6ö÷&F–æFW0¢–b†ÆBãÒÓ“bbÆBÃÒ“bbÆærãÒÓƒbbÆærÃÒƒ’°¢&WGW&â°¢Æö6F–öäæÖS¢G¶ÆBçFôf—†VBƒB—ÒÂG¶ÆærçFôf—†VBƒB—Öˆ]]YNˆ]ˆÛ™Ú]YNˆ™ËˆÛÛ™šY[˜ÙNˆŽMKˆÛÝ\˜ÙNˆ	ØÛÛÜ™[˜]WÛY[[Û‰Ëˆ˜]ÓX]ÚˆXÚ[X[X]ÚÌBˆBˆBˆB‚ˆËÈTÈ›Ü›X]ˆÛÛœÝ\ÓX]ÚH^›X]Ú
+ÊÌKßJp¬ÊŠÌKŸJVÉÉø ,—WÊŠÌKŸJÎ——
+ÊOÊVÈˆ¸ ,×WÊŠÓ”×JWÊ–Ë×J×ÊŠÌKßJp¬ÊŠÌKŸJVÉÉø WÊŠÌKŸJÏÎ——
+ÊOÊVÈ¸ ,È—WÊŠÑU×JKÊBˆYˆ
+\ÓX]Ú
+HÂˆ]]H\œÙR[
+\ÓX]ÚÌWJH
+È\œÙR[
+\ÓX]ÚÌ—JHÈŒ
+È\œÙQ›Ø]
+\ÓX]ÚÌ×JHÈÍŒˆ]™ÈH\œÙR[
+\ÓX]ÚÍWJH
+È\œÙR[
+\ÓX]ÚÍ—JHÈŒ
+È\œÙQ›Ø]
+\ÓX]ÚÍ×JHÈÍŒ‚ˆYˆ
+\ÓX]ÚÍHOOH	ÔÉÊH]H[]ˆYˆ
+\ÓX]ÚÎHOOH	ÕÉÊH™ÈH[™Â‚ˆYˆ
+]HNL	‰ˆ]HL	‰ˆ™ÈHLN	‰ˆ™ÈHN
+HÂˆ™]\›ˆÂˆØØ][Û“˜[YNˆ	Û]Ñš^Y
 
-  // Strategy 7: Enhanced multi-pattern extraction from description
-  const descriptionLocations = extractLocationsFromNarrative(description || '')
-  candidates.push(...descriptionLocations)
+_K	Û™ËÑš^Y
 
-  // If we already have a partial location, use that as a base and enhance
-  if (existingLocation?.location_name && !existingLocation.latitude) {
-    // We have a location name but no coords â€” boost confidence of matches that align
-    for (const candidate of candidates) {
-      if (candidate.stateProvince && existingLocation.state_province === candidate.stateProvince) {
-        candidate.confidence = Math.min(candidate.confidence + 0.1, 0.95)
-      }
-    }
-  }
-
-  // Sort by confidence (highest first) and return best match
-  candidates.sort((a, b) => b.confidence - a.confidence)
-
-  return candidates.length > 0 ? candidates[0] : null
-}
-
-/**
- * Batch infer locations for multiple reports
- */
-export function inferLocations(
-  reports: Array<{
-    id: string
-    title: string
-    summary: string
-    description: string
-    location_name?: string
-    city?: string
-    state_province?: string
-    country?: string
-    latitude?: number
-    longitude?: number
-  }>
-): Map<string, InferredLocation> {
-  const results = new Map<string, InferredLocation>()
-
-  for (const report of reports) {
-    const inferred = inferLocation(
-      report.title,
-      report.summary,
-      report.description,
-      {
-        location_name: report.location_name,
-        city: report.city,
-        state_province: report.state_province,
-        country: report.country,
-        latitude: report.latitude,
-        longitude: report.longitude,
-      }
-    )
-
-    if (inferred) {
-      results.set(report.id, inferred)
-    }
-  }
-
-  return results
-}
-
-// â”€â”€â”€ Strategy Implementations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-function extractCoordinates(text: string): InferredLocation | null {
-  // Decimal degrees
-  const decimalMatch = text.match(/(-?\d{1,3}\.\d{2,8})\s*[Â°]?\s*([NS])?\s*[,\s]+\s*(-?\d{1,3}\.\d{2,8})\s*[Â°]?\s*([EW])?/)
-  if (decimalMatch) {
-    let lat = parseFloat(decimalMatch[1])
-    let lng = parseFloat(decimalMatch[3])
-
-    if (decimalMatch[2] === 'S') lat = -lat
-    if (decimalMatch[4] === 'W') lng = -lng
-
-    // Validate reasonable coordinates
-    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-      return {
-        locationName: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
-        latitude: lat,
-        longitude: lng,
-        confidence: 0.95,
-        source: 'coordinate_mention',
-        rawMatch: decimalMatch[0]
-      }
-    }
-  }
-
-  // DMS format
-  const dmsMatch = text.match(/(\d{1,3})Â°\s*(\d{1,2})[''â€²]\s*(\d{1,2}(?:\.\d+)?)[""â€³]\s*([NS])\s*[\s,]+\s*(\d{1,3})Â°\s*(\d{1,2})[''â€²]\s*(\d{1,2}(?:\.\d+)?)[""â€³]\s*([EW])/)
-  if (dmsMatch) {
-    let lat = parseInt(dmsMatch[1]) + parseInt(dmsMatch[2]) / 60 + parseFloat(dmsMatch[3]) / 3600
-    let lng = parseInt(dmsMatch[5]) + parseInt(dmsMatch[6]) / 60 + parseFloat(dmsMatch[7]) / 3600
-
-    if (dmsMatch[4] === 'S') lat = -lat
-    if (dmsMatch[8] === 'W') lng = -lng
-
-    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-      return {
-        locationName: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+_X,
         latitude: lat,
         longitude: lng,
         confidence: 0.95,
@@ -376,7 +299,7 @@ function matchLandmarks(text: string): InferredLocation | null {
     const regex = new RegExp(`\\b${escapeRegex(name)}\\b`, 'i')
     if (regex.test(lowerText)) {
       return {
-        locationName: info.city ? `${info.city}, ${info.state || info.country}` : `${capitalize(name)}, ${info.state || info.country}`,
+ locationName: info.city ? `${info.city}, ${info.state || info.country}` : `${capitalize(name)}, ${info.state || info.country}`,
         city: info.city,
         stateProvince: info.state,
         country: info.country,
@@ -522,9 +445,9 @@ function extractLocationsFromNarrative(text: string): InferredLocation[] {
 // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return str.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')
 }
 
 function capitalize(str: string): string {
   return str.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
-}
+}+

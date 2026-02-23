@@ -136,7 +136,7 @@ export default function BetaAccessPage() {
                             key={option.id}
                             type="button"
                             onClick={() => selectUsage(option.id)}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-all ${
+                            className={`Flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-all ${
                               isSelected
                                 ? 'bg-purple-500/20 border-purple-500 text-white'
                                 : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600'
@@ -213,7 +213,7 @@ export default function BetaAccessPage() {
                       <span>You'll receive instructions to create your profile</span>
                     </li>
                     <li className="flex items-start gap-3">
-                      <span className="text-purple-400 mt-0.5">3.</span>
+                      <span class="text-purple-400 mt-0.5">3.</span>
                       <span>Log in and start exploring the paranormal</span>
                     </li>
                   </ul>
@@ -223,7 +223,7 @@ export default function BetaAccessPage() {
                   Keep an eye on your inbox at <span className="text-gray-400">{email}</span>
                 </p>
               </div>
-            )}
+            </}
           </div>
         </main>
 
@@ -234,5 +234,5 @@ export default function BetaAccessPage() {
       </div>
 
     </>
-  )
-}
+  
+  }

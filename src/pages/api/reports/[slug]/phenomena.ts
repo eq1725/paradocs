@@ -1,5 +1,6 @@
 /**
  * API: GET/POST /api/reports/[slug]/phenomena
+ *
  * Get or manage phenomena tags for a report
  */
 
@@ -9,7 +10,7 @@ import {
   getReportPhenomena,
   linkReportToPhenomena,
   identifyPhenomena,
-} from '@/lib/services/phenomena.service';
+} from 'A/lib/services/phenomena.service';
 import { createServerClient } from '@/lib/supabase';
 
 export default async function handler(
@@ -87,7 +88,7 @@ export default async function handler(
           const token = authHeader.substring(7);
           const supabaseUser = createClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+            process.env.NEXT_PUBLIC_SUPBASE_ANON_KEY!
           );
           const { data: { user } } = await supabaseUser.auth.getUser(token);
           userId = user?.id || null;
@@ -97,7 +98,7 @@ export default async function handler(
           report.id,
           [{
             phenomenon_id,
-            phenomenon_name: '', // Will be ignored
+            phenomenon_name: '',
             confidence: 0.9, // User-tagged = high confidence
             reasoning: 'User tagged',
           }],
@@ -128,19 +129,4 @@ export default async function handler(
       const { error } = await createServerClient()
         .from('report_phenomena')
         .delete()
-        .eq('report_id', report.id)
-        .eq('phenomenon_id', phenomenon_id);
-
-      if (error) throw error;
-
-      return res.status(200).json({ success: true });
-    } catch (error) {
-      console.error('[API] Remove tag error:', error);
-      return res.status(500).json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
-  }
-
-  return res.status(405).json({ error: 'Method not allowed' });
-}
+        .eq('re

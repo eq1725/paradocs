@@ -172,9 +172,6 @@ export default function ConstellationMap({
     const statsMap = new Map(stats.map(s => [s.category, s]))
     const catEntryCount = userMapData?.categoryStats || {}
 
-    // ── Blank canvas mode: when user has no logged entries
-    const isEmpty = !userMapData || userMapData.entryNodes.length === 0
-
     const nodes: D3Node[] = CONSTELLATION_NODES.map(n => {
       const rx = remapX(n.x)
       const ry = remapY(n.y)
@@ -184,8 +181,8 @@ export default function ConstellationMap({
         x: padding + rx * (width - padding * 2),
         y: padding + ry * (height - padding * 2),
         fx: padding + rx * (width - padding * 2),
-        fy: padding + ry * (height - padding * 2),
-        isUserInterest: hasEntries,
+        fy: padding + ry (height - padding * 2),
+        isUserInterest: userInterests.includes(n.id) || hasEntries,
         reportCount: statsMap.get(n.id)?.reportCount || 0,
         trendingCount: statsMap.get(n.id)?.trendingCount || 0,
         entryCount: catEntryCount[n.id]?.entries || 0,
@@ -201,7 +198,7 @@ export default function ConstellationMap({
     })).filter(e => e.sourceNode && e.targetNode)
 
     // ── Background stars ──
-    const bgStars = compact ? COMPACT_BACKGROUND_STARS : BACKGROUND_STARS
+    const bgStars = compact ? COMPCT_BACKGROUND_STARS : BACKGROUND_STARS
     const bgGroup = svg.append('g').attr('class', 'background-stars')
 
     bgGroup.selectAll('circle')
@@ -226,7 +223,7 @@ export default function ConstellationMap({
         })
     }
 
-    // ── Category Edges ── (hidden in blank canvas mode)
+    // ── Category Edges ──
     const edgeGroup = svg.append('g').attr('class', 'edges')
 
     edgeGroup.selectAll('line')
@@ -249,7 +246,6 @@ export default function ConstellationMap({
         const sa = d.sourceNode!.isUserInterest, ta = d.targetNode!.isUserInterest
         return (!sa && !ta) ? '4,4' : 'none'
       })
-
 
     // ── Category Nodes ──
     const nodeGroup = svg.append('g').attr('class', 'nodes')
@@ -291,9 +287,9 @@ export default function ConstellationMap({
 
     // Main star circle
     nodeElements.append('circle')
-      .attr('r', d => d.isUserInterest ? nodeR.active : 2)
+      .attr('r', d => d.isUserInterest ? nodeR.active : nodeR.inactive)
       .attr('fill', d => d.isUserInterest ? d.glowColor : '#4b5563')
-      .attr('opacity', d => d.isUserInterest ? 1 : 0.08)
+      .attr('opacity', d => d.isUserInterest ? 1 : 0.5)
       .attr('filter', d => d.isUserInterest ? 'url(#star-glow)' : 'url(#dim-glow)')
 
     // Inner bright core
@@ -301,17 +297,16 @@ export default function ConstellationMap({
       .attr('r', coreR).attr('fill', 'white').attr('opacity', 0.9)
 
     // Icons and labels (full mode only)
-    if (!compact && !isEmpty) {
+    if (!compact) {
       nodeElements.append('text').attr('text-anchor', 'middle')
         .attr('dy', d => d.isUserInterest ? iconDy.active : iconDy.inactive)
         .attr('font-size', d => d.isUserInterest ? iconSize.active : iconSize.inactive)
-        .attr('opacity', d => d.isUserInterest ? 1 : 0.08)
+        .attr('opacity', d => d.isUserInterest ? 1 : 0.5)
         .text(d => d.icon)
 
       nodeElements.append('text').attr('text-anchor', 'middle')
         .attr('dy', d => d.isUserInterest ? labelDy.active : labelDy.inactive)
         .attr('fill', d => d.isUserInterest ? '#e5e7eb' : '#6b7280')
-        .attr('opacity', d => d.isUserInterest ? 1 : 0.1)
         .attr('font-size', d => d.isUserInterest ? labelSize.active : labelSize.inactive)
         .attr('font-weight', d => d.isUserInterest ? '600' : '400')
         .text(d => shortLabel(d.label, labelMaxChars))
@@ -377,8 +372,8 @@ export default function ConstellationMap({
         .attr('x1', d => d.parentNode.x).attr('y1', d => d.parentNode.y)
         .attr('x2', d => d.x).attr('y2', d => d.y)
         .attr('stroke', d => VERDICT_COLORS[d.entry.verdict] || '#a78bfa')
-        .attr('stroke-opacity', d => (d.sourceNode?.isUserInterest && d.targetNode?.isUserInterest) ? 0.2 : 0.03)
-        .attr('stroke-width', d => (d.sourceNode?.isUserInterest && d.targetNode?.isUserInterest) ? 0.5 : 0.3)
+        .attr('stroke-opacity', 0.2)
+        .attr('stroke-width', 0.5)
 
       // Draw verdict-colored entry stars
       const entryR = Math.max(2, Math.round(4 * clampScale))

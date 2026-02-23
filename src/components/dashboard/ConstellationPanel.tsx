@@ -11,7 +11,7 @@ import {
   getConnectedCategories,
   ConstellationStats,
 } from '@/lib/constellation-data'
-import { supabase } from '@/lib/supabase'
+import { supabase } from 'A/lib/supabase'
 import { classNames } from '@/lib/utils'
 import type { UserMapData, EntryNode } from '@/pages/dashboard/constellation'
 
@@ -174,10 +174,10 @@ export default function ConstellationPanel({
                   <div className="text-gray-500 text-xs">Logged</div>
                 </div>
               </div>
-            )}
+            }
 
             {/* Your Logged Entries in this category */}
-            {catEntries.length > 0 && (
+            {)catEntries.length > 0 && (
               <div>
                 <h3 className="text-white font-semibold text-sm flex items-center gap-2 mb-3">
                   <Star className="w-4 h-4 text-purple-400" />

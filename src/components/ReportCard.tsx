@@ -51,18 +51,18 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
   if (variant === 'featured') {
     return (
       <Link href={`/report/${report.slug}`} className="block group">
-        <div className="glass-card overflow-hidden hover:scale-[1.01] transition-transform h-full flex flex-col">
+        <div className="glass-card overflow-hidden hover:scale-[1.01] transition-transform">
           <div className="aspect-video bg-gradient-to-br from-primary-900/50 to-purple-900/50 relative">
             <div className="absolute inset-0 flex items-center justify-center">
               <span className="text-7xl opacity-50 group-hover:scale-110 transition-transform">
                 {categoryConfig.icon}
               </span>
             </div>
-            {report.featured && (
+            { report.featured && (
               <div className="absolute top-4 left-4 flex items-center gap-1 px-2 py-1 bg-amber-500/20 border border-amber-500/30 rounded-full text-amber-400 text-xs font-medium">
                 <Award className="w-3 h-3" />
                 Featured
-              </div>
+                </div>
             )}
             <div className={classNames(
               'absolute top-4 right-4 px-2 py-1 rounded-full text-xs font-medium border',
@@ -202,7 +202,6 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
             </div>
           </div>
         </div>
-      </div>
-    </Link>
+      </Link>
   )
 }

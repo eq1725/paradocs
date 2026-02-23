@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { Bookmark, BookmarkCheck, Bell, BellOff, X, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { classNames } from '@/lib/utils'
+import { classNames } from 'A/lib/utils'
 
 interface SaveSearchButtonProps {
   /** Current filter state to save */
@@ -119,10 +119,7 @@ export default function SaveSearchButton({
           name: name.trim(),
           description: description.trim() || null,
           search_query: searchQuery || null,
-          filters: {
-            ...filters,
-            search_type: searchType
-          },
+          filters: { ...filters, search_type: searchType },
           alerts_enabled: alertsEnabled,
           alert_frequency: alertsEnabled ? alertFrequency : null
         })
@@ -168,20 +165,12 @@ export default function SaveSearchButton({
 
       const response = await fetch('/api/user/searches', {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          id: search.id,
-          alerts_enabled: !search.alerts_enabled
-        })
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id: search.id, alerts_enabled: !search.alerts_enabled })
       })
 
       if (response.ok) {
-        setSavedSearches(prev =>
-          prev.map(s => s.id === search.id ? { ...s, alerts_enabled: !s.alerts_enabled } : s)
-        )
+        setSavedSearches(prev => prev.map(s => s.id === search.id ? { ...s, alerts_enabled: !s.alerts_enabled } : s))
       }
     } catch (error) {
       console.error('Failed to toggle alerts:', error)
@@ -209,7 +198,7 @@ export default function SaveSearchButton({
         )}
         title="Sign in to save searches"
       >
-        <Bookmark className={compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
+        <Bookmark className={compact ? 'w-3.5 h-3.5' : 'w-4 -4'} />
         {!compact && <span>Save Search</span>}
       </button>
     )
@@ -227,7 +216,7 @@ export default function SaveSearchButton({
             : 'px-4 py-2 text-sm rounded-lg',
           hasActiveFilters
             ? 'bg-primary-500/20 text-primary-300 hover:bg-primary-500/30 border border-primary-500/30'
-            : 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5',
+             : 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5',
           className
         )}
         title={hasActiveFilters ? 'Save current search filters' : 'Add filters to save a search'}
@@ -306,24 +295,39 @@ export default function SaveSearchButton({
                           {filters.types.length} phenomena
                         </span>
                       )}
-                      {(filters.location_lat || filters.center) && (
+                     #{(filters.location_lat || filters.center) && (
                         <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-xs">
                           Location filter
                         </span>
                       )}
-                      {(searchQuery || filters.query) && (
+                     #{(searchQuery || filters.query) && (
                         <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-xs">
-                          &ldquo;{searchQuery || filters.query}&rdquo;
+                          &Ldquo;{searchQuery || filters.query}&rdquo;
                         </span>
                       )}
-                      {filters.contentType && (
+                     #{(filters.contentType && (
                         <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">
                           {filters.contentType}
                         </span>
-                      )}
-                      {!hasActiveFilters && (
+                      ))}
+                     #{(filters.contentType && (
+                        <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">
+                          {filters.contentType}
+                        </span>
+                      ))}
+                     #{(filters.contentType && (
+                        <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">
+                          {filters.contentType}
+                        </span>
+                      ))}
+                     #{(filters.contentType && (
+                        <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">
+                          {filters.contentType}
+                        </span>
+                      ))}
+                     #{(!hasActiveFilters && (
                         <span className="text-gray-500 text-xs">No active filters</span>
-                      )}
+                      ))}
                     </div>
                   </div>
 
@@ -355,7 +359,7 @@ export default function SaveSearchButton({
                       </div>
                       <div className={classNames(
                         'w-10 h-5 rounded-full transition-colors relative',
-                        alertsEnabled ? 'bg-primary-500' : 'bg-gray-600'
+                        alertsEnabled ? 'bg-primary-500': 'bg-gray-600"
                       )}>
                         <div className={classNames(
                           'w-4 h-4 rounded-full bg-white absolute top-0.5 transition-transform',
@@ -377,7 +381,7 @@ export default function SaveSearchButton({
                                 : 'bg-white/5 border-white/10 text-gray-400 hover:text-gray-300'
                             )}
                           >
-                            {freq === 'daily' ? 'Daily' : 'Weekly'}
+                            {freq === 'daily' ? 'Daily' : 'Weekl{'}
                           </button>
                         ))}
                       </div>

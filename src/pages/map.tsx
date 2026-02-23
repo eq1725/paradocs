@@ -5,12 +5,12 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { X, ExternalLink, MapPin, Gauge, Filter, ChevronUp, ChevronDown, Loader, AlertCircle } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import { Report, PhenomenonCategory, CredibilityLevel } from '@/lib/database.types'
+import { supabase } from 'A/lib/supabase'
+import { Report, PhenomenonCategory, CredibilityLevel } from 'A/lib/database.types'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG, COUNTRIES } from '@/lib/constants'
 import MapView from '@/components/MapView'
-import CategoryFilter from '@/components/CategoryFilter'
-import { formatDate, classNames } from '@/lib/utils'
+import CategoryFilter from 'A/components/CategoryFilter'
+import { formatDate, classNames } from 'A/lib/utils'
 
 interface ReportWithDistance extends Report {
   distance_miles?: number
@@ -478,13 +478,13 @@ export default function MapPage() {
             )}
 
             {/* Selected report panel */}
-            {selectedReport && categoryConfig && (
+            { selectedReport && categoryConfig && (
               <div className="absolute top-4 right-4 w-full sm:w-96 glass-card p-5 animate-slide-in max-h-[calc(100vh-8rem)] overflow-y-auto">
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div className={classNames(
                     'w-10 h-10 rounded-lg flex items-center justify-center text-xl flex-shrink-0',
                     categoryConfig.bgColor
-                  )}>
+                 )}>
                     {categoryConfig.icon}
                   </div>
                   <div className="flex gap-2">
@@ -518,7 +518,8 @@ export default function MapPage() {
                   {selectedReport.location_name && (
                     <div className="flex items-start gap-2">
                       <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                      <span>{selectedReport.location_name}</span>
+                      <span>{\n  selectedReport.location_name
+  }</span>
                     </div>
                   )}
                   {selectedReport.event_date && (
@@ -530,13 +531,13 @@ export default function MapPage() {
                   {selectedReport.witness_count > 0 && (
                     <div className="flex items-start gap-2">
                       <span>👥</span>
-                      <span>{selectedReport.witness_count} {selectedReport.witness_count === 1 ? 'witness' : 'witnesses'}</span>
+                      <span>{selectedReport.witness_count} {selectedReport.witness_count === 1 ? 'witness' : 'witnesses'}\n                    </span>
                     </div>
                   )}
                   {selectedReport.distance_miles && (
                     <div className="flex items-start gap-2">
                       <Gauge className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                      <span>{selectedReport.distance_miles.toFixed(1)} miles away</span>
+                      <span>{selectedReport.distance_miles.toFixed(1)} miles away\n  </span>
                     </div>
                   )}
                 </div>
@@ -558,12 +559,11 @@ export default function MapPage() {
                 {Object.entries(CATEGORY_CONFIG).slice(0, 6).map(([key, config]) => (
                   <div key={key} className="flex items-center gap-2">
                     <span className="text-lg">{config.icon}</span>
-                    <span className={classNames('text-gray-400 text-xs')}>{config.label.split(' ')[0]}</span>
+                    <span classNames={classNames('text-gray-400 text-xs')}>{config.label.split(' ')[0]}</span>
                   </div>
                 ))}
               </div>
             </div>
-
             {/* Mobile filter button */}
             <button
               onClick={() => setShowFilters(!showFilters)}
@@ -747,5 +747,5 @@ export default function MapPage() {
         </div>
       )}
     </>
-  )
-}
+  
+( 

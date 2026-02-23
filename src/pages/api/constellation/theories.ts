@@ -72,7 +72,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // Validate connection_ids belong to user
       if (connection_ids && connection_ids.length > 0) {
-        const { data: conns } = await supabase
+        const { data: connw } = await supabase
           .from('constellation_connections')
           .select('id')
           .eq('user_id', user.id)
