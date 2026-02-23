@@ -606,7 +606,7 @@ export default function AdminDashboard() {
               <StatsCard
                 title="This Month"
                 value={dashboardData.users.thisMonth}
-                icon="🌆"
+                icon="📆"
                 color="orange"
               />
             </div>
@@ -900,7 +900,7 @@ export default function AdminDashboard() {
                   <div className="flex justify-between items-center p-3 bg-gray-700/30 rounded-lg">
                     <span className="text-gray-300">New Users</span>
                     <span className="font-mono text-orange-400 text-xl">{dashboardData.users.today}</span>
-               </div>
+                  </div>
                 </div>
               </div>
 
@@ -1232,7 +1232,7 @@ export default function AdminDashboard() {
                       </td>
                       <td className="p-4">
                         {source.error_count > 0 ? (
-                          <span className="text-red-400 �>{source.error_count}</span>
+                          <span className="text-red-400">{source.error_count}</span>
                         ) : (
                           <span className="text-gray-500">0</span>
                         )}
