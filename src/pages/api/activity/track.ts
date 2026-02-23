@@ -10,7 +10,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Get user from auth header
     const token = req.headers.authorization?.replace('Bearer ', '')
     if (!token) {
       return res.status(401).json({ error: 'Unauthorized' })
@@ -18,7 +17,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Verify user
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
     if (authError || !user) {
       return res.status(401).json({ error: 'Invalid token' })
@@ -30,7 +28,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Invalid action_type' })
     }
 
-    // Insert activity record
     const { error } = await supabase
       .from('user_activity')
       .insert({
@@ -42,7 +39,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
 
     if (error) {
-      // If table doesn't exist, fail gracefully
       if (error.code === '42P01') {
         console.warn('user_activity table does not exist yet')
         return res.status(200).json({ ok: true, warning: 'table_not_ready' })
