@@ -58,11 +58,11 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
                 {categoryConfig.icon}
               </span>
             </div>
-            { report.featured && (
+            {report.featured && (
               <div className="absolute top-4 left-4 flex items-center gap-1 px-2 py-1 bg-amber-500/20 border border-amber-500/30 rounded-full text-amber-400 text-xs font-medium">
                 <Award className="w-3 h-3" />
                 Featured
-                </div>
+              </div>
             )}
             <div className={classNames(
               'absolute top-4 right-4 px-2 py-1 rounded-full text-xs font-medium border',
@@ -202,6 +202,7 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
             </div>
           </div>
         </div>
-      </Link>
+      </div>
+    </Link>
   )
 }

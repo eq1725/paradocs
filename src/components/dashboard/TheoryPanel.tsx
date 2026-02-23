@@ -50,4 +50,342 @@ export default function TheoryPanel({
   const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([])
   const [selectedConnectionIds, setSelectedConnectionIds] = useState<string[]>([])
   const [isPublic, setIsPublic] = useState(false)
-  const [saving, setSaving]ÃÄÙÅ’ÕïM—Ö—î°ôÖ±Õî§((ÄÅ•òÄ†Ö•Õ=¡ï∏§Å…ï—’…∏Åπ’±∞((ÄÅçΩπÕ–Å…ïÕï—Ω…¥ÄÙÄ†§ÄÙ¯ÅÏ(ÄÄÄÅÕï—Q•—±î†úú§(ÄÄÄÅÕï—Q°ïÕ•Ã†úú§(ÄÄÄÅÕï—Mï±ïç—ïëπ—…Â%ëÃ°mt§(ÄÄÄÅÕï—Mï±ïç—ïëΩππïç—•Ωπ%ëÃ°mt§(ÄÄÄÅÕï—%ÕA’â±•å°ôÖ±Õî§(ÄÄÄÅÕï—ë•—•πùQ°ïΩ…‰°π’±∞§(ÄÅÙ((ÄÅçΩπÕ–ÅÕ—Ö…—ë•–ÄÙÄ°—°ïΩ…‰ËÅQ°ïΩ…ÂÖ—Ñ§ÄÙ¯ÅÏ(ÄÄÄÅÕï—Q•—±î°—°ïΩ…‰π—•—±î§(ÄÄÄÅÕï—Q°ïÕ•Ã°—°ïΩ…‰π—°ïÕ•Ã§(ÄÄÄÅÕï—Mï±ïç—ïëπ—…Â%ëÃ°—°ïΩ…‰πïπ—…Â}•ëÃ§(ÄÄÄÅÕï—Mï±ïç—ïëΩππïç—•Ωπ%ëÃ°—°ïΩ…‰πçΩππïç—•Ωπ}•ëÃ§(ÄÄÄÅÕï—%ÕA’â±•å°—°ïΩ…‰π•Õ}¡’â±•å§(ÄÄÄÅÕï—ë•—•πùQ°ïΩ…‰°—°ïΩ…‰§(ÄÄÄÅÕï—5Ωëî†ùïë•–ú§(ÄÅÙ((ÄÅçΩπÕ–Å°Öπë±ïMÖŸîÄÙÅÖÕÂπåÄ†§ÄÙ¯ÅÏ(ÄÄÄÅ•òÄ†Ö—•—±îπ—…•¥†§§Å…ï—’…∏(ÄÄÄÅÕï—MÖŸ•πú°—…’î§(ÄÄÄÅ—…‰ÅÏ(ÄÄÄÄÄÅçΩπÕ–Åµï—°ΩêÄÙÅµΩëîÄÙÙÙÄùïë•–úÄ¸ÄùAUPúÄËÄùA=MPú(ÄÄÄÄÄÅçΩπÕ–ÅâΩë‰ËÅÖπ‰ÄÙÅÏ(ÄÄÄÄÄÄÄÅ—•—±î∞(ÄÄÄÄÄÄÄÅ—°ïÕ•Ã∞(ÄÄÄÄÄÄÄÅïπ—…Â}•ëÃËÅÕï±ïç—ïëπ—…Â%ëÃ∞(ÄÄÄÄÄÄÄÅçΩππïç—•Ωπ}•ëÃËÅÕï±ïç—ïëΩππïç—•Ωπ%ëÃ∞(ÄÄÄÄÄÄÄÅ•Õ}¡’â±•åËÅ•ÕA’â±•å∞(ÄÄÄÄÄÅÙ(ÄÄÄÄÄÅ•òÄ°µΩëîÄÙÙÙÄùïë•–úÄòòÅïë•—•πùQ°ïΩ…‰§ÅÏ(ÄÄÄÄÄÄÄÅâΩë‰π—°ïΩ…Â}•êÄÙÅïë•—•πùQ°ïΩ…‰π•ê(ÄÄÄÄÄÅÙ((ÄÄÄÄÄÅçΩπÕ–Å…ïÕ¿ÄÙÅÖ›Ö•–Åôï—ç††úΩÖ¡§ΩçΩπÕ—ï±±Ö—•Ω∏Ω—°ïΩ…•ïÃú∞ÅÏ(ÄÄÄÄÄÄÄÅµï—°Ωê∞(ÄÄÄÄÄÄÄÅ°ïÖëï…ÃËÅÏ(ÄÄÄÄÄÄÄÄÄÄùΩπ—ïπ–µQÂ¡îúËÄùÖ¡¡±•çÖ—•Ω∏Ω©ÕΩ∏ú∞(ÄÄÄÄÄÄÄÄÄÄù’—°Ω…•ÈÖ—•Ω∏úËÅÅ	ïÖ…ï»ÄëÌ’Õï…QΩ≠ïπıÄ∞(ÄÄÄÄÄÄÄÅÙ∞(ÄÄÄÄÄÄÄÅâΩë‰ËÅ)M=8πÕ—…•πù•ô‰°âΩë‰§∞(ÄÄÄÄÄÅÙ§(ÄÄÄÄÄÅ•òÄ°…ïÕ¿πΩ¨§ÅÏ(ÄÄÄÄÄÄÄÅΩπQ°ïΩ…Â°Öπùïê†§(ÄÄÄÄÄÄÄÅ…ïÕï—Ω…¥†§(ÄÄÄÄÄÄÄÅÕï—5Ωëî†ù±•Õ–ú§(ÄÄÄÄÄÅÙ(ÄÄÄÅÙÅô•πÖ±±‰ÅÏ(ÄÄÄÄÄÅÕï—MÖŸ•πú°ôÖ±Õî§(ÄÄÄÅÙ(ÄÅÙ((ÄÅçΩπÕ–Å°Öπë±ïï±ï—îÄÙÅÖÕÂπåÄ°—°ïΩ…Â%êËÅÕ—…•πú§ÄÙ¯ÅÏ(ÄÄÄÅçΩπÕ–Å…ïÕ¿ÄÙÅÖ›Ö•–Åôï—ç††úΩÖ¡§ΩçΩπÕ—ï±±Ö—•Ω∏Ω—°ïΩ…•ïÃú∞ÅÏ(ÄÄÄÄÄÅµï—°ΩêËÄù1Qú∞(ÄÄÄÄÄÅ°ïÖëï…ÃËÅÏ(ÄÄÄÄÄÄÄÄùΩπ—ïπ–µQÂ¡îúËÄùÖ¡¡±•çÖ—•Ω∏Ω©ÕΩ∏ú∞(ÄÄÄÄÄÄÄÄù’—°Ω…•ÈÖ—•Ω∏úËÅÅ	ïÖ…ï»ÄëÌ’Õï…QΩ≠ïπıÄ∞(ÄÄÄÄÄÅÙ∞(ÄÄÄÄÄÅâΩë‰ËÅ)M=8πÕ—…•πù•ô‰°ÏÅ—°ïΩ…Â}•êËÅ—°ïΩ…Â%êÅÙ§∞(ÄÄÄÅÙ§(ÄÄÄÅ•òÄ°…ïÕ¿πΩ¨§ÅΩπQ°ïΩ…Â°Öπùïê†§(ÄÅÙ((ÄÅçΩπÕ–Å—Ωùù±ïπ—…‰ÄÙÄ°•êËÅÕ—…•πú§ÄÙ¯ÅÏ(ÄÄÄÅÕï—Mï±ïç—ïëπ—…Â%ëÃ°¡…ïÿÄÙ¯(ÄÄÄÄÄÅ¡…ïÿπ•πç±’ëïÃ°•ê§Ä¸Å¡…ïÿπô•±—ï»°‡ÄÙ¯Å‡ÄÑÙÙÅ•ê§ÄËÅl∏∏π¡…ïÿ∞Å•ët(ÄÄÄÄ§(ÄÅÙ((ÄÅçΩπÕ–Å—Ωùù±ïΩππïç—•Ω∏ÄÙÄ°•êËÅÕ—…•πú§ÄÙ¯ÅÏ(ÄÄÄÅÕï—Mï±ïç—ïëΩππïç—•Ωπ%ëÃ°¡…ïÿÄÙ¯(ÄÄÄÄÄÅ¡…ïÿπ•πç±’ëïÃ°•ê§Ä¸Å¡…ïÿπô•±—ï»°‡ÄÙ¯Å‡ÄÑÙÙÅ•ê§ÄËÅl∏∏π¡…ïÿ∞Å•ët(ÄÄÄÄ§(ÄÅÙ((ÄÅ…ï—’…∏Ä†(ÄÄÄÄÒë•ÿÅç±ÖÕÕ9ÖµîÙâô•·ïêÅ•πÕï–¥¿ÅË¥‘¿Åô±ï‡Å•—ïµÃµçïπ—ï»Å©’Õ—•ô‰µçïπ—ï»Åâúµâ±Öç¨ºÿ¿ÅâÖç≠ë…Ω¿µâ±’»µÕ¥à¯(ÄÄÄÄÄÄÒë•ÿÅç±ÖÕÕ9ÖµîÙââúµù…Ö‰¥‰¿¿ÅâΩ…ëï»ÅâΩ…ëï»µù…Ö‰¥‹¿¿Å…Ω’πëïê¥…·∞Å‹µô’±∞ÅµÖ‡µ‹¥…·∞Åµ‡¥–ÅµÖ‡µ†µl‡’Ÿ°tÅô±ï‡Åô±ï‡µçΩ∞à¯(ÄÄÄÄÄÄÄÅÏº®Å!ïÖëï»Ä®ΩÙ(ÄÄÄÄÄÄÄÄÒë•ÿÅç±ÖÕÕ9ÖµîÙâô±ï‡Å•—ïµÃµçïπ—ï»Å©’Õ—•ô‰µâï—›ïï∏Å¿¥–ÅâΩ…ëï»µàÅâΩ…ëï»µù…Ö‰¥‡¿¿à¯(ÄÄÄÄÄÄÄÄÄÄÒë•ÿÅç±ÖÕÕ9ÖµîÙâô±ï‡Å•—ïµÃµçïπ—ï»ÅùÖ¿¥»à¯(ÄÄÄÄÄÄÄÄÄÄÄÄÒ1•ù°—â’±àÅç±ÖÕÕ9ÖµîÙâ‹¥‘Å†¥‘Å—ï·–µÖµâï»¥–¿¿àÄº¯(ÄÄÄÄÄÄÄÄÄÄÄÄÒ†»Åç±ÖÕÕ9ÖµîÙâ—ï·–µ›°•—îÅôΩπ–µÕïµ•âΩ±êà¯(ÄÄÄÄÄÄÄÄÄÄÄÄÄÅÌµΩëîÄÙÙÙÄù±•Õ–úÄ¸ÄùeΩ’»ÅQ°ïΩ…•ïÃúÄËÅµΩëîÄÙÙÙÄùç…ïÖ—îúÄ¸Äù9ï‹ÅQ°ïΩ…‰úÄËÄùë•–ÅQ°ïΩ…‰ùÙ(ÄÄÄÄÄÄÄÄÄÄÄÄΩ†»¯(ÄÄÄÄÄÄÄÄÄÄÄÅÌµΩëîÄÙÙÙÄù±•Õ–úÄòòÄ†(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÒÕ¡Ö∏Åç±ÖÕÕ9ÖµîÙâ—ï·–µù…Ö‰¥‘¿¿Å—ï·–µÕ¥à¯°Ì—°ïΩ…•ïÃπ±ïπù—°Ù§ΩÕ¡Ö∏¯(ÄÄÄÄÄÄÄÄÄÄÄÄ•Ù(ÄÄÄÄÄÄÄÄÄÄΩë•ÿ¯(ÄÄÄÄÄÄÄÄÄÄÒâ’——Ω∏ÅΩπ±•ç¨ıÏ†§ÄÙ¯ÅÏÅ…ïÕï—Ω…¥†§ÏÅÕï—5Ωëî†ù±•Õ–ú§ÏÅΩπ±ΩÕî†§ÅıÙÅç±ÖÕÕ9ÖµîÙâ—ï·–µù…Ö‰¥‘¿¿Å°ΩŸï»È—ï·–µ›°•—îà¯(ÄÄÄÄÄÄÄÄÄÄÄÄÒ`Åç±ÖÕÕ9ÖµîÙâ‹¥‘Å†¥‘àÄº¯(ÄÄÄÄÄÄÄÄÄÄΩâ’——Ω∏¯(ÄÄÄÄÄÄÄÄΩë•ÿ¯((ÄÄÄÄÄÄÄÅÏº®ÅΩπ—ïπ–Ä®ΩÙ(ÄÄÄÄÄÄÄÄÒë•ÿÅç±ÖÕÕ9ÖµîÙâô±ï‡¥ƒÅΩŸï…ô±Ω‹µ‰µÖ’—ºÅ¿¥–à¯(ÄÄÄÄÄÄÄÄÄÅÌµΩëîÄÙÙÙÄù±•Õ–úÄòòÄ†(ÄÄÄÄÄÄÄÄÄÄÄÄ¯(ÄÄÄÄÄÄÄÄÄÄÄÄÄÅÌ—°ïΩ…•ïÃπ±ïπù—†ÄÙÙÙÄ¿Ä¸Ä†(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÒë•ÿÅç±ÖÕÕ9ÖµîÙâ—ï·–µçïπ—ï»Å¡‰¥‡à¯(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÒ1•ù°—â’±àÅç±ÖÕÕ9ÖµîÙâÿ¥ƒ¿Å†¥ƒ¿Å—ï·–µù…Ö‰¥‹¿¿Åµ‡µÖ’—ºÅµà¥ÃàÄº¯(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÒ¿Åç±ÖÕÕ9ÖµîÙâ—ï·–µù…Ö‰¥–¿¿Å—ï·–µÕ¥Åµà¥ƒà˘9ºÅ—°ïΩ…•ïÃÅÂï–Ω¿¯(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÒ¿Åç±ÖÕÕ9ÖµîÙâ—ï·–µù…Ö‰¥‘¿¿Å—ï·–µ·ÃÅµà¥–à¯(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÅQ°ïΩ…•ïÃÅÖ…îÅπÖµïêÅçΩ±±ïç—•ΩπÃÅΩòÅçΩππïç—ïêÅïπ—…•ïÃÅ›•—†ÅÑÅ›…•——ï∏Å—°ïÕ•Ã∏(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄΩ¿¯(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄΩë•ÿ¯(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄ§ÄËÄ†(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÒë•ÿÅç±ÖÕÕ9ÖµîÙâÕ¡Öçîµ‰¥Ãà¯(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÅÌ—°ïΩ…•ïÃπµÖ¿°—°ïΩ…‰ÄÙ¯ÅÏ(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÅçΩπÕ–Å•Õ·¡ÖπëïêÄÙÅï·¡Öπëïë%êÄÙÙÙÅ—°ïΩ…‰π•ê(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÅçΩπÕ–Å—°ïΩ…Âπ—…•ïÃÄÙÅïπ—…•ïÃπô•±—ï»°îÄÙ¯Å—°ïΩ…‰πïπ—…Â}•ëÃπ•πç±’ëïÃ°îπ•ê§§(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÅ…ï—’…∏Ä†(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÒë•ÿÅ≠ï‰ıÌ—°ïΩ…‰π•ëÙÅç±ÖÕÕ9ÖµîÙââúµù…Ö‰¥‡¿¿º‘¿ÅâΩ…ëï»ÅâΩ…ëï»µù…Ö‰¥‹¿¿º‘¿Å…Ω’πëïêµ·∞ÅΩŸï…ô±Ω‹µ°•ëëï∏à¯(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÒâ’——Ω∏(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÅΩπ±•ç¨ıÏ†§ÄÙ¯ÅÕï—·¡Öπëïë%ê°•Õ·¡ÖπëïêÄ¸Åπ’±∞ÄËÅ—°ïΩ…‰π•ê•Ù(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÅç±ÖÕÕ9ÖµîÙâ‹µô’±∞Åô±ï‡Å•—ïµÃµÕ—Ö…–ÅùÖ¿¥ÃÅ¿¥–Å—ï·–µ±ïô–Å°ΩŸï»Èâúµù…Ö‰¥‡¿¿º‡¿Å—…ÖπÕ•—•Ω∏µçΩ±Ω…Ãà(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¯(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÅÌ•Õ·¡ÖπëïêÄ¸Ä†(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÒ°ïŸ…ΩπΩ›∏Åç±ÖÕÕ9ÖµîÙâ‹¥–Å†¥–Å—ï·–µù…Ö‰¥‘¿¿ÅÕ°…•π¨¥¿Åµ–¥¿∏‘àÄº¯(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ§ÄËÄ†(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÒ°ïŸ…ΩπI•ù°–Åç±ÖÕÕ9ÖµîÙâ‹¥–Å†¥–Å—ï·–µù…Ö‰¥‘¿¿ÅÕ°…•π¨¥¿Åµ–¥¿∏‘àÄº¯(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ•Ù(ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÒë•ÿÅç±ÖÕÕ9ÖµîÙâô±ï‡¥ƒÅµ•∏µ‹∑#‡¢∆Fób6∆74Ê÷S“&f∆WÇóFV◊2÷6VÁFW"v”"#‡¢«7‚6∆74Ê÷S“'FWáB◊vÜóFRfˆÁB÷÷VFóV“FWáB◊6“#Á∑FÜV˜'íÁFóF∆W”¬˜7„‡¢≤FÜV˜'íÊó5˜V&∆ñ2ÚÄ¢ƒv∆ˆ&R6∆74Ê÷S“'r”2Ç”2FWáB÷w&VV‚”C"Û‡¢í¢Ä¢ƒ∆ˆ6≤6∆74Ê÷S“'r”2Ç”2FWáB÷w&í”S"Û‡¢ó–¢¬ˆFóc‡¢∆Fób6∆74Ê÷S“'FWáB÷w&í”SFWáB◊á2◊B”„R#‡¢∑FÜV˜'íÊVÁG'ïˆñG2Ê∆VÊwFá“VÁG&ñW2+r∑FÜV˜'íÊ6ˆÊÊV7FñˆÂˆñG2Ê∆VÊwFá“6ˆÊÊV7FñˆÁ0¢¬ˆFóc‡¢¬ˆFóc‡¢¬ˆ'WGFˆ„‡†¢∂ó4WáÊFVBbbÄ¢∆Fób6∆74Ê÷S“'Ç”B"”BB”#‡¢∑FÜV˜'íÁFÜW6ó2bbÄ¢«6∆74Ê÷S“'FWáB÷w&í”3FWáB◊6“÷"”2¬”r#Á∑FÜV˜'íÁFÜW6ó7”¬˜‡¢ó–¢∑FÜV˜'îVÁG&ñW2Ê∆VÊwFÇ‚bbÄ¢∆Fób6∆74Ê÷S“'¬”r÷"”2#‡¢∆Fób6∆74Ê÷S“'FWáB◊á2FWáB÷w&í”S÷"”„R#Â7W˜'FñÊrVÁG&ñW3£¬ˆFóc‡¢∆Fób6∆74Ê÷S“'76R◊í”#‡¢∑FÜV˜'îVÁG&ñW2Á6∆ñ6RÉ¬RíÊ÷ÜR”‚∞¢6ˆÁ7Bb“dU$Dî5EÙî4ÙÂ5∂RÁfW&Fñ7E“«¬dU$Dî5EÙî4ÙÂ2ÊÊVVG5ˆñÊf¢&WGW&‚Ä¢∆Fób∂Wì◊∂RÊñG“6∆74Ê÷S“&f∆WÇóFV◊2÷6VÁFW"v”"FWáB◊á2#‡¢«7‚6∆74Ê÷S◊∑bÊ6ˆ∆˜'”Á∑bÊñ6ˆÁ”¬˜7„‡¢«7‚6∆74Ê÷S“'FWáB÷w&í”3G'VÊ6FR#Á∂RÊÊ÷W”¬˜7„‡¢¬ˆFóc‡¢ê¢“ó–¢∑FÜV˜'îVÁG&ñW2Ê∆VÊwFÇ‚RbbÄ¢∆Fób6∆74Ê÷S“'FWáB◊á2FWáB÷w&í”S#‚∑∑FÜV˜'îVÁG&ñW2Ê∆VÊwFÇ“W“÷˜&S¬ˆFóc‡¢ó–¢¬ˆFóc‡¢¬ˆFóc‡¢ó–¢∆Fób6∆74Ê÷S“&f∆WÇv”"¬”r#‡¢∆'WGFˆ‡¢ˆ‰6∆ñ6≥◊≤Çí”‚7F'DVFóBáFÜV˜'íó–¢6∆74Ê÷S“&f∆WÇóFV◊2÷6VÁFW"v”„RÇ”2í”„RFWáB◊á2&r÷w&í”sÜ˜fW#¶&r÷w&í”cFWáB÷w&í”3&˜VÊFVB÷∆rG&Á6óFñˆ‚÷6ˆ∆˜'2 ¢‡¢ƒVFóC26∆74Ê÷S“'r”2Ç”2"Û‚VFó@¢¬ˆ'WGFˆ„‡¢∆'WGFˆ‡¢ˆ‰6∆ñ6≥◊≤Çí”‚ÜÊF∆TFV∆WFRáFÜV˜'íÊñBó–¢6∆74Ê÷S“&f∆WÇóFV◊2÷6VÁFW"v”„RÇ”2í”„RFWáB◊á2&r÷w&í”sÜ˜fW#¶&r◊&VB”ìÛSFWáB÷w&í”CÜ˜fW#ßFWáB◊&VB”C&˜VÊFVB÷∆rG&Á6óFñˆ‚÷6ˆ∆˜'2 ¢‡¢≈G&6É"6∆74Ê÷S“'r”2Ç”2"Û‚FV∆WFP¢¬ˆ'WGFˆ„‡¢¬ˆFóc‡¢¬ˆFóc‡¢ó–¢¬ˆFóc‡¢ê¢“ó–¢¬ˆFóc‡¢ó–¢¬Û‡¢ó–†¢≤Ü÷ˆFR””“v7&VFRr«¬÷ˆFR””“vVFóBríbbÄ¢∆Fób6∆74Ê÷S“'76R◊í”B#‡¢≤Ú¢FóF∆R¢˜–¢∆Fóc‡¢∆∆&V¬6∆74Ê÷S“'FWáB÷w&í”CFWáB◊á2fˆÁB÷÷VFóV“&∆ˆ6≤÷"”#ÂFÜV˜'íÊ÷S¬ˆ∆&V√‡¢∆ñÁW@¢GóS“'FWáB ¢f«VS◊∑FóF∆W–¢ˆ‰6ÜÊvS◊∂R”‚6WEFóF∆RÜRÁF&vWBÁf«VRó–¢∆6VÜˆ∆FW#“vRÊr‚¬$÷ñ∆óF'í&˜Üñ÷óGíáó˜FÜW6ó2"p¢6∆74Ê÷S“'r÷gV∆¬&r÷w&í”É&˜&FW"&˜&FW"÷w&í”s&˜VÊFVB÷∆rÇ”2í”"FWáB◊6“FWáB◊vÜóFR∆6VÜˆ∆FW"÷w&í”Sfˆ7W3¶˜WF∆ñÊR÷ÊˆÊRfˆ7W3¶&˜&FW"◊&ñ÷'í”S ¢WFÙfˆ7W0¢Û‡¢¬ˆFóc‡†¢≤Ú¢FÜW6ó2¢˜–¢∆Fóc‡¢∆∆&V¬6∆74Ê÷S“'FWáB÷w&í”CFWáB◊á2fˆÁB÷÷VFóV“&∆ˆ6≤÷"”#ÂFÜW6ó3¬ˆ∆&V√‡¢«FWáF&V¢f«VS◊∑FÜW6ó7–¢ˆ‰6ÜÊvS◊∂R”‚6WEFÜW6ó2ÜRÁF&vWBÁf«VRó–¢∆6VÜˆ∆FW#“$Wá∆ñ‚FÜRGFW&‚ñ˜RwfRˆ'6W'fVBÊBñ˜W"áó˜FÜW6ó2‚‚‚ ¢&˜w3◊≥G–¢6∆74Ê÷S“'r÷gV∆¬&r÷w&í”É&˜&FW"&˜&FW"÷w&í”s&˜VÊFVB÷∆rÇ”2í”"FWáB◊6“FWáB◊vÜóFR∆6VÜˆ∆FW"÷w&í”S&W6ó¶R÷ÊˆÊRfˆ7W3¶˜WF∆ñÊR÷ÊˆÊRfˆ7W3¶&˜&FW"◊&ñ÷'í”S ¢Û‡¢¬ˆFóc‡†¢≤Ú¢6V∆V7BVÁG&ñW2¢˜–¢∆Fóc‡¢∆∆&V¬6∆74Ê÷S“'FWáB÷w&í”CFWáB◊á2fˆÁB÷÷VFóV“&∆ˆ6≤÷"”"#‡¢7W˜'FñÊrVÁG&ñW2á∑6V∆V7FVDVÁG'îñG2Ê∆VÊwFá“6V∆V7FVBê¢¬ˆ∆&V√‡¢∆Fób6∆74Ê÷S“&÷Ç÷Ç”C˜fW&f∆˜r◊í÷WFÚ76R◊í”&r÷w&í”ÉÛ3&˜VÊFVB÷∆r”"#‡¢∂VÁG&ñW2Ê÷ÜVÁG'í”‚∞¢6ˆÁ7Bó56V∆V7FVB“6V∆V7FVDVÁG'îñG2ÊñÊ6«VFW2ÜVÁG'íÊñBê¢6ˆÁ7Bb“dU$Dî5EÙî4ÙÂ5∂VÁG'íÁfW&Fñ7E“«¬dU$Dî5EÙî4ÙÂ2ÊÊVVG5ˆñÊf¢&WGW&‚Ä¢∆'WGFˆ‡¢∂Wì◊∂VÁG'íÊñG–¢ˆ‰6∆ñ6≥◊≤Çí”‚Fˆvv∆TVÁG'íÜVÁG'íÊñBó–¢6∆74Ê÷S◊∂r÷gV∆¬f∆WÇóFV◊2÷6VÁFW"v”"Ç”"í”„R&˜VÊFVBFWáB÷∆VgBFWáB◊á2G&Á6óFñˆ‚÷6ˆ∆˜'2G∞¢ó56V∆V7FV@¢Úv&r◊&ñ÷'í”SÛR&˜&FW"&˜&FW"◊&ñ÷'í”SÛ3p¢¢vÜ˜fW#¶&r÷w&í”É&˜&FW"&˜&FW"◊G&Á7&VÁBp¢÷–¢‡¢∆Fób6∆74Ê÷S◊∂r”BÇ”B&˜VÊFVB&˜&FW"f∆WÇóFV◊2÷6VÁFW"ßW7Fñgí÷6VÁFW"6á&ñÊ≤”G∞¢ó56V∆V7FVBÚv&r◊&ñ÷'í”S&˜&FW"◊&ñ÷'í”Sr¢v&˜&FW"÷w&í”cp¢÷”‡¢∂ó56V∆V7FVBbbƒ6ÜV6≤6∆74Ê÷S“'r”2Ç”2FWáB◊vÜóFR"ÛÁ–¢¬ˆFóc‡¢«7‚6∆74Ê÷S◊∑bÊ6ˆ∆˜'”Á∑bÊñ6ˆÁ”¬˜7„‡¢«7‚6∆74Ê÷S“'FWáB÷w&í”3G'VÊ6FR#Á∂VÁG'íÊÊ÷W”¬˜7„‡¢¬ˆ'WGFˆ„‡¢ê¢“ó–¢¬ˆFóc‡¢¬ˆFóc‡†¢≤Ú¢6V∆V7B6ˆÊÊV7FñˆÁ2¢˜–¢∂6ˆÊÊV7FñˆÁ2Ê∆VÊwFÇ‚bbÄ¢∆Fóc‡¢∆∆&V¬6∆74Ê÷S“'FWáB÷w&í”CFWáB◊á2fˆÁB÷÷VFóV“&∆ˆ6≤÷"”"#‡¢&V∆FVB6ˆÊÊV7FñˆÁ2á∑6V∆V7FVD6ˆÊÊV7Fñˆ‰ñG2Ê∆VÊwFá“6V∆V7FVBê¢¬ˆ∆&V√‡¢∆Fób6∆74Ê÷S“&÷Ç÷Ç”3"˜fW&f∆˜r◊í÷WFÚ76R◊í”&r÷w&í”ÉÛ3&˜VÊFVB÷∆r”"#‡¢∂6ˆÊÊV7FñˆÁ2Ê÷Ü6ˆÊ‚”‚∞¢6ˆÁ7Bó56V∆V7FVB“6V∆V7FVD6ˆÊÊV7Fñˆ‰ñG2ÊñÊ6«VFW2Ü6ˆÊ‚ÊñBê¢6ˆÁ7B“VÁG&ñW2ÊfñÊBÜR”‚RÊñB””“6ˆÊ‚ÊVÁG'îñBê¢6ˆÁ7B"“VÁG&ñW2ÊfñÊBÜR”‚RÊñB””“6ˆÊ‚ÊVÁG'î$ñBê¢ñbÇ«¬"í&WGW&‚ÁV∆¿¢&WGW&‚Ä¢∆'WGFˆ‡¢∂Wì◊∂6ˆÊ‚ÊñG–¢ˆ‰6∆ñ6≥◊≤Çí”‚Fˆvv∆T6ˆÊÊV7Fñˆ‚Ü6ˆÊ‚ÊñBó–¢6∆74Ê÷S◊∂r÷gV∆¬f∆WÇóFV◊2÷6VÁFW"v”"Ç”"í”„R&˜VÊFVBFWáB÷∆VgBFWáB◊á2G&Á6óFñˆ‚÷6ˆ∆˜'2G∞¢ó56V∆V7FV@¢Úv&r÷7ñ‚”SÛR&˜&FW"&˜&FW"÷7ñ‚”SÛ3p¢¢vÜ˜fW#¶&r÷w&í”É&˜&FW"&˜&FW"◊G&Á7&VÁBp¢÷–¢‡¢∆Fób6∆74Ê÷S◊∂r”BÇ”B&˜VÊFVB&˜&FW"f∆WÇóFV◊2÷6VÁFW"ßW7Fñgí÷6VÁFW"6á&ñÊ≤”G∞¢ó56V∆V7FVBÚv&r÷7ñ‚”S&˜&FW"÷7ñ‚”Sr¢v&˜&FW"÷w&í”cp¢÷”‡¢∂ó56V∆V7FVBbbƒ6ÜV6≤6∆74Ê÷S“'r”2Ç”2FWáB◊vÜóFR"ÛÁ–¢¬ˆFóc‡¢«7‚6∆74Ê÷S“'FWáB÷w&í”3G'VÊ6FR#Á∂ÊÊ÷W“(i"∂"ÊÊ÷W”¬˜7„‡¢¬ˆ'WGFˆ„‡¢ê¢“ó–¢¬ˆFóc‡¢¬ˆFóc‡¢ó–†¢≤Ú¢V&∆ñ2Fˆvv∆R¢˜–¢∆Fób6∆74Ê÷S“&f∆WÇóFV◊2÷6VÁFW"v”2#‡¢∆'WGFˆ‡¢ˆ‰6∆ñ6≥◊≤Çí”‚6WDó5V&∆ñ2Çó5V&∆ñ2ó–¢6∆74Ê÷S◊∂&V∆FófRr”Ç”R&˜VÊFVB÷gV∆¬G&Á6óFñˆ‚÷6ˆ∆˜'2G∂ó5V&∆ñ2Úv&r÷w&VV‚”Sr¢v&r÷w&í”s÷–¢‡¢∆Fób6∆74Ê÷S◊∂'6ˆ«WFRF˜”„Rr”BÇ”B&˜VÊFVB÷gV∆¬&r◊vÜóFRG&Á6óFñˆ‚◊G&Á6f˜&“G∂ó5V&∆ñ2ÚwG&Á6∆FR◊Ç”Rr¢wG&Á6∆FR◊Ç”„Rw÷“ÚÛ‡¢¬ˆ'WGFˆ„‡¢∆Fób6∆74Ê÷S“&f∆WÇóFV◊2÷6VÁFW"v”„R#‡¢∂ó5V&∆ñ2Úƒv∆ˆ&R6∆74Ê÷S“'r”2„RÇ”2„RFWáB÷w&VV‚”C"Û‚¢ƒ∆ˆ6≤6∆74Ê÷S“'r”2„RÇ”2„RFWáB÷w&í”S"ÛÁ–¢«7‚6∆74Ê÷S“'FWáB◊6“FWáB÷w&í”C#Á∂ó5V&∆ñ2Úufó6ñ&∆Rˆ‚V&∆ñ2&ˆfñ∆Rr¢u&ófFRw”¬˜7„‡¢¬ˆFóc‡¢¬ˆFóc‡¢¬ˆFóc‡¢–¢¬ˆFóc‡†¢≤Ú¢fˆ˜FW"¢˜–¢∆Fób6∆74Ê÷S“'”B&˜&FW"◊B&˜&FW"÷w&í”Éf∆WÇóFV◊2÷6VÁFW"ßW7Fñgí÷&WGvVV‚#‡¢≤÷ˆFR””“v∆ó7BrÚÄ¢√‡¢∆FóbÛ‡¢∆'WGFˆ‡¢ˆ‰6∆ñ6≥◊≤Çí”‚≤&W6WDf˜&“Çì≤6WD÷ˆFRÇv7&VFRrí◊–¢Fó6&∆VC◊∂VÁG&ñW2Ê∆VÊwFÇ””“–¢6∆74Ê÷S“&f∆WÇóFV◊2÷6VÁFW"v”"Ç”Bí”"&r÷÷&W"”cÜ˜fW#¶&r÷÷&W"”SFó6&∆VC¶˜6óGí”SFWáB◊vÜóFR&˜VÊFVB÷∆rFWáB◊6“fˆÁB÷÷VFóV“G&Á6óFñˆ‚÷6ˆ∆˜'2 ¢‡¢≈«W26∆74Ê÷S“'r”BÇ”B"Û‡¢ÊWrFÜV˜'ê¢¬ˆ'WGFˆ„‡¢¬Û‡¢í¢Ä¢√‡¢∆'WGFˆ‡¢ˆ‰6∆ñ6≥◊≤Çí”‚≤&W6WDf˜&“Çì≤6WD÷ˆFRÇv∆ó7Brí◊–¢6∆74Ê÷S“'FWáB◊6“FWáB÷w&í”CÜ˜fW#ßFWáB◊vÜóFRG&Á6óFñˆ‚÷6ˆ∆˜'2 ¢‡¢(i&6≤FÚ∆ó7@¢¬ˆ'WGFˆ„‡¢∆'WGFˆ‡¢ˆ‰6∆ñ6≥◊∂ÜÊF∆U6fW–¢Fó6&∆VC◊∑6fñÊr«¬FóF∆RÁG&ñ“Çó–¢6∆74Ê÷S“&f∆WÇóFV◊2÷6VÁFW"v”"Ç”Bí”"&r÷÷&W"”cÜ˜fW#¶&r÷÷&W"”SFó6&∆VC¶˜6óGí”SFWáB◊vÜóFR&˜VÊFVB÷∆rFWáB◊6“fˆÁB÷÷VFóV“G&Á6óFñˆ‚÷6ˆ∆˜'2 ¢‡¢ƒ6ÜV6≤6∆74Ê÷S“'r”BÇ”B"Û‡¢∑6fñÊrÚu6fñÊr‚‚‚r¢÷ˆFR””“vVFóBrÚuWFFRFÜV˜'ír¢t7&VFRFÜV˜'íw–¢¬ˆ'WGFˆ„‡¢¬Û‡¢ó–¢¬ˆFóc‡¢¬ˆFóc‡¢¬ˆFóc‡¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢ ¢Ç b `åWGW&‚Ä¢∆Fób6∆74Ê÷S“&fóÜVBñÁ6WB”¢”Sf∆WÇóFV◊2÷6VÁFW"ßW7Fñgí÷6VÁFW"&r÷&∆6≤Ûc&6∂G&˜÷&«W"◊6“#‡¢¬ˆFóc‡¢ê¢–ß–†
+  const [saving, setSaving] = useState(false)
+
+  if (!isOpen) return null
+
+  const resetForm = () => {
+    setTitle('')
+    setThesis('')
+    setSelectedEntryIds([])
+    setSelectedConnectionIds([])
+    setIsPublic(false)
+    setEditingTheory(null)
+  }
+
+  const startEdit = (theory: TheoryData) => {
+    setTitle(theory.title)
+    setThesis(theory.thesis)
+    setSelectedEntryIds(theory.entry_ids)
+    setSelectedConnectionIds(theory.connection_ids)
+    setIsPublic(theory.is_public)
+    setEditingTheory(theory)
+    setMode('edit')
+  }
+
+  const handleSave = async () => {
+    if (!title.trim()) return
+    setSaving(true)
+    try {
+      const method = mode === 'edit' ? 'PUT' : 'POST'
+      const body: any = {
+        title,
+        thesis,
+        entry_ids: selectedEntryIds,
+        connection_ids: selectedConnectionIds,
+        is_public: isPublic,
+      }
+      if (mode === 'edit' && editingTheory) {
+        body.theory_id = editingTheory.id
+      }
+
+      const resp = await fetch('/api/constellation/theories', {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${userToken}`,
+        },
+        body: JSON.stringify(body),
+      })
+      if (resp.ok) {
+        onTheoryChanged()
+        resetForm()
+        setMode('list')
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (theoryId: string) => {
+    const resp = await fetch('/api/constellation/theories', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${userToken}`,
+      },
+      body: JSON.stringify({ theory_id: theoryId }),
+    })
+    if (resp.ok) onTheoryChanged()
+  }
+
+  const toggleEntry = (id: string) => {
+    setSelectedEntryIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+
+  const toggleConnection = (id: string) => {
+    setSelectedConnectionIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-800">
+          <div className="flex items-center gap-2">
+            <Lightbulb className="w-5 h-5 text-amber-400" />
+            <h2 className="text-white font-semibold">
+              {mode === 'list' ? 'Your Theories' : mode === 'create' ? 'New Theory' : 'Edit Theory'}
+            </h2>
+            {mode === 'list' && (
+              <span className="text-gray-500 text-sm">({theories.length})</span>
+            )}
+          </div>
+          <button onClick={() => { resetForm(); setMode('list'); onClose() }} className="text-gray-500 hover:text-white">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {mode === 'list' && (
+            <>
+              {theories.length === 0 ? (
+                <div className="text-center py-8">
+                  <Lightbulb className="w-10 h-10 text-gray-700 mx-auto mb-3" />
+                  <p className="text-gray-400 text-sm mb-1">No theories yet</p>
+                  <p className="text-gray-500 text-xs mb-4">
+                    Theories are named collections of connected entries with a written thesis.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {theories.map(theory => {
+                    const isExpanded = expandedId === theory.id
+                    const theoryEntries = entries.filter(e => theory.entry_ids.includes(e.id))
+                    return (
+                      <div key={theory.id} className="bg-gray-800/50 border border-gray-700/50 rounded-xl overflow-hidden">
+                        <button
+                          onClick={() => setExpandedId(isExpanded ? null : theory.id)}
+                          className="w-full flex items-start gap-3 p-4 text-left hover:bg-gray-800/80 transition-colors"
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-white font-medium text-sm">{theory.title}</span>
+                              {theory.is_public ? (
+                                <Globe className="w-3 h-3 text-green-400" />
+                              ) : (
+                                <Lock className="w-3 h-3 text-gray-500" />
+                              )}
+                            </div>
+                            <div className="text-gray-500 text-xs mt-0.5">
+                              {theory.entry_ids.length} entries ¬∑ {theory.connection_ids.length} connections
+                            </div>
+                          </div>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="px-4 pb-4 pt-0">
+                            {theory.thesis && (
+                              <p className="text-gray-300 text-sm mb-3 pl-7">{theory.thesis}</p>
+                            )}
+                            {theoryEntries.length > 0 && (
+                              <div className="pl-7 mb-3">
+                                <div className="text-xs text-gray-500 mb-1.5">Supporting entries:</div>
+                                <div className="space-y-1">
+                                  {theoryEntries.slice(0, 5).map(e => {
+                                    const v = VERDICT_ICONS[e.verdict] || VERDICT_ICONS.needs_info
+                                    return (
+                                      <div key={e.id} className="flex items-center gap-2 text-xs">
+                                        <span className={v.color}>{v.icon}</span>
+                                        <span className="text-gray-300 truncate">{e.name}</span>
+                                      </div>
+                                    )
+                                  })}
+                                  {theoryEntries.length > 5 && (
+                                    <div className="text-xs text-gray-500">+{theoryEntries.length - 5} more</div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            <div className="flex gap-2 pl-7">
+                              <button
+                                onClick={() => startEdit(theory)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition-colors"
+                              >
+                                <Edit3 className="w-3 h-3" /> Edit
+                              </button>
+                              <button
+                                onClick={() => handleDelete(theory.id)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-700 hover:bg-red-900/50 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
+                              >
+                                <Trash2 className="w-3 h-3" /> Delete
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          {(mode === 'create' || mode === 'edit') && (
+            <div className="space-y-4">
+              {/* Title */}
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-1">Theory Name</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  placeholder='e.g., "Military Proximity Hypothesis"'
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-primary-500"
+                  autoFocus
+                />
+              </div>
+
+              {/* Thesis */}
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-1">Thesis</label>
+                <textarea
+                  value={thesis}
+                  onChange={e => setThesis(e.target.value)}
+                  placeholder="Explain the pattern you've observed and your hypothesis..."
+                  rows={4}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 resize-none focus:outline-none focus:border-primary-500"
+                />
+              </div>
+
+              {/* Select entries */}
+              <div>
+                <label className="text-gray-400 text-xs font-medium block mb-2">
+                  Supporting Entries ({selectedEntryIds.length} selected)
+                </label>
+                <div className="max-h-40 overflow-y-auto space-y-1 bg-gray-800/30 rounded-lg p-2">
+                  {entries.map(entry => {
+                    const isSelected = selectedEntryIds.includes(entry.id)
+                    const v = VERDICT_ICONS[entry.verdict] || VERDICT_ICONS.needs_info
+                    return (
+                      <button
+                        key={entry.id}
+                        onClick={() => toggleEntry(entry.id)}
+                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-xs transition-colors ${
+                          isSelected
+                            ? 'bg-primary-500/15 border border-primary-500/30'
+                            : 'hover:bg-gray-800 border border-transparent'
+                        }`}
+                      >
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                          isSelected ? 'bg-primary-500 border-primary-500' : 'border-gray-600'
+                        }`}>
+                          {isSelected && <Check className="w-3 h-3 text-white" />}
+                        </div>
+                        <span className={v.color}>{v.icon}</span>
+                        <span className="text-gray-300 truncate">{entry.name}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Select connections */}
+              {connections.length > 0 && (
+                <div>
+                  <label className="text-gray-400 text-xs font-medium block mb-2">
+                    Related Connections ({selectedConnectionIds.length} selected)
+                  </label>
+                  <div className="max-h-32 overflow-y-auto space-y-1 bg-gray-800/30 rounded-lg p-2">
+                    {connections.map(conn => {
+                      const isSelected = selectedConnectionIds.includes(conn.id)
+                      const a = entries.find(e => e.id === conn.entryAId)
+                      const b = entries.find(e => e.id === conn.entryBId)
+                      if (!a || !b) return null
+                      return (
+                        <button
+                          key={conn.id}
+                          onClick={() => toggleConnection(conn.id)}
+                          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-xs transition-colors ${
+                            isSelected
+                              ? 'bg-cyan-500/15 border border-cyan-500/30'
+                              : 'hover:bg-gray-800 border border-transparent'
+                          }`}
+                        >
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                            isSelected ? 'bg-cyan-500 border-cyan-500' : 'border-gray-600'
+                          }`}>
+                            {isSelected && <Check className="w-3 h-3 text-white" />}
+                          </div>
+                          <span className="text-gray-300 truncate">{a.name} ‚Üí {b.name}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Public toggle */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setIsPublic(!isPublic)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${isPublic ? 'bg-green-500' : 'bg-gray-700'}`}
+                >
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${isPublic ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </button>
+                <div className="flex items-center gap-1.5">
+                  {isPublic ? <Globe className="w-3.5 h-3.5 text-green-400" /> : <Lock className="w-3.5 h-3.5 text-gray-500" />}
+                  <span className="text-sm text-gray-400">{isPublic ? 'Visible on public profile' : 'Private'}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-gray-800 flex items-center justify-between">
+          {mode === 'list' ? (
+            <>
+              <div />
+              <button
+                onClick={() => { resetForm(); setMode('create') }}
+                disabled={entries.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                New Theory
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => { resetForm(); setMode('list') }}
+                className="text-sm text-gray-400 hover:text-white transition-colors"
+              >
+                ‚Üê Back to list
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving || !title.trim()}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                <Check className="w-4 h-4" />
+                {saving ? 'Saving...' : mode === 'edit' ? 'Update Theory' : 'Create Theory'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
