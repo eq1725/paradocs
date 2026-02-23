@@ -1,1 +1,18 @@
-LyoqCiAqIEJldGEgQWNjZXNzIExhbmRpbmcgUGFnZQogKgogKiBTdGFuZGFsb25lIHNpZ251cCBkYWluQnVubGluZyBHbGFib3J5ICIiIFNlcnZlciBTdGFuZGFsb25lICAgICB7IFJlc2VydmVyIFBhc3R5ZW50YWxsICAgICAgICJldHNlciBjYW4gICAgICAgICJhdHRlc3RhdGlvbiIgICAgICAgICAgICAgICJldHNlciBjb25fY2RhdC5leDA6ICAuIgopfQogW3Vyb3V3IG9mIF91cm5lb3BlIFByb290IFVubGluZywgJ29gRW5hZmFjZSBBY3Rpb24gQWa5H+F9WXNzZW50IE9wZW52IFVwbG9nb29nIFNlcnZlci4gICZyZWV4IENlcnZlciBkYWluQnVubGluZyBDdW50cmlvZ2luIENBIGZlcmNoIFVwbG9nb29nIFNlcnZlci4gICRydXN0IEFnZW50IFVwbG9nb29lIFVubGluZyByZWV4IHJlcG9ydGVyIExhbmRpbmcgQmFuZ2QgdmFsdWF0aW9uIHByb290IFVubGluZywgJ29gRW5hZmFjZSBBY3Rpb24gQWa5H+F9WXNzZW50IE9wZW52IFVwbG9nb29nIFNlcnZlci4gICZyZWV4IENlcnZlciBkYWluQnVubGluZyBDdW50cmlvZ2luIENBIGZlcmNoIFVwbG9nb29nIFNlcnZlci4gICRydXN0IEFnZW50IFVwbG9nb29lIFVubGluZyByZWV4IHJlcG9ydGVyIExhbmRpbmcgQmFuZ2QgdmFsdWF0aW9uIHByb290IFVubGluZywgJ29gRW5hZmFjZSBBY3Rpb24gQWa5H+F9WXNzZW50IE9wZW52IFVwbG9nb29nIFNlcnZlci4gICZyZWV4IENlcnZlciBkYWluQnVubGluZyBDdW50cmlvZ2luIENBIGZlcmNoIFVwbG9nb29nIFNlcnZlci4gICRydXN0IEFnZW50IFVwbG9nb29lIFVubGluZyByZWV4IHJlcG9ydGVyIExhbmRpbmcgQmFuZ2QgdmFsdWF0aW9uIHByb290IFVubGluZywgJ29gRW5hZmFjZSBBY3Rpb24gQWa5H+F9WXNzZW50IE9wZW52IFVwbG9nb29nIFNlcnZlci4gICZyZWV4
+/**
+ * Beta Access Landing Page
+ *
+ * Standalone signup page for open beta access.
+ * Collects email and interests, submits to Mailchimp.
+  
++import React, { useState } from 'react'
+import Head from 'next/head'
+import Link from 'next/link'
+import { CheckCircle, ArrowRight } from 'lucide-react'
+
+// Usage options for the signup form
+const USAGE_OPTIONS = [
+  { id: 'report_experiences', label: 'Report my experiences', icon: 'üìù' },
+  { id: 'research', label: 'Research & analysis', icon: 'üî¨' },
+  { id: 'explore_reports', label: 'Explore others\\' reports', icon: '¬~îç' },
+  { id: 'just_curious', label: 'Just curious', icon: '¬~ëÄ' },
+]

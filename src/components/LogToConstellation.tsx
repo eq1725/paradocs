@@ -12,8 +12,8 @@ interface LogToConstellationProps {
 }
 
 const VERDICTS = [
-  { value: 'compelling', label: 'Compelling', icon: "✦", color: 'text-amber-400 border-amber-400/40 bg-amber-400/10', desc: 'Strong evidence or credible account' },
-  { value: 'inconclusive', label: 'Inconclusive', icon: "◐", color: 'text-blue-400 border-blue-400/40 bg-blue-400/10', desc: 'Interesting but not enough to draw conclusions' },
+  { value: 'compelling', label: 'Compelling', icon: '✦', color: 'text-amber-400 border-amber-400/40 bg-amber-400/10', desc: 'Strong evidence or credible account' },
+  { value: 'inconclusive', label: 'Inconclusive', icon: '◐', color: 'text-blue-400 border-blue-400/40 bg-blue-400/10', desc: 'Interesting but not enough to draw conclusions' },
   { value: 'skeptical', label: 'Skeptical', icon: '⊘', color: 'text-gray-400 border-gray-400/40 bg-gray-400/10', desc: 'Likely has a conventional explanation' },
   { value: 'needs_info', label: 'Need More Info', icon: '?', color: 'text-purple-400 border-purple-400/40 bg-purple-400/10', desc: 'Worth investigating further' },
 ]
@@ -255,116 +255,28 @@ export default function LogToConstellation({
                       <Trash2 className="w-3.5 h-3.5" />
                       Remove entry
                     </button>
-                  )) }
-  
-    
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-/div>
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
- />
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {saving ? (
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <Star className="v-4 h-4">
-                    </Star>
                   )}
-                  {existing ? 'Update Entry' : 'Log to Constellation'}
-                </button>
+                </div>
+              ) : (
+                <div />
+              )}
+
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {saving ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Star className="w-4 h-4" />
+                )}
+                {existing ? 'Update Entry' : 'Log to Constellation'}
+              </button>
             </div>
           </div>
         )}
       </div>
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
+    </div>
+  )
+}

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { X, ChevronLeft, ChevronRight, Play, Pause, Volume2, VolumeX, Maximize2, FileText, ExternalLink, Film } from 'lucide-react'
-import { classNames } from '@/lib/utils'
+import { classNames } from 'A/lib/utils'
 
 interface MediaItem {
   id: string
@@ -29,12 +29,12 @@ function isExternalLink(item: MediaItem): boolean {
 function getEmbedUrl(url: string): string | null {
   try {
     const u = new URL(url)
-    // Archive.org: /details/ID â /embed/ID
+    // Archive.org: /details/ID → /embed/ID
     if (u.hostname === 'archive.org' && u.pathname.startsWith('/details/')) {
       const id = u.pathname.replace('/details/', '')
       return `https://archive.org/embed/${id}`
     }
-    // YouTube: /watch?v=ID â /embed/ID
+    // YouTube: /watch?v=ID → /embed/ID
     if (u.hostname.includes('youtube.com') && u.searchParams.get('v')) {
       return `https://www.youtube.com/embed/${u.searchParams.get('v')}`
     }
@@ -221,7 +221,7 @@ export default function MediaGallery({ media, className }: MediaGalleryProps) {
         )}
       </div>
 
-      {/* External Media â Embeddable videos, documents, audio from external sources */}
+      {/* External Media — Embeddable videos, documents, audio from external sources */}
       {externalMedia.length > 0 && (
         <div className="mt-4 space-y-4">
           {/* Embeddable players (videos/audio with embed URLs) */}
@@ -269,14 +269,14 @@ export default function MediaGallery({ media, className }: MediaGalleryProps) {
 
           {/* External link cards (documents, non-embeddable media) */}
           {externalMedia.filter(item => !getEmbedUrl(item.url) || (item.media_type !== 'video' && item.media_type !== 'audio')).length > 0 && (
-            <div className="grid gap-2 overflow-hidden">
+            <div className="grid gap-2">
               {externalMedia.filter(item => !getEmbedUrl(item.url) || (item.media_type !== 'video' && item.media_type !== 'audio')).map((item) => (
                 <a
                   key={item.id}
                   href={item.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] hover:border-white/15 transition-all group overflow-hidden"
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] hover:border-white/15 transition-all group"
                 >
                   <div className={classNames(
                     'flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center',
