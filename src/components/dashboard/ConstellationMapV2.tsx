@@ -8,7 +8,7 @@
  * Fully zoomable, pannable, and touch-friendly.
  */
 
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { ZoomIn, ZoomOut, Maximize2, Sparkles, Compass, Star } from 'lucide-react'
 import Link from 'next/link'
 import { useForceSimulation, SimNode } from '@/lib/hooks/useForceSimulation'
@@ -39,12 +39,15 @@ export default function ConstellationMapV2({
 
   const entries = userMapData?.entryNodes || []
   const tagConnections = userMapData?.tagConnections || []
-  const userConnections = (userMapData?.userConnections || []).map(c => ({
-    id: c.id,
-    entryAId: c.entryAId,
-    entryBId: c.entryBId,
-    annotation: c.annotation,
-  }))
+  const userConnections = useMemo(() =>
+    (userMapData?.userConnections || []).map(c => ({
+      id: c.id,
+      entryAId: c.entryAId,
+      entryBId: c.entryBId,
+      annotation: c.annotation,
+    })),
+    [userMapData?.userConnections]
+  )
 
   // ── Responsive sizing ──
   useEffect(() => {
@@ -126,7 +129,17 @@ export default function ConstellationMapV2({
     canvas.style.height = `${dimensions.height}px`
   }, [dimensions])
 
-  // ── Animation loop ──
+  // Keep refs in sync with state for the animation loop (avoids restarting the loop on every change)
+  const transformRef = useRef(transform)
+  const hoveredNodeRef = useRef(hoveredNode)
+  const selectedEntryIdRef = useRef(selectedEntryId)
+  const highlightedTagRef = useRef(highlightedTag)
+  useEffect(() => { transformRef.current = transform }, [transform])
+  useEffect(() => { hoveredNodeRef.current = hoveredNode }, [hoveredNode])
+  useEffect(() => { selectedEntryIdRef.current = selectedEntryId }, [selectedEntryId])
+  useEffect(() => { highlightedTagRef.current = highlightedTag }, [highlightedTag])
+
+  // ── Animation loop (runs once, reads from refs) ──
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -141,10 +154,10 @@ export default function ConstellationMapV2({
       timeRef.current++
 
       const state: RenderState = {
-        transform,
-        hoveredNodeId: hoveredNode?.id || null,
-        selectedNodeId: selectedEntryId || null,
-        highlightedTag,
+        transform: transformRef.current,
+        hoveredNodeId: hoveredNodeRef.current?.id || null,
+        selectedNodeId: selectedEntryIdRef.current || null,
+        highlightedTag: highlightedTagRef.current,
         time: timeRef.current,
       }
 
@@ -158,7 +171,7 @@ export default function ConstellationMapV2({
       running = false
       cancelAnimationFrame(animFrameRef.current)
     }
-  }, [draw, transform, hoveredNode, selectedEntryId, highlightedTag])
+  }, [draw])
 
   // ── Empty state ──
   if (entries.length === 0) {
