@@ -148,6 +148,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' })
   } catch (err: any) {
     console.error('Constellation theories error:', err)
-    return res.status(500).json({ error: 'Internal error' })
+    if (err?.code === '42P01') {
+      return res.status(500).json({ error: 'constellation_theories table does not exist. Please create it in Supabase.' })
+    }
+    if (err?.code === '42703') {
+      return res.status(500).json({ error: `Missing column: ${err.message}` })
+    }
+    return res.status(500).json({ error: err?.message || 'Internal error', code: err?.code })
   }
 }

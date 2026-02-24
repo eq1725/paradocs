@@ -51,6 +51,7 @@ export default function TheoryPanel({
   const [selectedConnectionIds, setSelectedConnectionIds] = useState<string[]>([])
   const [isPublic, setIsPublic] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   if (!isOpen) return null
 
@@ -76,6 +77,7 @@ export default function TheoryPanel({
   const handleSave = async () => {
     if (!title.trim()) return
     setSaving(true)
+    setError(null)
     try {
       const method = mode === 'edit' ? 'PUT' : 'POST'
       const body: any = {
@@ -97,11 +99,19 @@ export default function TheoryPanel({
         },
         body: JSON.stringify(body),
       })
+      const data = await resp.json().catch(() => null)
       if (resp.ok) {
         onTheoryChanged()
         resetForm()
         setMode('list')
+      } else {
+        const msg = data?.error || `Save failed (${resp.status})`
+        setError(msg)
+        console.error('Theory save error:', resp.status, data)
       }
+    } catch (err: any) {
+      setError(err.message || 'Network error')
+      console.error('Theory save exception:', err)
     } finally {
       setSaving(false)
     }
@@ -385,6 +395,11 @@ export default function TheoryPanel({
             </>
           )}
         </div>
+        {error && (
+          <div className="mx-4 mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+            <p className="text-sm text-red-400">{error}</p>
+          </div>
+        )}
       </div>
     </div>
   )
