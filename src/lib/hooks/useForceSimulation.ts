@@ -93,7 +93,7 @@ function buildSimNodes(entries: EntryNode[], centers: CategoryCenter[]): SimNode
     const center = centerMap.get(entry.category)
     // Scatter around category center with some randomness
     const angle = (i / Math.max(entries.length, 1)) * Math.PI * 2 + Math.random() * 0.5
-    const spread = 55 + Math.random() * 50
+    const spread = 85 + Math.random() * 70
 
     return {
       id: entry.id,
@@ -203,8 +203,8 @@ export function useForceSimulation({
     const centerMap = new Map(centers.map(c => [c.id, c]))
 
     // Repel nodes from category center points so they don't sit on the icon/label
-    const labelRepulsionRadius = 50 // minimum distance from center label
-    const labelRepulsionStrength = 0.8
+    const labelRepulsionRadius = 75 // minimum distance from center label
+    const labelRepulsionStrength = 1.0
 
     const simulation = d3.forceSimulation<SimNode>(nodes)
       .force('categoryX', d3.forceX<SimNode>(d => centerMap.get(d.category)?.x || width / 2).strength(0.15))
@@ -225,7 +225,7 @@ export function useForceSimulation({
         })
       })
       // Repel nodes from each other (prevents overlap, creates spread)
-      .force('charge', d3.forceManyBody<SimNode>().strength(-40).distanceMax(200))
+      .force('charge', d3.forceManyBody<SimNode>().strength(-50).distanceMax(250))
       // Collision detection
       .force('collide', d3.forceCollide<SimNode>(d => d.radius + 3).strength(0.8))
       // Link force for edges (connected nodes pull together)
