@@ -127,7 +127,7 @@ export default function ConstellationMapV2({
     canvas.height = dimensions.height * dpr
     canvas.style.width = `${dimensions.width}px`
     canvas.style.height = `${dimensions.height}px`
-  }, [dimensions])
+  }, [dimensions, entries.length])
 
   // Keep refs in sync with state for the animation loop (avoids restarting the loop on every change)
   const transformRef = useRef(transform)
