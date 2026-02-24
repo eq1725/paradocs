@@ -107,6 +107,10 @@ export default function ExplorePage() {
       if (s && typeof s === 'string') setSort(s as SortOption)
       if (ct && typeof ct === 'string') setContentType(ct as ContentType | 'all' | 'primary')
       if (p && typeof p === 'string') setPage(parseInt(p, 10) || 1)
+      // Auto-switch to Browse view when filter params are present in URL
+      if (cat || q || c || cred || feat === 'true') {
+        setActiveView('browse')
+      }
       setInitialized(true)
     }
   }, [router.isReady])
