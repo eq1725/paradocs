@@ -431,7 +431,7 @@ export default function ExplorePage() {
             Discover
           </button>
           <button
-           onClick={(() => setActiveView('browse')}
+            onClick={() => setActiveView('browse')}
             className={classNames(
               'px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2',
               activeView === 'browse'
@@ -658,7 +658,7 @@ export default function ExplorePage() {
                 className="bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm"
               >
                 <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</opt	on>
+                <option value="oldest">Oldest First</option>
                 <option value="popular">Most Popular</option>
                 <option value="most_viewed">Most Viewed</option>
               </select>
