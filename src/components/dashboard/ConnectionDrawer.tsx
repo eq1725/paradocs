@@ -41,6 +41,7 @@ export default function ConnectionDrawer({
   const [entryB, setEntryB] = useState<EntryNode | null>(null)
   const [annotation, setAnnotation] = useState('')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
   if (!isOpen) return null
@@ -51,6 +52,7 @@ export default function ConnectionDrawer({
     setEntryB(null)
     setAnnotation('')
     setSearch('')
+    setError(null)
   }
 
   const filteredEntries = entries.filter(e => {
@@ -77,6 +79,7 @@ export default function ConnectionDrawer({
   const handleSave = async () => {
     if (!entryA || !entryB) return
     setSaving(true)
+    setError(null)
     try {
       const resp = await fetch('/api/constellation/connections', {
         method: 'POST',
@@ -90,10 +93,18 @@ export default function ConnectionDrawer({
           annotation,
         }),
       })
+      const data = await resp.json().catch(() => null)
       if (resp.ok) {
         onConnectionCreated()
         reset()
+      } else {
+        const msg = data?.error || `Save failed (${resp.status})`
+        setError(msg)
+        console.error('Connection save error:', resp.status, data)
       }
+    } catch (err: any) {
+      setError(err.message || 'Network error')
+      console.error('Connection save exception:', err)
     } finally {
       setSaving(false)
     }
@@ -223,6 +234,12 @@ export default function ConnectionDrawer({
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 resize-none focus:outline-none focus:border-primary-500"
                 autoFocus
               />
+
+              {error && (
+                <div className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                  <p className="text-sm text-red-400">{error}</p>
+                </div>
+              )}
             </>
           )}
 
