@@ -171,7 +171,7 @@ export default function ConstellationMapV2({
       running = false
       cancelAnimationFrame(animFrameRef.current)
     }
-  }, [draw])
+  }, [draw, entries.length])
 
   // ── Empty state ──
   if (entries.length === 0) {
