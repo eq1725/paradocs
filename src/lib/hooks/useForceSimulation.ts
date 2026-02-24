@@ -92,100 +92,6 @@ function buildSimNodes(entries: EntryNode[], centers: CategoryCenter[]): SimNode
   return entries.map((entry, i) => {
     const center = centerMap.get(entry.category)
     // Scatter around category center with some randomness
-    const angle = (i / Math.max/**
- * useForceSimulation — D3 force simulation for the constellation star map.
- *
- * Entry nodes are attracted to their category's gravity well (center point).
- * Same-category nodes repel each other slightly to spread into a "nebula."
- * Cross-category edges (shared tags, user connections) pull linked nodes together.
- */
-
-import { useEffect, useRef, useCallback, useState } from 'react'
-import * as d3 from 'd3'
-import { CONSTELLATION_NODES } from '@/lib/constellation-data'
-import type { EntryNode } from '@/pages/dashboard/constellation'
-
-// ── Types ──
-
-export interface SimNode extends d3.SimulationNodeDatum {
-  id: string
-  reportId: string
-  name: string
-  slug: string
-  category: string
-  imageUrl: string | null
-  locationName: string | null
-  eventDate: string | null
-  summary: string | null
-  note: string
-  verdict: string
-  tags: string[]
-  loggedAt: string
-  // Simulation fields
-  x: number
-  y: number
-  vx?: number
-  vy?: number
-  fx?: number | null
-  fy?: number | null
-  // Computed
-  radius: number
-}
-
-export interface SimEdge {
-  source: string
-  target: string
-  type: 'tag' | 'user' | 'ai'
-  label?: string // tag name or annotation
-  strength: number // 0-1
-}
-
-export interface CategoryCenter {
-  id: string
-  label: string
-  icon: string
-  color: string
-  glowColor: string
-  x: number
-  y: number
-  entryCount: number
-}
-
-interface UseForceSimulationProps {
-  entries: EntryNode[]
-  tagConnections: Array<{ tag: string; entryIds: string[] }>
-  userConnections: Array<{ id: string; entryAId: string; entryBId: string; annotation?: string }>
-  width: number
-  height: number
-  onTick?: () => void
-}
-
-// Build category center positions mapped to pixel coordinates
-function buildCategoryCenters(width: number, height: number, entries: EntryNode[]): CategoryCenter[] {
-  const categoryCounts: Record<string, number> = {}
-  entries.forEach(e => {
-    categoryCounts[e.category] = (categoryCounts[e.category] || 0) + 1
-  })
-
-  return CONSTELLATION_NODES.map(node => ({
-    id: node.id,
-    label: node.label,
-    icon: node.icon,
-    color: node.color,
-    glowColor: node.glowColor,
-    x: node.x * width,
-    y: node.y * height,
-    entryCount: categoryCounts[node.id] || 0,
-  }))
-}
-
-// Convert EntryNode[] to SimNode[] with initial positions near their category center
-function buildSimNodes(entries: EntryNode[], centers: CategoryCenter[]): SimNode[] {
-  const centerMap = new Map(centers.map(c => [c.id, c]))
-
-  return entries.map((entry, i) => {
-    const center = centerMap.get(entry.category)
-    // Scatter around category center with some randomness
     const angle = (i / Math.max(entries.length, 1)) * Math.PI * 2 + Math.random() * 0.5
     const spread = 30 + Math.random() * 60
 
@@ -297,7 +203,6 @@ export function useForceSimulation({
     const centerMap = new Map(centers.map(c => [c.id, c]))
 
     const simulation = d3.forceSimulation<SimNode>(nodes)
-      // Attract each node toward its category center
       .force('categoryX', d3.forceX<SimNode>(d => centerMap.get(d.category)?.x || width / 2).strength(0.15))
       .force('categoryY', d3.forceY<SimNode>(d => centerMap.get(d.category)?.y || height / 2).strength(0.15))
       // Repel nodes from each other (prevents overlap, creates spread)
@@ -335,7 +240,7 @@ export function useForceSimulation({
     }
   }, [entries, tagConnections, userConnections, width, height])
 
-  // Reheat simulation (e.g., after drag)
+  // Reheat simulation (e.g/, after drag)
   const reheat = useCallback((alpha = 0.3) => {
     simulationRef.current?.alpha(alpha).restart()
     setSettled(false)
