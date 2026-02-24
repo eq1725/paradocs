@@ -17,7 +17,7 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
-  X,
+  X as XIcon,
   Lightbulb,
   Share2,
 } from 'lucide-react'
@@ -324,7 +324,7 @@ export default function ConstellationPage() {
                   title="Dismiss guide"
                 >
                   <span className="hidden sm:inline">Got it</span>
-                  <X className="w-3.5 h-3.5" />
+                  <XIcon className="w-3.5 h-3.5" />
                 </button>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
@@ -602,7 +602,7 @@ export default function ConstellationPage() {
                       <span className="text-gray-500 text-xs">{conn.entryIds.length} entries</span>
                     </div>
                     <div className="space-y-1">
-                      {connectedEntries.slice(0, 3).map(entry => (
+                         {connectedEntries.slice(0, 3).map(entry => (
                         <Link
                           key={entry.id}
                           href={`/report/${entry.slug}`}
@@ -743,7 +743,7 @@ export default function ConstellationPage() {
 
       {/* Phase 3: Share Constellation Modal */}
       {userToken && (
-        <ShareConstllation
+        <ShareConstellation
           isOpen={shareOpen}
           svgRef={svgRef}
           stats={{
