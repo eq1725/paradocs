@@ -287,19 +287,23 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
 
   function drawCategoryLabels(ctx: CanvasRenderingContext2D, centers: CategoryCenter[], zoom: number) {
     centers.forEach(center => {
-      // Show labels at lower zoom; hide when zoomed in (entry labels take over)
-      if (zoom > 2) return
+      // Smooth fade: full opacity below 1.5x, fade out between 1.5x-3x, gone above 3x
+      let zoomFade = 1
+      if (zoom > 1.5) {
+        zoomFade = Math.max(0, 1 - (zoom - 1.5) / 1.5)
+      }
+      if (zoomFade <= 0.01) return
 
-      const alpha = center.entryCount > 0 ? 0.7 : 0.3
+      const baseAlpha = center.entryCount > 0 ? 0.7 : 0.3
+      const alpha = baseAlpha * zoomFade
       const fontSize = Math.max(11, Math.min(14, 13 / zoom))
 
-      ctx.font = `600 ${fontSize}px 'Space Grotesk', Inter, system-ui, sans-serif`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`
 
       // Icon above label
       ctx.font = `${fontSize * 1.5}px sans-serif`
+      ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`
       ctx.fillText(center.icon, center.x, center.y - fontSize * 1.2)
 
       // Label

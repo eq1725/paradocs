@@ -93,7 +93,7 @@ function buildSimNodes(entries: EntryNode[], centers: CategoryCenter[]): SimNode
     const center = centerMap.get(entry.category)
     // Scatter around category center with some randomness
     const angle = (i / Math.max(entries.length, 1)) * Math.PI * 2 + Math.random() * 0.5
-    const spread = 30 + Math.random() * 60
+    const spread = 55 + Math.random() * 50
 
     return {
       id: entry.id,
@@ -202,9 +202,28 @@ export function useForceSimulation({
 
     const centerMap = new Map(centers.map(c => [c.id, c]))
 
+    // Repel nodes from category center points so they don't sit on the icon/label
+    const labelRepulsionRadius = 50 // minimum distance from center label
+    const labelRepulsionStrength = 0.8
+
     const simulation = d3.forceSimulation<SimNode>(nodes)
       .force('categoryX', d3.forceX<SimNode>(d => centerMap.get(d.category)?.x || width / 2).strength(0.15))
       .force('categoryY', d3.forceY<SimNode>(d => centerMap.get(d.category)?.y || height / 2).strength(0.15))
+      // Push nodes away from their category's label center (creates orbital ring)
+      .force('labelRepel', () => {
+        nodes.forEach(node => {
+          const center = centerMap.get(node.category)
+          if (!center) return
+          const dx = node.x! - center.x
+          const dy = node.y! - center.y
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1
+          if (dist < labelRepulsionRadius) {
+            const push = (labelRepulsionRadius - dist) / labelRepulsionRadius * labelRepulsionStrength
+            node.vx! += (dx / dist) * push * 2
+            node.vy! += (dy / dist) * push * 2
+          }
+        })
+      })
       // Repel nodes from each other (prevents overlap, creates spread)
       .force('charge', d3.forceManyBody<SimNode>().strength(-40).distanceMax(200))
       // Collision detection
