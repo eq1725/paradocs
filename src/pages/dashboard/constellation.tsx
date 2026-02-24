@@ -15,6 +15,9 @@ import {
   Link2,
   Sparkles,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  X,
   Lightbulb,
   Share2,
 } from 'lucide-react'
@@ -109,6 +112,40 @@ export default function ConstellationPage() {
   const [isProfilePublic, setIsProfilePublic] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const svgRef = useRef<SVGSVGElement | null>(null)
+  const [guideCollapsed, setGuideCollapsed] = useState(true) // default collapsed, will resolve on mount
+
+  // Persist guide collapsed state in localStorage
+  useEffect(() => {
+    const dismissed = localStorage.getItem('paradocs_constellation_guide_dismissed')
+    if (dismissed === 'true') {
+      setGuideCollapsed(true)
+    } else {
+      setGuideCollapsed(false)
+    }
+  }, [])
+
+  // Auto-collapse for experienced users (10+ entries)
+  useEffect(() => {
+    const totalEntries = userMapData?.stats?.totalEntries || 0
+    if (totalEntries >= 10) {
+      const hasSeenAutoCollapse = localStorage.getItem('paradocs_constellation_guide_auto_collapsed')
+      if (!hasSeenAutoCollapse) {
+        setGuideCollapsed(true)
+        localStorage.setItem('paradocs_constellation_guide_dismissed', 'true')
+        localStorage.setItem('paradocs_constellation_guide_auto_collapsed', 'true')
+      }
+    }
+  }, [userMapData])
+
+  const handleDismissGuide = useCallback(() => {
+    setGuideCollapsed(true)
+    localStorage.setItem('paradocs_constellation_guide_dismissed', 'true')
+  }, [])
+
+  const handleExpandGuide = useCallback(() => {
+    setGuideCollapsed(false)
+    localStorage.removeItem('paradocs_constellation_guide_dismissed')
+  }, [])
 
   const userInterests = personalization?.interested_categories || []
 
@@ -259,6 +296,78 @@ export default function ConstellationPage() {
               )}
             </div>
           </div>
+        </div>
+
+        {/* How Your Constellation Works - Collapsible Guide */}
+        <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden transition-all duration-300">
+          {guideCollapsed ? (
+            <button
+              onClick={handleExpandGuide}
+              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-900/80 transition-colors group"
+            >
+              <div className="flex items-center gap-2 text-gray-400 text-sm">
+                <Info className="w-4 h-4" />
+                <span className="font-medium">How Your Constellation Works</span>
+              </div>
+              <ChevronDown className="w-4 h-4 text-gray-500 group-hover:text-gray-300 transition-colors" />
+            </button>
+          ) : (
+            <div className="p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-semibold flex items-center gap-2 text-sm sm:text-base">
+                  <Info className="w-4 h-4 text-gray-400" />
+                  How Your Constellation Works
+                </h3>
+                <button
+                  onClick={handleDismissGuide}
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors px-2 py-1 rounded-lg hover:bg-gray-800"
+                  title="Dismiss guide"
+                >
+                  <span className="hidden sm:inline">Got it</span>
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                <div className="relative">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold shrink-0">1</span>
+                    <p className="text-purple-400 font-medium">Log Entries</p>
+                  </div>
+                  <p className="text-gray-400 pl-8">Browse reports, tap the <Star className="w-3 h-3 inline text-purple-400" /> Log button, and add your verdict, notes, and tags. Each entry becomes a star.</p>
+                  {mapStats && mapStats.totalEntries > 0 && (
+                    <div className="pl-8 mt-1.5"><span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">Done - {mapStats.totalEntries} logged</span></div>
+                  )}
+                </div>
+                <div className="relative">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-6 h-6 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-xs font-bold shrink-0">2</span>
+                    <p className="text-green-400 font-medium">Draw Connections</p>
+                  </div>
+                  <p className="text-gray-400 pl-8">Spot a pattern between two entries? Use the Draw Connection button to link them and describe the relationship you see.</p>
+                  {(mapStats?.drawnConnections || 0) > 0 && (
+                    <div className="pl-8 mt-1.5"><span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">Done - {mapStats?.drawnConnections} drawn</span></div>
+                  )}
+                </div>
+                <div className="relative">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">3</span>
+                    <p className="text-amber-400 font-medium">Build Theories</p>
+                  </div>
+                  <p className="text-gray-400 pl-8">Group related entries and connections into a theory with a written thesis. Name your hypothesis and track supporting evidence.</p>
+                  {(mapStats?.theoryCount || 0) > 0 && (
+                    <div className="pl-8 mt-1.5"><span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">Done - {mapStats?.theoryCount} created</span></div>
+                  )}
+                </div>
+                <div className="relative">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold shrink-0">4</span>
+                    <p className="text-blue-400 font-medium">Share & Rank Up</p>
+                  </div>
+                  <p className="text-gray-400 pl-8">Share your constellation publicly, export as an image, or copy a link. Progress from Stargazer to Master Archivist as you explore.</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Stats Grid */}
@@ -604,52 +713,6 @@ export default function ConstellationPage() {
           </div>
         )}
 
-        {/* How it works - step by step guide */}
-        <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 sm:p-6">
-          <h3 className="text-white font-semibold flex items-center gap-2 mb-4 text-sm sm:text-base">
-            <Info className="w-4 h-4 text-gray-400" />
-            How Your Constellation Works
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-            <div className="relative">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold shrink-0">1</span>
-                <p className="text-purple-400 font-medium">Log Entries</p>
-              </div>
-              <p className="text-gray-400 pl-8">Browse reports, tap the <Star className="w-3 h-3 inline text-purple-400" /> Log button, and add your verdict, notes, and tags. Each entry becomes a star.</p>
-              {mapStats && mapStats.totalEntries > 0 && (
-                <div className="pl-8 mt-1.5"><span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">Done - {mapStats.totalEntries} logged</span></div>
-              )}
-            </div>
-            <div className="relative">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-6 h-6 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-xs font-bold shrink-0">2</span>
-                <p className="text-green-400 font-medium">Draw Connections</p>
-              </div>
-              <p className="text-gray-400 pl-8">Spot a pattern between two entries? Use the Draw Connection button to link them and describe the relationship you see.</p>
-              {(mapStats?.drawnConnections || 0) > 0 && (
-                <div className="pl-8 mt-1.5"><span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">Done - {mapStats?.drawnConnections} drawn</span></div>
-              )}
-            </div>
-            <div className="relative">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold shrink-0">3</span>
-                <p className="text-amber-400 font-medium">Build Theories</p>
-              </div>
-              <p className="text-gray-400 pl-8">Group related entries and connections into a theory with a written thesis. Name your hypothesis and track supporting evidence.</p>
-              {(mapStats?.theoryCount || 0) > 0 && (
-                <div className="pl-8 mt-1.5"><span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">Done - {mapStats?.theoryCount} created</span></div>
-              )}
-            </div>
-            <div className="relative">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold shrink-0">4</span>
-                <p className="text-blue-400 font-medium">Share & Rank Up</p>
-              </div>
-              <p className="text-gray-400 pl-8">Share your constellation publicly, export as an image, or copy a link. Progress from Stargazer to Master Archivist as you explore.</p>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Phase 2: Connection Drawer Modal */}
@@ -680,7 +743,7 @@ export default function ConstellationPage() {
 
       {/* Phase 3: Share Constellation Modal */}
       {userToken && (
-        <ShareConstellation
+        <ShareConstllation
           isOpen={shareOpen}
           svgRef={svgRef}
           stats={{
