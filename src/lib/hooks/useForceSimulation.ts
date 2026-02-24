@@ -151,12 +151,17 @@ function buildSimEdges(
     }
   })
 
-  // User-drawn connections
+  // User-drawn connections (prioritize over tag connections)
   userConns.forEach(uc => {
     const key = [uc.entryAId, uc.entryBId].sort().join('--')
-    if (!seen.has(key)) {
-      seen.add(key)
-    }
+    // Remove any existing tag edge for this pair so the user connection takes precedence
+    const existingIdx = seen.has(key) ? edges.findIndex(e => {
+      const s = typeof e.source === 'string' ? e.source : (e.source as any).id
+      const t = typeof e.target === 'string' ? e.target : (e.target as any).id
+      return [s, t].sort().join('--') === key
+    }) : -1
+    if (existingIdx >= 0) edges.splice(existingIdx, 1)
+    seen.add(key)
     edges.push({
       source: uc.entryAId,
       target: uc.entryBId,

@@ -131,11 +131,14 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
     // Nebulae (category region glows)
     drawNebulae(ctx, centers, zoom, nodes)
 
-    // Connection edges
-    drawEdges(ctx, nodes, edges, zoom, highlightedTag, selectedNodeId)
+    // Tag connection edges (subtle, drawn behind nodes)
+    drawEdges(ctx, nodes, edges, zoom, highlightedTag, selectedNodeId, 'tag')
 
     // Entry star nodes
     drawNodes(ctx, nodes, zoom, time, hoveredNodeId, selectedNodeId, highlightedTag)
+
+    // User connection edges (prominent, drawn on top of nodes so they're always visible)
+    drawEdges(ctx, nodes, edges, zoom, highlightedTag, selectedNodeId, 'user')
 
     // Category labels
     drawCategoryLabels(ctx, centers, zoom)
@@ -235,7 +238,8 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
     edges: SimEdge[],
     zoom: number,
     highlightedTag: string | null,
-    selectedNodeId: string | null
+    selectedNodeId: string | null,
+    typeFilter?: 'tag' | 'user'
   ) {
     // Skip edges at very low zoom (too cluttered)
     if (zoom < 0.4) return
@@ -243,6 +247,8 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
     const nodeMap = new Map(nodes.map(n => [n.id, n]))
 
     edges.forEach(edge => {
+      // Filter by type if specified
+      if (typeFilter && edge.type !== typeFilter) return
       const source = nodeMap.get(typeof edge.source === 'string' ? edge.source : (edge.source as any).id)
       const target = nodeMap.get(typeof edge.target === 'string' ? edge.target : (edge.target as any).id)
       if (!source || !target) return
@@ -257,14 +263,14 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
       let color: string
 
       if (edge.type === 'user') {
-        // User-drawn connections: always visible, with glow aura
-        alpha = isHighlighted ? 0.8 : 0.35
-        lineWidth = isHighlighted ? 2.5 : 1.2
+        // User-drawn connections: prominent green with glow aura
+        alpha = isHighlighted ? 0.9 : 0.55
+        lineWidth = isHighlighted ? 3 : 2
         color = '#22c55e' // green
 
-        // Subtle glow aura behind user connections
-        ctx.strokeStyle = hexToRGBA(color, isHighlighted ? 0.25 : 0.12)
-        ctx.lineWidth = (lineWidth * 3) / zoom
+        // Glow aura behind user connections
+        ctx.strokeStyle = hexToRGBA(color, isHighlighted ? 0.35 : 0.2)
+        ctx.lineWidth = (lineWidth * 3.5) / zoom
         ctx.beginPath()
         ctx.moveTo(source.x!, source.y!)
         ctx.lineTo(target.x!, target.y!)
