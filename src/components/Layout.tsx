@@ -107,7 +107,7 @@ export default function Layout({ children }: LayoutProps) {
                     )}
                   >
                     {item.name}
-                   {isActive && (
+                    {isActive && (
                       <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-primary-500 rounded-full" />
                     )}
                   </Link>
@@ -178,7 +178,7 @@ export default function Layout({ children }: LayoutProps) {
                           Profile
                         </Link>
                         <Link href="/dashboard/settings" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
-                           <Settings className="w-4 h-4" />
+                          <Settings className="w-4 h-4" />
                           Settings
                         </Link>
                         <button

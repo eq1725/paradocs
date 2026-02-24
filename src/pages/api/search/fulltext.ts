@@ -31,7 +31,7 @@
  *   BEGIN
  *     -- Process query based on mode
  *     processed_query := CASE
- *       WHEN search_mode = 'phrase' THEN '"& || search_query || '"'
+ *       WHEN search_mode = 'phrase' THEN '"' || search_query || '"'
  *       WHEN search_mode = 'advanced' THEN search_query
  *       ELSE search_query -- simple mode
  *     END;

@@ -200,7 +200,7 @@ export default function PhenomenonPage() {
                     referrerPolicy="no-referrer"
                     loading="lazy"
                   />
-          "     ) : (
+                ) : (
                   <span className="text-5xl sm:text-7xl">{phenomenon.icon || config?.icon}</span>
                 )}
               </div>

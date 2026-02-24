@@ -202,10 +202,10 @@ Respond in JSON format:
       "confidence": 0.85,
       "reasoning": "Brief explanation of why this matches"
     }
-  C, 
-  AT�8aull OR {
+  ],
+  "suggested_new": null OR {
     "name": "New Phenomenon Name",
-    "category": "cryptid|ufo_uap|ghost_haunting|unexplained_event|psychic_paranormal|mistery_location",
+    "category": "cryptid|ufo_uap|ghost_haunting|unexplained_event|psychic_paranormal|mystery_location",
     "description": "Brief description",
     "confidence": 0.7
   }
@@ -226,7 +226,7 @@ Only suggest a new phenomenon if it's clearly distinct from existing ones and ap
     }
 
     // Parse JSON from response
-    const jsonMatch = content.text.match(/^{[\s\S]*\}/);
+    const jsonMatch = content.text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       console.error('[Phenomena] Failed to parse AI response');
       return { matches: [] };
@@ -234,7 +234,7 @@ Only suggest a new phenomenon if it's clearly distinct from existing ones and ap
 
     const result = JSON.parse(jsonMatch[0]);
 
-    // Map phenomenon(names to IDs
+    // Map phenomenon names to IDs
     const matches: PhenomenonMatch[] = [];
     for (const match of result.matches || []) {
       const phenomenon = existingPhenomena.find(
@@ -325,14 +325,14 @@ CURRENT SUMMARY: ${phenomenon.ai_summary || 'None'}
 SAMPLE RELATED REPORTS:
 ${reportsContext || 'No reports available yet.'}
 
-Generate the following sections in a factual, encyclopedic tone. Be objective and include both believer and skeptic perspectives where relevant. Do NOT fake up specific dates, names, or details - stick to well-documented information.
+Generate the following sections in a factual, encyclopedic tone. Be objective and include both believer and skeptic perspectives where relevant. Do NOT make up specific dates, names, or details - stick to well-documented information.
 
 Respond in JSON format:
 {
   "summary": "1-2 sentence brief description",
   "description": "2-3 paragraph detailed overview",
   "history": "Historical background including earliest known reports and key developments",
-  "characteristics": "Pb�ical description, behavioral patterns, and commonly reported features",
+  "characteristics": "Physical description, behavioral patterns, and commonly reported features",
   "notable_sightings": "Summary of the most famous or significant cases (without inventing details)",
   "theories": "Popular explanations from both believers and skeptics",
   "cultural_impact": "Influence on media, literature, and popular culture"
@@ -420,11 +420,11 @@ Generate exactly these 9 fields as a JSON object. Each value should be a concise
   "origin": "Geographic origin - city, state/province, country (e.g. 'Point Pleasant, West Virginia, USA')",
   "first_documented": "Year or era first documented (e.g. '1966' or 'Ancient Greece, circa 500 BCE')",
   "classification": "Scientific or paranormal classification (e.g. 'Winged humanoid cryptid')",
-  "danger_level": "One of: 'Low — generally harmless', 'Moderate — exercise caution', 'High— associated with danger/disasters', or 'Unknown — insufficient data'",
+  "danger_level": "One of: 'Low — generally harmless', 'Moderate — exercise caution', 'High — associated with danger/disasters', or 'Unknown — insufficient data'",
   "typical_encounter": "Brief description of how people typically encounter this (e.g. 'Nocturnal visual sightings near wooded areas')",
   "evidence_types": "Types of evidence available (e.g. 'Eyewitness testimony, disputed photographs, footprint casts')",
   "active_period": "When most active (e.g. '1966-1967 (peak), sporadic reports ongoing')",
-  "notable_feature": "Mst distinctive characteristic (e.g. 'Glowing red eyes, 10-15 foot wingspan')",
+  "notable_feature": "Most distinctive characteristic (e.g. 'Glowing red eyes, 10-15 foot wingspan')",
   "cultural_significance": "Cultural impact in 1-2 sentences (e.g. 'Major pop culture icon with annual festival in Point Pleasant')"
 }
 
@@ -477,7 +477,7 @@ Respond with ONLY the JSON object, no other text.`;
  * This adds deeper cultural, scientific, and academic content.
  */
 export async function generateResearchTierContent(phenomenonId: string): Promise<boolean> {
-  // Get the phenomenon with existingcng content
+  // Get the phenomenon with existing content
   const { data: phenomenon, error } = await getSupabaseAdmin()
     .from('phenomena')
     .select('*')
@@ -708,7 +708,7 @@ function getDefaultIcon(category: string): string {
     'mystery_location': '📍',
     'other': '❔',
   };
-  return icons[category] || "❔';
+  return icons[category] || '❔';
 }
 
 /**

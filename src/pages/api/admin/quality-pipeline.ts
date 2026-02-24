@@ -8,43 +8,546 @@
 //   action=dedup-scan      β€” Scan approved reports for duplicates
 //   action=score-single    β€” Score a single report by ID
 //   action=stats           β€” Get quality score distribution stats
+//   action=check           β€” Diagnostic: verify env vars and imports
 //
 // Requires: CRON_SECRET or admin auth
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
-import { scoreReport, ScoringInput } from 'A/lib/ingestion/filters/quality-scorer';
-import {
-  findDuplicates,
-  generateFingerprint,
-  DedupCandidate,
-} from 'A/lib/ingestion/dedup';
 
 const SCORER_VERSION = '2.0.0';
 
 function getSupabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  if (!url || !key) throw new Error('Missing Supabase env vars');
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error(
+      'Missing Supabase env vars: ' +
+      `url=${url ? 'set' : 'MISSING'}, key=${key ? 'set' : 'MISSING'}`
+    );
+  }
   return createClient(url, key);
 }
 
-function isAuthorized(req: NextApiRequest): boolean {
+async function isAuthorized(req: NextApiRequest): Promise<boolean> {
   // Check CRON_SECRET header
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && req.headers.authorization === 'Bearer ' + cronSecret) {
     return true;
   }
-  
-  'ΐ=[estif (!cronSecret && process.env.NODE_ENV === 'development') {
+  // Check Supabase session auth (for admin dashboard)
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ') && authHeader !== 'Bearer ' + cronSecret) {
+    try {
+      const token = authHeader.replace('Bearer ', '');
+      const supabase = getSupabaseAdmin();
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        if (profile?.role === 'admin') return true;
+      }
+    } catch {
+      // Token invalid, fall through
+    }
+  }
+  // For development, allow without auth if no CRON_SECRET is set
+  if (!cronSecret && process.env.NODE_ENV === 'development') {
     return true;
   }
   return false;
+}
+
+// Dynamic imports to avoid bundling issues with ignoreBuildErrors
+async function loadScorer() {
+  const mod = await import('@/lib/ingestion/filters/quality-scorer');
+  return mod;
+}
+
+async function loadDedup() {
+  const mod = await import('@/lib/ingestion/dedup');
+  return mod;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
-  
-  ΩΥάμ€(€¥€ …¥ΝΥΡ΅½Ι¥ι•΅Ι•Δ¤¤μ(€€€Ι•ΡΥΙΈΙ•ΜΉΝΡ…ΡΥΜ ΠΐΔ¤Ή©Ν½Έ΅μ•ΙΙ½Θθ€UΉ…ΥΡ΅½Ι¥ι•τ¤μ(€τ((€½ΉΝΠμ…Ρ¥½Έ°Ι•Α½ΙΡ%°‰…Ρ΅M¥ι”€τ€Δΐΐτ€τΙ•ΔΉ‰½‘δμ((€ΡΙδμ(€€€Νέ¥Ρ €΅…Ρ¥½Έ¤μ(€€€€€…Ν”€Ν½Ι”µ‰…Ρ θ(€€€€€€€Ι•ΡΥΙΈ…έ…¥Π΅…Ή‘±•M½Ι•	…Ρ ΅Ι•Μ°9Υµ‰•Θ΅‰…Ρ΅M¥ι”¤¤μ((€€€€€…Ν”€Ν½Ι”µ…±°θ(€€€€€€€Ι•ΡΥΙΈ…έ…¥Π΅…Ή‘±•M½Ι•±°΅Ι•Μ¤μ((€€€€€…Ν”€Ι•Ν½Ι”µ…±°θ(€€€€€€€Ι•ΡΥΙΈ…έ…¥Π΅…Ή‘±•I•Ν½Ι•±°΅Ι•Μ°9Υµ‰•Θ΅‰…Ρ΅M¥ι”¤¤μ((€€€€€…Ν”€‘•‘ΥΐµΝ…Έθ(€€€€€€€Ι•ΡΥΙΈ…έ…¥Π΅…Ή‘±••‘ΥΑM…Έ΅Ι•Μ¤μ((€€€€€…Ν”€Ν½Ι”µΝ¥Ή±”θ(€€€€€€€¥€ …Ι•Α½ΙΡ%¤Ι•ΡΥΙΈΙ•ΜΉΝΡ…ΡΥΜ Πΐΐ¤Ή©Ν½Έ΅μ•ΙΙ½Θθ€Ι•Α½ΙΡ%Ι•ΕΥ¥Ι•τ¤μ(€€€€€€€Ι•ΡΥΙΈ…έ…¥Π΅…Ή‘±•M½Ι•M¥Ή±”΅Ι•Μ°Ι•Α½ΙΡ%¤μ((€€€€€…Ν”€ΝΡ…ΡΜθ(€€€€€€€Ι•ΡΥΙΈ…έ…¥Π΅…Ή‘±•MΡ…ΡΜ΅Ι•Μ¤μ((€€€€€‘•™…Υ±Πθ(€€€€€€€Ι•ΡΥΙΈΙ•ΜΉΝΡ…ΡΥΜ Πΐΐ¤Ή©Ν½Έ΅μ(€€€€€€€€€•ΙΙ½Θθ€UΉ­Ή½έΈ…Ρ¥½Έ°(€€€€€€€€€Ω…±¥‘Ρ¥½ΉΜθlΝ½Ι”µ‰…Ρ °€Ν½Ι”µ…±°°€Ι•Ν½Ι”µ…±°°€‘•‘ΥΐµΝ…Έ°€Ν½Ι”µΝ¥Ή±”°€ΝΡ…ΡΜ¤(€€€€€€€τ¤μ(€€€τ(€τ…Ρ €΅•ΙΙ½Θ¤μ(€€€½ΉΝ½±”Ή•ΙΙ½Θ mΕΥ…±¥ΡδµΑ¥Α•±¥Ή•tΙΙ½Θθ°•ΙΙ½Θ¤μ(€€€Ι•ΡΥΙΈΙ•ΜΉΝΡ…ΡΥΜ Τΐΐ¤Ή©Ν½Έ΅μ(€€€€€•ΙΙ½Θθ•ΙΙ½Θ¥ΉΝΡ…Ή•½ΙΙ½Θ€ό•ΙΙ½ΘΉµ•ΝΝ…”€θ€UΉ­Ή½έΈ•ΙΙ½Θ(€€€τ¤μ(€τ)τ((ΌΌ€τττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ(ΌΌM=I	Q =U9M=IIA=IQL(ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ()…ΝεΉ™ΥΉΡ¥½Έ΅…Ή‘±•M½Ι•	…Ρ ΅Ι•Μθ9•αΡΑ¥I•ΝΑ½ΉΝ”°‰…Ρ΅M¥ι”θΉΥµ‰•Θ¤μ(€½ΉΝΠΝΥΑ…‰…Ν”€τ•ΡMΥΑ…‰…Ν•‘µ¥Έ ¤μ(€½ΉΝΠ±¥µ¥Π€τ5…Ρ Ήµ¥Έ΅‰…Ρ΅M¥ι”°€Τΐΐ¤μ((€€ΌΌ•Ρ ΥΉΝ½Ι•…ΑΑΙ½Ω•½Α•Ή‘¥ΉΙ•Α½ΙΡΜ(€½ΉΝΠμ‘…Ρ„θΙ•Α½ΙΡΜ°•ΙΙ½Θτ€τ…έ…¥ΠΝΥΑ…‰…Ν”(€€€€Ή™Ι½΄ Ι•Α½ΙΡΜ¤(€€€€ΉΝ•±•Π ¥°Ρ¥Ρ±”°ΝΥµµ…Ιδ°‘•ΝΙ¥ΑΡ¥½Έ°…Ρ•½Ιδ°±½…Ρ¥½Ή}Ή…µ”°½ΥΉΡΙδ°ΝΡ…Ρ•}ΑΙ½Ω¥Ή”°¥Ρδ°±…Ρ¥ΡΥ‘”°±½Ή¥ΡΥ‘”°•Ω•ΉΡ}‘…Ρ”°•Ω•ΉΡ}Ρ¥µ”°έ¥ΡΉ•ΝΝ}½ΥΉΠ°΅…Ν}Α΅εΝ¥…±}•Ω¥‘•Ή”°΅…Ν}Α΅½Ρ½}Ω¥‘•Ό°΅…Ν}½™™¥¥…±}Ι•Α½ΙΠ°•Ω¥‘•Ή•}ΝΥµµ…Ιδ°Ν½ΥΙ•}ΡεΑ”°Ι•‘¥‰¥±¥Ρδ°Ρ…Μ¤(€€€€Ή¥Μ ΕΥ…±¥Ρε}Ν½Ι”°ΉΥ±°¤(€€€€Ή¥Έ ΝΡ…ΡΥΜ°l…ΑΑΙ½Ω•°€Α•Ή‘¥Ήt¤(€€€€Ή½Ι‘•Θ Ι•…Ρ•‘}…Π°μ…Ν•Ή‘¥Ήθ™…±Ν”τ¤(€€€€Ή±¥µ¥Π΅±¥µ¥Π¤μ((€¥€΅•ΙΙ½Θ¤Ρ΅Ι½άΉ•άΙΙ½Θ …¥±•ΡΌ™•Ρ Ι•Α½ΙΡΜθ€€¬•ΙΙ½ΘΉµ•ΝΝ…”¤μ(€¥€ …Ι•Α½ΙΡΜρπΙ•Α½ΙΡΜΉ±•ΉΡ €τττ€ΐ¤μ(€€€Ι•ΡΥΙΈΙ•ΜΉΝΡ…ΡΥΜ Θΐΐ¤Ή©Ν½Έ΅μµ•ΝΝ…”θ€9ΌΥΉΝ½Ι•Ι•Α½ΙΡΜ™½ΥΉ°Ν½Ι•θ€ΐτ¤μ(€τ((€±•ΠΝ½Ι•€τ€ΐμ(€±•Π•ΙΙ½ΙΜ€τ€ΐμ(€½ΉΝΠΙ…‘•¥ΝΡΙ¥‰ΥΡ¥½ΈθI•½ΙρΝΡΙ¥Ή°ΉΥµ‰•Θψ€τμθ€ΐ°θ€ΐ°θ€ΐ°θ€ΐ°θ€ΐτμ((€™½Θ€΅½ΉΝΠΙ•Α½ΙΠ½Ι•Α½ΙΡΜ¤μ(€€€ΡΙδμ(€€€€€½ΉΝΠ¥ΉΑΥΠθM½Ι¥Ή%ΉΑΥΠ€τμ(€€€€€€€Ρ¥Ρ±”θΙ•Α½ΙΠΉΡ¥Ρ±”°(€€€€€€€ΝΥµµ…ΙδθΙ•Α½ΙΠΉΝΥµµ…Ιδ°(€€€€€€€‘•ΝΙ¥ΑΡ¥½ΈθΙ•Α½ΙΠΉ‘•ΝΙ¥ΑΡ¥½Έ°(€€€€€€€…Ρ•½ΙδθΙ•Α½ΙΠΉ…Ρ•½Ιδ°(€€€€€€€±½…Ρ¥½Ή}Ή…µ”θΙ•Α½ΙΠΉ±½…Ρ¥½Ή}Ή…µ”°(€€€€€€€½ΥΉΡΙδθΙ•Α½ΙΠΉ½ΥΉΡΙδ°(€€€€€€€ΝΡ…Ρ•}ΑΙ½Ω¥Ή”θΙ•Α½ΙΠΉΝΡ…Ρ•}ΑΙ½Ω¥Ή”°(€€€€€€€¥ΡδθΙ•Α½ΙΠΉ¥Ρδ°(€€€€€€€±…Ρ¥ΡΥ‘”θΙ•Α½ΙΠΉ±…Ρ¥ΡΥ‘”°(€€€€€€€±½Ή¥ΡΥ‘”θΙ•Α½ΙΠΉ±½Ή¥ΡΥ‘”°(€€€€€€€•Ω•ΉΡ}‘…Ρ”θΙ•Α½ΙΠΉ•Ω•ΉΡ}‘…Ρ”°(€€€€€€€•Ω•ΉΡ}Ρ¥µ”θΙ•Α½ΙΠΉ•Ω•ΉΡ}Ρ¥µ”°(€€€€€€€έ¥ΡΉ•ΝΝ}½ΥΉΠθΙ•Α½ΙΠΉέ¥ΡΉ•ΝΝ}½ΥΉΠ°(€€€€€€€΅…Ν}Α΅εΝ¥…±}•Ω¥‘•Ή”θΙ•Α½ΙΠΉ΅…Ν}Α΅εΝ¥…±}•Ω¥‘•Ή”°(€€€€€€€΅…Ν}Α΅½Ρ½}Ω¥‘•ΌθΙ•Α½ΙΠΉ΅…Ν}Α΅½Ρ½}Ω¥‘•Ό°(€€€€€€€΅…Ν}½™™¥¥…±}Ι•Α½ΙΠθΙ•Α½ΙΠΉ΅…Ν}½™™¥¥…±}Ι•Α½ΙΠ°(€€€€€€€•Ω¥‘•Ή•}ΝΥµµ…ΙδθΙ•Α½ΙΠΉ•Ω¥‘•Ή•}ΝΥµµ…Ιδ°(€€€€€€€Ν½ΥΙ•}ΡεΑ”θΙ•Α½ΙΠΉΝ½ΥΙ•}ΡεΑ”°(€€€€€€€Ι•‘¥‰¥±¥ΡδθΙ•Α½ΙΠΉΙ•‘¥‰¥±¥Ρδ°(€€€€€€€Ρ…ΜθΙ•Α½ΙΠΉΡ…Μ°(€€€€€τμ((€€€€€½ΉΝΠΙ•ΝΥ±Π€τΝ½Ι•I•Α½ΙΠ΅¥ΉΑΥΠ¤μ(€€€€€½ΉΝΠ™¥Ή•ΙΑΙ¥ΉΠ€τ•Ή•Ι…Ρ•¥Ή•ΙΑΙ¥ΉΠ (€€€€€€€Ι•Α½ΙΠΉΡ¥Ρ±”°(€€€€€€€Ι•Α½ΙΠΉ•Ω•ΉΡ}‘…Ρ”°(€€€€€€€Ι•Α½ΙΠΉ±½…Ρ¥½Ή}Ή…µ”(€€€€€€¤μ((€€€€€½ΉΝΠμ•ΙΙ½ΘθΥΑ‘…Ρ•ΙΙ½Θτ€τ…έ…¥ΠΝΥΑ…‰…Ν”(€€€€€€€€Ή™Ι½΄ Ι•Α½ΙΡΜ¤(€€€€€€€€ΉΥΑ‘…Ρ”΅μ(€€€€€€€€€ΕΥ…±¥Ρε}Ν½Ι”θΙ•ΝΥ±ΠΉΡ½Ρ…±M½Ι”°(€€€€€€€€€ΕΥ…±¥Ρε}Ι…‘”θΙ•ΝΥ±ΠΉΙ…‘”°(€€€€€€€€€ΕΥ…±¥Ρε}‘¥µ•ΉΝ¥½ΉΜθΙ•ΝΥ±ΠΉ‘¥µ•ΉΝ¥½ΉΜ°(€€€€€€€€€ΕΥ…±¥Ρε}Ν½Ι•‘}…ΠθΙ•ΝΥ±ΠΉΝ½Ι•‘Π°(€€€€€€€€€ΕΥ…±¥Ρε}Ν½Ι•Ι}Ω•ΙΝ¥½ΈθΙ•ΝΥ±ΠΉΩ•ΙΝ¥½Έ°(€€€€€€€€€½ΉΡ•ΉΡ}™¥Ή•ΙΑΙ¥ΉΠθ™¥Ή•ΙΑΙ¥ΉΠ°(€€€€€€€τ¤(€€€€€€€€Ή•Δ ¥°Ι•Α½ΙΠΉ¥¤μ((€€€€€¥€ …ΥΑ‘…Ρ•ΙΙ½Θ¤μ(€€€€€€€Ν½Ι•¬¬μ(€€€€€€€Ι…‘•¥ΝΡΙ¥‰ΥΡ¥½ΉmΙ•ΝΥ±ΠΉΙ…‘•t¬¬μ(€€€€€τ•±Ν”μ(€€€€€€€•ΙΙ½ΙΜ¬¬μ(€€€€€€€½ΉΝ½±”Ή•ΙΙ½Θ mΕΥ…±¥ΡδµΑ¥Α•±¥Ή•tUΑ‘…Ρ”•ΙΙ½Θ™½Θ°Ι•Α½ΙΠΉ¥°ΥΑ‘…Ρ•ΙΙ½ΘΉµ•ΝΝ…”¤μ(€€€€€τ(€€€τ…Ρ €΅”¤μ(€€€€€•ΙΙ½ΙΜ¬¬μ(€€€€€½ΉΝ½±”Ή•ΙΙ½Θ mΕΥ…±¥ΡδµΑ¥Α•±¥Ή•tM½Ι¥Ή•ΙΙ½Θ™½Θ°Ι•Α½ΙΠΉ¥°”¤μ(€€€τ(€τ((€Ι•ΡΥΙΈΙ•ΜΉΝΡ…ΡΥΜ Θΐΐ¤Ή©Ν½Έ΅μ(€€€µ•ΝΝ…”θ€	…Ρ Ν½Ι¥Ή½µΑ±•Ρ”°(€€€Ρ½Ρ…°θΙ•Α½ΙΡΜΉ±•ΉΡ °(€€€Ν½Ι•°(€€€•ΙΙ½ΙΜ°(€€€Ι…‘•¥ΝΡΙ¥‰ΥΡ¥½Έ°(€τ¤μ)τ((ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ(ΌΌM=I10U9M=IIA=IQL€΅¥Ρ•Ι…Ρ¥Ω”¤(ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ()…ΝεΉ™ΥΉΡ¥½Έ΅…Ή‘±•M½Ι•±°΅Ι•Μθ9•αΡΑ¥I•ΝΑ½ΉΝ”¤μ(€½ΉΝΠΝΥΑ…‰…Ν”€τ•ΡMΥΑ…‰…Ν•‘µ¥Έ ¤μ(€½ΉΝΠ‰…Ρ΅M¥ι”€τ€Θΐΐμ(€±•ΠΡ½Ρ…±M½Ι•€τ€ΐμ(€±•ΠΡ½Ρ…±ΙΙ½ΙΜ€τ€ΐμ(€±•Π΅…Ν5½Ι”€τΡΙΥ”μ(€½ΉΝΠΙ…‘•¥ΝΡΙ¥‰ΥΡ¥½ΈθI•½ΙρΝΡΙ¥Ή°ΉΥµ‰•Θψ€τμθ€ΐ°θ€ΐ°θ€ΐ°θ€ΐ°θ€ΐτμ((€έ΅¥±”€΅΅…Ν5½Ι”¤μ(€€€½ΉΝΠμ‘…Ρ„θΙ•Α½ΙΡΜ°•ΙΙ½Θτ€τ…έ…¥ΠΝΥΑ…‰…Ν”(€€€€€€Ή™Ι½΄ Ι•Α½ΙΡΜ¤(€€€€€€ΉΝ•±•Π ¥°Ρ¥Ρ±”°ΝΥµµ…Ιδ°‘•ΝΙ¥ΑΡ¥½Έ°…Ρ•½Ιδ°±½…Ρ¥½Ή}Ή…µ”°½ΥΉΡΙδ°ΝΡ…Ρ•}ΑΙ½Ω¥Ή”°¥Ρδ°±…Ρ¥ΡΥ‘”°±½Ή¥ΡΥ‘”°•Ω•ΉΡ}‘…Ρ”°•Ω•ΉΡ}Ρ¥µ”°έ¥ΡΉ•ΝΝ}½ΥΉΠ°΅…Ν}Α΅εΝ¥…±}•Ω¥‘•Ή”°΅…Ν}Α΅½Ρ½}Ω¥‘•Ό°΅…Ν}½™™¥¥…±}Ι•Α½ΙΠ°•Ω¥‘•Ή•}ΝΥµµ…Ιδ°Ν½ΥΙ•}ΡεΑ”°Ι•‘¥‰¥±¥Ρδ°Ρ…Μ¤(€€€€€€Ή¥Μ ΕΥ…±¥Ρε}Ν½Ι”°ΉΥ±°¤(€€€€€€Ή¥Έ ΝΡ…ΡΥΜ°l…ΑΑΙ½Ω•°€Α•Ή‘¥Ήt¤(€€€€€€Ή½Ι‘•Θ Ι•…Ρ•‘}…Π°μ…Ν•Ή‘¥Ήθ™…±Ν”τ¤(€€€€€€Ή±¥µ¥Π΅‰…Ρ΅M¥ι”¤μ((€€€¥€΅•ΙΙ½Θ¤Ρ΅Ι½άΉ•άΙΙ½Θ •Ρ •ΙΙ½Θθ€€¬•ΙΙ½ΘΉµ•ΝΝ…”¤μ(€€€¥€ …Ι•Α½ΙΡΜρπΙ•Α½ΙΡΜΉ±•ΉΡ €τττ€ΐ¤μ(€€€€€΅…Ν5½Ι”€τ™…±Ν”μ(€€€€€‰Ι•…¬μ(€€€τ((€€€™½Θ€΅½ΉΝΠΙ•Α½ΙΠ½Ι•Α½ΙΡΜ¤μ(€€€€€ΡΙδμ(€€€€€€€½ΉΝΠ¥ΉΑΥΠθM½Ι¥Ή%ΉΑΥΠ€τμ(€€€€€€€€€Ρ¥Ρ±”θΙ•Α½ΙΠΉΡ¥Ρ±”°(€€€€€€€€€ΝΥµµ…ΙδθΙ•Α½ΙΠΉΝΥµµ…Ιδ°(€€€€€€€€€‘•ΝΙ¥ΑΡ¥½ΈθΙ•Α½ΙΠΉ‘•ΝΙ¥ΑΡ¥½Έ°(€€€€€€€€€…Ρ•½ΙδθΙ•Α½ΙΠΉ…Ρ•½Ιδ°(€€€€€€€€€±½…Ρ¥½Ή}Ή…µ”θΙ•Α½ΙΠΉ±½…Ρ¥½Ή}Ή…µ”°(€€€€€€€€€½ΥΉΡΙδθΙ•Α½ΙΠΉ½ΥΉΡΙδ°(€€€€€€€€€ΝΡ…Ρ•}ΑΙ½Ω¥Ή”θΙ•Α½ΙΠΉΝΡ…Ρ•}ΑΙ½Ω¥Ή”°(€€€€€€€€€¥ΡδθΙ•Α½ΙΠΉ¥Ρδ°(€€€€€€€€€±…Ρ¥ΡΥ‘”θΙ•Α½ΙΠΉ±…Ρ¥ΡΥ‘”°(€€€€€€€€€±½Ή¥ΡΥ‘”θΙ•Α½ΙΠΉ±½Ή¥ΡΥ‘”°(€€€€€€€€€•Ω•ΉΡ}‘…Ρ”θΙ•Α½ΙΠΉ•Ω•ΉΡ}‘…Ρ”°(€€€€€€€€€•Ω•ΉΡ}Ρ¥µ”θΙ•Α½ΙΠΉ•Ω•ΉΡ}Ρ¥µ”°(€€€€€€€€€έ¥ΡΉ•ΝΝ}½ΥΉΠθΙ•Α½ΙΠΉέ¥ΡΉ•ΝΝ}½ΥΉΠ°(€€€€€€€€€΅…Ν}Α΅εΝ¥…±}•Ω¥‘•Ή”θΙ•Α½ΙΠΉ΅…Ν}Α΅εΝ¥…±}•Ω¥‘•Ή”°(€€€€€€€€€΅…Ν}Α΅½Ρ½}Ω¥‘•ΌθΙ•Α½ΙΠΉ΅…Ν}Α΅½Ρ½}Ω¥‘•Ό°(€€€€€€€€€΅…Ν}½™™¥¥…±}Ι•Α½ΙΠθΙ•Α½ΙΠΉ΅…Ν}½™™¥¥…±}Ι•Α½ΙΠ°(€€€€€€€€€•Ω¥‘•Ή•}ΝΥµµ…ΙδθΙ•Α½ΙΠΉ•Ω¥‘•Ή•}ΝΥµµ…Ιδ°(€€€€€€€€€Ν½ΥΙ•}ΡεΑ”θΙ•Α½ΙΠΉΝ½ΥΙ•}ΡεΑ”°(€€€€€€€€€Ι•‘¥‰¥±¥ΡδθΙ•Α½ΙΠΉΙ•‘¥‰¥±¥Ρδ°(€€€€€€€€€Ρ…ΜθΙ•Α½ΙΠΉΡ…Μ°(€€€€€€€τμ((€€€€€€€½ΉΝΠΙ•ΝΥ±Π€τΝ½Ι•I•Α½ΙΠ΅¥ΉΑΥΠ¤μ(€€€€€€€½ΉΝΠ™¥Ή•ΙΑΙ¥ΉΠ€τ•Ή•Ι…Ρ•¥Ή•ΙΑΙ¥ΉΠ΅Ι•Α½ΙΠΉΡ¥Ρ±”°Ι•Α½ΙΠΉ•Ω•ΉΡ}‘…Ρ”°Ι•Α½ΙΠΉ±½…Ρ¥½Ή}Ή…µ”¤μ((€€€€€€€½ΉΝΠμ•ΙΙ½ΘθΥΑ‘…Ρ•ΙΙ½Θτ€τ…έ…¥ΠΝΥΑ…‰…Ν”(€€€€€€€€€€Ή™Ι½΄ Ι•Α½ΙΡΜ¤(€€€€€€€€€€ΉΥΑ‘…Ρ”΅μ(€€€€€€€€€€€ΕΥ…±¥Ρε}Ν½Ι”θΙ•ΝΥ±ΠΉΡ½Ρ…±M½Ι”°(€€€€€€€€€€€ΕΥ…±¥Ρε}Ι…‘”θΙ•ΝΥ±ΠΉΙ…‘”°(€€€€€€€€€€€ΕΥ…±¥Ρε}‘¥µ•ΉΝ¥½ΉΜθΙ•ΝΥ±ΠΉ‘¥µ•ΉΝ¥½ΉΜ°(€€€€€€€€€€€ΕΥ…±¥Ρε}Ν½Ι•‘}…ΠθΙ•ΝΥ±ΠΉΝ½Ι•‘Π°(€€€€€€€€€€€ΕΥ…±¥Ρε}Ν½Ι•Ι}Ω•ΙΝ¥½ΈθΙ•ΝΥ±ΠΉΩ•ΙΝ¥½Έ°(€€€€€€€€€€€½ΉΡ•ΉΡ}™¥Ή•ΙΑΙ¥ΉΠθ™¥Ή•ΙΑΙ¥ΉΠ°(€€€€€€€€€τ¤(€€€€€€€€€€Ή•Δ ¥°Ι•Α½ΙΠΉ¥¤μ((€€€€€€€¥€ …ΥΑ‘…Ρ•ΙΙ½Θ¤μ(€€€€€€€€€Ρ½Ρ…±M½Ι•¬¬μ(€€€€€€€€€Ι…‘•¥ΝΡΙ¥‰ΥΡ¥½ΉmΙ•ΝΥ±ΠΉΙ…‘•t¬¬μ(€€€€€€€τ•±Ν”μ(€€€€€€€€€Ρ½Ρ…±ΙΙ½ΙΜ¬¬μ(€€€€€€€τ(€€€€€τ…Ρ μ(€€€€€€€Ρ½Ρ…±ΙΙ½ΙΜ¬¬μ(€€€€€τ(€€€τ((€€€€ΌΌM…™•Ρδθ¥‰…Ρ Ι•ΡΥΙΉ•™•έ•ΘΡ΅…Έ±¥µ¥Π°έ”Ι”‘½Ή”(€€€¥€΅Ι•Α½ΙΡΜΉ±•ΉΡ €π‰…Ρ΅M¥ι”¤΅…Ν5½Ι”€τ™…±Ν”μ(€τ((€Ι•ΡΥΙΈΙ•ΜΉΝΡ…ΡΥΜ Θΐΐ¤Ή©Ν½Έ΅μ(€€€µ•ΝΝ…”θ€Υ±°Ν½Ι¥Ή½µΑ±•Ρ”°(€€€Ρ½Ρ…±M½Ι•°(€€€Ρ½Ρ…±ΙΙ½ΙΜ°(€€€Ι…‘•¥ΝΡΙ¥‰ΥΡ¥½Έ°(€τ¤μ)τ((ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ(ΌΌIµM=I10IA=IQL€΅έ΅•ΈΝ½Ι•ΘΩ•ΙΝ¥½Έ΅…Ή•Μ¤(ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ()…ΝεΉ™ΥΉΡ¥½Έ΅…Ή‘±•I•Ν½Ι•±°΅Ι•Μθ9•αΡΑ¥I•ΝΑ½ΉΝ”°‰…Ρ΅M¥ι”θΉΥµ‰•Θ¤μ(€½ΉΝΠΝΥΑ…‰…Ν”€τ•ΡMΥΑ…‰…Ν•‘µ¥Έ ¤μ(€½ΉΝΠ±¥µ¥Π€τ5…Ρ Ήµ¥Έ΅‰…Ρ΅M¥ι”°€Τΐΐ¤μ((€€ΌΌ¥ΉΙ•Α½ΙΡΜέ¥Ρ ½ΥΡ‘…Ρ•Ν½Ι•ΘΩ•ΙΝ¥½Έ(€½ΉΝΠμ‘…Ρ„θΙ•Α½ΙΡΜ°•ΙΙ½Θτ€τ…έ…¥ΠΝΥΑ…‰…Ν”(€€€€Ή™Ι½΄ Ι•Α½ΙΡΜ¤(€€€€ΉΝ•±•Π ¥°Ρ¥Ρ±”°ΝΥµµ…Ιδ°‘•ΝΙ¥ΑΡ¥½Έ°…Ρ•½Ιδ°±½…Ρ¥½Ή}Ή…µ”°½ΥΉΡΙδ°ΝΡ…Ρ•}ΑΙ½Ω¥Ή”°¥Ρδ°±…Ρ¥ΡΥ‘”°±½Ή¥ΡΥ‘”°•Ω•ΉΡ}‘…Ρ”°•Ω•ΉΡ}Ρ¥µ”°έ¥ΡΉ•ΝΝ}½ΥΉΠ°΅…Ν}Α΅εΝ¥…±}•Ω¥‘•Ή”°΅…Ν}Α΅½Ρ½}Ω¥‘•Ό°΅…Ν}½™™¥¥…±}Ι•Α½ΙΠ°•Ω¥‘•Ή•}ΝΥµµ…Ιδ°Ν½ΥΙ•}ΡεΑ”°Ι•‘¥‰¥±¥Ρδ°Ρ…Μ¤(€€€€ΉΉ•Δ ΕΥ…±¥Ρε}Ν½Ι•Ι}Ω•ΙΝ¥½Έ°M=II}YIM%=8¤(€€€€Ή¥Έ ΝΡ…ΡΥΜ°l…ΑΑΙ½Ω•°€Α•Ή‘¥Ήt¤(€€€€Ή±¥µ¥Π΅±¥µ¥Π¤μ((€¥€΅•ΙΙ½Θ¤Ρ΅Ι½άΉ•άΙΙ½Θ •Ρ •ΙΙ½Θθ€€¬•ΙΙ½ΘΉµ•ΝΝ…”¤μ(€¥€ …Ι•Α½ΙΡΜρπΙ•Α½ΙΡΜΉ±•ΉΡ €τττ€ΐ¤μ(€€€Ι•ΡΥΙΈΙ•ΜΉΝΡ…ΡΥΜ Θΐΐ¤Ή©Ν½Έ΅μµ•ΝΝ…”θ€±°Ι•Α½ΙΡΜ…Ι”½ΈΥΙΙ•ΉΠΝ½Ι•ΘΩ•ΙΝ¥½Έ°Ι•Ν½Ι•θ€ΐτ¤μ(€τ((€±•ΠΙ•Ν½Ι•€τ€ΐμ(€™½Θ€΅½ΉΝΠΙ•Α½ΙΠ½Ι•Α½ΙΡΜ¤μ(€€€ΡΙδμ(€€€€€½ΉΝΠ¥ΉΑΥΠθM½Ι¥Ή%ΉΑΥΠ€τΙ•Α½ΙΠ…ΜM½Ι¥Ή%ΉΑΥΠμ(€€€€€½ΉΝΠΙ•ΝΥ±Π€τΝ½Ι•I•Α½ΙΠ΅¥ΉΑΥΠ¤μ(€€€€€½ΉΝΠ™¥Ή•ΙΑΙ¥ΉΠ€τ•Ή•Ι…Ρ•¥Ή•ΙΑΙ¥ΉΠ΅Ι•Α½ΙΠΉΡ¥Ρ±”°Ι•Α½ΙΠΉ•Ω•ΉΡ}‘…Ρ”°Ι•Α½ΙΠΉ±½…Ρ¥½Ή}Ή…µ”¤μ((€€€€€…έ…¥ΠΝΥΑ…‰…Ν”(€€€€€€€€Ή™Ι½΄ Ι•Α½ΙΡΜ¤(€€€€€€€€ΉΥΑ‘…Ρ”΅μ(€€€€€€€€€ΕΥ…±¥Ρε}Ν½Ι”θΙ•ΝΥ±ΠΉΡ½Ρ…±M½Ι”°(€€€€€€€€€ΕΥ…±¥Ρε}Ι…‘”θΙ•ΝΥ±ΠΉΙ…‘”°(€€€€€€€€€ΕΥ…±¥Ρε}‘¥µ•ΉΝ¥½ΉΜθΙ•ΝΥ±ΠΉ‘¥µ•ΉΝ¥½ΉΜ°(€€€€€€€€€ΕΥ…±¥Ρε}Ν½Ι•‘}…ΠθΙ•ΝΥ±ΠΉΝ½Ι•‘Π°(€€€€€€€€€ΕΥ…±¥Ρε}Ν½Ι•Ι}Ω•ΙΝ¥½ΈθΙ•ΝΥ±ΠΉΩ•ΙΝ¥½Έ°(€€€€€€€€€½ΉΡ•ΉΡ}™¥Ή•ΙΑΙ¥ΉΠθ™¥Ή•ΙΑΙ¥ΉΠ°(€€€€€€€τ¤(€€€€€€€€Ή•Δ ¥°Ι•Α½ΙΠΉ¥¤μ((€€€€€Ι•Ν½Ι•¬¬μ(€€€τ…Ρ μ(€€€€€€ΌΌ½ΉΡ¥ΉΥ”(€€€τ(€τ((€Ι•ΡΥΙΈΙ•ΜΉΝΡ…ΡΥΜ Θΐΐ¤Ή©Ν½Έ΅μ(€€€µ•ΝΝ…”θ€I”µΝ½Ι¥Ή‰…Ρ ½µΑ±•Ρ”°(€€€Ρ½Ρ…°θΙ•Α½ΙΡΜΉ±•ΉΡ °(€€€Ι•Ν½Ι•°(€€€Ι•µ…¥Ή¥ΉθΙ•Α½ΙΡΜΉ±•ΉΡ €τττ±¥µ¥Π€ό€µ½Ι”‰…Ρ΅•ΜΉ••‘•€θ€‘½Ή”°(€τ¤μ)τ((ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ(ΌΌU@M8ƒP™¥Ή‘ΥΑ±¥…Ρ•Μ…µ½Ή…ΑΑΙ½Ω•Ι•Α½ΙΡΜ(ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ()…ΝεΉ™ΥΉΡ¥½Έ΅…Ή‘±••‘ΥΑM…Έ΅Ι•Μθ9•αΡΑ¥I•ΝΑ½ΉΝ”¤μ(€½ΉΝΠΝΥΑ…‰…Ν”€τ•ΡMΥΑ…‰…Ν•‘µ¥Έ ¤μ((€€ΌΌ•Ρ …±°…ΑΑΙ½Ω•Ι•Α½ΙΡΜ€΅±¥µ¥Ρ•™¥•±‘Μ™½ΘΑ•Ι™½Ιµ…Ή”¤(€½ΉΝΠμ‘…Ρ„θΙ•Α½ΙΡΜ°•ΙΙ½Θτ€τ…έ…¥ΠΝΥΑ…‰…Ν”(€€€€Ή™Ι½΄ Ι•Α½ΙΡΜ¤(€€€€ΉΝ•±•Π ¥°Ρ¥Ρ±”°±½…Ρ¥½Ή}Ή…µ”°¥Ρδ°ΝΡ…Ρ•}ΑΙ½Ω¥Ή”°½ΥΉΡΙδ°±…Ρ¥ΡΥ‘”°±½Ή¥ΡΥ‘”°•Ω•ΉΡ}‘…Ρ”°Ν½ΥΙ•}ΡεΑ”°½Ι¥¥Ή…±}Ι•Α½ΙΡ}¥°‘•ΝΙ¥ΑΡ¥½Έ¤(€€€€Ή•Δ ΝΡ…ΡΥΜ°€…ΑΑΙ½Ω•¤(€€€€Ή½Ι‘•Θ Ι•…Ρ•‘}…Π°μ…Ν•Ή‘¥Ήθ™…±Ν”τ¤(€€€€Ή±¥µ¥Π Θΐΐΐ¤μ€ΌΌM…™•Ρδ…ΐ((€¥€΅•ΙΙ½Θ¤Ρ΅Ι½άΉ•άΙΙ½Θ •Ρ •ΙΙ½Θθ€€¬•ΙΙ½ΘΉµ•ΝΝ…”¤μ(€¥€ …Ι•Α½ΙΡΜρπΙ•Α½ΙΡΜΉ±•ΉΡ €τττ€ΐ¤μ(€€€Ι•ΡΥΙΈΙ•ΜΉΝΡ…ΡΥΜ Θΐΐ¤Ή©Ν½Έ΅μµ•ΝΝ…”θ€9ΌΙ•Α½ΙΡΜΡΌΝ…Έ°‘ΥΑ±¥…Ρ•Ν½ΥΉθ€ΐτ¤μ(€τ((€€ΌΌ¥ΙΝΠΑ…ΝΜθ•α…Π™¥Ή•ΙΑΙ¥ΉΠµ…Ρ΅•Μ(€½ΉΝΠ™¥Ή•ΙΑΙ¥ΉΡΜ€τΉ•ά5…ΐρΝΡΙ¥Ή°ΝΡΙ¥Ήmtψ ¤μ(€™½Θ€΅½ΉΝΠΘ½Ι•Α½ΙΡΜ¤μ(€€€½ΉΝΠ™ΐ€τ•Ή•Ι…Ρ•¥Ή•ΙΑΙ¥ΉΠ΅ΘΉΡ¥Ρ±”°ΘΉ•Ω•ΉΡ}‘…Ρ”°ΘΉ±½…Ρ¥½Ή}Ή…µ”¤μ(€€€¥€ …™¥Ή•ΙΑΙ¥ΉΡΜΉ΅…Μ΅™ΐ¤¤™¥Ή•ΙΑΙ¥ΉΡΜΉΝ•Π΅™ΐ°mt¤μ(€€€™¥Ή•ΙΑΙ¥ΉΡΜΉ•Π΅™ΐ¤„ΉΑΥΝ ΅ΘΉ¥¤μ(€τ((€½ΉΝΠ•α…ΡΥΑ•Μ€τΙΙ…δΉ™Ι½΄΅™¥Ή•ΙΑΙ¥ΉΡΜΉΩ…±Υ•Μ ¤¤Ή™¥±Ρ•Θ΅¥‘Μ€τψ¥‘ΜΉ±•ΉΡ €ψ€Δ¤μ((€€ΌΌM•½ΉΑ…ΝΜθ™Υιιδµ…Ρ΅¥Ή(€½ΉΝΠ…Ή‘¥‘…Ρ•Μθ•‘ΥΑ…Ή‘¥‘…Ρ•mt€τΙ•Α½ΙΡΜΉµ…ΐ΅Θ€τψ€΅μ(€€€¥θΘΉ¥°(€€€Ρ¥Ρ±”θΘΉΡ¥Ρ±”°(€€€±½…Ρ¥½Ή}Ή…µ”θΘΉ±½…Ρ¥½Ή}Ή…µ”°(€€€¥ΡδθΘΉ¥Ρδ°(€€€ΝΡ…Ρ•}ΑΙ½Ω¥Ή”θΘΉΝΡ…Ρ•}ΑΙ½Ω¥Ή”°(€€€½ΥΉΡΙδθΘΉ½ΥΉΡΙδ°(€€€±…Ρ¥ΡΥ‘”θΘΉ±…Ρ¥ΡΥ‘”°(€€€±½Ή¥ΡΥ‘”θΘΉ±½Ή¥ΡΥ‘”°(€€€•Ω•ΉΡ}‘…Ρ”θΘΉ•Ω•ΉΡ}‘…Ρ”°(€€€Ν½ΥΙ•}ΡεΑ”θΘΉΝ½ΥΙ•}ΡεΑ”°(€€€½Ι¥¥Ή…±}Ι•Α½ΙΡ}¥θΘΉ½Ι¥¥Ή…±}Ι•Α½ΙΡ}¥°(€€€‘•ΝΙ¥ΑΡ¥½ΈθΘΉ‘•ΝΙ¥ΑΡ¥½Έ€όΘΉ‘•ΝΙ¥ΑΡ¥½ΈΉΝΥ‰ΝΡΙ¥Ή ΐ°€Τΐΐ¤€θΥΉ‘•™¥Ή•°€ΌΌQΙΥΉ…Ρ”™½ΘΑ•Ι™½Ιµ…Ή”(€τ¤¤μ((€½ΉΝΠ‘•‘ΥΑI•ΝΥ±Π€τ™¥Ή‘ΥΑ±¥…Ρ•Μ΅…Ή‘¥‘…Ρ•Μ¤μ((€€ΌΌMΡ½Ι”‘•Ρ•Ρ•‘ΥΑ±¥…Ρ•Μ¥ΈΡ΅”‘…Ρ…‰…Ν”(€±•ΠΝΡ½Ι•€τ€ΐμ(€™½Θ€΅½ΉΝΠµ…Ρ ½‘•‘ΥΑI•ΝΥ±ΠΉµ…Ρ΅•Μ¤μ(€€€ΡΙδμ(€€€€€€ΌΌUΝ”1MP½IQMPΡΌ•ΉΝΥΙ”½ΉΝ¥ΝΡ•ΉΠ½Ι‘•Ι¥Ή(€€€€€½ΉΝΠμ•ΙΙ½Θθ¥ΉΝ•ΙΡΙΙ½Θτ€τ…έ…¥ΠΝΥΑ…‰…Ν”(€€€€€€€€Ή™Ι½΄ ‘ΥΑ±¥…Ρ•}µ…Ρ΅•Μ¤(€€€€€€€€ΉΥΑΝ•ΙΠ΅μ(€€€€€€€€€Ι•Α½ΙΡ}…}¥θµ…Ρ ΉΙ•Α½ΙΡ€πµ…Ρ ΉΙ•Α½ΙΡ€όµ…Ρ ΉΙ•Α½ΙΡ€θµ…Ρ ΉΙ•Α½ΙΡ°(€€€€€€€€€Ι•Α½ΙΡ}‰}¥θµ…Ρ ΉΙ•Α½ΙΡ€πµ…Ρ ΉΙ•Α½ΙΡ€όµ…Ρ ΉΙ•Α½ΙΡ€θµ…Ρ ΉΙ•Α½ΙΡ°(€€€€€€€€€Ρ¥Ρ±•}Ν¥µ¥±…Ι¥Ρδθµ…Ρ ΉΡ¥Ρ±•M¥µ¥±…Ι¥Ρδ°(€€€€€€€€€±½…Ρ¥½Ή}Ν¥µ¥±…Ι¥Ρδθµ…Ρ Ή±½…Ρ¥½ΉM¥µ¥±…Ι¥Ρδ°(€€€€€€€€€‘…Ρ•}Ν¥µ¥±…Ι¥Ρδθµ…Ρ Ή‘…Ρ•M¥µ¥±…Ι¥Ρδ°(€€€€€€€€€½ΉΡ•ΉΡ}Ν¥µ¥±…Ι¥Ρδθµ…Ρ Ή½ΉΡ•ΉΡM¥µ¥±…Ι¥Ρδ°(€€€€€€€€€½Ω•Ι…±±}Ν½Ι”θµ…Ρ Ή½Ω•Ι…±±M½Ι”°(€€€€€€€€€½Ή™¥‘•Ή”θµ…Ρ Ή½Ή™¥‘•Ή”°(€€€€€€€€€‘•Ρ…¥±Μθµ…Ρ Ή‘•Ρ…¥±Μ°(€€€€€€€€€Ι•Ν½±ΥΡ¥½Έθ€Α•Ή‘¥Ή°(€€€€€€€τ°μ(€€€€€€€€€½Ή½Ή™±¥Πθ€¥‘α}‘ΥΑ±¥…Ρ•}µ…Ρ΅•Ν}Α…¥Θ°(€€€€€€€€€¥Ή½Ι•ΥΑ±¥…Ρ•Μθ™…±Ν”°€ΌΌUΑ‘…Ρ”Ν½Ι•Μ½ΈΙ”µΝ…Έ(€€€€€€€τ¤μ((€€€€€¥€ …¥ΉΝ•ΙΡΙΙ½Θ¤ΝΡ½Ι•¬¬μ(€€€τ…Ρ €΅”¤μ(€€€€€½ΉΝ½±”Ή•ΙΙ½Θ m‘•‘ΥΑt…¥±•ΡΌΝΡ½Ι”µ…Ρ θ°”¤μ(€€€τ(€τ((€Ι•ΡΥΙΈΙ•ΜΉΝΡ…ΡΥΜ Θΐΐ¤Ή©Ν½Έ΅μ(€€€µ•ΝΝ…”θ€•‘ΥΐΝ…Έ½µΑ±•Ρ”°(€€€Ι•Α½ΙΡΝM…ΉΉ•θΙ•Α½ΙΡΜΉ±•ΉΡ °(€€€•α…Ρ¥Ή•ΙΑΙ¥ΉΡΥΑ•Μθ•α…ΡΥΑ•ΜΉ±•ΉΡ °(€€€™ΥιιεΥΑ±¥…Ρ•Ν½ΥΉθ‘•‘ΥΑI•ΝΥ±ΠΉ‘ΥΑ±¥…Ρ•Ν½ΥΉ°(€€€µ…Ρ΅•ΝMΡ½Ι•θΝΡ½Ι•°(€€€½µΑ…Ι¥Ν½ΉΜθ‘•‘ΥΑI•ΝΥ±ΠΉΡ½Ρ…±½µΑ…Ι•°(€€€‘ΥΙ…Ρ¥½Έθ‘•‘ΥΑI•ΝΥ±ΠΉ‘ΥΙ…Ρ¥½Έ€¬€µΜ°(€€€Ρ½Α5…Ρ΅•Μθ‘•‘ΥΑI•ΝΥ±ΠΉµ…Ρ΅•ΜΉΝ±¥” ΐ°€Δΐ¤Ήµ…ΐ΅΄€τψ€΅μ(€€€€€½Ή™¥‘•Ή”θ΄Ή½Ή™¥‘•Ή”°(€€€€€½Ω•Ι…±°θ΄Ή½Ω•Ι…±±M½Ι”°(€€€€€‘•Ρ…¥±Μθ΄Ή‘•Ρ…¥±Μ°(€€€τ¤¤°(€τ¤μ)τ((ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ(ΌΌM=IM%91IA=IP(ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ()…ΝεΉ™ΥΉΡ¥½Έ΅…Ή‘±•M½Ι•M¥Ή±”΅Ι•Μθ9•αΡΑ¥I•ΝΑ½ΉΝ”°Ι•Α½ΙΡ%θΝΡΙ¥Ή¤μ(€½ΉΝΠΝΥΑ…‰…Ν”€τ•ΡMΥΑ…‰…Ν•‘µ¥Έ ¤μ((€½ΉΝΠμ‘…Ρ„θΙ•Α½ΙΠ°•ΙΙ½Θτ€τ…έ…¥ΠΝΥΑ…‰…Ν”(€€€€Ή™Ι½΄ Ι•Α½ΙΡΜ¤(€€€€ΉΝ•±•Π ¥°Ρ¥Ρ±”°ΝΥµµ…Ιδ°‘•ΝΙ¥ΑΡ¥½Έ°…Ρ•½Ιδ°±½…Ρ¥½Ή}Ή…µ”°½ΥΉΡΙδ°ΝΡ…Ρ•}ΑΙ½Ω¥Ή”°¥Ρδ°±…Ρ¥ΡΥ‘”°±½Ή¥ΡΥ‘”°•Ω•ΉΡ}‘…Ρ”°•Ω•ΉΡ}Ρ¥µ”°έ¥ΡΉ•ΝΝ}½ΥΉΠ°΅…Ν}Α΅εΝ¥…±}•Ω¥‘•Ή”°΅…Ν}Α΅½Ρ½}Ω¥‘•Ό°΅…Ν}½™™¥¥…±}Ι•Α½ΙΠ°•Ω¥‘•Ή•}ΝΥµµ…Ιδ°Ν½ΥΙ•}ΡεΑ”°Ι•‘¥‰¥±¥Ρδ°Ρ…Μ¤(€€€€Ή•Δ ¥°Ι•Α½ΙΡ%¤(€€€€ΉΝ¥Ή±” ¤μ((€¥€΅•ΙΙ½Θρπ€…Ι•Α½ΙΠ¤μ(€€€Ι•ΡΥΙΈΙ•ΜΉΝΡ…ΡΥΜ ΠΐΠ¤Ή©Ν½Έ΅μ•ΙΙ½Θθ€I•Α½ΙΠΉ½Π™½ΥΉτ¤μ(€τ((€½ΉΝΠ¥ΉΑΥΠθM½Ι¥Ή%ΉΑΥΠ€τΙ•Α½ΙΠ…ΜM½Ι¥Ή%ΉΑΥΠμ(€½ΉΝΠΙ•ΝΥ±Π€τΝ½Ι•I•Α½ΙΠ΅¥ΉΑΥΠ¤μ(€½ΉΝΠ™¥Ή•ΙΑΙ¥ΉΠ€τ•Ή•Ι…Ρ•¥Ή•ΙΑΙ¥ΉΠ΅Ι•Α½ΙΠΉΡ¥Ρ±”°Ι•Α½ΙΠΉ•Ω•ΉΡ}‘…Ρ”°Ι•Α½ΙΠΉ±½…Ρ¥½Ή}Ή…µ”¤μ((€€ΌΌM…Ω”ΡΌ(€…έ…¥ΠΝΥΑ…‰…Ν”(€€€€Ή™Ι½΄ Ι•Α½ΙΡΜ¤(€€€€ΉΥΑ‘…Ρ”΅μ(€€€€€ΕΥ…±¥Ρε}Ν½Ι”θΙ•ΝΥ±ΠΉΡ½Ρ…±M½Ι”°(€€€€€ΕΥ…±¥Ρε}Ι…‘”θΙ•ΝΥ±ΠΉΙ…‘”°(€€€€€ΕΥ…±¥Ρε}‘¥µ•ΉΝ¥½ΉΜθΙ•ΝΥ±ΠΉ‘¥µ•ΉΝ¥½ΉΜ°(€€€€€ΕΥ…±¥Ρε}Ν½Ι•‘}…ΠθΙ•ΝΥ±ΠΉΝ½Ι•‘Π°(€€€€€ΕΥ…±¥Ρε}Ν½Ι•Ι}Ω•ΙΝ¥½ΈθΙ•ΝΥ±ΠΉΩ•ΙΝ¥½Έ°(€€€€€½ΉΡ•ΉΡ}™¥Ή•ΙΑΙ¥ΉΠθ™¥Ή•ΙΑΙ¥ΉΠ°(€€€τ¤(€€€€Ή•Δ ¥°Ι•Α½ΙΠΉ¥¤μ((€Ι•ΡΥΙΈΙ•ΜΉΝΡ…ΡΥΜ Θΐΐ¤Ή©Ν½Έ΅μ(€€€Ι•Α½ΙΡ%θΙ•Α½ΙΠΉ¥°(€€€Ρ¥Ρ±”θΙ•Α½ΙΠΉΡ¥Ρ±”°(€€€€ΈΈΉΙ•ΝΥ±Π°(€τ¤μ)τ((ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ(ΌΌMQQLƒPΕΥ…±¥Ρδ‘¥ΝΡΙ¥‰ΥΡ¥½Έ½Ω•ΙΩ¥•ά(ΌΌ€ττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττττ()…ΝεΉ™ΥΉΡ¥½Έ΅…Ή‘±•MΡ…ΡΜ΅Ι•Μθ9•αΡΑ¥I•ΝΑ½ΉΝ”¤μ(€½ΉΝΠΝΥΑ…‰…Ν”€τ•ΡMΥΑ…‰…Ν•‘µ¥Έ ¤μ((€€ΌΌΙ…‘”‘¥ΝΡΙ¥‰ΥΡ¥½Έ(€½ΉΝΠμ‘…Ρ„θ‘¥ΝΡΙ¥‰ΥΡ¥½Έτ€τ…έ…¥ΠΝΥΑ…‰…Ν”ΉΙΑ •Ρ}ΕΥ…±¥Ρε}‘¥ΝΡΙ¥‰ΥΡ¥½Έ¤μ((€€ΌΌUΉΝ½Ι•½ΥΉΠ(€½ΉΝΠμ½ΥΉΠθΥΉΝ½Ι•‘½ΥΉΠτ€τ…έ…¥ΠΝΥΑ…‰…Ν”(€€€€Ή™Ι½΄ Ι•Α½ΙΡΜ¤(€€€€ΉΝ•±•Π ¨°μ½ΥΉΠθ€•α…Π°΅•…θΡΙΥ”τ¤(€€€€Ή¥Μ ΕΥ…±¥Ρε}Ν½Ι”°ΉΥ±°¤(€€€€Ή¥Έ ΝΡ…ΡΥΜ°l…ΑΑΙ½Ω•°€Α•Ή‘¥Ήt¤μ((€€ΌΌA•Ή‘¥Ή‘ΥΑ±¥…Ρ•Μ(€½ΉΝΠμ½ΥΉΠθΑ•Ή‘¥ΉΥΑ•Μτ€τ…έ…¥ΠΝΥΑ…‰…Ν”(€€€€Ή™Ι½΄ ‘ΥΑ±¥…Ρ•}µ…Ρ΅•Μ¤(€€€€ΉΝ•±•Π ¨°μ½ΥΉΠθ€•α…Π°΅•…θΡΙΥ”τ¤(€€€€Ή½Θ Ι•Ν½±ΥΡ¥½ΈΉ¥ΜΉΉΥ±°±Ι•Ν½±ΥΡ¥½ΈΉ•ΔΉΑ•Ή‘¥Ή¤μ((€€ΌΌM½Ι”ΝΡ…ΡΜ(€½ΉΝΠμ‘…Ρ„θΝ½Ι•MΡ…ΡΜτ€τ…έ…¥ΠΝΥΑ…‰…Ν”(€€€€Ή™Ι½΄ Ι•Α½ΙΡΜ¤(€€€€ΉΝ•±•Π ΕΥ…±¥Ρε}Ν½Ι”¤(€€€€ΉΉ½Π ΕΥ…±¥Ρε}Ν½Ι”°€¥Μ°ΉΥ±°¤(€€€€Ή•Δ ΝΡ…ΡΥΜ°€…ΑΑΙ½Ω•¤μ((€±•Π…ΩM½Ι”€τ€ΐμ(€±•Πµ¥ΉM½Ι”€τ€ΐμ(€±•Πµ…αM½Ι”€τ€ΐμ(€¥€΅Ν½Ι•MΡ…ΡΜ€Ν½Ι•MΡ…ΡΜΉ±•ΉΡ €ψ€ΐ¤μ(€€€½ΉΝΠΝ½Ι•Μ€τΝ½Ι•MΡ…ΡΜΉµ…ΐ΅Θ€τψΘΉΕΥ…±¥Ρε}Ν½Ι”¤Ή™¥±Ρ•Θ΅	½½±•…Έ¤…ΜΉΥµ‰•Ιmtμ(€€€…ΩM½Ι”€τ5…Ρ ΉΙ½ΥΉ΅Ν½Ι•ΜΉΙ•‘Υ” ΅„°¤€τψ„€¬°€ΐ¤€ΌΝ½Ι•ΜΉ±•ΉΡ ¤μ(€€€µ¥ΉM½Ι”€τ5…Ρ Ήµ¥Έ ΈΈΉΝ½Ι•Μ¤μ(€€€µ…αM½Ι”€τ5…Ρ Ήµ…ΰ ΈΈΉΝ½Ι•Μ¤μ(€τ((€Ι•ΡΥΙΈΙ•ΜΉΝΡ…ΡΥΜ Θΐΐ¤Ή©Ν½Έ΅μ(€€€Ι…‘•¥ΝΡΙ¥‰ΥΡ¥½Έθ‘¥ΝΡΙ¥‰ΥΡ¥½Έρπmt°(€€€ΥΉΝ½Ι•‘I•Α½ΙΡΜθΥΉΝ½Ι•‘½ΥΉΠρπ€ΐ°(€€€Α•Ή‘¥ΉΥΑ±¥…Ρ•ΜθΑ•Ή‘¥ΉΥΑ•Μρπ€ΐ°(€€€Ν½Ι•ΙY•ΙΝ¥½ΈθM=II}YIM%=8°(€€€Ν½Ι•MΡ…ΡΜθμ(€€€€€…Ω•Ι…”θ…ΩM½Ι”°(€€€€€µ¥Έθµ¥ΉM½Ι”°(€€€€€µ…ΰθµ…αM½Ι”°(€€€€€Ρ½Ρ…±M½Ι•θΝ½Ι•MΡ…ΡΜόΉ±•ΉΡ ρπ€ΐ°(€€€τ°(€τ¤μ)τ
+
+  if (!(await isAuthorized(req))) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { action, reportId, batchSize = 100 } = req.body;
+
+  try {
+    switch (action) {
+      case 'check':
+        return await handleCheck(res);
+
+      case 'score-batch':
+        return await handleScoreBatch(res, Number(batchSize));
+
+      case 'score-all':
+        return await handleScoreAll(res);
+
+      case 'rescore-all':
+        return await handleRescoreAll(res, Number(batchSize));
+
+      case 'dedup-scan':
+        return await handleDedupScan(res);
+
+      case 'score-single':
+        if (!reportId) return res.status(400).json({ error: 'reportId required' });
+        return await handleScoreSingle(res, reportId);
+
+      case 'stats':
+        return await handleStats(res);
+
+      default:
+        return res.status(400).json({
+          error: 'Unknown action',
+          validActions: ['check', 'score-batch', 'score-all', 'rescore-all', 'dedup-scan', 'score-single', 'stats']
+        });
+    }
+  } catch (error) {
+    console.error('[quality-pipeline] Error:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}
+
+// ============================================================================
+// DIAGNOSTIC CHECK
+// ============================================================================
+
+async function handleCheck(res: NextApiResponse) {
+  const checks: Record<string, string> = {};
+
+  // Env vars
+  checks.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ? 'set' : 'MISSING';
+  checks.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ? 'set' : 'MISSING';
+  checks.CRON_SECRET = process.env.CRON_SECRET ? 'set' : 'MISSING';
+  checks.NODE_ENV = process.env.NODE_ENV || 'unknown';
+
+  // Supabase client
+  try {
+    const supabase = getSupabaseAdmin();
+    const { count, error } = await supabase
+      .from('reports')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'approved');
+    checks.supabaseConnection = error ? `error: ${error.message}` : `ok (${count} approved reports)`;
+  } catch (e) {
+    checks.supabaseConnection = `failed: ${e instanceof Error ? e.message : String(e)}`;
+  }
+
+  // Dynamic imports
+  try {
+    const scorer = await loadScorer();
+    checks.qualityScorer = scorer.scoreReport ? 'loaded' : 'loaded but scoreReport missing';
+  } catch (e) {
+    checks.qualityScorer = `import failed: ${e instanceof Error ? e.message : String(e)}`;
+  }
+
+  try {
+    const dedup = await loadDedup();
+    checks.dedup = dedup.findDuplicates ? 'loaded' : 'loaded but findDuplicates missing';
+  } catch (e) {
+    checks.dedup = `import failed: ${e instanceof Error ? e.message : String(e)}`;
+  }
+
+  return res.status(200).json({
+    status: 'ok',
+    scorerVersion: SCORER_VERSION,
+    checks,
+  });
+}
+
+// ============================================================================
+// SCORE A BATCH OF UNSCORED REPORTS
+// ============================================================================
+
+async function handleScoreBatch(res: NextApiResponse, batchSize: number) {
+  const supabase = getSupabaseAdmin();
+  const { scoreReport } = await loadScorer();
+  const { generateFingerprint } = await loadDedup();
+  const limit = Math.min(batchSize, 500);
+
+  // Fetch unscored approved/pending reports
+  const { data: reports, error } = await supabase
+    .from('reports')
+    .select('id, title, summary, description, category, location_name, country, state_province, city, latitude, longitude, event_date, event_time, witness_count, has_physical_evidence, has_photo_video, has_official_report, evidence_summary, source_type, credibility, tags')
+    .is('quality_score', null)
+    .in('status', ['approved', 'pending'])
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error('Failed to fetch reports: ' + error.message);
+  if (!reports || reports.length === 0) {
+    return res.status(200).json({ message: 'No unscored reports found', scored: 0 });
+  }
+
+  let scored = 0;
+  let errors = 0;
+  const gradeDistribution: Record<string, number> = { A: 0, B: 0, C: 0, D: 0, F: 0 };
+
+  for (const report of reports) {
+    try {
+      const result = scoreReport(report as any);
+      const fingerprint = generateFingerprint(
+        report.title,
+        report.event_date,
+        report.location_name
+      );
+
+      const { error: updateError } = await supabase
+        .from('reports')
+        .update({
+          quality_score: result.totalScore,
+          quality_grade: result.grade,
+          quality_dimensions: result.dimensions,
+          quality_scored_at: result.scoredAt,
+          quality_scorer_version: result.version,
+          content_fingerprint: fingerprint,
+        })
+        .eq('id', report.id);
+
+      if (!updateError) {
+        scored++;
+        gradeDistribution[result.grade]++;
+      } else {
+        errors++;
+        console.error('[quality-pipeline] Update error for', report.id, updateError.message);
+      }
+    } catch (e) {
+      errors++;
+      console.error('[quality-pipeline] Scoring error for', report.id, e);
+    }
+  }
+
+  return res.status(200).json({
+    message: 'Batch scoring complete',
+    total: reports.length,
+    scored,
+    errors,
+    gradeDistribution,
+  });
+}
+
+// ============================================================================
+// SCORE ALL UNSCORED REPORTS (iterative)
+// ============================================================================
+
+async function handleScoreAll(res: NextApiResponse) {
+  const supabase = getSupabaseAdmin();
+  const { scoreReport } = await loadScorer();
+  const { generateFingerprint } = await loadDedup();
+  const batchSize = 200;
+  let totalScored = 0;
+  let totalErrors = 0;
+  let hasMore = true;
+  const gradeDistribution: Record<string, number> = { A: 0, B: 0, C: 0, D: 0, F: 0 };
+
+  while (hasMore) {
+    const { data: reports, error } = await supabase
+      .from('reports')
+      .select('id, title, summary, description, category, location_name, country, state_province, city, latitude, longitude, event_date, event_time, witness_count, has_physical_evidence, has_photo_video, has_official_report, evidence_summary, source_type, credibility, tags')
+      .is('quality_score', null)
+      .in('status', ['approved', 'pending'])
+      .order('created_at', { ascending: false })
+      .limit(batchSize);
+
+    if (error) throw new Error('Fetch error: ' + error.message);
+    if (!reports || reports.length === 0) {
+      hasMore = false;
+      break;
+    }
+
+    for (const report of reports) {
+      try {
+        const result = scoreReport(report as any);
+        const fingerprint = generateFingerprint(report.title, report.event_date, report.location_name);
+
+        const { error: updateError } = await supabase
+          .from('reports')
+          .update({
+            quality_score: result.totalScore,
+            quality_grade: result.grade,
+            quality_dimensions: result.dimensions,
+            quality_scored_at: result.scoredAt,
+            quality_scorer_version: result.version,
+            content_fingerprint: fingerprint,
+          })
+          .eq('id', report.id);
+
+        if (!updateError) {
+          totalScored++;
+          gradeDistribution[result.grade]++;
+        } else {
+          totalErrors++;
+        }
+      } catch {
+        totalErrors++;
+      }
+    }
+
+    // Safety: if batch returned fewer than limit, we're done
+    if (reports.length < batchSize) hasMore = false;
+  }
+
+  return res.status(200).json({
+    message: 'Full scoring complete',
+    totalScored,
+    totalErrors,
+    gradeDistribution,
+  });
+}
+
+// ============================================================================
+// RE-SCORE ALL REPORTS (when scorer version changes)
+// ============================================================================
+
+async function handleRescoreAll(res: NextApiResponse, batchSize: number) {
+  const supabase = getSupabaseAdmin();
+  const { scoreReport } = await loadScorer();
+  const { generateFingerprint } = await loadDedup();
+  const limit = Math.min(batchSize, 500);
+
+  // Find reports with outdated scorer version
+  const { data: reports, error } = await supabase
+    .from('reports')
+    .select('id, title, summary, description, category, location_name, country, state_province, city, latitude, longitude, event_date, event_time, witness_count, has_physical_evidence, has_photo_video, has_official_report, evidence_summary, source_type, credibility, tags')
+    .neq('quality_scorer_version', SCORER_VERSION)
+    .in('status', ['approved', 'pending'])
+    .limit(limit);
+
+  if (error) throw new Error('Fetch error: ' + error.message);
+  if (!reports || reports.length === 0) {
+    return res.status(200).json({ message: 'All reports are on current scorer version', rescored: 0 });
+  }
+
+  let rescored = 0;
+  for (const report of reports) {
+    try {
+      const result = scoreReport(report as any);
+      const fingerprint = generateFingerprint(report.title, report.event_date, report.location_name);
+
+      await supabase
+        .from('reports')
+        .update({
+          quality_score: result.totalScore,
+          quality_grade: result.grade,
+          quality_dimensions: result.dimensions,
+          quality_scored_at: result.scoredAt,
+          quality_scorer_version: result.version,
+          content_fingerprint: fingerprint,
+        })
+        .eq('id', report.id);
+
+      rescored++;
+    } catch {
+      // continue
+    }
+  }
+
+  return res.status(200).json({
+    message: 'Re-scoring batch complete',
+    total: reports.length,
+    rescored,
+    remaining: reports.length === limit ? 'more batches needed' : 'done',
+  });
+}
+
+// ============================================================================
+// DEDUP SCAN β€” find duplicates among approved reports
+// ============================================================================
+
+async function handleDedupScan(res: NextApiResponse) {
+  const supabase = getSupabaseAdmin();
+  const { findDuplicates, generateFingerprint } = await loadDedup();
+
+  // Fetch all approved reports (limited fields for performance)
+  const { data: reports, error } = await supabase
+    .from('reports')
+    .select('id, title, location_name, city, state_province, country, latitude, longitude, event_date, source_type, original_report_id, description')
+    .eq('status', 'approved')
+    .order('created_at', { ascending: false })
+    .limit(2000); // Safety cap
+
+  if (error) throw new Error('Fetch error: ' + error.message);
+  if (!reports || reports.length === 0) {
+    return res.status(200).json({ message: 'No reports to scan', duplicatesFound: 0 });
+  }
+
+  // First pass: exact fingerprint matches
+  const fingerprints = new Map<string, string[]>();
+  for (const r of reports) {
+    const fp = generateFingerprint(r.title, r.event_date, r.location_name);
+    if (!fingerprints.has(fp)) fingerprints.set(fp, []);
+    fingerprints.get(fp)!.push(r.id);
+  }
+
+  const exactDupes = Array.from(fingerprints.values()).filter(ids => ids.length > 1);
+
+  // Second pass: fuzzy matching
+  const candidates = reports.map(r => ({
+    id: r.id,
+    title: r.title,
+    location_name: r.location_name,
+    city: r.city,
+    state_province: r.state_province,
+    country: r.country,
+    latitude: r.latitude,
+    longitude: r.longitude,
+    event_date: r.event_date,
+    source_type: r.source_type,
+    original_report_id: r.original_report_id,
+    description: r.description ? r.description.substring(0, 500) : undefined,
+  }));
+
+  const dedupResult = findDuplicates(candidates);
+
+  // Store detected duplicates in the database
+  let stored = 0;
+  for (const match of dedupResult.matches) {
+    try {
+      const { error: insertError } = await supabase
+        .from('duplicate_matches')
+        .upsert({
+          report_a_id: match.reportA < match.reportB ? match.reportA : match.reportB,
+          report_b_id: match.reportA < match.reportB ? match.reportB : match.reportA,
+          title_similarity: match.titleSimilarity,
+          location_similarity: match.locationSimilarity,
+          date_similarity: match.dateSimilarity,
+          content_similarity: match.contentSimilarity,
+          overall_score: match.overallScore,
+          confidence: match.confidence,
+          details: match.details,
+          resolution: 'pending',
+        }, {
+          onConflict: 'idx_duplicate_matches_pair',
+          ignoreDuplicates: false,
+        });
+
+      if (!insertError) stored++;
+    } catch (e) {
+      console.error('[dedup] Failed to store match:', e);
+    }
+  }
+
+  return res.status(200).json({
+    message: 'Dedup scan complete',
+    reportsScanned: reports.length,
+    exactFingerprintDupes: exactDupes.length,
+    fuzzyDuplicatesFound: dedupResult.duplicatesFound,
+    matchesStored: stored,
+    comparisons: dedupResult.totalCompared,
+    duration: dedupResult.duration + 'ms',
+    topMatches: dedupResult.matches.slice(0, 10).map(m => ({
+      confidence: m.confidence,
+      overall: m.overallScore,
+      details: m.details,
+    })),
+  });
+}
+
+// ============================================================================
+// SCORE A SINGLE REPORT
+// ============================================================================
+
+async function handleScoreSingle(res: NextApiResponse, reportId: string) {
+  const supabase = getSupabaseAdmin();
+  const { scoreReport } = await loadScorer();
+  const { generateFingerprint } = await loadDedup();
+
+  const { data: report, error } = await supabase
+    .from('reports')
+    .select('id, title, summary, description, category, location_name, country, state_province, city, latitude, longitude, event_date, event_time, witness_count, has_physical_evidence, has_photo_video, has_official_report, evidence_summary, source_type, credibility, tags')
+    .eq('id', reportId)
+    .single();
+
+  if (error || !report) {
+    return res.status(404).json({ error: 'Report not found' });
+  }
+
+  const result = scoreReport(report as any);
+  const fingerprint = generateFingerprint(report.title, report.event_date, report.location_name);
+
+  // Save to DB
+  await supabase
+    .from('reports')
+    .update({
+      quality_score: result.totalScore,
+      quality_grade: result.grade,
+      quality_dimensions: result.dimensions,
+      quality_scored_at: result.scoredAt,
+      quality_scorer_version: result.version,
+      content_fingerprint: fingerprint,
+    })
+    .eq('id', report.id);
+
+  return res.status(200).json({
+    reportId: report.id,
+    title: report.title,
+    ...result,
+  });
+}
+
+// ============================================================================
+// STATS β€” quality distribution overview
+// ============================================================================
+
+async function handleStats(res: NextApiResponse) {
+  const supabase = getSupabaseAdmin();
+
+  // Grade distribution
+  const { data: distribution } = await supabase.rpc('get_quality_distribution');
+
+  // Unscored count
+  const { count: unscoredCount } = await supabase
+    .from('reports')
+    .select('*', { count: 'exact', head: true })
+    .is('quality_score', null)
+    .in('status', ['approved', 'pending']);
+
+  // Pending duplicates
+  const { count: pendingDupes } = await supabase
+    .from('duplicate_matches')
+    .select('*', { count: 'exact', head: true })
+    .or('resolution.is.null,resolution.eq.pending');
+
+  // Score stats
+  const { data: scoreStats } = await supabase
+    .from('reports')
+    .select('quality_score')
+    .not('quality_score', 'is', null)
+    .eq('status', 'approved');
+
+  let avgScore = 0;
+  let minScore = 0;
+  let maxScore = 0;
+  if (scoreStats && scoreStats.length > 0) {
+    const scores = scoreStats.map(r => r.quality_score).filter(Boolean) as number[];
+    avgScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    minScore = Math.min(...scores);
+    maxScore = Math.max(...scores);
+  }
+
+  return res.status(200).json({
+    gradeDistribution: distribution || [],
+    unscoredReports: unscoredCount || 0,
+    pendingDuplicates: pendingDupes || 0,
+    scorerVersion: SCORER_VERSION,
+    scoreStats: {
+      average: avgScore,
+      min: minScore,
+      max: maxScore,
+      totalScored: scoreStats?.length || 0,
+    },
+  });
+}

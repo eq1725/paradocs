@@ -6,12 +6,12 @@ import Head from 'next/head'
 import { Search, SlidersHorizontal, X, ChevronDown, Sparkles, ArrowRight, TrendingUp, MapPin, Heart, Clock, ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { Report, PhenomenonType, PhenomenonCategory, CredibilityLevel, ContentType } from 'A/lib/database.types'
+import { Report, PhenomenonType, PhenomenonCategory, CredibilityLevel, ContentType } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG, CONTENT_TYPE_CONFIG, COUNTRIES } from '@/lib/constants'
 import CategoryFilter from '@/components/CategoryFilter'
 import SubcategoryFilter from '@/components/SubcategoryFilter'
 import ReportCard from '@/components/ReportCard'
-import { classNames } from 'A/lib/utils'
+import { classNames } from '@/lib/utils'
 import AskTheUnknown from '@/components/AskTheUnknown'
 import WelcomeOnboarding, { hasCompletedWelcome } from '@/components/WelcomeOnboarding'
 
@@ -40,7 +40,7 @@ interface FeedSection {
   reports: FeedReport[]
 }
 
-type SortOption = 'newest' | 'oldest' | 'popular' | "most_viewed'
+type SortOption = 'newest' | 'oldest' | 'popular' | 'most_viewed'
 
 export default function ExplorePage() {
   const router = useRouter()
@@ -431,7 +431,7 @@ export default function ExplorePage() {
             Discover
           </button>
           <button
-            onClick={() => setActiveView('browse')}
+           onClick={(() => setActiveView('browse')}
             className={classNames(
               'px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2',
               activeView === 'browse'
@@ -658,7 +658,7 @@ export default function ExplorePage() {
                 className="bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm"
               >
                 <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
+                <option value="oldest">Oldest First</opt	on>
                 <option value="popular">Most Popular</option>
                 <option value="most_viewed">Most Viewed</option>
               </select>
@@ -767,6 +767,5 @@ export default function ExplorePage() {
       {showWelcome && <WelcomeOnboarding onComplete={() => setShowWelcome(false)} />}
       <AskTheUnknown />
     </>
-  
-  }
-  }
+  )
+}

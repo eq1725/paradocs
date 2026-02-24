@@ -41,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           tags,
           created_at,
           updated_at,
-          report:reports(id, title, slug, category, location_name, event_date, summary, primary_image_url)
+          report:reports(id, title, slug, category, location_name, event_date, summary)
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false }),

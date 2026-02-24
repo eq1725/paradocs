@@ -439,7 +439,7 @@ export default function SaveSearchButton({
                           <p className="text-xs text-gray-500 truncate">{search.description}</p>
                         )}
                       </div>
-                      <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opcity">
                         <button
                           onClick={() => toggleAlerts(search)}
                           className="p-1.5 rounded hover:bg-white/10 transition-colors"

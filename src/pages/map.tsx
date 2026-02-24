@@ -5,12 +5,12 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { X, ExternalLink, MapPin, Gauge, Filter, ChevronUp, ChevronDown, Loader, AlertCircle } from 'lucide-react'
-import { supabase } from 'A/lib/supabase'
-import { Report, PhenomenonCategory, CredibilityLevel } from 'A/lib/database.types'
+import { supabase } from '@/lib/supabase'
+import { Report, PhenomenonCategory, CredibilityLevel } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG, COUNTRIES } from '@/lib/constants'
 import MapView from '@/components/MapView'
-import CategoryFilter from 'A/components/CategoryFilter'
-import { formatDate, classNames } from 'A/lib/utils'
+import CategoryFilter from '@/components/CategoryFilter'
+import { formatDate, classNames } from '@/lib/utils'
 
 interface ReportWithDistance extends Report {
   distance_miles?: number
@@ -72,21 +72,7 @@ export default function MapPage() {
       if (credibility) params.credibility = credibility
       if (country) params.country = country
       if (dateFrom) params.dateFrom = dateFrom
-      if (dateTo) params.dateTo = dateTo
-      if (hasEvidence) params.hasEvidence = 'true'
-      if (useProximity) {
-        params.proximity = 'true'
-        params.radius = String(proximityRadius)
-      }
-      router.replace({ pathname: '/map', query: params }, undefined, { shallow: true })
-    }, 300)
-    return () => clearTimeout(timeout)
-  }, [initialized, category, searchQuery, credibility, country, dateFrom, dateTo, hasEvidence, useProximity, proximityRadius])
-
-  // Load all geocoded reports
-  const loadReports = useCallback(async () => {
-    setLoading(true)
-    setProximityError(null)
+      if )‘…Ñ•Q¼¤Á…É…µÌ¹‘…Ñ•Q¼€ô‘…Ñ•Q¼(€€€€€¥˜€¡¡…ÍÙ¥‘•¹”¤Á…É…µÌ¹¡…ÍÙ¥‘•¹”€ô€ÑÉÕ”œ(€€€€€¥˜€¡ÕÍ•AÉ½á¥µ¥Ñä¤ì(€€€€€€€Á…É…µÌ¹ÁÉ½á¥µ¥Ñä€ô€ÑÉÕ”œ(€€€€€€€Á…É…µÌ¹É…‘¥ÕÌ€ôMÑÉ¥¹œ¡ÁÉ½á¥µ¥ÑåI…‘¥ÕÌ¤(€€€€€ô(€€€€€É½ÕÑ•È¹É•Á±…”¡ìÁ…Ñ¡¹…µ”è€œ½µ…Àœ°ÅÕ•ÉäèÁ…É…µÌô°Õ¹‘•™¥¹•°ìÍ¡…±±½ÜèÑÉÕ”ô¤(€€€ô°€ÌÀÀ¤(€€€É•ÑÕÉ¸€ ¤€ôø±•…ÉQ¥µ•½ÕÐ¡Ñ¥µ•½ÕÐ¤(€ô°m¥¹¥Ñ¥…±¥é•°…Ñ•½Éä°Í•…É¡EÕ•Éä°É•‘¥‰¥±¥Ñä°½Õ¹ÑÉä°‘…Ñ•É½´°‘…Ñ•Q¼°¡…ÍÙ¥‘•¹”°ÕÍ•AÉ½á¥µ¥Ñä°ÁÉ½á¥µ¥ÑåI…‘¥ÕÍt¤((€€¼¼1½……±°•½½‘•É•Á½ÉÑÌ(€½¹ÍÐ±½…‘I•Á½ÉÑÌ€ôÕÍ•…±±‰…¬¡…Íå¹Œ€ ¤€ôøì(€€€Í•Ñ1½…‘¥¹œ¡ÑÉÕ”¤(€€€Í•ÑAÉ½á¥µ¥ÑåÉÉ½È¡¹Õll)
     try {
       let query = supabase
         .from('reports')
@@ -478,153 +464,270 @@ export default function MapPage() {
             )}
 
             {/* Selected report panel */}
-            { selectedReport && categoryConfig && (
+            {selectedReport && categoryConfig && (
               <div className="absolute top-4 right-4 w-full sm:w-96 glass-card p-5 animate-slide-in max-h-[calc(100vh-8rem)] overflow-y-auto">
                 <div className="flex items-start justify-between gap-2 mb-3">
-                   <div classNames={classNames(
-                      'w-10 h-10 rounded-lg flex items-center justify-center text-xl flex-shrink-0',
-                      categoryConfig.bgColor
-                    )}>
+                  <div className={classNames(
+                    'w-10 h-10 rounded-lg flex items-center justify-center text-xl flex-shrink-0',
+                    categoryConfig.bgColor
+                  )}>
                     {categoryConfig.icon}
-                   </div>
-                   <div className="flex gap-2">
-                      {credibilityConfig && (
-                        <span className={classNames(
-                           'text-xs px-2 py-1 rounded-full font-medium',
-                           credibilityConfig.bgColor,
-                           credibilityConfig.color
-                        )}>
-                          {credibilityConfig.label}
-                        </span>
-                      ).}
-                      <button
-                        onClick={() => setSelectedReport(null)}
-                        className="p-1 hover:bg-white/10 rounded transition-colors"
-                      >
-                        <X className="w-4 h-4 text-gray-400" />
-                      </button>
-                     </div>
                   </div>
-
-                  <h3 className="font-semibold text-white text-base mb-2">
-                    {selectedReport.title}
-                  </h3>
-
-                  <p className="text-sm text-gray-300 mb-3 line-clamp-4">
-                     {selectedReport.summary}
-                  </p>
-
-                  <div className="space-y-2 text-xs text-gray-400 mb-4">
-                      {selectedReport.location_name && (
-                        <div className="flex items-start gap-2">
-                          <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                          <span>{selectedReport.location_name}</span>
-                        </div>
-                      )}
-                      {selectedReport.event_date && (
-                        <div className="flex items-start gap-2">
-                          <span>ðŸ‘¥</span>
-                          <span>{formatDate(selectedReport.event_date)}</span>
-                        </div>
-                      )}
-                      {selectedReport.witness_count > 0 && (
-                        <div className="flex items-start gap-2">
-                          <span>ðŸ‘¥</span>
-                          <span>{successReport.wivness_count} {sreportivVirîess_count === 1 ? 'witness' : 'witnesses'}</span>
-                         </div>
-                      )}
-                      {selectedReport.distance_miles && (
-                        <div className="flex items-start gap-2">
-                          <Gauge className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                          <span>{selectedReport.distance_miles.toFixed(1)} miles away</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <Link
-                      href={`/report/${selectedReport.slug}`}
-                      className="inline-flex items-center justify-center w-full gap-2 px-4 py-2.5 rounded-lg bg-primary-500/20 text-primary-400 border border-primary-500/30 hover:bg-primary-500/30 transition-all font-medium text-sm"
+                  <div className="flex gap-2">
+                    {credibilityConfig && (
+                      <span className={classNames(
+                        'text-xs px-2 py-1 rounded-full font-medium',
+                        credibilityConfig.bgColor,
+                        credibilityConfig.color
+                      )}>
+                        {credibilityConfig.label}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => setSelectedReport(null)}
+                      className="p-1 hover:bg-white/10 rounded transition-colors"
                     >
-                      <ExternalLink className="w-4 h-4" />
-                      View Full Report
-                    </Link>
-                   </div>
-                (€€€€€€€€€€€€€€€ì¼¨1••¹€¨½ô(€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”‰½ÑÑ½´´Ð±•™Ð´Ð±…ÍÌµ…ÉÀ´Ðˆø(€€€€€€€€€€€€€€€€€€ñ Ð±…ÍÍ9…µ”ô‰Ñ•áÐµáÌ™½¹ÐµÍ•µ¥‰½±Ñ•áÐµÉ…ä´ÐÀÀµˆ´Ìˆù…Ñ•½Éä1••¹ð½ Ðø(€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰É¥É¥µ½±Ì´È…Àµà´Ì…Àµä´ÈÑ•áÐµáÌˆø(€€€€€€€€€€€€€€€€€€€€€í=‰©•Ð¹•¹ÑÉ¥•Ì¡Q=Ie}=9%¤¹Í±¥” À°€Ø¤¹µ…À ¡m­•ä°½¹™¥t¤€ôø€ (€€€€€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø­•äõí­•åô±…ÍÍ9…µ”ô‰™±•à¥Ñ•µÌµ•¹Ñ•È…À´Èˆø(€€€€€€€€€€€€€€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰Ñ•áÐµ±œˆùí½¹™¥œ¹¥½¹ôð½ÍÁ…¸ø(€€€€€€€€€€€€€€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ•Ìõí±…ÍÍ9…µ•Ì Ñ•áÐµÉ…ä´ÐÀÀÑ•áÐµáÌœ¥ôùí½¹™¥œ¹±…‰•°¹ÍÁ±¥Ð œ€œ¥lÁuôð½ÍÁ…¸ø(€€€€€€€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€€€€€€€¤¥ô(€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€€€€€€ì¼¨5½‰¥±”™¥±Ñ•È‰ÕÑÑ½¸€¨½ô(€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸(€€€€€€€€€€€€€€€€€½¹±¥¬õì ¤€ôøÍ•ÑM¡½Ý¥±Ñ•ÉÌ …Í¡½Ý¥±Ñ•ÉÌ¥ô(€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰µé¡¥‘‘•¸…‰Í½±ÕÑ”‰½ÑÑ½´´ÐÉ¥¡Ð´ÐÀ´ÌÉ½Õ¹‘•µ±œ‰œµÁÉ¥µ…Éä´ÔÀÀ¼ÈÀÑ•áÐµÁÉ¥µ…Éä´ÐÀÀ‰½É‘•È‰½É‘•ÈµÁÉ¥µ…Éä´ÔÀÀ¼ÌÀ¡½Ù•Èé‰œµÁÉ¥µ…Éä´ÔÀÀ¼ÌÀÑÉ…¹Í¥Ñ¥½¸µ…±°ˆ(€€€€€€€€€€€€€€€€ø(€€€€€€€€€€€€€€€€€€ñ¥±Ñ•È±…ÍÍ9…µ”ô‰Ü´Ô ´Ôˆ€¼ø(€€€€€€€€€€€€€€€€ð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€¥ô((€€€€€€€€€€€ì¼¨5½‰¥±”™¥±Ñ•ÈÍ¡••Ð€¨½ô(€€€€€€€€€€€íÍ¡½Ý¥±Ñ•ÉÌ€˜˜€ (€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰µé¡¥‘‘•¸™¥á•¥¹Í•Ð´Àè´ÐÀ™±•à¥Ñ•µÌµ•¹ˆø(€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰…‰Í½±ÕÑ”¥¹Í•Ð´À‰œµ‰±…¬¼ÐÀˆ½¹±¥¬õì ¤€ôøÍ•ÑM¡½Ý¥±Ñ•ÉÌ¡™…±Í”¥ô€¼ø(€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰É•±…Ñ¥Ù”Üµ™Õ±°‰œµÉ…ä´äÀÀÉ½Õ¹‘•µÐ´Éá°‰½É‘•ÈµÐ‰½É‘•ÈµÝ¡¥Ñ”¼ÄÀµ…àµ µlàÁÙ¡t½Ù•É™±½Üµäµ…ÕÑ¼ˆø(€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰ÍÑ¥­äÑ½À´À™±•à¥Ñ•µÌµ•¹Ñ•È©ÕÍÑ¥™äµ‰•ÑÝ••¸À´Ð‰½É‘•Èµˆ‰½É‘•ÈµÝ¡¥Ñ”¼ÄÀ‰œµÉ…ä´äÀÀˆø(€€€€€€€€€€€€€€€€€€€€ñ È±…ÍÍ9…µ”ô‰™½¹ÐµÍ•µ¥‰½±Ñ•áÐµÝ¡¥Ñ”ˆù¥±Ñ•ÉÌð½ Èø(€€€€€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸(€€€€€€€€€€€€€€€€€€€€€½¹±¥¬õì ¤€ôøÍ•ÑM¡½Ý¥±Ñ•ÉÌ¡™…±Í”¥ô(€€€€€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰À´Ä¡½Ù•Èé‰œµÝ¡¥Ñ”¼ÄÀÉ½Õ¹‘•ˆ(€€€€€€€€€€€€€€€€€€€€ø(€€€€€€€€€€€€€€€€€€€€€€ñ`±…ÍÍ9…µ”ô‰Ü´Ô ´ÔÑ•áÐµÉ…ä´ÐÀÀˆ€¼ø(€€€€€€€€€€€€€€€€€€€€ð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰À´ÐÍÁ…”µä´Ðˆø(€€€€€€€€€€€€€€€€€€€€€€ñ‘¥Øø(€€€€€€€€€€€€€€€€€€€€€€€€ñ Ì±…ÍÍ9…µ”ô‰Ñ•áÐµÍ´™½¹ÐµÍ•µ¥‰½±Ñ•áÐµÝ¡¥Ñ”µˆ´Èˆù…Ñ•½Éäð½ Ìø(€€€€€€€€€€€€€€€€€€€€€€€€ñ…Ñ•½Éå¥±Ñ•È(€€€€€€€€€€€€€€€€€€€€€€€€€Í•±•Ñ•õí…Ñ•½Éåô(€€€€€€€€€€€€€€€€€€€€€€€€€½¹¡…¹”õíÍ•Ñ…Ñ•½Éåô(€€€€€€€€€€€€€€€€€€€€€€€€¼ø(€€€€€€€€€€€€€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€€€€€€€€€€€€€ñ‘¥Øø(€€€€€€€€€€€€€€€€€€€€€€€€ñ±…‰•°±…ÍÍ9…µ”ô‰‰±½¬Ñ•áÐµáÌ™½¹Ðµµ•‘¥Õ´Ñ•áÐµÉ…ä´ÐÀÀµˆ´ÈˆùM•…É ð½±…‰•°ø(€€€€€€€€€€€€€€€€€€€€€€€€ñ¥¹ÁÕÐ(€€€€€€€€€€€€€€€€€€€€€€€€€ÑåÁ”ô‰Ñ•áÐˆ(€€€€€€€€€€€€€€€€€€€€€€€€€Á±…•¡½±‘•Èô‰M•…É Ñ¥Ñ±”°±½…Ñ¥½¸¸¸¸ˆ(€€€€€€€€€€€€€€€€€€€€€€€€€Ù…±Õ”õíÍ•…É¡EÕ•Éåô(€€€€€€€€€€€€€€€€€€€€€€€€€½¹¡…¹”õì¡”¤€ôøÍ•ÑM•…É¡EÕ•Éä¡”¹Ñ…É•Ð¹Ù…±Õ”¥ô(€€€€€€€€€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰Üµ™Õ±°Áà´ÌÁä´È‰œµÝ¡¥Ñ”¼Ô‰½É‘•È‰½É‘•ÈµÝ¡¥Ñ”¼ÄÀÉ½Õ¹‘•µ±œÑ•áÐµÍ´Ñ•áÐµÝ¡¥Ñ”Á±…•¡½±‘•ÈµÉ…ä´ÔÀÀ™½ÕÌé½ÕÑ±¥¹”µ¹½¹”™½ÕÌé‰½É‘•ÈµÁÉ¥µ…Éä´ÔÀÀ¼ÔÀˆ(€€€€€€€€€€€€€€€€€€€€€€€€¼ø(€€€€€€€€€€€€€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€€€€€€€€€€€€€ñ‘¥Øø(€€€€€€€€€€€€€€€€€€€€€€€€ñ±…‰•°±…ÍÍ9…µ”ô‰‰±½¬Ñ•áÐµáÌ™½¹Ðµµ•‘¥Õ´Ñ•áÐµÉ…ä´ÐÀÀµˆ´ÈˆùÉ•‘¥‰¥±¥Ñäð½±…‰•°ø(€€€€€€€€€€€€€€€€€€€€€€€€ñÍ•±•Ð(€€€€€€€€€€€€€€€€€€€€€€€€€Ù…±Õ”õíÉ•‘¥‰¥±¥Ñåô(€€€€€€€€€€€€€€€€€€€€€€€€€½¹¡…¹”õì¡”¤€ôøÍ•ÑÉ•‘¥‰¥±¥Ñä¡”¹Ñ…É•Ð¹Ù…±Õ”…ÌÉ•‘¥‰¥±¥Ñå1•Ù•°¥ô(€€€€€€€€€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰Üµ™Õ±°Áà´ÌÁä´È‰œµÝ¡¥Ñ”¼Ô‰½É‘•È‰½É‘•ÈµÝ¡¥Ñ”¼ÄÀÉ½Õ¹‘•µ±œÑ•áÐµÍ´Ñ•áÐµÝ¡¥Ñ”™½ÕÌé½ÕÑ±¥¹”µ¹½¹”™½ÕÌé‰½É‘•ÈµÁÉ¥µ…Éä´ÔÀÀ¼ÔÀˆ(€€€€€€€€€€€€€€€€€€€€€€€€ø(€€€€€€€€€€€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸Ù…±Õ”ôˆˆù±°É•‘¥‰¥±¥Ñä±•Ù•±Ìð½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€€€€€€€€€€€€í=‰©•Ð¹•¹ÑÉ¥•Ì¡I%	%1%Qe}=9%¤¹µ…À ¡m­•ä°½¹™¥t¤€ôø€ (€€€€€€€€€€€€€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸­•äõí­•åôÙ…±Õ”õí­•åôùí½¹™¥œ¹±…‰•±ôð½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€€€€€€€€€€€€€¤¥ô(€€€€€€€€€€€€€€€€€€€€€€€€ð½Í•±•Ðø(€€€€€€€€€€€€€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€€€€€€€€€€€€€ñ‘¥Øø(€€€€€€€€€€€€€€€€€€€€€€€€ñ±…‰•°±…ÍÍ9…µ”ô‰‰±½¬Ñ•áÐµáÌ™½¹Ðµµ•‘¥Õ´Ñ•áÐµÉ…ä´ÐÀÀµˆ´Èˆù½Õ¹ÑÉäð½±…‰•°ø(€€€€€€€€€€€€€€€€€€€€€€€€ñÍ•±•Ð(€€€€€€€€€€€€€€€€€€€€€€€€€Ù…±Õ”õí½Õ¹ÑÉåô(€€€€€€€€€€€€€€€€€€€€€€€€€½¹¡…¹”õì¡”¤€ôøÍ•Ñ½Õ¹ÑÉä¡”¹Ñ…É•Ð¹Ù…±Õ”¥ô(€€€€€€€€€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰Üµ™Õ±°Áà´ÌÁä´È‰œµÝ¡¥Ñ”¼Ô‰½É‘•È‰½É‘•ÈµÝ¡¥Ñ”¼ÄÀÉ½Õ¹‘•µ±œÑ•áÐµÍ´Ñ•áÐµÝ¡¥Ñ”™½ÕÌé½ÕÑ±¥¹”µ¹½¹”™½ÕÌé‰½É‘•ÈµÁÉ¥µ…Éä´ÔÀÀ¼ÔÀˆ(€€€€€€€€€€€€€€€€€€€€€€€€ø(€€€€€€€€€€€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸Ù…±Õ”ôˆˆù±°½Õ¹ÑÉ¥•Ìð½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€€€€€€€€€€€€í=U9QI%L¹µ…À¡Œ€ôø€ (€€€€€€€€€€€€€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸­•äõíôÙ…±Õ”õíôùíôð½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€€€€€€€€€€€€€¤¥ô(€€€€€€€€€€€€€€€€€€€€€€€€ð½Í•±•Ðø(€€€€€€€€€€€€€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€€€€€€€€€€€€€ñ‘¥Øø(€€€€€€€€€€€€€€€€€€€€€€€€ñ±…‰•°±…ÍÍ9…µ”ô‰‰±½¬Ñ•áÐµáÌ™½¹Ðµµ•‘¥Õ´Ñ•áÐµÉ…ä´ÐÀÀµˆ´ÈˆùÙ•¹Ð…Ñ”I…¹”ð½±…‰•°ø(€€€€€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰™±•à…À´Èˆø(€€€€€€€€€€€€€€€€€€€€€€€€€€ñ¥¹ÁÕÐ(€€€€€€€€€€€€€€€€€€€€€€€€€€€ÑåÁ”ô‰‘…Ñ”ˆ(€€€€€€€€€€€€€€€€€€€€€€€€€€€Ù…±Õ”õí‘…Ñ•É½µô(€€€€€€€€€€€€€€€€€€€€€€€€€€€½¹¡…¹”õì¡”¤€ôøÍ•Ñ…Ñ•É½´¡”¹Ñ…É•Ð¹Ù…±Õ”¥ô(€€€€€€€€€€€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰™±•à´ÄÁà´ÌÁä´È‰œµÝ¡¥Ñ”¼Ô‰½É‘•È‰½É‘•ÈµÝ¡¥Ñ”¼ÄÀÉ½Õ¹‘•µ±œÑ•áÐµÍ´Ñ•áÐµÝ¡¥Ñ”™½ÕÌé½ÕÑ±¥¹”µ¹½¹”™½ÕÌé‰½É‘•ÈµÁÉ¥µ…Éä´ÔÀÀ¼ÔÀˆ(€€€€€€€€€€€€€€€€€€€€€€€€€€¼ø(€€€€€€€€€€€€€€€€€€€€€€€€€€ñ¥¹ÁÕÐ(€€€€€€€€€€€€€€€€€€€€€€€€€€€ÑåÁ”ô‰‘…Ñ”ˆ(€€€€€€€€€€€€€€€€€€€€€€€€€€€Ù…±Õ”õí‘…Ñ•Q½ô(€€€€€€€€€€€€€€€€€€€€€€€€€€€½¹¡…¹”õì¡”¤€ôøÍ•Ñ…Ñ•Q¼¡”¹Ñ…É•Ð¹Ù…±Õ”¥ô(€€€€€€€€€€€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰™±•à´ÄÁà´ÌÁä´È‰œµÝ¡¥Ñ”´Ô‰½É‘•È‰½É‘•ÈµÝ¡¥Ñ”¼ÄÀÉ½Õ¹‘•µ±œÑ•áÐµÍ´Ñ•áÐµÝ¡¥Ñ”™½ÕÌé½ÕÑ±¥¹”µ¹½¹”™½ÕÌé‰½É‘•ÈµÁÉ¥µ…Éä´ÔÀÀ¼ÔÀˆ(€€€€€€€€€€€€€€€€€€€€€€€€€€€¼ø(€€€€€€€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€€€€€€€€€€€€€ñ±…‰•°±…ÍÍ9…µ”ô‰™±•à¥Ñ•µÌµ•¹Ñ•È…À´ÈÕÉÍ½ÈµÁ½¥¹Ñ•Èˆø(€€€€€€€€€€€€€€€€€€€€€€€€ñ¥¹ÁÕÐ(€€€€€€€€€€€€€€€€€€€€€€€€€ÑåÁ”ô‰¡•­‰½àˆ(€€€€€€€€€€€€€€€€€€€€€€€€€¡•­•õí¡…ÍÙ¥‘•¹•ô(€€€€€€€€€€€€€€€€€€€€€€€€€½¹¡…¹”õì¡”¤€ôøÍ•Ñ!…ÍÙ¥‘•¹”¡”¹Ñ…É•Ð¹¡•­•¥ô(€€€€€€€€€€€€€€€€€€€€€€€€€±…ÍÍ9…µ”ô‰É½Õ¹‘•‰œµÝ¡¥Ñ”¼Ô‰½É‘•È‰½É‘•ÈµÝ¡¥Ñ”¼ÈÀˆ(€€€€€€€€€€€€€€€€€€€€€€€€¼ø(€€€€€€€€€€€€€€€€€€€€€€€€ñÍÁ…¸±…ÍÍ9…µ”ô‰Ñ•áÐµÍ´Ñ•áÐµÉ…ä´ÌÀÀˆù!…Ì•Ù¥‘•¹”ð½ÍÁ…¸ø(€€€€€€€€€€€€€€€€€€€€€€ð½±…‰•°ø(€€€€€€€€€€€€€€€€€€€€€€ñ‘¥Ø±…ÍÍ9…µ”ô‰ÁÐ´Ð‰½É‘•ÈµÐ‰½É‘•ÈµÝ¡¥Ñ”¼ÄÀˆø                 <button
-                    onClick={handleNearMe}
-                    disabled={proximityLoading}
-                    className={classNames(
-                      'w-full px-4 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2',
-                      useProximity
-                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                        : 'bg-primary-500/20 text-primary-400 border border-primary-500/30 hover:bg-primary-500/30'
-                    )}
-                  >
-                      {proximityLoading ? (
-                        <>
-                          <Loader className="w-4 h-4 animate-spin" />
-                          Getting location...
-                        </>
-                      ) : (
-                        <>
-                          <MapPin className="w-4 h-4" />
-                          Near Me
-                        </>
-                      )}
-                  </button>
-
-                    {useProximity && (
-                      <div className="mt-3 space-y-2">
-                        <div className="text-xs text-gray-400">
-                          Search radius: <span className="text-white font-semibold">{proximityRadius} miles</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="5"
-                          max="500"
-                          value={proximityRadius}
-                          onChange={(e) => setProximityRadius(parseInt(e.target.value, 10))}
-                          className="w-full"
-                        />
-                        <select
-                          value={proximitySort}
-                          onChange={(e) => setProximitySort(e.target.value as SortOption)}
-                          className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500/50"
-                        >
-                          <option value="distance">Sort by distance</option>
-                          <option value="credibility">Sort by credibility</option>
-                          <option value="date_recent">Sort by date (recent)</option>
-                          <option value="date_old">Sort by date (old)</option>
-                        </select>
-                      </div>
-                    ))}
-                    </div>
-
-                    {proximityError && (
-                      <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm flex gap-2">
-                        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                        {proximityError}
-                      </div>
-                    )}
-
-                    {activeFilterCount > 0 && (
-                      <button
-                        onClick={() => {
-                          setCategory('all')
-                          setSearchQuery('')
-                          setCredibility('')
-                          setCountry('')
-                          setDateFrom('')
-                          setDateTo('')
-                          setHasEvidence(false)
-                          setUseProximity(false)
-                          setProximityError(null)
-                        }}
-                        className="w-full px-4 py-2 rounded-lg text-sm font-medium bg-white/5 text-gray-400 hover:bg-white/10 transition-all"
-                      >
-                        Clear all filters
-                      </button>
-                    ))}
+                      <X className="w-4 h-4 text-gray-400" />
+                    </button>
                   </div>
                 </div>
+
+                <h3 className="font-semibold text-white text-base mb-2">
+                  {selectedReport.title}
+                </h3>
+
+                <p className="text-sm text-gray-300 mb-3 line-clamp-4">
+                  {selectedReport.summary}
+                </p>
+
+                <div className="space-y-2 text-xs text-gray-400 mb-4">
+                  {selectedReport.location_name && (
+                    <div className="flex items-start gap-2">
+                      <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <span>{selectedReport.location_name}</span>
+                    </div>
+                  )}
+                  {selectedReport.event_date && (
+                    <div className="flex items-start gap-2">
+                      <span>ðŸ“…</span>
+                      <span>{formatDate(selectedReport.event_date)}</span>
+                    </div>
+                  )}
+                  {selectedReport.witness_count > 0 && (
+                    <div className="flex items-start gap-2">
+                      <span>ðŸ‘¥</span>
+                      <span>{selectedReport.witness_count} {selectedReport.witness_count === 1 ? 'witness' : 'witnesses'}</span>
+                    </div>
+                  )}
+                  {selectedReport.distance_miles && (
+                    <div className="flex items-start gap-2">
+                      <Gauge className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <span>{selectedReport.distance_miles.toFixed(1)} miles away</span>
+                    </div>
+                  )}
+                </div>
+
+                <Link
+                  href={`/report/${selectedReport.slug}`}
+                  className="inline-flex items-center justify-center w-full gap-2 px-4 py-2.5 rounded-lg bg-primary-500/20 text-primary-400 border border-primary-500/30 hover:bg-primary-500/30 transition-all font-medium text-sm"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  View Full Report
+                </Link>
               </div>
-            %ö2Ò’ÂöF—câÂöF—câÂöF—sà¢Âóà¢§Ð
+            )}
+
+            {/* Legend */}
+            <div className="absolute bottom-4 left-4 glass-card p-4">
+              <h4 className="text-xs font-semibold text-gray-400 mb-3">Category Legend</h4>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                {Object.entries(CATEGORY_CONFIG).slice(0, 6).map(([key, config]) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <span className="text-lg">{config.icon}</span>
+                    <span className={classNames('text-gray-400 text-xs')}>{config.label.split(' ')[0]}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Mobile filter button */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="md:hidden absolute bottom-4 right-4 p-3 rounded-lg bg-primary-500/20 text-primary-400 border border-primary-500/30 hover:bg-primary-500/30 transition-all"
+            >
+              <Filter className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile filter sheet */}
+      {showFilters && (
+        <div className="md:hidden fixed inset-0 z-40 flex items-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowFilters(false)} />
+          <div className="relative w-full bg-gray-900 rounded-t-2xl border-t border-white/10 max-h-[80vh] overflow-y-auto">
+            <div className="sticky top-0 flex items-center justify-between p-4 border-b border-white/10 bg-gray-900">
+              <h2 className="font-semibold text-white">Filters</h2>
+              <button
+                onClick={() => setShowFilters(false)}
+                className="p-1 hover:bg-white/10 rounded"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-white mb-2">Category</h3>
+                <CategoryFilter
+                  selected={category}
+                  onChange={setCategory}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-2">Search</label>
+                <input
+                  type="text"
+                  placeholder="Search title, location..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-primary-500/50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-2">Credibility</label>
+                <select
+                  value={credibility}
+                  onChange={(e) => setCredibility(e.target.value as CredibilityLevel)}
+                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500/50"
+                >
+                  <option value="">All credibility levels</option>
+                  {Object.entries(CREDIBILITY_CONFIG).map(([key, config]) => (
+                    <option key={key} value={key}>{config.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-2">Country</label>
+                <select
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500/50"
+                >
+                  <option value="">All countries</option>
+                  {COUNTRIES.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-2">Event Date Range</label>
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500/50"
+                  />
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500/50"
+                  />
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={hasEvidence}
+                  onChange={(e) => setHasEvidence(e.target.checked)}
+                  className="rounded bg-white/5 border border-white/20"
+                />
+                <span className="text-sm text-gray-300">Has evidence</span>
+              </label>
+
+              <div className="pt-4 border-t border-white/10">
+                <button
+                  onClick={handleNearMe}
+                  disabled={proximityLoading}
+                  className={classNames(
+                    'w-full px-4 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2',
+                    useProximity
+                      ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                      : 'bg-primary-500/20 text-primary-400 border border-primary-500/30 hover:bg-primary-500/30'
+                  )}
+                >
+                  {proximityLoading ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      Getting location...
+                    </>
+                  ) : (
+                    <>
+                      <MapPin className="w-4 h-4" />
+                      Near Me
+                    </>
+                  )}
+                </button>
+
+                {useProximity && (
+                  <div className="mt-3 space-y-2">
+                    <div className="text-xs text-gray-400">
+                      Search radius: <span className="text-white font-semibold">{proximityRadius} miles</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="5"
+                      max="500"
+                      value={proximityRadius}
+                      onChange={(e) => setProximityRadius(parseInt(e.target.value, 10))}
+                      className="w-full"
+                    />
+                    <select
+                      value={proximitySort}
+                      onChange={(e) => setProximitySort(e.target.value as SortOption)}
+                      className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500/50"
+                    >
+                      <option value="distance">Sort by distance</option>
+                      <option value="credibility">Sort by credibility</option>
+                      <option value="date_recent">Sort by date (recent)</option>
+                      <option value="date_old">Sort by date (old)</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {proximityError && (
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm flex gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  {proximityError}
+                </div>
+              )}
+
+              {activeFilterCount > 0 && (
+                <button
+                  onClick={() => {
+                    setCategory('all')
+                    setCategory('all')
+                    setSearchQuery('')
+                    setCredibility('')
+                    setCountry('')
+                    setDateFrom('')
+                    setDateTo('')
+                    setHasEvidence(false)
+                    setUseProximity(false)
+                    setProximityError(null)
+                  }}
+                  className="w-full px-4 py-2 rounded-lg text-sm font-medium bg-white/5 text-gray-400 hover:bg-white/10 transition-all"
+                >
+                  Clear all filters
+                </button>
+              )}
+            </div>
+          </div>

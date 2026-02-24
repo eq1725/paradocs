@@ -4,9 +4,9 @@ import { EntryNode } from '@/pages/dashboard/constellation'
 import { ConnectionData } from './ConnectionDrawer'
 
 const VERDICT_ICONS: Record<string, { icon: string; color: string }> = {
-  compelling: { icon: '✦', color: 'text-amber-400' },
-  inconclusive: { icon: '◐', color: 'text-blue-400' },
-  skeptical: { icon: '⊘', color: 'text-gray-400' },
+  compelling: { icon: '\u2726', color: 'text-amber-400' },
+  inconclusive: { icon: '\u25D0', color: 'text-blue-400' },
+  skeptical: { icon: '\u2298', color: 'text-gray-400' },
   needs_info: { icon: '?', color: 'text-purple-400' },
 }
 
@@ -78,7 +78,7 @@ export default function TheoryPanel({
     setSaving(true)
     try {
       const method = mode === 'edit' ? 'PUT' : 'POST'
-      const body: any = {
+      const body: Record<string, unknown> = {
         title,
         thesis,
         entry_ids: selectedEntryIds,
@@ -88,7 +88,6 @@ export default function TheoryPanel({
       if (mode === 'edit' && editingTheory) {
         body.theory_id = editingTheory.id
       }
-
       const resp = await fetch('/api/constellation/theories', {
         method,
         headers: {
@@ -188,7 +187,7 @@ export default function TheoryPanel({
                               )}
                             </div>
                             <div className="text-gray-500 text-xs mt-0.5">
-                              {theory.entry_ids.length} entries · {theory.connection_ids.length} connections
+                              {theory.entry_ids.length} entries {'\u00B7'} {theory.connection_ids.length} connections
                             </div>
                           </div>
                         </button>
@@ -222,13 +221,15 @@ export default function TheoryPanel({
                                 onClick={() => startEdit(theory)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition-colors"
                               >
-                                <Edit3 className="w-3 h-3" /> Edit
+                                <Edit3 className="w-3 h-3" />
+                                Edit
                               </button>
                               <button
                                 onClick={() => handleDelete(theory.id)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-700 hover:bg-red-900/50 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
                               >
-                                <Trash2 className="w-3 h-3" /> Delete
+                                <Trash2 className="w-3 h-3" />
+                                Delete
                               </button>
                             </div>
                           </div>
@@ -250,7 +251,7 @@ export default function TheoryPanel({
                   type="text"
                   value={title}
                   onChange={e => setTitle(e.target.value)}
-                  placeholder='e.g., "Military Proximity Hypothesis"'
+                  placeholder="e.g., Military Proximity Hypothesis"
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-primary-500"
                   autoFocus
                 />
@@ -282,9 +283,7 @@ export default function TheoryPanel({
                         key={entry.id}
                         onClick={() => toggleEntry(entry.id)}
                         className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-xs transition-colors ${
-                          isSelected
-                            ? 'bg-primary-500/15 border border-primary-500/30'
-                            : 'hover:bg-gray-800 border border-transparent'
+                          isSelected ? 'bg-primary-500/15 border border-primary-500/30' : 'hover:bg-gray-800 border border-transparent'
                         }`}
                       >
                         <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
@@ -317,9 +316,7 @@ export default function TheoryPanel({
                           key={conn.id}
                           onClick={() => toggleConnection(conn.id)}
                           className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-xs transition-colors ${
-                            isSelected
-                              ? 'bg-cyan-500/15 border border-cyan-500/30'
-                              : 'hover:bg-gray-800 border border-transparent'
+                            isSelected ? 'bg-cyan-500/15 border border-cyan-500/30' : 'hover:bg-gray-800 border border-transparent'
                           }`}
                         >
                           <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
@@ -327,7 +324,7 @@ export default function TheoryPanel({
                           }`}>
                             {isSelected && <Check className="w-3 h-3 text-white" />}
                           </div>
-                          <span className="text-gray-300 truncate">{a.name} → {b.name}</span>
+                          <span className="text-gray-300 truncate">{a.name} {'\u2192'} {b.name}</span>
                         </button>
                       )
                     })}
@@ -372,7 +369,7 @@ export default function TheoryPanel({
                 onClick={() => { resetForm(); setMode('list') }}
                 className="text-sm text-gray-400 hover:text-white transition-colors"
               >
-                ← Back to list
+                {'\u2190'} Back to list
               </button>
               <button
                 onClick={handleSave}

@@ -4,17 +4,20 @@
  * Creates a Stripe Checkout session for upgrading to a paid plan.
  * Returns the checkout URL for the client to redirect to.
  *
- * Body: { plan: 'basic' | 'pro' }
+ * Body: { plan: 'basic' | 'pro' | 'enterprise', interval: 'monthly' | 'yearly' }
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createServerClient } from '@/lib/supabase';
 
+// Stripe price IDs (test mode) with env var override
 var STRIPE_PRICES: Record<string, string> = {
-  basic_monthly: process.env.STRIPE_PRICE_BASIC_MONTHLY || '',
-  basic_yearly: process.env.STRIPE_PRICE_BASIC_YEARLY || '',
-  pro_monthly: process.env.STRIPE_PRICE_PRO_MONTHLY || '',
-  pro_yearly: process.env.STRIPE_PRICE_PRO_YEARLY || '',
+  basic_monthly: process.env.STRIPE_PRICE_BASIC_MONTHLY || 'price_1T1HGTHMHkQBcyeVDyKOX9fC',
+  basic_yearly: process.env.STRIPE_PRICE_BASIC_YEARLY || 'price_1T1HGTHMHkQBcyeVQdtTr9ko',
+  pro_monthly: process.env.STRIPE_PRICE_PRO_MONTHLY || 'price_1T1HGbHMHkQBcyeVbgm9hrb7',
+  pro_yearly: process.env.STRIPE_PRICE_PRO_YEARLY || 'price_1T1HGbHMHkQBcyeVZWetRS39',
+  enterprise_monthly: process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY || 'price_1T2EDxHMHkQBcyeVcVsNEN7V',
+  enterprise_yearly: process.env.STRIPE_PRICE_ENTERPRISE_YEARLY || 'price_1T2EDxHMHkQBcyeVz3RMH74K',
 };
 
 export default async function handler(
@@ -34,8 +37,8 @@ export default async function handler(
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    var token = authHeader.replace('Bearer ', '');
-    var userResult = await supabase.auth.getUser(token);
+    var userToken = authHeader.replace('Bearer ', '');
+    var userResult = await supabase.auth.getUser(userToken);
 
     if (!userResult.data.user) {
       return res.status(401).json({ error: 'Not authenticated' });
@@ -64,7 +67,7 @@ export default async function handler(
     try {
       Stripe = (await import('stripe')).default;
     } catch (e) {
-      // Stripe not installed — return mock checkout
+      // Stripe not installed \u2014 return mock checkout
       return res.status(200).json({
         url: (process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com') +
           '/dashboard/settings?checkout=mock&plan=' + plan,

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { X, ChevronLeft, ChevronRight, Play, Pause, Volume2, VolumeX, Maximize2, FileText, ExternalLink, Film } from 'lucide-react'
-import { classNames } from 'A/lib/utils'
+import { classNames } from '@/lib/utils'
 
 interface MediaItem {
   id: string
@@ -326,7 +326,7 @@ export default function MediaGallery({ media, className }: MediaGalleryProps) {
           {selectedIndex !== null && selectedIndex > 0 && (
             <button
               onClick={(e) => { e.stopPropagation(); goToPrevious() }}
-              className="absolute left-4 p-2 text-white-70 hover:text-white transition-colors z-10"
+              className="absolute left-4 p-2 text-white/70 hover:text-white transition-colors z-10"
             >
               <ChevronLeft className="w-10 h-10" />
             </button>

@@ -481,8 +481,40 @@ export default function ConstellationMap({
       edgeGroup.selectAll('line').attr('opacity', 0).transition().delay(1200).duration(800).attr('opacity', 1)
       setIsInitialized(true)
     }
+
   }, [dimensions, userInterests, stats, selectedNode, compact, isInitialized, onNodeClick, userMapData])
 
-  const hoveredData = hoveredNode ? CO9NÕSUVS—Ó“ÑTË1[™
-ˆOˆ‹šYOOHÝ™\™Y›ÙJHˆ[‚ˆ™]\›ˆ
-ˆ]ˆ&Vc×¶6öçF–æW%&VgÒ6Æ74æÖSÒ'&VÆF—fRrÖgVÆÂ‚ÖgVÆÂ#à¢Ç7fp¢&Vc×·7fu&VgÐ¢v–GFƒ×¶F–ÖVç6–öç2çv–GF‡Ð¢†V–v‡C×¶F–ÖVç6–öç2æ†V–v‡GÐ¢6Æ74æÖSÒ&&r×G&ç7&VçB ¢7G–ÆS×·²F—7Æ“¢F–ÖVç6–öç2çv–GF‚âòv&Æö6²r¢væöæRr×Ð¢óà ¢²ò¢†÷fW"FööÇF—¢÷Ð¢²6ö×7Bbb†÷fW&VDFFbb€¢ÆF—`¢6Æ74æÖSÒ&'6öÇWFRö–çFW"ÖWfVçG2ÖæöæR&rÖw&’Ó“ó“R&÷&FW"&÷&FW"Öw&’Ós&÷VæFVBÖÆr‚Ó2’Ó"Ö‚×r×‡2¢Ó ¢7G–ÆS×·²ÆVgC¢sSRrÂ&÷GFöÓ¢sg‚rÂG&ç6f÷&Ó¢wG&ç6ÆFU‚‚ÓSR’r×Ð¢à¢ÆF—b6Æ74æÖSÒ&fÆW‚—FV×2Ö6VçFW"vÓ"#à¢Ç7â6Æ74æÖSÒ'FW‡BÖÆr#ç¶†÷fW&VDFFæ–6öçÓÂ÷7ãà¢Ç7â6Æ74æÖSÒ'FW‡B×v†—FRföçBÖÖVF—VÒFW‡B×6Ò#ç¶†÷fW&VDFFæÆ&VÇÓÂ÷7ãà¢·W6W$ÖFFòæ6FVv÷'•7FG3òå¶†÷fW&VDFFæ–EÒbb€¢Ç7â6Æ74æÖSÒ'FW‡B×‡2‚ÓãR’ÓãR&÷VæFVBÖgVÆÂ&r×W'ÆRÓSó#FW‡B×W'ÆRÓC#à¢·W6W$ÖFFæ6FVv÷'•7FG5¶†÷fW&VDFFæ–EÒæVçG&–W7ÒÆövvV@¢Â÷7ãà¢—Ð¢ÂöF—cà¢Ç6Æ74æÖSÒ'FW‡BÖw&’ÓCFW‡B×‡2×BÓ#ç¶†÷fW&VDFFæFW67&—F–öçÓÂ÷à¢Ç6Æ74æÖSÒ'FW‡BÖw&’ÓSFW‡B×‡2×BÓ#ä6Æ–6²FòW‡Æ÷&SÂ÷à¢ÂöF—cà¢—Ð¢ÂöF—cà¢ ¢)
+  const hoveredData = hoveredNode ? CONSTELLATION_NODES.find(n => n.id === hoveredNode) : null
+
+  return (
+    <div ref={containerRef} className="relative w-full h-full">
+      <svg
+        ref={svgRef}
+        width={dimensions.width}
+        height={dimensions.height}
+        className="bg-transparent"
+        style={{ display: dimensions.width > 0 ? 'block' : 'none' }}
+      />
+
+      {/* Hover tooltip */}
+      {!compact && hoveredData && (
+        <div
+          className="absolute pointer-events-none bg-gray-900/95 border border-gray-700 rounded-lg px-3 py-2 max-w-xs z-10"
+          style={{ left: '50%', bottom: '16px', transform: 'translateX(-50%)' }}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-lg">{hoveredData.icon}</span>
+            <span className="text-white font-medium text-sm">{hoveredData.label}</span>
+            {userMapData?.categoryStats?.[hoveredData.id] && (
+              <span className="text-xs px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-400">
+                {userMapData.categoryStats[hoveredData.id].entries} logged
+              </span>
+            )}
+          </div>
+          <p className="text-gray-400 text-xs mt-1">{hoveredData.description}</p>
+          <p className="text-gray-500 text-xs mt-1">Click to explore</p>
+        </div>
+      )}
+    </div>
+  )
+}

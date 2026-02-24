@@ -47,13 +47,13 @@ const CATEGORY_GRADIENTS: Record<string, string> = {
   combination: 'from-teal-950 via-gray-900 to-gray-950',
 }
 
-const DAMD{Record<string, { bg: string; text: string }> = {
-  'Low': { bg: 'bg-green-900.60', text: 'text-green-400' },
-  'Moderate': { bg: 'bg-yellow-900.60', text: 'text-yellow-400' },
-  'High': { bg: 'bg-orange-900.60', text: 'text-orange-400' },
-  'Extreme': { bg: 'bg-red-900.60', text: 'text-red-400' },
-  'Unknown': { bg: 'bg-gray-800.60', text: 'text-gray-400' },
-  'Varies': { bg: 'bg-purple-900.60', text: 'text-purple-400' },
+const DANGER_COLORS: Record<string, { bg: string; text: string }> = {
+  'Low': { bg: 'bg-green-900/60', text: 'text-green-400' },
+  'Moderate': { bg: 'bg-yellow-900/60', text: 'text-yellow-400' },
+  'High': { bg: 'bg-orange-900/60', text: 'text-orange-400' },
+  'Extreme': { bg: 'bg-red-900/60', text: 'text-red-400' },
+  'Unknown': { bg: 'bg-gray-800/60', text: 'text-gray-400' },
+  'Varies': { bg: 'bg-purple-900/60', text: 'text-purple-400' },
 }
 
 type ViewMode = 'grid' | 'list'
@@ -71,7 +71,132 @@ const CATEGORY_ORDER = [
   'esoteric_practices',
   'combination',
 ]
-rounded transition-colors',
+
+export default function PhenomenaPage() {
+  const [phenomena, setPhenomena] = useState<Phenomenon[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<string | 'all'>('all')
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
+
+  function toggleCategory(cat: string) {
+    setCollapsedCategories(prev => {
+      const next = new Set(prev)
+      if (next.has(cat)) {
+        next.delete(cat)
+      } else {
+        next.add(cat)
+      }
+      return next
+    })
+  }
+
+  function expandAll() {
+    setCollapsedCategories(new Set())
+  }
+
+  function collapseAll() {
+    setCollapsedCategories(new Set(CATEGORY_ORDER))
+  }
+
+  useEffect(() => {
+    loadPhenomena()
+  }, [])
+
+  async function loadPhenomena() {
+    try {
+      const res = await fetch('/api/phenomena')
+      const data = await res.json()
+      setPhenomena(data.phenomena || [])
+    } catch (error) {
+      console.error('Error loading phenomena:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Filter and group phenomena
+  const filteredPhenomena = phenomena.filter(p => {
+    const matchesSearch = searchQuery === '' ||
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.aliases?.some(a => a.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      p.ai_summary?.toLowerCase().includes(searchQuery.toLowerCase())
+
+    const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory
+
+    return matchesSearch && matchesCategory
+  })
+
+  // Group by category
+  const groupedPhenomena = CATEGORY_ORDER.reduce((acc, cat) => {
+    const items = filteredPhenomena.filter(p => p.category === cat)
+      .sort((a, b) => a.name.localeCompare(b.name))
+    if (items.length > 0) {
+      acc[cat] = items
+    }
+    return acc
+  }, {} as Record<string, Phenomenon[]>)
+
+  return (
+    <>
+      <Head>
+        <title>Phenomena Encyclopedia - Paradocs</title>
+        <meta name="description" content="Explore our comprehensive encyclopedia of paranormal phenomena, cryptids, UFOs, and unexplained events." />
+      </Head>
+
+      <div className="min-h-screen bg-gray-950">
+        {/* Header */}
+        <div className="bg-gradient-to-b from-gray-900 to-gray-950 border-b border-gray-800">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <h1 className="text-4xl font-bold text-white mb-4">
+              Phenomena Encyclopedia
+            </h1>
+            <p className="text-lg text-gray-400 max-w-3xl">
+              Explore our comprehensive database of paranormal phenomena, from cryptids like Bigfoot and Mothman
+              to UFO classifications and haunting types. Each entry includes detailed descriptions,
+              historical context, and links to related reports.
+            </p>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-sm border-b border-gray-800">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+              {/* Search */}
+              <div className="relative w-full sm:w-80">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search phenomena..."
+                  className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div className="flex gap-2 sm:gap-4 items-center w-full sm:w-auto">
+                {/* Category Filter */}
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="all">All Categories</option>
+                  {CATEGORY_ORDER.map(cat => (
+                    <option key={cat} value={cat}>
+                      {CATEGORY_CONFIG[cat as keyof typeof CATEGORY_CONFIG]?.icon} {CATEGORY_CONFIG[cat as keyof typeof CATEGORY_CONFIG]?.label}
+                    </option>
+                  ))}
+                </select>
+
+                {/* View Toggle */}
+                <div className="flex bg-gray-800 rounded-lg p-1 shrink-0">
+                  <button
+                    onClick={() => setViewMode('grid')}
+                    className={classNames(
+                      'p-2 rounded transition-colors',
                       viewMode === 'grid' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
                     )}
                   >
