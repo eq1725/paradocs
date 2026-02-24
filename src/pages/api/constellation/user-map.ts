@@ -41,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           tags,
           created_at,
           updated_at,
-          report:reports(id, title, slug, category, location_name, event_date, summary, primary_image_url)
+          report:reports(id, title, slug, category, location_name, event_date, summary, report_media(url, media_type, is_primary))
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false }),
@@ -112,13 +112,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         tagToEntries[tag].push(entry.id)
       }
 
+      // Extract image from report_media
+      const media = report?.report_media || []
+      const images = media.filter((m: any) => m.media_type === 'image' || m.url?.match(/\.(jpg|jpeg|png|webp|gif)/i))
+      const primaryImage = images.find((m: any) => m.is_primary) || images[0]
+
       return {
         id: entry.id,
         reportId: entry.report_id,
         name: report?.title || 'Unknown',
         slug: report?.slug || '',
         category: cat,
-        imageUrl: report?.primary_image_url || null,
+        imageUrl: primaryImage?.url || null,
         locationName: report?.location_name || null,
         eventDate: report?.event_date || null,
         summary: report?.summary || null,
