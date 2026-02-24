@@ -851,7 +851,7 @@ export default function Home() {
                 disabled={emailSubmitting}
                 className="btn btn-primary px-6 py-3 flex items-center gap-2"
               >
-                <Sen className="w-4 h-4" />
+                <Send className="w-4 h-4" />
                 {emailSubmitting ? '...' : 'Subscribe'}
               </button>
             </form>

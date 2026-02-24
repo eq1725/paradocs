@@ -642,7 +642,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             </span>
             {report.phenomenon_type && (
               <span className="px-3 py-1 rounded-full text-sm bg-white/5 text-gray-300">
-                {report.phnomenon_type.name}
+                {report.phenomenon_type.name}
               </span>
             )}
             {report.featured && (

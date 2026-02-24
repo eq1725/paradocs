@@ -72,7 +72,21 @@ export default function MapPage() {
       if (credibility) params.credibility = credibility
       if (country) params.country = country
       if (dateFrom) params.dateFrom = dateFrom
-      if )‘…Ñ•Q¼¤Á…É…µÌ¹‘…Ñ•Q¼€ô‘…Ñ•Q¼(€€€€€¥˜€¡¡…ÍÙ¥‘•¹”¤Á…É…µÌ¹¡…ÍÙ¥‘•¹”€ô€ÑÉÕ”œ(€€€€€¥˜€¡ÕÍ•AÉ½á¥µ¥Ñä¤ì(€€€€€€€Á…É…µÌ¹ÁÉ½á¥µ¥Ñä€ô€ÑÉÕ”œ(€€€€€€€Á…É…µÌ¹É…‘¥ÕÌ€ôMÑÉ¥¹œ¡ÁÉ½á¥µ¥ÑåI…‘¥ÕÌ¤(€€€€€ô(€€€€€É½ÕÑ•È¹É•Á±…”¡ìÁ…Ñ¡¹…µ”è€œ½µ…Àœ°ÅÕ•ÉäèÁ…É…µÌô°Õ¹‘•™¥¹•°ìÍ¡…±±½ÜèÑÉÕ”ô¤(€€€ô°€ÌÀÀ¤(€€€É•ÑÕÉ¸€ ¤€ôø±•…ÉQ¥µ•½ÕÐ¡Ñ¥µ•½ÕÐ¤(€ô°m¥¹¥Ñ¥…±¥é•°…Ñ•½Éä°Í•…É¡EÕ•Éä°É•‘¥‰¥±¥Ñä°½Õ¹ÑÉä°‘…Ñ•É½´°‘…Ñ•Q¼°¡…ÍÙ¥‘•¹”°ÕÍ•AÉ½á¥µ¥Ñä°ÁÉ½á¥µ¥ÑåI…‘¥ÕÍt¤((€€¼¼1½……±°•½½‘•É•Á½ÉÑÌ(€½¹ÍÐ±½…‘I•Á½ÉÑÌ€ôÕÍ•…±±‰…¬¡…Íå¹Œ€ ¤€ôøì(€€€Í•Ñ1½…‘¥¹œ¡ÑÉÕ”¤(€€€Í•ÑAÉ½á¥µ¥ÑåÉÉ½È¡¹Õll)
+      if (dateTo) params.dateTo = dateTo
+      if (hasEvidence) params.hasEvidence = 'true'
+      if (useProximity) {
+        params.proximity = 'true'
+        params.radius = String(proximityRadius)
+      }
+      router.replace({ pathname: '/map', query: params }, undefined, { shallow: true })
+    }, 300)
+    return () => clearTimeout(timeout)
+  }, [initialized, category, searchQuery, credibility, country, dateFrom, dateTo, hasEvidence, useProximity, proximityRadius])
+
+  // Load all geocoded reports
+  const loadReports = useCallback(async () => {
+    setLoading(true)
+    setProximityError(null)
     try {
       let query = supabase
         .from('reports')
@@ -714,7 +728,6 @@ export default function MapPage() {
                 <button
                   onClick={() => {
                     setCategory('all')
-                    setCategory('all')
                     setSearchQuery('')
                     setCredibility('')
                     setCountry('')
@@ -731,3 +744,8 @@ export default function MapPage() {
               )}
             </div>
           </div>
+        </div>
+      )}
+    </>
+  )
+}
