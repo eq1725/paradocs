@@ -23,15 +23,17 @@ import {
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import ConstellationMap from '@/components/dashboard/ConstellationMap'
-import ConstellationPanel from '@/components/dashboard/ConstellationPanel'
-import ConnectionDrawer, { ConnectionData } from '@/components/dashboard/ConnectionDrawer'
+import ConstellationMapV2 from 'A/components/dashboard/ConstellationMapV2'
+import ConstellationPanel from 'A/components/dashboard/ConstellationPanel'
+import NodeDetailPanel from 'A/components/dashboard/NodeDetailPanel'
+import ConnectionDrawer, { ConnectionData } from 'A/components/dashboard/ConnectionDrawer'
 import TheoryPanel, { TheoryData } from '@/components/dashboard/TheoryPanel'
-import ShareConstellation from '@/components/dashboard/ShareConstellation'
+import ShareConstellation from 'A/components/dashboard/ShareConstellation'
 import { usePersonalization } from '@/lib/hooks/usePersonalization'
 import { supabase } from '@/lib/supabase'
-import { PhenomenonCategory } from '@/lib/database.types'
-import { ConstellationStats, getSuggestedExplorations, getNode } from '@/lib/constellation-data'
-import { classNames } from '@/lib/utils'
+import { PhenomenonCategory } from 'A/lib/database.types'
+import { ConstellationStats, getSuggestedExplorations, getNode } from 'A/lib/constellation-data'
+import { classNames } from 'A/lib/utils'
 import Link from 'next/link'
 
 // Verdict display config
@@ -47,7 +49,7 @@ const RANKS = [
   { name: 'Stargazer', minEntries: 0, icon: '🔭', color: 'text-gray-400', desc: 'Log your first entries' },
   { name: 'Field Researcher', minEntries: 3, icon: '📋', color: 'text-blue-400', desc: '3+ entries with notes' },
   { name: 'Pattern Seeker', minEntries: 10, icon: '🔍', color: 'text-purple-400', desc: '10+ entries, 5+ tags, connections' },
-  { name: 'Cartographer', minEntries: 25, icon: '🗺️', color: 'text-amber-400', desc: '25+ entries across 6+ categories' },
+  { name: 'Cartographer', minEntries: 25, icon: '📚️', color: 'text-amber-400', desc: '25+ entries across 6+ categories' },
   { name: 'Master Archivist', minEntries: 50, icon: '📜', color: 'text-red-400', desc: '50+ entries, 8+ categories, 10+ connections' },
 ]
 
@@ -112,6 +114,7 @@ export default function ConstellationPage() {
   const [isProfilePublic, setIsProfilePublic] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const svgRef = useRef<SVGSVGElement | null>(null)
+  const [selectedEntry, setSelectedEntry] = useState<EntryNode | null>(null)
   const [guideCollapsed, setGuideCollapsed] = useState(true) // default collapsed, will resolve on mount
 
   // Persist guide collapsed state in localStorage
@@ -390,7 +393,7 @@ export default function ConstellationPage() {
           </div>
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 sm:p-4">
             <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-              <Tag className="w-3.5 h-3.5 text-amber-400" />
+              <Tag className="v-3.5 h-3.5 text-amber-400" />
               Tags Created
             </div>
             <div className="text-xl sm:text-2xl font-bold text-white">{mapStats?.uniqueTags || 0}</div>
@@ -398,7 +401,7 @@ export default function ConstellationPage() {
           </div>
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 sm:p-4">
             <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-              <Link2 className="w-3.5 h-3.5 text-green-400" />
+              <Link2 className="v-3.5 h-3.5 text-green-400" />
               Connections
             </div>
             <div className="text-xl sm:text-2xl font-bold text-white">
@@ -443,52 +446,37 @@ export default function ConstellationPage() {
             onClick={() => setShareOpen(true)}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 border border-gray-700 hover:border-purple-500/40 text-gray-300 hover:text-purple-400 rounded-xl text-sm font-medium transition-all"
           >
-            <Share2 className="w-4 h-4" />
+            <Share2 className="v-4 h-4" />
             Share
           </button>
         </div>
 
-        {/* Main constellation area */}
+        {/* Main constellation area — V2 interactive star map */}
         <div className="relative bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden">
-          <div className="w-full" style={{ height: 'clamp(320px, 55vh, 600px)' }}>
-            <ConstellationMap
-              userInterests={userInterests}
-              stats={stats}
-              onNodeClick={setSelectedCategory}
-              selectedNode={selectedCategory}
-              userMapData={userMapData}
-              svgRef={svgRef}
-            />
-          </div>
+          <ConstellationMapV2
+            userMapData={userMapData}
+            onSelectEntry={setSelectedEntry}
+            selectedEntryId={selectedEntry?.id}
+          />
 
-          {/* Getting started banner for new users - non-blocking */}
-          {!personalLoading && (!mapStats || mapStats.totalEntries === 0) && (
-            <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-gray-950 via-gray-950/95 to-transparent pt-12 pb-4 px-4">
-              <div className="max-w-lg mx-auto text-center">
-                <p className="text-gray-300 text-sm mb-3">
-                  Your constellation is empty. Explore reports and tap the <Star className="w-3.5 h-3.5 inline text-purple-400" /> <span className="text-purple-400 font-medium">Log</span> button to add your first star.
-                </p>
-                <div className="flex gap-3 justify-center">
-                  <Link
-                    href="/explore"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-500 text-white rounded-lg text-sm font-medium transition-colors"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Browse Reports
-                  </Link>
-                  <Link
-                    href="/discover"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    <Compass className="w-4 h-4" />
-                    Discover
-                  </Link>
-                </div>
-              </div>
-            </div>
+          {/* Node detail slide-out panel */}
+          {selectedEntry && (
+            <NodeDetailPanel
+              entry={selectedEntry}
+              userMapData={userMapData}
+              onClose={() => setSelectedEntry(null)}
+              onTagClick={(tag) => {
+                // Could filter/highlight by tag in future
+                setSelectedEntry(null)
+              }}
+              onEntryClick={(entryId) => {
+                const entry = userMapData?.entryNodes.find(e => e.id === entryId)
+                if (entry) setSelectedEntry(entry)
+              }}
+            />
           )}
 
-          {/* Slide-out panel */}
+          {/* Category panel (from suggested explorations) */}
           <ConstellationPanel
             category={selectedCategory}
             onClose={() => setSelectedCategory(null)}
@@ -497,30 +485,6 @@ export default function ConstellationPage() {
             stats={stats}
             userMapData={userMapData}
           />
-
-          {/* Legend */}
-          <div className="absolute bottom-2 left-2 sm:bottom-4 sm:left-4 bg-gray-900/90 backdrop-blur-sm border border-gray-800 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-xs space-y-1 sm:space-y-1.5">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.5)]" />
-              <span className="text-gray-300">Compelling</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.5)]" />
-              <span className="text-gray-300">Inconclusive</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-gray-400" />
-              <span className="text-gray-400">Skeptical</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-purple-400" />
-              <span className="text-gray-400">Need More Info</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-px bg-amber-400/50" />
-              <span className="text-gray-500">Tag connection</span>
-            </div>
-          </div>
         </div>
 
         {/* Recently Logged Entries */}
@@ -602,14 +566,14 @@ export default function ConstellationPage() {
                       <span className="text-gray-500 text-xs">{conn.entryIds.length} entries</span>
                     </div>
                     <div className="space-y-1">
-                         {connectedEntries.slice(0, 3).map(entry => (
+                      {connectedEntries.slice(0, 3).map(entry => (
                         <Link
                           key={entry.id}
                           href={`/report/${entry.slug}`}
                           className="flex items-center gap-2 text-xs text-gray-400 hover:text-white transition-colors"
                         >
                           <span className={VERDICT_CONFIG[entry.verdict]?.color || 'text-gray-400'}>
-                            {VERDICT_CONFIG[entry.verdict]?.icon || '?'}
+                            {VERDICT_CONFIG[%entry.verdict?.icon || '?'}
                           </span>
                           <span className="truncate">{entry.name}</span>
                         </Link>
@@ -695,11 +659,11 @@ export default function ConstellationPage() {
                 return (
                   <button
                     key={suggestion.category}
-                    onClick={() => setSelectedCategory(suggestion.category)}
+                    onClick={() => setSelectedCategory(suggestion.category))}
                     className="bg-gray-900 border border-gray-800 hover:border-primary-500/30 rounded-xl p-4 text-left transition-all group"
                   >
                     <div className="flex items-center gap-3 mb-2">
-                      <span className="text-2xl">{node.icon}</span>
+                     <span className="text-2xl">{node.icon}</span>
                       <div>
                         <div className="text-white font-medium group-hover:text-primary-300 transition-colors">{node.label}</div>
                         <div className="text-gray-500 text-xs">{suggestion.reason}</div>
