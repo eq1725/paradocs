@@ -43,54 +43,40 @@ interface NavItem {
   requiredTier?: string[]
 }
 
-const navItems: NavItem[] = [
+interface NavGroup {
+  label: string
+  items: NavItem[]
+}
+
+const navGroups: NavGroup[] = [
   {
-    href: '/dashboard',
-    label: 'Overview',
-    icon: LayoutDashboard
+    label: 'Research',
+    items: [
+      { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
+      { href: '/dashboard/constellation', label: 'My Constellation', icon: Stars },
+      { href: '/dashboard/journal', label: 'Journal', icon: BookOpen },
+    ]
   },
   {
-    href: '/dashboard/reports',
-    label: 'My Reports',
-    icon: FileText
+    label: 'Library',
+    items: [
+      { href: '/dashboard/saved', label: 'Saved Reports', icon: Bookmark },
+      { href: '/dashboard/reports', label: 'My Reports', icon: FileText },
+      { href: '/dashboard/digests', label: 'Weekly Digests', icon: Newspaper },
+    ]
   },
   {
-    href: '/dashboard/saved',
-    label: 'Saved Reports',
-    icon: Bookmark
-  },
-  {
-    href: '/dashboard/constellation',
-    label: 'My Constellation',
-    icon: Stars
-  },
-  {
-    href: '/dashboard/journal',
-    label: 'Journal',
-    icon: BookOpen
-  },
-  {
-    href: '/dashboard/digests',
-    label: 'Weekly Reports',
-    icon: Newspaper
-  },
-  {
-    href: '/dashboard/insights',
-    label: 'AI Insights',
-    icon: Sparkles,
-    requiredTier: ['basic', 'pro', 'enterprise']
-  },
-  {
-    href: '/dashboard/subscription',
-    label: 'Subscription',
-    icon: CreditCard
-  },
-  {
-    href: '/dashboard/settings',
-    label: 'Settings',
-    icon: Settings
+    label: 'Tools',
+    items: [
+      { href: '/dashboard/insights', label: 'AI Insights', icon: Sparkles, requiredTier: ['basic', 'pro', 'enterprise'] },
+      { href: '/dashboard/subscription', label: 'Subscription', icon: CreditCard },
+      { href: '/dashboard/settings', label: 'Settings', icon: Settings },
+    ]
   }
 ]
+
+// Flatten for backward compat
+const navItems: NavItem[] = navGroups.flatMap(g => g.items)
 
 export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayoutProps) {
   const router = useRouter()
@@ -148,45 +134,53 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
 
   // Shared navigation content
   const NavContent = ({ onItemClick }: { onItemClick?: () => void }) => (
-    <ul className="space-y-1">
-      {navItems.map((item) => {
-        const Icon = item.icon
-        const isActive = isActiveRoute(item.href)
-        const hasAccess = canAccessNavItem(item)
+    <div className="space-y-4">
+      {navGroups.map((group, gi) => (
+        <div key={group.label}>
+          {gi > 0 && <div className="border-t border-gray-800/50 mb-3" />}
+          <p className="text-[10px] text-gray-600 uppercase tracking-wider font-medium px-3 mb-1.5">{group.label}</p>
+          <ul className="space-y-0.5">
+            {group.items.map((item) => {
+              const Icon = item.icon
+              const isActive = isActiveRoute(item.href)
+              const hasAccess = canAccessNavItem(item)
 
-        return (
-          <li key={item.href}>
-            {hasAccess ? (
-              <Link
-                href={item.href}
-                onClick={onItemClick}
-                className={`
-                  flex items-center gap-3 px-3 py-3 md:py-2 rounded-lg transition-colors
-                  ${isActive
-                    ? 'bg-purple-600 text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-800'
-                  }
-                `}
-              >
-                <Icon className="w-5 h-5" />
-                <span>{item.label}</span>
-              </Link>
-            ) : (
-              <div
-                className="flex items-center gap-3 px-3 py-3 md:py-2 rounded-lg text-gray-600 cursor-not-allowed"
-                title={`Upgrade to ${item.requiredTier?.[0]} to access`}
-              >
-                <Icon className="w-5 h-5" />
-                <span>{item.label}</span>
-                <span className="ml-auto text-xs bg-gray-800 px-2 py-0.5 rounded">
-                  Pro
-                </span>
-              </div>
-            )}
-          </li>
-        )
-      })}
-    </ul>
+              return (
+                <li key={item.href}>
+                  {hasAccess ? (
+                    <Link
+                      href={item.href}
+                      onClick={onItemClick}
+                      className={`
+                        flex items-center gap-3 px-3 py-3 md:py-2 rounded-lg transition-colors
+                        ${isActive
+                          ? 'bg-purple-600 text-white'
+                          : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                        }
+                      `}
+                    >
+                      <Icon className="w-5 h-5" />
+                      <span>{item.label}</span>
+                    </Link>
+                  ) : (
+                    <div
+                      className="flex items-center gap-3 px-3 py-3 md:py-2 rounded-lg text-gray-600 cursor-not-allowed"
+                      title={`Upgrade to ${item.requiredTier?.[0]} to access`}
+                    >
+                      <Icon className="w-5 h-5" />
+                      <span>{item.label}</span>
+                      <span className="ml-auto text-xs bg-gray-800 px-2 py-0.5 rounded">
+                        Pro
+                      </span>
+                    </div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      ))}
+    </div>
   )
 
   return (

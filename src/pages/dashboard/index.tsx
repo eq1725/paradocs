@@ -1,36 +1,42 @@
 /**
- * Dashboard Overview Page
+ * Dashboard Overview Page — Constellation-First Research Hub
  *
- * Engagement-focused dashboard: streak & CTA up top, smart stats,
- * recent activity, and sidebar with constellation + quick actions.
+ * Prioritizes the constellation map and research activity over report submission.
+ * Layout: Hero → Streak → Constellation Preview → Research Activity → Stats → Suggestions → Usage Footer
  */
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import {
   FileText,
   Bookmark,
-  TrendingUp,
-  Clock,
-  CheckCircle,
-  XCircle,
   AlertCircle,
   ArrowRight,
   Sparkles,
-  BarChart3,
   Stars,
   Plus,
+  Compass,
+  BookOpen,
+  Link2,
+  Lightbulb,
+  Star,
+  PenTool,
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
-import { UsageMeter } from '@/components/dashboard/UsageMeter'
 import { UpgradeCard } from '@/components/dashboard/UpgradeCard'
 import { TierBadge } from '@/components/dashboard/TierBadge'
 import ResearchStreak from '@/components/dashboard/ResearchStreak'
 import DashboardTour, { hasDashboardTourCompleted } from '@/components/dashboard/DashboardTour'
+import ConstellationMapV2 from '@/components/dashboard/ConstellationMapV2'
 import { useSubscription } from '@/lib/hooks/useSubscription'
+import { usePersonalization } from '@/lib/hooks/usePersonalization'
 import { supabase } from '@/lib/supabase'
+import { getSuggestedExplorations } from '@/lib/constellation-data'
+import { CATEGORY_CONFIG } from '@/lib/constants'
+import { PhenomenonCategory } from '@/lib/database.types'
 import type { TierName } from '@/lib/subscription'
+import type { UserMapData, EntryNode } from './constellation'
 
 interface DashboardStats {
   profile: {
@@ -40,95 +46,57 @@ interface DashboardStats {
     reputation_score: number
     member_since: string
   }
-  reports: {
-    total: number
-    pending: number
-    approved: number
-    rejected: number
+  reports: { total: number; pending: number; approved: number; rejected: number }
+  saved: { total: number }
+  constellation: {
+    totalEntries: number
+    totalConnections: number
+    rank: string
+    rankIcon: string
   }
-  saved: {
-    total: number
-  }
+  journal: { totalEntries: number }
+  research_activity: Array<{
+    id: string
+    type: string
+    title: string
+    created_at: string
+  }>
   subscription: {
     tier: TierName
     tier_display: string
     status: string
-    usage: {
-      reports_submitted: number
-      reports_saved: number
-      api_calls_made: number
-    }
-    limits: {
-      reports_per_month: number
-      saved_reports_max: number
-      api_calls_per_month: number
-    }
+    usage: { reports_submitted: number; reports_saved: number; api_calls_made: number }
+    limits: { reports_per_month: number; saved_reports_max: number; api_calls_per_month: number }
     canSubmitReport: boolean
     canSaveReport: boolean
   } | null
-  recent_activity: Array<{
-    id: string
-    title: string
-    slug: string
-    status: string
-    created_at: string
-  }>
+  recent_reports: Array<{ id: string; title: string; slug: string; status: string; created_at: string }>
 }
 
-function RecentActivityItem({
-  report
-}: {
-  report: {
-    id: string
-    title: string
-    slug: string
-    status: string
-    created_at: string
-  }
-}) {
-  const statusConfig = {
-    pending: { icon: Clock, color: 'text-amber-400', bg: 'bg-amber-900/30', label: 'Pending' },
-    approved: { icon: CheckCircle, color: 'text-green-400', bg: 'bg-green-900/30', label: 'Approved' },
-    rejected: { icon: XCircle, color: 'text-red-400', bg: 'bg-red-900/30', label: 'Rejected' },
-    draft: { icon: AlertCircle, color: 'text-gray-400', bg: 'bg-gray-800', label: 'Draft' }
-  }
+const ACTIVITY_TYPE_CONFIG: Record<string, { icon: React.ElementType; label: string; color: string }> = {
+  constellation_entry: { icon: Star, label: 'Logged to constellation', color: 'text-amber-400' },
+  journal_entry: { icon: PenTool, label: 'Journal entry', color: 'text-blue-400' },
+  connection: { icon: Link2, label: 'Drew connection', color: 'text-green-400' },
+  theory: { icon: Lightbulb, label: 'Created theory', color: 'text-purple-400' },
+}
 
-  const config = statusConfig[report.status as keyof typeof statusConfig] || statusConfig.draft
-  const Icon = config.icon
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-
-    if (diffDays === 0) return 'Today'
-    if (diffDays === 1) return 'Yesterday'
-    if (diffDays < 7) return `${diffDays}d ago`
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  }
-
-  return (
-    <Link
-      href={`/report/${report.slug}`}
-      className="flex items-center gap-3 p-3 bg-gray-900 rounded-lg border border-gray-800 hover:border-gray-700 transition-colors"
-    >
-      <div className={`p-1.5 rounded-lg ${config.bg} shrink-0`}>
-        <Icon className={`w-4 h-4 ${config.color}`} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-white text-sm font-medium truncate">{report.title}</p>
-        <p className="text-xs text-gray-500">{formatDate(report.created_at)}</p>
-      </div>
-      <span className={`text-xs ${config.color} shrink-0`}>{config.label}</span>
-    </Link>
-  )
+function formatRelativeTime(dateString: string) {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7) return `${diffDays}d ago`
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { tierName, isPaidTier, loading: subscriptionLoading } = useSubscription()
+  const { tierName, loading: subscriptionLoading } = useSubscription()
+  const { data: personalization } = usePersonalization()
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [userMapData, setUserMapData] = useState<UserMapData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showDashboardTour, setShowDashboardTour] = useState(false)
@@ -142,49 +110,53 @@ export default function DashboardPage() {
   }, [loading, stats])
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchData = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
+        if (!session) { router.push('/login'); return }
 
-        if (!session) {
-          router.push('/login')
-          return
+        // Fetch dashboard stats and constellation map data in parallel
+        const [statsResp, mapResp] = await Promise.all([
+          fetch('/api/user/stats', {
+            headers: { 'Authorization': `Bearer ${session.access_token}` }
+          }),
+          fetch('/api/constellation/user-map', {
+            headers: { 'Authorization': `Bearer ${session.access_token}` }
+          }).catch(() => null),
+        ])
+
+        if (!statsResp.ok) throw new Error('Failed to fetch stats')
+        const statsData = await statsResp.json()
+        setStats(statsData)
+
+        if (mapResp?.ok) {
+          const mapData = await mapResp.json()
+          setUserMapData(mapData)
         }
-
-        const response = await fetch('/api/user/stats', {
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`
-          }
-        })
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch stats')
-        }
-
-        const data = await response.json()
-        setStats(data)
       } catch (err) {
-        console.error('Error fetching stats:', err)
+        console.error('Error fetching dashboard data:', err)
         setError(err instanceof Error ? err.message : 'Unknown error')
       } finally {
         setLoading(false)
       }
     }
+    fetchData()
+  }, [router])
 
-    fetchStats()
+  const handleSelectEntry = useCallback((entry: EntryNode | null) => {
+    if (entry) {
+      router.push(`/dashboard/constellation?entry=${entry.id}`)
+    }
   }, [router])
 
   if (loading || subscriptionLoading) {
     return (
       <DashboardLayout title="Dashboard">
         <div className="space-y-4">
-          <div className="h-20 bg-gray-900 rounded-xl animate-pulse" />
-          <div className="grid grid-cols-3 gap-3">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-24 bg-gray-900 rounded-xl animate-pulse" />
-            ))}
-          </div>
-          <div className="h-64 bg-gray-900 rounded-xl animate-pulse" />
+          <div className="h-16 bg-gray-900 rounded-xl animate-pulse" />
+          <div className="h-10 bg-gray-900 rounded-xl animate-pulse w-48" />
+          <div className="h-[300px] bg-gray-900 rounded-xl animate-pulse" />
+          <div className="h-32 bg-gray-900 rounded-xl animate-pulse" />
         </div>
       </DashboardLayout>
     )
@@ -208,255 +180,256 @@ export default function DashboardPage() {
     )
   }
 
-  const reportsTotal = stats?.reports.total || 0
-  const reportsApproved = stats?.reports.approved || 0
-  const reportsPending = stats?.reports.pending || 0
-  const reportsRejected = stats?.reports.rejected || 0
-  const savedTotal = stats?.saved.total || 0
+  const hasEntries = (stats?.constellation.totalEntries || 0) > 0
+  const userInterests = personalization?.interested_categories || []
+  const suggestions = hasEntries ? getSuggestedExplorations(userInterests as PhenomenonCategory[], 3) : []
 
   return (
     <DashboardLayout title="Dashboard">
-      {/* ── Hero: Welcome + Submit CTA ── */}
+      {/* ── A. Hero: Welcome + Research CTAs ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-white">
             Welcome back{stats?.profile.display_name ? `, ${stats.profile.display_name}` : ''}
           </h2>
-          <p className="text-gray-500 text-sm mt-0.5">
-            Here&apos;s your research overview.
-          </p>
+          <p className="text-gray-500 text-sm mt-0.5">Your research at a glance</p>
         </div>
-        <Link
-          href="/submit"
-          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white rounded-lg font-medium text-sm transition-colors shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          Submit Report
-        </Link>
+        <div className="flex items-center gap-2.5">
+          <Link
+            href="/explore"
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-medium text-sm transition-colors"
+          >
+            <Compass className="w-4 h-4" />
+            Explore Phenomena
+          </Link>
+          <Link
+            href="/dashboard/journal/new"
+            className="flex items-center gap-2 px-4 py-2 border border-gray-700 hover:border-gray-600 text-gray-300 hover:text-white rounded-lg text-sm transition-colors"
+          >
+            <BookOpen className="w-4 h-4" />
+            <span className="hidden sm:inline">New Entry</span>
+          </Link>
+          <Link
+            href="/submit"
+            className="text-xs text-gray-500 hover:text-purple-400 transition-colors hidden sm:block"
+          >
+            Submit Report
+          </Link>
+        </div>
       </div>
 
-      {/* ── Research Streak (prominent, drives daily engagement) ── */}
+      {/* ── B. Research Streak ── */}
       <div className="mb-5">
         <ResearchStreak compact />
       </div>
 
-      {/* ── Smart Stat Cards (3 cards: Reports, Saved, Activity) ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-        {/* My Reports — shows total with status breakdown */}
-        <Link
-          href="/dashboard/reports"
-          className="p-4 bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors group"
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-gray-800 rounded-lg shrink-0">
-              <FileText className="w-5 h-5 text-purple-400" />
-            </div>
-            <div>
-              <p className="text-gray-500 text-xs">My Reports</p>
-              <p className="text-2xl font-bold text-white">{reportsTotal}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {reportsApproved > 0 && (
-              <span className="inline-flex items-center gap-1 text-[11px] text-green-400 bg-green-400/10 rounded-full px-2 py-0.5">
-                <CheckCircle className="w-3 h-3" /> {reportsApproved} approved
-              </span>
-            )}
-            {reportsPending > 0 && (
-              <span className="inline-flex items-center gap-1 text-[11px] text-amber-400 bg-amber-400/10 rounded-full px-2 py-0.5">
-                <Clock className="w-3 h-3" /> {reportsPending} pending
-              </span>
-            )}
-            {reportsRejected > 0 && (
-              <span className="inline-flex items-center gap-1 text-[11px] text-red-400 bg-red-400/10 rounded-full px-2 py-0.5">
-                <XCircle className="w-3 h-3" /> {reportsRejected}
-              </span>
-            )}
-            {reportsTotal === 0 && (
-              <span className="text-[11px] text-gray-600">No reports yet</span>
-            )}
-          </div>
-        </Link>
-
-        {/* Saved Collection */}
-        <Link
-          href="/dashboard/saved"
-          className="p-4 bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors group"
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-gray-800 rounded-lg shrink-0">
-              <Bookmark className="w-5 h-5 text-blue-400" />
-            </div>
-            <div>
-              <p className="text-gray-500 text-xs">Saved Collection</p>
-              <p className="text-2xl font-bold text-white">{savedTotal}</p>
-            </div>
-          </div>
-          <span className="text-[11px] text-gray-500 group-hover:text-blue-400 flex items-center gap-1 transition-colors">
-            Browse saved reports <ArrowRight className="w-3 h-3" />
-          </span>
-        </Link>
-
-        {/* Explore — drives discovery */}
-        <Link
-          href="/dashboard/constellation"
-          className="p-4 bg-gray-950 rounded-xl border border-gray-800 hover:border-primary-500/30 transition-colors group relative overflow-hidden"
-        >
-          {/* Decorative stars */}
-          <div className="absolute inset-0 opacity-20 pointer-events-none">
-            {[
-              { x: '20%', y: '15%', s: 2 }, { x: '75%', y: '25%', s: 1.5 },
-              { x: '40%', y: '80%', s: 2.5 }, { x: '85%', y: '60%', s: 1.2 },
-            ].map((star, i) => (
-              <div
-                key={i}
-                className="absolute rounded-full bg-primary-400"
-                style={{
-                  left: star.x,
-                  top: star.y,
-                  width: `${star.s}px`,
-                  height: `${star.s}px`,
-                  boxShadow: `0 0 ${star.s * 2}px rgba(139, 92, 246, 0.5)`,
-                }}
+      {/* ── C. Constellation Preview (THE CENTERPIECE) ── */}
+      <div className="mb-5 rounded-xl overflow-hidden border border-gray-800 relative">
+        {hasEntries && userMapData ? (
+          <>
+            <div className="h-[260px] sm:h-[340px]">
+              <ConstellationMapV2
+                userMapData={userMapData}
+                onSelectEntry={handleSelectEntry}
+                selectedEntryId={null}
               />
-            ))}
-          </div>
-          <div className="relative">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-primary-600/20 rounded-lg shrink-0">
-                <Stars className="w-5 h-5 text-primary-400" />
-              </div>
-              <div>
-                <p className="text-gray-500 text-xs">Constellation</p>
-                <p className="text-sm font-semibold text-white group-hover:text-primary-300 transition-colors">Explore Your Map</p>
-              </div>
             </div>
-            <span className="text-[11px] text-primary-400/70 group-hover:text-primary-400 flex items-center gap-1 transition-colors">
-              See how phenomena connect <ArrowRight className="w-3 h-3" />
-            </span>
-          </div>
-        </Link>
-      </div>
-
-      {/* ── Main Content Grid ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Left column: Activity + Usage */}
-        <div className="lg:col-span-2 space-y-5">
-          {/* Recent Activity */}
-          <div className="p-4 sm:p-5 bg-gray-900 rounded-xl border border-gray-800">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-semibold text-white">Recent Activity</h3>
-              <Link
-                href="/dashboard/reports"
-                className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
-              >
-                View All
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-
-            {stats?.recent_activity && stats.recent_activity.length > 0 ? (
-              <div className="space-y-2">
-                {stats.recent_activity.map(report => (
-                  <RecentActivityItem key={report.id} report={report} />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <FileText className="w-10 h-10 text-gray-700 mx-auto mb-3" />
-                <p className="text-gray-400 text-sm mb-1">No recent activity</p>
-                <p className="text-gray-600 text-xs mb-4">Submit your first report to get started</p>
+            {/* Overlay with rank + link */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-gray-950 via-gray-950/80 to-transparent px-4 py-3 pointer-events-none">
+              <div className="flex items-center justify-between pointer-events-auto">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{stats?.constellation.rankIcon}</span>
+                  <span className="text-sm font-medium text-white">{stats?.constellation.rank}</span>
+                  <span className="text-xs text-gray-500">
+                    · {stats?.constellation.totalEntries} {stats?.constellation.totalEntries === 1 ? 'star' : 'stars'}
+                  </span>
+                </div>
                 <Link
-                  href="/submit"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm transition-colors"
+                  href="/dashboard/constellation"
+                  className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-colors"
                 >
-                  <Plus className="w-4 h-4" />
-                  Submit Report
+                  Open Full Map <ArrowRight className="w-3 h-3" />
                 </Link>
               </div>
-            )}
-          </div>
-
-          {/* Usage Overview — compact */}
-          <div className="p-4 sm:p-5 bg-gray-900 rounded-xl border border-gray-800">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-semibold text-white">Usage This Month</h3>
-              {tierName && <TierBadge tier={tierName} size="sm" />}
             </div>
-
-            <div className="space-y-4">
-              <UsageMeter
-                label="Reports Submitted"
-                current={stats?.subscription?.usage.reports_submitted || 0}
-                limit={stats?.subscription?.limits.reports_per_month || 5}
-                icon={<FileText className="w-4 h-4" />}
-              />
-              <UsageMeter
-                label="Saved Reports"
-                current={stats?.subscription?.usage.reports_saved || 0}
-                limit={stats?.subscription?.limits.saved_reports_max || 10}
-                icon={<Bookmark className="w-4 h-4" />}
-              />
-              {isPaidTier && stats?.subscription?.limits.api_calls_per_month !== undefined && (
-                <UsageMeter
-                  label="API Calls"
-                  current={stats?.subscription?.usage.api_calls_made || 0}
-                  limit={stats?.subscription?.limits.api_calls_per_month}
-                  icon={<BarChart3 className="w-4 h-4" />}
+          </>
+        ) : (
+          /* Empty state */
+          <div className="h-[260px] sm:h-[300px] bg-gray-950 relative flex flex-col items-center justify-center text-center px-6">
+            {/* Decorative stars */}
+            <div className="absolute inset-0 opacity-20 pointer-events-none overflow-hidden">
+              {[
+                { x: '15%', y: '20%', s: 2 }, { x: '80%', y: '15%', s: 1.5 },
+                { x: '25%', y: '70%', s: 2.5 }, { x: '70%', y: '65%', s: 1.8 },
+                { x: '50%', y: '40%', s: 3 }, { x: '90%', y: '80%', s: 1.2 },
+                { x: '10%', y: '50%', s: 1.8 }, { x: '60%', y: '25%', s: 2.2 },
+              ].map((star, i) => (
+                <div
+                  key={i}
+                  className="absolute rounded-full bg-purple-400"
+                  style={{
+                    left: star.x, top: star.y,
+                    width: `${star.s}px`, height: `${star.s}px`,
+                    boxShadow: `0 0 ${star.s * 3}px rgba(139, 92, 246, 0.5)`,
+                  }}
                 />
-              )}
+              ))}
             </div>
-          </div>
-        </div>
-
-        {/* Right column: Quick Actions + Upgrade */}
-        <div className="space-y-5">
-          {/* Quick Actions */}
-          <div className="p-4 sm:p-5 bg-gray-900 rounded-xl border border-gray-800">
-            <h3 className="text-base font-semibold text-white mb-3">Quick Actions</h3>
-            <div className="space-y-2">
+            <div className="relative">
+              <Stars className="w-10 h-10 text-purple-500/50 mx-auto mb-3" />
+              <h3 className="text-white font-semibold text-lg mb-1">Your constellation awaits</h3>
+              <p className="text-gray-500 text-sm max-w-sm mb-4">
+                Log reports to your constellation to build a personal map of your paranormal research journey.
+              </p>
               <Link
-                href="/submit"
-                className="flex items-center gap-3 p-3 bg-purple-600 hover:bg-purple-500 rounded-lg text-white text-sm transition-colors"
+                href="/explore"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-medium transition-colors"
               >
-                <Plus className="w-4 h-4" />
-                <span className="font-medium">Submit New Report</span>
-              </Link>
-              <Link
-                href="/map"
-                className="flex items-center gap-3 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 text-sm transition-colors"
-              >
-                <TrendingUp className="w-4 h-4" />
-                <span>Explore Sightings Map</span>
-              </Link>
-              <Link
-                href="/dashboard/journal/new"
-                className="flex items-center gap-3 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 text-sm transition-colors"
-              >
-                <FileText className="w-4 h-4" />
-                <span>New Journal Entry</span>
-              </Link>
-              <Link
-                href="/insights"
-                className="flex items-center gap-3 p-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 text-sm transition-colors"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>View AI Insights</span>
+                <Compass className="w-4 h-4" />
+                Browse Reports
               </Link>
             </div>
           </div>
-
-          {/* Upgrade Card (for non-enterprise users) */}
-          {tierName && tierName !== 'enterprise' && (
-            <UpgradeCard currentTier={tierName} variant="full" />
-          )}
-
-          {/* Dashboard Feature Tour */}
-          {showDashboardTour && (
-            <DashboardTour onComplete={() => setShowDashboardTour(false)} />
-          )}
-        </div>
+        )}
       </div>
+
+      {/* ── D. Research Activity ── */}
+      {stats?.research_activity && stats.research_activity.length > 0 && (
+        <div className="mb-5 p-4 bg-gray-900 rounded-xl border border-gray-800">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-white">Research Activity</h3>
+            <Link
+              href="/dashboard/constellation"
+              className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
+            >
+              View All <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+          <div className="space-y-1.5">
+            {stats.research_activity.map(activity => {
+              const config = ACTIVITY_TYPE_CONFIG[activity.type] || ACTIVITY_TYPE_CONFIG.constellation_entry
+              const Icon = config.icon
+              return (
+                <div
+                  key={activity.id}
+                  className="flex items-center gap-3 p-2.5 bg-gray-950/50 rounded-lg"
+                >
+                  <Icon className={`w-4 h-4 ${config.color} shrink-0`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm truncate">{activity.title}</p>
+                    <p className="text-[11px] text-gray-600">{config.label}</p>
+                  </div>
+                  <span className="text-[11px] text-gray-600 shrink-0">{formatRelativeTime(activity.created_at)}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── E. Research Snapshot (metric pills) ── */}
+      <div className="mb-5 flex flex-wrap gap-2">
+        <Link
+          href="/dashboard/constellation"
+          className="flex items-center gap-2 px-3.5 py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-sm transition-colors group"
+        >
+          <Star className="w-3.5 h-3.5 text-amber-400" />
+          <span className="text-white font-medium">{stats?.constellation.totalEntries || 0}</span>
+          <span className="text-gray-500 group-hover:text-gray-400">Stars</span>
+        </Link>
+        <Link
+          href="/dashboard/constellation"
+          className="flex items-center gap-2 px-3.5 py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-sm transition-colors group"
+        >
+          <Link2 className="w-3.5 h-3.5 text-green-400" />
+          <span className="text-white font-medium">{stats?.constellation.totalConnections || 0}</span>
+          <span className="text-gray-500 group-hover:text-gray-400">Connections</span>
+        </Link>
+        <Link
+          href="/dashboard/journal"
+          className="flex items-center gap-2 px-3.5 py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-sm transition-colors group"
+        >
+          <BookOpen className="w-3.5 h-3.5 text-blue-400" />
+          <span className="text-white font-medium">{stats?.journal.totalEntries || 0}</span>
+          <span className="text-gray-500 group-hover:text-gray-400">Journal</span>
+        </Link>
+        <Link
+          href="/dashboard/saved"
+          className="flex items-center gap-2 px-3.5 py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-sm transition-colors group"
+        >
+          <Bookmark className="w-3.5 h-3.5 text-purple-400" />
+          <span className="text-white font-medium">{stats?.saved.total || 0}</span>
+          <span className="text-gray-500 group-hover:text-gray-400">Saved</span>
+        </Link>
+        <Link
+          href="/dashboard/reports"
+          className="flex items-center gap-2 px-3.5 py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-sm transition-colors group"
+        >
+          <FileText className="w-3.5 h-3.5 text-gray-400" />
+          <span className="text-white font-medium">{stats?.reports.total || 0}</span>
+          <span className="text-gray-500 group-hover:text-gray-400">Reports</span>
+        </Link>
+      </div>
+
+      {/* ── F. Suggested Explorations ── */}
+      {suggestions.length > 0 && (
+        <div className="mb-5">
+          <h3 className="text-sm font-semibold text-white mb-3">Suggested Explorations</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            {suggestions.map(suggestion => {
+              const config = CATEGORY_CONFIG[suggestion.category as keyof typeof CATEGORY_CONFIG]
+              return (
+                <Link
+                  key={suggestion.category}
+                  href={`/explore?category=${suggestion.category}`}
+                  className="group p-3.5 bg-gray-900 border border-gray-800 rounded-xl hover:border-purple-500/30 transition-all"
+                >
+                  <div className="flex items-center gap-2.5 mb-1.5">
+                    <span className="text-lg">{config?.icon || '✨'}</span>
+                    <span className="text-sm font-medium text-white group-hover:text-purple-300 transition-colors">
+                      {config?.label || suggestion.category}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 line-clamp-2">{suggestion.reason}</p>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── G. Account & Usage (compact footer) ── */}
+      <div className="pt-4 border-t border-gray-800/50">
+        <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
+          {tierName && <TierBadge tier={tierName} size="sm" />}
+          {stats?.subscription && (
+            <>
+              <span>·</span>
+              <span>{stats.subscription.usage.reports_submitted}/{stats.subscription.limits.reports_per_month === 0 ? '∞' : stats.subscription.limits.reports_per_month} reports</span>
+              <span>·</span>
+              <span>{stats.subscription.usage.reports_saved}/{stats.subscription.limits.saved_reports_max === 0 ? '∞' : stats.subscription.limits.saved_reports_max} saved</span>
+            </>
+          )}
+          <Link
+            href="/dashboard/subscription"
+            className="text-purple-400 hover:text-purple-300 flex items-center gap-1 ml-auto transition-colors"
+          >
+            Manage <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+
+        {/* Upgrade card for free tier */}
+        {tierName && tierName === 'free' && (
+          <div className="mt-4">
+            <UpgradeCard currentTier={tierName} variant="compact" />
+          </div>
+        )}
+      </div>
+
+      {/* Dashboard Feature Tour */}
+      {showDashboardTour && (
+        <DashboardTour onComplete={() => setShowDashboardTour(false)} />
+      )}
     </DashboardLayout>
   )
 }

@@ -75,7 +75,89 @@ export default async function handler(
       .order('created_at', { ascending: false })
       .limit(5)
 
-    // Calculate some trends (mock for now)
+    // ── Constellation & Journal data (graceful fallback if tables don't exist) ──
+    let constellationData = { totalEntries: 0, totalConnections: 0, rank: 'Stargazer', rankIcon: '🔭' }
+    let journalData = { totalEntries: 0 }
+    let researchActivity: Array<{ id: string; type: string; title: string; created_at: string }> = []
+
+    try {
+      // Constellation entries count + recent
+      const { count: entryCount } = await supabase
+        .from('constellation_entries')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+
+      const { data: recentEntries } = await supabase
+        .from('constellation_entries')
+        .select('id, created_at, report:reports(title)')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(3)
+
+      // Connections count
+      const { count: connCount } = await supabase
+        .from('constellation_connections')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+
+      const total = entryCount || 0
+      const ranks = [
+        { name: 'Stargazer', min: 0, icon: '🔭' },
+        { name: 'Field Researcher', min: 3, icon: '📋' },
+        { name: 'Pattern Seeker', min: 10, icon: '🔍' },
+        { name: 'Cartographer', min: 25, icon: '🗺️' },
+        { name: 'Master Archivist', min: 50, icon: '📜' },
+      ]
+      const currentRank = [...ranks].reverse().find(r => total >= r.min) || ranks[0]
+
+      constellationData = {
+        totalEntries: total,
+        totalConnections: connCount || 0,
+        rank: currentRank.name,
+        rankIcon: currentRank.icon,
+      }
+
+      // Add constellation entries to research activity
+      if (recentEntries) {
+        researchActivity.push(...recentEntries.map((e: any) => ({
+          id: e.id,
+          type: 'constellation_entry',
+          title: e.report?.title || 'Logged entry',
+          created_at: e.created_at,
+        })))
+      }
+    } catch {}
+
+    try {
+      // Journal entries count + recent
+      const { count: journalCount } = await supabase
+        .from('journal_entries')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+
+      const { data: recentJournal } = await supabase
+        .from('journal_entries')
+        .select('id, title, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(2)
+
+      journalData = { totalEntries: journalCount || 0 }
+
+      if (recentJournal) {
+        researchActivity.push(...recentJournal.map((j: any) => ({
+          id: j.id,
+          type: 'journal_entry',
+          title: j.title || 'Journal entry',
+          created_at: j.created_at,
+        })))
+      }
+    } catch {}
+
+    // Sort research activity by date, limit 5
+    researchActivity.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    researchActivity = researchActivity.slice(0, 5)
+
     const stats = {
       profile: {
         username: profile?.username,
@@ -93,6 +175,9 @@ export default async function handler(
       saved: {
         total: savedReports || 0
       },
+      constellation: constellationData,
+      journal: journalData,
+      research_activity: researchActivity,
       subscription: subscriptionData ? {
         tier: subscriptionData.subscription.tier.name,
         tier_display: subscriptionData.subscription.tier.display_name,
@@ -102,7 +187,7 @@ export default async function handler(
         canSubmitReport: subscriptionData.canSubmitReport,
         canSaveReport: subscriptionData.canSaveReport
       } : null,
-      recent_activity: recentReports || []
+      recent_reports: recentReports || []
     }
 
     return res.status(200).json(stats)
