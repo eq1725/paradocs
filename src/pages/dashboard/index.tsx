@@ -228,7 +228,7 @@ export default function DashboardPage() {
               />
             </div>
             {/* Overlay with rank + link — right-aligned to not cover the legend */}
-            <div className="absolute bottom-0 right-0 bg-gradient-to-l from-gray-950 via-gray-950/90 to-transparent px-4 py-3 rounded-bl-lg pointer-events-none">
+            <div className="absolute bottom-0 right-0 bg-gradient-to-l from-gray-950 via-gray-950/90 to-transparent pl-10 pr-3 py-2.5 rounded-bl-lg pointer-events-none">
               <div className="flex items-center gap-3 pointer-events-auto">
                 <span className="text-lg">{stats?.constellation.rankIcon}</span>
                 <span className="text-sm font-medium text-white">{stats?.constellation.rank}</span>
@@ -237,9 +237,9 @@ export default function DashboardPage() {
                 </span>
                 <Link
                   href="/dashboard/constellation"
-                  className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-colors ml-2"
+                  className="flex items-center gap-1.5 ml-2 px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium rounded-lg transition-colors"
                 >
-                  Open Full Map <ArrowRight className="w-3 h-3" />
+                  Open Full Map <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
             </div>
