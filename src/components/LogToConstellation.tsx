@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Star, X, Check, AlertCircle, HelpCircle, Search, Tag, Trash2 } from 'lucide-react'
+import { useToast } from '@/components/Toast'
 
 interface LogToConstellationProps {
   isOpen: boolean
@@ -21,6 +22,7 @@ const VERDICTS = [
 export default function LogToConstellation({
   isOpen, onClose, reportId, reportTitle, reportCategory, userToken, onLogged
 }: LogToConstellationProps) {
+  const { showToast } = useToast()
   const [note, setNote] = useState('')
   const [verdict, setVerdict] = useState('needs_info')
   const [tags, setTags] = useState<string[]>([])
@@ -95,9 +97,13 @@ export default function LogToConstellation({
       if (resp.ok && data.entry) {
         onLogged?.(data.entry)
         onClose()
+        showToast('success', 'Logged to your constellation')
+      } else {
+        showToast('error', data?.error || 'Failed to log entry')
       }
     } catch (err) {
       console.error('Failed to log entry:', err)
+      showToast('error', 'Failed to log entry')
     } finally {
       setSaving(false)
     }
@@ -114,8 +120,10 @@ export default function LogToConstellation({
       })
       onLogged?.(null)
       onClose()
+      showToast('info', 'Entry removed from constellation')
     } catch (err) {
       console.error('Failed to delete entry:', err)
+      showToast('error', 'Failed to remove entry')
     } finally {
       setDeleting(false)
       setShowDeleteConfirm(false)

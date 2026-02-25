@@ -8,6 +8,7 @@
  */
 
 import { useState } from 'react';
+import { useToast } from '@/components/Toast';
 import { useRouter } from 'next/router';
 
 interface PaywallGateProps {
@@ -21,6 +22,7 @@ interface PaywallGateProps {
 }
 
 export default function PaywallGate(props: PaywallGateProps) {
+  var { showToast } = useToast();
   var isOpen = props.isOpen;
   var onClose = props.onClose;
   var featureName = props.featureName;
@@ -87,11 +89,11 @@ export default function PaywallGate(props: PaywallGateProps) {
       if (data.url) {
         window.location.href = data.url;
       } else if (data.error) {
-        alert('Error: ' + data.error);
+        showToast('error', data.error);
         setIsLoading(false);
       }
     } catch (err) {
-      alert('Something went wrong. Please try again.');
+      showToast('error', 'Something went wrong. Please try again.');
       setIsLoading(false);
     }
   }

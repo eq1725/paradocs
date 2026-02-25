@@ -5,6 +5,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react'
+import { useToast } from '@/components/Toast'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import {
@@ -145,6 +146,7 @@ function ReportRow({ report, onDelete }: { report: Report; onDelete: (id: string
 
 export default function MyReportsPage() {
   const router = useRouter()
+  const { showToast } = useToast()
   const { canSubmitReport } = useSubscription()
   const [reports, setReports] = useState<Report[]>([])
   const [pagination, setPagination] = useState<PaginationInfo | null>(null)
@@ -220,11 +222,12 @@ export default function MyReportsPage() {
 
       if (error) throw error
 
+      showToast('success', 'Report deleted')
       // Refresh the list
       fetchReports()
     } catch (err) {
       console.error('Error deleting report:', err)
-      alert('Failed to delete report')
+      showToast('error', 'Failed to delete report')
     }
   }
 

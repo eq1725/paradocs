@@ -5,6 +5,7 @@
  */
 
 import React, { useEffect, useState } from 'react'
+import { useToast } from '@/components/Toast'
 import { useRouter } from 'next/router'
 import {
   User,
@@ -252,6 +253,7 @@ function TierCard({
 
 export default function SubscriptionPage() {
   const router = useRouter()
+  const { showToast } = useToast()
   const {
     subscription,
     usage,
@@ -303,10 +305,10 @@ export default function SubscriptionPage() {
           window.location.href = data.url
           return
         } else {
-          alert(data.error || 'Failed to create checkout session')
+          showToast('error', data.error || 'Failed to create checkout session')
         }
       } catch (err) {
-        alert('Something went wrong. Please try again.')
+        showToast('error', 'Something went wrong. Please try again.')
       }
       setChangingTier(null)
       return
@@ -321,7 +323,7 @@ export default function SubscriptionPage() {
     setChangingTier(null)
 
     if (!result.success) {
-      alert(result.error || 'Failed to change subscription')
+      showToast('error', result.error || 'Failed to change subscription')
     } else {
       await refresh()
     }

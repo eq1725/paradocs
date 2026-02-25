@@ -16,6 +16,7 @@ import type { ContentType } from '@/lib/database.types'
 import { formatDate, formatRelativeDate, classNames, estimateReadingTime } from '@/lib/utils'
 import RelatedReports from '@/components/RelatedReports'
 import { logActivity } from '@/lib/services/streak.service'
+import { useToast } from '@/components/Toast'
 import MediaGallery from '@/components/MediaGallery'
 const LogToConstellation = dynamic(
   () => import('@/components/LogToConstellation'),
@@ -89,6 +90,7 @@ interface ReportPageProps {
 
 export default function ReportPage({ slug: propSlug, initialReport, initialMedia, initialComments, fetchError }: ReportPageProps) {
   const router = useRouter()
+  const { showToast } = useToast()
   const slug = propSlug || router.query.slug
 
   const [report, setReport] = useState<ReportWithDetails | null>(initialReport || null)
@@ -399,6 +401,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
       }
     } catch (error) {
       console.error('Error voting:', error)
+      showToast('error', 'Failed to register vote')
     }
   }
 
@@ -413,9 +416,11 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         content: newComment.trim(),
       })
       setNewComment('')
+      showToast('success', 'Comment posted')
       loadReport()
     } catch (error) {
       console.error('Error commenting:', error)
+      showToast('error', 'Failed to post comment')
     } finally {
       setSubmittingComment(false)
     }
@@ -438,6 +443,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         })
         setIsSaved(false)
         setSavedId(null)
+        showToast('info', 'Report removed from saved')
         // Track unsave for constellation (non-blocking)
         fetch('/api/activity/track', {
           method: 'POST',
@@ -455,6 +461,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         if (data.success) {
           setIsSaved(true)
           setSavedId(data.saved_id)
+          showToast('success', 'Report saved')
           // Track save for constellation (non-blocking)
           fetch('/api/activity/track', {
             method: 'POST',
@@ -465,6 +472,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
       }
     } catch (error) {
       console.error('Error saving report:', error)
+      showToast('error', 'Failed to save report')
     } finally {
       setSavingReport(false)
     }
@@ -475,6 +483,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     navigator.clipboard.writeText(url).then(() => {
       setCopiedShare(true)
       setTimeout(() => setCopiedShare(false), 2000)
+      showToast('success', 'Link copied to clipboard')
     }).catch(() => {
       // Fallback for older browsers
       if (navigator.share) {

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
 import {
   ArrowLeft,
   Calendar,
@@ -126,6 +127,21 @@ export default function PhenomenonPage() {
       const data = await res.json()
       setPhenomenon(data.phenomenon)
       setReports(data.reports || [])
+
+      // Track view for constellation map (non-blocking)
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.access_token && data.phenomenon) {
+          fetch('/api/activity/track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({
+              action_type: 'view',
+              phenomenon_id: data.phenomenon.id,
+              category: data.phenomenon.category || null,
+            }),
+          }).catch(() => {})
+        }
+      })
     } catch (error) {
       console.error('Error loading phenomenon:', error)
     } finally {

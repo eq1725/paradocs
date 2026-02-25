@@ -3,12 +3,13 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import Head from 'next/head'
-import { Search, ArrowRight, MapPin, TrendingUp, Users, FileText, Compass, Map as MapIcon, BarChart3, Sparkles, Eye, ChevronRight, Send, Globe, Shield, MessageCircle } from 'lucide-react'
+import { Search, ArrowRight, MapPin, TrendingUp, Users, FileText, Compass, Map as MapIcon, BarChart3, Sparkles, Eye, ChevronRight, Send, Globe, Shield, MessageCircle, Star } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonType } from '@/lib/database.types'
 import { Phenomenon } from '@/lib/services/phenomena.service'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import ReportCard from '@/components/ReportCard'
+import ImageWithFallback from '@/components/ImageWithFallback'
 import { TrendingPatternsWidget } from '@/components/patterns'
 import { hasCompletedOnboarding } from '@/components/OnboardingTour'
 
@@ -102,6 +103,8 @@ export default function Home() {
   const [emailSuccess, setEmailSuccess] = useState(false)
   const [userCount, setUserCount] = useState(0)
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
+  const [researchItems, setResearchItems] = useState<any[]>([])
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const statsRef = useRef<HTMLDivElement>(null)
 
   const animatedTotal = useCountUp(stats.total, 2500, statsVisible)
@@ -136,6 +139,34 @@ export default function Home() {
   useEffect(() => {
     setStats(getCachedStats())
     loadData()
+  }, [])
+
+  // Fetch "Continue Your Research" items for logged-in users
+  useEffect(() => {
+    async function loadResearchItems() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) return
+      setIsLoggedIn(true)
+      try {
+        const resp = await fetch('/api/constellation/entries', {
+          headers: { Authorization: `Bearer ${session.access_token}` }
+        })
+        if (!resp.ok) return
+        const data = await resp.json()
+        if (data.entries?.length > 0) {
+          setResearchItems(data.entries.slice(0, 6).map((e: any) => ({
+            id: e.id,
+            name: e.report?.title || 'Untitled',
+            slug: e.report?.slug,
+            category: e.report?.category || '',
+            verdict: e.verdict,
+            note: e.note,
+            createdAt: e.created_at,
+          })).filter((e: any) => e.slug))
+        }
+      } catch {}
+    }
+    loadResearchItems()
   }, [])
 
   async function loadData() {
@@ -653,6 +684,54 @@ export default function Home() {
         </section>
       ) : null}
 
+      {/* Continue Your Research — logged-in users with constellation entries */}
+      {isLoggedIn && researchItems.length > 0 && (
+        <section className="py-10 border-t border-white/5">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center">
+                  <Star className="w-4 h-4 text-purple-400" />
+                </div>
+                <h2 className="text-lg font-display font-bold text-white">Continue Your Research</h2>
+              </div>
+              <Link href="/dashboard/constellation" className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1">
+                Your constellation <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {researchItems.map(item => {
+                const config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
+                const verdictMap: Record<string, { icon: string; color: string }> = {
+                  compelling: { icon: '✦', color: 'text-amber-400' },
+                  inconclusive: { icon: '◐', color: 'text-blue-400' },
+                  skeptical: { icon: '⊘', color: 'text-gray-400' },
+                  needs_info: { icon: '?', color: 'text-purple-400' },
+                }
+                const v = verdictMap[item.verdict] || verdictMap.needs_info
+                return (
+                  <Link
+                    key={item.id}
+                    href={`/phenomena/${item.slug}`}
+                    className="group flex items-center gap-3 p-3 bg-white/[0.02] border border-white/5 rounded-xl hover:border-purple-500/30 hover:bg-white/[0.04] transition-all"
+                  >
+                    <span className={`text-lg ${v.color} shrink-0`}>{v.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm text-white font-medium truncate group-hover:text-purple-300 transition-colors">{item.name}</div>
+                      <div className="text-xs text-gray-500 truncate">
+                        {config?.label || item.category.replace(/_/g, ' ')}
+                        {item.note && ` · ${item.note.substring(0, 40)}${item.note.length > 40 ? '...' : ''}`}
+                      </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-gray-600 group-hover:text-purple-400 shrink-0 transition-colors" />
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Categories Grid */}
       <section className="py-12 border-t border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -760,18 +839,12 @@ export default function Home() {
                   className="glass-card overflow-hidden group hover:scale-105 transition-transform"
                 >
                   <div className="aspect-square relative">
-                    {phenomenon.primary_image_url ? (
-                      <img
-                        src={phenomenon.primary_image_url}
-                        alt={phenomenon.name}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-                        <span className="text-3xl">{phenomenon.icon || '\u2753'}</span>
-                      </div>
-                    )}
+                    <ImageWithFallback
+                      src={phenomenon.primary_image_url}
+                      alt={phenomenon.name}
+                      category={phenomenon.category}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                    />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                   </div>
                   <div className="p-2 sm:p-3">
