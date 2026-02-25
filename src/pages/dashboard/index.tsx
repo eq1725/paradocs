@@ -220,7 +220,7 @@ export default function DashboardPage() {
       <div className="mb-5 rounded-xl overflow-hidden border border-gray-800 relative">
         {hasEntries && userMapData ? (
           <>
-            <div className="h-[260px] sm:h-[340px]">
+            <div className="dashboard-constellation-wrap">
               <ConstellationMapV2
                 userMapData={userMapData}
                 onSelectEntry={handleSelectEntry}
@@ -421,6 +421,21 @@ export default function DashboardPage() {
       {showDashboardTour && (
         <DashboardTour onComplete={() => setShowDashboardTour(false)} />
       )}
+
+      {/* Override constellation map's internal clamp height to fit our preview container */}
+      <style jsx global>{`
+        .dashboard-constellation-wrap {
+          height: 300px;
+        }
+        @media (min-width: 640px) {
+          .dashboard-constellation-wrap {
+            height: 380px;
+          }
+        }
+        .dashboard-constellation-wrap > div {
+          height: 100% !important;
+        }
+      `}</style>
     </DashboardLayout>
   )
 }
