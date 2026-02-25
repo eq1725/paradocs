@@ -83,14 +83,27 @@ export default async function handler(
   const supabase = createServerClient();
 
   try {
-    const { phenomena, generateContent = true, dryRun = false } = req.body as {
-      phenomena: SeedPhenomenon[];
+    const { phenomena: providedPhenomena, generateContent = true, dryRun = false, useSeed = false, category } = req.body as {
+      phenomena?: SeedPhenomenon[];
       generateContent?: boolean;
       dryRun?: boolean;
+      useSeed?: boolean;
+      category?: string;
     };
 
-    if (!phenomena || !Array.isArray(phenomena)) {
-      return res.status(400).json({ error: 'phenomena array required' });
+    // Allow loading from seed file server-side
+    let phenomena: SeedPhenomenon[];
+    if (useSeed) {
+      const seedData = require('@/data/phenomena-seed.json');
+      phenomena = seedData.phenomena;
+      // Optionally filter by category
+      if (category) {
+        phenomena = phenomena.filter((p: SeedPhenomenon) => p.category === category);
+      }
+    } else if (providedPhenomena && Array.isArray(providedPhenomena)) {
+      phenomena = providedPhenomena;
+    } else {
+      return res.status(400).json({ error: 'phenomena array required or set useSeed: true' });
     }
 
     console.log(`[BatchCreate] Starting batch create for ${phenomena.length} phenomena (dryRun: ${dryRun})`);
