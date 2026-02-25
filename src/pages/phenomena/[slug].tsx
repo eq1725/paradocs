@@ -367,6 +367,18 @@ export default function PhenomenonPage() {
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
                   <h3 className="text-lg font-semibold text-white mb-4">Quick Facts</h3>
                   <dl className="space-y-4">
+                    {phenomenon.aliases && phenomenon.aliases.length > 0 && (
+                      <div>
+                        <dt className="text-sm text-gray-400">Also Known As</dt>
+                        <dd className="text-white text-sm mt-1 flex flex-wrap gap-1.5">
+                          {phenomenon.aliases.map((alias: string, i: number) => (
+                            <span key={i} className="bg-gray-800 px-2 py-0.5 rounded text-gray-300 text-xs">
+                              {alias}
+                            </span>
+                          ))}
+                        </dd>
+                      </div>
+                    )}
                     <div>
                       <dt className="text-sm text-gray-400">Category</dt>
                       <dd className="text-white flex items-center gap-2 mt-1">
