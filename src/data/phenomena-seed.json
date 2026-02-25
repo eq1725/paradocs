@@ -5715,6 +5715,43 @@
       ]
     },
     {
+      "name": "Abiku",
+      "aliases": [
+        "Abikku",
+        "Born to Die"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "👶",
+      "brief_description": "West African spirit child that repeatedly dies and is reborn into the same family, causing endless grief and financial loss across generations.",
+      "key_characteristics": [
+        "cyclical death",
+        "family targeting",
+        "predetermined destiny",
+        "reincarnation pattern"
+      ],
+      "regions": [
+        "West Africa, Nigeria"
+      ]
+    },
+    {
+      "name": "Adze",
+      "aliases": [
+        "Adomfe"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "✨",
+      "brief_description": "West African vampire spirit that appears as a firefly and feeds on blood and vital energy, often targeting the sick and weakened.",
+      "key_characteristics": [
+        "shapeshifting ability",
+        "blood feeding",
+        "energy consumption",
+        "vulnerable target preference"
+      ],
+      "regions": [
+        "West Africa"
+      ]
+    },
+    {
       "name": "Alcatraz Ghost",
       "aliases": [
         "Alcatraz Haunting",
@@ -5752,6 +5789,63 @@
       "regions": [
         "New York",
         "USA"
+      ]
+    },
+    {
+      "name": "Ancestral Spirits",
+      "aliases": [
+        "Ancestor Ghosts",
+        "Family Guardians"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "👨‍👩‍👧",
+      "brief_description": "Spirits of deceased family members believed to maintain connection with living relatives, often appearing protective or communicative.",
+      "key_characteristics": [
+        "family connection",
+        "protective behavior",
+        "ancestral guidance",
+        "respectful interaction"
+      ],
+      "regions": [
+        "Worldwide"
+      ]
+    },
+    {
+      "name": "Anniversary Ghosts",
+      "aliases": [
+        "Recurring Manifestation",
+        "Date-Specific Spirits"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "📅",
+      "brief_description": "Spirits that manifest on specific dates, typically anniversaries of their death or traumatic events, repeating patterns of activity annually.",
+      "key_characteristics": [
+        "date-specific manifestation",
+        "recurring pattern",
+        "trauma anniversary",
+        "predictable behavior"
+      ],
+      "regions": [
+        "Worldwide"
+      ]
+    },
+    {
+      "name": "Aokigahara Forest",
+      "aliases": [
+        "Sea of Trees",
+        "Suicide Forest"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🌲",
+      "brief_description": "Dense Japanese forest with reports of lost spirits, phantom voices, and disoriented visitors experiencing unexplained phenomena.",
+      "key_characteristics": [
+        "spirit phenomena",
+        "phantom voices",
+        "disorientation",
+        "lost souls"
+      ],
+      "regions": [
+        "Mount Fuji, Japan"
       ]
     },
     {
@@ -5850,6 +5944,43 @@
       ]
     },
     {
+      "name": "Bhangarh Fort",
+      "aliases": [
+        "Bhangarh"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🏰",
+      "brief_description": "Indian fort with legends of a curse and widespread reports of shadow figures, phantom voices, and apparitions that prevent permanent habitation.",
+      "key_characteristics": [
+        "curse phenomena",
+        "shadow figures",
+        "phantom voices",
+        "mass apparitions"
+      ],
+      "regions": [
+        "Rajasthan, India"
+      ]
+    },
+    {
+      "name": "Bhoot",
+      "aliases": [
+        "Bhoota",
+        "Spirit of the Dead"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "👻",
+      "brief_description": "Indian spirit of the deceased that has become malevolent through improper death or burial, often possessing the living and causing harm.",
+      "key_characteristics": [
+        "possession tendency",
+        "malevolence",
+        "improper death connection",
+        "behavioral control"
+      ],
+      "regions": [
+        "India"
+      ]
+    },
+    {
       "name": "Black Eyed Children",
       "aliases": [
         "BEC"
@@ -5906,6 +6037,25 @@
       ]
     },
     {
+      "name": "Cheonyeo Gwishin",
+      "aliases": [
+        "Maiden Ghost",
+        "Virgin Spirit"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "👯",
+      "brief_description": "Korean ghost of an unmarried woman who died tragically, particularly associated with violent or improper deaths, seeking vengeance and resolution.",
+      "key_characteristics": [
+        "gender-specific manifestation",
+        "tragic death association",
+        "vengeance behavior",
+        "unresolved trauma"
+      ],
+      "regions": [
+        "Korea"
+      ]
+    },
+    {
       "name": "Chindi",
       "aliases": [
         "Navajo Ghost",
@@ -5922,6 +6072,43 @@
       "regions": [
         "Navajo Nation",
         "American Southwest"
+      ]
+    },
+    {
+      "name": "Churel",
+      "aliases": [
+        "Chudail",
+        "Witch Spirit"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🧛",
+      "brief_description": "Indian female spirit formed from a woman who died during menstruation or childbirth, considered highly malevolent and associated with seduction and harm.",
+      "key_characteristics": [
+        "female-specific manifestation",
+        "seductive behavior",
+        "reproductive death connection",
+        "village threat"
+      ],
+      "regions": [
+        "India"
+      ]
+    },
+    {
+      "name": "Château de Brissac",
+      "aliases": [
+        "Brissac Castle"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🏰",
+      "brief_description": "French castle reportedly haunted by the Green Lady, a woman murdered by her jealous husband whose apparition has been documented for centuries.",
+      "key_characteristics": [
+        "named apparition",
+        "murder victim spirit",
+        "long-term haunting",
+        "castle manifestation"
+      ],
+      "regions": [
+        "Anjou, France"
       ]
     },
     {
@@ -5963,6 +6150,44 @@
       ]
     },
     {
+      "name": "Crisis Apparitions",
+      "aliases": [
+        "Death-Moment Spirits",
+        "Emergency Manifestations"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "⚠️",
+      "brief_description": "Spirits believed to appear at the moment of or immediately after a traumatic death to warn loved ones or communicate final messages.",
+      "key_characteristics": [
+        "death-moment timing",
+        "warning behavior",
+        "communication intent",
+        "brief duration"
+      ],
+      "regions": [
+        "Worldwide"
+      ]
+    },
+    {
+      "name": "Crossover Spirits",
+      "aliases": [
+        "In-Transition Entities",
+        "Liminal Spirits"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🚪",
+      "brief_description": "Spirits believed to be caught between the living and deceased worlds, often appearing confused or unaware of their death status.",
+      "key_characteristics": [
+        "transitional state",
+        "liminal awareness",
+        "confusion manifestation",
+        "helper-responsive"
+      ],
+      "regions": [
+        "Worldwide"
+      ]
+    },
+    {
       "name": "Demon",
       "aliases": [
         "Evil Spirit",
@@ -6001,6 +6226,25 @@
       ]
     },
     {
+      "name": "Disembodied Voices",
+      "aliases": [
+        "Electronic Voice Phenomenon variation",
+        "Spectral Speech"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🔊",
+      "brief_description": "Unexplained vocal sounds and speech heard during paranormal investigations without visible source, documented through audio recording and witness accounts.",
+      "key_characteristics": [
+        "audio manifestation",
+        "sourceless origin",
+        "speech variation",
+        "recording capability"
+      ],
+      "regions": [
+        "Worldwide"
+      ]
+    },
+    {
       "name": "Doppelganger",
       "aliases": [
         "Double",
@@ -6018,6 +6262,100 @@
       "regions": [
         "Global",
         "Germanic folklore"
+      ]
+    },
+    {
+      "name": "Draugr",
+      "aliases": [
+        "Undead Warrior",
+        "Barrow Dweller"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "⚔️",
+      "brief_description": "Nordic undead warrior that rises from its burial mound to terrorize the living, often possessing superhuman strength and magical powers.",
+      "key_characteristics": [
+        "burial mound origin",
+        "superhuman strength",
+        "magical resistance",
+        "hostile manifestation"
+      ],
+      "regions": [
+        "Scandinavia, Nordic regions"
+      ]
+    },
+    {
+      "name": "Duwende",
+      "aliases": [
+        "Dwende",
+        "Duende"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🧚",
+      "brief_description": "Filipino nature spirit or small humanoid entity that can be helpful or harmful depending on how it is treated by humans in its domain.",
+      "key_characteristics": [
+        "nature-bound",
+        "size variation",
+        "conditional behavior",
+        "territorial"
+      ],
+      "regions": [
+        "Philippines"
+      ]
+    },
+    {
+      "name": "Eastern State Penitentiary",
+      "aliases": [
+        "Eastern State Prison"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🔒",
+      "brief_description": "Historic Philadelphia prison known for reports of disembodied voices, shadow figures, and apparitions of deceased inmates throughout its cellblocks.",
+      "key_characteristics": [
+        "disembodied voices",
+        "shadow figures",
+        "apparitions",
+        "cell block manifestations"
+      ],
+      "regions": [
+        "Philadelphia, Pennsylvania, USA"
+      ]
+    },
+    {
+      "name": "Edinburgh Vaults",
+      "aliases": [
+        "Underground Vaults",
+        "South Bridge Vaults"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🏚️",
+      "brief_description": "Underground stone chambers beneath Edinburgh with widespread reports of shadow figures, phantom footsteps, and apparitions of former inhabitants.",
+      "key_characteristics": [
+        "shadow figures",
+        "phantom footsteps",
+        "apparitions",
+        "underground manifestations"
+      ],
+      "regions": [
+        "Edinburgh, Scotland"
+      ]
+    },
+    {
+      "name": "Electronic Disturbances",
+      "aliases": [
+        "Electrical Anomalies",
+        "Device Interference"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "⚡",
+      "brief_description": "Unexplained malfunctions, interference, or activation of electronic devices during paranormal activity, often including lights, electronics, and recording equipment.",
+      "key_characteristics": [
+        "technology interaction",
+        "equipment failure",
+        "power anomalies",
+        "investigator impact"
+      ],
+      "regions": [
+        "Worldwide"
       ]
     },
     {
@@ -6073,6 +6411,44 @@
       ],
       "regions": [
         "Global"
+      ]
+    },
+    {
+      "name": "Full-Body Apparition",
+      "aliases": [
+        "Complete Manifestation",
+        "Solid Apparition"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "👤",
+      "brief_description": "The complete visible manifestation of a spirit in human form, often appearing solid or semi-transparent with specific clothing or identifying characteristics.",
+      "key_characteristics": [
+        "complete visibility",
+        "human-form manifestation",
+        "identifiable appearance",
+        "visual clarity"
+      ],
+      "regions": [
+        "Worldwide"
+      ]
+    },
+    {
+      "name": "Funayūrei",
+      "aliases": [
+        "Ship Ghost",
+        "Boat Spirit"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "⛵",
+      "brief_description": "Japanese maritime spirit of those who died at sea, appearing with distinctive long hair and tattered clothing, seeking vengeance or passage to afterlife.",
+      "key_characteristics": [
+        "water-bound haunting",
+        "maritime victims",
+        "distinctive appearance",
+        "vengeful tendencies"
+      ],
+      "regions": [
+        "Japan"
       ]
     },
     {
@@ -6132,6 +6508,25 @@
       ]
     },
     {
+      "name": "Gwishin",
+      "aliases": [
+        "Korean Ghost",
+        "Hanbok Spirit"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "👻",
+      "brief_description": "Korean spirit of the deceased, often bound to the living world due to unfulfilled wishes, violent death, or improper burial rites.",
+      "key_characteristics": [
+        "unfinished business",
+        "burial rite dependent",
+        "manifestation variable",
+        "justice seeking"
+      ],
+      "regions": [
+        "Korea"
+      ]
+    },
+    {
       "name": "Hat Man",
       "aliases": [
         "Man in the Hat",
@@ -6151,6 +6546,44 @@
       ]
     },
     {
+      "name": "Hitodama",
+      "aliases": [
+        "Human Fire",
+        "Soul Fire"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🔥",
+      "brief_description": "Japanese supernatural flame believed to be the visible manifestation of a departing human soul, typically appearing as a ball of light above graves or deathbeds.",
+      "key_characteristics": [
+        "luminescent manifestation",
+        "soul representation",
+        "death-related appearance",
+        "spectral light"
+      ],
+      "regions": [
+        "Japan"
+      ]
+    },
+    {
+      "name": "Ifrit",
+      "aliases": [
+        "Afreet",
+        "Ifeet"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🔥",
+      "brief_description": "Islamic and Middle Eastern spirit of immense power formed from fire, known for strength, cunning, and resistance to control despite magical binding attempts.",
+      "key_characteristics": [
+        "fire origin",
+        "immense strength",
+        "resistance to binding",
+        "intelligence"
+      ],
+      "regions": [
+        "Middle East, Islamic cultures"
+      ]
+    },
+    {
       "name": "Intelligent Haunting",
       "aliases": [
         "Interactive Ghost",
@@ -6166,6 +6599,25 @@
       ],
       "regions": [
         "Global"
+      ]
+    },
+    {
+      "name": "Interactive Spirits",
+      "aliases": [
+        "Communicative Entities",
+        "Responsive Ghosts"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "💬",
+      "brief_description": "Spirits capable of responding to questions and communicating through various methods including EVP, table tipping, and direct interaction.",
+      "key_characteristics": [
+        "responsive behavior",
+        "communication ability",
+        "intelligence demonstration",
+        "interaction facilitation"
+      ],
+      "regions": [
+        "Worldwide"
       ]
     },
     {
@@ -6207,6 +6659,24 @@
       ]
     },
     {
+      "name": "Kikimora",
+      "aliases": [
+        "Kikimori"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🧵",
+      "brief_description": "Slavic female household spirit that causes mischief and domestic disturbances, particularly interested in spinning and household textile work.",
+      "key_characteristics": [
+        "domestic mischief",
+        "textile interest",
+        "household disruption",
+        "female entity"
+      ],
+      "regions": [
+        "Slavic regions"
+      ]
+    },
+    {
       "name": "Krasue",
       "aliases": [
         "Floating Head",
@@ -6245,6 +6715,25 @@
       ]
     },
     {
+      "name": "Kuman Thong",
+      "aliases": [
+        "Golden Boy",
+        "Child Amulet"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "👶",
+      "brief_description": "Thai occult practice involving the spirit of a deceased child bound to an amulet, reported to bring wealth or luck but require constant propitiation.",
+      "key_characteristics": [
+        "bound spirit",
+        "child entity",
+        "fortune influence",
+        "maintenance requirement"
+      ],
+      "regions": [
+        "Thailand"
+      ]
+    },
+    {
       "name": "La Llorona",
       "aliases": [
         "The Weeping Woman"
@@ -6261,6 +6750,61 @@
       "regions": [
         "Mexico",
         "Latin America"
+      ]
+    },
+    {
+      "name": "La Sayona",
+      "aliases": [
+        "The Angry Woman"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "👰",
+      "brief_description": "Venezuelan legend of a woman's vengeful spirit who was betrayed and murdered by her husband, appearing to men on roads to warn or harm them.",
+      "key_characteristics": [
+        "vengeful behavior",
+        "male-targeted manifestation",
+        "road haunting",
+        "betrayal revenge"
+      ],
+      "regions": [
+        "Venezuela"
+      ]
+    },
+    {
+      "name": "Lawang Sewu",
+      "aliases": [
+        "Thousand Doors"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🚪",
+      "brief_description": "Indonesian colonial building with documented reports of apparitions, phantom footsteps, and disembodied voices from its violent military history.",
+      "key_characteristics": [
+        "military trauma spirits",
+        "apparitions",
+        "phantom footsteps",
+        "disembodied voices"
+      ],
+      "regions": [
+        "Semarang, Indonesia"
+      ]
+    },
+    {
+      "name": "Leap Castle",
+      "aliases": [
+        "Leaproinn",
+        "Leap"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🏰",
+      "brief_description": "Irish castle with accounts of violent poltergeist activity, shadow figures, and the apparition of a murdered woman known as the Bloody Chapel ghost.",
+      "key_characteristics": [
+        "poltergeist activity",
+        "shadow figures",
+        "named apparition",
+        "violent manifestations"
+      ],
+      "regions": [
+        "County Offaly, Ireland"
       ]
     },
     {
@@ -6322,6 +6866,62 @@
       ]
     },
     {
+      "name": "Monte Cristo Homestead",
+      "aliases": [
+        "Monte Cristo House"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🏡",
+      "brief_description": "Australian colonial mansion reported to have apparitions, phantom footsteps, and disembodied voices attributed to multiple tragic deaths.",
+      "key_characteristics": [
+        "multiple apparitions",
+        "phantom footsteps",
+        "disembodied voices",
+        "tragic death phenomena"
+      ],
+      "regions": [
+        "Junee, New South Wales, Australia"
+      ]
+    },
+    {
+      "name": "Night Marchers",
+      "aliases": [
+        "Huaka'i Pō",
+        "Ghost Procession"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "👥",
+      "brief_description": "Hawaiian spiritual procession of ancestral spirits traveling at night, believed to be dangerous to those who do not show proper respect and preparation.",
+      "key_characteristics": [
+        "procession phenomenon",
+        "ancestral connection",
+        "respect-dependent",
+        "night manifestation"
+      ],
+      "regions": [
+        "Hawaii"
+      ]
+    },
+    {
+      "name": "Nisse",
+      "aliases": [
+        "Tomte",
+        "Goblin"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🎩",
+      "brief_description": "Nordic household spirit similar to leprechauns that protects farms and homes, but becomes vengeful if disrespected or forgotten.",
+      "key_characteristics": [
+        "property guardian",
+        "conditional respect",
+        "vengeful nature",
+        "farm protection"
+      ],
+      "regions": [
+        "Scandinavia, Nordic regions"
+      ]
+    },
+    {
       "name": "Old Hag Syndrome",
       "aliases": [
         "Night Hag",
@@ -6339,6 +6939,25 @@
       "regions": [
         "Global",
         "Newfoundland folklore"
+      ]
+    },
+    {
+      "name": "Orb Photography Phenomenon",
+      "aliases": [
+        "Orb Debate",
+        "Spectral Orbs"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "⭕",
+      "brief_description": "Spherical light anomalies appearing in photographs, debated between paranormal investigators and skeptics as either spiritual manifestations or camera artifacts.",
+      "key_characteristics": [
+        "photographic appearance",
+        "scientific debate",
+        "variable visibility",
+        "documentation evidence"
+      ],
+      "regions": [
+        "Worldwide"
       ]
     },
     {
@@ -6402,6 +7021,80 @@
       ]
     },
     {
+      "name": "Phantom Smells",
+      "aliases": [
+        "Olfactory Manifestation",
+        "Unexplained Odors"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "👃",
+      "brief_description": "Unexplained odors experienced during paranormal activity, often described as distinctive scents associated with the deceased or specific locations.",
+      "key_characteristics": [
+        "sensory manifestation",
+        "olfactory perception",
+        "personal association",
+        "environmental specific"
+      ],
+      "regions": [
+        "Worldwide"
+      ]
+    },
+    {
+      "name": "Phi Pop",
+      "aliases": [
+        "Ghost that Eats Excrement"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "👻",
+      "brief_description": "Thai malevolent spirit that consumes human feces and leaves victims ill or mentally disturbed, often attached to specific locations.",
+      "key_characteristics": [
+        "malevolent behavior",
+        "illness causation",
+        "location attachment",
+        "possession tendency"
+      ],
+      "regions": [
+        "Thailand"
+      ]
+    },
+    {
+      "name": "Phi Tai Hong",
+      "aliases": [
+        "Death Watcher Spirit"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "👻",
+      "brief_description": "Thai spirit of one who died violently or unexpectedly, known for causing misfortune and illness to those who encounter it without proper spiritual protection.",
+      "key_characteristics": [
+        "violent death association",
+        "malevolence",
+        "illness causation",
+        "protection-resistant"
+      ],
+      "regions": [
+        "Thailand"
+      ]
+    },
+    {
+      "name": "Pishacha",
+      "aliases": [
+        "Pisaca",
+        "Devouring Spirit"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "👹",
+      "brief_description": "Indian demonic spirit known for consuming flesh and blood, often associated with battlefield deaths and violent demises.",
+      "key_characteristics": [
+        "flesh consumption",
+        "violent death link",
+        "demonic nature",
+        "battlefield association"
+      ],
+      "regions": [
+        "India"
+      ]
+    },
+    {
       "name": "Poltergeist",
       "aliases": [
         "Noisy Ghost"
@@ -6455,6 +7148,24 @@
       ],
       "regions": [
         "Worldwide"
+      ]
+    },
+    {
+      "name": "Poveglia Island",
+      "aliases": [
+        "Island of Ghosts"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "👻",
+      "brief_description": "Abandoned Venetian island with documented accounts of apparitions, disembodied voices, and reports of plague victims returning as restless spirits.",
+      "key_characteristics": [
+        "plague apparitions",
+        "disembodied voices",
+        "restless spirits",
+        "mass death phenomena"
+      ],
+      "regions": [
+        "Venice, Italy"
       ]
     },
     {
@@ -6593,6 +7304,61 @@
       ]
     },
     {
+      "name": "Rose Hall Jamaica",
+      "aliases": [
+        "Rose Hall Great House"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🏚️",
+      "brief_description": "Jamaican plantation house legendary for the apparition of Annie Palmer, accused witch and poisoner whose spirit reportedly manifests with violent poltergeist activity.",
+      "key_characteristics": [
+        "named apparition",
+        "violent poltergeist",
+        "historical figure haunting",
+        "plantation manifestation"
+      ],
+      "regions": [
+        "Montego Bay, Jamaica"
+      ]
+    },
+    {
+      "name": "Rusalka",
+      "aliases": [
+        "Rusalki"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🧜‍♀️",
+      "brief_description": "Slavic water spirit of a woman who died a violent or tragic death, often seductive and dangerous to men, dwelling in rivers and lakes.",
+      "key_characteristics": [
+        "water-bound haunting",
+        "seductive behavior",
+        "violent death origin",
+        "male-targeted danger"
+      ],
+      "regions": [
+        "Slavic regions, Eastern Europe"
+      ]
+    },
+    {
+      "name": "Shadow Figures",
+      "aliases": [
+        "Shadow People",
+        "Dark Silhouettes"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🌑",
+      "brief_description": "Humanoid dark shapes observed during paranormal activity, typically described as solid black shadows moving independently without light source.",
+      "key_characteristics": [
+        "shadow manifestation",
+        "humanoid shape",
+        "independent movement",
+        "light independent"
+      ],
+      "regions": [
+        "Worldwide"
+      ]
+    },
+    {
       "name": "Shadow Person",
       "aliases": [
         "Shadow Figure",
@@ -6611,6 +7377,24 @@
       ],
       "regions": [
         "Global"
+      ]
+    },
+    {
+      "name": "Silbon",
+      "aliases": [
+        "La Silbona"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "👻",
+      "brief_description": "Colombian legendary apparition of a woman murdered by her lover, manifesting as a whistling skeleton figure that warns of upcoming deaths.",
+      "key_characteristics": [
+        "skeletal appearance",
+        "whistling sound",
+        "death warning",
+        "murder victim spirit"
+      ],
+      "regions": [
+        "Colombia"
       ]
     },
     {
@@ -6689,6 +7473,25 @@
       ]
     },
     {
+      "name": "Thermal Imaging Anomalies",
+      "aliases": [
+        "Temperature Variations",
+        "Infrared Anomalies"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "🌡️",
+      "brief_description": "Unexplained temperature fluctuations and cold spots detected during paranormal investigations, recorded using thermal imaging equipment.",
+      "key_characteristics": [
+        "temperature variation",
+        "localized patterns",
+        "detection consistency",
+        "environmental unexplained"
+      ],
+      "regions": [
+        "Worldwide"
+      ]
+    },
+    {
       "name": "Tiyanak",
       "aliases": [
         "Philippine Vampire"
@@ -6724,6 +7527,43 @@
       "regions": [
         "London",
         "England"
+      ]
+    },
+    {
+      "name": "Vetala",
+      "aliases": [
+        "Betal",
+        "Corpse Demon"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "💀",
+      "brief_description": "Indian demonized spirit that inhabits corpses and is known for magical knowledge, said to serve a higher being and communicate through puzzle-like riddles.",
+      "key_characteristics": [
+        "corpse possession",
+        "magical knowledge",
+        "riddle communication",
+        "servant entity"
+      ],
+      "regions": [
+        "India"
+      ]
+    },
+    {
+      "name": "White Lady",
+      "aliases": [
+        "Dama Blanca"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "👰",
+      "brief_description": "Filipino apparition of a woman in white who died tragically, often appearing as a warning or manifestation of unresolved grief and trauma.",
+      "key_characteristics": [
+        "female manifestation",
+        "white appearance",
+        "tragic death origin",
+        "warning behavior"
+      ],
+      "regions": [
+        "Philippines"
       ]
     },
     {
@@ -6796,6 +7636,25 @@
         "long black hair",
         "white burial robes",
         "vengeful energy"
+      ],
+      "regions": [
+        "Japan"
+      ]
+    },
+    {
+      "name": "Zashiki-warashi",
+      "aliases": [
+        "Household Spirit",
+        "Room Guardian"
+      ],
+      "category": "ghosts_hauntings",
+      "icon": "👧",
+      "brief_description": "Japanese spirit of a child who died in a household, typically benevolent but mischievous, believed to bring good fortune or misfortune depending on treatment.",
+      "key_characteristics": [
+        "household attachment",
+        "mischievous behavior",
+        "fortune influence",
+        "child entity"
       ],
       "regions": [
         "Japan"
@@ -8421,6 +9280,25 @@
       ]
     },
     {
+      "name": "Ancestor Worship",
+      "aliases": [
+        "Veneration of the Dead",
+        "Family Spirits"
+      ],
+      "category": "religion_mythology",
+      "icon": "👨‍👩‍👧",
+      "brief_description": "African traditional religious practice honoring and appeasing deceased ancestors believed to influence the living and mediate divine favor.",
+      "key_characteristics": [
+        "spiritual connection",
+        "protective guidance",
+        "ritual practice",
+        "family centeredness"
+      ],
+      "regions": [
+        "Africa"
+      ]
+    },
+    {
       "name": "Angels",
       "aliases": [
         "Celestial Beings",
@@ -8438,6 +9316,25 @@
       "regions": [
         "Global",
         "Abrahamic religions"
+      ]
+    },
+    {
+      "name": "Apsaras",
+      "aliases": [
+        "Water Nymphs",
+        "Celestial Dancers"
+      ],
+      "category": "religion_mythology",
+      "icon": "💃",
+      "brief_description": "Hindu and Buddhist celestial female beings known for their beauty, dancing, and seductive powers, often appearing in heavenly realms.",
+      "key_characteristics": [
+        "beauty manifestation",
+        "dancing ability",
+        "seductive power",
+        "heavenly realm association"
+      ],
+      "regions": [
+        "Hindu and Buddhist traditions, India and Southeast Asia"
       ]
     },
     {
@@ -8459,6 +9356,44 @@
         "Middle East",
         "Ethiopia",
         "Unknown"
+      ]
+    },
+    {
+      "name": "Asuras",
+      "aliases": [
+        "Demons",
+        "Anti-Gods"
+      ],
+      "category": "religion_mythology",
+      "icon": "😈",
+      "brief_description": "Hindu and Buddhist supernatural entities possessing great power but lacking virtue, often depicted as cosmic rivals of the Devas.",
+      "key_characteristics": [
+        "powerful nature",
+        "virtue lacking",
+        "cosmic conflict",
+        "dualistic opposition"
+      ],
+      "regions": [
+        "Hindu and Buddhist traditions, South and Southeast Asia"
+      ]
+    },
+    {
+      "name": "Ba and Ka",
+      "aliases": [
+        "Spirit Aspects",
+        "Soul Components"
+      ],
+      "category": "religion_mythology",
+      "icon": "🕊️",
+      "brief_description": "Egyptian concept of dual spiritual components: the Ba representing personality and consciousness, the Ka representing vital life force.",
+      "key_characteristics": [
+        "dual nature",
+        "spiritual components",
+        "afterlife connection",
+        "preservation importance"
+      ],
+      "regions": [
+        "Ancient Egypt"
       ]
     },
     {
@@ -8500,6 +9435,101 @@
         "Italy",
         "Europe",
         "Worldwide"
+      ]
+    },
+    {
+      "name": "Bodhisattvas",
+      "aliases": [
+        "Enlightened Beings",
+        "Future Buddhas"
+      ],
+      "category": "religion_mythology",
+      "icon": "🙏",
+      "brief_description": "Buddhist enlightened beings who have delayed their own nirvana to help others achieve liberation, representing compassion and spiritual attainment.",
+      "key_characteristics": [
+        "enlightenment achievement",
+        "compassionate service",
+        "liberation delay",
+        "guidance provision"
+      ],
+      "regions": [
+        "Buddhist tradition, Asia"
+      ]
+    },
+    {
+      "name": "Book of the Dead",
+      "aliases": [
+        "Egyptian Funerary Text",
+        "Afterlife Guide"
+      ],
+      "category": "religion_mythology",
+      "icon": "📜",
+      "brief_description": "Ancient Egyptian funerary texts containing spells, prayers, and instructions believed necessary for successful navigation of the afterlife.",
+      "key_characteristics": [
+        "funerary purpose",
+        "magical content",
+        "afterlife guidance",
+        "spiritual preservation"
+      ],
+      "regions": [
+        "Ancient Egypt"
+      ]
+    },
+    {
+      "name": "Buddhist Relics",
+      "aliases": [
+        "Sarira",
+        "Holy Remains"
+      ],
+      "category": "religion_mythology",
+      "icon": "💎",
+      "brief_description": "Buddhist sacred remains, often crystalline objects found in cremated bodies of accomplished masters, revered as spiritual objects of power.",
+      "key_characteristics": [
+        "cremation remains",
+        "crystalline form",
+        "spiritual power",
+        "relic veneration"
+      ],
+      "regions": [
+        "Buddhist tradition, Asia"
+      ]
+    },
+    {
+      "name": "Changelings",
+      "aliases": [
+        "Fairy Substitutes",
+        "Stolen Children"
+      ],
+      "category": "religion_mythology",
+      "icon": "👶",
+      "brief_description": "Celtic folklore of fairy substitutes left in place of abducted human children, depicting children with unusual behavior or capabilities.",
+      "key_characteristics": [
+        "fairy exchange",
+        "child replacement",
+        "unusual behavior",
+        "supernatural connection"
+      ],
+      "regions": [
+        "Celtic tradition, Ireland and Britain"
+      ]
+    },
+    {
+      "name": "Dajjal",
+      "aliases": [
+        "False Messiah",
+        "End Times Deceiver"
+      ],
+      "category": "religion_mythology",
+      "icon": "👁️",
+      "brief_description": "Islamic eschatological figure prophesied to appear before the Day of Judgment as a deceptive being challenging monotheistic faith.",
+      "key_characteristics": [
+        "deceptive nature",
+        "end-times role",
+        "theological opposition",
+        "prophetic mention"
+      ],
+      "regions": [
+        "Islamic tradition, Middle East and worldwide"
       ]
     },
     {
@@ -8601,6 +9631,82 @@
       ]
     },
     {
+      "name": "Dreamtime",
+      "aliases": [
+        "Dreaming",
+        "Ancestral Time"
+      ],
+      "category": "religion_mythology",
+      "icon": "💤",
+      "brief_description": "Aboriginal Australian concept of sacred ancestral era in which spiritual beings shaped the landscape and established laws still governing existence.",
+      "key_characteristics": [
+        "ancestral connection",
+        "landscape creation",
+        "spiritual governance",
+        "eternal dimension"
+      ],
+      "regions": [
+        "Aboriginal Australia"
+      ]
+    },
+    {
+      "name": "Dybbuk",
+      "aliases": [
+        "Possessing Spirit",
+        "Clinging Soul"
+      ],
+      "category": "religion_mythology",
+      "icon": "👻",
+      "brief_description": "Jewish concept of a malevolent spirit that possesses living humans, originating from unresolved souls or demons in Hasidic tradition.",
+      "key_characteristics": [
+        "possession behavior",
+        "malevolence",
+        "soul origin",
+        "exorcism-responsive"
+      ],
+      "regions": [
+        "Jewish tradition, Eastern Europe"
+      ]
+    },
+    {
+      "name": "Einherjar",
+      "aliases": [
+        "Honored Dead",
+        "Valhalla Warriors"
+      ],
+      "category": "religion_mythology",
+      "icon": "⚔️",
+      "brief_description": "Norse warriors selected by Valkyries to reside in Valhalla, training for the final battle of Ragnarok in Norse belief.",
+      "key_characteristics": [
+        "warrior status",
+        "honored selection",
+        "eternal training",
+        "apocalypse role"
+      ],
+      "regions": [
+        "Norse tradition, Scandinavia"
+      ]
+    },
+    {
+      "name": "Eleusinian Mysteries",
+      "aliases": [
+        "Sacred Rites",
+        "Mystery Cult"
+      ],
+      "category": "religion_mythology",
+      "icon": "🌾",
+      "brief_description": "Ancient Greek religious initiation rites honoring Demeter and Persephone, involving secret rituals believed to grant spiritual understanding and immortality promise.",
+      "key_characteristics": [
+        "initiation practice",
+        "secret knowledge",
+        "spiritual transformation",
+        "immortality promise"
+      ],
+      "regions": [
+        "Ancient Greece, Eleusis"
+      ]
+    },
+    {
       "name": "End Times Prophecy",
       "aliases": [
         "Apocalypse",
@@ -8637,6 +9743,25 @@
       "regions": [
         "Europe",
         "Worldwide"
+      ]
+    },
+    {
+      "name": "Evil Eye",
+      "aliases": [
+        "Nazar",
+        "Protective Concept"
+      ],
+      "category": "religion_mythology",
+      "icon": "👁️",
+      "brief_description": "Islamic concept of harmful gaze or envy believed capable of causing misfortune, with protective practices detailed in Islamic tradition.",
+      "key_characteristics": [
+        "harm causation",
+        "envy-based",
+        "protection rituals",
+        "belief widespread"
+      ],
+      "regions": [
+        "Islamic tradition, Middle East and Mediterranean"
       ]
     },
     {
@@ -8741,6 +9866,82 @@
       ]
     },
     {
+      "name": "Gandharvas",
+      "aliases": [
+        "Celestial Musicians",
+        "Heavenly Beings"
+      ],
+      "category": "religion_mythology",
+      "icon": "🎵",
+      "brief_description": "Hindu celestial musicians and heavenly beings associated with the sun, known for their magical powers and role in celestial events.",
+      "key_characteristics": [
+        "musical talent",
+        "celestial association",
+        "magical ability",
+        "divine service"
+      ],
+      "regions": [
+        "Hindu tradition, India"
+      ]
+    },
+    {
+      "name": "Garuda",
+      "aliases": [
+        "Divine Eagle",
+        "King of Birds"
+      ],
+      "category": "religion_mythology",
+      "icon": "🦅",
+      "brief_description": "Hindu and Buddhist divine eagle being serving as a vehicle for deities and symbol of divine power and protection.",
+      "key_characteristics": [
+        "eagle nature",
+        "divine vehicle",
+        "power symbol",
+        "protective role"
+      ],
+      "regions": [
+        "Hindu and Buddhist traditions, India and Southeast Asia"
+      ]
+    },
+    {
+      "name": "Golem",
+      "aliases": [
+        "Created Protector",
+        "Animated Clay"
+      ],
+      "category": "religion_mythology",
+      "icon": "🪨",
+      "brief_description": "Jewish mystical creation of an animated humanoid figure from clay or earth, brought to life through sacred names, famous in Prague legend.",
+      "key_characteristics": [
+        "creation procedure",
+        "mystical animation",
+        "protective role",
+        "contained power"
+      ],
+      "regions": [
+        "Jewish tradition, Eastern Europe"
+      ]
+    },
+    {
+      "name": "Great Spirit",
+      "aliases": [
+        "Creator Being",
+        "Divine Force"
+      ],
+      "category": "religion_mythology",
+      "icon": "☀️",
+      "brief_description": "Indigenous North American and worldwide indigenous concept of supreme creative and spiritual force governing all existence and natural cycles.",
+      "key_characteristics": [
+        "creative force",
+        "universal principle",
+        "divine supremacy",
+        "natural governance"
+      ],
+      "regions": [
+        "Indigenous cultures, worldwide"
+      ]
+    },
+    {
       "name": "Guardian Angels",
       "aliases": [
         "Protective Spirits",
@@ -8757,6 +9958,44 @@
       ],
       "regions": [
         "Worldwide"
+      ]
+    },
+    {
+      "name": "Hanuman",
+      "aliases": [
+        "Monkey God",
+        "Divine Devotee"
+      ],
+      "category": "religion_mythology",
+      "icon": "🐵",
+      "brief_description": "Hindu deity depicted as a monkey with superhuman strength, embodying devotion and courage in the Ramayana epic tradition.",
+      "key_characteristics": [
+        "superhuman strength",
+        "devotional nature",
+        "courage manifestation",
+        "divine service"
+      ],
+      "regions": [
+        "Hindu tradition, India"
+      ]
+    },
+    {
+      "name": "Holy Fire Ceremony",
+      "aliases": [
+        "Easter Fire",
+        "Sacred Flame"
+      ],
+      "category": "religion_mythology",
+      "icon": "🔥",
+      "brief_description": "Eastern Orthodox religious ceremony during which sacred fire emerges from the Holy Sepulcher tomb, occurring annually at Jerusalem Easter celebration.",
+      "key_characteristics": [
+        "ceremonial fire",
+        "holy location",
+        "annual event",
+        "theological significance"
+      ],
+      "regions": [
+        "Jerusalem, Orthodox tradition"
       ]
     },
     {
@@ -8801,6 +10040,63 @@
       ]
     },
     {
+      "name": "Hungry Ghost Festival",
+      "aliases": [
+        "Ghost Month",
+        "Yulanpen Festival"
+      ],
+      "category": "religion_mythology",
+      "icon": "👻",
+      "brief_description": "Chinese traditional festival honoring wandering spirits and deceased ancestors, involving offerings and rituals to appease hungry ghosts.",
+      "key_characteristics": [
+        "ancestral honoring",
+        "ghost appeasement",
+        "offering rituals",
+        "seasonal observance"
+      ],
+      "regions": [
+        "China, Taiwan, Vietnam"
+      ]
+    },
+    {
+      "name": "Hungry Ghosts",
+      "aliases": [
+        "Pretas",
+        "Starving Spirits"
+      ],
+      "category": "religion_mythology",
+      "icon": "👻",
+      "brief_description": "Buddhist concept of spirits caught in a realm of suffering due to karma, depicted with insatiable hunger and inability to find satisfaction.",
+      "key_characteristics": [
+        "suffering state",
+        "insatiable hunger",
+        "karma consequence",
+        "realm specific"
+      ],
+      "regions": [
+        "Buddhist tradition, Asia"
+      ]
+    },
+    {
+      "name": "Incorrupt Bodies",
+      "aliases": [
+        "Uncorrupted Saints",
+        "Preserved Remains"
+      ],
+      "category": "religion_mythology",
+      "icon": "⛪",
+      "brief_description": "Religious phenomenon of deceased bodies remaining preserved without decomposition, documented in numerous saints and spiritual figures worldwide.",
+      "key_characteristics": [
+        "preservation phenomenon",
+        "saint association",
+        "supernatural preservation",
+        "spiritual significance"
+      ],
+      "regions": [
+        "Worldwide, Catholic tradition"
+      ]
+    },
+    {
       "name": "Incorruptible Saints",
       "aliases": [
         "Uncorrupted Bodies",
@@ -8822,6 +10118,157 @@
       ]
     },
     {
+      "name": "Isra and Mi'raj",
+      "aliases": [
+        "Night Journey",
+        "Heavenly Ascent"
+      ],
+      "category": "religion_mythology",
+      "icon": "🌙",
+      "brief_description": "Islamic spiritual experience described in the Quran as Prophet Muhammad's night journey through the heavens and encounter with divine presence.",
+      "key_characteristics": [
+        "spiritual journey",
+        "heaven ascent",
+        "divine encounter",
+        "prophetic experience"
+      ],
+      "regions": [
+        "Islamic tradition, Middle East and worldwide"
+      ]
+    },
+    {
+      "name": "Jade Emperor",
+      "aliases": [
+        "Yu Huang",
+        "Celestial Ruler"
+      ],
+      "category": "religion_mythology",
+      "icon": "👑",
+      "brief_description": "Chinese deity governing the celestial and terrestrial realms, administrative head of heavenly bureaucracy in Chinese folk religion and mythology.",
+      "key_characteristics": [
+        "celestial governance",
+        "administrative authority",
+        "multi-realm rule",
+        "folk importance"
+      ],
+      "regions": [
+        "China"
+      ]
+    },
+    {
+      "name": "Jibreel",
+      "aliases": [
+        "Gabriel",
+        "Angel of Revelation"
+      ],
+      "category": "religion_mythology",
+      "icon": "👼",
+      "brief_description": "Islamic archangel charged with delivering divine messages and revelations to prophets, particularly to Muhammad in Islamic theology.",
+      "key_characteristics": [
+        "divine messenger",
+        "revelation delivery",
+        "prophetic communication",
+        "archangel status"
+      ],
+      "regions": [
+        "Islamic tradition, Middle East and worldwide"
+      ]
+    },
+    {
+      "name": "Jinn Subtypes",
+      "aliases": [
+        "Ifrit, Marid, Ghul variants"
+      ],
+      "category": "religion_mythology",
+      "icon": "🔥",
+      "brief_description": "Islamic supernatural beings of various types with differing power levels, origins, and moral inclinations, detailed in Quranic and traditional texts.",
+      "key_characteristics": [
+        "fire origin",
+        "power variation",
+        "moral variance",
+        "control possibility"
+      ],
+      "regions": [
+        "Islamic tradition, Middle East and worldwide"
+      ]
+    },
+    {
+      "name": "Kali Manifestations",
+      "aliases": [
+        "Dark Goddess",
+        "Divine Feminine Power"
+      ],
+      "category": "religion_mythology",
+      "icon": "🔱",
+      "brief_description": "Hindu divine manifestation of Shakti representing destruction, time, change, and liberation in various epic and tantric texts.",
+      "key_characteristics": [
+        "destructive power",
+        "time representation",
+        "transformation role",
+        "liberation granting"
+      ],
+      "regions": [
+        "Hindu tradition, India"
+      ]
+    },
+    {
+      "name": "Kami",
+      "aliases": [
+        "Shinto Spirits",
+        "Sacred Essence"
+      ],
+      "category": "religion_mythology",
+      "icon": "⛩️",
+      "brief_description": "Japanese Shinto concept of sacred spirits or divine essence inhabiting natural phenomena, objects, and locations worthy of reverence.",
+      "key_characteristics": [
+        "spiritual essence",
+        "nature dwelling",
+        "reverence worthy",
+        "ubiquitous presence"
+      ],
+      "regions": [
+        "Japan, Shinto tradition"
+      ]
+    },
+    {
+      "name": "Kamikakushi",
+      "aliases": [
+        "Spirited Away",
+        "Spirit Abduction"
+      ],
+      "category": "religion_mythology",
+      "icon": "✨",
+      "brief_description": "Japanese concept of abduction by spirits or kami, particularly children or young women, with disappearance and disorientation as defining phenomena.",
+      "key_characteristics": [
+        "spirit abduction",
+        "time distortion",
+        "memory confusion",
+        "youth targeting"
+      ],
+      "regions": [
+        "Japan"
+      ]
+    },
+    {
+      "name": "Kundalini Serpent",
+      "aliases": [
+        "Coiled Energy",
+        "Spiritual Power"
+      ],
+      "category": "religion_mythology",
+      "icon": "🐍",
+      "brief_description": "Hindu yogic spiritual energy conceptualized as a serpent coiled at the base of the spine, believed to awaken through meditation and spiritual practice.",
+      "key_characteristics": [
+        "energy manifestation",
+        "spiritual awakening",
+        "transformative potential",
+        "chakra relationship"
+      ],
+      "regions": [
+        "Hindu yoga tradition, India"
+      ]
+    },
+    {
       "name": "Last Rites Phenomena",
       "aliases": [
         "Deathbed Experiences",
@@ -8838,6 +10285,158 @@
       ],
       "regions": [
         "Worldwide"
+      ]
+    },
+    {
+      "name": "Leviathan",
+      "aliases": [
+        "Primordial Serpent",
+        "Cosmic Dragon"
+      ],
+      "category": "religion_mythology",
+      "icon": "🐉",
+      "brief_description": "Jewish mythological sea monster and embodiment of chaos, mentioned in biblical and mystical texts as subject of divine control and ultimate judgment.",
+      "key_characteristics": [
+        "chaos manifestation",
+        "primordial nature",
+        "scale enormity",
+        "divine subject"
+      ],
+      "regions": [
+        "Jewish tradition, Middle East"
+      ]
+    },
+    {
+      "name": "Lilith",
+      "aliases": [
+        "Queen of Demons",
+        "First Woman"
+      ],
+      "category": "religion_mythology",
+      "icon": "👑",
+      "brief_description": "Jewish mythological figure alternately described as Adam's first wife or demonic being, prominent in Kabbalistic and post-biblical Jewish mysticism.",
+      "key_characteristics": [
+        "creation narrative role",
+        "demonic association",
+        "independence representation",
+        "mystical significance"
+      ],
+      "regions": [
+        "Jewish tradition, Middle East and Mediterranean"
+      ]
+    },
+    {
+      "name": "Loa",
+      "aliases": [
+        "Lwa",
+        "Voodoo Spirits"
+      ],
+      "category": "religion_mythology",
+      "icon": "👻",
+      "brief_description": "Haitian Vodun spirits serving as intermediaries between divine and human realms, invoked through ceremony and ritual practice.",
+      "key_characteristics": [
+        "intermediary role",
+        "ritual invocation",
+        "spirit servitude",
+        "divine connection"
+      ],
+      "regions": [
+        "Haiti, African diaspora"
+      ]
+    },
+    {
+      "name": "Lourdes Healings",
+      "aliases": [
+        "Miraculous Cures",
+        "Grotto Miracles"
+      ],
+      "category": "religion_mythology",
+      "icon": "⛪",
+      "brief_description": "Documented accounts of unexplained medical healings at the Lourdes shrine in France, attributed to Virgin Mary intercession in Catholic belief.",
+      "key_characteristics": [
+        "medical healing",
+        "shrine location",
+        "divine intercession",
+        "documented verification"
+      ],
+      "regions": [
+        "Lourdes, France, Catholic tradition"
+      ]
+    },
+    {
+      "name": "Mahdi Prophecy",
+      "aliases": [
+        "Guided One",
+        "End Times Savior"
+      ],
+      "category": "religion_mythology",
+      "icon": "👑",
+      "brief_description": "Islamic belief in a prophesied messianic figure who will restore justice and faith before the end of days in Islamic eschatology.",
+      "key_characteristics": [
+        "messianic role",
+        "justice restoration",
+        "end-times event",
+        "theological importance"
+      ],
+      "regions": [
+        "Islamic tradition, Middle East and worldwide"
+      ]
+    },
+    {
+      "name": "Maitreya Prophecy",
+      "aliases": [
+        "Future Buddha",
+        "Coming Enlightenment"
+      ],
+      "category": "religion_mythology",
+      "icon": "🕯️",
+      "brief_description": "Buddhist prophecy of a future Buddha named Maitreya who will appear to restore teachings and bring enlightenment to humanity.",
+      "key_characteristics": [
+        "future manifestation",
+        "enlightenment restoration",
+        "prophecy based",
+        "universal salvation"
+      ],
+      "regions": [
+        "Buddhist tradition, Asia"
+      ]
+    },
+    {
+      "name": "Mandate of Heaven",
+      "aliases": [
+        "Divine Right",
+        "Celestial Approval"
+      ],
+      "category": "religion_mythology",
+      "icon": "👑",
+      "brief_description": "Chinese philosophical concept of divine approval granting political legitimacy, used to justify rule and explain dynastic changes.",
+      "key_characteristics": [
+        "political legitimacy",
+        "divine approval",
+        "rule justification",
+        "change explanation"
+      ],
+      "regions": [
+        "China"
+      ]
+    },
+    {
+      "name": "Manitou",
+      "aliases": [
+        "Spiritual Power",
+        "Great Spirit"
+      ],
+      "category": "religion_mythology",
+      "icon": "✨",
+      "brief_description": "Algonquian and Northeastern Native American concept of pervasive spiritual power and sacred force inhabiting all natural phenomena.",
+      "key_characteristics": [
+        "spiritual force",
+        "universal presence",
+        "sacred principle",
+        "natural manifestation"
+      ],
+      "regions": [
+        "Indigenous North America"
       ]
     },
     {
@@ -8881,6 +10480,44 @@
       ]
     },
     {
+      "name": "Merkabah Mysticism",
+      "aliases": [
+        "Throne Chariot",
+        "Heavenly Journey"
+      ],
+      "category": "religion_mythology",
+      "icon": "✨",
+      "brief_description": "Jewish mystical practice involving celestial ascent and encounter with divine throne chariot, detailed in early Kabbalistic texts.",
+      "key_characteristics": [
+        "spiritual ascent",
+        "divine encounter",
+        "mystical practice",
+        "heavenly vision"
+      ],
+      "regions": [
+        "Jewish tradition, Middle East"
+      ]
+    },
+    {
+      "name": "Mikael",
+      "aliases": [
+        "Michael",
+        "Angel of War"
+      ],
+      "category": "religion_mythology",
+      "icon": "⚔️",
+      "brief_description": "Islamic archangel responsible for nourishment of bodies and souls, often depicted as protector against evil in Islamic theology.",
+      "key_characteristics": [
+        "nourishment role",
+        "protection function",
+        "warfare association",
+        "archangel status"
+      ],
+      "regions": [
+        "Islamic tradition, Middle East and worldwide"
+      ]
+    },
+    {
       "name": "Miracles",
       "aliases": [
         "Weeping Statues",
@@ -8898,6 +10535,63 @@
       "regions": [
         "Global",
         "Religious sites"
+      ]
+    },
+    {
+      "name": "Miracles of Padre Pio",
+      "aliases": [
+        "Saint's Wonders",
+        "Supernatural Healings"
+      ],
+      "category": "religion_mythology",
+      "icon": "✨",
+      "brief_description": "Documented accounts of miraculous healings and supernatural phenomena attributed to the Italian Capuchin friar canonized in 2002.",
+      "key_characteristics": [
+        "healing power",
+        "supernatural event",
+        "saint association",
+        "modern documentation"
+      ],
+      "regions": [
+        "Italy, Catholic tradition"
+      ]
+    },
+    {
+      "name": "Moksha",
+      "aliases": [
+        "Liberation",
+        "Enlightenment"
+      ],
+      "category": "religion_mythology",
+      "icon": "💫",
+      "brief_description": "Hindu and yogic concept of spiritual liberation and release from the cycle of death and rebirth, representing ultimate goal of spiritual practice.",
+      "key_characteristics": [
+        "liberation concept",
+        "cycle ending",
+        "spiritual achievement",
+        "ultimate goal"
+      ],
+      "regions": [
+        "Hindu tradition, India"
+      ]
+    },
+    {
+      "name": "Nagas",
+      "aliases": [
+        "Serpent Beings",
+        "Divine Serpents"
+      ],
+      "category": "religion_mythology",
+      "icon": "🐍",
+      "brief_description": "Hindu and Buddhist semi-divine serpent beings dwelling in water realms, depicted with protective and sometimes dangerous characteristics.",
+      "key_characteristics": [
+        "serpent nature",
+        "water dwelling",
+        "protective tendency",
+        "dual morality"
+      ],
+      "regions": [
+        "Hindu and Buddhist traditions, India and Southeast Asia"
       ]
     },
     {
@@ -8920,6 +10614,101 @@
       ]
     },
     {
+      "name": "Norns",
+      "aliases": [
+        "Fate Weavers",
+        "Destiny Deities"
+      ],
+      "category": "religion_mythology",
+      "icon": "🧵",
+      "brief_description": "Norse goddesses of destiny and fate who weave the fates of all beings, dwelling at Yggdrasil's roots in Norse mythology.",
+      "key_characteristics": [
+        "fate determination",
+        "weaving metaphor",
+        "universal influence",
+        "divine nature"
+      ],
+      "regions": [
+        "Norse tradition, Scandinavia"
+      ]
+    },
+    {
+      "name": "Odin's Ravens",
+      "aliases": [
+        "Huginn and Muninn",
+        "Thought and Memory"
+      ],
+      "category": "religion_mythology",
+      "icon": "🐦",
+      "brief_description": "Norse mythological ravens serving All-Father Odin, flying across the world daily to gather information and represent divine knowledge.",
+      "key_characteristics": [
+        "information gathering",
+        "divine service",
+        "symbolic meaning",
+        "cosmic function"
+      ],
+      "regions": [
+        "Norse tradition, Scandinavia"
+      ]
+    },
+    {
+      "name": "Oracle of Delphi",
+      "aliases": [
+        "Pythia",
+        "Apollo's Priestess"
+      ],
+      "category": "religion_mythology",
+      "icon": "🔮",
+      "brief_description": "Greek priestess at the Temple of Apollo in Delphi, believed to deliver divine prophecies through ecstatic trance and oracular utterance.",
+      "key_characteristics": [
+        "prophetic ability",
+        "divine conduit",
+        "trance state",
+        "historical influence"
+      ],
+      "regions": [
+        "Ancient Greece, Delphi"
+      ]
+    },
+    {
+      "name": "Orishas",
+      "aliases": [
+        "Yoruba Deities",
+        "Divine Spirits"
+      ],
+      "category": "religion_mythology",
+      "icon": "👑",
+      "brief_description": "Yoruba West African spirits and deities each governing specific aspects of nature and human life, central to Yoruba religious practice.",
+      "key_characteristics": [
+        "nature governance",
+        "divine status",
+        "attribute specificity",
+        "ritual importance"
+      ],
+      "regions": [
+        "West Africa, Yoruba tradition"
+      ]
+    },
+    {
+      "name": "Otherworld",
+      "aliases": [
+        "Tír na nÓg",
+        "Faerie Realm"
+      ],
+      "category": "religion_mythology",
+      "icon": "🌌",
+      "brief_description": "Celtic mystical realm existing parallel to the material world, accessible through mist and water, where time and immortality function differently.",
+      "key_characteristics": [
+        "parallel realm",
+        "immortality presence",
+        "temporal distortion",
+        "mystical access"
+      ],
+      "regions": [
+        "Celtic tradition, Ireland and Britain"
+      ]
+    },
+    {
       "name": "Purgatory/Limbo",
       "aliases": [
         "Intermediate Realm",
@@ -8937,6 +10726,82 @@
       "regions": [
         "Christian Theology",
         "Worldwide"
+      ]
+    },
+    {
+      "name": "Pythia Prophecy",
+      "aliases": [
+        "Delphi Oracle",
+        "Apollo's Voice"
+      ],
+      "category": "religion_mythology",
+      "icon": "👁️",
+      "brief_description": "Greek oracular practice wherein the priestess Pythia delivered prophecies in cryptic verse believed to originate from the god Apollo.",
+      "key_characteristics": [
+        "divine prophecy",
+        "cryptic utterance",
+        "historical guidance",
+        "religious significance"
+      ],
+      "regions": [
+        "Ancient Greece, Delphi"
+      ]
+    },
+    {
+      "name": "Ragnarok",
+      "aliases": [
+        "Twilight of the Gods",
+        "End Times"
+      ],
+      "category": "religion_mythology",
+      "icon": "🌋",
+      "brief_description": "Norse prophetic event depicting the end of the world through cosmic destruction and renewal, culminating in rebirth of creation.",
+      "key_characteristics": [
+        "eschatological event",
+        "cyclic cosmology",
+        "destruction theme",
+        "renewal promise"
+      ],
+      "regions": [
+        "Norse tradition, Scandinavia"
+      ]
+    },
+    {
+      "name": "Rainbow Body",
+      "aliases": [
+        "Light Body",
+        "Dissolution of Form"
+      ],
+      "category": "religion_mythology",
+      "icon": "🌈",
+      "brief_description": "Tibetan Buddhist concept of the physical body dissolving into light at death, claimed to occur with advanced spiritual practitioners.",
+      "key_characteristics": [
+        "body transformation",
+        "light manifestation",
+        "spiritual achievement",
+        "death phenomenon"
+      ],
+      "regions": [
+        "Tibetan Buddhist tradition"
+      ]
+    },
+    {
+      "name": "Rakshasas",
+      "aliases": [
+        "Demons",
+        "Night Wanderers"
+      ],
+      "category": "religion_mythology",
+      "icon": "👹",
+      "brief_description": "Hindu supernatural entities depicted as powerful and often malevolent beings, capable of shape-shifting and dwelling in forests and burial grounds.",
+      "key_characteristics": [
+        "shape-shifting ability",
+        "variable morality",
+        "location preference",
+        "supernatural strength"
+      ],
+      "regions": [
+        "Hindu tradition, India"
       ]
     },
     {
@@ -8998,6 +10863,63 @@
       ]
     },
     {
+      "name": "Samhain Origins",
+      "aliases": [
+        "Celtic New Year",
+        "Boundary Festival"
+      ],
+      "category": "religion_mythology",
+      "icon": "🎃",
+      "brief_description": "Ancient Celtic festival marking summer's end and believed moment when boundary between living and dead worlds becomes permeable.",
+      "key_characteristics": [
+        "temporal threshold",
+        "boundary permeability",
+        "spiritual significance",
+        "death connection"
+      ],
+      "regions": [
+        "Celtic tradition, Ireland and Britain"
+      ]
+    },
+    {
+      "name": "Shedim",
+      "aliases": [
+        "Demons",
+        "Divine Beings"
+      ],
+      "category": "religion_mythology",
+      "icon": "😈",
+      "brief_description": "Jewish supernatural entities mentioned in Talmudic texts, described as humanoid beings existing between material and spiritual realms.",
+      "key_characteristics": [
+        "liminal existence",
+        "humanoid form",
+        "divine connection",
+        "talmudic reference"
+      ],
+      "regions": [
+        "Jewish tradition, Middle East"
+      ]
+    },
+    {
+      "name": "Shiva's Third Eye",
+      "aliases": [
+        "Eye of Destruction",
+        "Divine Vision"
+      ],
+      "category": "religion_mythology",
+      "icon": "👁️",
+      "brief_description": "Hindu mythological concept of Lord Shiva's divine eye whose opening is said to destroy all of creation, representing ultimate divine power.",
+      "key_characteristics": [
+        "destructive potential",
+        "divine vision",
+        "creation-ending power",
+        "cosmic force"
+      ],
+      "regions": [
+        "Hindu tradition, India"
+      ]
+    },
+    {
       "name": "Shroud of Turin",
       "aliases": [
         "Holy Shroud",
@@ -9015,6 +10937,25 @@
       "regions": [
         "Italy",
         "Turin"
+      ]
+    },
+    {
+      "name": "Siddhis",
+      "aliases": [
+        "Supernatural Powers",
+        "Yogic Abilities"
+      ],
+      "category": "religion_mythology",
+      "icon": "⚡",
+      "brief_description": "Hindu yogic supernatural powers believed attainable through disciplined practice, including abilities like levitation, telepathy, and clairvoyance.",
+      "key_characteristics": [
+        "supernatural ability",
+        "practice-dependent",
+        "power variety",
+        "spiritual achievement"
+      ],
+      "regions": [
+        "Hindu yoga tradition, India"
       ]
     },
     {
@@ -9037,6 +10978,25 @@
       ]
     },
     {
+      "name": "Spirit Animals",
+      "aliases": [
+        "Animal Guides",
+        "Totem Spirits"
+      ],
+      "category": "religion_mythology",
+      "icon": "🦅",
+      "brief_description": "Indigenous spiritual concept of animals serving as spiritual guides, protectors, and representations of individual spiritual qualities.",
+      "key_characteristics": [
+        "guidance provision",
+        "protection role",
+        "spiritual representation",
+        "personal significance"
+      ],
+      "regions": [
+        "Indigenous cultures, worldwide"
+      ]
+    },
+    {
       "name": "Stigmata",
       "aliases": [
         "Wounds of Christ"
@@ -9053,6 +11013,101 @@
       "regions": [
         "Global",
         "Catholic tradition"
+      ]
+    },
+    {
+      "name": "Torii Gates Significance",
+      "aliases": [
+        "Sacred Passages",
+        "Spiritual Boundaries"
+      ],
+      "category": "religion_mythology",
+      "icon": "⛩️",
+      "brief_description": "Shinto architectural gates marking transitions between sacred and secular spaces, believed to demarcate spiritual thresholds and purify passage.",
+      "key_characteristics": [
+        "sacred demarcation",
+        "spiritual boundary",
+        "purification function",
+        "architectural significance"
+      ],
+      "regions": [
+        "Japan, Shinto tradition"
+      ]
+    },
+    {
+      "name": "Tuatha Dé Danann",
+      "aliases": [
+        "People of the Goddess",
+        "Ancient Irish Deities"
+      ],
+      "category": "religion_mythology",
+      "icon": "👑",
+      "brief_description": "Celtic mythological race of divine beings inhabiting Ireland before human arrival, depicted as wise, powerful, and possessing magical abilities.",
+      "key_characteristics": [
+        "divine status",
+        "magical prowess",
+        "cultural precedence",
+        "immortal nature"
+      ],
+      "regions": [
+        "Celtic tradition, Ireland"
+      ]
+    },
+    {
+      "name": "Tulku Reincarnation",
+      "aliases": [
+        "Reincarnate Lama",
+        "Recognized Rebirth"
+      ],
+      "category": "religion_mythology",
+      "icon": "🔄",
+      "brief_description": "Tibetan Buddhist practice of identifying and recognizing the reincarnation of deceased high lamas through signs and testing.",
+      "key_characteristics": [
+        "reincarnation identification",
+        "spiritual lineage",
+        "recognition process",
+        "lama continuation"
+      ],
+      "regions": [
+        "Tibetan Buddhist tradition"
+      ]
+    },
+    {
+      "name": "Valkyries",
+      "aliases": [
+        "Choosers of the Slain",
+        "Shield Maidens"
+      ],
+      "category": "religion_mythology",
+      "icon": "⚔️",
+      "brief_description": "Norse female warrior spirits serving Odin, selecting warriors slain in battle for transport to Valhalla in Norse tradition.",
+      "key_characteristics": [
+        "warrior selection",
+        "divine service",
+        "martial prowess",
+        "afterlife guidance"
+      ],
+      "regions": [
+        "Norse tradition, Scandinavia"
+      ]
+    },
+    {
+      "name": "Vision Quests",
+      "aliases": [
+        "Spiritual Journeys",
+        "Guided Visions"
+      ],
+      "category": "religion_mythology",
+      "icon": "🔮",
+      "brief_description": "Indigenous North American spiritual practice involving isolation, fasting, and meditation to achieve visionary communion and spiritual guidance.",
+      "key_characteristics": [
+        "isolation practice",
+        "vision achievement",
+        "spiritual guidance",
+        "ritual significance"
+      ],
+      "regions": [
+        "Indigenous North America"
       ]
     },
     {
@@ -9078,6 +11133,101 @@
       ]
     },
     {
+      "name": "Weeping Icons",
+      "aliases": [
+        "Crying Images",
+        "Miraculous Signs"
+      ],
+      "category": "religion_mythology",
+      "icon": "😢",
+      "brief_description": "Religious phenomenon of religious icons or statues appearing to weep tears or bleed, reported in Catholic and Orthodox traditions as spiritual signs.",
+      "key_characteristics": [
+        "liquid manifestation",
+        "sign interpretation",
+        "spiritual significance",
+        "phenomenon debate"
+      ],
+      "regions": [
+        "Worldwide, Christian traditions"
+      ]
+    },
+    {
+      "name": "Weighing of the Heart",
+      "aliases": [
+        "Judgment Ceremony",
+        "Heart Balance"
+      ],
+      "category": "religion_mythology",
+      "icon": "⚖️",
+      "brief_description": "Egyptian afterlife concept wherein the heart is weighed against the feather of truth to determine worthiness for eternal continuation.",
+      "key_characteristics": [
+        "moral judgment",
+        "weighing ceremony",
+        "afterlife determination",
+        "ethical foundation"
+      ],
+      "regions": [
+        "Ancient Egypt"
+      ]
+    },
+    {
+      "name": "Yakshas",
+      "aliases": [
+        "Tree Spirits",
+        "Wealth Guardians"
+      ],
+      "category": "religion_mythology",
+      "icon": "🌳",
+      "brief_description": "Hindu divine beings serving as protectors of nature and treasures, depicted as benevolent celestial entities with connection to forests and wealth.",
+      "key_characteristics": [
+        "nature protection",
+        "treasure guardianship",
+        "forest dwelling",
+        "benevolent nature"
+      ],
+      "regions": [
+        "Hindu tradition, India"
+      ]
+    },
+    {
+      "name": "Yggdrasil",
+      "aliases": [
+        "World Tree",
+        "Tree of Life"
+      ],
+      "category": "religion_mythology",
+      "icon": "🌳",
+      "brief_description": "Norse cosmic tree connecting all nine realms of existence, serving as structural center of the universe in Norse mythology.",
+      "key_characteristics": [
+        "cosmic structure",
+        "multi-realm connection",
+        "central positioning",
+        "eternal nature"
+      ],
+      "regions": [
+        "Norse tradition, Scandinavia"
+      ]
+    },
+    {
+      "name": "Yokai",
+      "aliases": [
+        "Supernatural Beings",
+        "Spirit Creatures"
+      ],
+      "category": "religion_mythology",
+      "icon": "👹",
+      "brief_description": "Japanese supernatural creatures and spirits from folklore, ranging from mischievous to malevolent, inhabiting forests, water, and human settlements.",
+      "key_characteristics": [
+        "variable nature",
+        "shape-shifting ability",
+        "location specific",
+        "folklore rich"
+      ],
+      "regions": [
+        "Japan"
+      ]
+    },
+    {
       "name": "Apophenia",
       "aliases": [
         "Pattern Seeking",
@@ -9097,6 +11247,25 @@
       ]
     },
     {
+      "name": "Autonomous Sensory Meridian Response",
+      "aliases": [
+        "ASMR",
+        "Whisper Sensation"
+      ],
+      "category": "perception_sensory",
+      "icon": "😌",
+      "brief_description": "Physiological response to specific auditory or tactile stimuli producing tingling sensation and relaxation, studied for therapeutic and meditation applications.",
+      "key_characteristics": [
+        "sensory response",
+        "relaxation effect",
+        "stimulus-specific",
+        "individual variability"
+      ],
+      "regions": [
+        "Worldwide, modern phenomenon"
+      ]
+    },
+    {
       "name": "Ball Lightning",
       "aliases": [
         "Globe Lightning",
@@ -9113,6 +11282,44 @@
       ],
       "regions": [
         "Global"
+      ]
+    },
+    {
+      "name": "Biological Motion Perception",
+      "aliases": [
+        "Point Light Movement",
+        "Gait Recognition"
+      ],
+      "category": "perception_sensory",
+      "icon": "🚶",
+      "brief_description": "Ability to recognize biological movement patterns from minimal visual information, such as identifying humans from moving point light displays.",
+      "key_characteristics": [
+        "motion pattern recognition",
+        "minimal visual info",
+        "behavioral identification",
+        "adaptive ability"
+      ],
+      "regions": [
+        "Worldwide, perceptual phenomenon"
+      ]
+    },
+    {
+      "name": "Change Blindness",
+      "aliases": [
+        "Visual Change Detection Failure",
+        "Flicker Blindness"
+      ],
+      "category": "perception_sensory",
+      "icon": "👁️",
+      "brief_description": "Perceptual phenomenon wherein observers fail to detect significant visual changes in images or scenes, particularly when disrupted by flickers or cuts.",
+      "key_characteristics": [
+        "change detection failure",
+        "disruption-dependent",
+        "attention limitation",
+        "scene comprehension"
+      ],
+      "regions": [
+        "Worldwide, perceptual phenomenon"
       ]
     },
     {
@@ -9173,6 +11380,25 @@
       ]
     },
     {
+      "name": "Flicker Vertigo",
+      "aliases": [
+        "Photosensitive Seizure",
+        "Stroboscopic Effect"
+      ],
+      "category": "perception_sensory",
+      "icon": "⚡",
+      "brief_description": "Disorientation and potential seizure induced by flickering light at specific frequencies, demonstrated in both animals and humans.",
+      "key_characteristics": [
+        "frequency-dependent",
+        "disorientation effect",
+        "seizure potential",
+        "light-based trigger"
+      ],
+      "regions": [
+        "Worldwide, neurological phenomenon"
+      ]
+    },
+    {
       "name": "Ganzfeld Effect",
       "aliases": [
         "Sensory Flooding"
@@ -9229,6 +11455,25 @@
       ]
     },
     {
+      "name": "Inattentional Blindness",
+      "aliases": [
+        "Attentional Blindness",
+        "Invisible Gorilla Phenomenon"
+      ],
+      "category": "perception_sensory",
+      "icon": "👁️",
+      "brief_description": "Cognitive phenomenon wherein individuals fail to notice unexpected visual stimuli when attention is focused elsewhere, despite clear visibility.",
+      "key_characteristics": [
+        "attention-dependent",
+        "awareness paradox",
+        "expectancy effects",
+        "dramatic demonstration"
+      ],
+      "regions": [
+        "Worldwide, cognitive phenomenon"
+      ]
+    },
+    {
       "name": "Jerusalem Syndrome",
       "aliases": [
         "City Psychosis",
@@ -9246,6 +11491,63 @@
       "regions": [
         "Jerusalem",
         "Israel"
+      ]
+    },
+    {
+      "name": "McGurk Effect",
+      "aliases": [
+        "Audiovisual Illusion",
+        "Speech Perception Illusion"
+      ],
+      "category": "perception_sensory",
+      "icon": "👁️",
+      "brief_description": "Perceptual illusion wherein conflicting visual and auditory speech information combines to produce perceived speech different from either sensory input.",
+      "key_characteristics": [
+        "sensory conflict",
+        "perception fusion",
+        "speech-specific",
+        "visual dominance demonstrated"
+      ],
+      "regions": [
+        "Worldwide, perceptual phenomenon"
+      ]
+    },
+    {
+      "name": "Motion-Induced Blindness",
+      "aliases": [
+        "Dynamic Blindness",
+        "Attentional Suppression"
+      ],
+      "category": "perception_sensory",
+      "icon": "👁️",
+      "brief_description": "Perceptual phenomenon wherein moving background causes stationary objects to disappear from conscious awareness despite continued retinal stimulation.",
+      "key_characteristics": [
+        "attentional suppression",
+        "motion-dependent",
+        "awareness loss",
+        "visual continuation"
+      ],
+      "regions": [
+        "Worldwide, perceptual phenomenon"
+      ]
+    },
+    {
+      "name": "Out-of-Body Illusion",
+      "aliases": [
+        "OBE Simulation",
+        "Body Swap"
+      ],
+      "category": "perception_sensory",
+      "icon": "👻",
+      "brief_description": "Laboratory-induced illusion simulating out-of-body experience through visual-tactile dissociation, demonstrating neurological basis of spatial awareness.",
+      "key_characteristics": [
+        "induced illusion",
+        "visual-tactile conflict",
+        "perspective shift",
+        "neurological evidence"
+      ],
+      "regions": [
+        "Worldwide, laboratory phenomenon"
       ]
     },
     {
@@ -9306,6 +11608,25 @@
       ]
     },
     {
+      "name": "Phantom Pain",
+      "aliases": [
+        "Referred Pain",
+        "Limb Sensation"
+      ],
+      "category": "perception_sensory",
+      "icon": "⚡",
+      "brief_description": "Neurological phenomenon wherein amputees experience pain sensations in non-existent limbs, attributed to neural remapping and central sensitization.",
+      "key_characteristics": [
+        "amputee-specific",
+        "false sensation",
+        "neuroplasticity related",
+        "treatment variable"
+      ],
+      "regions": [
+        "Worldwide, neurological phenomenon"
+      ]
+    },
+    {
       "name": "Phantom Sounds",
       "aliases": [
         "Auditory Phantoms",
@@ -9322,6 +11643,25 @@
       ],
       "regions": [
         "Global"
+      ]
+    },
+    {
+      "name": "Phi Phenomenon",
+      "aliases": [
+        "Apparent Motion",
+        "Stroboscopic Motion"
+      ],
+      "category": "perception_sensory",
+      "icon": "🎬",
+      "brief_description": "Perceptual illusion wherein sequential static images appear to move, fundamental principle underlying motion in cinema and animation.",
+      "key_characteristics": [
+        "motion perception",
+        "static sequence",
+        "illusion-based",
+        "temporal spacing critical"
+      ],
+      "regions": [
+        "Worldwide, perceptual phenomenon"
       ]
     },
     {
@@ -9360,6 +11700,44 @@
       ],
       "regions": [
         "Worldwide"
+      ]
+    },
+    {
+      "name": "Purkinje Effect",
+      "aliases": [
+        "Scotopic Vision",
+        "Dim Light Shift"
+      ],
+      "category": "perception_sensory",
+      "icon": "🌙",
+      "brief_description": "Perceptual shift in color appearance and brightness sensitivity as light levels decrease, causing blue wavelengths to appear brighter in dim conditions.",
+      "key_characteristics": [
+        "light-dependent",
+        "color shift",
+        "sensitivity change",
+        "wavelength specific"
+      ],
+      "regions": [
+        "Worldwide, visual phenomenon"
+      ]
+    },
+    {
+      "name": "Rubber Hand Illusion",
+      "aliases": [
+        "Embodiment Illusion",
+        "Body Ownership"
+      ],
+      "category": "perception_sensory",
+      "icon": "🤚",
+      "brief_description": "Psychological phenomenon wherein synchronous tactile stimulation on hidden hand and visible rubber hand causes illusory ownership of the rubber hand.",
+      "key_characteristics": [
+        "touch synchronization",
+        "body schema manipulation",
+        "ownership illusion",
+        "embodiment study"
+      ],
+      "regions": [
+        "Worldwide, psychological phenomenon"
       ]
     },
     {
@@ -9477,6 +11855,44 @@
         "Bold Street Liverpool",
         "Versailles",
         "Global"
+      ]
+    },
+    {
+      "name": "Troxler Fading",
+      "aliases": [
+        "Visual Fade",
+        "Perceptual Disappearance"
+      ],
+      "category": "perception_sensory",
+      "icon": "👁️",
+      "brief_description": "Perceptual phenomenon wherein stable images in peripheral vision gradually fade and disappear due to neural adaptation of retinal receptors.",
+      "key_characteristics": [
+        "neural adaptation",
+        "peripheral vision",
+        "gradual disappearance",
+        "fixation-dependent"
+      ],
+      "regions": [
+        "Worldwide, perceptual phenomenon"
+      ]
+    },
+    {
+      "name": "Uncanny Valley Effect",
+      "aliases": [
+        "Mori's Valley",
+        "Familiarity Dip"
+      ],
+      "category": "perception_sensory",
+      "icon": "🎭",
+      "brief_description": "Psychological response of unease or revulsion toward humanoid objects that appear almost human but contain subtle wrongness in movement or features.",
+      "key_characteristics": [
+        "near-humanoid triggering",
+        "discomfort response",
+        "familiarity paradox",
+        "animation relevant"
+      ],
+      "regions": [
+        "Worldwide, psychological phenomenon"
       ]
     },
     {
@@ -10465,6 +12881,25 @@
       ]
     },
     {
+      "name": "Coral Castle",
+      "aliases": [
+        "Stone Sculpture",
+        "Magnetic Mystery"
+      ],
+      "category": "combination",
+      "icon": "🏰",
+      "brief_description": "Florida structure built by single man using mysterious methods, attributed to paranormal ability or knowledge of ancient anti-gravity techniques.",
+      "key_characteristics": [
+        "construction mystery",
+        "single builder",
+        "size contradiction",
+        "alternative methods"
+      ],
+      "regions": [
+        "Homestead, Florida, USA"
+      ]
+    },
+    {
       "name": "Crop Circles",
       "aliases": [
         "Crop Formations",
@@ -10505,6 +12940,25 @@
       ]
     },
     {
+      "name": "Dyatlov Pass Incident",
+      "aliases": [
+        "Mountain of the Dead",
+        "1959 Expedition"
+      ],
+      "category": "combination",
+      "icon": "⛰️",
+      "brief_description": "1959 Soviet hiking expedition tragedy where nine mountaineers died under mysterious circumstances in the Ural Mountains, remains unsolved and controversial.",
+      "key_characteristics": [
+        "mystery unsolved",
+        "strange death",
+        "expedition tragedy",
+        "multiple theories"
+      ],
+      "regions": [
+        "Ural Mountains, Russia"
+      ]
+    },
+    {
       "name": "Earth Lights Theory",
       "aliases": [
         "Geophysical Light Theory",
@@ -10521,6 +12975,101 @@
       ],
       "regions": [
         "Worldwide"
+      ]
+    },
+    {
+      "name": "Flannan Isles Lighthouse Mystery",
+      "aliases": [
+        "Flannan Islands",
+        "Lighthouse Vanishing"
+      ],
+      "category": "combination",
+      "icon": "💡",
+      "brief_description": "1900 disappearance of three lighthouse keepers from remote Scottish island with no trace, attributed variously to storm, supernatural event, or crime.",
+      "key_characteristics": [
+        "keeper vanishing",
+        "isolation factor",
+        "storm theory",
+        "folklore prominence"
+      ],
+      "regions": [
+        "Flannan Isles, Scotland"
+      ]
+    },
+    {
+      "name": "Georgia Guidestones",
+      "aliases": [
+        "Granite Monument",
+        "Mysterious Markers"
+      ],
+      "category": "combination",
+      "icon": "📿",
+      "brief_description": "Georgia granite monument with inscriptions in multiple languages detailing principles for world governance, purpose and creator remaining mysterious.",
+      "key_characteristics": [
+        "mysterious creation",
+        "cryptic inscription",
+        "documented explosion",
+        "purpose unknown"
+      ],
+      "regions": [
+        "Georgia, USA"
+      ]
+    },
+    {
+      "name": "Glastonbury and Avalon",
+      "aliases": [
+        "Mystical Island",
+        "Arthurian Legend"
+      ],
+      "category": "combination",
+      "icon": "🏰",
+      "brief_description": "English site linked to Arthurian legend, Glastonbury Tor associated with mystical energy, spiritual gateways, and paranormal phenomena.",
+      "key_characteristics": [
+        "Arthurian connection",
+        "mystical energy",
+        "legend-rich",
+        "spiritual significance"
+      ],
+      "regions": [
+        "Glastonbury, Somerset, England"
+      ]
+    },
+    {
+      "name": "Gobekli Tepe",
+      "aliases": [
+        "Göbekli Tepe",
+        "Ancient Mystery"
+      ],
+      "category": "combination",
+      "icon": "🗿",
+      "brief_description": "Turkish archaeological site with ancient ceremonial structures predating known civilization, attributed by some to advanced ancient knowledge or extraterrestrial influence.",
+      "key_characteristics": [
+        "archaeological mystery",
+        "ancient origin",
+        "advanced engineering",
+        "civilization questions"
+      ],
+      "regions": [
+        "Turkey"
+      ]
+    },
+    {
+      "name": "Hoia Baciu Forest",
+      "aliases": [
+        "Bermuda Triangle of Romania",
+        "Haunted Forest"
+      ],
+      "category": "combination",
+      "icon": "🌲",
+      "brief_description": "Romanian forest with documented reports of disappearances, strange lights, and paranormal phenomena, particularly known for UFO and spirit accounts.",
+      "key_characteristics": [
+        "disappearance reports",
+        "strange lights",
+        "paranormal activity",
+        "multiple phenomena"
+      ],
+      "regions": [
+        "Cluj-Napoca, Romania"
       ]
     },
     {
@@ -10544,6 +13093,25 @@
       ]
     },
     {
+      "name": "Michigan Triangle",
+      "aliases": [
+        "Great Lakes Mystery",
+        "Paranormal Zone"
+      ],
+      "category": "combination",
+      "icon": "💧",
+      "brief_description": "Area of Lake Michigan with documented accounts of ship and aircraft disappearances, attributed to paranormal forces or unexplained phenomena.",
+      "key_characteristics": [
+        "disappearance reports",
+        "water-based mystery",
+        "vehicle loss",
+        "paranormal theories"
+      ],
+      "regions": [
+        "Lake Michigan, USA"
+      ]
+    },
+    {
       "name": "Min Min Lights",
       "aliases": [
         "Australian Bush Lights",
@@ -10561,6 +13129,25 @@
       "regions": [
         "Queensland",
         "Australia"
+      ]
+    },
+    {
+      "name": "Mount Shasta",
+      "aliases": [
+        "Sacred Mountain",
+        "Mystical Peak"
+      ],
+      "category": "combination",
+      "icon": "⛰️",
+      "brief_description": "California mountain associated with Indigenous spirituality, UFO sightings, and legend of hidden underground civilizations and supernatural phenomena.",
+      "key_characteristics": [
+        "spiritual significance",
+        "UFO reports",
+        "underground legend",
+        "mystical association"
+      ],
+      "regions": [
+        "Northern California, USA"
       ]
     },
     {
@@ -10582,6 +13169,25 @@
         "Mekong River",
         "Thailand",
         "Laos"
+      ]
+    },
+    {
+      "name": "Oak Island Money Pit",
+      "aliases": [
+        "Treasure Legend",
+        "Maritime Mystery"
+      ],
+      "category": "combination",
+      "icon": "🏝️",
+      "brief_description": "Legendary underground excavation on Nova Scotia island pursued for centuries for suspected hidden treasure with mysterious tunnel systems and booby traps.",
+      "key_characteristics": [
+        "treasure legend",
+        "excavation layers",
+        "engineering mystery",
+        "persistent interest"
+      ],
+      "regions": [
+        "Oak Island, Nova Scotia, Canada"
       ]
     },
     {
@@ -10624,6 +13230,44 @@
       ]
     },
     {
+      "name": "Roanoke Colony Disappearance",
+      "aliases": [
+        "Lost Colony",
+        "1590 Mystery"
+      ],
+      "category": "combination",
+      "icon": "👥",
+      "brief_description": "Mysterious disappearance of the Roanoke settlement in Virginia in 1590, leaving only the word \"Croatoan\" carved on a tree.",
+      "key_characteristics": [
+        "population vanishing",
+        "cryptic clue",
+        "colonial mystery",
+        "historical puzzlement"
+      ],
+      "regions": [
+        "Roanoke, Virginia, USA"
+      ]
+    },
+    {
+      "name": "Sedona Vortexes",
+      "aliases": [
+        "Energy Vortices",
+        "Spiritual Hotspots"
+      ],
+      "category": "combination",
+      "icon": "🌀",
+      "brief_description": "Arizona locations believed by some to be centers of concentrated spiritual energy facilitating healing, meditation, and paranormal activity.",
+      "key_characteristics": [
+        "energy concentration",
+        "spiritual facilitation",
+        "healing claims",
+        "tourism influence"
+      ],
+      "regions": [
+        "Sedona, Arizona, USA"
+      ]
+    },
+    {
       "name": "Skinwalker Ranch",
       "aliases": [
         "Sherman Ranch",
@@ -10660,6 +13304,44 @@
       ],
       "regions": [
         "Worldwide"
+      ]
+    },
+    {
+      "name": "Superstition Mountains",
+      "aliases": [
+        "Lost Dutchman Mine",
+        "Paranormal Zone"
+      ],
+      "category": "combination",
+      "icon": "⛰️",
+      "brief_description": "Arizona mountains legendary for lost gold mine and documented disappearances, associated with Native American curses and paranormal phenomena.",
+      "key_characteristics": [
+        "treasure legend",
+        "disappearance accounts",
+        "curse attribution",
+        "paranormal activity"
+      ],
+      "regions": [
+        "Arizona, USA"
+      ]
+    },
+    {
+      "name": "Tunguska Event",
+      "aliases": [
+        "Siberian Explosion",
+        "1908 Explosion"
+      ],
+      "category": "combination",
+      "icon": "💥",
+      "brief_description": "1908 unexplained explosion in remote Siberia that flattened 80 million trees, attributed variously to meteor, comet, or plasma phenomena.",
+      "key_characteristics": [
+        "explosion mystery",
+        "ecosystem destruction",
+        "multiple hypotheses",
+        "scientific debate"
+      ],
+      "regions": [
+        "Tunguska, Siberia, Russia"
       ]
     },
     {
