@@ -164,7 +164,9 @@ export default function Home() {
             createdAt: e.created_at,
           })).filter((e: any) => e.slug))
         }
-      } catch {}
+      } catch (err) {
+        console.warn('Continue Your Research fetch failed:', err)
+      }
     }
     loadResearchItems()
   }, [])
@@ -712,7 +714,7 @@ export default function Home() {
                 return (
                   <Link
                     key={item.id}
-                    href={`/phenomena/${item.slug}`}
+                    href={`/report/${item.slug}`}
                     className="group flex items-center gap-3 p-3 bg-white/[0.02] border border-white/5 rounded-xl hover:border-purple-500/30 hover:bg-white/[0.04] transition-all"
                   >
                     <span className={`text-lg ${v.color} shrink-0`}>{v.icon}</span>
