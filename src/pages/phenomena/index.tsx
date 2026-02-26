@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
 import { Search, Grid3X3, List, ChevronRight, ChevronDown, ChevronUp, AlertTriangle, MapPin, Tag } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
@@ -79,6 +80,32 @@ export default function PhenomenaPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | 'all'>('all')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
+  const router = useRouter()
+
+  // Scroll restoration: save position before navigating away
+  useEffect(() => {
+    const handleRouteChange = () => {
+      sessionStorage.setItem('phenomena-scroll', String(window.scrollY))
+    }
+    router.events.on('routeChangeStart', handleRouteChange)
+    return () => {
+      router.events.off('routeChangeStart', handleRouteChange)
+    }
+  }, [router])
+
+  // Restore scroll position when returning to page
+  useEffect(() => {
+    if (!loading && phenomena.length > 0) {
+      const saved = sessionStorage.getItem('phenomena-scroll')
+      if (saved) {
+        const y = parseInt(saved, 10)
+        requestAnimationFrame(() => {
+          window.scrollTo(0, y)
+        })
+        sessionStorage.removeItem('phenomena-scroll')
+      }
+    }
+  }, [loading, phenomena])
 
   function toggleCategory(cat: string) {
     setCollapsedCategories(prev => {
@@ -393,16 +420,16 @@ function PhenomenonCard({ phenomenon }: { phenomenon: Phenomenon }) {
           )}
 
           <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <span className={classNames(
-                'px-2 py-1 rounded-full',
+                'px-2 py-1 rounded-full whitespace-nowrap shrink-0',
                 config?.bgColor || 'bg-gray-800',
                 config?.color || 'text-gray-400'
               )}>
                 {config?.label}
               </span>
               {qf?.origin && (
-                <span className="hidden sm:inline-flex items-center gap-1 text-gray-500">
+                <span className="hidden sm:inline-flex items-center gap-1 text-gray-500 shrink truncate">
                   <MapPin className="w-3 h-3" />
                   {qf.origin.length > 15 ? qf.origin.substring(0, 13) + '...' : qf.origin}
                 </span>
