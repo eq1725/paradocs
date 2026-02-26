@@ -229,6 +229,7 @@ export default function PatternDetailPage() {
         <p className="text-gray-400 mb-6">{error || 'Unable to load pattern details'}</p>
         <Link
           href="/insights"
+          scroll={false}
           className="inline-flex items-center gap-2 text-primary-400 hover:text-primary-300"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -270,6 +271,7 @@ export default function PatternDetailPage() {
         {/* Back Navigation */}
         <Link
           href="/insights"
+          scroll={false}
           className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-4 sm:mb-6 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />

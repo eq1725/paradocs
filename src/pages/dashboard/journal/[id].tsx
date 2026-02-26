@@ -127,6 +127,7 @@ export default function JournalEntryPage() {
           <p className="text-gray-400 mb-6">This journal entry doesn&apos;t exist or you don&apos;t have access.</p>
           <Link
             href="/dashboard/journal"
+            scroll={false}
             className="text-primary-400 hover:text-primary-300 transition-colors"
           >
             Back to Journal
@@ -145,6 +146,7 @@ export default function JournalEntryPage() {
         <div className="flex items-center justify-between mb-6">
           <Link
             href="/dashboard/journal"
+            scroll={false}
             className="inline-flex items-center gap-1 text-gray-400 hover:text-white text-sm transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />

@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase'
 import { Profile } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
 import { Avatar } from '@/components/AvatarSelector'
+import NavigationHelper from '@/components/NavigationHelper'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -430,6 +431,9 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </div>
       )}
+
+      {/* Scroll position restoration for list→detail→list navigation */}
+      <NavigationHelper />
 
       {/* Main content - accounts for header + safe area (Dynamic Island) + bottom nav */}
       <main className="main-content-pt pb-20 md:pb-0 min-h-screen">
