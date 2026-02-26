@@ -1,9 +1,8 @@
 'use client'
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import { useRouter } from 'next/router'
 import { Search, Grid3X3, List, ChevronRight, ChevronDown, ChevronUp, AlertTriangle, MapPin, Tag } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
@@ -80,32 +79,48 @@ export default function PhenomenaPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | 'all'>('all')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
-  const router = useRouter()
+  const categoryRefs = useRef<Record<string, HTMLElement | null>>({})
+  const navRef = useRef<HTMLDivElement>(null)
+  const [activeCategory, setActiveCategory] = useState<string | null>(null)
 
-  // Scroll restoration: save position before navigating away
-  useEffect(() => {
-    const handleRouteChange = () => {
-      sessionStorage.setItem('phenomena-scroll', String(window.scrollY))
-    }
-    router.events.on('routeChangeStart', handleRouteChange)
-    return () => {
-      router.events.off('routeChangeStart', handleRouteChange)
-    }
-  }, [router])
-
-  // Restore scroll position when returning to page
-  useEffect(() => {
-    if (!loading && phenomena.length > 0) {
-      const saved = sessionStorage.getItem('phenomena-scroll')
-      if (saved) {
-        const y = parseInt(saved, 10)
-        requestAnimationFrame(() => {
-          window.scrollTo(0, y)
-        })
-        sessionStorage.removeItem('phenomena-scroll')
+  // Scroll to a category section, expanding it if collapsed
+  const scrollToCategory = useCallback((cat: string) => {
+    // Expand the category if collapsed
+    setCollapsedCategories(prev => {
+      const next = new Set(prev)
+      next.delete(cat)
+      return next
+    })
+    // Scroll after a brief delay to allow expansion
+    setTimeout(() => {
+      const el = categoryRefs.current[cat]
+      if (el) {
+        const stickyOffset = 140 // account for sticky header + nav bar
+        const top = el.getBoundingClientRect().top + window.scrollY - stickyOffset
+        window.scrollTo({ top, behavior: 'smooth' })
       }
-    }
-  }, [loading, phenomena])
+    }, 50)
+  }, [])
+
+  // Track which category is currently in view
+  useEffect(() => {
+    if (selectedCategory !== 'all') return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const cat = entry.target.getAttribute('data-category')
+            if (cat) setActiveCategory(cat)
+          }
+        }
+      },
+      { rootMargin: '-160px 0px -60% 0px', threshold: 0 }
+    )
+    Object.values(categoryRefs.current).forEach(el => {
+      if (el) observer.observe(el)
+    })
+    return () => observer.disconnect()
+  }, [phenomena, selectedCategory, searchQuery])
 
   function toggleCategory(cat: string) {
     setCollapsedCategories(prev => {
@@ -242,6 +257,41 @@ export default function PhenomenaPage() {
               </div>
             </div>
           </div>
+
+          {/* Category Quick Nav - scrollable pills for jump-to-section */}
+          {selectedCategory === 'all' && Object.keys(groupedPhenomena).length > 1 && (
+            <div className="border-t border-gray-800/50">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div ref={navRef} className="flex gap-1.5 py-2 overflow-x-auto scrollbar-hide">
+                  {Object.entries(groupedPhenomena).map(([category, items]) => {
+                    const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG]
+                    const isActive = activeCategory === category
+                    return (
+                      <button
+                        key={category}
+                        onClick={() => scrollToCategory(category)}
+                        className={classNames(
+                          'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 shrink-0',
+                          isActive
+                            ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
+                            : 'bg-gray-800/80 text-gray-400 hover:bg-gray-700 hover:text-white'
+                        )}
+                      >
+                        <span className="text-sm">{config?.icon}</span>
+                        <span className="hidden sm:inline">{config?.label}</span>
+                        <span className={classNames(
+                          'px-1.5 py-0.5 rounded-full text-[10px] leading-none',
+                          isActive ? 'bg-purple-500/50 text-purple-100' : 'bg-gray-700/80 text-gray-500'
+                        )}>
+                          {items.length}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Content */}
@@ -280,7 +330,12 @@ export default function PhenomenaPage() {
                 const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG]
                 const isCollapsed = collapsedCategories.has(category)
                 return (
-                  <section key={category} className="border border-gray-800 rounded-xl overflow-hidden">
+                  <section
+                    key={category}
+                    ref={(el) => { categoryRefs.current[category] = el }}
+                    data-category={category}
+                    className="border border-gray-800 rounded-xl overflow-hidden"
+                  >
                     {/* Clickable category header */}
                     <button
                       onClick={() => toggleCategory(category)}
@@ -420,16 +475,16 @@ function PhenomenonCard({ phenomenon }: { phenomenon: Phenomenon }) {
           )}
 
           <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2">
               <span className={classNames(
-                'px-2 py-1 rounded-full whitespace-nowrap shrink-0',
+                'px-2 py-1 rounded-full',
                 config?.bgColor || 'bg-gray-800',
                 config?.color || 'text-gray-400'
               )}>
                 {config?.label}
               </span>
               {qf?.origin && (
-                <span className="hidden sm:inline-flex items-center gap-1 text-gray-500 shrink truncate">
+                <span className="hidden sm:inline-flex items-center gap-1 text-gray-500">
                   <MapPin className="w-3 h-3" />
                   {qf.origin.length > 15 ? qf.origin.substring(0, 13) + '...' : qf.origin}
                 </span>
