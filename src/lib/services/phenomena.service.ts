@@ -84,7 +84,8 @@ export async function getAllPhenomena(): Promise<Phenomenon[]> {
     .from('phenomena')
     .select('*')
     .eq('status', 'active')
-    .order('report_count', { ascending: false });
+    .order('report_count', { ascending: false })
+    .limit(10000);
 
   if (error) {
     console.error('[Phenomena] Error fetching phenomena:', error);
@@ -103,7 +104,8 @@ export async function getPhenomenaByCategory(category: string): Promise<Phenomen
     .select('*')
     .eq('status', 'active')
     .eq('category', category)
-    .order('report_count', { ascending: false });
+    .order('report_count', { ascending: false })
+    .limit(10000);
 
   if (error) {
     console.error('[Phenomena] Error fetching by category:', error);
