@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import { Search, Grid3X3, List, ChevronRight, ChevronDown, ChevronUp, AlertTriangle, MapPin, Tag } from 'lucide-react'
+import { Search, Grid3X3, List, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, AlertTriangle, MapPin, Tag } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
 
@@ -82,6 +82,57 @@ export default function PhenomenaPage() {
   const categoryRefs = useRef<Record<string, HTMLElement | null>>({})
   const navRef = useRef<HTMLDivElement>(null)
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  // Check if nav bar can scroll in either direction
+  const updateNavScrollState = useCallback(() => {
+    var el = navRef.current
+    if (!el) return
+    setCanScrollLeft(el.scrollLeft > 4)
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4)
+  }, [])
+
+  // Scroll the nav bar by a fixed amount
+  const scrollNav = useCallback(function(direction: 'left' | 'right') {
+    var el = navRef.current
+    if (!el) return
+    var amount = direction === 'left' ? -200 : 200
+    el.scrollBy({ left: amount, behavior: 'smooth' })
+  }, [])
+
+  // Mouse wheel horizontal scroll on the nav bar
+  useEffect(function() {
+    var el = navRef.current
+    if (!el) return
+    function onWheel(e: WheelEvent) {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        e.preventDefault()
+        el!.scrollLeft += e.deltaY
+      }
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    el.addEventListener('scroll', updateNavScrollState)
+    // Initial check after a brief delay for content to render
+    var timer = setTimeout(updateNavScrollState, 100)
+    return function() {
+      el!.removeEventListener('wheel', onWheel)
+      el!.removeEventListener('scroll', updateNavScrollState)
+      clearTimeout(timer)
+    }
+  }, [phenomena, selectedCategory, searchQuery, updateNavScrollState])
+
+  // Auto-scroll the active pill into view in the nav bar
+  useEffect(function() {
+    if (!activeCategory || !navRef.current) return
+    var buttons = navRef.current.querySelectorAll('button')
+    for (var i = 0; i < buttons.length; i++) {
+      if (buttons[i].getAttribute('data-cat') === activeCategory) {
+        buttons[i].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+        break
+      }
+    }
+  }, [activeCategory])
 
   // Scroll to a category section, expanding it if collapsed
   const scrollToCategory = useCallback((cat: string) => {
@@ -262,32 +313,67 @@ export default function PhenomenaPage() {
           {selectedCategory === 'all' && Object.keys(groupedPhenomena).length > 1 && (
             <div className="border-t border-gray-800/50">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div ref={navRef} className="flex gap-1.5 py-2 overflow-x-auto scrollbar-hide">
-                  {Object.entries(groupedPhenomena).map(([category, items]) => {
-                    const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG]
-                    const isActive = activeCategory === category
-                    return (
-                      <button
-                        key={category}
-                        onClick={() => scrollToCategory(category)}
-                        className={classNames(
-                          'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 shrink-0',
-                          isActive
-                            ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
-                            : 'bg-gray-800/80 text-gray-400 hover:bg-gray-700 hover:text-white'
-                        )}
-                      >
-                        <span className="text-sm">{config?.icon}</span>
-                        <span className="hidden sm:inline">{config?.label}</span>
-                        <span className={classNames(
-                          'px-1.5 py-0.5 rounded-full text-[10px] leading-none',
-                          isActive ? 'bg-purple-500/50 text-purple-100' : 'bg-gray-700/80 text-gray-500'
-                        )}>
-                          {items.length}
-                        </span>
-                      </button>
-                    )
-                  })}
+                <div className="relative flex items-center">
+                  {/* Left scroll arrow */}
+                  {canScrollLeft && (
+                    <button
+                      onClick={() => scrollNav('left')}
+                      className="absolute left-0 z-10 flex items-center justify-center w-8 h-8 rounded-full bg-gray-800/90 border border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors shadow-lg backdrop-blur-sm -ml-1"
+                      aria-label="Scroll categories left"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                  )}
+
+                  {/* Left fade gradient */}
+                  {canScrollLeft && (
+                    <div className="absolute left-6 top-0 bottom-0 w-8 bg-gradient-to-r from-gray-900/95 to-transparent z-[5] pointer-events-none" />
+                  )}
+
+                  <div ref={navRef} className="flex gap-1.5 py-2 overflow-x-auto scrollbar-hide scroll-smooth mx-1">
+                    {Object.entries(groupedPhenomena).map(([category, items]) => {
+                      const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG]
+                      const isActive = activeCategory === category
+                      return (
+                        <button
+                          key={category}
+                          data-cat={category}
+                          onClick={() => scrollToCategory(category)}
+                          className={classNames(
+                            'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 shrink-0',
+                            isActive
+                              ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
+                              : 'bg-gray-800/80 text-gray-400 hover:bg-gray-700 hover:text-white'
+                          )}
+                        >
+                          <span className="text-sm">{config?.icon}</span>
+                          <span className="hidden sm:inline">{config?.label}</span>
+                          <span className={classNames(
+                            'px-1.5 py-0.5 rounded-full text-[10px] leading-none',
+                            isActive ? 'bg-purple-500/50 text-purple-100' : 'bg-gray-700/80 text-gray-500'
+                          )}>
+                            {items.length}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Right fade gradient */}
+                  {canScrollRight && (
+                    <div className="absolute right-6 top-0 bottom-0 w-8 bg-gradient-to-l from-gray-900/95 to-transparent z-[5] pointer-events-none" />
+                  )}
+
+                  {/* Right scroll arrow */}
+                  {canScrollRight && (
+                    <button
+                      onClick={() => scrollNav('right')}
+                      className="absolute right-0 z-10 flex items-center justify-center w-8 h-8 rounded-full bg-gray-800/90 border border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors shadow-lg backdrop-blur-sm -mr-1"
+                      aria-label="Scroll categories right"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
