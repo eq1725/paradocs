@@ -87,6 +87,7 @@ export default function MediaReviewPage() {
       var { data: { session } } = await supabase.auth.getSession();
       if (session && session.user && session.user.email === 'williamschaseh@gmail.com') {
         setAuthLoading(false);
+        loadData();
         return;
       }
       setAuthLoading(false);
