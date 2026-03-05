@@ -125,7 +125,7 @@ export default function MediaReviewPage() {
       if (searchQuery) queryParams.append('search', searchQuery);
       queryParams.append('page', String(currentPage));
 
-      var response = await fetch('/api/admin/phenomena/media-review?' + queryParams.toString(, { headers: { "Authorization": "Bearer " + getToken() } }));
+      var response = await fetch('/api/admin/phenomena/media-review?' + queryParams.toString(), { headers: { "Authorization": "Bearer " + getToken() } });
       if (!response.ok) {
         console.error('Failed to load media review data');
         return;
