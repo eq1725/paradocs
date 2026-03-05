@@ -159,7 +159,54 @@ export default function MediaReviewPage() {
     setFiltering(true);
   }
 
-  async function handleApprove(mediaId: string) {
+  async function searchWikimedia() {
+    if (!selectedPhenomenon || !wikiQuery.trim()) return;
+    setWikiLoading(true);
+    try {
+      var url = "/api/admin/phenomena/search-images?phenomenonId=" + selectedPhenomenon.id + "&query=" + encodeURIComponent(wikiQuery);
+      var resp = await fetch(url, { headers: { "Authorization": "Bearer " + getToken() } });
+      var data = await resp.json();
+      if (data.results) { setWikiResults(data.results); }
+    } catch(e) { console.error("Wiki search error:", e); }
+    setWikiLoading(false);
+  }
+
+  async function handleStoreImage(imageUrl, source, license) {
+    if (!selectedPhenomenon) return;
+    try {
+      var resp = await fetch("/api/admin/phenomena/store-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + getToken() },
+        body: JSON.stringify({ phenomenonId: selectedPhenomenon.id, images: [{ url: imageUrl, source: source || "wikimedia", license: license || "CC" }] })
+      });
+      if (resp.ok) {
+        selectPhenomenon(selectedPhenomenon);
+        alert("Image added successfully!");
+      }
+    } catch(e) { console.error("Store image error:", e); }
+  }
+
+  async function handleCsvUpload() {
+    if (!csvFile) return;
+    setCsvLoading(true);
+    try {
+      var text = await csvFile.text();
+      var rows = text.split("\n").filter(function(r) { return r.trim(); });
+      if (rows.length < 2) { alert("CSV must have header row + data rows"); setCsvLoading(false); return; }
+      var resp = await fetch("/api/admin/phenomena/bulk-import-media", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + getToken() },
+        body: JSON.stringify({ csvData: text })
+      });
+      var result = await resp.json();
+      alert("Import complete: " + (result.imported || 0) + " images imported, " + (result.errors || 0) + " errors");
+      setCsvFile(null);
+      loadData();
+    } catch(e) { console.error("CSV upload error:", e); alert("Upload failed: " + e.message); }
+    setCsvLoading(false);
+  }
+
+    async function handleApprove(mediaId: string) {
     try {
       var response = await fetch('/api/admin/phenomena/media-review', {
         method: 'POST',
@@ -603,10 +650,63 @@ export default function MediaReviewPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center">
-                      <Image className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                      <p className="text-gray-400 mb-2">No candidate images</p>
-                      <p className="text-gray-500 text-sm">Upload images or search Wikimedia to get started.</p>
+                    <div className="space-y-4">
+                      <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                        <h4 className="text-white font-semibold mb-3">Search Wikimedia Commons</h4>
+                        <div className="flex gap-2 mb-3">
+                          <input
+                            type="text"
+                            value={wikiQuery}
+                            onChange={function(e) { setWikiQuery(e.target.value); }}
+                            onKeyDown={function(e) { if (e.key === "Enter") searchWikimedia(); }}
+                            placeholder={"Search images for " + selectedPhenomenon.name + "..."}
+                            className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm"
+                          />
+                          <button
+                            onClick={function() { searchWikimedia(); }}
+                            disabled={wikiLoading}
+                            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                          >
+                            {wikiLoading ? "Searching..." : "Search Wikimedia"}
+                          </button>
+                        </div>
+                        {wikiResults.length > 0 && (
+                          <div className="grid grid-cols-3 gap-2 mt-3">
+                            {wikiResults.map(function(img, idx) {
+                              return (
+                                <div key={idx} className="relative group">
+                                  <img src={img.thumbUrl || img.url} alt={img.title || ""} className="w-full h-24 object-cover rounded-lg" />
+                                  <button
+                                    onClick={function() { handleStoreImage(img.url, "wikimedia", img.license || "CC"); }}
+                                    className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-lg transition-opacity"
+                                  >
+                                    <span className="text-white text-xs font-medium">+ Add</span>
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                        <h4 className="text-white font-semibold mb-3">Bulk Import via CSV</h4>
+                        <p className="text-gray-400 text-sm mb-3">Upload a CSV file with columns: phenomenon_slug, image_url, source, license</p>
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="file"
+                            accept=".csv"
+                            onChange={function(e) { if (e.target.files && e.target.files[0]) setCsvFile(e.target.files[0]); }}
+                            className="text-sm text-gray-400"
+                          />
+                          <button
+                            onClick={function() { handleCsvUpload(); }}
+                            disabled={!csvFile || csvLoading}
+                            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                          >
+                            {csvLoading ? "Importing..." : "Upload CSV"}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
