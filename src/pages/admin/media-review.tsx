@@ -81,6 +81,21 @@ export default function MediaReviewPage() {
   var setAuthLoading = authLoadingState[1];
   var isSearching = isSearchingState[0];
   var setIsSearching = isSearchingState[1];
+  var wikiQueryState = useState("");
+  var wikiQuery = wikiQueryState[0];
+  var setWikiQuery = wikiQueryState[1];
+  var wikiResultsState = useState([]);
+  var wikiResults = wikiResultsState[0];
+  var setWikiResults = wikiResultsState[1];
+  var wikiLoadingState = useState(false);
+  var wikiLoading = wikiLoadingState[0];
+  var setWikiLoading = wikiLoadingState[1];
+  var csvFileState = useState(null);
+  var csvFile = csvFileState[0];
+  var setCsvFile = csvFileState[1];
+  var csvLoadingState = useState(false);
+  var csvLoading = csvLoadingState[0];
+  var setCsvLoading = csvLoadingState[1];
 
   useEffect(function() {
     async function initAuth() {
