@@ -4,6 +4,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { createClient } from '@supabase/supabase-js';
 import {
   getPhenomenonBySlug,
   getPhenomenonReports,
@@ -36,12 +37,27 @@ export default async function handler(
       // Get related reports
       var reports = await getPhenomenonReports(phenomenon.id, 20);
 
+      // Get approved media from phenomena_media table
+      var supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      );
+      var { data: mediaItems } = await supabaseAdmin
+        .from('phenomena_media')
+        .select('id, media_type, original_url, stored_url, thumbnail_url, caption, source, source_url, license, is_profile, tags, sort_order')
+        .eq('phenomenon_id', phenomenon.id)
+        .eq('status', 'approved')
+        .order('is_profile', { ascending: false })
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: false });
+
       // Check if AI content needs to be generated
       var needsContent = !phenomenon.ai_description || !phenomenon.ai_history;
 
       return res.status(200).json({
         phenomenon: phenomenon,
         reports: reports,
+        media: mediaItems || [],
         needsContent: needsContent,
       });
     } catch (error) {
