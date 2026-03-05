@@ -79,7 +79,6 @@ export default function MediaReviewPage() {
   var authLoadingState = useState(true);
   var authLoading = authLoadingState[0];
   var setAuthLoading = authLoadingState[1];
-  var accessTokenRef = useRef(null);
   var isSearching = isSearchingState[0];
   var setIsSearching = isSearchingState[1];
 
@@ -87,7 +86,6 @@ export default function MediaReviewPage() {
     async function initAuth() {
       var { data: { session } } = await supabase.auth.getSession();
       if (session && session.user && session.user.email === 'williamschaseh@gmail.com') {
-        accessTokenRef.current = session.access_token;
         setAuthLoading(false);
         loadData();
         return;
@@ -107,14 +105,15 @@ export default function MediaReviewPage() {
   }, []);
 
 
-  function authFetch(url, options) {
-    var opts = options || {};
-    var hdrs = opts.headers || {};
-    if (accessTokenRef.current) {
-      hdrs["Authorization"] = "Bearer " + accessTokenRef.current;
-    }
-    opts.headers = hdrs;
-    return fetch(url, opts);
+  function getToken() {
+    try {
+      var raw = localStorage.getItem("sb-bhkbctdmwnowfmqpksed-auth-token");
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        return parsed.access_token || "";
+      }
+    } catch(e) {}
+    return "";
   }
 
   async function loadData() {
@@ -126,7 +125,7 @@ export default function MediaReviewPage() {
       if (searchQuery) queryParams.append('search', searchQuery);
       queryParams.append('page', String(currentPage));
 
-      var response = await authFetch('/api/admin/phenomena/media-review?' + queryParams.toString());
+      var response = await fetch('/api/admin/phenomena/media-review?' + queryParams.toString(, { headers: { "Authorization": "Bearer " + getToken() } }));
       if (!response.ok) {
         console.error('Failed to load media review data');
         return;
@@ -162,9 +161,9 @@ export default function MediaReviewPage() {
 
   async function handleApprove(mediaId: string) {
     try {
-      var response = await authFetch('/api/admin/phenomena/media-review', {
+      var response = await fetch('/api/admin/phenomena/media-review', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { "Authorization": "Bearer " + getToken(),  'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'approve',
           media_id: mediaId
@@ -181,9 +180,9 @@ export default function MediaReviewPage() {
 
   async function handleReject(mediaId: string) {
     try {
-      var response = await authFetch('/api/admin/phenomena/media-review', {
+      var response = await fetch('/api/admin/phenomena/media-review', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { "Authorization": "Bearer " + getToken(),  'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'reject',
           media_id: mediaId
@@ -200,9 +199,9 @@ export default function MediaReviewPage() {
 
   async function handleSetAsProfile(mediaId: string) {
     try {
-      var response = await authFetch('/api/admin/phenomena/media-review', {
+      var response = await fetch('/api/admin/phenomena/media-review', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { "Authorization": "Bearer " + getToken(),  'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'set_profile',
           media_id: mediaId
@@ -220,9 +219,9 @@ export default function MediaReviewPage() {
   async function handleSearchWikimedia(categoryFilter?: string) {
     try {
       setIsSearching(true);
-      var response = await authFetch('/api/admin/phenomena/search-images', {
+      var response = await fetch('/api/admin/phenomena/search-images', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { "Authorization": "Bearer " + getToken(),  'Content-Type': 'application/json' },
         body: JSON.stringify({
           category: categoryFilter || category
         })
