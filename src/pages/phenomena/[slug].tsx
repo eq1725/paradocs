@@ -72,6 +72,21 @@ interface GalleryItem {
   height?: number
 }
 
+interface MediaItem {
+  id: string
+  media_type: 'image' | 'video' | 'document' | 'illustration'
+  original_url: string
+  stored_url: string | null
+  thumbnail_url: string | null
+  caption: string | null
+  source: string | null
+  source_url: string | null
+  license: string | null
+  is_profile: boolean
+  tags: string[] | null
+  sort_order: number
+}
+
 interface RelatedReport {
   id: string
   title: string
@@ -92,6 +107,7 @@ export default function PhenomenonPage() {
 
   const [phenomenon, setPhenomenon] = useState<Phenomenon | null>(null)
   const [reports, setReports] = useState<RelatedReport[]>([])
+  const [media, setMedia] = useState<MediaItem[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'media' | 'reports'>('overview')
   const [lightboxImage, setLightboxImage] = useState<{ url: string; caption?: string; source?: string } | null>(null)
@@ -127,6 +143,7 @@ export default function PhenomenonPage() {
       const data = await res.json()
       setPhenomenon(data.phenomenon)
       setReports(data.reports || [])
+      setMedia(data.media || [])
 
       // Track view for constellation map (non-blocking)
       supabase.auth.getSession().then(({ data: { session } }) => {
@@ -310,7 +327,7 @@ export default function PhenomenonPage() {
                     : 'border-transparent text-gray-400 hover:text-white'
                 )}
               >
-                Media {phenomenon.image_gallery && phenomenon.image_gallery.length > 0 ? `(${phenomenon.image_gallery.length})` : ''}
+                Media {media.length > 0 ? '(' + media.length + ')' : (phenomenon.image_gallery && phenomenon.image_gallery.length > 0 ? '(' + phenomenon.image_gallery.length + ')' : '')}
               </button>
               <button
                 onClick={() => setActiveTab('reports')}
@@ -573,64 +590,213 @@ export default function PhenomenonPage() {
 
           {activeTab === 'media' && (
             <div>
-              {phenomenon.image_gallery && phenomenon.image_gallery.length > 0 ? (
+              {media.length > 0 ? (
                 <div className="space-y-8">
-                  {/* Images Section */}
-                  {phenomenon.image_gallery.filter(item => item.type !== 'video').length > 0 && (
+                  {/* Images & Illustrations Section */}
+                  {media.filter(function(m) { return m.media_type === 'image' || m.media_type === 'illustration'; }).length > 0 && (
                     <section>
                       <h2 className="flex items-center gap-3 text-xl font-semibold text-white mb-6">
                         <span className="text-purple-400"><Image className="w-5 h-5" /></span>
                         Images & Illustrations
                       </h2>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {phenomenon.image_gallery.filter(item => item.type !== 'video').map((item, i) => (
-                          <button
-                            key={i}
-                            onClick={() => setLightboxImage({ url: item.url, caption: item.caption, source: item.source })}
-                            className="group block bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-purple-500/50 transition-all text-left cursor-pointer"
-                          >
-                            <div className="relative aspect-video bg-gray-800">
-                              <img
-                                src={item.thumbnail_url || item.url}
-                                alt={item.caption || phenomenon.name}
-                                className="w-full h-full object-cover"
-                                referrerPolicy="no-referrer"
-                                loading="lazy"
-                              />
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                                <ZoomIn className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </div>
-                            </div>
-                            {item.caption && (
-                              <div className="p-3">
-                                <p className="text-sm text-gray-300 line-clamp-2">{item.caption}</p>
-                                {item.source && (
-                                  <p className="text-xs text-gray-500 mt-1">Source: {item.source}</p>
+                        {media.filter(function(m) { return m.media_type === 'image' || m.media_type === 'illustration'; }).map(function(item) {
+                          var displayUrl = item.stored_url || item.original_url;
+                          var thumbUrl = item.thumbnail_url || displayUrl;
+                          return (
+                            <button
+                              key={item.id}
+                              onClick={function() { setLightboxImage({ url: displayUrl, caption: item.caption || undefined, source: item.source || undefined }); }}
+                              className="group block bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-purple-500/50 transition-all text-left cursor-pointer"
+                            >
+                              <div className="relative aspect-video bg-gray-800">
+                                <img
+                                  src={thumbUrl}
+                                  alt={item.caption || phenomenon.name}
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                  loading="lazy"
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                  <ZoomIn className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                                {item.is_profile && (
+                                  <span className="absolute top-2 left-2 bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">Profile</span>
                                 )}
                               </div>
-                            )}
-                          </button>
-                        ))}
+                              <div className="p-3">
+                                {item.caption && (
+                                  <p className="text-sm text-gray-300 line-clamp-2">{item.caption}</p>
+                                )}
+                                <div className="flex items-center gap-2 mt-1">
+                                  {item.source && (
+                                    <span className="text-xs text-gray-500">{'Source: ' + item.source}</span>
+                                  )}
+                                  {item.license && (
+                                    <span className="text-xs text-gray-600">{item.license}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                     </section>
                   )}
 
                   {/* Videos Section */}
-                  {phenomenon.image_gallery.filter(item => item.type === 'video').length > 0 && (
+                  {media.filter(function(m) { return m.media_type === 'video'; }).length > 0 && (
                     <section>
                       <h2 className="flex items-center gap-3 text-xl font-semibold text-white mb-6">
                         <span className="text-purple-400"><Video className="w-5 h-5" /></span>
                         Videos & Documentaries
                       </h2>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {phenomenon.image_gallery.filter(item => item.type === 'video').map((item, i) => {
-                          const youtubeId = item.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/)?.[1]
+                        {media.filter(function(m) { return m.media_type === 'video'; }).map(function(item) {
+                          var videoUrl = item.original_url;
+                          var ytMatch = videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
+                          var youtubeId = ytMatch ? ytMatch[1] : null;
+                          return (
+                            <div key={item.id} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                              {youtubeId ? (
+                                <div className="aspect-video">
+                                  <iframe
+                                    src={'https://www.youtube.com/embed/' + youtubeId}
+                                    title={item.caption || phenomenon.name}
+                                    className="w-full h-full"
+                                    allowFullScreen
+                                    loading="lazy"
+                                  />
+                                </div>
+                              ) : (
+                                <a
+                                  href={videoUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block relative aspect-video bg-gray-800"
+                                >
+                                  {item.thumbnail_url && (
+                                    <img src={item.thumbnail_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  )}
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <Play className="w-12 h-12 text-white/80" />
+                                  </div>
+                                </a>
+                              )}
+                              <div className="p-3">
+                                {item.caption && (
+                                  <p className="text-sm text-gray-300 line-clamp-2">{item.caption}</p>
+                                )}
+                                {item.source && (
+                                  <p className="text-xs text-gray-500 mt-1">{item.source}</p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
+
+                  {/* Documents & Reports Section */}
+                  {media.filter(function(m) { return m.media_type === 'document'; }).length > 0 && (
+                    <section>
+                      <h2 className="flex items-center gap-3 text-xl font-semibold text-white mb-6">
+                        <span className="text-purple-400"><FileText className="w-5 h-5" /></span>
+                        Documents & Official Reports
+                      </h2>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {media.filter(function(m) { return m.media_type === 'document'; }).map(function(item) {
+                          var isGov = item.source && /FBI|NSA|CIA|FOIA|GAO|DoD|Pentagon|Navy|Air Force|government/i.test(item.source);
+                          return (
+                            <a
+                              key={item.id}
+                              href={item.source_url || item.original_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-start gap-4 bg-gray-900 border border-gray-800 rounded-xl p-4 hover:border-purple-500/50 transition-all"
+                            >
+                              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center">
+                                <FileText className="w-5 h-5 text-gray-400" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-gray-200 font-medium line-clamp-2">{item.caption || 'Official Document'}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  {isGov && (
+                                    <span className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded-full">Official</span>
+                                  )}
+                                  {item.source && (
+                                    <span className="text-xs text-gray-500">{item.source}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <ExternalLink className="w-4 h-4 text-gray-500 flex-shrink-0 mt-1" />
+                            </a>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
+                </div>
+              ) : phenomenon.image_gallery && phenomenon.image_gallery.length > 0 ? (
+                <div className="space-y-8">
+                  {/* Legacy fallback: render from image_gallery JSONB */}
+                  {phenomenon.image_gallery.filter(function(item) { return item.type !== 'video'; }).length > 0 && (
+                    <section>
+                      <h2 className="flex items-center gap-3 text-xl font-semibold text-white mb-6">
+                        <span className="text-purple-400"><Image className="w-5 h-5" /></span>
+                        Images & Illustrations
+                      </h2>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {phenomenon.image_gallery.filter(function(item) { return item.type !== 'video'; }).map(function(item, i) {
+                          return (
+                            <button
+                              key={i}
+                              onClick={function() { setLightboxImage({ url: item.url, caption: item.caption, source: item.source }); }}
+                              className="group block bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-purple-500/50 transition-all text-left cursor-pointer"
+                            >
+                              <div className="relative aspect-video bg-gray-800">
+                                <img
+                                  src={item.thumbnail_url || item.url}
+                                  alt={item.caption || phenomenon.name}
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                  loading="lazy"
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                  <ZoomIn className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                              </div>
+                              {item.caption && (
+                                <div className="p-3">
+                                  <p className="text-sm text-gray-300 line-clamp-2">{item.caption}</p>
+                                  {item.source && (
+                                    <p className="text-xs text-gray-500 mt-1">{'Source: ' + item.source}</p>
+                                  )}
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
+                  {phenomenon.image_gallery.filter(function(item) { return item.type === 'video'; }).length > 0 && (
+                    <section>
+                      <h2 className="flex items-center gap-3 text-xl font-semibold text-white mb-6">
+                        <span className="text-purple-400"><Video className="w-5 h-5" /></span>
+                        Videos & Documentaries
+                      </h2>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {phenomenon.image_gallery.filter(function(item) { return item.type === 'video'; }).map(function(item, i) {
+                          var ytMatch = item.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
+                          var youtubeId = ytMatch ? ytMatch[1] : null;
                           return (
                             <div key={i} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
                               {youtubeId ? (
                                 <div className="aspect-video">
                                   <iframe
-                                    src={`https://www.youtube.com/embed/${youtubeId}`}
+                                    src={'https://www.youtube.com/embed/' + youtubeId}
                                     title={item.caption || phenomenon.name}
                                     className="w-full h-full"
                                     allowFullScreen
@@ -661,7 +827,7 @@ export default function PhenomenonPage() {
                                 </div>
                               )}
                             </div>
-                          )
+                          );
                         })}
                       </div>
                     </section>
