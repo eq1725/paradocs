@@ -76,33 +76,33 @@ export default function MediaReviewPage() {
   var currentPage = currentPageState[0];
   var setCurrentPage = currentPageState[1];
   var isSearchingState = useState(false);
+  var authLoadingState = useState(true);
+  var authLoading = authLoadingState[0];
+  var setAuthLoading = authLoadingState[1];
   var isSearching = isSearchingState[0];
   var setIsSearching = isSearchingState[1];
 
   useEffect(function() {
-    checkAuth();
+    async function initAuth() {
+      var { data: { session } } = await supabase.auth.getSession();
+      if (session && session.user && session.user.email === 'williamschaseh@gmail.com') {
+        setAuthLoading(false);
+        return;
+      }
+      setAuthLoading(false);
+      router.push('/login?redirect=/admin/media-review');
+    }
+    initAuth();
+
+    var { data: { subscription } } = supabase.auth.onAuthStateChange(function(_event, session) {
+      if (!session || !session.user || session.user.email !== 'williamschaseh@gmail.com') {
+        router.push('/login?redirect=/admin/media-review');
+      }
+    });
+
+    return function() { subscription.unsubscribe(); };
   }, []);
 
-  async function checkAuth() {
-    try {
-      var { data: { session }, error } = await supabase.auth.getSession();
-      if (error || !session) {
-        router.push('/');
-        return;
-      }
-
-      var { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user || user.email !== 'williamschaseh@gmail.com') {
-        router.push('/');
-        return;
-      }
-
-      loadData();
-    } catch (error) {
-      console.error('Auth check failed:', error);
-      router.push('/');
-    }
-  }
 
   async function loadData() {
     try {
@@ -249,7 +249,15 @@ export default function MediaReviewPage() {
   }
 
   if (loading) {
+    if (authLoading) {
     return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-gray-400 text-lg">Loading...</div>
+      </div>
+    );
+  }
+
+  return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
       </div>
