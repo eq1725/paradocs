@@ -1,0 +1,6 @@
+slug,media_type,url,caption,source,tags,license,is_profile
+bigfoot,video,https://www.youtube.com/watch?v=EXAMPLE,Patterson-Gimlin Film (1967) - Original footage and analysis,YouTube,"documentary,historical,famous",Standard YouTube,false
+bigfoot,image,https://upload.wikimedia.org/wikipedia/en/9/99/Patterson-Gimlin_film_frame_352.jpg,Frame 352 from the Patterson-Gimlin Film (1967),Wikimedia Commons,"photograph,famous,historical",Fair Use,true
+bigfoot,document,https://vault.fbi.gov/bigfoot,FBI Vault - Bigfoot File (declassified documents),FBI Vault,"government,declassified,official",Public Domain,false
+mothman,video,https://www.youtube.com/watch?v=EXAMPLE,Mothman Prophecies - Documentary on Point Pleasant sightings,YouTube,"documentary,famous",Standard YouTube,false
+mothman,image,https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Mothman_statue_Point_Pleasant_WV.jpg/800px-Mothman_statue_Point_Pleasant_WV.jpg,Mothman statue in Point Pleasant West Virginia,Wikimedia Commons,"statue,monument,famous",Public Domain,true
