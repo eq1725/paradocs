@@ -159,6 +159,15 @@ export default function MediaReviewPage() {
     }
   }
 
+  async function getAuthHeaders() {
+    var headers = { 'Content-Type': 'application/json' };
+    var { data: { session } } = await supabase.auth.getSession();
+    if (session && session.access_token) {
+      headers['Authorization'] = 'Bearer ' + session.access_token;
+    }
+    return headers;
+  }
+
   // ===== Profile Review functions =====
 
   async function loadProfileReviewData() {
@@ -172,7 +181,10 @@ export default function MediaReviewPage() {
       if (profileSearch) queryParams.append('search', profileSearch);
       if (profileFilter && profileFilter !== 'all') queryParams.append('profile_status', profileFilter);
 
-      var response = await fetch('/api/admin/phenomena/media-review?' + queryParams.toString());
+      var authHeaders = await getAuthHeaders();
+      var response = await fetch('/api/admin/phenomena/media-review?' + queryParams.toString(), {
+        headers: authHeaders
+      });
       if (!response.ok) {
         console.error('Failed to load profile review data');
         return;
@@ -193,9 +205,10 @@ export default function MediaReviewPage() {
   async function handleApproveProfile(phenomenonId) {
     try {
       setProfileActionLoading(phenomenonId);
+      var authHeaders = await getAuthHeaders();
       var response = await fetch('/api/admin/phenomena/media-review', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
           action: 'approve-profile',
           phenomenon_id: phenomenonId
@@ -234,9 +247,10 @@ export default function MediaReviewPage() {
   async function handleDenyProfile(phenomenonId) {
     try {
       setProfileActionLoading(phenomenonId);
+      var authHeaders = await getAuthHeaders();
       var response = await fetch('/api/admin/phenomena/media-review', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
           action: 'deny-profile',
           phenomenon_id: phenomenonId
@@ -283,7 +297,10 @@ export default function MediaReviewPage() {
       if (searchQuery) queryParams.append('search', searchQuery);
       queryParams.append('page', String(currentPage));
 
-      var response = await fetch('/api/admin/phenomena/media-review?' + queryParams.toString());
+      var authHeaders = await getAuthHeaders();
+      var response = await fetch('/api/admin/phenomena/media-review?' + queryParams.toString(), {
+        headers: authHeaders
+      });
       if (!response.ok) {
         console.error('Failed to load media review data');
         return;
@@ -319,9 +336,10 @@ export default function MediaReviewPage() {
 
   async function handleApprove(mediaId) {
     try {
+      var authHeaders = await getAuthHeaders();
       var response = await fetch('/api/admin/phenomena/media-review', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
           action: 'approve',
           media_id: mediaId
@@ -338,9 +356,10 @@ export default function MediaReviewPage() {
 
   async function handleReject(mediaId) {
     try {
+      var authHeaders = await getAuthHeaders();
       var response = await fetch('/api/admin/phenomena/media-review', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
           action: 'reject',
           media_id: mediaId
@@ -357,9 +376,10 @@ export default function MediaReviewPage() {
 
   async function handleSetAsProfile(mediaId) {
     try {
+      var authHeaders = await getAuthHeaders();
       var response = await fetch('/api/admin/phenomena/media-review', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
           action: 'set_profile',
           media_id: mediaId
@@ -377,9 +397,10 @@ export default function MediaReviewPage() {
   async function handleSearchWikimedia(categoryFilter) {
     try {
       setIsSearching(true);
+      var authHeaders = await getAuthHeaders();
       var response = await fetch('/api/admin/phenomena/search-images', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
           category: categoryFilter || category
         })
