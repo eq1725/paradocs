@@ -3,7 +3,9 @@
  *
  * Handles:
  * GET - List phenomena with media counts and pending items
+ *       mode=profile-review returns lightweight profile review grid data
  * POST - Approve/reject/set_profile actions on media items
+ *        approve-profile/deny-profile actions for profile review mode
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next'
@@ -85,6 +87,114 @@ async function getAuthenticatedUser(req: NextApiRequest): Promise<{ id: string; 
   }
 
   return null;
+}
+
+async function handleProfileReviewGet(
+  req: NextApiRequest,
+  res: NextApiResponse
+): Promise<void> {
+  var supabase = getSupabaseAdmin();
+
+  try {
+    var { category, search, profile_status, page, limit } = req.query;
+    var pageNum = parseInt(String(page || '1')) || 1;
+    var limitNum = parseInt(String(limit || '50')) || 50;
+    var offset = (pageNum - 1) * limitNum;
+
+    // Build lightweight query - no media_items join needed
+    var query = supabase
+      .from('phenomena')
+      .select('id, name, slug, category, primary_image_url, profile_review_status', { count: 'exact' })
+      .eq('status', 'active');
+
+    if (category) {
+      query = query.eq('category', String(category));
+    }
+
+    if (search) {
+      query = query.ilike('name', '%' + String(search) + '%');
+    }
+
+    // Filter by profile_review_status
+    var profileStatusStr = String(profile_status || 'all');
+    if (profileStatusStr === 'unreviewed') {
+      query = query.eq('profile_review_status', 'unreviewed');
+    } else if (profileStatusStr === 'approved') {
+      query = query.eq('profile_review_status', 'approved');
+    } else if (profileStatusStr === 'denied') {
+      query = query.eq('profile_review_status', 'denied');
+    } else if (profileStatusStr === 'has-image') {
+      query = query.not('primary_image_url', 'is', null);
+    } else if (profileStatusStr === 'no-image') {
+      query = query.is('primary_image_url', null);
+    }
+
+    var { data: items, error: itemsError, count } = await query
+      .order('name', { ascending: true })
+      .range(offset, offset + limitNum - 1);
+
+    if (itemsError || !items) {
+      return res.status(500).json({
+        stats: { total: 0, reviewed: 0, approved: 0, denied: 0, unreviewed: 0 },
+        phenomena: [],
+        total_count: 0
+      });
+    }
+
+    // Get stats for all active phenomena (unfiltered)
+    var { data: allItems } = await supabase
+      .from('phenomena')
+      .select('id, primary_image_url, profile_review_status')
+      .eq('status', 'active');
+
+    var totalCount = allItems?.length || 0;
+    var approvedCount = 0;
+    var deniedCount = 0;
+    var unreviewedCount = 0;
+
+    if (allItems) {
+      for (var i = 0; i < allItems.length; i++) {
+        var s = allItems[i].profile_review_status || 'unreviewed';
+        if (s === 'approved') {
+          approvedCount = approvedCount + 1;
+        } else if (s === 'denied') {
+          deniedCount = deniedCount + 1;
+        } else {
+          unreviewedCount = unreviewedCount + 1;
+        }
+      }
+    }
+
+    var reviewedCount = approvedCount + deniedCount;
+
+    return res.status(200).json({
+      stats: {
+        total: totalCount,
+        reviewed: reviewedCount,
+        approved: approvedCount,
+        denied: deniedCount,
+        unreviewed: unreviewedCount
+      },
+      phenomena: items.map(function(p) {
+        return {
+          id: p.id,
+          name: p.name,
+          slug: p.slug,
+          category: p.category,
+          primary_image_url: p.primary_image_url,
+          profile_review_status: p.profile_review_status || 'unreviewed'
+        };
+      }),
+      total_count: count || 0
+    });
+  } catch (error) {
+    console.error('[MediaReview] Profile Review GET Error:', error);
+    return res.status(500).json({
+      stats: { total: 0, reviewed: 0, approved: 0, denied: 0, unreviewed: 0 },
+      phenomena: [],
+      total_count: 0
+    });
+  }
 }
 
 async function handleGetRequest(
@@ -225,7 +335,39 @@ async function handlePostRequest(
   var supabase = getSupabaseAdmin();
 
   try {
-    var { action, media_id } = req.body;
+    var { action, media_id, phenomenon_id } = req.body;
+
+    // Handle profile review actions (no media_id needed)
+    if (action === 'approve-profile') {
+      if (!phenomenon_id) {
+        return res.status(400).json({ error: 'Missing phenomenon_id' });
+      }
+      var { error: approveProfileError } = await supabase
+        .from('phenomena')
+        .update({ profile_review_status: 'approved' })
+        .eq('id', phenomenon_id);
+
+      if (approveProfileError) {
+        return res.status(500).json({ error: 'Failed to approve profile' });
+      }
+      return res.status(200).json({ success: true, message: 'Profile approved' });
+    }
+
+    if (action === 'deny-profile') {
+      if (!phenomenon_id) {
+        return res.status(400).json({ error: 'Missing phenomenon_id' });
+      }
+      // Set status to denied AND clear the primary_image_url
+      var { error: denyProfileError } = await supabase
+        .from('phenomena')
+        .update({ profile_review_status: 'denied', primary_image_url: null })
+        .eq('id', phenomenon_id);
+
+      if (denyProfileError) {
+        return res.status(500).json({ error: 'Failed to deny profile' });
+      }
+      return res.status(200).json({ success: true, message: 'Profile denied and image cleared' });
+    }
 
     if (!action || !media_id) {
       return res.status(400).json({ error: 'Missing action or media_id' });
@@ -321,6 +463,9 @@ export default async function handler(
   }
 
   if (req.method === 'GET') {
+    if (req.query.mode === 'profile-review') {
+      return handleProfileReviewGet(req, res);
+    }
     return handleGetRequest(req, res as NextApiResponse<MediaReviewResponse>);
   } else if (req.method === 'POST') {
     return handlePostRequest(req, res);
