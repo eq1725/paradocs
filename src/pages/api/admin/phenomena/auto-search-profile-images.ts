@@ -348,7 +348,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   var category = req.body.category || null;
   var batchSize = parseInt(req.body.batch_size) || 3;
-  var confidenceThreshold = parseFloat(req.body.confidence_threshold) || 0.65;
+  var confidenceThreshold = parseFloat(req.body.confidence_threshold) || 0.3;
   var includeDenied = req.body.include_denied !== false;
   var requestOffset = parseInt(req.body.offset) || 0;
 
