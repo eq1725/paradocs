@@ -442,7 +442,7 @@ export default function MediaReviewPage() {
       var authHeaders = await getAuthHeaders();
       var body = {
         batch_size: 10,
-        confidence_threshold: 0.5,
+        confidence_threshold: 0.3,
         include_denied: true,
         offset: 0
       };
