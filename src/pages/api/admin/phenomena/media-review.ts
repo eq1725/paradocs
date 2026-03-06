@@ -369,7 +369,62 @@ async function handlePostRequest(
       return res.status(200).json({ success: true, message: 'Profile denied and image cleared' });
     }
 
-    if (!action || !media_id) {
+    
+    // Handle set-manual-url: set a single URL for a phenomenon
+    if (action === 'set-manual-url') {
+      var manualPhenomId = req.body.phenomenon_id;
+      var manualUrl = req.body.url;
+      if (!manualPhenomId || !manualUrl) {
+        return res.status(400).json({ error: 'Missing phenomenon_id or url' });
+      }
+      var { error: manualUrlError } = await supabase
+        .from('phenomena')
+        .update({ primary_image_url: String(manualUrl), profile_review_status: 'unreviewed' })
+        .eq('id', manualPhenomId);
+      if (manualUrlError) {
+        return res.status(500).json({ error: 'Failed to set manual URL', details: manualUrlError.message });
+      }
+      return res.status(200).json({ success: true, message: 'Manual URL set, moved to unreviewed' });
+    }
+
+    // Handle set-manual-url-bulk: set URLs for multiple phenomena by slug
+    if (action === 'set-manual-url-bulk') {
+      var items = req.body.items;
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'Missing or empty items array. Expected [{slug, url}, ...]' });
+      }
+      var bulkResults: Array<{ slug: string; success: boolean; error?: string }> = [];
+      for (var bi = 0; bi < items.length; bi++) {
+        var item = items[bi];
+        if (!item.slug || !item.url) {
+          bulkResults.push({ slug: item.slug || 'unknown', success: false, error: 'Missing slug or url' });
+          continue;
+        }
+        var { data: phenomData, error: phenomLookupError } = await supabase
+          .from('phenomena').select('id').eq('slug', String(item.slug)).limit(1).single();
+        if (phenomLookupError || !phenomData) {
+          bulkResults.push({ slug: item.slug, success: false, error: 'Phenomenon not found' });
+          continue;
+        }
+        var { error: bulkUpdateError } = await supabase
+          .from('phenomena')
+          .update({ primary_image_url: String(item.url), profile_review_status: 'unreviewed' })
+          .eq('id', phenomData.id);
+        if (bulkUpdateError) {
+          bulkResults.push({ slug: item.slug, success: false, error: bulkUpdateError.message });
+        } else {
+          bulkResults.push({ slug: item.slug, success: true });
+        }
+      }
+      var bulkSuccessCount = bulkResults.filter(function(r) { return r.success; }).length;
+      return res.status(200).json({
+        success: true,
+        message: bulkSuccessCount + ' of ' + items.length + ' URLs set successfully',
+        results: bulkResults
+      });
+    }
+
+if (!action || !media_id) {
       return res.status(400).json({ error: 'Missing action or media_id' });
     }
 
