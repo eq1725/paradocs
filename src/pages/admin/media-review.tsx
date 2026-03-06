@@ -441,8 +441,8 @@ export default function MediaReviewPage() {
 
       var authHeaders = await getAuthHeaders();
       var body = {
-        batch_size: 50,
-        confidence_threshold: 0.65,
+        batch_size: 10,
+        confidence_threshold: 0.5,
         include_denied: true,
         offset: 0
       };
@@ -1198,7 +1198,7 @@ export default function MediaReviewPage() {
                         <div className="flex-1 flex gap-2 w-full">
                           <input
                             type="text"
-                                     placeholder="Paste replacement image URL..."
+                            placeholder="Paste replacement image URL..."
                             value={inputVal}
                             onChange={function(e) {
                               var newId = item.id;
