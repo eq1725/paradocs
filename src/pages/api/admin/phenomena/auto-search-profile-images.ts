@@ -19,11 +19,16 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
+export var config = {
+  maxDuration: 60
+};
+
 var ADMIN_EMAIL = 'williamschaseh@gmail.com';
 var USER_AGENT = 'Paradocs/1.0 (https://discoverparadocs.com; contact@discoverparadocs.com)';
-var RATE_LIMIT_MS = 200;
+var RATE_LIMIT_MS = 250;
 var MIN_IMAGE_SIZE = 200;
-var MAX_SEARCH_RESULTS = 20;
+var MAX_SEARCH_RESULTS = 8;
+var MAX_CANDIDATES_PER_TERM = 3;
 var ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/svg+xml', 'image/webp'];
 
 interface Phenomenon {
@@ -283,14 +288,15 @@ async function findBestImageForPhenomenon(
     var results = await searchWikimediaCommons(searchTerm);
     await sleep(RATE_LIMIT_MS);
 
-    for (var r = 0; r < results.length; r++) {
+    var candidatesChecked = 0;
+    for (var r = 0; r < results.length && candidatesChecked < MAX_CANDIDATES_PER_TERM; r++) {
       var result = results[r];
 
       var imageInfo = await getImageInfo(result.title);
-      await sleep(RATE_LIMIT_MS);
 
       if (!imageInfo) continue;
 
+      candidatesChecked++;
       totalEvaluated++;
 
       var scoring = scoreConfidence(
@@ -341,7 +347,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   var supabase = getSupabaseAdmin();
 
   var category = req.body.category || null;
-  var batchSize = parseInt(req.body.batch_size) || 50;
+  var batchSize = parseInt(req.body.batch_size) || 3;
   var confidenceThreshold = parseFloat(req.body.confidence_threshold) || 0.65;
   var includeDenied = req.body.include_denied !== false;
   var requestOffset = parseInt(req.body.offset) || 0;
