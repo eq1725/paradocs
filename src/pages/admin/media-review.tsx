@@ -134,6 +134,34 @@ export default function MediaReviewPage() {
   var profileLoading = profileLoadingState[0];
   var setProfileLoading = profileLoadingState[1];
 
+  // ===== Denied Queue state =====
+  var deniedItemsState = useState([]);
+  var deniedItems = deniedItemsState[0];
+  var setDeniedItems = deniedItemsState[1];
+  var deniedLoadingState = useState(false);
+  var deniedLoading = deniedLoadingState[0];
+  var setDeniedLoading = deniedLoadingState[1];
+  var manualUrlInputsState = useState({});
+  var manualUrlInputs = manualUrlInputsState[0];
+  var setManualUrlInputs = manualUrlInputsState[1];
+  var bulkUrlTextState = useState('');
+  var bulkUrlText = bulkUrlTextState[0];
+  var setBulkUrlText = bulkUrlTextState[1];
+  var bulkSubmittingState = useState(false);
+  var bulkSubmitting = bulkSubmittingState[0];
+  var setBulkSubmitting = bulkSubmittingState[1];
+  var deniedActionLoadingState = useState('');
+  var deniedActionLoading = deniedActionLoadingState[0];
+  var setDeniedActionLoading = deniedActionLoadingState[1];
+
+  // ===== Batch Search state =====
+  var batchSearchingState = useState(false);
+  var batchSearching = batchSearchingState[0];
+  var setBatchSearching = batchSearchingState[1];
+  var batchProgressState = useState(null);
+  var batchProgress = batchProgressState[0];
+  var setBatchProgress = batchProgressState[1];
+
   useEffect(function() {
     checkAuth();
   }, []);
@@ -283,6 +311,189 @@ export default function MediaReviewPage() {
       console.error('Error denying profile:', error);
     } finally {
       setProfileActionLoading('');
+    }
+  }
+
+  // ===== Denied Queue functions =====
+
+  async function loadDeniedItems() {
+    try {
+      setDeniedLoading(true);
+      var queryParams = new URLSearchParams();
+      queryParams.append('mode', 'profile-review');
+      queryParams.append('profile_status', 'denied');
+      queryParams.append('limit', '200');
+
+      var authHeaders = await getAuthHeaders();
+      var response = await fetch('/api/admin/phenomena/media-review?' + queryParams.toString(), {
+        headers: authHeaders
+      });
+      if (!response.ok) {
+        console.error('Failed to load denied items');
+        return;
+      }
+
+      var data = await response.json();
+      setDeniedItems(data.phenomena || []);
+    } catch (error) {
+      console.error('Error loading denied items:', error);
+    } finally {
+      setDeniedLoading(false);
+    }
+  }
+
+  async function handleSetManualUrl(phenomenonId, slug) {
+    var url = manualUrlInputs[phenomenonId];
+    if (!url || !url.trim()) return;
+
+    try {
+      setDeniedActionLoading(phenomenonId);
+      var authHeaders = await getAuthHeaders();
+      var response = await fetch('/api/admin/phenomena/media-review', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: 'set-manual-url',
+          phenomenon_id: phenomenonId,
+          url: url.trim()
+        })
+      });
+
+      if (response.ok) {
+        // Remove from denied list
+        setDeniedItems(function(prev) {
+          return prev.filter(function(item) { return item.id !== phenomenonId; });
+        });
+        // Clear the input
+        setManualUrlInputs(function(prev) {
+          var next = Object.assign({}, prev);
+          delete next[phenomenonId];
+          return next;
+        });
+      } else {
+        var errData = await response.json();
+        alert('Failed: ' + (errData.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error setting manual URL:', error);
+    } finally {
+      setDeniedActionLoading('');
+    }
+  }
+
+  async function handleBulkUrlSubmit() {
+    if (!bulkUrlText.trim()) return;
+
+    var lines = bulkUrlText.trim().split('\n');
+    var items = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      var parts = line.split(',');
+      if (parts.length >= 2) {
+        var slug = parts[0].trim();
+        var url = parts.slice(1).join(',').trim();
+        if (slug && url) {
+          items.push({ slug: slug, url: url });
+        }
+      }
+    }
+
+    if (items.length === 0) {
+      alert('No valid slug,url pairs found. Format: one per line, slug,url');
+      return;
+    }
+
+    try {
+      setBulkSubmitting(true);
+      var authHeaders = await getAuthHeaders();
+      var response = await fetch('/api/admin/phenomena/media-review', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: 'set-manual-url-bulk',
+          items: items
+        })
+      });
+
+      if (response.ok) {
+        var data = await response.json();
+        alert(data.message);
+        setBulkUrlText('');
+        loadDeniedItems();
+      } else {
+        var errData = await response.json();
+        alert('Failed: ' + (errData.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error submitting bulk URLs:', error);
+    } finally {
+      setBulkSubmitting(false);
+    }
+  }
+
+  // ===== Batch Search functions =====
+
+  async function handleAutoSearch(categoryFilter) {
+    try {
+      setBatchSearching(true);
+      setBatchProgress({ status: 'running', processed: 0, found: 0, total: 0 });
+
+      var authHeaders = await getAuthHeaders();
+      var body = {
+        batch_size: 50,
+        confidence_threshold: 0.65,
+        include_denied: true,
+        offset: 0
+      };
+      if (categoryFilter) {
+        body['category'] = categoryFilter;
+      }
+
+      var hasMore = true;
+      var totalFound = 0;
+      var totalProcessed = 0;
+
+      while (hasMore) {
+        var response = await fetch('/api/admin/phenomena/auto-search-profile-images', {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+          var errData = await response.json();
+          setBatchProgress({ status: 'error', processed: totalProcessed, found: totalFound, total: 0, error: errData.error || 'Request failed' });
+          break;
+        }
+
+        var data = await response.json();
+        totalFound = totalFound + data.summary.images_found;
+        totalProcessed = totalProcessed + data.summary.batch_size;
+
+        setBatchProgress({
+          status: 'running',
+          processed: totalProcessed,
+          found: totalFound,
+          total: data.summary.total_needing_images
+        });
+
+        hasMore = data.summary.has_more;
+        body['offset'] = data.summary.next_offset;
+      }
+
+      setBatchProgress(function(prev) {
+        return Object.assign({}, prev, { status: 'complete' });
+      });
+
+      // Reload profile review data to show new images
+      loadProfileReviewData();
+
+    } catch (error) {
+      console.error('Error in batch search:', error);
+      setBatchProgress({ status: 'error', processed: 0, found: 0, total: 0, error: 'Network error' });
+    } finally {
+      setBatchSearching(false);
     }
   }
 
@@ -467,6 +678,8 @@ export default function MediaReviewPage() {
     setViewMode(mode);
     if (mode === 'profile-review') {
       loadProfileReviewData();
+    } else if (mode === 'denied-queue') {
+      loadDeniedItems();
     } else {
       loadData();
     }
@@ -591,6 +804,17 @@ export default function MediaReviewPage() {
               >
                 Candidate Review
               </button>
+              <button
+                onClick={function() { handleTabSwitch('denied-queue'); }}
+                className={classNames(
+                  'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+                  viewMode === 'denied-queue'
+                    ? 'bg-red-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
+                )}
+              >
+                Denied Queue {profileStats && profileStats.denied > 0 ? '(' + profileStats.denied + ')' : ''}
+              </button>
             </div>
 
             {/* Profile Review Filters */}
@@ -650,6 +874,37 @@ export default function MediaReviewPage() {
                   {profileStats && (
                     <div className="flex items-center px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-300">
                       {profileStats.reviewed} / {profileStats.total} reviewed ({profileStats.total > 0 ? Math.round((profileStats.reviewed / profileStats.total) * 100) : 0}%)
+                    </div>
+                  )}
+                </div>
+
+                {/* Batch Search Controls */}
+                <div className="flex flex-col sm:flex-row gap-3 mt-3">
+                  <button
+                    onClick={function() { handleAutoSearch(profileCategory || null); }}
+                    disabled={batchSearching}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-white rounded-lg transition-colors text-sm whitespace-nowrap"
+                  >
+                    {batchSearching ? 'Searching...' : (profileCategory ? 'Auto-Find Images (Category)' : 'Auto-Find Images (All)')}
+                  </button>
+
+                  {batchProgress && (
+                    <div className="flex items-center gap-3 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm">
+                      {batchProgress.status === 'running' && (
+                        <span className="text-yellow-400">
+                          Processing: {batchProgress.processed} / {batchProgress.total} | Found: {batchProgress.found}
+                        </span>
+                      )}
+                      {batchProgress.status === 'complete' && (
+                        <span className="text-green-400">
+                          Done! Found {batchProgress.found} images for {batchProgress.processed} phenomena
+                        </span>
+                      )}
+                      {batchProgress.status === 'error' && (
+                        <span className="text-red-400">
+                          Error: {batchProgress.error}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -864,6 +1119,110 @@ export default function MediaReviewPage() {
                     </button>
                   </div>
                 </>
+              )}
+            </div>
+          )}
+
+          {/* ===== DENIED QUEUE MODE ===== */}
+          {viewMode === 'denied-queue' && (
+            <div className="space-y-6">
+              {/* Bulk URL Input */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-3">Bulk URL Import</h3>
+                <p className="text-sm text-gray-400 mb-3">
+                  Paste one entry per line in format: slug,url
+                </p>
+                <textarea
+                  value={bulkUrlText}
+                  onChange={function(e) { setBulkUrlText(e.target.value); }}
+                  placeholder={"mothman,https://example.com/mothman.jpg\nbigfoot,https://example.com/bigfoot.jpg"}
+                  className="w-full h-32 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 font-mono text-sm"
+                />
+                <div className="flex items-center gap-3 mt-3">
+                  <button
+                    onClick={handleBulkUrlSubmit}
+                    disabled={bulkSubmitting || !bulkUrlText.trim()}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 text-white rounded-lg transition-colors text-sm"
+                  >
+                    {bulkSubmitting ? 'Submitting...' : 'Submit Bulk URLs'}
+                  </button>
+                  <span className="text-xs text-gray-500">
+                    {bulkUrlText.trim() ? bulkUrlText.trim().split('\n').filter(function(l) { return l.trim(); }).length + ' lines' : 'No entries'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Denied Items List */}
+              {deniedLoading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500"></div>
+                </div>
+              ) : deniedItems.length === 0 ? (
+                <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center">
+                  <Check className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                  <p className="text-gray-400 mb-2">No denied items</p>
+                  <p className="text-gray-500 text-sm">All denied items have been resolved.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <h3 className="text-lg font-semibold text-white">{deniedItems.length} Denied Items</h3>
+                  {deniedItems.map(function(item) {
+                    var cfg = categoryConfig[item.category];
+                    var inputVal = manualUrlInputs[item.id] || '';
+                    var isItemLoading = deniedActionLoading === item.id;
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="bg-gray-900 border border-red-900/50 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4"
+                      >
+                        {/* Info */}
+                        <div className="flex items-center gap-3 flex-shrink-0 min-w-0">
+                          <div className="w-12 h-12 rounded bg-gray-800 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                            {item.primary_image_url ? (
+                              <img src={item.primary_image_url} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            ) : (
+                              <Image className="w-6 h-6 text-gray-600" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs">{cfg?.icon}</span>
+                              <h4 className="text-sm font-medium text-white truncate">{item.name}</h4>
+                            </div>
+                            <p className="text-xs text-gray-500">{item.slug}</p>
+                          </div>
+                        </div>
+
+                        {/* URL Input */}
+                        <div className="flex-1 flex gap-2 w-full">
+                          <input
+                            type="text"
+                                     placeholder="Paste replacement image URL..."
+                            value={inputVal}
+                            onChange={function(e) {
+                              var newId = item.id;
+                              var newVal = e.target.value;
+                              setManualUrlInputs(function(prev) {
+                                var next = Object.assign({}, prev);
+                                next[newId] = newVal;
+                                return next;
+                              });
+                            }}
+                            className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
+                          />
+                          <button
+                            onClick={function() { handleSetManualUrl(item.id, item.slug); }}
+                            disabled={isItemLoading || !inputVal.trim()}
+                            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 text-white rounded-lg transition-colors text-sm whitespace-nowrap"
+                          >
+                            {isItemLoading ? 'Setting...' : 'Set URL'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}
