@@ -284,103 +284,87 @@ export default function CryptidImageReview() {
         });
     }
 
-    proce             'Content-Type': 'application/json'
-              };
-            }
+    processBatch();
+  }
+
+  // Filter and paginate
+  var filtered = cryptids.filter(function(c) {
+    // Text search
+    if (search && search.length > 0) {
+      var searchLower = search.toLowerCase();
+      var nameMatch = c.name.toLowerCase().indexOf(searchLower) > -1;
+      var aliasMatch = false;
+      if (c.aliases && Array.isArray(c.aliases)) {
+        for (var a = 0; a < c.aliases.length; a++) {
+          if (c.aliases[a] && c.aliases[a].toLowerCase().indexOf(searchLower) > -1) {
+            aliasMatch = true;
+            break;
           }
         }
       }
-    } catch (e) { /* ignore */ }
-
-    // Fallback: check cookies
-    var allCookies = document.cookie.split(';');
-    for (var i = 0; i < allCookies.length; i++) {
-      var c = allCookies[i].trim();
-      if (c.indexOf('sb-') === 0 && c.indexOf('-auth-token') > -1) {
-        var val = c.substring(c.indexOf('=') + 1);
-        try {
-          var parsed = JSON.parse(decodeURIComponent(val));
-          if (parsed && parsed.access_token) {
-            return {
-              'Authorization': 'Bearer ' + parsed.access_token,
-              'Content-Type': 'application/json'
-            };
-          }
-        } catch (e2) { /* ignore */ }
-      }
+      if (!nameMatch && !aliasMatch) return false;
     }
 
-    return { 'Content-Type': 'application/json' };
+    // Status filter
+    if (filter === 'unreviewed') return c.profile_review_status !== 'approved' && c.profile_review_status !== 'denied';
+    if (filter === 'approved') return c.profile_review_status === 'approved';
+    if (filter === 'denied') return c.profile_review_status === 'denied';
+    if (filter === 'no_image') return !c.primary_image_url;
+    return true;
+  });
+
+  var totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  var paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  function getBorderColor(status: string | null): string {
+    if (status === 'approved') return 'border-green-500';
+    if (status === 'denied') return 'border-red-500';
+    return 'border-gray-600';
   }
 
-  var loadCryptids = useCallback(function() {
-    setLoading(true);
-    var supabase = createClient(supabaseUrl, supabaseAnonKey);
+  return (
+    <>
+      <Head>
+        <title>Cryptid Image Review - ParaDocs Admin</title>
+      </Head>
 
-    supabase
-      .from('phenomena')
-      .select('id, slug, name, primary_image_url, profile_review_status, category, aliases')
-      .eq('category', 'cryptids')
-      .eq('status', 'active')
-      .order('name', { ascending: true })
-      .range(0, 5000)
-      .then(function(result) {
-        if (result.error) {
-          console.error('Failed to load cryptids:', result.error);
-          setLoading(false);
-          return;
-        }
+      <div style={{ minHeight: '100vh', backgroundColor: '#0a0a1a', color: '#e0e0e0', padding: '24px' }}>
+        {/* Toast */}
+        {toast && (
+          <div style={{
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            padding: '12px 20px',
+            borderRadius: '8px',
+            backgroundColor: toast.type === 'success' ? '#22c55e' : toast.type === 'error' ? '#ef4444' : '#3b82f6',
+            color: 'white',
+            fontWeight: 'bold',
+            zIndex: 9999,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+          }}>
+            {toast.message}
+          </div>
+        )}
 
-        var data = (result.data || []) as CryptidItem[];
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <div>
+            <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: 0 }}>Cryptid Image Review</h1>
+            <p style={{ color: '#888', marginTop: '4px' }}>Wikipedia-sourced images for cryptid phenomena</p>
+          </div>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <Link href="/admin/media-review" style={{ color: '#818cf8', textDecoration: 'none' }}>
+              â Back to Media Review
+            </Link>
+          </div>
+        </div>
 
-        var s = { total: data.length, withImage: 0, noImage: 0, approved: 0, denied: 0, unreviewed: 0 };
-        for (var i = 0; i < data.length; i++) {
-          var item = data[i];
-          if (item.primary_image_url) {
-            s.withImage++;
-          } else {
-            s.noImage++;
-          }
-          if (item.profile_review_status === 'approved') s.approved++;
-          else if (item.profile_review_status === 'denied') s.denied++;
-          else s.unreviewed++;
-        }
-
-        setStats(s);
-        setCryptids(data);
-        setLoading(false);
-      });
-  }, []);
-
-  useEffect(function() {
-    loadCryptids();
-  }, [loadCryptids]);
-
-  function showToast(message: string, type: string) {
-    setToast({ message: message, type: type });
-    setTimeout(function() { setToast(null); }, 3000);
-  }
-
-  function handleReview(phenomenonId: string, action: 'approved' | 'denied') {
-    var newProcessing = Object.assign({}, processing);
-    newProcessing[phenomenonId] = true;
-    setProcessing(newProcessing);
-
-    var headers = getAuthHeaders();
-    var apiAction = action === 'approved' ? 'approve-profile' : 'deny-profile';
-
-    fetch('/api/admin/phenomena/media-review', {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify({ phenomenon_id: phenomenonId, action: apiAction })
-    })
-      .then(function(resp) { return resp.json(); })
-      .then(function(data) {
-        if (data.error) {
-          showToast('Error: ' + data.error, 'error');
-        } else {
-          // Update local state
-          var  },
+        {/* Stats Bar */}
+        <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
+          {[
+            { label: 'Total', value: stats.total, color: '#fff' },
+            { label: 'With Image', value: stats.withImage, color: '#60a5fa' },
             { label: 'No Image', value: stats.noImage, color: '#f59e0b' },
             { label: 'Approved', value: stats.approved, color: '#22c55e' },
             { label: 'Denied', value: stats.denied, color: '#ef4444' },
