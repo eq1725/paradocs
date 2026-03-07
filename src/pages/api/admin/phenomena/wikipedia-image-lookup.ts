@@ -83,7 +83,7 @@ async function getAuthenticatedUser(req: NextApiRequest): Promise<{ id: string; 
   var supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
   var authHeader = req.headers.authorization;
-  if (authHeader?.startsWith('Bearer ')) {
+  if (authHeader && authHeader.indexOf('Bearer ') === 0) {
     var token = authHeader.substring(7);
     var supabase = createClient(supabaseUrl, supabaseAnonKey);
     var { data: { user }, error } = await supabase.auth.getUser(token);
@@ -97,7 +97,7 @@ async function getAuthenticatedUser(req: NextApiRequest): Promise<{ id: string; 
   if (accessTokenMatch) {
     try {
       var tokenData = JSON.parse(decodeURIComponent(accessTokenMatch[1]));
-      if (tokenData?.access_token) {
+      if (tokenData && tokenData.access_token) {
         var supabaseWithToken = createClient(supabaseUrl, supabaseAnonKey, {
           global: { headers: { Authorization: 'Bearer ' + tokenData.access_token } },
         });
