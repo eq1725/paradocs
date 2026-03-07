@@ -230,7 +230,7 @@ export default function PhenomenonPage() {
                   <img
                     src={phenomenon.primary_image_url}
                     alt={phenomenon.name}
-                    className="w-full h-full object-cover rounded-2xl"
+                    className="w-full h-full object-contain rounded-2xl"
                     referrerPolicy="no-referrer"
                     loading="lazy"
                   />
@@ -429,7 +429,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.origin && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">📍</span> Origin
+                              <span className="text-xs">ð</span> Origin
                             </dt>
                             <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.origin}</dd>
                           </div>
@@ -438,7 +438,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.classification && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">🔬</span> Classification
+                              <span className="text-xs">ð¬</span> Classification
                             </dt>
                             <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.classification}</dd>
                           </div>
@@ -447,7 +447,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.first_documented && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">📜</span> First Documented
+                              <span className="text-xs">ð</span> First Documented
                             </dt>
                             <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.first_documented}</dd>
                           </div>
@@ -456,7 +456,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.danger_level && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">⚠️</span> Danger Level
+                              <span className="text-xs">â ï¸</span> Danger Level
                             </dt>
                             <dd className={classNames(
                               'text-sm mt-1 font-medium',
@@ -476,7 +476,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.typical_encounter && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">👁️</span> Typical Encounter
+                              <span className="text-xs">ðï¸</span> Typical Encounter
                             </dt>
                             <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.typical_encounter}</dd>
                           </div>
@@ -485,7 +485,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.evidence_types && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">📝</span> Evidence
+                              <span className="text-xs">ð</span> Evidence
                             </dt>
                             <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.evidence_types}</dd>
                           </div>
@@ -494,7 +494,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.active_period && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">⏳</span> Active Period
+                              <span className="text-xs">â³</span> Active Period
                             </dt>
                             <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.active_period}</dd>
                           </div>
@@ -503,7 +503,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.notable_feature && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">⭐</span> Notable Feature
+                              <span className="text-xs">â­</span> Notable Feature
                             </dt>
                             <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.notable_feature}</dd>
                           </div>
@@ -512,7 +512,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.cultural_significance && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">🌍</span> Cultural Significance
+                              <span className="text-xs">ð</span> Cultural Significance
                             </dt>
                             <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.cultural_significance}</dd>
                           </div>
@@ -536,7 +536,7 @@ export default function PhenomenonPage() {
                           <h4 className="text-sm text-white font-medium line-clamp-1">{report.title}</h4>
                           <p className="text-xs text-gray-400 mt-1">
                             {report.location_name || report.country || 'Unknown location'}
-                            {report.event_date && ` â¢ ${new Date(report.event_date).toLocaleDateString()}`}
+                            {report.event_date && ` Ã¢ÂÂ¢ ${new Date(report.event_date).toLocaleDateString()}`}
                           </p>
                         </Link>
                       ))}
