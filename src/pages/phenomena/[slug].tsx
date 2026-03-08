@@ -29,6 +29,7 @@ import {
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
 import AskTheUnknown from '@/components/AskTheUnknown'
+import PhenomenonMiniMap from '@/components/PhenomenonMiniMap'
 
 interface Phenomenon {
   id: string
@@ -375,6 +376,32 @@ export default function PhenomenonPage() {
                   />
                 )}
 
+                {/* Paradocs Analysis - Convergence Insight */}
+                {phenomenon.ai_theories && (
+                  <section className="relative rounded-xl overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-900/40 via-indigo-900/30 to-gray-900/40 rounded-xl" />
+                    <div className="absolute inset-0 border border-purple-500/30 rounded-xl" />
+                    <div className="relative p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                          <Lightbulb className="w-4 h-4 text-purple-400" />
+                        </div>
+                        <div>
+                          <h2 className="text-lg font-semibold text-white">Paradocs Analysis</h2>
+                          <p className="text-xs text-purple-400 font-medium tracking-wider uppercase">Cross-Framework Convergence</p>
+                        </div>
+                      </div>
+                      <div className="prose prose-invert prose-gray max-w-none">
+                        {phenomenon.ai_paradocs_analysis ? (
+                          phenomenon.ai_paradocs_analysis.split('\n\n').map(function(paragraph, i) {
+                            return React.createElement('p', { key: i, className: 'text-gray-300 leading-relaxed mb-4 last:mb-0' }, paragraph);
+                          })
+                        ) : null}
+                      </div>
+                    </div>
+                  </section>
+                )}
+
                 {/* Characteristics */}
                 {phenomenon.ai_characteristics && (
                   <ContentSection
@@ -393,31 +420,6 @@ export default function PhenomenonPage() {
                   />
                 )}
 
-                {/* ParaDocs Analysis - Convergence Insight */}
-                {phenomenon.ai_theories && (
-                  <section className="relative rounded-xl overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-900/40 via-indigo-900/30 to-gray-900/40 rounded-xl" />
-                    <div className="absolute inset-0 border border-purple-500/30 rounded-xl" />
-                    <div className="relative p-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                          <Lightbulb className="w-4 h-4 text-purple-400" />
-                        </div>
-                        <div>
-                          <h2 className="text-lg font-semibold text-white">ParaDocs Analysis</h2>
-                          <p className="text-xs text-purple-400 font-medium tracking-wider uppercase">Cross-Framework Convergence</p>
-                        </div>
-                      </div>
-                      <div className="prose prose-invert prose-gray max-w-none">
-                        {phenomenon.ai_paradocs_analysis ? (
-                          phenomenon.ai_paradocs_analysis.split('\n\n').map(function(paragraph, i) {
-                            return React.createElement('p', { key: i, className: 'text-gray-300 leading-relaxed mb-4 last:mb-0' }, paragraph);
-                          })
-                        ) : null}
-                      </div>
-                    </div>
-                  </section>
-                )}
               </div>
 
               {/* Sidebar */}
@@ -562,6 +564,14 @@ export default function PhenomenonPage() {
                     )}
                   </dl>
                 </div>
+
+                {/* Phenomenon Location Map */}
+                {phenomenon.primary_regions && phenomenon.primary_regions.length > 0 && (
+                  <PhenomenonMiniMap
+                    regions={phenomenon.primary_regions}
+                    phenomenonName={phenomenon.name}
+                  />
+                )}
 
                 {/* Recent Reports */}
                 {reports.length > 0 && (
