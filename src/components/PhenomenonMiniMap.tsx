@@ -57,68 +57,54 @@ export default function PhenomenonMiniMap(props: Props) {
       setLoading(false)
       return
     }
-    geocodeRegions()
+    fetchGeocodedRegions()
   }, [regions])
 
-  function geocodeRegions() {
-    var token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ''
-    if (!token) {
-      setLoading(false)
-      return
-    }
-
-    var promises = regions.map(function(region) {
-      var encoded = encodeURIComponent(region)
-      return fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encoded + '.json?access_token=' + token + '&limit=1')
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-          if (data.features && data.features.length > 0) {
-            var coords = data.features[0].center
-            return {
-              lat: coords[1],
-              lng: coords[0],
-              label: region,
-              type: 'region' as const
-            }
-          }
-          return null
-        })
-        .catch(function() { return null; })
+  function fetchGeocodedRegions() {
+    fetch('/api/geocode/regions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ regions: regions })
     })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        var points: LocationPoint[] = []
+        if (data.locations) {
+          data.locations.forEach(function(loc: any) {
+            points.push({ lat: loc.lat, lng: loc.lng, label: loc.region, type: 'region' })
+          })
+        }
 
-    Promise.all(promises).then(function(results) {
-      var points: LocationPoint[] = []
-      results.forEach(function(r) {
-        if (r) points.push(r)
-      })
-
-      reportLocations.forEach(function(rl) {
-        points.push({ lat: rl.lat, lng: rl.lng, label: rl.title, type: 'report' })
-      })
-
-      setLocations(points)
-
-      if (points.length > 0) {
-        var minLat = points[0].lat
-        var maxLat = points[0].lat
-        var minLng = points[0].lng
-        var maxLng = points[0].lng
-        points.forEach(function(p) {
-          if (p.lat < minLat) minLat = p.lat
-          if (p.lat > maxLat) maxLat = p.lat
-          if (p.lng < minLng) minLng = p.lng
-          if (p.lng > maxLng) maxLng = p.lng
+        reportLocations.forEach(function(rl) {
+          points.push({ lat: rl.lat, lng: rl.lng, label: rl.title, type: 'report' })
         })
-        var latPad = Math.max((maxLat - minLat) * 0.3, 2)
-        var lngPad = Math.max((maxLng - minLng) * 0.3, 2)
-        setMapBounds([
-          [minLat - latPad, minLng - lngPad],
-          [maxLat + latPad, maxLng + lngPad]
-        ])
-      }
 
-      setLoading(false)
-    })
+        setLocations(points)
+
+        if (points.length > 0) {
+          var minLat = points[0].lat
+          var maxLat = points[0].lat
+          var minLng = points[0].lng
+          var maxLng = points[0].lng
+          points.forEach(function(p) {
+            if (p.lat < minLat) minLat = p.lat
+            if (p.lat > maxLat) maxLat = p.lat
+            if (p.lng < minLng) minLng = p.lng
+            if (p.lng > maxLng) maxLng = p.lng
+          })
+          var latPad = Math.max((maxLat - minLat) * 0.3, 2)
+          var lngPad = Math.max((maxLng - minLng) * 0.3, 2)
+          setMapBounds([
+            [minLat - latPad, minLng - lngPad],
+            [maxLat + latPad, maxLng + lngPad]
+          ])
+        }
+
+        setLoading(false)
+      })
+      .catch(function() {
+        setLoading(false)
+      })
   }
 
   if (!regions || regions.length === 0) return null
