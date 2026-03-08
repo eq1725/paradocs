@@ -44,6 +44,7 @@ interface Phenomenon {
   ai_notable_sightings: string | null
   ai_theories: string | null
   ai_cultural_impact: string | null
+  ai_paradocs_analysis: string | null
   ai_generated_at: string | null
   report_count: number
   primary_image_url: string | null
@@ -391,6 +392,32 @@ export default function PhenomenonPage() {
                     content={phenomenon.ai_theories}
                   />
                 )}
+
+                {/* ParaDocs Analysis - Convergence Insight */}
+                {phenomenon.ai_theories && (
+                  <section className="relative rounded-xl overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-900/40 via-indigo-900/30 to-gray-900/40 rounded-xl" />
+                    <div className="absolute inset-0 border border-purple-500/30 rounded-xl" />
+                    <div className="relative p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                          <Lightbulb className="w-4 h-4 text-purple-400" />
+                        </div>
+                        <div>
+                          <h2 className="text-lg font-semibold text-white">ParaDocs Analysis</h2>
+                          <p className="text-xs text-purple-400 font-medium tracking-wider uppercase">Cross-Framework Convergence</p>
+                        </div>
+                      </div>
+                      <div className="prose prose-invert prose-gray max-w-none">
+                        {phenomenon.ai_paradocs_analysis ? (
+                          phenomenon.ai_paradocs_analysis.split('\n\n').map(function(paragraph, i) {
+                            return React.createElement('p', { key: i, className: 'text-gray-300 leading-relaxed mb-4 last:mb-0' }, paragraph);
+                          })
+                        ) : null}
+                      </div>
+                    </div>
+                  </section>
+                )}
               </div>
 
               {/* Sidebar */}
@@ -571,7 +598,7 @@ export default function PhenomenonPage() {
           )}
 
           {activeTab === 'history' && (
-            <div className="max-w-3xl space-y-8">
+            <div className="max-w-4xl mx-auto space-y-8">
               {/* History */}
               {phenomenon.ai_history && (
                 <ContentSection
