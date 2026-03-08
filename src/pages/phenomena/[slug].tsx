@@ -364,66 +364,14 @@ export default function PhenomenonPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
           {activeTab === 'overview' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Main Content */}
-              <div className="lg:col-span-2 space-y-8">
-                {/* Description */}
-                {phenomenon.ai_description && (
-                  <ContentSection
-                    icon={<BookOpen className="w-5 h-5" />}
-                    title="Description"
-                    content={phenomenon.ai_description}
-                  />
-                )}
+          <>
 
-                {/* Paradocs Analysis - Convergence Insight */}
-                {phenomenon.ai_theories && (
-                  <section className="relative rounded-xl overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-900/40 via-indigo-900/30 to-gray-900/40 rounded-xl" />
-                    <div className="absolute inset-0 border border-purple-500/30 rounded-xl" />
-                    <div className="relative p-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                          <Lightbulb className="w-4 h-4 text-purple-400" />
-                        </div>
-                        <div>
-                          <h2 className="text-lg font-semibold text-white">Paradocs Analysis</h2>
-                          <p className="text-xs text-purple-400 font-medium tracking-wider uppercase">Cross-Framework Convergence</p>
-                        </div>
-                      </div>
-                      <div className="prose prose-invert prose-gray max-w-none">
-                        {phenomenon.ai_paradocs_analysis ? (
-                          phenomenon.ai_paradocs_analysis.split('\n\n').map(function(paragraph, i) {
-                            return React.createElement('p', { key: i, className: 'text-gray-300 leading-relaxed mb-4 last:mb-0' }, paragraph);
-                          })
-                        ) : null}
-                      </div>
-                    </div>
-                  </section>
-                )}
+          {/* Top section: Sidebar + Main Content */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
 
-                {/* Characteristics */}
-                {phenomenon.ai_characteristics && (
-                  <ContentSection
-                    icon={<Fingerprint className="w-5 h-5" />}
-                    title="Characteristics"
-                    content={phenomenon.ai_characteristics}
-                  />
-                )}
-
-                {/* Theories */}
-                {phenomenon.ai_theories && (
-                  <ContentSection
-                    icon={<Lightbulb className="w-5 h-5" />}
-                    title="Theories & Explanations"
-                    content={phenomenon.ai_theories}
-                  />
-                )}
-
-              </div>
-
-              {/* Sidebar */}
-              <div className="space-y-6">
+          {/* Sidebar - shows first on mobile, last on desktop */}
+          <div className="order-first lg:order-last">
+          <div className="lg:sticky lg:top-20 space-y-6">
                 {/* Quick Stats Card */}
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
                   <h3 className="text-lg font-semibold text-white mb-4">Quick Facts</h3>
@@ -587,7 +535,7 @@ export default function PhenomenonPage() {
                           <h4 className="text-sm text-white font-medium line-clamp-1">{report.title}</h4>
                           <p className="text-xs text-gray-400 mt-1">
                             {report.location_name || report.country || 'Unknown location'}
-                            {report.event_date && ` Ã¢ÂÂ¢ ${new Date(report.event_date).toLocaleDateString()}`}
+                            {report.event_date && ` ÃÂ¢ÃÂÃÂ¢ ${new Date(report.event_date).toLocaleDateString()}`}
                           </p>
                         </Link>
                       ))}
@@ -603,8 +551,71 @@ export default function PhenomenonPage() {
                     )}
                   </div>
                 )}
-              </div>
-            </div>
+          </div>
+          </div>
+
+          {/* Main Content */}
+          <div className="lg:col-span-2 space-y-8">
+                {/* Description */}
+                {phenomenon.ai_description && (
+                  <ContentSection
+                    icon={<BookOpen className="w-5 h-5" />}
+                    title="Description"
+                    content={phenomenon.ai_description}
+                  />
+                )}
+
+                {/* Paradocs Analysis - Convergence Insight */}
+                {phenomenon.ai_theories && (
+                  <section className="relative rounded-xl overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-900/40 via-indigo-900/30 to-gray-900/40 rounded-xl" />
+                    <div className="absolute inset-0 border border-purple-500/30 rounded-xl" />
+                    <div className="relative p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                          <Lightbulb className="w-4 h-4 text-purple-400" />
+                        </div>
+                        <div>
+                          <h2 className="text-lg font-semibold text-white">Paradocs Analysis</h2>
+                          <p className="text-xs text-purple-400 font-medium tracking-wider uppercase">Cross-Framework Convergence</p>
+                        </div>
+                      </div>
+                      <div className="prose prose-invert prose-gray max-w-none">
+                        {phenomenon.ai_paradocs_analysis ? (
+                          phenomenon.ai_paradocs_analysis.split('\n\n').map(function(paragraph, i) {
+                            return React.createElement('p', { key: i, className: 'text-gray-300 leading-relaxed mb-4 last:mb-0' }, paragraph);
+                          })
+                        ) : null}
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+          </div>
+          </div>
+
+          {/* Bottom section: Characteristics and Theories side by side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 mt-8">
+                {/* Characteristics */}
+                {phenomenon.ai_characteristics && (
+                  <ContentSection
+                    icon={<Fingerprint className="w-5 h-5" />}
+                    title="Characteristics"
+                    content={phenomenon.ai_characteristics}
+                  />
+                )}
+
+                {/* Theories */}
+                {phenomenon.ai_theories && (
+                  <ContentSection
+                    icon={<Lightbulb className="w-5 h-5" />}
+                    title="Theories & Explanations"
+                    content={phenomenon.ai_theories}
+                  />
+                )}
+          </div>
+
+          </>
           )}
 
           {activeTab === 'history' && (
