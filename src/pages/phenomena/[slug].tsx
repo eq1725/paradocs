@@ -21,6 +21,10 @@ import {
   Video,
   Play,
   ZoomIn,
+  AlertTriangle,
+  Clock,
+  Star,
+  Globe2,
 } from 'lucide-react'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
@@ -225,15 +229,25 @@ export default function PhenomenonPage() {
 
             <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
               {/* Icon/Image */}
-              <div className="w-24 h-24 sm:w-32 sm:h-32 flex items-center justify-center bg-gray-800/50 rounded-2xl border border-gray-700 shrink-0">
+              <div className="w-24 h-24 sm:w-32 sm:h-32 flex items-center justify-center bg-gray-800/50 rounded-2xl border border-gray-700 shrink-0 overflow-hidden relative">
                 {phenomenon.primary_image_url ? (
-                  <img
-                    src={phenomenon.primary_image_url}
-                    alt={phenomenon.name}
-                    className="w-full h-full object-contain rounded-2xl"
-                    referrerPolicy="no-referrer"
-                    loading="lazy"
-                  />
+                  <>
+                    <img
+                      src={phenomenon.primary_image_url}
+                      alt=""
+                      className="absolute inset-0 w-full h-full object-cover rounded-2xl blur-md scale-110 opacity-40"
+                      referrerPolicy="no-referrer"
+                      loading="lazy"
+                      aria-hidden="true"
+                    />
+                    <img
+                      src={phenomenon.primary_image_url}
+                      alt={phenomenon.name}
+                      className="relative w-full h-full object-contain rounded-2xl"
+                      referrerPolicy="no-referrer"
+                      loading="lazy"
+                    />
+                  </>
                 ) : (
                   <span className="text-5xl sm:text-7xl">{phenomenon.icon || config?.icon}</span>
                 )}
@@ -429,7 +443,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.origin && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">ð</span> Origin
+                              <MapPin className="w-3.5 h-3.5" /> Origin
                             </dt>
                             <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.origin}</dd>
                           </div>
@@ -438,7 +452,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.classification && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">ð¬</span> Classification
+                              <Fingerprint className="w-3.5 h-3.5" /> Classification
                             </dt>
                             <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.classification}</dd>
                           </div>
@@ -447,7 +461,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.first_documented && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">ð</span> First Documented
+                              <Calendar className="w-3.5 h-3.5" /> First Documented
                             </dt>
                             <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.first_documented}</dd>
                           </div>
@@ -456,7 +470,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.danger_level && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">â ï¸</span> Danger Level
+                              <AlertTriangle className="w-3.5 h-3.5" /> Danger Level
                             </dt>
                             <dd className={classNames(
                               'text-sm mt-1 font-medium',
@@ -476,7 +490,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.typical_encounter && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">ðï¸</span> Typical Encounter
+                              <Eye className="w-3.5 h-3.5" /> Typical Encounter
                             </dt>
                             <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.typical_encounter}</dd>
                           </div>
@@ -485,7 +499,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.evidence_types && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">ð</span> Evidence
+                              <FileText className="w-3.5 h-3.5" /> Evidence
                             </dt>
                             <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.evidence_types}</dd>
                           </div>
@@ -494,7 +508,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.active_period && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">â³</span> Active Period
+                              <Clock className="w-3.5 h-3.5" /> Active Period
                             </dt>
                             <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.active_period}</dd>
                           </div>
@@ -503,7 +517,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.notable_feature && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">â­</span> Notable Feature
+                              <Star className="w-3.5 h-3.5" /> Notable Feature
                             </dt>
                             <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.notable_feature}</dd>
                           </div>
@@ -512,7 +526,7 @@ export default function PhenomenonPage() {
                         {phenomenon.ai_quick_facts.cultural_significance && (
                           <div>
                             <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <span className="text-xs">ð</span> Cultural Significance
+                              <Globe2 className="w-3.5 h-3.5" /> Cultural Significance
                             </dt>
                             <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.cultural_significance}</dd>
                           </div>
