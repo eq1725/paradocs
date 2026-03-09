@@ -211,7 +211,7 @@ export default function PhenomenonPage() {
               <img
                 src={phenomenon.primary_image_url}
                 alt=""
-                className="w-full h-full object-cover object-top opacity-10"
+                className="w-full h-full object-cover opacity-10"
                 referrerPolicy="no-referrer"
                 loading="lazy"
               />
