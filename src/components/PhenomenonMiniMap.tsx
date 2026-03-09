@@ -34,13 +34,13 @@ interface Props {
   reportLocations?: Array<{ lat: number; lng: number; title: string }>
 }
 
-function makePinSvg(color: string, borderColor: string, glowColor: string) {
-  return '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="40" viewBox="0 0 28 40">'
-    + '<defs><filter id="glow"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="' + glowColor + '" flood-opacity="0.8"/></filter></defs>'
-    + '<path d="M14 0C6.3 0 0 6.3 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.3 21.7 0 14 0z" fill="' + color + '" stroke="' + borderColor + '" stroke-width="1.5" filter="url(#glow)"/>'
-    + '<circle cx="14" cy="14" r="5.5" fill="rgba(0,0,0,0.3)"/>'
-    + '<circle cx="14" cy="14" r="3.5" fill="white" opacity="0.9"/>'
-    + '</svg>'
+function makeMapPinHtml(color: string) {
+  // Lucide MapPin icon path, matching the header icon
+  return '<div style="width:32px;height:32px;filter:drop-shadow(0 0 4px ' + color + ')">'
+    + '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="' + color + '" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>'
+    + '<circle cx="12" cy="10" r="3" fill="white" stroke="white"/>'
+    + '</svg></div>'
 }
 
 export default function PhenomenonMiniMap(props: Props) {
@@ -139,7 +139,7 @@ export default function PhenomenonMiniMap(props: Props) {
         crossOrigin=""
       />
       <style>{[
-        '.phenom-marker { background: transparent !important; border: none !important; }',
+        '.leaflet-div-icon { background: transparent !important; border: none !important; }',
         '.leaflet-popup-content-wrapper { background: rgba(15, 23, 42, 0.95) !important; border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 8px !important; }',
         '.leaflet-popup-content { color: white !important; margin: 8px 12px !important; }',
         '.leaflet-popup-tip { background: rgba(15, 23, 42, 0.95) !important; }',
@@ -175,15 +175,13 @@ export default function PhenomenonMiniMap(props: Props) {
             {locations.map(function(loc, i) {
               var isReport = loc.type === 'report';
               var pinColor = isReport ? '#60a5fa' : '#a855f7';
-              var pinBorder = isReport ? '#93c5fd' : '#c084fc';
-              var pinGlow = isReport ? 'rgba(96, 165, 250, 0.6)' : 'rgba(168, 85, 247, 0.7)';
-              var svgHtml = makePinSvg(pinColor, pinBorder, pinGlow);
+              var pinHtml = makeMapPinHtml(pinColor);
               var icon = leaflet.divIcon({
-                html: svgHtml,
-                className: 'phenom-marker',
-                iconSize: [28, 40],
-                iconAnchor: [14, 40],
-                popupAnchor: [0, -40]
+                html: pinHtml,
+                className: '',
+                iconSize: [32, 32],
+                iconAnchor: [16, 32],
+                popupAnchor: [0, -32]
               })
               return React.createElement(MarkerComp, {
                 key: i,
