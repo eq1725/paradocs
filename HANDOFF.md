@@ -1,6 +1,6 @@
 # ParaDocs Development Handoff
 
-**Last updated:** March 9, 2026 (Session 9 — Batch 1 Content + Mini-Map Fixes + Profile Image/Media Workflow)
+**Last updated:** March 9, 2026 (Session 11 — Minimap UX improvements, Batch 3 content enrichment)
 
 ## Project Overview
 
@@ -21,13 +21,55 @@ The platform's thesis: emergent patterns across massive anecdotal reports of par
 
 ## Completed Work (All Sprints)
 
-### Most Recent (March 9, 2026) — Batch 1 Content + Mini-Map Fixes
+### Most Recent (March 9, 2026) — Session 11: Minimap UX + Batch 3
+
+#### Sidebar Minimap UX Improvements ✅
+- Moved minimap above Quick Facts in sidebar (`891443e8`)
+- Made minimap scroll away naturally while Quick Facts remains sticky (`ef72a5f6`) — separates minimap from `lg:sticky` container so users see Quick Facts without scrolling past the map
+
+#### Batch 3 Content Enrichment ✅
+- Fetched 20 entries alphabetically after "Ban Manush"
+- **DELETED (4 entries)**:
+  - Barmanu (duplicate of Barmanou — same creature, alternate spelling)
+  - Big Grey Man (duplicate of Am Fear Liath Mòr — already enriched in Batch 1)
+  - Bili Ape (confirmed real species — Eastern chimpanzee, Pan troglodytes schweinfurthii)
+  - Bennington Monster (acknowledged fabrication by author Joseph Citro)
+- **RECLASSIFIED to `religion_mythology` (3 entries)**:
+  - Basilisk (classical mythology creature from Greek/Roman tradition, no modern cryptid sightings)
+  - Baykok (Ojibwe spiritual being/death spirit, not a cryptid)
+  - Bichura (Turkic household spirit, not a cryptid)
+- **ENRICHED as cryptids (13 entries)**: Barghest of Yorkshire, Barmanou, Basajaun, Batsquatch, Batutut, Bear Lake Monster, Beast of Bodmin Moor, Beast of Bray Road, Beast of Busco, Beast of Exmoor, Beast of Gévaudan, Bessie, Bigfoot
+- All 13 entries verified to meet character minimums (desc 2000+, chars 2000+, theo 2000+, anal 2500+)
+
+### Prior (March 9, 2026) — Session 10: Batch 1+2 QA Audit, JSONB Fix, Research Audit
+
+This session performed comprehensive QA across both Batch 1 and Batch 2 entries, fixing critical data issues and auditing for fabricated entries.
+
+#### CRITICAL FIX: ai_quick_facts JSONB Double-Encoding ✅
+- **Root cause**: `ai_quick_facts` column is `jsonb` (NOT text). When updating via REST API with `JSON.stringify(object)`, the value was double-encoded — stored as a JSON string literal instead of a JSON object. This caused the frontend to receive `typeof === "string"` instead of a parsed object, so Quick Facts never rendered.
+- **Fix**: SQL command: `UPDATE phenomena SET ai_quick_facts = (ai_quick_facts #>> '{}')::jsonb WHERE ai_quick_facts IS NOT NULL AND jsonb_typeof(ai_quick_facts) = 'string'` — converted 98 rows from string to object type. Required temporarily disabling the `check_phenomena_duplicates` trigger.
+- **Going forward**: When updating `ai_quick_facts` via REST API, pass the object directly — do NOT use `JSON.stringify()`. The REST API body itself is JSON-serialized, so `body: JSON.stringify({ ai_quick_facts: objectValue })` correctly sends the object as a nested JSON value.
+
+#### Batch 1 Research Audit ✅
+- Researched all 20 Batch 1 entries for fabrication/misclassification
+- **DELETED (fabricated)**: Akka (no credible cryptid sources; confused with Sami goddess), Amenoba (no verifiable documentation in any cryptid database)
+- **Notable overlap**: Almas, Almasti, and Altai Wild Man are regional variants of the same creature — kept as separate entries since each represents distinct regional tradition
+- **Remaining Batch 1 entries (18)**: Adjule, Adlet, Adze, Agogwe, Agropelter, Ahool, Ahuizotl, Akkorokamui, Akunna, Alicanto, Alien Big Cat, Alkali Lake Monster, Almas, Almasti, Altai Wild Man, Altamaha-ha, Am Fear Liath Mòr, Amomongo, Animiki, Ao Ao
+
+#### Entry-Specific Fixes ✅
+- **Adjule**: Added missing `also_known_as` to quick facts, expanded description/characteristics/theories to meet minimums
+- **Ahuizotl**: Complete quick facts rewrite (had wrong keys like `length`, `location` etc.), wrote full Paradocs Analysis (was 0 chars), added primary_regions (was empty), expanded description/characteristics/theories
+
+#### ai_quick_facts Key Rename Fix ✅
+- 19 Batch 1 entries had `evidence` instead of `evidence_types` — frontend checks for `evidence_types` specifically. Renamed all via REST API.
+
+### Prior (March 9, 2026) — Batch 1 Content + Mini-Map Fixes
 
 This session completed Batch 1 (20 cryptid entries) content enrichment and fixed multiple mini-map issues.
 
-#### Batch 1: 20 Cryptid Entries Enriched ✅
+#### Batch 1: Originally 20 Cryptid Entries Enriched (now 18 after deletions) ✅
 Entries processed (content only — no media/profile images yet):
-Adlet, Adze, Agogwe, Agropelter, Ahool, Akka, Akkorokamui, Akunna, Alicanto, Alien Big Cat, Alkali Lake Monster, Almas, Almasti, Altai Wild Man, Altamaha-ha, Am Fear Liath Mòr, Amenoba, Amomongo, Animiki
+Adjule, Adlet, Adze, Agogwe, Agropelter, Ahool, Ahuizotl, Akkorokamui, Akunna, Alicanto, Alien Big Cat, Alkali Lake Monster, Almas, Almasti, Altai Wild Man, Altamaha-ha, Am Fear Liath Mòr, Amomongo, Animiki, Ao Ao
 
 Each entry received: `ai_description`, `ai_characteristics`, `ai_theories`, `ai_paradocs_analysis`, `ai_quick_facts` (JSON), `primary_regions` (text[])
 
@@ -155,22 +197,122 @@ Each entry received: `ai_description`, `ai_characteristics`, `ai_theories`, `ai_
 ### Completed
 - **Adjule** (template): Fully complete — content, media (6 YouTube videos), profile image, primary_regions
 - **Batch 1 (20 entries)**: Content complete (descriptions, characteristics, theories, paradocs analysis, quick facts, primary_regions). NO media or profile images yet.
+- **Batch 2 (16 entries, originally 20 — 4 removed)**: Content complete and fact-checked. Entries: Ao Ao, Ape Canyon Creature, Apotamkin, Appalachian Wildman, Asanbosam, Aswang, Atlantic Sea Dragon, Australian Panther, Awful, Ayia Napa Sea Monster, Azores Sea Serpent, Badalischio, Baikal Lake Dragon, Baluchistan Wildman, Bamboo Ape, Ban Manush
+  - **DELETED (fabricated/misclassified)**: Aquatic Ape (not a cryptid — evolutionary hypothesis), Architeuthis Giganteus (confirmed real species — Giant Squid), Ashuanipi Lake Monster (fabricated — no documented monster legend), Banip (fabricated — no documented PNG creature)
+  - **Fact-check corrections applied**: Apotamkin (removed vampire mischaracterization), Bamboo Ape (linked to verified Nguoi Rung/Batutut), Awful (transparent about questionable provenance), Azores Sea Serpent (honest about limited documentation)
 
 ### Two-Phase Approach
-- **Phase 1 (current)**: Content enrichment only — `ai_description`, `ai_characteristics`, `ai_theories`, `ai_paradocs_analysis`, `ai_quick_facts`, `primary_regions` for all ~357 cryptid entries, 20 at a time
+- **Phase 1 (current)**: Content enrichment only — `ai_description`, `ai_characteristics`, `ai_theories`, `ai_paradocs_analysis`, `ai_quick_facts`, `primary_regions` for all cryptid entries, 20 at a time
 - **Phase 2 (later)**: Profile images and media (YouTube videos) for all entries — Chase will provide custom profile images and YouTube URLs
 
-### Progress: ~21/357 cryptids done (Adjule + Batch 1)
+### Progress: ~48/~353 cryptids done (Adjule + Batch 1 (18) + Batch 2 (16) + Batch 3 (13) — 13 total deleted/reclassified across all batches)
 
 ---
 
 ## Planned / Next Work
 
 ### IMMEDIATE: Continue Batch Content Enrichment
-- Process next 20 cryptid entries (Batch 2) starting alphabetically after "Animiki"
+- Process next 20 cryptid entries starting alphabetically after "Bigfoot" (Batch 4)
 - Each entry needs: `ai_description`, `ai_characteristics`, `ai_theories`, `ai_paradocs_analysis`, `ai_quick_facts` (JSON), `primary_regions` (text[])
 - Use Supabase REST API with service role key (browser JS) to update entries
 - Target: 20 entries per session
+- **CRITICAL: Follow the Content Quality Standards below exactly**
+
+---
+
+## Content Quality Standards (MUST follow for every batch)
+
+These standards ensure consistency across all enriched entries. Derived from the Adjule/Agogwe/Almas/Animiki templates.
+
+### Character Length Targets
+
+| Field | Minimum | Target | Max |
+|-------|---------|--------|-----|
+| `ai_description` | 1800 | 2000–2600 | 3000 |
+| `ai_characteristics` | 1800 | 2000–2300 | 2800 |
+| `ai_theories` | 1800 | 2000–2500 | 3000 |
+| `ai_paradocs_analysis` | 2200 | 2500–3100 | 3500 |
+
+Each field should contain 3–5 substantial paragraphs. Content should read like a well-researched encyclopedia article — specific, evidence-aware, and analytically rich. Avoid generic filler. Every paragraph should contain concrete details: dates, names, locations, physical measurements, behavioral specifics.
+
+### `ai_quick_facts` Format (CRITICAL — frontend will not render if wrong)
+
+**Must be a flat JSON object** with these exact keys (all optional but include as many as applicable):
+
+```json
+{
+  "origin": "Detailed origin — region, culture, and historical context (50-150 chars)",
+  "classification": "Cryptid type and taxonomic speculation (40-100 chars)",
+  "first_documented": "Year and context of first Western/written documentation (50-200 chars)",
+  "danger_level": "Assessment with explanation — triggers color coding in UI (50-150 chars)",
+  "typical_encounter": "What a sighting usually looks like — conditions, duration, behavior (80-220 chars)",
+  "evidence_types": "What evidence exists — oral tradition, photos, tracks, specimens, etc. (80-220 chars)",
+  "active_period": "When the creature is active — diurnal, nocturnal, seasonal patterns (50-150 chars)",
+  "notable_feature": "The single most distinctive or unusual characteristic (80-200 chars)",
+  "cultural_significance": "Role in local culture, spiritual traditions, or modern impact (80-200 chars)",
+  "also_known_as": ["Alt Name 1", "Alt Name 2"]
+}
+```
+
+**Key rules:**
+- `danger_level` value is parsed for color: include words like "High", "Moderate", "Low", "None", "Dangerous", "Benign", "Harmless", "Caution"
+- `also_known_as` is the ONLY array field — all others are strings
+- Values should be **detailed phrases/sentences**, not terse labels. 50-220 chars each.
+- **CRITICAL**: The column is `jsonb`, NOT text. When updating via REST API, pass the object directly — do NOT wrap in `JSON.stringify()`. Example: `{ ai_quick_facts: quickFactsObject }` — the REST body serialization handles it correctly.
+- The frontend renders each key conditionally with a specific Lucide icon — if the key doesn't match exactly, it won't display
+
+### `primary_regions` Format
+- Array of 3-6 specific geographic strings
+- Include both specific locations and broader regions
+- Example: `["Chittagong Hill Tracts, Bangladesh", "Southeastern Bangladesh", "Indo-Burman borderlands", "Sylhet Division, Bangladesh"]`
+
+### Content Quality Checklist (per entry)
+- [ ] Description: 3-5 paragraphs, 2000+ chars, includes historical context, physical description overview, notable sightings
+- [ ] Characteristics: 3-4 paragraphs, 2000+ chars, detailed morphology, behavioral patterns, habitat specifics, sensory details
+- [ ] Theories: 3-4 paragraphs, 2000+ chars, at minimum covers: scientific/conventional explanation, cryptozoological hypothesis, cultural/anthropological interpretation
+- [ ] Analysis: 3-5 paragraphs, 2500+ chars, connects to ParaDocs database patterns, identifies cross-cultural parallels, raises analytical questions, discusses evidence quality
+- [ ] Quick Facts: flat object with 8-10 keys from the approved list, detailed values
+- [ ] Regions: 3-6 specific geographic strings
+
+### Research-First Mandate (NON-NEGOTIABLE)
+
+**All content must be grounded in actual research. No fabrication.**
+
+Before writing content for ANY entry, you MUST:
+
+1. **Web search the cryptid name** — find actual sources (Wikipedia, cryptozoology databases, folklore archives, academic papers, news articles)
+2. **Verify key facts** before including them:
+   - Geographic origin and specific locations of sightings
+   - First documented accounts (who, when, where)
+   - Physical descriptions from actual witness reports or folklore sources
+   - Cultural context from the actual tradition (not invented)
+   - Named researchers, expeditions, or investigators
+   - Specific dates, publications, or events
+3. **If a fact cannot be verified**, do NOT include it. It is better to write shorter, accurate content than to pad with plausible-sounding fabrications.
+4. **For obscure entries** with very little available information, acknowledge the limited documentation rather than inventing details. Focus on what IS known and verifiable.
+5. **Cross-reference** — if multiple sources agree on a detail, include it. If only one dubious source mentions something, note the uncertainty.
+
+6. **Entry quality gate** — if research reveals that an entry is fabricated (no documented tradition), a confirmed real species (not a cryptid), or a misclassified concept (e.g., a scientific hypothesis, not a creature), flag it for DELETION rather than writing content for it. Entries that are mythological/religious in nature (not cryptids) should be RECLASSIFIED to `religion_mythology` category rather than deleted, as long as they come from real text/research traditions. Only real reported myths, cryptids, and folklore creatures should have entries in the encyclopedia.
+
+**What counts as fabrication (DO NOT DO):**
+- Inventing specific dates of sightings that didn't happen
+- Creating fictional researcher names or expeditions
+- Attributing quotes or accounts to people who didn't make them
+- Making up physical measurements or behavioral details
+- Inventing cultural practices or beliefs not documented in actual traditions
+- Creating "first documented" dates without a source
+
+**What is acceptable:**
+- Synthesizing information from multiple verified sources into original prose
+- Drawing reasonable analytical connections between verified facts
+- Noting the analytical significance of a cryptid within the ParaDocs framework (this is the Analysis section's purpose)
+- Using general knowledge about a region's geography, ecology, or culture when it provides context for verified cryptid reports
+
+### Writing Style for ParaDocs
+- **Tone**: Intellectually serious but accessible. The platform treats paranormal phenomena as legitimate subjects of inquiry without being credulous.
+- **Thesis**: Emergent patterns in massive anecdotal data suggest deeper reality — implied through analysis, never stated outright.
+- **Goal per entry**: "The most robust report on this cryptid on the internet."
+- **ParaDocs Analysis section** should reference the "ParaDocs database" or "ParaDocs system" and discuss cross-entry patterns, analytical metrics, and evidence quality. This is the signature section that distinguishes ParaDocs from a standard encyclopedia.
 
 ### Phase 2 (Later): Profile Images & Media
 - Chase uploads custom profile images to Supabase Storage `phenomena-images` bucket
@@ -190,6 +332,9 @@ Each entry received: `ai_description`, `ai_characteristics`, `ai_theories`, `ai_
 
 | SHA | Description |
 |-----|-------------|
+| `ef72a5f6` | Make minimap scroll away so Quick Facts sticks to top |
+| `891443e8` | Move minimap above Quick Facts in sidebar |
+| `79d555f2` | Fix blank space between Paradocs Analysis and Characteristics/Theories |
 | `98afbb0` | Fix hidden markers by adding custom-div-marker class |
 | `fdc3092` | Replace invisible SVG pins with Lucide MapPin-style markers |
 | `d92057f` | Add zoom controls to mini-map and tighten default bounds |
@@ -307,18 +452,23 @@ window._insertMedia = function(phenomenonId, url, type, title, desc) {
 
 ### Key schema notes:
 - `phenomena_media.media_type` CHECK constraint: valid values are `image`, `video`, `document`, `illustration`
-- `ai_quick_facts` is stored as a JSON string (not JSONB) — stringify before updating
+- `ai_quick_facts` is `jsonb` column — pass as a plain JS object, do NOT stringify (or it will be double-encoded as a JSON string literal)
 - `primary_regions` is `text[]` — pass as a JS array
 - Supabase Storage bucket `phenomena-images` (public) for profile images
 - `primary_image_url` field (NOT `image_url`) for profile images
 
 ## Notes for Next Session
 
-1. **Continue batch content enrichment** — Batch 2 starts after "Animiki" alphabetically, process 20 entries
-2. First establish the browser helper functions (see Database Update Method above)
-3. Query for next 20 cryptid entries: `phenomena?ai_paradocs_analysis=is.null&category_id=eq.CRYPTID_ID&order=name&limit=20&offset=20`
-4. For each entry, generate and update: `ai_description`, `ai_characteristics`, `ai_theories`, `ai_paradocs_analysis`, `ai_quick_facts`, `primary_regions`
-5. The mini-map automatically works for any entry with `primary_regions` populated
-6. Profile images and media are Phase 2 — skip for now
-7. **Git workflow**: Claude commits in VM, Chase pushes from `~/paradocs` with `rm -f .git/HEAD.lock && git push origin main`
-8. **SWC restrictions** only apply to `[slug].tsx` — other files use modern JS
+1. **Continue batch content enrichment** — Batch 4 starts after "Bigfoot" alphabetically, process 20 entries
+2. **RESEARCH FIRST** — Web search EVERY cryptid before writing content. Verify all facts. No fabrication. See "Research-First Mandate" section.
+3. **READ the Content Quality Standards section above BEFORE writing any content** — this is critical for consistency
+4. First establish the browser helper functions (see Database Update Method above)
+5. Query for next 20 cryptid entries: `phenomena?category=eq.cryptids&order=name&name=gt.Bigfoot&limit=20`
+5. For each entry, generate and update: `ai_description`, `ai_characteristics`, `ai_theories`, `ai_paradocs_analysis`, `ai_quick_facts`, `primary_regions`
+6. **`ai_quick_facts` must be a flat object** with keys: origin, classification, first_documented, danger_level, typical_encounter, evidence_types, active_period, notable_feature, cultural_significance, also_known_as. Pass as JS object (NOT stringified). NOT an array of label/value pairs.
+7. **Content length targets**: desc 2000+, chars 2000+, theories 2000+, analysis 2500+ (chars). Check against these before submitting.
+8. The mini-map automatically works for any entry with `primary_regions` populated
+9. Profile images and media are Phase 2 — skip for now
+10. **Git workflow**: Claude commits in VM, Chase pushes from `~/paradocs` with `rm -f .git/HEAD.lock && git push origin main`
+11. **SWC restrictions** only apply to `[slug].tsx` — other files use modern JS
+12. **DB column note**: category column is `category` (not `category_id`), no `description` column (use `ai_description`)
