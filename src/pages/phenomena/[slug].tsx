@@ -372,6 +372,14 @@ export default function PhenomenonPage() {
           {/* Sidebar - shows first on mobile, last on desktop */}
           <div className="order-first lg:order-last">
           <div className="lg:sticky lg:top-20 space-y-6">
+                {/* Phenomenon Location Map - above Quick Facts on desktop */}
+                {phenomenon.primary_regions && phenomenon.primary_regions.length > 0 && (
+                  <PhenomenonMiniMap
+                    regions={phenomenon.primary_regions}
+                    phenomenonName={phenomenon.name}
+                  />
+                )}
+
                 {/* Quick Stats Card */}
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
                   <h3 className="text-lg font-semibold text-white mb-4">Quick Facts</h3>
@@ -512,14 +520,6 @@ export default function PhenomenonPage() {
                     )}
                   </dl>
                 </div>
-
-                {/* Phenomenon Location Map */}
-                {phenomenon.primary_regions && phenomenon.primary_regions.length > 0 && (
-                  <PhenomenonMiniMap
-                    regions={phenomenon.primary_regions}
-                    phenomenonName={phenomenon.name}
-                  />
-                )}
 
                 {/* Recent Reports */}
                 {reports.length > 0 && (
