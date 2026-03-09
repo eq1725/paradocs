@@ -591,28 +591,30 @@ export default function PhenomenonPage() {
                   </section>
                 )}
 
-          </div>
-          </div>
+                {/* Characteristics and Theories side by side within main content flow */}
+                {(phenomenon.ai_characteristics || phenomenon.ai_theories) && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+                  {/* Characteristics */}
+                  {phenomenon.ai_characteristics && (
+                    <ContentSection
+                      icon={<Fingerprint className="w-5 h-5" />}
+                      title="Characteristics"
+                      content={phenomenon.ai_characteristics}
+                    />
+                  )}
 
-          {/* Bottom section: Characteristics and Theories side by side */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 mt-8">
-                {/* Characteristics */}
-                {phenomenon.ai_characteristics && (
-                  <ContentSection
-                    icon={<Fingerprint className="w-5 h-5" />}
-                    title="Characteristics"
-                    content={phenomenon.ai_characteristics}
-                  />
+                  {/* Theories */}
+                  {phenomenon.ai_theories && (
+                    <ContentSection
+                      icon={<Lightbulb className="w-5 h-5" />}
+                      title="Theories & Explanations"
+                      content={phenomenon.ai_theories}
+                    />
+                  )}
+                </div>
                 )}
 
-                {/* Theories */}
-                {phenomenon.ai_theories && (
-                  <ContentSection
-                    icon={<Lightbulb className="w-5 h-5" />}
-                    title="Theories & Explanations"
-                    content={phenomenon.ai_theories}
-                  />
-                )}
+          </div>
           </div>
 
           </>
