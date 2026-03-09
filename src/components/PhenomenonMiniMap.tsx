@@ -20,10 +20,6 @@ var PopupComp = dynamic(
   function() { return import('react-leaflet').then(function(mod) { return mod.Popup; }); },
   { ssr: false }
 )
-var MapFitBounds = dynamic(
-  function() { return import('./MapFitBounds'); },
-  { ssr: false }
-)
 
 interface LocationPoint {
   lat: number
@@ -160,8 +156,8 @@ export default function PhenomenonMiniMap(props: Props) {
           </div>
         ) : (
           <MapContainer
-            center={[20, 0]}
-            zoom={2}
+            bounds={mapBounds || [[20, 0], [20, 0]]}
+            boundsOptions={{ padding: [20, 20] }}
             style={{ height: '100%', width: '100%' }}
             zoomControl={false}
             scrollWheelZoom={false}
@@ -171,7 +167,6 @@ export default function PhenomenonMiniMap(props: Props) {
             <TileLayer
               url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
             />
-            <MapFitBounds bounds={mapBounds} />
             {locations.map(function(loc, i) {
               var isReport = loc.type === 'report';
               var pinColor = isReport ? '#60a5fa' : '#a855f7';
