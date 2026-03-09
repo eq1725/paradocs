@@ -41,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   var valid = results.filter(function(r) { return r !== null; }) as Array<{ region: string; lat: number; lng: number }>;
 
   // Second pass: if we have 3+ results and the spread is extreme (>50 degrees),
-  // find the majority cluster and re-geocode outliers with proximity bias
+  // find the majority cluster and re-geocode outliers with a bbox constraint
   if (valid.length >= 3) {
     var lats = valid.map(function(v) { return v.lat; });
     var lngs = valid.map(function(v) { return v.lng; });
@@ -56,13 +56,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       var medLat = sortedLats[medIdx];
       var medLng = sortedLngs[medIdx];
 
+      // Build a generous bbox around the cluster center (±40 degrees)
+      var bboxMinLng = Math.max(medLng - 40, -180);
+      var bboxMinLat = Math.max(medLat - 40, -90);
+      var bboxMaxLng = Math.min(medLng + 40, 180);
+      var bboxMaxLat = Math.min(medLat + 40, 90);
+      var bboxStr = bboxMinLng + ',' + bboxMinLat + ',' + bboxMaxLng + ',' + bboxMaxLat;
+
       // Re-geocode points that are far from the median (>40 degrees away)
       for (var j = 0; j < valid.length; j++) {
         var dist = Math.abs(valid[j].lat - medLat) + Math.abs(valid[j].lng - medLng);
         if (dist > 40) {
           try {
             var reEncoded = encodeURIComponent(valid[j].region);
-            var reUrl = 'https://api.mapbox.com/geocoding/v5/mapbox.places/' + reEncoded + '.json?access_token=' + token + '&limit=1&types=country,region,place,locality&proximity=' + medLng + ',' + medLat;
+            var reUrl = 'https://api.mapbox.com/geocoding/v5/mapbox.places/' + reEncoded + '.json?access_token=' + token + '&limit=1&types=country,region,place,locality&bbox=' + bboxStr;
             var reResp = await fetch(reUrl);
             var reData = await reResp.json();
             if (reData.features && reData.features.length > 0) {
