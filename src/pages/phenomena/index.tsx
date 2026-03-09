@@ -874,7 +874,7 @@ function PhenomenonCard({ phenomenon }: { phenomenon: Phenomenon }) {
             <img
               src={phenomenon.primary_image_url!}
               alt={phenomenon.name}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
               referrerPolicy="no-referrer"
               loading="lazy"
               onError={() => setImgError(true)}

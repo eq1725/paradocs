@@ -211,7 +211,7 @@ export default function PhenomenonPage() {
               <img
                 src={phenomenon.primary_image_url}
                 alt=""
-                className="w-full h-full object-cover opacity-10"
+                className="w-full h-full object-cover object-top opacity-10"
                 referrerPolicy="no-referrer"
                 loading="lazy"
               />
@@ -237,7 +237,7 @@ export default function PhenomenonPage() {
                     <img
                       src={phenomenon.primary_image_url}
                       alt=""
-                      className="absolute inset-0 w-full h-full object-cover rounded-2xl blur-md scale-110 opacity-40"
+                      className="absolute inset-0 w-full h-full object-cover object-top rounded-2xl blur-md scale-110 opacity-40"
                       referrerPolicy="no-referrer"
                       loading="lazy"
                       aria-hidden="true"
