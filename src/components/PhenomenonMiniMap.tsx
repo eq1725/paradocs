@@ -20,6 +20,10 @@ var PopupComp = dynamic(
   function() { return import('react-leaflet').then(function(mod) { return mod.Popup; }); },
   { ssr: false }
 )
+var MapFitBounds = dynamic(
+  function() { return import('./MapFitBounds'); },
+  { ssr: false }
+)
 
 interface LocationPoint {
   lat: number
@@ -32,6 +36,15 @@ interface Props {
   regions: string[]
   phenomenonName: string
   reportLocations?: Array<{ lat: number; lng: number; title: string }>
+}
+
+function makePinSvg(color: string, borderColor: string, glowColor: string) {
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="40" viewBox="0 0 28 40">'
+    + '<defs><filter id="glow"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="' + glowColor + '" flood-opacity="0.8"/></filter></defs>'
+    + '<path d="M14 0C6.3 0 0 6.3 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.3 21.7 0 14 0z" fill="' + color + '" stroke="' + borderColor + '" stroke-width="1.5" filter="url(#glow)"/>'
+    + '<circle cx="14" cy="14" r="5.5" fill="rgba(0,0,0,0.3)"/>'
+    + '<circle cx="14" cy="14" r="3.5" fill="white" opacity="0.9"/>'
+    + '</svg>'
 }
 
 export default function PhenomenonMiniMap(props: Props) {
@@ -147,9 +160,8 @@ export default function PhenomenonMiniMap(props: Props) {
           </div>
         ) : (
           <MapContainer
-            bounds={mapBounds || undefined}
-            center={mapBounds ? undefined : [20, 0]}
-            zoom={mapBounds ? undefined : 2}
+            center={[20, 0]}
+            zoom={2}
             style={{ height: '100%', width: '100%' }}
             zoomControl={false}
             scrollWheelZoom={false}
@@ -159,18 +171,19 @@ export default function PhenomenonMiniMap(props: Props) {
             <TileLayer
               url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
             />
+            <MapFitBounds bounds={mapBounds} />
             {locations.map(function(loc, i) {
               var isReport = loc.type === 'report';
-              var size = isReport ? 10 : 14;
-              var color = isReport ? '#60a5fa' : '#a855f7';
-              var border = isReport ? '#93c5fd' : '#c084fc';
-              var glow = isReport ? 'rgba(96, 165, 250, 0.5)' : 'rgba(168, 85, 247, 0.6)';
+              var pinColor = isReport ? '#60a5fa' : '#a855f7';
+              var pinBorder = isReport ? '#93c5fd' : '#c084fc';
+              var pinGlow = isReport ? 'rgba(96, 165, 250, 0.6)' : 'rgba(168, 85, 247, 0.7)';
+              var svgHtml = makePinSvg(pinColor, pinBorder, pinGlow);
               var icon = leaflet.divIcon({
-                html: '<div style="width: ' + size + 'px; height: ' + size + 'px; border-radius: 50%; background: ' + color + '; border: 2px solid ' + border + '; box-shadow: 0 0 10px ' + glow + ';"></div>',
+                html: svgHtml,
                 className: 'phenom-marker',
-                iconSize: [size, size],
-                iconAnchor: [size / 2, size / 2],
-                popupAnchor: [0, -(size / 2)]
+                iconSize: [28, 40],
+                iconAnchor: [14, 40],
+                popupAnchor: [0, -40]
               })
               return React.createElement(MarkerComp, {
                 key: i,
