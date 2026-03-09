@@ -474,16 +474,24 @@ window._insertMedia = function(phenomenonId, url, type, title, desc) {
 
 ## Notes for Next Session
 
-1. **Continue batch content enrichment** — Batch 4 starts after "Bigfoot" alphabetically, process 20 entries
+1. **Continue batch content enrichment** — Batch 5 starts after "Chupacabra" alphabetically, process 20 entries
 2. **RESEARCH FIRST** — Web search EVERY cryptid before writing content. Verify all facts. No fabrication. See "Research-First Mandate" section.
 3. **READ the Content Quality Standards section above BEFORE writing any content** — this is critical for consistency
 4. First establish the browser helper functions (see Database Update Method above)
 5. Query for next 20 cryptid entries: `phenomena?category=eq.cryptids&order=name&name=gt.Chupacabra&limit=20`
-5. For each entry, generate and update: `ai_description`, `ai_characteristics`, `ai_theories`, `ai_paradocs_analysis`, `ai_quick_facts`, `primary_regions`
-6. **`ai_quick_facts` must be a flat object** with keys: origin, classification, first_documented, danger_level, typical_encounter, evidence_types, active_period, notable_feature, cultural_significance, also_known_as. Pass as JS object (NOT stringified). NOT an array of label/value pairs.
-7. **Content length targets**: desc 2000+, chars 2000+, theories 2000+, analysis 2500+ (chars). Check against these before submitting.
-8. The mini-map automatically works for any entry with `primary_regions` populated
-9. Profile images and media are Phase 2 — skip for now
-10. **Git workflow**: Claude commits in VM, Chase pushes from `~/paradocs` with `rm -f .git/HEAD.lock && git push origin main`
-11. **SWC restrictions** only apply to `[slug].tsx` — other files use modern JS
-12. **DB column note**: category column is `category` (not `category_id`), no `description` column (use `ai_description`)
+6. For each entry, generate and update: `ai_description`, `ai_characteristics`, `ai_theories`, `ai_paradocs_analysis`, `ai_quick_facts`, `primary_regions`
+7. **`ai_quick_facts` must be a flat object** with keys: origin, classification, first_documented, danger_level, typical_encounter, evidence_types, active_period, notable_feature, cultural_significance, also_known_as. Pass as JS object (NOT stringified). NOT an array of label/value pairs.
+8. **Content length targets**: desc 2000+, chars 2000+, theories 2000+, analysis 2500+ (chars). Check against these AFTER pushing and run a verification query across all entries in the batch before marking complete.
+9. The mini-map automatically works for any entry with `primary_regions` populated
+10. Profile images and media are Phase 2 — skip for now
+11. **Git workflow**: Claude commits in VM, Chase pushes from `~/paradocs` with `rm -f .git/HEAD.lock && git push origin main`
+12. **SWC restrictions** only apply to `[slug].tsx` — other files use modern JS
+13. **DB column note**: category column is `category` (not `category_id`), no `description` column (use `ai_description`)
+
+### Lessons Learned (from Batches 1-4)
+- **Parallel agents produce short content**: When using parallel agents to research/write entries, they frequently produce fields under the character minimums. Always verify lengths AFTER pushing and expand any short fields before marking the batch complete.
+- **Quick facts keys must be exact**: The frontend only renders these 10 keys: `origin`, `classification`, `first_documented`, `danger_level`, `typical_encounter`, `evidence_types`, `active_period`, `notable_feature`, `cultural_significance`, `also_known_as`. Agents sometimes invent arbitrary keys. Always validate.
+- **Push via slug not id**: Use `?slug=eq.SLUG` in REST API URLs — more reliable than looking up UUIDs.
+- **JS variables don't persist between browser executions**: Each `javascript_exec` call is independent. Store reusable data on `window` (e.g., `window._fixData`) or combine build+push in a single call.
+- **REST API returns 405 on DELETE**: Use Supabase SQL Editor (tab 741825755) with Monaco API for deletions: `monaco.editor.getEditors()[0].setValue(sql)` then click Run.
+- **Reclassify via PATCH**: `fetch(url + '?slug=eq.SLUG', { method: 'PATCH', body: JSON.stringify({ category: 'religion_mythology' }) })`
