@@ -101,8 +101,8 @@ export default function PhenomenonMiniMap(props: Props) {
             if (p.lng < minLng) minLng = p.lng
             if (p.lng > maxLng) maxLng = p.lng
           })
-          var latPad = Math.max((maxLat - minLat) * 0.3, 2)
-          var lngPad = Math.max((maxLng - minLng) * 0.3, 2)
+          var latPad = Math.max((maxLat - minLat) * 0.15, 1)
+          var lngPad = Math.max((maxLng - minLng) * 0.15, 1)
           setMapBounds([
             [minLat - latPad, minLng - lngPad],
             [maxLat + latPad, maxLng + lngPad]
@@ -142,7 +142,11 @@ export default function PhenomenonMiniMap(props: Props) {
         '.phenom-marker { background: transparent !important; border: none !important; }',
         '.leaflet-popup-content-wrapper { background: rgba(15, 23, 42, 0.95) !important; border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 8px !important; }',
         '.leaflet-popup-content { color: white !important; margin: 8px 12px !important; }',
-        ".leaflet-popup-tip { background: rgba(15, 23, 42, 0.95) !important; }"
+        '.leaflet-popup-tip { background: rgba(15, 23, 42, 0.95) !important; }',
+        '.leaflet-control-zoom { border: 1px solid rgba(255,255,255,0.15) !important; border-radius: 8px !important; overflow: hidden; }',
+        '.leaflet-control-zoom a { background: rgba(15, 23, 42, 0.9) !important; color: #c084fc !important; border-bottom: 1px solid rgba(255,255,255,0.1) !important; width: 28px !important; height: 28px !important; line-height: 28px !important; font-size: 14px !important; }',
+        '.leaflet-control-zoom a:hover { background: rgba(30, 40, 60, 0.95) !important; color: #a855f7 !important; }',
+        '.leaflet-control-zoom a:last-child { border-bottom: none !important; }'
       ].join(' ')}</style>
 
       <div className="h-52 relative bg-gray-950">
@@ -159,10 +163,11 @@ export default function PhenomenonMiniMap(props: Props) {
             bounds={mapBounds || [[20, 0], [20, 0]]}
             boundsOptions={{ padding: [20, 20] }}
             style={{ height: '100%', width: '100%' }}
-            zoomControl={false}
-            scrollWheelZoom={false}
+            zoomControl={true}
+            scrollWheelZoom={true}
             dragging={true}
             attributionControl={false}
+            minZoom={2}
           >
             <TileLayer
               url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
