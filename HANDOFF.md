@@ -1,6 +1,6 @@
 # ParaDocs Development Handoff
 
-**Last updated:** March 9, 2026 (Session 11 — Minimap UX improvements, Batch 3 content enrichment)
+**Last updated:** March 9, 2026 (Session 12 — Batch 4 content enrichment)
 
 ## Project Overview
 
@@ -21,7 +21,22 @@ The platform's thesis: emergent patterns across massive anecdotal reports of par
 
 ## Completed Work (All Sprints)
 
-### Most Recent (March 9, 2026) — Session 11: Minimap UX + Batch 3
+### Most Recent (March 9, 2026) — Session 12: Batch 4
+
+#### Batch 4 Content Enrichment ✅
+- Fetched 20 entries alphabetically after "Bigfoot"
+- **DELETED (3 entries)**:
+  - Black Winged Humanoid (generic category, not a specific cryptid)
+  - Buratsche-al-llgs (no verifiable folklore or cryptid documentation)
+  - Cactus Cat (lumberjack tall tale, not a genuine cryptid tradition)
+- **RECLASSIFIED to `religion_mythology` (3 entries)**:
+  - Cadejo (supernatural guardian spirit from Central American folklore)
+  - Cherufe (Mapuche volcanic deity, not a cryptid)
+  - Chonchon (Mapuche sorcery entity, not a cryptid)
+- **ENRICHED as cryptids (14 entries)**: Black Demon, Black Shuck, Bukit Timah Monkey Man, Bunyip, Burrunjor, Buru, Cadborosaurus, Champ, Cheonji Monster, Chessie, Chipekwe, Chipfalamfula, Chuchunya, Chupacabra
+- All 14 entries verified to meet character minimums (desc 2000+, chars 2000+, theo 2000+, anal 2500+) and correct ai_quick_facts keys
+
+### Prior (March 9, 2026) — Session 11: Minimap UX + Batch 3
 
 #### Sidebar Minimap UX Improvements ✅
 - Moved minimap above Quick Facts in sidebar (`891443e8`)
@@ -205,14 +220,14 @@ Each entry received: `ai_description`, `ai_characteristics`, `ai_theories`, `ai_
 - **Phase 1 (current)**: Content enrichment only — `ai_description`, `ai_characteristics`, `ai_theories`, `ai_paradocs_analysis`, `ai_quick_facts`, `primary_regions` for all cryptid entries, 20 at a time
 - **Phase 2 (later)**: Profile images and media (YouTube videos) for all entries — Chase will provide custom profile images and YouTube URLs
 
-### Progress: ~48/~353 cryptids done (Adjule + Batch 1 (18) + Batch 2 (16) + Batch 3 (13) — 13 total deleted/reclassified across all batches)
+### Progress: ~62/~353 cryptids done (Adjule + Batch 1 (18) + Batch 2 (16) + Batch 3 (13) + Batch 4 (14) — 19 total deleted/reclassified across all batches)
 
 ---
 
 ## Planned / Next Work
 
 ### IMMEDIATE: Continue Batch Content Enrichment
-- Process next 20 cryptid entries starting alphabetically after "Bigfoot" (Batch 4)
+- Process next 20 cryptid entries starting alphabetically after "Chupacabra" (Batch 5)
 - Each entry needs: `ai_description`, `ai_characteristics`, `ai_theories`, `ai_paradocs_analysis`, `ai_quick_facts` (JSON), `primary_regions` (text[])
 - Use Supabase REST API with service role key (browser JS) to update entries
 - Target: 20 entries per session
@@ -463,7 +478,7 @@ window._insertMedia = function(phenomenonId, url, type, title, desc) {
 2. **RESEARCH FIRST** — Web search EVERY cryptid before writing content. Verify all facts. No fabrication. See "Research-First Mandate" section.
 3. **READ the Content Quality Standards section above BEFORE writing any content** — this is critical for consistency
 4. First establish the browser helper functions (see Database Update Method above)
-5. Query for next 20 cryptid entries: `phenomena?category=eq.cryptids&order=name&name=gt.Bigfoot&limit=20`
+5. Query for next 20 cryptid entries: `phenomena?category=eq.cryptids&order=name&name=gt.Chupacabra&limit=20`
 5. For each entry, generate and update: `ai_description`, `ai_characteristics`, `ai_theories`, `ai_paradocs_analysis`, `ai_quick_facts`, `primary_regions`
 6. **`ai_quick_facts` must be a flat object** with keys: origin, classification, first_documented, danger_level, typical_encounter, evidence_types, active_period, notable_feature, cultural_significance, also_known_as. Pass as JS object (NOT stringified). NOT an array of label/value pairs.
 7. **Content length targets**: desc 2000+, chars 2000+, theories 2000+, analysis 2500+ (chars). Check against these before submitting.
