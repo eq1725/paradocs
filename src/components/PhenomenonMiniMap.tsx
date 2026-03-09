@@ -139,7 +139,7 @@ export default function PhenomenonMiniMap(props: Props) {
         crossOrigin=""
       />
       <style>{[
-        '.leaflet-div-icon { background: transparent !important; border: none !important; }',
+        '.custom-div-marker { background: transparent !important; border: none !important; }',
         '.leaflet-popup-content-wrapper { background: rgba(15, 23, 42, 0.95) !important; border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 8px !important; }',
         '.leaflet-popup-content { color: white !important; margin: 8px 12px !important; }',
         '.leaflet-popup-tip { background: rgba(15, 23, 42, 0.95) !important; }',
@@ -178,7 +178,7 @@ export default function PhenomenonMiniMap(props: Props) {
               var pinHtml = makeMapPinHtml(pinColor);
               var icon = leaflet.divIcon({
                 html: pinHtml,
-                className: '',
+                className: 'custom-div-marker',
                 iconSize: [32, 32],
                 iconAnchor: [16, 32],
                 popupAnchor: [0, -32]
