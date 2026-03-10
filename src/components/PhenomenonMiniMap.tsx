@@ -119,7 +119,7 @@ export default function PhenomenonMiniMap(props: Props) {
   if (!regions || regions.length === 0) return null
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden isolate">
       <div className="p-4 border-b border-gray-800">
         <div className="flex items-center gap-2">
           <MapPin className="w-4 h-4 text-purple-400" />
