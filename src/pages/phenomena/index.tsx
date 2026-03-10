@@ -74,6 +74,10 @@ const SORT_OPTIONS: { value: SortBy; label: string }[] = [
 const ITEMS_PER_PAGE = 24
 const ALPHABET = '#ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
 
+// Module-level cache for phenomena data — survives component unmount/remount
+// so back-navigation renders instantly without refetching
+let _phenomenaCache: Phenomenon[] | null = null
+
 const CATEGORY_ORDER = [
   'cryptids',
   'ufos_aliens',
@@ -195,8 +199,8 @@ function BackToTopButton() {
 
 export default function PhenomenaPage() {
   const router = useRouter()
-  const [phenomena, setPhenomena] = useState<Phenomenon[]>([])
-  const [loading, setLoading] = useState(true)
+  const [phenomena, setPhenomena] = useState<Phenomenon[]>(_phenomenaCache || [])
+  const [loading, setLoading] = useState(!_phenomenaCache)
   const [initialized, setInitialized] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | 'all'>('all')
@@ -378,7 +382,9 @@ export default function PhenomenaPage() {
     try {
       const res = await fetch('/api/phenomena')
       const data = await res.json()
-      setPhenomena(data.phenomena || [])
+      const items = data.phenomena || []
+      _phenomenaCache = items
+      setPhenomena(items)
     } catch (error) {
       console.error('Error loading phenomena:', error)
     } finally {
