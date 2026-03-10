@@ -186,7 +186,7 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
   return (
     <>
       <Head>
-        <title>{title} | ParaDocs</title>
+        <title>{title} | Paradocs</title>
       </Head>
 
       <div className="min-h-screen bg-gray-950">

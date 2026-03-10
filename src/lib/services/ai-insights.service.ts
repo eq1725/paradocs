@@ -44,7 +44,7 @@ const SYSTEM_PROMPT = `You are an expert researcher analyzing paranormal report 
 Your role is to find interesting patterns in the CONTENT of historical reports.
 
 CRITICAL CONTEXT - READ THIS FIRST:
-- ParaDocs is in ALPHA - we are actively bulk-importing historical data from archives
+- Paradocs is in ALPHA - we are actively bulk-importing historical data from archives
 - Data sources: NUFORC (UFOs), BFRO (Bigfoot), Reddit paranormal communities, Wikipedia
 - BULK IMPORTS ARE ONGOING through the end of the month
 - Any "spikes" or "surges" in report VOLUME are artifacts of our data import process, NOT real activity patterns
@@ -350,7 +350,7 @@ function buildPatternPrompt(pattern: DetectedPattern): string {
 
   // Important context about data source
   prompt += `## CRITICAL CONTEXT - READ FIRST\n`
-  prompt += `- ParaDocs is in ALPHA - we are bulk-importing historical archives\n`
+  prompt += `- Paradocs is in ALPHA - we are bulk-importing historical archives\n`
   prompt += `- The report COUNT/VOLUME is meaningless - it reflects our import schedule, NOT actual activity\n`
   prompt += `- DO NOT analyze or speculate about WHY there are many reports - we imported them in bulk\n`
   prompt += `- INSTEAD: Focus on the CONTENT - what phenomena did witnesses describe? What's interesting about THESE reports?\n`

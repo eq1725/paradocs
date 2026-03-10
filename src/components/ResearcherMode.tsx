@@ -68,7 +68,7 @@ var RESEARCHER_FEATURES = [
   {
     id: 'api_access',
     name: 'API Access',
-    description: 'Programmatic access to ParaDocs data for your own research tools and integrations.',
+    description: 'Programmatic access to Paradocs data for your own research tools and integrations.',
     icon: '\u2699\uFE0F',
     minTier: 'enterprise'
   }

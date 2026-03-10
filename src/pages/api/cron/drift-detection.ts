@@ -170,7 +170,7 @@ function generateDriftEmail(name: string, longestStreak: number, reports: any[],
     'Resume Your Research</a></td></tr>' +
     '<tr><td style="padding: 32px 0 16px 0; border-top: 1px solid #1f2937; text-align: center;">' +
     '<a href="' + baseUrl + '/dashboard/settings" style="color: #6b7280; font-size: 12px; text-decoration: underline;">Manage email preferences</a>' +
-    '<p style="color: #374151; font-size: 11px; margin: 16px 0 0 0;">&copy; 2026 ParaDocs</p>' +
+    '<p style="color: #374151; font-size: 11px; margin: 16px 0 0 0;">&copy; 2026 Paradocs</p>' +
     '</td></tr></table></td></tr></table></body></html>';
 }
 

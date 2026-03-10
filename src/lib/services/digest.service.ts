@@ -450,7 +450,7 @@ export function generateDigestEmailHtml(digest: UserDigestData): string {
                 Manage email preferences
               </a>
               <p style="color: #374151; font-size: 11px; margin: 16px 0 0 0;">
-                © ${new Date().getFullYear()} ParaDocs · The world's largest paranormal database
+                © ${new Date().getFullYear()} Paradocs · The world's largest paranormal database
               </p>
             </td>
           </tr>

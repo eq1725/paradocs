@@ -74,9 +74,11 @@ const SORT_OPTIONS: { value: SortBy; label: string }[] = [
 const ITEMS_PER_PAGE = 24
 const ALPHABET = '#ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
 
-// Module-level cache for phenomena data — survives component unmount/remount
-// so back-navigation renders instantly without refetching
+// Module-level caches — survive component unmount/remount
+// so back-navigation renders instantly with correct layout
 let _phenomenaCache: Phenomenon[] | null = null
+let _showMoreCache: Record<string, number> = {}
+let _collapsedCache: Set<string> | null = null
 
 const CATEGORY_ORDER = [
   'cryptids',
@@ -206,10 +208,10 @@ export default function PhenomenaPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | 'all'>('all')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [sortBy, setSortBy] = useState<SortBy>('name_asc')
-  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(_collapsedCache || new Set())
   const [activeLetter, setActiveLetter] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const [showMoreCounts, setShowMoreCounts] = useState<Record<string, number>>({})
+  const [showMoreCounts, setShowMoreCounts] = useState<Record<string, number>>(_showMoreCache)
   const categoryRefs = useRef<Record<string, HTMLElement | null>>({})
   const navRef = useRef<HTMLDivElement>(null)
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
@@ -252,10 +254,16 @@ export default function PhenomenaPage() {
     }
   }, [searchQuery, selectedCategory, viewMode, sortBy, activeLetter, currentPage, initialized])
 
-  // Reset pagination and letter filter on category/search change
+  // Reset pagination and letter filter on category/search change (skip initial mount)
+  const isFirstRender = useRef(true)
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
     setCurrentPage(1)
     setShowMoreCounts({})
+    _showMoreCache = {}
   }, [selectedCategory, searchQuery, sortBy])
 
   useEffect(() => {
@@ -355,23 +363,29 @@ export default function PhenomenaPage() {
       } else {
         next.add(cat)
       }
+      _collapsedCache = next
       return next
     })
   }
 
   function expandAll() {
-    setCollapsedCategories(new Set())
+    const s = new Set<string>()
+    _collapsedCache = s
+    setCollapsedCategories(s)
   }
 
   function collapseAll() {
-    setCollapsedCategories(new Set(CATEGORY_ORDER))
+    const s = new Set(CATEGORY_ORDER)
+    _collapsedCache = s
+    setCollapsedCategories(s)
   }
 
   function handleShowMore(category: string) {
-    setShowMoreCounts(prev => ({
-      ...prev,
-      [category]: (prev[category] || 1) + 1
-    }))
+    setShowMoreCounts(prev => {
+      const next = { ...prev, [category]: (prev[category] || 1) + 1 }
+      _showMoreCache = next
+      return next
+    })
   }
 
   useEffect(() => {

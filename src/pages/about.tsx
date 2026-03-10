@@ -38,10 +38,10 @@ export default function AboutPage() {
   return (
     <>
       <Head>
-        <title>About | ParaDocs</title>
+        <title>About | Paradocs</title>
         <meta
           name="description"
-          content="Learn about ParaDocs - the world's largest open database of paranormal phenomena. Our mission, vision, and commitment to transparent research."
+          content="Learn about Paradocs - the world's largest open database of paranormal phenomena. Our mission, vision, and commitment to transparent research."
         />
       </Head>
 
@@ -53,10 +53,10 @@ export default function AboutPage() {
             Where mysteries meet discovery
           </div>
           <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-6">
-            About ParaDocs
+            About Paradocs
           </h1>
           <p className="text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
-            ParaDocs is building the world's most comprehensive, open, and transparent
+            Paradocs is building the world's most comprehensive, open, and transparent
             database of paranormal phenomena—powered by community contributions and
             enhanced by modern analytical tools.
           </p>
@@ -80,7 +80,7 @@ export default function AboutPage() {
               We believe that by collecting and organizing these accounts in one place,
               patterns may emerge that individual reports could never reveal. Whether you're
               a curious skeptic, an open-minded researcher, or someone who's had their own
-              unexplained experience, ParaDocs provides the tools to explore these mysteries
+              unexplained experience, Paradocs provides the tools to explore these mysteries
               with rigor and transparency.
             </p>
           </div>
@@ -95,7 +95,7 @@ export default function AboutPage() {
               documented, analyzed, and explored with intellectual honesty.
             </p>
             <p className="text-gray-400 leading-relaxed">
-              We envision ParaDocs as the go-to resource for researchers, journalists,
+              We envision Paradocs as the go-to resource for researchers, journalists,
               enthusiasts, and the simply curious. A place where data speaks for itself,
               methodology is transparent, and every perspective—from the deeply skeptical
               to the experientially convinced—has a seat at the table.
@@ -122,7 +122,7 @@ export default function AboutPage() {
             <ValueCard
               icon={Users}
               title="Community-Driven"
-              description="ParaDocs is built by and for its community. Every report, every correction, and every insight strengthens the collective knowledge base."
+              description="Paradocs is built by and for its community. Every report, every correction, and every insight strengthens the collective knowledge base."
             />
             <ValueCard
               icon={Shield}
@@ -137,7 +137,7 @@ export default function AboutPage() {
             <ValueCard
               icon={Globe}
               title="Accessibility"
-              description="Paranormal research shouldn't be locked behind paywalls or gatekeepers. ParaDocs is free to explore, contribute to, and learn from."
+              description="Paranormal research shouldn't be locked behind paywalls or gatekeepers. Paradocs is free to explore, contribute to, and learn from."
             />
           </div>
         </section>
@@ -146,7 +146,7 @@ export default function AboutPage() {
         <section className="mb-16">
           <div className="glass-card p-8 bg-amber-500/5 border border-amber-500/20">
             <h2 className="text-xl font-display font-semibold text-white mb-4">
-              What ParaDocs Is Not
+              What Paradocs Is Not
             </h2>
             <ul className="space-y-3 text-gray-400">
               <li className="flex items-start gap-3">

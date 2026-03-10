@@ -1,10 +1,10 @@
-# ParaDocs Deployment Guide
+# Paradocs Deployment Guide
 
-This guide will walk you through deploying ParaDocs step-by-step. No coding experience required!
+This guide will walk you through deploying Paradocs step-by-step. No coding experience required!
 
 ## Overview
 
-ParaDocs uses two services:
+Paradocs uses two services:
 - **Supabase** - Your database (stores all the reports, users, etc.)
 - **Vercel** - Your website hosting (makes your site live on the internet)
 
@@ -34,7 +34,7 @@ Both services have generous free tiers that will work for most use cases.
 
 1. In the left sidebar, click **"SQL Editor"**
 2. Click **"New query"**
-3. Open the file `supabase/migrations/001_initial_schema.sql` from the ParaDocs folder
+3. Open the file `supabase/migrations/001_initial_schema.sql` from the Paradocs folder
 4. Copy ALL the contents and paste them into the SQL editor
 5. Click **"Run"** (or press Ctrl+Enter / Cmd+Enter)
 6. You should see a success message
@@ -76,12 +76,12 @@ First, you need to get the code onto GitHub:
 3. Name it `paradocs`
 4. Keep it **Public** or **Private** (your choice)
 5. Click **"Create repository"**
-6. Follow the instructions to upload the ParaDocs files:
+6. Follow the instructions to upload the Paradocs files:
 
    **Option A: Using GitHub Desktop (Easiest)**
    - Download [GitHub Desktop](https://desktop.github.com)
    - Clone your new repository
-   - Copy all ParaDocs files into the folder
+   - Copy all Paradocs files into the folder
    - Commit and push
 
    **Option B: Using the command line**
@@ -255,4 +255,4 @@ For most personal projects, the free tiers are sufficient.
 
 ---
 
-🌌 **Congratulations!** Your ParaDocs site is now live!
+🌌 **Congratulations!** Your Paradocs site is now live!

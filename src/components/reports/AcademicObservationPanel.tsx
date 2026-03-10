@@ -138,7 +138,7 @@ export default function AcademicObservationPanel({ reportSlug, className }: Prop
       year: 'numeric', month: 'long', day: 'numeric'
     }) : 'Date unknown'
 
-    return `ParaDocs Case #${data.caseSlug}. "${data.title}." ${data.location.name || 'Location unspecified'}, ${date}. ParaDocs Database. Accessed ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}. https://paradocs-sooty.vercel.app/report/${data.caseSlug}`
+    return `Paradocs Case #${data.caseSlug}. "${data.title}." ${data.location.name || 'Location unspecified'}, ${date}. Paradocs Database. Accessed ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}. https://paradocs-sooty.vercel.app/report/${data.caseSlug}`
   }
 
   function generateStructuredExport(): string {

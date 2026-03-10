@@ -250,7 +250,7 @@ export default function MapPage() {
   return (
     <>
       <Head>
-        <title>Interactive Map - ParaDocs</title>
+        <title>Interactive Map - Paradocs</title>
       </Head>
 
       <div className="h-[calc(100vh-4rem)] flex flex-col">

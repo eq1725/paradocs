@@ -102,7 +102,7 @@ export function middleware(request: NextRequest) {
   return new NextResponse('Authentication required', {
     status: 401,
     headers: {
-      'WWW-Authenticate': 'Basic realm="ParaDocs Beta - Enter beta credentials"',
+      'WWW-Authenticate': 'Basic realm="Paradocs Beta - Enter beta credentials"',
     },
   })
 }

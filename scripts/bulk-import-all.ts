@@ -1,6 +1,6 @@
 #!/usr/bin/env npx ts-node
 /**
- * ParaDocs Bulk Import Script
+ * Paradocs Bulk Import Script
  *
  * This script performs comprehensive data ingestion from:
  * - Reddit (via Arctic Shift API)
@@ -247,7 +247,7 @@ async function triggerScraper(source: string, limit: number = 500): Promise<void
 
 async function main() {
   console.log('╔══════════════════════════════════════════════════════════╗');
-  console.log('║          ParaDocs Bulk Import Script                     ║');
+  console.log('║          Paradocs Bulk Import Script                     ║');
   console.log('╚══════════════════════════════════════════════════════════╝');
   console.log('');
 

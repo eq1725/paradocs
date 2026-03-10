@@ -195,7 +195,7 @@ async function fetchPostFromArcticShift(postId: string): Promise<ArcticShiftPost
     const response = await fetch(url, {
       headers: {
         'Accept': 'application/json',
-        'User-Agent': 'ParaDocs/1.0 (Media Backfill)'
+        'User-Agent': 'Paradocs/1.0 (Media Backfill)'
       }
     });
 

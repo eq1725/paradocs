@@ -76,7 +76,7 @@ export default async function handler(
           var html1 = generateDripEmail1(signup.email, trendingReports.slice(0, 3), baseUrl);
           var result1 = await sendEmail({
             to: signup.email,
-            subject: 'Welcome to ParaDocs - The unexplained awaits',
+            subject: 'Welcome to Paradocs - The unexplained awaits',
             html: html1,
             tags: [{ name: 'type', value: 'drip-1' }]
           });
@@ -144,7 +144,7 @@ function generateDripEmail1(email: string, reports: any[], baseUrl: string) {
   }).join('');
 
   return emailWrap(
-    '<h2 style="color: #e5e7eb; font-size: 20px; margin: 0 0 16px 0;">Welcome to ParaDocs</h2>' +
+    '<h2 style="color: #e5e7eb; font-size: 20px; margin: 0 0 16px 0;">Welcome to Paradocs</h2>' +
     '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">You just joined the world\'s largest database of paranormal phenomena. ' +
     'Here are some of our most-viewed reports to get you started:</p>' +
     '<table width="100%" cellpadding="0" cellspacing="0" style="margin: 16px 0;">' + reportList + '</table>' +
@@ -176,7 +176,7 @@ function generateDripEmail2(email: string, report: any, baseUrl: string) {
 function generateDripEmail3(email: string, reports: any[], baseUrl: string) {
   return emailWrap(
     '<h2 style="color: #e5e7eb; font-size: 20px; margin: 0 0 16px 0;">Your Research Dashboard Awaits</h2>' +
-    '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">With a free ParaDocs account, you get:</p>' +
+    '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">With a free Paradocs account, you get:</p>' +
     '<div style="padding: 16px; background: #1e1b2e; border-radius: 8px; margin: 16px 0;">' +
     '<div style="color: #d1d5db; font-size: 14px; line-height: 2;">' +
     '<span style="color: #c084fc;">&#x2713;</span> Save and organize reports into collections<br>' +
@@ -205,7 +205,7 @@ function emailWrap(content: string, ctaUrl: string, ctaText: string, baseUrl: st
     ctaText + '</a></td></tr>' +
     '<tr><td style="padding: 32px 0 16px 0; border-top: 1px solid #1f2937; text-align: center;">' +
     '<a href="' + baseUrl + '/dashboard/settings" style="color: #6b7280; font-size: 12px; text-decoration: underline;">Unsubscribe</a>' +
-    '<p style="color: #374151; font-size: 11px; margin: 16px 0 0 0;">&copy; 2026 ParaDocs</p>' +
+    '<p style="color: #374151; font-size: 11px; margin: 16px 0 0 0;">&copy; 2026 Paradocs</p>' +
     '</td></tr></table></td></tr></table></body></html>';
 }
 

@@ -260,7 +260,7 @@ export default function PatternDetailPage() {
   return (
     <>
       <Head>
-        <title>{pattern.ai_title || TYPE_LABELS[pattern.pattern_type]} | ParaDocs Insights</title>
+        <title>{pattern.ai_title || TYPE_LABELS[pattern.pattern_type]} | Paradocs Insights</title>
         <meta
           name="description"
           content={pattern.ai_summary || `Explore this ${pattern.pattern_type} pattern with ${pattern.report_count} associated reports.`}

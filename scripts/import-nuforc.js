@@ -2,7 +2,7 @@
  * NUFORC Data Import Script
  *
  * This script imports UFO sighting data from NUFORC (National UFO Reporting Center)
- * format into the ParaDocs database.
+ * format into the Paradocs database.
  *
  * Usage:
  *   1. Download NUFORC data CSV from:
@@ -241,7 +241,7 @@ function assessCredibility(record) {
 }
 
 /**
- * Transform NUFORC record to ParaDocs format
+ * Transform NUFORC record to Paradocs format
  */
 function transformRecord(record, index, phenomenonTypeId) {
   const city = record.city || ''

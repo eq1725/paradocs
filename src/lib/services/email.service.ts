@@ -31,7 +31,7 @@ const getResend = (): any => {
 }
 
 // Default sender
-const DEFAULT_FROM = process.env.RESEND_FROM_EMAIL || 'ParaDocs <digest@discoverparadocs.com>'
+const DEFAULT_FROM = process.env.RESEND_FROM_EMAIL || 'Paradocs <digest@discoverparadocs.com>'
 
 export interface EmailOptions {
   to: string

@@ -2,7 +2,7 @@
 
 ## Overview
 
-ParaDocs uses Supabase for authentication and database management with Row Level Security (RLS) policies to protect user data.
+Paradocs uses Supabase for authentication and database management with Row Level Security (RLS) policies to protect user data.
 
 ## Row Level Security (RLS) Model
 

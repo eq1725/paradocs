@@ -387,7 +387,7 @@ async function fetchWikiPage(
 
     const response = await fetch(apiUrl, {
       headers: {
-        'User-Agent': 'ParaDocs/1.0 (educational research; contact@example.com)',
+        'User-Agent': 'Paradocs/1.0 (educational research; contact@example.com)',
         'Accept': 'application/json'
       }
     });

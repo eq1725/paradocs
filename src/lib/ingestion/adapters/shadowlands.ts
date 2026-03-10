@@ -227,7 +227,7 @@ export const shadowlandsAdapter: SourceAdapter = {
 
           const stateResponse = await fetch(stateUrl, {
             headers: {
-              'User-Agent': 'ParaDocs Research Bot/1.0 (educational research)',
+              'User-Agent': 'Paradocs Research Bot/1.0 (educational research)',
               'Accept': 'text/html'
             }
           });

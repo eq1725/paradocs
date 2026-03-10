@@ -240,7 +240,7 @@ async function fetchNDEPosts(limit: number): Promise<ScrapedReport[]> {
       const response = await fetch(url, {
         headers: {
           'Accept': 'application/json',
-          'User-Agent': 'ParaDocs/1.0 (NDE Research Database)',
+          'User-Agent': 'Paradocs/1.0 (NDE Research Database)',
         }
       });
 

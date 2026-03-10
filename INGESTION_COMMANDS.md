@@ -1,12 +1,12 @@
-# ParaDocs Bulk Ingestion Commands
+# Paradocs Bulk Ingestion Commands
 
-This guide provides ready-to-run commands for bulk data ingestion using the existing ParaDocs infrastructure.
+This guide provides ready-to-run commands for bulk data ingestion using the existing Paradocs infrastructure.
 
 ---
 
 ## Quick Start
 
-The ParaDocs project already has a robust ingestion system with adapters for:
+The Paradocs project already has a robust ingestion system with adapters for:
 - **NUFORC** - UFO sightings (scrapes nuforc.org directly)
 - **BFRO** - Bigfoot sightings (scrapes bfro.net)
 - **NDERF** - Near-death experiences
@@ -157,7 +157,7 @@ async function importSubreddit(subreddit: string, limit: number = 1000) {
   );
   const { data: posts } = await response.json();
 
-  // Import to ParaDocs
+  // Import to Paradocs
   const result = await fetch(IMPORT_API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

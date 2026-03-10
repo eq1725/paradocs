@@ -59,7 +59,7 @@ var DEFAULT_CHALLENGES = [
     icon: '\uD83D\uDC7B',
     start_date: '2026-04-01T00:00:00Z',
     end_date: '2026-04-30T23:59:59Z',
-    rules: ['Reports must reference historical locations or events', 'Include at least one primary or secondary source', 'Document the history of the haunted location', 'Bonus for connecting to existing ParaDocs reports'],
+    rules: ['Reports must reference historical locations or events', 'Include at least one primary or secondary source', 'Document the history of the haunted location', 'Bonus for connecting to existing Paradocs reports'],
     scoring: { report_submitted: 10, evidence_attached: 7, community_upvote: 2, investigation_note: 5, connection_found: 10 },
     prizes: [
       { place: 1, badge: '\uD83E\uDD47', title: 'Spectral Historian', reward: '1 month free Pro' },

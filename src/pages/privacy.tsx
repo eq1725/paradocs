@@ -9,10 +9,10 @@ export default function PrivacyPolicyPage() {
   return (
     <>
       <Head>
-        <title>Privacy Policy | ParaDocs</title>
+        <title>Privacy Policy | Paradocs</title>
         <meta
           name="description"
-          content="ParaDocs privacy policy - how we collect, use, and protect your personal information."
+          content="Paradocs privacy policy - how we collect, use, and protect your personal information."
         />
       </Head>
 
@@ -40,7 +40,7 @@ export default function PrivacyPolicyPage() {
             </div>
           </div>
           <p className="text-gray-300 text-lg leading-relaxed">
-            At ParaDocs, we take your privacy seriously. This policy explains what information
+            At Paradocs, we take your privacy seriously. This policy explains what information
             we collect, how we use it, and what rights you have regarding your data.
           </p>
         </div>
@@ -76,7 +76,7 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-4">2. How We Use Your Information</h2>
             <ul className="list-disc list-inside space-y-2 text-gray-400 ml-2">
-              <li>To provide, maintain, and improve ParaDocs services</li>
+              <li>To provide, maintain, and improve Paradocs services</li>
               <li>To process and display report submissions (with privacy controls you set)</li>
               <li>To analyze patterns and trends in aggregated, anonymized data</li>
               <li>To communicate with you about your account or our services</li>
@@ -89,7 +89,7 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-4">3. Report Privacy & Anonymity</h2>
             <p className="mb-4 text-gray-400">
-              We understand that sharing paranormal experiences can be sensitive. ParaDocs offers
+              We understand that sharing paranormal experiences can be sensitive. Paradocs offers
               several privacy controls for report submissions:
             </p>
             <ul className="list-disc list-inside space-y-2 text-gray-400 ml-2">
@@ -112,7 +112,7 @@ export default function PrivacyPolicyPage() {
             </p>
             <ul className="list-disc list-inside space-y-2 text-gray-400 ml-2">
               <li><strong className="text-white">Public reports:</strong> Information you include in public reports is visible to all users</li>
-              <li><strong className="text-white">Service providers:</strong> Trusted third parties who help us operate ParaDocs (hosting, analytics)</li>
+              <li><strong className="text-white">Service providers:</strong> Trusted third parties who help us operate Paradocs (hosting, analytics)</li>
               <li><strong className="text-white">Aggregated data:</strong> Anonymized, aggregated statistics may be shared for research purposes</li>
               <li><strong className="text-white">Legal requirements:</strong> When required by law or to protect rights and safety</li>
             </ul>
@@ -154,7 +154,7 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-xl font-semibold text-white mb-4">7. Cookies</h2>
             <p className="text-gray-400">
               We use cookies and similar technologies for essential site functionality (keeping
-              you logged in), analytics (understanding how people use ParaDocs), and preferences
+              you logged in), analytics (understanding how people use Paradocs), and preferences
               (remembering your settings). You can control cookies through your browser settings,
               though some features may not work properly if cookies are disabled.
             </p>
@@ -164,7 +164,7 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-4">8. Children's Privacy</h2>
             <p className="text-gray-400">
-              ParaDocs is not intended for children under 13. We do not knowingly collect
+              Paradocs is not intended for children under 13. We do not knowingly collect
               personal information from children under 13. If you believe we have collected
               information from a child under 13, please contact us immediately.
             </p>
@@ -174,9 +174,9 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-4">9. International Users</h2>
             <p className="text-gray-400">
-              ParaDocs is operated from the United States. If you access ParaDocs from outside
+              Paradocs is operated from the United States. If you access Paradocs from outside
               the US, your information may be transferred to, stored, and processed in the US
-              or other countries where our service providers operate. By using ParaDocs, you
+              or other countries where our service providers operate. By using Paradocs, you
               consent to this transfer.
             </p>
           </section>
@@ -186,8 +186,8 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-xl font-semibold text-white mb-4">10. Changes to This Policy</h2>
             <p className="text-gray-400">
               We may update this privacy policy from time to time. We will notify you of
-              significant changes by posting a notice on ParaDocs or sending you an email.
-              Your continued use of ParaDocs after changes take effect constitutes acceptance
+              significant changes by posting a notice on Paradocs or sending you an email.
+              Your continued use of Paradocs after changes take effect constitutes acceptance
               of the updated policy.
             </p>
           </section>
@@ -199,7 +199,7 @@ export default function PrivacyPolicyPage() {
               If you have questions about this privacy policy or our data practices, contact us at:
             </p>
             <div className="mt-4 glass-card p-4">
-              <p className="text-white font-medium">ParaDocs</p>
+              <p className="text-white font-medium">Paradocs</p>
               <a
                 href="mailto:contact@discoverparadocs.com"
                 className="text-primary-400 hover:underline"

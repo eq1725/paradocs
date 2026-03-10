@@ -1,13 +1,13 @@
-# ParaDocs — Session Notes & Dev Continuity
+# Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** February 15, 2026
+**Last updated:** March 5, 2026
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
 
 ---
 
 ## Project Overview
 
-**ParaDocs** — Paranormal phenomena tracking platform
+**Paradocs** — Paranormal phenomena tracking platform
 - **Live site:** https://beta.discoverparadocs.com
 - **GitHub:** https://github.com/eq1725/paradocs (private)
 - **Supabase Project:** `bhkbctdmwnowfmqpksed`
@@ -52,8 +52,9 @@ Columns: id, title, slug, summary, description, phenomenon_type_id, tags, locati
 **Note:** `credibility` is TEXT ("low", "medium", "high", "very_high"), NOT numeric.
 
 ### `phenomena` table (encyclopedia)
-- 352 total phenomena across 11 categories
-- Categories: ufos_aliens, cryptids, ghosts_hauntings, psychic_phenomena, consciousness_practices, psychological_experiences, biological_factors, perception_sensory, religion_mythology, esoteric_practices, combination
+- 1,598 total phenomena across 11 categories
+- Categories: cryptids (340), ufos_aliens (322), ghosts_hauntings (323), psychic_phenomena (157), consciousness_practices (67), perception_sensory (66), biological_factors (66), religion_mythology (89), psychological_experiences (58), esoteric_practices (55), combination (55)
+- Psychic phenomena entries enriched Feb 2026 (90 entries updated with comprehensive content)
 
 ### `ai_usage` table (rate limiting)
 - Tracks AI chat usage per user per day
@@ -67,8 +68,8 @@ Columns: id, title, slug, summary, description, phenomenon_type_id, tags, locati
 - **Landing page** (`index.tsx`) — hero, search, animated stats counter, featured report, category grid, email capture
 - **Explore/Feed** (`explore.tsx`) — personalized discovery feed with category filters, search, sort
 - **Report detail** (`report/[slug].tsx`) — full report with reactions, comments, share, save, related reports, phenomena links, credibility scoring, investigation journal, evidence section
-- **Phenomena/Encyclopedia** (`phenomena/index.tsx`, `phenomena/[slug].tsx`) — 352 phenomena with grid/list view, detail pages with Wikipedia images
-- **Dashboard** — saved reports, digests, insights, journal, constellation map, settings, subscription
+- **Phenomena/Encyclopedia** (`phenomena/index.tsx`, `phenomena/[slug].tsx`) — 1,598 phenomena with grid/list view, category quick-nav bar, detail pages with Wikipedia images
+- **Dashboard** — constellation-first research hub: constellation map V2 preview, research activity feed, research snapshot metrics, suggested explorations, journal, saved reports, digests, insights, settings, subscription. Sidebar organized into Research/Library/Tools groups.
 - **Map** (`map.tsx`) — MapBox-powered report map
 - **Submit** (`submit.tsx`) — report submission form
 - **Auth** — Supabase auth with login, beta access
@@ -135,7 +136,76 @@ Columns: id, title, slug, summary, description, phenomenon_type_id, tags, locati
 
 ---
 
-## Recent Fixes (Feb 15, 2026 Session)
+## Recent Work (Mar 3-5, 2026 Sessions) — Phase 2 Regeneration
+
+**Goal:** Bring all `phenomena` table AI content up to quality standards — minimum 800 chars for ai_history, all ai_quick_facts populated.
+
+### What Was Done
+
+**Priority 3 — Regenerate short ai_history entries (<800 chars) across 6 categories:**
+All entries with ai_history under 800 characters were regenerated with full encyclopedic content across 6 text fields (ai_history, ai_characteristics, ai_theories, ai_notable_sightings, ai_cultural_impact, ai_summary).
+
+Categories completed in original pass:
+- consciousness_practices, combination, psychic_phenomena (prior session)
+- ufos_aliens: 80 entries (4 batches)
+- ghosts_hauntings: 80 entries (4 batches)
+- cryptids: ~66 entries (4 batches)
+
+**Priority 4 — Populate missing ai_quick_facts (JSONB field):**
+156 entries across 5 categories populated with 9-key JSON structure: origin, danger_level, active_period, classification, evidence_types, notable_feature, first_documented, typical_encounter, cultural_significance. Completed in 7 SQL batches.
+
+**Rounds 2-4 — Additional short ai_history cleanup:**
+After initial pass, verification queries revealed additional short entries. Multiple rounds of fixes:
+- Round 2: GH(40) + UFO(43) + Cryptids(40) = 123 entries
+- Round 3: GH(20) + UFO(20) + Cryptids(20) = 60 entries
+- Round 4 (final): UFO(20) + GH(4) = 24 entries
+
+**Total entries fixed: ~589 ai_history regenerations + 156 ai_quick_facts**
+
+### SQL File Naming Convention
+Files are in the workspace root. Pattern: `{category_prefix}{round}_p2_{batch_number}{letter}.sql`
+- Category prefixes: cp (consciousness), combo (combination), pp (psychic), ufo (ufos_aliens), gh (ghosts_hauntings), cr (cryptids)
+- Round markers: no suffix = round 1, `2` = round 2 (e.g., ufo2), `3` = round 3, `4` = round 4
+- Quick facts files: `qf_` prefix (e.g., qf_rm_01a.sql, qf_mix_01.sql)
+
+### Technical Approach
+- Two-half parallel generation: Part 1 (entries 1-10) and Part 2 (entries 11-20) launched as parallel Task agents
+- Auto-fix pipeline applied to every combined file: trailing/missing commas, wrong table names, wrong field names, duplicate fields
+- Quote-aware verification: parser tracks in-string state to avoid false positives from SQL-escaped apostrophes
+- Short history extender: finds closing quote of ai_history and inserts extension text before it
+- Names with apostrophes (Devil's Promenade Lights, O'Hare Airport UFO Incident) require special handling
+
+### 6 Text Fields — Exact Order & Target Lengths
+1. ai_history: 900-1200 chars (MUST be >=800)
+2. ai_characteristics: 600-900 chars
+3. ai_theories: 700-1000 chars
+4. ai_notable_sightings: 500-800 chars
+5. ai_cultural_impact: 600-900 chars
+6. ai_summary: 200-300 chars (MUST be last before WHERE)
+
+### Verification Query
+```sql
+SELECT category, COUNT(*) FROM phenomena WHERE LENGTH(ai_history) < 800 GROUP BY category ORDER BY category;
+```
+**Result as of Mar 5, 2026: NO ROWS RETURNED — all entries meet minimum length.**
+
+### ai_quick_facts Verification
+```sql
+SELECT category, COUNT(*) FROM phenomena WHERE ai_quick_facts IS NULL GROUP BY category ORDER BY category;
+```
+**Result as of Mar 5, 2026: NO ROWS RETURNED — all entries have quick_facts populated.**
+
+---
+
+## Earlier Work (Feb 26, 2026 Session)
+
+1. **Dashboard overhaul** — Complete rewrite of dashboard as constellation-first research hub. Sidebar reorganized (Research/Library/Tools), constellation map V2 preview as centerpiece, research activity feed, research snapshot metrics, suggested explorations, compact usage footer. Enhanced `/api/user/stats` with constellation/journal/activity data.
+2. **Psychic phenomena content enrichment** — 90 entries updated with comprehensive AI content (description, history, characteristics, theories, cultural impact, notable sightings). Average content length brought from ~3,047 to ~5,500+ chars, matching cryptids and ghosts.
+3. **Encyclopedia quick-nav bar** — Horizontal scrollable category pills with icons and counts. IntersectionObserver tracks active section on scroll. Auto-expands collapsed categories on click.
+4. **Psychic phenomena expansion** — Category expanded from 55 to 157 entries.
+5. **"Back to Encyclopedia" scroll fix** — Fixed scroll restoration bug.
+
+## Earlier Fixes (Feb 15, 2026 Session)
 
 1. **AI chat model fallback** — Added cascade: claude-haiku-4-5-20251001 → claude-3-5-haiku-20241022 → claude-3-haiku-20240307 → gpt-4o-mini
 2. **Enterprise rate limit** — Bumped from 100 to 750/day
@@ -143,7 +213,7 @@ Columns: id, title, slug, summary, description, phenomenon_type_id, tags, locati
 4. **Chat markdown rendering** — Enhanced renderMarkdown with code blocks, headers, numbered lists, bullet lists, links
 5. **Landing page stats flash** — Added opacity transition to mask useCountUp zero-state
 6. **/encyclopedia redirect** — Added permanent redirects to /phenomena in next.config.js
-7. **Embed API** — Fixed 4 bugs: UUID-safe query, column name mismatches (location→location_name, date_of_event→event_date, credibility_score→credibility), /story/→/report/ URL, credibility text→score mapping, category display formatting
+7. **Embed API** — Fixed 4 bugs: UUID-safe query, column name mismatches, URL paths, credibility mapping
 8. **OpenAI API key** — Added to Vercel env vars as fallback AI provider
 
 ---
@@ -159,7 +229,7 @@ Columns: id, title, slug, summary, description, phenomenon_type_id, tags, locati
 
 ## Next Up — Content Strategy
 
-### Current state: 836 quality reports (after archiving ~1.99M Reddit bulk data)
+### Current state: 900 approved reports (after archiving ~1.99M Reddit bulk data)
 ### Target: ~1,000 "perfect" curated reports for alpha testing
 
 **Approach:**
@@ -230,37 +300,39 @@ src/
 
 ---
 
-## Session Progress Log (February 15, 2026 - Session 2)
+## Session Progress Log
 
-### Data Cleanup: Bulk Archive Operation
-**Status:** COMPLETE — 836 approved reports remaining (target achieved)
+### March 3-5, 2026 — Phase 2 Regeneration
+**Status:** COMPLETE
 
-**Decision:** Soft-archive ~1.99M low-quality Reddit-scraped reports while preserving 836 quality reports:
-- 800 NUFORC UFO sighting reports (source_type: nuforc)
-- 24 BFRO Bigfoot reports (source_type: bfro)
-- 8 featured flagship reports (featured: true)
-- 4 historical archive reports (source_type: historical_archive)
-- 1 curated Roswell showcase (slug: the-roswell-incident-july-1947-showcase)
+- All phenomena ai_history entries brought to >=800 chars (~589 entries regenerated across 4 rounds)
+- All phenomena ai_quick_facts populated (156 entries, 9-key JSONB structure)
+- Categories covered: ufos_aliens, ghosts_hauntings, cryptids, religion_mythology, psychic_phenomena, consciousness_practices, combination, psychological_experiences
+- ~40 SQL files generated, verified, and executed via Supabase SQL Editor
 
-**Implementation:**
-- Created PostgreSQL function `archive_batch(batch_size)` with CTE + FOR UPDATE SKIP LOCKED
-- Created partial index `idx_reports_status ON reports(status) WHERE status = 'approved'`
-- Running via Supabase REST RPC from browser JS (3K rows/batch, ~3.5s/batch)
-- Reports set to status=archived (NOT deleted)
+### February 26, 2026 — Dashboard & Content Sprint
+**Status:** COMPLETE
 
-### Ingestion Pipeline Improvements (commit 460cdfb)
-Three new modules added to src/lib/ingestion/filters/:
+- Dashboard overhaul deployed (constellation-first research hub)
+- Psychic phenomena expanded from 55 → 157 entries
+- 90 short psychic phenomena entries enriched with comprehensive content
+- Encyclopedia quick-nav bar deployed
+- All changes pushed via GitHub API and auto-deployed on Vercel
 
-1. **validation.ts** - Field validation and sanitization before DB insert
-2. **deduplication.ts** - Content fingerprinting and duplicate detection
-3. **location-extractor.ts** - Geographic data extraction from narrative text
+### February 15, 2026 — Data Cleanup & Pipeline
+**Status:** COMPLETE — 900 approved reports (up from 836)
 
-Engine integration: batch dedup before processing, validation after quality scoring, location enhancement for missing fields.
+- Soft-archived ~1.99M low-quality Reddit-scraped reports
+- Three new ingestion pipeline modules: validation, deduplication, location extraction
+- AI chat fallback chain, embed API fixes, various UX fixes
 
 ### Outstanding Action Items
-1. [WAITING] Stripe Secret Key - Chase needs to provide
-2. [COMPLETE] Archive done - 836 approved reports remain (800 NUFORC + 24 BFRO + 8 featured + 4 historical)
-3. [NEXT] Encyclopedia entries improvement - one by one
-4. [NEXT] Curate reports to 1000 - need ~164 more from diverse sources
-5. [OPTIONAL] OpenAI monthly budget reduction ($120 to $10-20)
-6. [FUTURE] Sprint 2-4 features per Dev Handoff v3
+1. [WAITING] Stripe Secret Key — Chase needs to provide for checkout flow
+2. [COMPLETE] Phase 2 Regeneration — all ai_history >=800 chars, all ai_quick_facts populated
+3. [COMPLETE] Dashboard overhaul — constellation-first research hub
+4. [COMPLETE] Psychic phenomena content enrichment — 90 entries updated
+5. [COMPLETE] Encyclopedia navigation — quick-nav bar with category pills
+6. [NEXT] Curate reports to 1000 — need ~100 more from diverse sources
+7. [OPTIONAL] OpenAI monthly budget reduction ($120 to $10-20)
+8. [FUTURE] Sprint 2-4 features per Dev Handoff v3
+9. [FUTURE] UX optimization (header/mobile nav, homepage flow, report detail breadcrumbs)

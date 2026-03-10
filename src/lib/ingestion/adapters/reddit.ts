@@ -495,7 +495,7 @@ async function fetchPostComments(
     const response = await fetch(url, {
       headers: {
         'Accept': 'application/json',
-        'User-Agent': 'ParaDocs/1.0 (Paranormal Research Database)',
+        'User-Agent': 'Paradocs/1.0 (Paranormal Research Database)',
       }
     });
 
@@ -758,7 +758,7 @@ async function fetchSubreddit(
       const response = await fetch(urlString, {
         headers: {
           'Accept': 'application/json',
-          'User-Agent': 'ParaDocs/1.0 (Paranormal Research Database; contact: admin@paradocs.com)',
+          'User-Agent': 'Paradocs/1.0 (Paranormal Research Database; contact: admin@paradocs.com)',
         }
       });
 

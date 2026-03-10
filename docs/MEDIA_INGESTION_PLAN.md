@@ -1,4 +1,4 @@
-# Media Ingestion Plan for ParaDocs
+# Media Ingestion Plan for Paradocs
 
 ## Overview
 Many Reddit posts reference images and videos that provide important visual evidence for paranormal reports. This plan outlines how to capture, store, and display this media.

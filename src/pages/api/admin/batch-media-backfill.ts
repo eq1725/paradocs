@@ -175,7 +175,7 @@ async function isMediaUrlLive(url: string, timeoutMs = 5000): Promise<boolean> {
     const response = await fetch(url, {
       method: 'HEAD',
       signal: controller.signal,
-      headers: { 'User-Agent': 'ParaDocs/1.0' },
+      headers: { 'User-Agent': 'Paradocs/1.0' },
       redirect: 'follow'
     });
 
@@ -299,7 +299,7 @@ export default async function handler(
         const arcticResponse = await fetch(
           `https://arctic-shift.photon-reddit.com/api/posts/search?ids=${postId}`,
           {
-            headers: { 'Accept': 'application/json', 'User-Agent': 'ParaDocs/1.0' },
+            headers: { 'Accept': 'application/json', 'User-Agent': 'Paradocs/1.0' },
             signal: controller.signal
           }
         );
@@ -559,7 +559,7 @@ export default async function handler(
           const arcticResponse = await fetch(
             `https://arctic-shift.photon-reddit.com/api/posts/search?ids=${postId}`,
             {
-              headers: { 'Accept': 'application/json', 'User-Agent': 'ParaDocs/1.0' }
+              headers: { 'Accept': 'application/json', 'User-Agent': 'Paradocs/1.0' }
             }
           );
 

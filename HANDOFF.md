@@ -1,10 +1,10 @@
-# ParaDocs Development Handoff
+# Paradocs Development Handoff
 
-**Last updated:** March 9, 2026 (Session 12 — Batch 4 content enrichment)
+**Last updated:** March 10, 2026 (Session 17 — Batch 8 content enrichment)
 
 ## Project Overview
 
-ParaDocs is a paranormal phenomena tracking platform (beta.discoverparadocs.com) built with Next.js 14.2.35 (Pages Router), Supabase, and deployed on Vercel. The codebase lives at `eq1725/paradocs` on GitHub (main branch). Currently has ~900 approved reports and **4,792 phenomena entries** across 11 categories (UFOs, cryptids, ghosts, psychic phenomena, consciousness practices, psychological experiences, biological factors, perception/sensory, religion/mythology, esoteric practices, combination) sourced from NUFORC, BFRO, and other databases via an automated ingestion pipeline.
+Paradocs is a paranormal phenomena tracking platform (beta.discoverparadocs.com) built with Next.js 14.2.35 (Pages Router), Supabase, and deployed on Vercel. The codebase lives at `eq1725/paradocs` on GitHub (main branch). Currently has ~900 approved reports and **4,792 phenomena entries** across 11 categories (UFOs, cryptids, ghosts, psychic phenomena, consciousness practices, psychological experiences, biological factors, perception/sensory, religion/mythology, esoteric practices, combination) sourced from NUFORC, BFRO, and other databases via an automated ingestion pipeline.
 
 The platform's thesis: emergent patterns across massive anecdotal reports of paranormal experiences suggest a deeper reality — but this should be implied through analysis, not stated outright. The goal is to make each entry "the most robust report on this cryptid/item on the internet."
 
@@ -21,7 +21,108 @@ The platform's thesis: emergent patterns across massive anecdotal reports of par
 
 ## Completed Work (All Sprints)
 
-### Most Recent (March 9, 2026) — Session 12: Batch 4
+### Most Recent (March 10, 2026) — Session 17: Batch 8
+
+#### Batch 8 Content Enrichment ✅
+- Fetched 20 entries alphabetically after "Great Lakes Sea Monster"
+- **DELETED (3 entries)**:
+  - Hidebehind (American lumberjack tall tale/folk humor; not a genuine cryptid tradition)
+  - Hodag (confirmed deliberate hoax created by Eugene Shepard in Rhinelander, Wisconsin, 1893)
+  - Jackalope (admitted novelty/hoax originating with Douglas Herrick in Douglas, Wyoming, 1930s)
+- **RECLASSIFIED to `religion_mythology` (6 entries)**:
+  - Gurumapa (Nepalese mythological baby-eating demon from Hindu-Buddhist tradition)
+  - Hombre Gato (Latin American supernatural cat-man figure from organized folklore)
+  - Horned Serpent (Pan-Native American sacred spiritual being from organized ceremonial traditions)
+  - Impundulu (Southern African lightning bird from Zulu/Xhosa cosmological tradition)
+  - Imugi (Korean proto-dragon from organized Confucian-Buddhist mythological tradition)
+  - Intulo (Zulu supernatural lizard-man from organized ancestral belief system)
+- **ENRICHED as cryptids (11 entries)**: Hawkesbury River Monster, Hibagon, Honey Island Swamp Monster, Hopkinsville Goblins, Igopogo, Indrid Cold, Inkanyamba, Irkuiem, Isnachi, Isshii, J'ba Fofi
+- All 11 entries verified to meet character minimums (desc 2000+, chars 2000+, theo 2000+, anal 2500+) and correct ai_quick_facts keys (10 keys each)
+- **Note**: Sub-agent push partially failed on 4 entries (hopkinsville-goblins p2 truncated, isnachi p2 partial, isshii and j-ba-fofi not pushed). All re-pushed directly with full content confirmed. Lesson reinforced: always push content directly, never via sub-agents.
+- Removal rate: 45% (9 of 20 removed/reclassified) — within expected 30-60% range for this alphabetical depth
+
+### Prior (March 10, 2026) — Session 16: QA/QC Fixes
+
+#### Batch 6 Quick Facts Fix (6 entries) ✅
+- 6 of 8 Batch 6 entries had wrong `ai_quick_facts` keys (arbitrary keys like "Geographic Range", "Montana Location" instead of required frontend keys)
+- Fixed entries: dwayyo, ebu-gogo, el-cuero, emela-ntouka, enfield-horror, flathead-lake-monster
+- Also corrected flathead-lake-monster alias from "Flahead" to "Flessie"
+- Dover-demon and flatwoods-monster already had correct keys (not affected)
+
+#### Missing Preview Card Text Fix ✅
+- Dover Demon and Flatwoods Monster had NULL `ai_summary` — these entries were initially deleted then restored in Batch 6, so summaries were never set
+- Wrote and pushed `ai_summary` for both entries (used for preview card text on /phenomena listing page)
+- **Note**: The /phenomena listing uses `ai_summary` (NOT `ai_description`) for card preview text
+
+#### Scroll Position Restoration Fix ✅
+- **Problem**: Navigating from /phenomena into an entry and going back reset scroll position to top
+- **Root cause**: /phenomena page fetches data client-side on every mount → on back-navigation, component re-mounts with empty state → loading spinner → data arrives too late for NavigationHelper's scroll restoration
+- **Fix**: Added module-level cache (`_phenomenaCache`) to `src/pages/phenomena/index.tsx` that persists across component unmount/remount. When cache exists, page renders immediately with data (no loading state), allowing scroll restoration to work.
+- **Commit**: `3690a9ec` — "Cache phenomena data in module-level variable for instant back-navigation rendering"
+- Verified: scrollY 2000 → clicked Appalachian Wildman → back → scrollY 2000 exactly
+
+### Prior (March 10, 2026) — Session 15: Batch 7
+
+#### Batch 7 Content Enrichment ✅
+- Fetched 20 entries alphabetically after "Flatwoods Monster"
+- **DELETED (4 entries)**:
+  - Fur-Bearing Trout (joke/tall tale creature; lumberjack folklore humor, not a genuine cryptid tradition)
+  - Globster (generic category term for unidentified organic ocean masses, not a specific cryptid)
+  - Gorgakh (fabricated entry; no verifiable documentation in any cryptid or folklore database)
+  - Guai Wu (fabricated entry; no verifiable documentation in any cryptid or folklore database)
+- **RECLASSIFIED to `religion_mythology` (5 entries)**:
+  - Fox Spirit (Chinese/East Asian supernatural shapeshifting spirit from organized mythological tradition)
+  - Gatto Mammone (Italian/Mediterranean supernatural cat figure from folklore tradition)
+  - Germakochi (Armenian mythological figure from organized supernatural tradition)
+  - Grootslang (South African mythological creature from Richtersveld cave legend tradition)
+  - Gumiho (Korean nine-tailed fox spirit from organized mythological/shamanistic tradition)
+- **ENRICHED as cryptids (11 entries)**: Fouke Monster, Fresno Nightcrawler, Gbahali, Giant Anaconda, Giant Ground Sloth, Giant Spider, Gippsland Phantom Cat, Goatman, Grafton Monster, Grassman, Great Lakes Sea Monster
+- All 11 entries verified to meet character minimums (desc 2000+, chars 2000+, theo 2000+, anal 2500+) and correct ai_quick_facts keys (10 keys each)
+- **Note**: giant-ground-sloth `ai_theories` was initially truncated during push (1468 chars instead of 2927) — re-pushed and verified at full 2927 chars with 3 paragraph breaks. All other entries pushed cleanly on first attempt using per-field base64 encoding via paired push scripts (2 fields per JS call).
+
+### Prior (March 9, 2026) — Session 14: Batch 6
+
+#### Batch 6 Content Enrichment ✅
+- Fetched 20 entries alphabetically after "Dogman"
+- **DELETED (4 entries)**:
+  - Drop Bear (Australian joke/tourist prank; not genuine folklore or cryptid)
+  - Eastern Cougar (confirmed real species — Puma concolor couguar; declared extinct by USFWS in 2018)
+  - Enchanto (fabricated entry; no verifiable cryptid documentation distinct from Encantado)
+  - Fear Liath (duplicate of Am Fear Liath Mòr — already enriched in Batch 1)
+- **RECLASSIFIED to `religion_mythology` (8 entries)**:
+  - Drekavac (Slavic mythological creature from Serbian/Balkan supernatural tradition)
+  - Duende (Pan-Latin American supernatural spirit/fairy from Iberian folklore tradition)
+  - El Sombrerón (Guatemalan/Central American supernatural figure with magical powers)
+  - Eloko (Bantu/Congo Basin mythological dwarf spirit from organized belief system)
+  - Elwetritsch (German/Palatinate folklore creature from regional mythological tradition)
+  - Encantado (Brazilian Amazonian shapeshifting dolphin spirit from indigenous mythology)
+  - Engkanto (Filipino supernatural nature spirit from organized animist belief system)
+  - Fastitocalon (Medieval bestiary sea monster from Christian allegorical tradition)
+- **ENRICHED as cryptids (8 entries)**: Dover Demon, Dwayyo, Ebu Gogo, El Cuero, Emela-Ntouka, Enfield Horror, Flathead Lake Monster, Flatwoods Monster
+- All 8 entries verified to meet character minimums (desc 2000+, chars 2000+, theo 2000+, anal 2500+) and correct ai_quick_facts keys (10 keys each)
+- **Note**: Initial push via sub-agent truncated content; required field-by-field re-push for 12 failing fields. Dover Demon and Flatwoods Monster were initially incorrectly deleted but restored after review — both have documented multi-witness sighting traditions. Elwetritsch was initially deleted but reclassified to religion_mythology after review. Paragraph breaks (`\n\n`) were stripped by sub-agent during initial push — all 28 text fields (7 slugs × 4 fields) re-pushed with proper breaks using per-field base64 encoding and verified in DB.
+
+### Prior (March 9, 2026) — Session 13: Batch 5
+
+#### Batch 5 Content Enrichment ✅
+- Fetched 20 entries alphabetically after "Chupacabra"
+- **DELETED (5 entries)**:
+  - Crawfordsville Monster (confirmed misidentification of killdeer birds; single debunked 1891 incident)
+  - Crawler (modern internet creepypasta/fabrication; no real folklore tradition)
+  - Croughshrion (completely fabricated; no verifiable sources in any cryptid or folklore database)
+  - Dahu (deliberate Alpine prank/joke tradition; not genuine folklore or cryptid)
+  - De Loys' Ape (confirmed hoax; posed spider monkey carcass; broad scientific consensus)
+- **RECLASSIFIED to `religion_mythology` (6 entries)**:
+  - Cipelahq (Wabanaki owl spirit from Maliseet/Passamaquoddy mythology)
+  - Colocolo (Mapuche mythological creature with supernatural origin)
+  - Cu Sith (Celtic fairy hound from Scottish/Irish supernatural tradition)
+  - Curupira (Brazilian Tupí-Guaraní forest guardian spirit)
+  - Deer Woman (Native American shape-shifting supernatural spirit)
+  - Dokkaebi (Korean supernatural nature spirits/goblins)
+- **ENRICHED as cryptids (9 entries)**: Ciguapa, Con Rit, Crosswick Monster, Devil Bird, Dewey Lake Monster, Didi, Dingonek, Dobhar-chú, Dogman
+- All 9 entries verified to meet character minimums (desc 2000+, chars 2000+, theo 2000+, anal 2500+) and correct ai_quick_facts keys (10 keys each)
+
+### Prior (March 9, 2026) — Session 12: Batch 4
 
 #### Batch 4 Content Enrichment ✅
 - Fetched 20 entries alphabetically after "Bigfoot"
@@ -220,14 +321,14 @@ Each entry received: `ai_description`, `ai_characteristics`, `ai_theories`, `ai_
 - **Phase 1 (current)**: Content enrichment only — `ai_description`, `ai_characteristics`, `ai_theories`, `ai_paradocs_analysis`, `ai_quick_facts`, `primary_regions` for all cryptid entries, 20 at a time
 - **Phase 2 (later)**: Profile images and media (YouTube videos) for all entries — Chase will provide custom profile images and YouTube URLs
 
-### Progress: ~62/~353 cryptids done (Adjule + Batch 1 (18) + Batch 2 (16) + Batch 3 (13) + Batch 4 (14) — 19 total deleted/reclassified across all batches)
+### Progress: ~90/~353 cryptids done (Adjule + Batch 1 (18) + Batch 2 (16) + Batch 3 (13) + Batch 4 (14) + Batch 5 (9) + Batch 6 (8) + Batch 7 (11) — 51 total deleted/reclassified across all batches)
 
 ---
 
 ## Planned / Next Work
 
 ### IMMEDIATE: Continue Batch Content Enrichment
-- Process next 20 cryptid entries starting alphabetically after "Chupacabra" (Batch 5)
+- Process next 20 cryptid entries starting alphabetically after "J'ba Fofi" (Batch 9)
 - Each entry needs: `ai_description`, `ai_characteristics`, `ai_theories`, `ai_paradocs_analysis`, `ai_quick_facts` (JSON), `primary_regions` (text[])
 - Use Supabase REST API with service role key (browser JS) to update entries
 - Target: 20 entries per session
@@ -285,8 +386,9 @@ Each field should contain 3–5 substantial paragraphs. Content should read like
 - [ ] Description: 3-5 paragraphs, 2000+ chars, includes historical context, physical description overview, notable sightings
 - [ ] Characteristics: 3-4 paragraphs, 2000+ chars, detailed morphology, behavioral patterns, habitat specifics, sensory details
 - [ ] Theories: 3-4 paragraphs, 2000+ chars, at minimum covers: scientific/conventional explanation, cryptozoological hypothesis, cultural/anthropological interpretation
-- [ ] Analysis: 3-5 paragraphs, 2500+ chars, connects to ParaDocs database patterns, identifies cross-cultural parallels, raises analytical questions, discusses evidence quality
+- [ ] Analysis: 3-5 paragraphs, 2500+ chars, connects to Paradocs database patterns, identifies cross-cultural parallels, raises analytical questions, discusses evidence quality
 - [ ] Quick Facts: flat object with 8-10 keys from the approved list, detailed values
+- [ ] Summary: 150-350 chars, one sentence for /phenomena listing card preview (`ai_summary` field)
 - [ ] Regions: 3-6 specific geographic strings
 
 ### Research-First Mandate (NON-NEGOTIABLE)
@@ -320,14 +422,14 @@ Before writing content for ANY entry, you MUST:
 **What is acceptable:**
 - Synthesizing information from multiple verified sources into original prose
 - Drawing reasonable analytical connections between verified facts
-- Noting the analytical significance of a cryptid within the ParaDocs framework (this is the Analysis section's purpose)
+- Noting the analytical significance of a cryptid within the Paradocs framework (this is the Analysis section's purpose)
 - Using general knowledge about a region's geography, ecology, or culture when it provides context for verified cryptid reports
 
-### Writing Style for ParaDocs
+### Writing Style for Paradocs
 - **Tone**: Intellectually serious but accessible. The platform treats paranormal phenomena as legitimate subjects of inquiry without being credulous.
 - **Thesis**: Emergent patterns in massive anecdotal data suggest deeper reality — implied through analysis, never stated outright.
 - **Goal per entry**: "The most robust report on this cryptid on the internet."
-- **ParaDocs Analysis section** should reference the "ParaDocs database" or "ParaDocs system" and discuss cross-entry patterns, analytical metrics, and evidence quality. This is the signature section that distinguishes ParaDocs from a standard encyclopedia.
+- **Paradocs Analysis section** should reference the "Paradocs database" or "Paradocs system" and discuss cross-entry patterns, analytical metrics, and evidence quality. This is the signature section that distinguishes Paradocs from a standard encyclopedia.
 
 ### Phase 2 (Later): Profile Images & Media
 - Chase uploads custom profile images to Supabase Storage `phenomena-images` bucket
@@ -347,6 +449,7 @@ Before writing content for ANY entry, you MUST:
 
 | SHA | Description |
 |-----|-------------|
+| `3690a9ec` | Cache phenomena data in module-level variable for instant back-navigation rendering |
 | `ef72a5f6` | Make minimap scroll away so Quick Facts sticks to top |
 | `891443e8` | Move minimap above Quick Facts in sidebar |
 | `79d555f2` | Fix blank space between Paradocs Analysis and Characteristics/Theories |
@@ -474,16 +577,17 @@ window._insertMedia = function(phenomenonId, url, type, title, desc) {
 
 ## Notes for Next Session
 
-1. **Continue batch content enrichment** — Batch 5 starts after "Chupacabra" alphabetically, process 20 entries
+1. **Continue batch content enrichment** — Batch 9 starts after "J'ba Fofi" alphabetically, process 20 entries
 2. **RESEARCH FIRST** — Web search EVERY cryptid before writing content. Verify all facts. No fabrication. See "Research-First Mandate" section.
 3. **READ the Content Quality Standards section above BEFORE writing any content** — this is critical for consistency
 4. First establish the browser helper functions (see Database Update Method above)
-5. Query for next 20 cryptid entries: `phenomena?category=eq.cryptids&order=name&name=gt.Chupacabra&limit=20`
-6. For each entry, generate and update: `ai_description`, `ai_characteristics`, `ai_theories`, `ai_paradocs_analysis`, `ai_quick_facts`, `primary_regions`
+5. Query for next 20 cryptid entries: `phenomena?category=eq.cryptids&order=name&name=gt.J'ba Fofi&limit=20`
+6. For each entry, generate and update: `ai_description`, `ai_characteristics`, `ai_theories`, `ai_paradocs_analysis`, `ai_quick_facts`, `primary_regions`, `ai_summary` (150-350 char preview text for /phenomena listing cards)
 7. **`ai_quick_facts` must be a flat object** with keys: origin, classification, first_documented, danger_level, typical_encounter, evidence_types, active_period, notable_feature, cultural_significance, also_known_as. Pass as JS object (NOT stringified). NOT an array of label/value pairs.
 8. **Content length targets**: desc 2000+, chars 2000+, theories 2000+, analysis 2500+ (chars). Check against these AFTER pushing and run a verification query across all entries in the batch before marking complete.
 9. The mini-map automatically works for any entry with `primary_regions` populated
 10. Profile images and media are Phase 2 — skip for now
+11. **Push content directly, NOT via sub-agents** — sub-agents strip `\n\n` newlines from JS string literals. Use per-field base64 encoding if content is large (>10KB per field). See "Lessons Learned" for details.
 11. **Git workflow**: Claude commits in VM, Chase pushes from `~/paradocs` with `rm -f .git/HEAD.lock && git push origin main`
 12. **SWC restrictions** only apply to `[slug].tsx` — other files use modern JS
 13. **DB column note**: category column is `category` (not `category_id`), no `description` column (use `ai_description`)
@@ -494,4 +598,15 @@ window._insertMedia = function(phenomenonId, url, type, title, desc) {
 - **Push via slug not id**: Use `?slug=eq.SLUG` in REST API URLs — more reliable than looking up UUIDs.
 - **JS variables don't persist between browser executions**: Each `javascript_exec` call is independent. Store reusable data on `window` (e.g., `window._fixData`) or combine build+push in a single call.
 - **REST API returns 405 on DELETE**: Use Supabase SQL Editor (tab 741825755) with Monaco API for deletions: `monaco.editor.getEditors()[0].setValue(sql)` then click Run.
+- **Batch 5 efficiency**: Splitting pushes into text fields (4 fields) and meta fields (quick_facts + regions) as separate PATCH calls is reliable. Total ~14 API calls for 7 entries. Each entry's full JSON payload (~12K) fits in a single javascript_exec call.
+- **High deletion/reclassification rate in Batch 5-6**: 11 of 20 entries (55%) in Batch 5, 14 of 20 (70%) in Batch 6 were removed or reclassified. As we move further alphabetically, the proportion of obscure/fabricated/mythology entries increases. Budget for fewer enriched entries per batch.
 - **Reclassify via PATCH**: `fetch(url + '?slug=eq.SLUG', { method: 'PATCH', body: JSON.stringify({ category: 'religion_mythology' }) })`
+- **Sub-agent content pushes can truncate**: In Batch 6, a sub-agent pushing content via javascript_exec truncated all text fields to ~60-70% of original length. Fix: push each failing field individually by reading the fix JS file and executing it directly. Always verify DB char counts after pushing, not just local file counts.
+- **Duplicate checking**: Always check new entries against previously enriched entries. Fear Liath was a duplicate of Am Fear Liath Mòr (Batch 1). Big Grey Man was caught as duplicate in Batch 3. Query `?slug=in.(slug1,slug2)&select=slug,name,ai_description` to check.
+- **Don't over-delete**: Research agents can be too aggressive classifying entries as "debunked" or "single incident." Dover Demon (3 independent witnesses, 1977, investigated by Loren Coleman) and Flatwoods Monster (multiple witnesses, 1952, has its own museum) were initially deleted but are legitimate well-known cryptids. A cryptid should be KEPT if it has: (a) multiple witnesses, (b) cultural significance, (c) ongoing recognition in cryptozoology literature, or (d) a documented sighting tradition — even if skeptics propose conventional explanations. Similarly, folklore creatures like Elwetritsch should be reclassified to religion_mythology rather than deleted.
+- **DB constraint**: The `phenomena_status_check` constraint requires `status` to be `'active'` or `'merged'` (NOT `'approved'`). Use `'active'` when re-inserting entries.
+- **Sub-agents strip `\n\n` newlines**: When sub-agents execute JavaScript via `javascript_tool`, double-newline characters (`\n\n`) are silently stripped from string literals. This means content pushed through sub-agents will arrive as walls of text with no paragraph breaks — even though the sub-agent reports 204 success. **Workaround**: Push content directly (not via sub-agent) using base64 encoding. Encode on the VM with Python `base64.b64encode()`, read the base64 file, pass it as a string literal to `javascript_tool`, and decode in browser with `decodeURIComponent(escape(atob(b64)))` for proper UTF-8 handling.
+- **Per-field base64 for large content**: When pushing text fields via browser JS, the `javascript_tool` text parameter can truncate base64 strings larger than ~16KB. Solution: encode each field individually (2-8KB each) instead of combining all 4 fields per slug into one payload (16-25KB). Generate per-field files with Python: `base64.b64encode(field_value.encode()).decode()` → write to `/tmp/b64pf_{slug}_{field}.txt`. Then read each file and push one field at a time via `_updateBySlug`.
+- **Paired push scripts (Batch 7)**: The most reliable push method is paired base64 scripts — each script pushes 2 text fields per entry (p1: description + characteristics, p2: theories + analysis). Generate per-field base64 files on VM, then build JS scripts that decode and push 2 fields at once (~8KB each, well under the ~16KB truncation limit). Meta fields (quick_facts + primary_regions) can be pushed separately in grouped batches. This approach achieved 100% first-attempt success for 21 of 22 pushes in Batch 7 (1 truncation on giant-ground-sloth theories, fixed with re-push).
+- **`ai_summary` for preview cards**: The /phenomena listing page uses `ai_summary` (NOT `ai_description`) for card preview text. When enriching entries, ensure `ai_summary` is populated — especially for entries that were deleted and restored. A good summary is 150-350 chars, one sentence describing what the cryptid is.
+- **Paragraph breaks quality fix (Batch 6)**: All 7 Batch 6 enriched entries (dwayyo, ebu-gogo, el-cuero, emela-ntouka, enfield-horror, flathead-lake-monster, flatwoods-monster) had their 4 AI text fields fixed to include proper `\n\n` paragraph breaks. All 28 fields verified in DB with break counts ranging from 2-8 per field. This issue was caused by sub-agent newline stripping during the initial content push — future batches should push content directly (not via sub-agent) to avoid this.

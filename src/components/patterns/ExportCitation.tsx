@@ -51,18 +51,18 @@ export default function ExportCitation({ pattern, className = '' }: ExportCitati
 
     switch (style) {
       case 'apa':
-        return `ParaDocs. (${year}). ${pattern.title} [Pattern ${pattern.id.slice(0, 8)}]. ParaDocs Paranormal Database. Retrieved ${accessDate}, from ${url}`
+        return `Paradocs. (${year}). ${pattern.title} [Pattern ${pattern.id.slice(0, 8)}]. Paradocs Paranormal Database. Retrieved ${accessDate}, from ${url}`
 
       case 'mla':
-        return `"${pattern.title}." ParaDocs Paranormal Database, ${year}, ${url}. Accessed ${accessDate}.`
+        return `"${pattern.title}." Paradocs Paranormal Database, ${year}, ${url}. Accessed ${accessDate}.`
 
       case 'chicago':
-        return `ParaDocs. "${pattern.title}." Pattern ${pattern.id.slice(0, 8)}. ParaDocs Paranormal Database. Accessed ${accessDate}. ${url}.`
+        return `Paradocs. "${pattern.title}." Pattern ${pattern.id.slice(0, 8)}. Paradocs Paranormal Database. Accessed ${accessDate}. ${url}.`
 
       case 'bibtex':
         return `@misc{paradocs_${pattern.id.slice(0, 8)},
   title = {${pattern.title}},
-  author = {{ParaDocs}},
+  author = {{Paradocs}},
   year = {${year}},
   howpublished = {\\url{${url}}},
   note = {Pattern ID: ${pattern.id}, Accessed: ${accessDate}}
@@ -87,7 +87,7 @@ export default function ExportCitation({ pattern, className = '' }: ExportCitati
           last_updated: pattern.lastUpdated,
           categories: pattern.categories,
           center_point: pattern.centerPoint,
-          source: 'ParaDocs Paranormal Database',
+          source: 'Paradocs Paranormal Database',
           url: `https://beta.discoverparadocs.com/insights/patterns/${pattern.id}`,
           exported_at: new Date().toISOString()
         }, null, 2)
@@ -120,7 +120,7 @@ ${pattern.centerPoint ? `## Location
 - **Longitude:** ${pattern.centerPoint.lng}` : ''}
 
 ---
-*Source: [ParaDocs Paranormal Database](https://beta.discoverparadocs.com/insights/patterns/${pattern.id})*
+*Source: [Paradocs Paranormal Database](https://beta.discoverparadocs.com/insights/patterns/${pattern.id})*
 *Exported: ${new Date().toISOString()}*`
 
       default:

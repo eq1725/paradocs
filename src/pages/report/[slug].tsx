@@ -543,14 +543,14 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   return (
     <>
       <Head>
-        <title>{report.title} - ParaDocs</title>
+        <title>{report.title} - Paradocs</title>
         <meta name="description" content={report.summary || report.description?.slice(0, 160)} />
 
         {/* Open Graph */}
         <meta property="og:type" content="article" />
         <meta property="og:title" content={report.title} />
         <meta property="og:description" content={report.summary || report.description?.slice(0, 160)} />
-        <meta property="og:site_name" content="ParaDocs" />
+        <meta property="og:site_name" content="Paradocs" />
         <meta property="og:url" content={`https://beta.discoverparadocs.com/report/${slug}`} />
         {media[0]?.url && <meta property="og:image" content={media[0].url} />}
 

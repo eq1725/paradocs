@@ -1,5 +1,5 @@
 /**
- * ParaDocs Seed Data Script
+ * Paradocs Seed Data Script
  *
  * This script populates the database with sample paranormal reports
  * for testing and demonstration purposes.

@@ -1,8 +1,8 @@
-# ParaDocs Bulk Data Ingestion Plan
+# Paradocs Bulk Data Ingestion Plan
 
 ## Executive Summary
 
-This document outlines sources for mass data ingestion, organized by feasibility and data volume. Based on research of 2,500+ sources from the ParaDocs Research spreadsheet, we've identified **47 major sources** with bulk ingestion potential.
+This document outlines sources for mass data ingestion, organized by feasibility and data volume. Based on research of 2,500+ sources from the Paradocs Research spreadsheet, we've identified **47 major sources** with bulk ingestion potential.
 
 ---
 
@@ -33,7 +33,7 @@ https://academictorrents.com/details/1614740ac8c94505e4ecb9d88be8bed7b6afddd4
 - [ ] Download torrent file
 - [ ] Select paranormal subreddits only
 - [ ] Parse NDJSON and extract: title, body, author, score, timestamp, subreddit
-- [ ] Map to ParaDocs report schema
+- [ ] Map to Paradocs report schema
 
 ---
 
@@ -60,8 +60,8 @@ https://academictorrents.com/details/1614740ac8c94505e4ecb9d88be8bed7b6afddd4
 **Action Items:**
 - [ ] Download Hugging Face dataset (most current)
 - [ ] Cross-reference with planetsig for geocoding
-- [ ] Map to ParaDocs report schema
-- [ ] Dedupe against existing ParaDocs reports
+- [ ] Map to Paradocs report schema
+- [ ] Dedupe against existing Paradocs reports
 
 ---
 
@@ -88,7 +88,7 @@ https://academictorrents.com/details/1614740ac8c94505e4ecb9d88be8bed7b6afddd4
 **Action Items:**
 - [ ] Download from GitHub repo
 - [ ] Cross-reference with Kaggle for completeness
-- [ ] Map to ParaDocs report schema (category: cryptids)
+- [ ] Map to Paradocs report schema (category: cryptids)
 
 ---
 
@@ -138,7 +138,7 @@ https://academictorrents.com/details/1614740ac8c94505e4ecb9d88be8bed7b6afddd4
 **Action Items:**
 - [ ] Download Zenodo dataset
 - [ ] Supplement with IANDS accounts if available
-- [ ] Map to ParaDocs schema (category: psychological_experiences)
+- [ ] Map to Paradocs schema (category: psychological_experiences)
 
 ---
 
@@ -162,7 +162,7 @@ https://phantomsandmonsters.blogspot.com/feeds/posts/default?alt=json&max-result
 - [ ] Query Blogger JSON API with pagination
 - [ ] Parse post content, date, labels
 - [ ] Categorize by label tags
-- [ ] Map to ParaDocs schema
+- [ ] Map to Paradocs schema
 
 ---
 
@@ -191,7 +191,7 @@ https://paranormaldatabase.com/[county]/[county]data.php
 - [ ] Build county-by-county scraper
 - [ ] Implement polite rate limiting (1-2s delays)
 - [ ] Parse HTML tables for structured data
-- [ ] Map to ParaDocs schema
+- [ ] Map to Paradocs schema
 
 ---
 
@@ -270,11 +270,11 @@ https://paranormaldatabase.com/[county]/[county]data.php
 
 ### Schema Mapping Requirements
 
-Each source needs mapping to ParaDocs fields:
+Each source needs mapping to Paradocs fields:
 - `title` - Report title/headline
 - `summary` - Brief description
 - `description` - Full narrative
-- `category` - Map to ParaDocs categories
+- `category` - Map to Paradocs categories
 - `phenomenon_type_id` - Link to phenomenon types
 - `event_date` - Date of occurrence
 - `location_name` - City/place name

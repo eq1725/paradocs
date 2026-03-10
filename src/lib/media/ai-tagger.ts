@@ -133,7 +133,7 @@ async function fetchImageAsBase64(url: string): Promise<{ data: string; mediaTyp
   try {
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'ParaDocs/1.0 (Media Analysis)'
+        'User-Agent': 'Paradocs/1.0 (Media Analysis)'
       }
     });
 

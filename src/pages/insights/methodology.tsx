@@ -167,10 +167,10 @@ export default function MethodologyPage() {
   return (
     <>
       <Head>
-        <title>Research Methodology | ParaDocs Pattern Detection</title>
+        <title>Research Methodology | Paradocs Pattern Detection</title>
         <meta
           name="description"
-          content="Comprehensive documentation of ParaDocs pattern detection methodology, including algorithms, scoring systems, and statistical approaches."
+          content="Comprehensive documentation of Paradocs pattern detection methodology, including algorithms, scoring systems, and statistical approaches."
         />
       </Head>
 
@@ -194,11 +194,11 @@ export default function MethodologyPage() {
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold text-white">
                 Research Methodology
               </h1>
-              <p className="text-gray-400 text-sm sm:text-base">ParaDocs Pattern Detection System v1.0</p>
+              <p className="text-gray-400 text-sm sm:text-base">Paradocs Pattern Detection System v1.0</p>
             </div>
           </div>
           <p className="text-gray-300 text-base sm:text-lg leading-relaxed max-w-3xl">
-            This document provides complete transparency into how ParaDocs identifies, scores, and
+            This document provides complete transparency into how Paradocs identifies, scores, and
             presents patterns in paranormal report data. Our goal is to enable researchers to
             evaluate our findings critically and understand exactly how conclusions were reached.
           </p>
@@ -243,7 +243,7 @@ export default function MethodologyPage() {
 
           <div className="prose prose-invert max-w-none">
             <p className="text-gray-300 text-sm sm:text-base mb-4">
-              The ParaDocs Pattern Detection System analyzes the database of paranormal reports to
+              The Paradocs Pattern Detection System analyzes the database of paranormal reports to
               identify statistically significant patterns. The system runs continuously, processing
               new reports and updating pattern assessments in near real-time.
             </p>
@@ -297,7 +297,7 @@ export default function MethodologyPage() {
 
           <div className="space-y-6">
             <p className="text-gray-300 text-sm sm:text-base">
-              Pattern detection operates on the ParaDocs report database, which includes reports
+              Pattern detection operates on the Paradocs report database, which includes reports
               from multiple sources with varying levels of verification and detail.
             </p>
 
@@ -311,7 +311,7 @@ export default function MethodologyPage() {
                   <div>
                     <h4 className="text-sm font-medium text-white">User Submissions</h4>
                     <p className="text-xs text-gray-400">
-                      First-hand accounts submitted through the ParaDocs platform. Includes
+                      First-hand accounts submitted through the Paradocs platform. Includes
                       structured fields for location, date, phenomena type, and detailed
                       descriptions.
                     </p>
@@ -936,7 +936,7 @@ export default function MethodologyPage() {
           </p>
           <p className="text-xs text-gray-600 mt-4">
             Last updated: {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-            {' · '}ParaDocs Pattern Detection v1.0
+            {' · '}Paradocs Pattern Detection v1.0
           </p>
         </div>
       </div>

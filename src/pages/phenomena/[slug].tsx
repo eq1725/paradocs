@@ -219,15 +219,26 @@ export default function PhenomenonPage() {
           )}
 
           <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {/* Back Link */}
-            <Link
-              href="/phenomena"
-              scroll={false}
+            {/* Back Link — use router.back() to preserve scroll position when user came from the encyclopedia */}
+            <button
+              onClick={() => {
+                try {
+                  const stored = sessionStorage.getItem('paradocs_nav_ctx')
+                  if (stored) {
+                    const ctx = JSON.parse(stored)
+                    if (ctx.referrerPath && ctx.referrerPath.split('?')[0] === '/phenomena') {
+                      router.back()
+                      return
+                    }
+                  }
+                } catch {}
+                router.push('/phenomena')
+              }}
               className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-6"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Encyclopedia
-            </Link>
+            </button>
 
             <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
               {/* Icon/Image */}

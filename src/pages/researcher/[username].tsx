@@ -176,14 +176,14 @@ export default function ResearcherProfile() {
   const userInterests = stats.topCategories
     .map(c => c.category as PhenomenonCategory)
 
-  const ogDescription = `${stats.rank} on ParaDocs — ${stats.totalEntries} phenomena logged across ${stats.categoriesExplored} categories. ${stats.theoriesCreated} original theories.`
+  const ogDescription = `${stats.rank} on Paradocs — ${stats.totalEntries} phenomena logged across ${stats.categoriesExplored} categories. ${stats.theoriesCreated} original theories.`
 
   return (
     <>
       <Head>
-        <title>{profile.displayName}&apos;s Constellation | ParaDocs</title>
+        <title>{profile.displayName}&apos;s Constellation | Paradocs</title>
         <meta name="description" content={ogDescription} />
-        <meta property="og:title" content={`${profile.displayName}'s Constellation | ParaDocs`} />
+        <meta property="og:title" content={`${profile.displayName}'s Constellation | Paradocs`} />
         <meta property="og:description" content={ogDescription} />
         <meta property="og:type" content="profile" />
         <meta property="og:url" content={`https://beta.discoverparadocs.com/researcher/${username}`} />
@@ -368,7 +368,7 @@ export default function ResearcherProfile() {
           {/* Footer */}
           <div className="text-center py-8 border-t border-gray-800">
             <p className="text-gray-500 text-sm mb-3">
-              Build your own constellation on ParaDocs
+              Build your own constellation on Paradocs
             </p>
             <Link
               href="/explore"

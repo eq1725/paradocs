@@ -87,7 +87,7 @@ export default function ShareConstellation({
         ctx.font = '14px system-ui, sans-serif'
         ctx.fillStyle = 'rgba(139, 92, 246, 0.5)'
         ctx.textAlign = 'right'
-        ctx.fillText('ParaDocs', canvas.width - 16, canvas.height - 12)
+        ctx.fillText('Paradocs', canvas.width - 16, canvas.height - 12)
 
         canvas.toBlob(blob => {
           if (!blob) return
@@ -281,7 +281,7 @@ export default function ShareConstellation({
               <Image className="w-5 h-5 text-purple-400 shrink-0" />
               <div className="flex-1">
                 <div className="text-sm text-white">Constellation Map</div>
-                <div className="text-xs text-gray-500">High-res PNG with ParaDocs branding</div>
+                <div className="text-xs text-gray-500">High-res PNG with Paradocs branding</div>
               </div>
               <Download className="w-4 h-4 text-gray-500" />
             </button>

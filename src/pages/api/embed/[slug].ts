@@ -2,7 +2,7 @@
  * API: GET /api/embed/[slug]
  *
  * Embeddable Widget endpoint - returns an HTML snippet or JSON data
- * for external sites to embed a ParaDocs report card.
+ * for external sites to embed a Paradocs report card.
  *
  * Supports two modes:
  * - ?format=html  -> Returns a self-contained HTML card (for iframe embed)
@@ -108,7 +108,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   htmlCard += '<span class="score">' + score + '% credibility</span>';
   htmlCard += '<span>\uD83D\uDC41 ' + (r.view_count || 0) + ' views</span>';
   htmlCard += '</div>';
-  htmlCard += '<div class="brand">\u2726 <span>ParaDocs</span></div>';
+  htmlCard += '<div class="brand">\u2726 <span>Paradocs</span></div>';
   htmlCard += '</a></body></html>';
 
   if (format === 'html') {

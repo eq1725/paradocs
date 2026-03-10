@@ -153,7 +153,7 @@ export default async function handler(
           var html3 = generateWinbackEmail3(name, totalReports, trendingReports, baseUrl);
           var result3 = await sendEmail({
             to: profile.email,
-            subject: 'The unexplained never stops - neither does ParaDocs',
+            subject: 'The unexplained never stops - neither does Paradocs',
             html: html3,
             tags: [{ name: 'type', value: 'winback-3' }]
           });
@@ -237,13 +237,13 @@ function generateWinbackEmail3(name: string, totalReports: number, reports: any[
     '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">Hey ' + esc(name) + ', this is the last we\'ll reach out for a while. We just wanted you to know:</p>' +
     '<div style="padding: 16px; background: #1e1b2e; border-radius: 8px; text-align: center; margin: 16px 0;">' +
     '<div style="font-size: 32px; font-weight: 700; color: #c084fc;">' + totalReports.toLocaleString() + '+</div>' +
-    '<div style="color: #9ca3af; font-size: 13px; margin-top: 4px;">reports in the ParaDocs database</div>' +
+    '<div style="color: #9ca3af; font-size: 13px; margin-top: 4px;">reports in the Paradocs database</div>' +
     '</div>' +
     '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">The community is growing, and the mysteries keep coming. Your research contributions and saved work are preserved and waiting for you.</p>' +
     reportSnippet +
     '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">Free accounts still get access to browse and read. Whenever you\'re ready to dive deeper, we\'ll be here.</p>',
     baseUrl + '/explore',
-    'Visit ParaDocs',
+    'Visit Paradocs',
     baseUrl
   );
 }
@@ -261,7 +261,7 @@ function emailShell(content: string, ctaUrl: string, ctaText: string, baseUrl: s
     ctaText + '</a></td></tr>' +
     '<tr><td style="padding: 32px 0 16px 0; border-top: 1px solid #1f2937; text-align: center;">' +
     '<a href="' + baseUrl + '/dashboard/settings" style="color: #6b7280; font-size: 12px; text-decoration: underline;">Unsubscribe</a>' +
-    '<p style="color: #374151; font-size: 11px; margin: 16px 0 0 0;">&copy; 2026 ParaDocs</p>' +
+    '<p style="color: #374151; font-size: 11px; margin: 16px 0 0 0;">&copy; 2026 Paradocs</p>' +
     '</td></tr></table></td></tr></table></body></html>';
 }
 

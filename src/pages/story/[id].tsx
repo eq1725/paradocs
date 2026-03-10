@@ -117,7 +117,7 @@ export default function StoryPage(props: StoryProps) {
           <h1 className="text-2xl font-bold text-white mb-2">Story Not Found</h1>
           <p className="text-gray-400 mb-6">This report may have been removed or the link is invalid.</p>
           <a href="/" className="px-6 py-2.5 rounded-lg bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition-colors">
-            Explore ParaDocs
+            Explore Paradocs
           </a>
         </div>
       </div>
@@ -139,14 +139,14 @@ export default function StoryPage(props: StoryProps) {
   return (
     <>
       <Head>
-        <title>{report.title + ' | ParaDocs'}</title>
+        <title>{report.title + ' | Paradocs'}</title>
         <meta name="description" content={report.teaser} />
         <meta property="og:title" content={report.title} />
         <meta property="og:description" content={report.teaser} />
         <meta property="og:image" content={ogImageUrl} />
         <meta property="og:url" content={fullUrl} />
         <meta property="og:type" content="article" />
-        <meta property="og:site_name" content="ParaDocs" />
+        <meta property="og:site_name" content="Paradocs" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={report.title} />
         <meta name="twitter:description" content={report.teaser} />
@@ -225,7 +225,7 @@ export default function StoryPage(props: StoryProps) {
             </div>
             <h2 className="text-xl font-bold text-white mb-2">Read the full investigation</h2>
             <p className="text-gray-400 text-sm mb-6 max-w-md mx-auto">
-              Join ParaDocs to access the complete report, AI analysis, evidence files, and community discussion.
+              Join Paradocs to access the complete report, AI analysis, evidence files, and community discussion.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <a
@@ -267,8 +267,8 @@ export default function StoryPage(props: StoryProps) {
         {/* Footer */}
         <footer className="border-t border-gray-800 px-6 py-8 mt-12">
           <div className="max-w-3xl mx-auto text-center text-sm text-gray-500">
-            <p>{'\u2726'} ParaDocs {'\u2014'} Where Mysteries Meet Data</p>
-            <p className="mt-1">{'\u00A9'} 2026 ParaDocs. All rights reserved.</p>
+            <p>{'\u2726'} Paradocs {'\u2014'} Where Mysteries Meet Data</p>
+            <p className="mt-1">{'\u00A9'} 2026 Paradocs. All rights reserved.</p>
           </div>
         </footer>
       </div>

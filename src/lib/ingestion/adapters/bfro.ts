@@ -222,7 +222,7 @@ async function fetchWithRetry(url: string, retries: number = 3, delay: number = 
     try {
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'ParaDocs Research Bot/1.0 (https://discoverparadocs.com; research@discoverparadocs.com)',
+          'User-Agent': 'Paradocs Research Bot/1.0 (https://discoverparadocs.com; research@discoverparadocs.com)',
           'Accept': 'text/html,application/xhtml+xml',
         }
       });

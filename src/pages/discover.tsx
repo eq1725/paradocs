@@ -579,7 +579,7 @@ function DiscoverCard({ item, index, isActive, user, imgError, onImageError, onR
             if (navigator.share) {
               navigator.share({
                 title: item.name,
-                text: item.ai_summary || `Discover ${item.name} on ParaDocs`,
+                text: item.ai_summary || `Discover ${item.name} on Paradocs`,
                 url: `${window.location.origin}/phenomena/${item.slug}`,
               }).catch(() => {})
             } else {
