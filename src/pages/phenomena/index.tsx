@@ -79,6 +79,7 @@ const ALPHABET = '#ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
 let _phenomenaCache: Phenomenon[] | null = null
 let _showMoreCache: Record<string, number> = {}
 let _collapsedCache: Set<string> | null = null
+let _scrollY: number | null = null
 
 const CATEGORY_ORDER = [
   'cryptids',
@@ -217,6 +218,33 @@ export default function PhenomenaPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
+
+  // Save scroll position when navigating away, restore on mount
+  useEffect(() => {
+    // Restore scroll position if we have cached data (back-navigation)
+    if (_phenomenaCache && _scrollY !== null) {
+      const y = _scrollY
+      _scrollY = null
+      // Use rAF to ensure DOM has rendered with cached data
+      requestAnimationFrame(() => {
+        window.scrollTo(0, y)
+      })
+    }
+
+    // Save scroll position + nav context on route change (navigating to a detail page)
+    const handleRouteChangeStart = (url: string) => {
+      if (url.startsWith('/phenomena/')) {
+        _scrollY = window.scrollY
+        try {
+          sessionStorage.setItem('paradocs_nav_ctx', JSON.stringify({ referrerPath: '/phenomena' }))
+        } catch {}
+      }
+    }
+    router.events.on('routeChangeStart', handleRouteChangeStart)
+    return () => {
+      router.events.off('routeChangeStart', handleRouteChangeStart)
+    }
+  }, [router])
 
   // --- URL State: Initialize from query params ---
   useEffect(() => {
