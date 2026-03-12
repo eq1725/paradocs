@@ -73,6 +73,12 @@ export function ResearchHub() {
     refresh,
   } = useResearchHub()
 
+  // Defensive: ensure all data arrays are always arrays even if hook returns undefined
+  var safeArtifacts = Array.isArray(artifacts) ? artifacts : []
+  var safeCaseFiles = Array.isArray(caseFiles) ? caseFiles : []
+  var safeConnections = Array.isArray(connections) ? connections : []
+  var safeInsights = Array.isArray(insights) ? insights : []
+
   const [selectedArtifact, setSelectedArtifact] = useState<ConstellationArtifact | null>(null)
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false)
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
@@ -83,13 +89,13 @@ export function ResearchHub() {
   // Build case file to artifact ID mapping from the hub data
   // The hub-data API returns artifacts grouped; we derive the map here
   const caseFileArtifactMap: Record<string, string[]> = {}
-  caseFiles.forEach(function(cf) {
+  safeCaseFiles.forEach(function(cf) {
     caseFileArtifactMap[cf.id] = []
   })
 
   // Group case files with artifact counts
   // Use stats from the API when available, otherwise derive from artifacts
-  const caseFilesWithCounts: CaseFileWithCount[] = caseFiles.map(function(cf) {
+  const caseFilesWithCounts: CaseFileWithCount[] = safeCaseFiles.map(function(cf) {
     var count = caseFileArtifactMap[cf.id] ? caseFileArtifactMap[cf.id].length : 0
     return {
       ...cf,
@@ -224,7 +230,7 @@ export function ResearchHub() {
       <ResearchHubSidebar
         caseFiles={caseFilesWithCounts}
         activeCaseFileId={activeCaseFileId}
-        insightCount={insights.filter(function(i) { return !i.dismissed }).length}
+        insightCount={safeInsights.filter(function(i) { return !i.dismissed }).length}
         stats={stats}
         onSelectCaseFile={setActiveCaseFileId}
         onCreateCaseFile={handleCreateCaseFile}
@@ -254,10 +260,10 @@ export function ResearchHub() {
           {currentView === 'board' && (
             <div className="p-6">
               <BoardView
-                artifacts={artifacts}
+                artifacts={safeArtifacts}
                 caseFiles={caseFilesWithCounts}
-                connections={connections}
-                insights={insights.filter(i => !i.dismissed)}
+                connections={safeConnections}
+                insights={safeInsights.filter(i => !i.dismissed)}
                 onSelectArtifact={handleSelectArtifact}
                 onAddArtifact={() => setIsQuickAddOpen(true)}
                 onCreateCaseFile={handleCreateCaseFile}
@@ -272,10 +278,10 @@ export function ResearchHub() {
           {currentView === 'timeline' && (
             <div className="p-6">
               <TimelineView
-                artifacts={artifacts}
+                artifacts={safeArtifacts}
                 caseFiles={caseFiles}
                 caseFileArtifactMap={caseFileArtifactMap}
-                insights={insights.filter(function(i) { return !i.dismissed })}
+                insights={safeInsights.filter(function(i) { return !i.dismissed })}
                 activeCaseFileId={activeCaseFileId}
                 onSelectArtifact={handleSelectArtifact}
                 onAddArtifact={function() { setIsQuickAddOpen(true) }}
@@ -285,10 +291,10 @@ export function ResearchHub() {
 
           {currentView === 'map' && (
             <MapView
-              artifacts={artifacts}
+              artifacts={safeArtifacts}
               caseFiles={caseFiles}
               caseFileArtifactMap={caseFileArtifactMap}
-              insights={insights.filter(function(i) { return !i.dismissed })}
+              insights={safeInsights.filter(function(i) { return !i.dismissed })}
               activeCaseFileId={activeCaseFileId}
               onSelectArtifact={handleSelectArtifact}
               onAddArtifact={function() { setIsQuickAddOpen(true) }}
@@ -309,7 +315,7 @@ export function ResearchHub() {
         onClose={function() { setIsMobileSidebarOpen(false) }}
         caseFiles={caseFilesWithCounts}
         activeCaseFileId={activeCaseFileId}
-        insightCount={insights.filter(function(i) { return !i.dismissed }).length}
+        insightCount={safeInsights.filter(function(i) { return !i.dismissed }).length}
         stats={stats}
         onSelectCaseFile={setActiveCaseFileId}
         onCreateCaseFile={handleCreateCaseFile}
@@ -334,7 +340,7 @@ export function ResearchHub() {
       {/* Detail Drawer */}
       <ArtifactDetailDrawer
         artifact={selectedArtifact}
-        connections={connections.filter(
+        connections={safeConnections.filter(
           (c) =>
             c.artifact_a_id === selectedArtifact?.id ||
             c.artifact_b_id === selectedArtifact?.id
