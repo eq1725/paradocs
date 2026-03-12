@@ -211,28 +211,11 @@ export function BoardView({
                   </div>
                 ))}
 
-                {/* Intersperse AI insights */}
-                {insights.slice(0, 2).map((insight, idx) => (
-                  <div
-                    key={`insight-${insight.id}`}
-                    className="rounded-xl border border-cyan-800 bg-cyan-950/30 p-4 flex flex-col"
-                  >
-                    <div className="flex items-start gap-3 mb-3">
-                      <Sparkles className="w-5 h-5 text-cyan-400 flex-shrink-0 mt-0.5" />
-                      <h4 className="font-medium text-cyan-300 text-sm line-clamp-2">
-                        {insight.title || 'AI Insight'}
-                      </h4>
-                    </div>
-                    <p className="text-sm text-cyan-200/70 line-clamp-3 flex-grow">
-                      {insight.body}
-                    </p>
-                    <div className="text-xs text-cyan-400/50 mt-3">
-                      {insight.created_at
-                        ? new Date(insight.created_at).toLocaleDateString()
-                        : 'Recently generated'}
-                    </div>
+                {(caseFile.artifacts || []).length === 0 && (
+                  <div className="col-span-full px-3 py-6 text-center text-sm text-gray-500">
+                    No artifacts in this case file yet
                   </div>
-                ))}
+                )}
               </div>
             )}
           </div>

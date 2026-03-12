@@ -82,20 +82,11 @@ export function ResearchHub() {
     embedId?: string
   }>({ isOpen: false, type: 'theory', title: '', url: '' })
 
-  // Build case file to artifact ID mapping from the hub data
-  // The hub-data API returns artifacts grouped; we derive the map here
-  const caseFileArtifactMap: Record<string, string[]> = {}
-  safeCaseFiles.forEach(function(cf) {
-    caseFileArtifactMap[cf.id] = []
-  })
-
-  // Group case files with artifact counts
-  // Use stats from the API when available, otherwise derive from artifacts
-  const caseFilesWithCounts: CaseFileWithCount[] = safeCaseFiles.map(function(cf) {
-    var count = caseFileArtifactMap[cf.id] ? caseFileArtifactMap[cf.id].length : 0
+  // Case files are enriched with artifacts array and artifact_count by the hook
+  const caseFilesWithCounts: CaseFileWithCount[] = safeCaseFiles.map(function(cf: any) {
     return {
       ...cf,
-      artifact_count: count,
+      artifact_count: cf.artifacts ? cf.artifacts.length : (cf.artifact_count || 0),
     }
   })
 
