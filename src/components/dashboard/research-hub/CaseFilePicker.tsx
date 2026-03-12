@@ -59,7 +59,7 @@ export function CaseFilePicker({
                 return (
                   <button
                     key={cf.id}
-                    onClick={function() { onSelect(cf.id); onClose() }}
+                    onClick={function() { onSelect(cf.id) }}
                     className={classNames(
                       'w-full text-left px-3 py-2.5 rounded-lg transition-colors',
                       'flex items-center gap-3',

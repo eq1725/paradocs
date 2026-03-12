@@ -171,10 +171,13 @@ export function ResearchHub() {
   }, [])
 
   const handleMoveToSelected = useCallback(async function(caseFileId: string) {
-    if (!moveArtifact) return
-    await addArtifactToCaseFile(caseFileId, moveArtifact.id)
+    // Capture artifact ref before any state changes
+    var artifact = moveArtifact
+    if (!artifact) return
     setMoveArtifact(null)
-  }, [moveArtifact, addArtifactToCaseFile])
+    await addArtifactToCaseFile(caseFileId, artifact.id)
+    refresh()
+  }, [moveArtifact, addArtifactToCaseFile, refresh])
 
   const handleRemoveFromCaseFile = useCallback(
     async (caseFileId: string, artifactId: string) => {
