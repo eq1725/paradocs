@@ -9,7 +9,6 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createServerClient } from '@/lib/supabase'
-import { v4 as uuidv4 } from 'uuid'
 
 export default async function handler(
   req: NextApiRequest,
@@ -88,7 +87,7 @@ export default async function handler(
       }
 
       try {
-        const caseFileId = uuidv4()
+        const caseFileId = crypto.randomUUID()
         const now = new Date().toISOString()
 
         // Get the max sort_order for this user

@@ -9,7 +9,6 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createServerClient } from '@/lib/supabase'
-import { v4 as uuidv4 } from 'uuid'
 
 export default async function handler(
   req: NextApiRequest,
@@ -98,7 +97,7 @@ export default async function handler(
           return res.status(403).json({ error: 'One or both artifacts not found or access denied' })
         }
 
-        const connectionId = uuidv4()
+        const connectionId = crypto.randomUUID()
         const now = new Date().toISOString()
 
         const { data: connection, error } = await supabase

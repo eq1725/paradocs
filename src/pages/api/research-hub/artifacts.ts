@@ -8,7 +8,6 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createServerClient } from '@/lib/supabase'
-import { v4 as uuidv4 } from 'uuid'
 
 export default async function handler(
   req: NextApiRequest,
@@ -154,7 +153,7 @@ export default async function handler(
       }
 
       try {
-        const artifactId = uuidv4()
+        const artifactId = crypto.randomUUID()
         const now = new Date().toISOString()
 
         const { data: artifact, error } = await supabase
