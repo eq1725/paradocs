@@ -132,11 +132,14 @@ export function useResearchHub(initialView: ResearchHubView = 'board'): Research
       setArtifacts(rawArtifacts)
       // Enrich case files with their artifacts so BoardView can render them
       var enrichedCaseFiles = (data.caseFiles || []).map(function(cf: any) {
+        var cfArtifacts = caseFileArtifactsMap[cf.id] || []
         return Object.assign({}, cf, {
-          artifact_count: caseFileArtifactsMap[cf.id] ? caseFileArtifactsMap[cf.id].length : (cf.artifact_count || 0),
-          artifacts: caseFileArtifactsMap[cf.id] || []
+          artifact_count: cfArtifacts.length,
+          artifacts: cfArtifacts
         })
       })
+      console.log('[ResearchHub] enrichedCaseFiles:', JSON.stringify(enrichedCaseFiles.map(function(cf: any) { return { id: cf.id, title: cf.title, artifact_count: cf.artifact_count, artifactsLen: (cf.artifacts || []).length } })))
+      console.log('[ResearchHub] caseFileArtifactsMap keys:', Object.keys(caseFileArtifactsMap), 'flat artifacts:', rawArtifacts.length)
       setCaseFiles(enrichedCaseFiles)
       setConnections(data.connections || [])
       setInsights(data.insights || [])
