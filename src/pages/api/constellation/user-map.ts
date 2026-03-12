@@ -28,8 +28,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Invalid token' })
     }
 
-    // Parallel fetch: constellation entries, total phenomena count, streak, connections, theories
-    const [entriesResult, totalResult, streakResult, connectionsResult, theoriesResult] = await Promise.all([
+    // Parallel fetch: constellation entries, total phenomena count, streak, connections, theories, research hub artifacts
+    const [entriesResult, totalResult, streakResult, connectionsResult, theoriesResult, artifactsResult] = await Promise.all([
       // User's logged constellation entries with report details
       supabase
         .from('constellation_entries')
@@ -72,6 +72,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .select('*')
         .eq('user_id', user.id)
         .order('updated_at', { ascending: false }),
+
+      // Research Hub artifacts (external URLs not linked to reports)
+      supabase
+        .from('constellation_artifacts')
+        .select('id, source_type, external_url, title, thumbnail_url, user_note, verdict, tags, created_at, updated_at')
+        .eq('user_id', user.id)
+        .neq('source_type', 'paradocs_report')
+        .order('created_at', { ascending: false }),
     ])
 
     const entries = entriesResult.data || []
@@ -79,6 +87,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const streak = (streakResult as any).data
     const userConnections = (connectionsResult as any).data || []
     const userTheories = (theoriesResult as any).data || []
+    const externalArtifacts = (artifactsResult as any).data || []
 
     // Build category engagement from logged entries
     const categoryMap: Record<string, {
@@ -193,8 +202,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         timestamp: entry.created_at,
       }))
 
+    // Include external artifacts (YouTube, Reddit, etc.) from Research Hub
+    const externalEntryNodes = externalArtifacts.map(function(a: any) {
+      // Count external artifact tags in the tag system too
+      var artifactTags = a.tags || []
+      for (var i = 0; i < artifactTags.length; i++) {
+        var tag = artifactTags[i]
+        allTags.add(tag)
+        if (!tagToEntries[tag]) tagToEntries[tag] = []
+        tagToEntries[tag].push(a.id)
+      }
+
+      return {
+        id: a.id,
+        reportId: null,
+        name: a.title || 'External Source',
+        slug: null,
+        category: 'external',
+        imageUrl: a.thumbnail_url || null,
+        locationName: null,
+        eventDate: null,
+        summary: null,
+        note: a.user_note || '',
+        verdict: a.verdict || 'needs_info',
+        tags: artifactTags,
+        loggedAt: a.created_at,
+        updatedAt: a.updated_at,
+        sourceType: a.source_type,
+        externalUrl: a.external_url,
+      }
+    })
+
+    // Merge all entry nodes
+    var allEntryNodes = entryNodes.concat(externalEntryNodes)
+
     return res.status(200).json({
-      entryNodes,
+      entryNodes: allEntryNodes,
       categoryStats,
       tagConnections,
       trail,
@@ -216,15 +259,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         updated_at: t.updated_at,
       })),
       stats: {
-        totalEntries,
+        totalEntries: totalEntries + externalArtifacts.length,
         totalPhenomena,
         categoriesExplored,
         totalCategories: 11,
-        uniqueTags,
+        uniqueTags: allTags.size,
         notesWritten: hasNotes,
         connectionsFound,
         drawnConnections,
         theoryCount,
+        externalArtifacts: externalArtifacts.length,
         currentStreak: streak?.current_streak || 0,
         longestStreak: streak?.longest_streak || 0,
         rank,

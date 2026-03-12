@@ -271,6 +271,14 @@ export default async function handler(
       }
 
       try {
+        // Get the artifact before deleting to check for linked constellation entry
+        const { data: artifactToDelete } = await supabase
+          .from('constellation_artifacts')
+          .select('id, report_id, source_type')
+          .eq('id', id as string)
+          .eq('user_id', user.id)
+          .maybeSingle()
+
         // Delete from junction table first (if it exists)
         await supabase
           .from('constellation_case_file_artifacts')
@@ -288,6 +296,19 @@ export default async function handler(
             return res.status(500).json({ error: 'constellation_artifacts table does not exist' })
           }
           throw error
+        }
+
+        // CASCADE: If artifact was linked to a report, also delete the constellation entry
+        if (artifactToDelete?.report_id) {
+          try {
+            await supabase
+              .from('constellation_entries')
+              .delete()
+              .eq('user_id', user.id)
+              .eq('report_id', artifactToDelete.report_id)
+          } catch (syncErr) {
+            console.error('Research Hub delete -> Constellation cascade error:', syncErr)
+          }
         }
 
         return res.status(200).json({ deleted: true })

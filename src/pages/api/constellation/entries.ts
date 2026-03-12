@@ -89,6 +89,59 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (error) throw error
 
+      // SYNC: Also create/update matching Research Hub artifact
+      try {
+        // Get report details for artifact title
+        const { data: report } = await supabase
+          .from('reports')
+          .select('title, slug, category')
+          .eq('id', report_id)
+          .single()
+
+        const artifactData = {
+          user_id: user.id,
+          source_type: 'paradocs_report',
+          report_id: report_id,
+          title: report?.title || 'Logged Report',
+          user_note: note || '',
+          verdict: verdict || 'needs_info',
+          tags: cleanTags,
+          updated_at: new Date().toISOString(),
+        }
+
+        // Check if artifact already exists for this report
+        const { data: existingArtifact } = await supabase
+          .from('constellation_artifacts')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('report_id', report_id)
+          .maybeSingle()
+
+        if (existingArtifact) {
+          // Update existing artifact
+          await supabase
+            .from('constellation_artifacts')
+            .update({
+              user_note: artifactData.user_note,
+              verdict: artifactData.verdict,
+              tags: artifactData.tags,
+              updated_at: artifactData.updated_at,
+            })
+            .eq('id', existingArtifact.id)
+        } else {
+          // Create new artifact
+          await supabase
+            .from('constellation_artifacts')
+            .insert({
+              ...artifactData,
+              created_at: new Date().toISOString(),
+            })
+        }
+      } catch (syncErr) {
+        // Sync is non-critical — log but don't fail the request
+        console.error('Constellation -> Research Hub sync error:', syncErr)
+      }
+
       return res.status(200).json({ entry: data, created: true })
     }
 
@@ -100,6 +153,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ error: 'entry_id is required' })
       }
 
+      // Get the entry's report_id before deleting so we can cascade to Research Hub
+      const { data: entryToDelete } = await supabase
+        .from('constellation_entries')
+        .select('report_id')
+        .eq('id', entry_id)
+        .eq('user_id', user.id)
+        .maybeSingle()
+
       const { error } = await supabase
         .from('constellation_entries')
         .delete()
@@ -107,6 +168,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .eq('user_id', user.id)
 
       if (error) throw error
+
+      // CASCADE: Also delete matching Research Hub artifact
+      if (entryToDelete?.report_id) {
+        try {
+          // Find and delete the artifact linked to this report
+          const { data: artifact } = await supabase
+            .from('constellation_artifacts')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('report_id', entryToDelete.report_id)
+            .maybeSingle()
+
+          if (artifact) {
+            // Delete junction table entries first
+            await supabase
+              .from('constellation_case_file_artifacts')
+              .delete()
+              .eq('artifact_id', artifact.id)
+
+            await supabase
+              .from('constellation_artifacts')
+              .delete()
+              .eq('id', artifact.id)
+              .eq('user_id', user.id)
+          }
+        } catch (syncErr) {
+          console.error('Constellation delete -> Research Hub cascade error:', syncErr)
+        }
+      }
 
       return res.status(200).json({ ok: true })
     }
