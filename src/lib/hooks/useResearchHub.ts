@@ -327,14 +327,18 @@ export function useResearchHub(initialView: ResearchHubView = 'board'): Research
       })
 
       if (!response.ok) {
+        var errorBody = ''
+        try { errorBody = await response.text() } catch (_e) { /* ignore */ }
+        console.error('addArtifactToCaseFile failed:', response.status, errorBody)
         setCaseFiles(prev => prev.map(cf =>
           cf.id === caseFileId ? { ...cf, artifact_count: Math.max(0, cf.artifact_count - 1) } : cf
         ))
-        throw new Error('Failed to add artifact to case file')
+        throw new Error('Failed to add artifact to case file: ' + response.status)
       }
 
       return true
     } catch (err) {
+      console.error('addArtifactToCaseFile error:', err)
       setError(err instanceof Error ? err.message : 'Failed to add artifact to case file')
       return false
     }

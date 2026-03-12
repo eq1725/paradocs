@@ -24,7 +24,7 @@ import { InsightsDrawer } from './InsightsDrawer'
 import { TheoryComposer } from './TheoryComposer'
 import { SharePanel } from './SharePanel'
 import { Menu, AlertCircle, RefreshCw } from 'lucide-react'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import type { ConstellationTheory } from '@/lib/database.types'
 
 interface CaseFileWithCount extends CaseFile {
@@ -73,6 +73,7 @@ export function ResearchHub() {
   const [isTheoryOpen, setIsTheoryOpen] = useState(false)
   const [editingTheory, setEditingTheory] = useState<ConstellationTheory | null>(null)
   const [moveArtifact, setMoveArtifact] = useState<ConstellationArtifact | null>(null)
+  var moveArtifactRef = useRef<ConstellationArtifact | null>(null)
   const [shareState, setShareState] = useState<{
     isOpen: boolean
     type: 'theory' | 'case_file' | 'profile'
@@ -167,17 +168,19 @@ export function ResearchHub() {
   }, [])
 
   const handleMoveToCaseFile = useCallback(function(artifact: ConstellationArtifact) {
+    moveArtifactRef.current = artifact
     setMoveArtifact(artifact)
   }, [])
 
   const handleMoveToSelected = useCallback(async function(caseFileId: string) {
-    // Capture artifact ref before any state changes
-    var artifact = moveArtifact
+    // Read from ref to avoid stale closure issues
+    var artifact = moveArtifactRef.current
     if (!artifact) return
+    moveArtifactRef.current = null
     setMoveArtifact(null)
     await addArtifactToCaseFile(caseFileId, artifact.id)
     refresh()
-  }, [moveArtifact, addArtifactToCaseFile, refresh])
+  }, [addArtifactToCaseFile, refresh])
 
   const handleRemoveFromCaseFile = useCallback(
     async (caseFileId: string, artifactId: string) => {
