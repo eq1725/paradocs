@@ -203,6 +203,11 @@ export function useResearchHub(initialView: ResearchHubView = 'board'): Research
       if (!headers) return false
 
       setArtifacts(prev => prev.filter(a => a.id !== id))
+      setCaseFiles(prev => prev.map(function(cf: any) {
+        if (!cf.artifacts) return cf
+        var filtered = cf.artifacts.filter(function(a: any) { return a.id !== id })
+        return Object.assign({}, cf, { artifacts: filtered, artifact_count: filtered.length })
+      }))
 
       const response = await fetch('/api/research-hub/artifacts?id=' + id, {
         method: 'DELETE',
