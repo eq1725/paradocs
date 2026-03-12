@@ -13,8 +13,8 @@ interface ViewSwitcherProps {
 
 const VIEWS = [
   { id: 'board' as ResearchHubView, label: 'Board', icon: LayoutGrid },
-  { id: 'timeline' as ResearchHubView, label: 'Timeline', icon: Clock, comingSoon: true },
-  { id: 'map' as ResearchHubView, label: 'Map', icon: Map, comingSoon: true },
+  { id: 'timeline' as ResearchHubView, label: 'Timeline', icon: Clock },
+  { id: 'map' as ResearchHubView, label: 'Map', icon: Map },
   { id: 'constellation' as ResearchHubView, label: 'Constellation', icon: Stars },
 ]
 

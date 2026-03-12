@@ -8,6 +8,25 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createServerClient } from '@/lib/supabase'
+import { createHash } from 'crypto'
+
+function normalizeUrl(rawUrl: string): string {
+  try {
+    var parsed = new URL(rawUrl)
+    var stripParams = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'ref', 'si']
+    stripParams.forEach(function(p) { parsed.searchParams.delete(p) })
+    parsed.hostname = parsed.hostname.toLowerCase()
+    var normalized = parsed.toString()
+    if (normalized.endsWith('/')) normalized = normalized.slice(0, -1)
+    return normalized
+  } catch {
+    return rawUrl.trim().toLowerCase()
+  }
+}
+
+function hashUrl(url: string): string {
+  return createHash('sha256').update(normalizeUrl(url)).digest('hex')
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -156,6 +175,12 @@ export default async function handler(
         const artifactId = crypto.randomUUID()
         const now = new Date().toISOString()
 
+        // Compute URL hash for dedup if external URL provided
+        var urlHash: string | null = null
+        if (external_url) {
+          urlHash = hashUrl(external_url)
+        }
+
         const { data: artifact, error } = await supabase
           .from('constellation_artifacts')
           .insert({
@@ -164,6 +189,7 @@ export default async function handler(
             source_type,
             report_id: report_id || null,
             external_url: external_url || null,
+            external_url_hash: urlHash,
             title,
             thumbnail_url: thumbnail_url || null,
             source_platform: source_platform || null,
@@ -184,6 +210,23 @@ export default async function handler(
             return res.status(500).json({ error: 'constellation_artifacts table does not exist' })
           }
           throw error
+        }
+
+        // Track external URL in flywheel signals table
+        if (external_url && urlHash && artifact) {
+          try {
+            // Try to upsert — increment save_count if exists, insert if new
+            await supabase.rpc('upsert_external_url_signal', {
+              p_url_hash: urlHash,
+              p_canonical_url: normalizeUrl(external_url),
+              p_source_type: source_type,
+              p_title: title,
+              p_thumbnail_url: thumbnail_url || null,
+            })
+          } catch {
+            // Flywheel tracking is non-critical — ignore errors
+            // The RPC function may not exist yet; that's OK
+          }
         }
 
         // If case_file_id provided, add artifact to that case file

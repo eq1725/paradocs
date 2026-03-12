@@ -18,33 +18,12 @@ import { ResearchHubSidebar } from './ResearchHubSidebar'
 import { MobileSidebar } from './MobileSidebar'
 import { ArtifactDetailDrawer } from './ArtifactDetailDrawer'
 import { ArtifactQuickAdd } from './ArtifactQuickAdd'
-import { Menu, Stars, AlertCircle, RefreshCw } from 'lucide-react'
+import { ConstellationView } from './ConstellationView'
+import { Menu, AlertCircle, RefreshCw } from 'lucide-react'
 import { useState, useCallback } from 'react'
 
 interface CaseFileWithCount extends CaseFile {
   artifact_count: number
-}
-
-interface PlaceholderViewProps {
-  icon: React.ComponentType<{ className?: string }>
-  title: string
-}
-
-function PlaceholderView({ icon: Icon, title }: PlaceholderViewProps) {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-96 text-center px-4">
-      <div className="w-24 h-24 mb-6 rounded-full bg-gray-800/50 flex items-center justify-center">
-        <Icon className="w-12 h-12 text-gray-600" />
-      </div>
-      <h2 className="text-2xl font-bold text-white mb-2">{title} View</h2>
-      <p className="text-gray-400 mb-4 max-w-sm">
-        We're building something amazing. Stay tuned!
-      </p>
-      <div className="inline-block px-4 py-2 rounded-lg bg-gray-800 text-gray-400 text-sm">
-        Coming Soon
-      </div>
-    </div>
-  )
 }
 
 export function ResearchHub() {
@@ -108,6 +87,9 @@ export function ResearchHub() {
     report_id?: string
     external_url?: string
     title: string
+    thumbnail_url?: string
+    source_platform?: string
+    metadata_json?: Record<string, any>
     user_note?: string
     verdict?: ArtifactVerdict
     tags?: string[]
@@ -118,6 +100,9 @@ export function ResearchHub() {
       report_id: data.report_id,
       external_url: data.external_url,
       title: data.title,
+      thumbnail_url: data.thumbnail_url,
+      source_platform: data.source_platform,
+      metadata_json: data.metadata_json,
       user_note: data.user_note,
       verdict: data.verdict,
       tags: data.tags || [],
@@ -302,9 +287,14 @@ export function ResearchHub() {
           )}
 
           {currentView === 'constellation' && (
-            <div className="p-6">
-              <PlaceholderView icon={Stars} title="Constellation" />
-            </div>
+            <ConstellationView
+              artifacts={safeArtifacts}
+              caseFiles={safeCaseFiles}
+              connections={safeConnections}
+              insights={safeInsights.filter(function(i) { return !i.dismissed })}
+              onSelectArtifact={handleSelectArtifact}
+              onAddArtifact={function() { setIsQuickAddOpen(true) }}
+            />
           )}
         </div>
       </div>
