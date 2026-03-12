@@ -170,6 +170,14 @@ export function ResearchHub() {
     [removeArtifact]
   )
 
+  const handleDeleteCaseFile = useCallback(
+    async function(id: string) {
+      await removeCaseFile(id)
+      await refresh()
+    },
+    [removeCaseFile, refresh]
+  )
+
   const handleConnect = useCallback((artifact: ConstellationArtifact) => {
     setConnectingFrom(artifact)
     setIsConnectingMode(true)
@@ -314,6 +322,7 @@ export function ResearchHub() {
                 onMoveToCaseFile={handleMoveToCaseFile}
                 onRemoveArtifact={handleDeleteArtifact}
                 onRemoveFromCaseFile={handleRemoveFromCaseFile}
+                onDeleteCaseFile={handleDeleteCaseFile}
               />
             </div>
           )}

@@ -13,6 +13,7 @@ import {
   Plus,
   FolderPlus,
   Sparkles,
+  Trash2,
   X,
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
@@ -41,6 +42,7 @@ interface BoardViewProps {
   onMoveToCaseFile: (artifact: ConstellationArtifact) => void
   onRemoveArtifact: (id: string) => void
   onRemoveFromCaseFile: (caseFileId: string, artifactId: string) => void
+  onDeleteCaseFile?: (id: string) => void
 }
 
 export function BoardView({
@@ -55,6 +57,7 @@ export function BoardView({
   onMoveToCaseFile,
   onRemoveArtifact,
   onRemoveFromCaseFile,
+  onDeleteCaseFile,
 }: BoardViewProps) {
   const [expandedCaseFiles, setExpandedCaseFiles] = useState<Set<string>>(
     new Set(caseFiles.map((cf) => cf.id))
@@ -158,10 +161,9 @@ export function BoardView({
         {caseFiles.map((caseFile) => (
           <div key={caseFile.id} className="space-y-4">
             {/* Case file header */}
-            <button
-              onClick={() => toggleCaseFile(caseFile.id)}
+            <div
               className={classNames(
-                'w-full text-left p-4 rounded-lg border transition-colors',
+                'w-full text-left p-4 rounded-lg border transition-colors cursor-pointer',
                 'hover:border-gray-700 hover:bg-gray-800/50',
                 'border-gray-800 bg-gray-800/20'
               )}
@@ -169,6 +171,7 @@ export function BoardView({
                 borderLeftWidth: '4px',
                 borderLeftColor: caseFile.cover_color || '#6b7280',
               }}
+              onClick={function() { toggleCaseFile(caseFile.id) }}
             >
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
@@ -184,6 +187,20 @@ export function BoardView({
                     {caseFile.artifact_count}
                   </span>
                 </div>
+                {onDeleteCaseFile && (
+                  <button
+                    onClick={function(e) {
+                      e.stopPropagation()
+                      if (window.confirm('Delete this case file? Artifacts inside will become unsorted.')) {
+                        onDeleteCaseFile(caseFile.id)
+                      }
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-red-900/30 text-gray-500 hover:text-red-400 transition-colors"
+                    title="Delete case file"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
               <p className="text-sm text-gray-500 ml-7">
                 {caseFile.visibility === 'private' ? 'Private' : 'Shared'} · Created{' '}
@@ -192,7 +209,7 @@ export function BoardView({
                   month: 'short',
                 })}
               </p>
-            </button>
+            </div>
 
             {/* Case file artifacts grid */}
             {expandedCaseFiles.has(caseFile.id) && (
