@@ -19,6 +19,7 @@ import { MobileSidebar } from './MobileSidebar'
 import { ArtifactDetailDrawer } from './ArtifactDetailDrawer'
 import { ArtifactQuickAdd } from './ArtifactQuickAdd'
 import { ConstellationView } from './ConstellationView'
+import { CaseFilePicker } from './CaseFilePicker'
 import { InsightsDrawer } from './InsightsDrawer'
 import { TheoryComposer } from './TheoryComposer'
 import { SharePanel } from './SharePanel'
@@ -71,6 +72,7 @@ export function ResearchHub() {
   const [isInsightsOpen, setIsInsightsOpen] = useState(false)
   const [isTheoryOpen, setIsTheoryOpen] = useState(false)
   const [editingTheory, setEditingTheory] = useState<ConstellationTheory | null>(null)
+  const [moveArtifact, setMoveArtifact] = useState<ConstellationArtifact | null>(null)
   const [shareState, setShareState] = useState<{
     isOpen: boolean
     type: 'theory' | 'case_file' | 'profile'
@@ -164,15 +166,15 @@ export function ResearchHub() {
     setIsConnectingMode(true)
   }, [])
 
-  const handleMoveToCaseFile = useCallback(
-    async (artifact: ConstellationArtifact) => {
-      const caseFileId = window.prompt('Select Case File ID:')
-      if (!caseFileId) return
+  const handleMoveToCaseFile = useCallback(function(artifact: ConstellationArtifact) {
+    setMoveArtifact(artifact)
+  }, [])
 
-      await addArtifactToCaseFile(caseFileId, artifact.id)
-    },
-    [addArtifactToCaseFile]
-  )
+  const handleMoveToSelected = useCallback(async function(caseFileId: string) {
+    if (!moveArtifact) return
+    await addArtifactToCaseFile(caseFileId, moveArtifact.id)
+    setMoveArtifact(null)
+  }, [moveArtifact, addArtifactToCaseFile])
 
   const handleRemoveFromCaseFile = useCallback(
     async (caseFileId: string, artifactId: string) => {
@@ -400,6 +402,15 @@ export function ResearchHub() {
         connections={safeConnections}
         editingTheory={editingTheory}
         onSaved={handleTheorySaved}
+      />
+
+      {/* Case File Picker */}
+      <CaseFilePicker
+        isOpen={moveArtifact !== null}
+        onClose={function() { setMoveArtifact(null) }}
+        caseFiles={caseFilesWithCounts}
+        onSelect={handleMoveToSelected}
+        onCreateNew={handleCreateCaseFile}
       />
 
       {/* Insights Drawer */}
