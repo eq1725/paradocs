@@ -90,6 +90,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (error) throw error
 
       // SYNC: Also create/update matching Research Hub artifact
+      let artifactId: string | null = null
       try {
         // Get report details for artifact title
         const { data: report } = await supabase
@@ -128,21 +129,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               updated_at: artifactData.updated_at,
             })
             .eq('id', existingArtifact.id)
+          artifactId = existingArtifact.id
         } else {
           // Create new artifact
-          await supabase
+          const { data: newArtifact } = await supabase
             .from('constellation_artifacts')
             .insert({
               ...artifactData,
               created_at: new Date().toISOString(),
             })
+            .select('id')
+            .single()
+          if (newArtifact) artifactId = newArtifact.id
         }
       } catch (syncErr) {
         // Sync is non-critical — log but don't fail the request
         console.error('Constellation -> Research Hub sync error:', syncErr)
       }
 
-      return res.status(200).json({ entry: data, created: true })
+      return res.status(200).json({ entry: data, artifactId, created: true })
     }
 
     // DELETE: Remove a constellation entry

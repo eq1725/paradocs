@@ -738,12 +738,12 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                 className={classNames(
                   'inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
                   isLogged
-                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                    : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-600/20'
+                    ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                    : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20'
                 )}
               >
-                <Star className="w-4 h-4" fill={isLogged ? 'currentColor' : 'none'} />
-                {isLogged ? 'Logged to Constellation' : 'Log to Constellation'}
+                <BookOpen className="w-4 h-4" />
+                {isLogged ? 'Saved to Research Hub' : 'Save to Research Hub'}
               </button>
               <button
                 onClick={handleSave}
@@ -936,12 +936,12 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                   className={classNames(
                     'btn text-xs sm:text-sm transition-all',
                     isLogged
-                      ? 'btn-ghost text-purple-400'
-                      : 'bg-purple-600/80 hover:bg-purple-500 text-white border-0'
+                      ? 'btn-ghost text-indigo-400'
+                      : 'bg-indigo-600/80 hover:bg-indigo-500 text-white border-0'
                   )}
                 >
-                  <Star className="w-4 h-4" fill={isLogged ? 'currentColor' : 'none'} />
-                  <span className="hidden sm:inline">{isLogged ? 'Logged' : 'Log'}</span>
+                  <BookOpen className="w-4 h-4" />
+                  <span className="hidden sm:inline">{isLogged ? 'Saved' : 'Save'}</span>
                 </button>
               )}
               <button
@@ -1127,7 +1127,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           contextTitle={report?.title}
         />
 
-        {/* Log to Constellation Modal */}
+        {/* Save to Research Hub Modal */}
         {user && report && (
           <LogToConstellationWrapper
             isOpen={logModalOpen}

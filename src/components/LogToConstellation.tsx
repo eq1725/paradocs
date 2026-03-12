@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Star, X, Check, AlertCircle, HelpCircle, Search, Tag, Trash2 } from 'lucide-react'
+import { BookOpen, X, Check, AlertCircle, HelpCircle, Search, Tag, Trash2, Folder, ChevronDown, ChevronRight, Plus, Circle } from 'lucide-react'
 import { useToast } from '@/components/Toast'
+import { supabase } from '@/lib/supabase'
 
 interface LogToConstellationProps {
   isOpen: boolean
@@ -12,37 +13,51 @@ interface LogToConstellationProps {
   onLogged?: (entry: any) => void
 }
 
-const VERDICTS = [
-  { value: 'compelling', label: 'Compelling', icon: '✦', color: 'text-amber-400 border-amber-400/40 bg-amber-400/10', desc: 'Strong evidence or credible account' },
-  { value: 'inconclusive', label: 'Inconclusive', icon: '◐', color: 'text-blue-400 border-blue-400/40 bg-blue-400/10', desc: 'Interesting but not enough to draw conclusions' },
-  { value: 'skeptical', label: 'Skeptical', icon: '⊘', color: 'text-gray-400 border-gray-400/40 bg-gray-400/10', desc: 'Likely has a conventional explanation' },
+interface CaseFileOption {
+  id: string
+  title: string
+  cover_color: string
+  artifact_count: number
+}
+
+var VERDICTS = [
+  { value: 'compelling', label: 'Compelling', icon: '\u2726', color: 'text-amber-400 border-amber-400/40 bg-amber-400/10', desc: 'Strong evidence or credible account' },
+  { value: 'inconclusive', label: 'Inconclusive', icon: '\u25D0', color: 'text-blue-400 border-blue-400/40 bg-blue-400/10', desc: 'Interesting but not enough to draw conclusions' },
+  { value: 'skeptical', label: 'Skeptical', icon: '\u2298', color: 'text-gray-400 border-gray-400/40 bg-gray-400/10', desc: 'Likely has a conventional explanation' },
   { value: 'needs_info', label: 'Need More Info', icon: '?', color: 'text-purple-400 border-purple-400/40 bg-purple-400/10', desc: 'Worth investigating further' },
 ]
 
 export default function LogToConstellation({
   isOpen, onClose, reportId, reportTitle, reportCategory, userToken, onLogged
 }: LogToConstellationProps) {
-  const { showToast } = useToast()
-  const [note, setNote] = useState('')
-  const [verdict, setVerdict] = useState('needs_info')
-  const [tags, setTags] = useState<string[]>([])
-  const [tagInput, setTagInput] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [existing, setExisting] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [deleting, setDeleting] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const noteRef = useRef<HTMLTextAreaElement>(null)
+  var { showToast } = useToast()
+  var [note, setNote] = useState('')
+  var [verdict, setVerdict] = useState('needs_info')
+  var [tags, setTags] = useState<string[]>([])
+  var [tagInput, setTagInput] = useState('')
+  var [saving, setSaving] = useState(false)
+  var [existing, setExisting] = useState<any>(null)
+  var [loading, setLoading] = useState(true)
+  var [deleting, setDeleting] = useState(false)
+  var [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  var noteRef = useRef<HTMLTextAreaElement>(null)
+
+  // Case file state
+  var [caseFiles, setCaseFiles] = useState<CaseFileOption[]>([])
+  var [selectedCaseFileId, setSelectedCaseFileId] = useState<string | null>(null)
+  var [showCaseFiles, setShowCaseFiles] = useState(false)
+  var [newCaseFileName, setNewCaseFileName] = useState('')
+  var [creatingCaseFile, setCreatingCaseFile] = useState(false)
 
   // Check for existing entry when opened
-  useEffect(() => {
+  useEffect(function() {
     if (!isOpen || !reportId || !userToken) return
     setLoading(true)
-    fetch(`/api/constellation/entries?report_id=${reportId}`, {
-      headers: { Authorization: `Bearer ${userToken}` }
+    fetch('/api/constellation/entries?report_id=' + reportId, {
+      headers: { Authorization: 'Bearer ' + userToken }
     })
-      .then(r => r.json())
-      .then(data => {
+      .then(function(r) { return r.json() })
+      .then(function(data) {
         if (data.entry) {
           setExisting(data.entry)
           setNote(data.entry.note || '')
@@ -55,17 +70,30 @@ export default function LogToConstellation({
           setTags([])
         }
       })
-      .catch(() => {})
-      .finally(() => {
+      .catch(function() {})
+      .finally(function() {
         setLoading(false)
-        setTimeout(() => noteRef.current?.focus(), 100)
+        setTimeout(function() { noteRef.current && noteRef.current.focus() }, 100)
       })
   }, [isOpen, reportId, userToken])
 
+  // Fetch case files when opened
+  useEffect(function() {
+    if (!isOpen || !userToken) return
+    fetch('/api/research-hub/case-files', {
+      headers: { Authorization: 'Bearer ' + userToken, 'Content-Type': 'application/json' }
+    })
+      .then(function(r) { return r.json() })
+      .then(function(data) {
+        setCaseFiles(data.caseFiles || [])
+      })
+      .catch(function() {})
+  }, [isOpen, userToken])
+
   function handleAddTag() {
-    const cleaned = tagInput.trim().toLowerCase().replace(/^#/, '')
+    var cleaned = tagInput.trim().toLowerCase().replace(/^#/, '')
     if (cleaned && !tags.includes(cleaned)) {
-      setTags([...tags, cleaned])
+      setTags([].concat(tags, [cleaned]))
     }
     setTagInput('')
   }
@@ -81,29 +109,71 @@ export default function LogToConstellation({
   }
 
   function removeTag(tag: string) {
-    setTags(tags.filter(t => t !== tag))
+    setTags(tags.filter(function(t) { return t !== tag }))
+  }
+
+  async function handleCreateCaseFile() {
+    if (!newCaseFileName.trim() || creatingCaseFile) return
+    setCreatingCaseFile(true)
+    try {
+      var resp = await fetch('/api/research-hub/case-files', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + userToken },
+        body: JSON.stringify({ title: newCaseFileName.trim(), cover_color: '#4f46e5', icon: 'folder' })
+      })
+      var data = await resp.json()
+      var newCf = data.caseFile || data
+      if (newCf && newCf.id) {
+        setCaseFiles(function(prev) { return [].concat(prev, [newCf]) })
+        setSelectedCaseFileId(newCf.id)
+        setNewCaseFileName('')
+      }
+    } catch (err) {
+      console.error('Failed to create case file:', err)
+    } finally {
+      setCreatingCaseFile(false)
+    }
   }
 
   async function handleSave() {
     if (saving) return
     setSaving(true)
     try {
-      const resp = await fetch('/api/constellation/entries', {
+      var resp = await fetch('/api/constellation/entries', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${userToken}` },
-        body: JSON.stringify({ report_id: reportId, note, verdict, tags })
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + userToken },
+        body: JSON.stringify({ report_id: reportId, note: note, verdict: verdict, tags: tags })
       })
-      const data = await resp.json()
+      var data = await resp.json()
       if (resp.ok && data.entry) {
-        onLogged?.(data.entry)
+        // If a case file was selected, add the artifact to it
+        if (selectedCaseFileId && data.artifactId) {
+          try {
+            await fetch('/api/research-hub/case-file-artifacts', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + userToken },
+              body: JSON.stringify({ case_file_id: selectedCaseFileId, artifact_id: data.artifactId })
+            })
+          } catch (cfErr) {
+            console.error('Failed to add to case file:', cfErr)
+          }
+        }
+        onLogged && onLogged(data.entry)
         onClose()
-        showToast('success', 'Logged to your constellation')
+        var cfName = selectedCaseFileId ? caseFiles.find(function(cf) { return cf.id === selectedCaseFileId }) : null
+        if (cfName) {
+          showToast('success', 'Saved to Research Hub \u00B7 Filed in ' + cfName.title)
+        } else {
+          showToast('success', 'Saved to Research Hub')
+        }
+        setSelectedCaseFileId(null)
+        setShowCaseFiles(false)
       } else {
-        showToast('error', data?.error || 'Failed to log entry')
+        showToast('error', data && data.error ? data.error : 'Failed to save')
       }
     } catch (err) {
-      console.error('Failed to log entry:', err)
-      showToast('error', 'Failed to log entry')
+      console.error('Failed to save:', err)
+      showToast('error', 'Failed to save')
     } finally {
       setSaving(false)
     }
@@ -115,12 +185,12 @@ export default function LogToConstellation({
     try {
       await fetch('/api/constellation/entries', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${userToken}` },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + userToken },
         body: JSON.stringify({ entry_id: existing.id })
       })
-      onLogged?.(null)
+      onLogged && onLogged(null)
       onClose()
-      showToast('info', 'Entry removed from constellation')
+      showToast('info', 'Removed from Research Hub')
     } catch (err) {
       console.error('Failed to delete entry:', err)
       showToast('error', 'Failed to remove entry')
@@ -132,6 +202,8 @@ export default function LogToConstellation({
 
   if (!isOpen) return null
 
+  var selectedCf = selectedCaseFileId ? caseFiles.find(function(cf) { return cf.id === selectedCaseFileId }) : null
+
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
       {/* Backdrop */}
@@ -142,12 +214,12 @@ export default function LogToConstellation({
         {/* Header */}
         <div className="sticky top-0 bg-gray-900/95 backdrop-blur-sm border-b border-white/5 px-5 py-4 flex items-center justify-between z-10">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center">
-              <Star className="w-4 h-4 text-purple-400" />
+            <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center">
+              <BookOpen className="w-4 h-4 text-indigo-400" />
             </div>
             <div>
               <h3 className="text-white font-semibold text-sm">
-                {existing ? 'Edit Constellation Entry' : 'Log to Constellation'}
+                {existing ? 'Edit Research Entry' : 'Save to Research Hub'}
               </h3>
               <p className="text-gray-500 text-xs truncate max-w-[280px]">{reportTitle}</p>
             </div>
@@ -159,7 +231,7 @@ export default function LogToConstellation({
 
         {loading ? (
           <div className="px-5 py-12 text-center">
-            <div className="w-6 h-6 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin mx-auto" />
+            <div className="w-6 h-6 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin mx-auto" />
           </div>
         ) : (
           <div className="px-5 py-4 space-y-5">
@@ -169,24 +241,25 @@ export default function LogToConstellation({
                 Your Verdict
               </label>
               <div className="grid grid-cols-2 gap-2">
-                {VERDICTS.map(v => (
-                  <button
-                    key={v.value}
-                    onClick={() => setVerdict(v.value)}
-                    className={`
-                      flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all text-left
-                      ${verdict === v.value
-                        ? v.color + ' ring-1 ring-current/30'
-                        : 'border-white/10 text-gray-400 hover:border-white/20 hover:text-gray-300'
+                {VERDICTS.map(function(v) {
+                  return (
+                    <button
+                      key={v.value}
+                      onClick={function() { setVerdict(v.value) }}
+                      className={
+                        'flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all text-left ' +
+                        (verdict === v.value
+                          ? v.color + ' ring-1 ring-current/30'
+                          : 'border-white/10 text-gray-400 hover:border-white/20 hover:text-gray-300')
                       }
-                    `}
-                  >
-                    <span className="text-base leading-none">{v.icon}</span>
-                    <div>
-                      <span className="font-medium block text-xs">{v.label}</span>
-                    </div>
-                  </button>
-                ))}
+                    >
+                      <span className="text-base leading-none">{v.icon}</span>
+                      <div>
+                        <span className="font-medium block text-xs">{v.label}</span>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
@@ -198,9 +271,9 @@ export default function LogToConstellation({
               <textarea
                 ref={noteRef}
                 value={note}
-                onChange={e => setNote(e.target.value)}
-                placeholder="This reminds me of the Phoenix Lights — same triangular description, same military proximity..."
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 resize-none focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 transition-colors"
+                onChange={function(e) { setNote(e.target.value) }}
+                placeholder="This reminds me of the Phoenix Lights \u2014 same triangular description, same military proximity..."
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 resize-none focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-colors"
                 rows={3}
               />
             </div>
@@ -208,31 +281,142 @@ export default function LogToConstellation({
             {/* Tags */}
             <div>
               <label className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2 block">
-                Tags <span className="text-gray-600 normal-case">(press Enter to add — stars with shared tags connect)</span>
+                Tags <span className="text-gray-600 normal-case">(press Enter to add)</span>
               </label>
-              <div className="flex flex-wrap gap-1.5 p-2 bg-white/5 border border-white/10 rounded-lg min-h-[42px] focus-within:border-purple-500/50 transition-colors">
-                {tags.map(tag => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs"
-                  >
-                    <Tag className="w-3 h-3" />
-                    {tag}
-                    <button onClick={() => removeTag(tag)} className="hover:text-white ml-0.5">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
+              <div className="flex flex-wrap gap-1.5 p-2 bg-white/5 border border-white/10 rounded-lg min-h-[42px] focus-within:border-indigo-500/50 transition-colors">
+                {tags.map(function(tag) {
+                  return (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-xs"
+                    >
+                      <Tag className="w-3 h-3" />
+                      {tag}
+                      <button onClick={function() { removeTag(tag) }} className="hover:text-white ml-0.5">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )
+                })}
                 <input
                   value={tagInput}
-                  onChange={e => setTagInput(e.target.value)}
+                  onChange={function(e) { setTagInput(e.target.value) }}
                   onKeyDown={handleTagKeyDown}
-                  onBlur={() => tagInput && handleAddTag()}
+                  onBlur={function() { tagInput && handleAddTag() }}
                   placeholder={tags.length === 0 ? 'e.g. triangle-craft, military-adjacent' : ''}
                   className="flex-1 min-w-[120px] bg-transparent text-sm text-white placeholder-gray-600 outline-none"
                 />
               </div>
             </div>
+
+            {/* Case File Picker (optional) */}
+            {!existing && (
+              <div>
+                <button
+                  onClick={function() { setShowCaseFiles(!showCaseFiles) }}
+                  className="flex items-center gap-2 text-xs font-medium text-gray-400 uppercase tracking-wide mb-2 hover:text-gray-300 transition-colors"
+                >
+                  {showCaseFiles ? (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  )}
+                  <Folder className="w-3.5 h-3.5" />
+                  File into a Case File
+                  <span className="text-gray-600 normal-case font-normal">(optional)</span>
+                </button>
+
+                {showCaseFiles && (
+                  <div className="bg-white/5 border border-white/10 rounded-lg overflow-hidden">
+                    {/* Case file list */}
+                    <div className="max-h-40 overflow-y-auto py-1">
+                      {/* Skip / no case file option */}
+                      <button
+                        onClick={function() { setSelectedCaseFileId(null) }}
+                        className={
+                          'w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2 ' +
+                          (selectedCaseFileId === null
+                            ? 'bg-white/5 text-white'
+                            : 'text-gray-400 hover:bg-white/5 hover:text-gray-300')
+                        }
+                      >
+                        <span className="text-gray-600">{'\u2014'}</span>
+                        <span>No case file (unsorted)</span>
+                      </button>
+
+                      {caseFiles.map(function(cf) {
+                        return (
+                          <button
+                            key={cf.id}
+                            onClick={function() { setSelectedCaseFileId(cf.id) }}
+                            className={
+                              'w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2 ' +
+                              (selectedCaseFileId === cf.id
+                                ? 'bg-indigo-500/10 text-indigo-300'
+                                : 'text-gray-400 hover:bg-white/5 hover:text-gray-300')
+                            }
+                          >
+                            <Circle
+                              className="w-2.5 h-2.5 flex-shrink-0"
+                              fill={cf.cover_color || '#4B5563'}
+                              color={cf.cover_color || '#4B5563'}
+                            />
+                            <span className="truncate flex-1">{cf.title}</span>
+                            <span className="text-xs text-gray-600 flex-shrink-0">
+                              {cf.artifact_count}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {/* Create new case file inline */}
+                    <div className="border-t border-white/10 px-3 py-2 flex items-center gap-2">
+                      <Plus className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
+                      <input
+                        value={newCaseFileName}
+                        onChange={function(e) { setNewCaseFileName(e.target.value) }}
+                        onKeyDown={function(e) {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleCreateCaseFile()
+                          }
+                        }}
+                        placeholder="New case file name..."
+                        className="flex-1 bg-transparent text-sm text-white placeholder-gray-600 outline-none"
+                      />
+                      {newCaseFileName.trim() && (
+                        <button
+                          onClick={handleCreateCaseFile}
+                          disabled={creatingCaseFile}
+                          className="text-xs text-indigo-400 hover:text-indigo-300 font-medium"
+                        >
+                          {creatingCaseFile ? '...' : 'Create'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Selected case file indicator */}
+                {selectedCf && !showCaseFiles && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-xs text-indigo-300">
+                    <Circle
+                      className="w-2 h-2 flex-shrink-0"
+                      fill={selectedCf.cover_color || '#4B5563'}
+                      color={selectedCf.cover_color || '#4B5563'}
+                    />
+                    <span>{'Filing into: ' + selectedCf.title}</span>
+                    <button
+                      onClick={function() { setSelectedCaseFileId(null) }}
+                      className="ml-auto hover:text-white"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex items-center justify-between pt-2 pb-1">
@@ -240,7 +424,7 @@ export default function LogToConstellation({
                 <div>
                   {showDeleteConfirm ? (
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">Remove from constellation?</span>
+                      <span className="text-xs text-gray-500">Remove from Research Hub?</span>
                       <button
                         onClick={handleDelete}
                         disabled={deleting}
@@ -249,7 +433,7 @@ export default function LogToConstellation({
                         {deleting ? 'Removing...' : 'Yes, remove'}
                       </button>
                       <button
-                        onClick={() => setShowDeleteConfirm(false)}
+                        onClick={function() { setShowDeleteConfirm(false) }}
                         className="text-xs text-gray-500 hover:text-gray-300"
                       >
                         Cancel
@@ -257,7 +441,7 @@ export default function LogToConstellation({
                     </div>
                   ) : (
                     <button
-                      onClick={() => setShowDeleteConfirm(true)}
+                      onClick={function() { setShowDeleteConfirm(true) }}
                       className="text-xs text-gray-500 hover:text-red-400 flex items-center gap-1 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -272,14 +456,14 @@ export default function LogToConstellation({
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 {saving ? (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
-                  <Star className="w-4 h-4" />
+                  <BookOpen className="w-4 h-4" />
                 )}
-                {existing ? 'Update Entry' : 'Log to Constellation'}
+                {existing ? 'Update Entry' : 'Save to Research Hub'}
               </button>
             </div>
           </div>
