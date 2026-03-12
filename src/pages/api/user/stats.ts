@@ -154,9 +154,80 @@ export default async function handler(
       }
     } catch {}
 
-    // Sort research activity by date, limit 5
+    // ── Research Hub data ──
+    let researchHubData = {
+      totalArtifacts: 0,
+      totalCaseFiles: 0,
+      activeInsights: 0,
+      recentArtifacts: [] as any[],
+      caseFiles: [] as any[],
+    }
+
+    try {
+      const [artifactCountRes, caseFilesRes, insightsCountRes, recentArtifactsRes] = await Promise.all([
+        supabase
+          .from('constellation_artifacts')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id),
+        supabase
+          .from('constellation_case_files')
+          .select('id, title, cover_color, created_at')
+          .eq('user_id', user.id)
+          .order('sort_order', { ascending: true })
+          .limit(5),
+        supabase
+          .from('constellation_ai_insights')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('dismissed', false),
+        supabase
+          .from('constellation_artifacts')
+          .select('id, title, source_type, verdict, thumbnail_url, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(4),
+      ])
+
+      // Get artifact counts per case file
+      const caseFiles = caseFilesRes.data || []
+      const caseFilesWithCounts = []
+      for (const cf of caseFiles) {
+        const { count } = await supabase
+          .from('constellation_case_file_artifacts')
+          .select('*', { count: 'exact', head: true })
+          .eq('case_file_id', cf.id)
+        caseFilesWithCounts.push({ ...cf, artifact_count: count || 0 })
+      }
+
+      researchHubData = {
+        totalArtifacts: artifactCountRes.count || 0,
+        totalCaseFiles: caseFiles.length,
+        activeInsights: insightsCountRes.count || 0,
+        recentArtifacts: recentArtifactsRes.data || [],
+        caseFiles: caseFilesWithCounts,
+      }
+
+      // Add recent artifacts to research activity
+      if (recentArtifactsRes.data) {
+        researchActivity.push(...recentArtifactsRes.data.slice(0, 3).map(function(a: any) {
+          return {
+            id: a.id,
+            type: a.source_type === 'paradocs_report' ? 'constellation_entry' : 'artifact_added',
+            title: a.title || 'Added artifact',
+            created_at: a.created_at,
+          }
+        }))
+      }
+    } catch {}
+
+    // Sort research activity by date, deduplicate by title, limit 5
     researchActivity.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    researchActivity = researchActivity.slice(0, 5)
+    const seenTitles = new Set<string>()
+    researchActivity = researchActivity.filter(function(a) {
+      if (seenTitles.has(a.title)) return false
+      seenTitles.add(a.title)
+      return true
+    }).slice(0, 5)
 
     const stats = {
       profile: {
@@ -177,6 +248,7 @@ export default async function handler(
       },
       constellation: constellationData,
       journal: journalData,
+      researchHub: researchHubData,
       research_activity: researchActivity,
       subscription: subscriptionData ? {
         tier: subscriptionData.subscription.tier.name,

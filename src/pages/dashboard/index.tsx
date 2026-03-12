@@ -1,8 +1,9 @@
 /**
- * Dashboard Overview Page — Constellation-First Research Hub
+ * Dashboard Overview Page — Research Hub Mission Control
  *
- * Prioritizes the constellation map and research activity over report submission.
- * Layout: Hero → Streak → Constellation Preview → Research Activity → Stats → Suggestions → Usage Footer
+ * Layout: Hero + CTAs → Research Hub Summary (case files + recent artifacts) →
+ *         AI Insights banner → Constellation Mini-Map → Activity Feed →
+ *         Metric Pills → Suggested Explorations → Usage Footer
  */
 
 import React, { useEffect, useState, useCallback } from 'react'
@@ -21,6 +22,12 @@ import {
   Lightbulb,
   Star,
   PenTool,
+  FolderOpen,
+  Plus,
+  Globe,
+  Zap,
+  Circle,
+  ExternalLink,
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { UpgradeCard } from '@/components/dashboard/UpgradeCard'
@@ -34,6 +41,7 @@ import { supabase } from '@/lib/supabase'
 import { getSuggestedExplorations } from '@/lib/constellation-data'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { PhenomenonCategory } from '@/lib/database.types'
+import { classNames } from '@/lib/utils'
 import type { TierName } from '@/lib/subscription'
 import type { UserMapData, EntryNode } from './constellation'
 
@@ -54,6 +62,26 @@ interface DashboardStats {
     rankIcon: string
   }
   journal: { totalEntries: number }
+  researchHub: {
+    totalArtifacts: number
+    totalCaseFiles: number
+    activeInsights: number
+    recentArtifacts: Array<{
+      id: string
+      title: string
+      source_type: string
+      verdict: string | null
+      thumbnail_url: string | null
+      created_at: string
+    }>
+    caseFiles: Array<{
+      id: string
+      title: string
+      cover_color: string
+      created_at: string
+      artifact_count: number
+    }>
+  }
   research_activity: Array<{
     id: string
     type: string
@@ -72,64 +100,80 @@ interface DashboardStats {
   recent_reports: Array<{ id: string; title: string; slug: string; status: string; created_at: string }>
 }
 
-const ACTIVITY_TYPE_CONFIG: Record<string, { icon: React.ElementType; label: string; color: string }> = {
+var SOURCE_ICONS: Record<string, { icon: React.ElementType; color: string }> = {
+  paradocs_report: { icon: FileText, color: 'text-indigo-400' },
+  youtube: { icon: Globe, color: 'text-red-400' },
+  reddit: { icon: Globe, color: 'text-orange-400' },
+  tiktok: { icon: Globe, color: 'text-pink-400' },
+  instagram: { icon: Globe, color: 'text-purple-400' },
+  podcast: { icon: Globe, color: 'text-green-400' },
+  news: { icon: FileText, color: 'text-blue-400' },
+  website: { icon: Globe, color: 'text-cyan-400' },
+  other: { icon: Globe, color: 'text-gray-400' },
+}
+
+var VERDICT_DOTS: Record<string, string> = {
+  compelling: 'bg-amber-400',
+  inconclusive: 'bg-blue-400',
+  skeptical: 'bg-gray-400',
+  needs_info: 'bg-purple-400',
+}
+
+var ACTIVITY_TYPE_CONFIG: Record<string, { icon: React.ElementType; label: string; color: string }> = {
   constellation_entry: { icon: Star, label: 'Logged to constellation', color: 'text-amber-400' },
   journal_entry: { icon: PenTool, label: 'Journal entry', color: 'text-blue-400' },
   connection: { icon: Link2, label: 'Drew connection', color: 'text-green-400' },
   theory: { icon: Lightbulb, label: 'Created theory', color: 'text-purple-400' },
+  artifact_added: { icon: Plus, label: 'Added to Research Hub', color: 'text-cyan-400' },
 }
 
 function formatRelativeTime(dateString: string) {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  var date = new Date(dateString)
+  var now = new Date()
+  var diffMs = now.getTime() - date.getTime()
+  var diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
   if (diffDays === 0) return 'Today'
   if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays}d ago`
+  if (diffDays < 7) return diffDays + 'd ago'
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 export default function DashboardPage() {
-  const router = useRouter()
-  const { tierName, loading: subscriptionLoading } = useSubscription()
-  const { data: personalization } = usePersonalization()
-  const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [userMapData, setUserMapData] = useState<UserMapData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [showDashboardTour, setShowDashboardTour] = useState(false)
+  var router = useRouter()
+  var { tierName, loading: subscriptionLoading } = useSubscription()
+  var { data: personalization } = usePersonalization()
+  var [stats, setStats] = useState<DashboardStats | null>(null)
+  var [userMapData, setUserMapData] = useState<UserMapData | null>(null)
+  var [loading, setLoading] = useState(true)
+  var [error, setError] = useState<string | null>(null)
+  var [showDashboardTour, setShowDashboardTour] = useState(false)
 
-  // Show dashboard tour for first-time visitors
-  useEffect(() => {
+  useEffect(function() {
     if (!loading && stats && !hasDashboardTourCompleted()) {
-      const timer = setTimeout(() => setShowDashboardTour(true), 800)
-      return () => clearTimeout(timer)
+      var timer = setTimeout(function() { setShowDashboardTour(true) }, 800)
+      return function() { clearTimeout(timer) }
     }
   }, [loading, stats])
 
-  useEffect(() => {
-    const fetchData = async () => {
+  useEffect(function() {
+    var fetchData = async function() {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        var sessionResult = await supabase.auth.getSession()
+        var session = sessionResult.data.session
         if (!session) { router.push('/login'); return }
 
-        // Fetch dashboard stats and constellation map data in parallel
-        const [statsResp, mapResp] = await Promise.all([
-          fetch('/api/user/stats', {
-            headers: { 'Authorization': `Bearer ${session.access_token}` }
-          }),
-          fetch('/api/constellation/user-map', {
-            headers: { 'Authorization': `Bearer ${session.access_token}` }
-          }).catch(() => null),
+        var headers = { 'Authorization': 'Bearer ' + session.access_token }
+        var [statsResp, mapResp] = await Promise.all([
+          fetch('/api/user/stats', { headers: headers }),
+          fetch('/api/constellation/user-map', { headers: headers }).catch(function() { return null }),
         ])
 
         if (!statsResp.ok) throw new Error('Failed to fetch stats')
-        const statsData = await statsResp.json()
+        var statsData = await statsResp.json()
         setStats(statsData)
 
-        if (mapResp?.ok) {
-          const mapData = await mapResp.json()
+        if (mapResp && mapResp.ok) {
+          var mapData = await mapResp.json()
           setUserMapData(mapData)
         }
       } catch (err) {
@@ -142,9 +186,9 @@ export default function DashboardPage() {
     fetchData()
   }, [router])
 
-  const handleSelectEntry = useCallback((entry: EntryNode | null) => {
+  var handleSelectEntry = useCallback(function(entry: EntryNode | null) {
     if (entry) {
-      router.push(`/dashboard/constellation?entry=${entry.id}`)
+      router.push('/dashboard/constellation?entry=' + entry.id)
     }
   }, [router])
 
@@ -154,8 +198,12 @@ export default function DashboardPage() {
         <div className="space-y-4">
           <div className="h-16 bg-gray-900 rounded-xl animate-pulse" />
           <div className="h-10 bg-gray-900 rounded-xl animate-pulse w-48" />
-          <div className="h-[300px] bg-gray-900 rounded-xl animate-pulse" />
-          <div className="h-32 bg-gray-900 rounded-xl animate-pulse" />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="h-32 bg-gray-900 rounded-xl animate-pulse" />
+            <div className="h-32 bg-gray-900 rounded-xl animate-pulse" />
+            <div className="h-32 bg-gray-900 rounded-xl animate-pulse" />
+          </div>
+          <div className="h-48 bg-gray-900 rounded-xl animate-pulse" />
         </div>
       </DashboardLayout>
     )
@@ -169,7 +217,7 @@ export default function DashboardPage() {
           <h2 className="text-xl font-semibold text-white mb-2">Error Loading Dashboard</h2>
           <p className="text-gray-400">{error}</p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={function() { window.location.reload() }}
             className="mt-4 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors"
           >
             Try Again
@@ -179,34 +227,40 @@ export default function DashboardPage() {
     )
   }
 
-  const hasEntries = (stats?.constellation.totalEntries || 0) > 0
-  const userInterests = personalization?.interested_categories || []
-  const suggestions = hasEntries ? getSuggestedExplorations(userInterests as PhenomenonCategory[], 3) : []
+  var hasEntries = (stats?.constellation.totalEntries || 0) > 0
+  var hasArtifacts = (stats?.researchHub?.totalArtifacts || 0) > 0
+  var userInterests = personalization?.interested_categories || []
+  var suggestions = hasEntries ? getSuggestedExplorations(userInterests as PhenomenonCategory[], 3) : []
+  var hub = stats?.researchHub || { totalArtifacts: 0, totalCaseFiles: 0, activeInsights: 0, recentArtifacts: [], caseFiles: [] }
 
   return (
     <DashboardLayout title="Dashboard">
-      {/* ── A. Hero: Welcome + Research CTAs ── */}
+      {/* ── A. Hero: Welcome + Smart CTAs ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-white">
-            Welcome back{stats?.profile.display_name ? `, ${stats.profile.display_name}` : ''}
+            {'Welcome back' + (stats?.profile.display_name ? ', ' + stats.profile.display_name : '')}
           </h2>
-          <p className="text-gray-500 text-sm mt-0.5">Your research at a glance</p>
+          <p className="text-gray-500 text-sm mt-0.5">
+            {hasArtifacts
+              ? hub.totalArtifacts + ' artifact' + (hub.totalArtifacts !== 1 ? 's' : '') + ' across ' + hub.totalCaseFiles + ' case file' + (hub.totalCaseFiles !== 1 ? 's' : '')
+              : 'Start building your research hub'}
+          </p>
         </div>
         <div className="flex items-center gap-2.5">
           <Link
-            href="/explore"
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-medium text-sm transition-colors"
+            href="/dashboard/research-hub"
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium text-sm transition-colors"
           >
-            <Compass className="w-4 h-4" />
-            Explore Phenomena
+            <Sparkles className="w-4 h-4" />
+            Research Hub
           </Link>
           <Link
-            href="/dashboard/journal/new"
+            href="/explore"
             className="flex items-center gap-2 px-4 py-2 border border-gray-700 hover:border-gray-600 text-gray-300 hover:text-white rounded-lg text-sm transition-colors"
           >
-            <PenTool className="w-4 h-4" />
-            <span className="hidden sm:inline">Journal Entry</span>
+            <Compass className="w-4 h-4" />
+            <span className="hidden sm:inline">Explore</span>
           </Link>
         </div>
       </div>
@@ -216,96 +270,191 @@ export default function DashboardPage() {
         <ResearchStreak compact />
       </div>
 
-      {/* ── C. Constellation Preview (THE CENTERPIECE) ── */}
-      <div className="mb-5 rounded-xl overflow-hidden border border-gray-800 relative">
-        {hasEntries && userMapData ? (
-          <>
-            <div className="dashboard-constellation-wrap">
-              <ConstellationMapV2
-                userMapData={userMapData}
-                onSelectEntry={handleSelectEntry}
-                selectedEntryId={null}
-              />
-            </div>
-            {/* Overlay with rank + link — right-aligned to not cover the legend */}
-            <div className="absolute bottom-0 right-0 bg-gradient-to-l from-gray-950 via-gray-950/90 to-transparent pl-10 pr-3 py-2.5 rounded-bl-lg pointer-events-none">
-              <div className="flex items-center gap-3 pointer-events-auto">
-                <span className="text-lg">{stats?.constellation.rankIcon}</span>
-                <span className="text-sm font-medium text-white">{stats?.constellation.rank}</span>
-                <span className="text-xs text-gray-500">
-                  · {stats?.constellation.totalEntries} {stats?.constellation.totalEntries === 1 ? 'star' : 'stars'}
-                </span>
+      {/* ── C. Research Hub Summary (THE CENTERPIECE) ── */}
+      {hasArtifacts ? (
+        <div className="mb-5">
+          {/* Case Files Row */}
+          {hub.caseFiles.length > 0 && (
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                  <FolderOpen className="w-4 h-4 text-indigo-400" />
+                  Active Investigations
+                </h3>
                 <Link
-                  href="/dashboard/constellation"
-                  className="flex items-center gap-1.5 ml-2 px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium rounded-lg transition-colors"
+                  href="/dashboard/research-hub"
+                  className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
                 >
-                  Open Full Map <ArrowRight className="w-3.5 h-3.5" />
+                  View All <ArrowRight className="w-3 h-3" />
                 </Link>
               </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                {hub.caseFiles.map(function(cf) {
+                  return (
+                    <Link
+                      key={cf.id}
+                      href="/dashboard/research-hub"
+                      className="group p-3.5 bg-gray-900 border border-gray-800 rounded-xl hover:border-indigo-500/30 transition-all"
+                      style={{ borderLeftWidth: '3px', borderLeftColor: cf.cover_color || '#6366f1' }}
+                    >
+                      <p className="text-sm font-medium text-white group-hover:text-indigo-300 truncate transition-colors">
+                        {cf.title}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {cf.artifact_count + ' artifact' + (cf.artifact_count !== 1 ? 's' : '')}
+                      </p>
+                    </Link>
+                  )
+                })}
+              </div>
             </div>
-          </>
-        ) : (
-          /* Empty state */
-          <div className="h-[260px] sm:h-[300px] bg-gray-950 relative flex flex-col items-center justify-center text-center px-6">
-            {/* Decorative stars */}
-            <div className="absolute inset-0 opacity-20 pointer-events-none overflow-hidden">
-              {[
-                { x: '15%', y: '20%', s: 2 }, { x: '80%', y: '15%', s: 1.5 },
-                { x: '25%', y: '70%', s: 2.5 }, { x: '70%', y: '65%', s: 1.8 },
-                { x: '50%', y: '40%', s: 3 }, { x: '90%', y: '80%', s: 1.2 },
-                { x: '10%', y: '50%', s: 1.8 }, { x: '60%', y: '25%', s: 2.2 },
-              ].map((star, i) => (
-                <div
-                  key={i}
-                  className="absolute rounded-full bg-purple-400"
-                  style={{
-                    left: star.x, top: star.y,
-                    width: `${star.s}px`, height: `${star.s}px`,
-                    boxShadow: `0 0 ${star.s * 3}px rgba(139, 92, 246, 0.5)`,
-                  }}
-                />
-              ))}
-            </div>
-            <div className="relative">
-              <Stars className="w-10 h-10 text-purple-500/50 mx-auto mb-3" />
-              <h3 className="text-white font-semibold text-lg mb-1">Your constellation awaits</h3>
-              <p className="text-gray-500 text-sm max-w-sm mb-4">
-                Log reports to your constellation to build a personal map of your paranormal research journey.
-              </p>
+          )}
+
+          {/* Recent Artifacts */}
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-white">Recent Artifacts</h3>
+            <Link
+              href="/dashboard/research-hub"
+              className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+            >
+              Open Hub <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {hub.recentArtifacts.map(function(artifact) {
+              var sourceConfig = SOURCE_ICONS[artifact.source_type] || SOURCE_ICONS.other
+              var SourceIcon = sourceConfig.icon
+              var verdictDot = artifact.verdict ? VERDICT_DOTS[artifact.verdict] : null
+              return (
+                <Link
+                  key={artifact.id}
+                  href="/dashboard/research-hub"
+                  className="group p-4 bg-gray-900 border border-gray-800 rounded-xl hover:border-cyan-500/30 transition-all"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={classNames('p-2 rounded-lg', artifact.source_type === 'paradocs_report' ? 'bg-indigo-500/15' : 'bg-cyan-500/15')}>
+                      <SourceIcon className={classNames('w-4 h-4', sourceConfig.color)} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white group-hover:text-cyan-300 truncate transition-colors">
+                        {artifact.title}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {verdictDot && (
+                          <span className={classNames('w-1.5 h-1.5 rounded-full', verdictDot)} />
+                        )}
+                        <span className="text-xs text-gray-500">
+                          {formatRelativeTime(artifact.created_at)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        /* Empty state — first time user */
+        <div className="mb-5 p-8 bg-gray-900 border border-gray-800 rounded-xl text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-indigo-500/10 flex items-center justify-center">
+            <Sparkles className="w-8 h-8 text-indigo-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-white mb-2">Your Research Hub is ready</h3>
+          <p className="text-gray-400 text-sm max-w-md mx-auto mb-5">
+            Save URLs from YouTube, Reddit, news sites, or log Paradocs reports. Organize evidence into case files, draw connections, and build theories.
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <Link
+              href="/dashboard/research-hub"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add Your First Artifact
+            </Link>
+            <Link
+              href="/explore"
+              className="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-700 hover:border-gray-600 text-gray-300 hover:text-white rounded-lg text-sm transition-colors"
+            >
+              <Compass className="w-4 h-4" />
+              Browse Reports
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* ── D. AI Insights Banner ── */}
+      {hub.activeInsights > 0 && (
+        <Link
+          href="/dashboard/research-hub"
+          className="mb-5 flex items-center gap-3 p-4 bg-cyan-950/30 border border-cyan-800/50 rounded-xl hover:border-cyan-700/60 transition-colors group"
+        >
+          <div className="p-2 bg-cyan-500/15 rounded-lg">
+            <Zap className="w-5 h-5 text-cyan-400" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-cyan-200">
+              {hub.activeInsights + ' AI Insight' + (hub.activeInsights !== 1 ? 's' : '') + ' available'}
+            </p>
+            <p className="text-xs text-cyan-400/60">
+              Patterns and connections detected across your research
+            </p>
+          </div>
+          <ArrowRight className="w-4 h-4 text-cyan-400 group-hover:translate-x-0.5 transition-transform" />
+        </Link>
+      )}
+
+      {/* ── E. Constellation Mini-Map ── */}
+      {hasEntries && userMapData && (
+        <div className="mb-5 rounded-xl overflow-hidden border border-gray-800 relative">
+          <div className="dashboard-constellation-wrap">
+            <ConstellationMapV2
+              userMapData={userMapData}
+              onSelectEntry={handleSelectEntry}
+              selectedEntryId={null}
+            />
+          </div>
+          <div className="absolute bottom-0 right-0 bg-gradient-to-l from-gray-950 via-gray-950/90 to-transparent pl-10 pr-3 py-2.5 rounded-bl-lg pointer-events-none">
+            <div className="flex items-center gap-3 pointer-events-auto">
+              <span className="text-lg">{stats?.constellation.rankIcon}</span>
+              <span className="text-sm font-medium text-white">{stats?.constellation.rank}</span>
+              <span className="text-xs text-gray-500">
+                {'\u00B7 ' + (stats?.constellation.totalEntries || 0) + ' ' + ((stats?.constellation.totalEntries || 0) === 1 ? 'star' : 'stars')}
+              </span>
               <Link
-                href="/explore"
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-medium transition-colors"
+                href="/dashboard/constellation"
+                className="flex items-center gap-1.5 ml-2 px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium rounded-lg transition-colors"
               >
-                <Compass className="w-4 h-4" />
-                Browse Reports
+                {'Open Full Map '}
+                <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* ── D. Research Activity ── */}
+      {/* ── F. Research Activity ── */}
       {stats?.research_activity && stats.research_activity.length > 0 && (
         <div className="mb-5 p-4 bg-gray-900 rounded-xl border border-gray-800">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-white">Research Activity</h3>
             <Link
-              href="/dashboard/constellation"
-              className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
+              href="/dashboard/research-hub"
+              className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
             >
               View All <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
           <div className="space-y-1.5">
-            {stats.research_activity.map(activity => {
-              const config = ACTIVITY_TYPE_CONFIG[activity.type] || ACTIVITY_TYPE_CONFIG.constellation_entry
-              const Icon = config.icon
+            {stats.research_activity.map(function(activity) {
+              var config = ACTIVITY_TYPE_CONFIG[activity.type] || ACTIVITY_TYPE_CONFIG.constellation_entry
+              var Icon = config.icon
               return (
                 <div
                   key={activity.id}
                   className="flex items-center gap-3 p-2.5 bg-gray-950/50 rounded-lg"
                 >
-                  <Icon className={`w-4 h-4 ${config.color} shrink-0`} />
+                  <Icon className={'w-4 h-4 ' + config.color + ' shrink-0'} />
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-sm truncate">{activity.title}</p>
                     <p className="text-[11px] text-gray-600">{config.label}</p>
@@ -318,8 +467,16 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── E. Research Snapshot (metric pills) ── */}
+      {/* ── G. Research Snapshot (metric pills) ── */}
       <div className="mb-5 flex flex-wrap gap-2">
+        <Link
+          href="/dashboard/research-hub"
+          className="flex items-center gap-2 px-3.5 py-2 bg-gray-900 border border-gray-800 hover:border-indigo-500/30 rounded-full text-sm transition-colors group"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+          <span className="text-white font-medium">{hub.totalArtifacts}</span>
+          <span className="text-gray-500 group-hover:text-gray-400">Artifacts</span>
+        </Link>
         <Link
           href="/dashboard/constellation"
           className="flex items-center gap-2 px-3.5 py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-sm transition-colors group"
@@ -352,31 +509,23 @@ export default function DashboardPage() {
           <span className="text-white font-medium">{stats?.saved.total || 0}</span>
           <span className="text-gray-500 group-hover:text-gray-400">Saved</span>
         </Link>
-        <Link
-          href="/dashboard/reports"
-          className="flex items-center gap-2 px-3.5 py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-sm transition-colors group"
-        >
-          <FileText className="w-3.5 h-3.5 text-gray-400" />
-          <span className="text-white font-medium">{stats?.reports.total || 0}</span>
-          <span className="text-gray-500 group-hover:text-gray-400">Reports</span>
-        </Link>
       </div>
 
-      {/* ── F. Suggested Explorations ── */}
+      {/* ── H. Suggested Explorations ── */}
       {suggestions.length > 0 && (
         <div className="mb-5">
           <h3 className="text-sm font-semibold text-white mb-3">Suggested Explorations</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            {suggestions.map(suggestion => {
-              const config = CATEGORY_CONFIG[suggestion.category as keyof typeof CATEGORY_CONFIG]
+            {suggestions.map(function(suggestion) {
+              var config = CATEGORY_CONFIG[suggestion.category as keyof typeof CATEGORY_CONFIG]
               return (
                 <Link
                   key={suggestion.category}
-                  href={`/explore?category=${suggestion.category}`}
+                  href={'/explore?category=' + suggestion.category}
                   className="group p-3.5 bg-gray-900 border border-gray-800 rounded-xl hover:border-purple-500/30 transition-all"
                 >
                   <div className="flex items-center gap-2.5 mb-1.5">
-                    <span className="text-lg">{config?.icon || '✨'}</span>
+                    <span className="text-lg">{config?.icon || '\u2728'}</span>
                     <span className="text-sm font-medium text-white group-hover:text-purple-300 transition-colors">
                       {config?.label || suggestion.category}
                     </span>
@@ -389,27 +538,27 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── G. Account & Usage (compact footer) ── */}
+      {/* ── I. Account & Usage (compact footer) ── */}
       <div className="pt-4 border-t border-gray-800/50">
         <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
           {tierName && <TierBadge tier={tierName} size="sm" />}
           {stats?.subscription && (
             <>
-              <span>·</span>
-              <span>{stats.subscription.usage.reports_submitted}/{stats.subscription.limits.reports_per_month === 0 ? '∞' : stats.subscription.limits.reports_per_month} reports</span>
-              <span>·</span>
-              <span>{stats.subscription.usage.reports_saved}/{stats.subscription.limits.saved_reports_max === 0 ? '∞' : stats.subscription.limits.saved_reports_max} saved</span>
+              <span>{'\u00B7'}</span>
+              <span>{stats.subscription.usage.reports_submitted + '/' + (stats.subscription.limits.reports_per_month === 0 ? '\u221E' : stats.subscription.limits.reports_per_month) + ' reports'}</span>
+              <span>{'\u00B7'}</span>
+              <span>{stats.subscription.usage.reports_saved + '/' + (stats.subscription.limits.saved_reports_max === 0 ? '\u221E' : stats.subscription.limits.saved_reports_max) + ' saved'}</span>
             </>
           )}
           <Link
             href="/dashboard/subscription"
             className="text-purple-400 hover:text-purple-300 flex items-center gap-1 ml-auto transition-colors"
           >
-            Manage <ArrowRight className="w-3 h-3" />
+            {'Manage '}
+            <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
 
-        {/* Upgrade card for free tier */}
         {tierName && tierName === 'free' && (
           <div className="mt-4">
             <UpgradeCard currentTier={tierName} variant="compact" />
@@ -419,23 +568,11 @@ export default function DashboardPage() {
 
       {/* Dashboard Feature Tour */}
       {showDashboardTour && (
-        <DashboardTour onComplete={() => setShowDashboardTour(false)} />
+        <DashboardTour onComplete={function() { setShowDashboardTour(false) }} />
       )}
 
-      {/* Override constellation map's internal clamp height to fit our preview container */}
-      <style jsx global>{`
-        .dashboard-constellation-wrap {
-          height: 300px;
-        }
-        @media (min-width: 640px) {
-          .dashboard-constellation-wrap {
-            height: 380px;
-          }
-        }
-        .dashboard-constellation-wrap > div {
-          height: 100% !important;
-        }
-      `}</style>
+      {/* Constellation map height override */}
+      <style jsx global>{"\n        .dashboard-constellation-wrap {\n          height: 240px;\n        }\n        @media (min-width: 640px) {\n          .dashboard-constellation-wrap {\n            height: 300px;\n          }\n        }\n        .dashboard-constellation-wrap > div {\n          height: 100% !important;\n        }\n      "}</style>
     </DashboardLayout>
   )
 }
