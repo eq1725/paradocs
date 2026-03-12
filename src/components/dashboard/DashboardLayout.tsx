@@ -24,7 +24,8 @@ import {
   LogOut,
   Bell,
   Menu,
-  X
+  X,
+  FlaskConical
 } from 'lucide-react'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { TierBadge } from './TierBadge'
@@ -53,6 +54,7 @@ const navGroups: NavGroup[] = [
     label: 'Research',
     items: [
       { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
+      { href: '/dashboard/research-hub', label: 'Research Hub', icon: FlaskConical },
       { href: '/dashboard/constellation', label: 'My Constellation', icon: Stars },
       { href: '/dashboard/journal', label: 'Journal', icon: BookOpen },
     ]

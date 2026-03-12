@@ -464,9 +464,326 @@ export interface Database {
           created_at?: string
         }
       }
+      constellation_artifacts: {
+        Row: {
+          id: string
+          user_id: string
+          source_type: ArtifactSourceType
+          report_id: string | null
+          external_url: string | null
+          title: string
+          thumbnail_url: string | null
+          source_platform: string | null
+          extracted_date: string | null
+          extracted_location: string | null
+          coordinates: unknown | null
+          user_note: string | null
+          verdict: ArtifactVerdict | null
+          tags: string[]
+          metadata_json: Json
+          external_url_hash: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          source_type: ArtifactSourceType
+          report_id?: string | null
+          external_url?: string | null
+          title: string
+          thumbnail_url?: string | null
+          source_platform?: string | null
+          extracted_date?: string | null
+          extracted_location?: string | null
+          coordinates?: unknown | null
+          user_note?: string | null
+          verdict?: ArtifactVerdict | null
+          tags?: string[]
+          metadata_json?: Json
+          external_url_hash?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          source_type?: ArtifactSourceType
+          report_id?: string | null
+          external_url?: string | null
+          title?: string
+          thumbnail_url?: string | null
+          source_platform?: string | null
+          extracted_date?: string | null
+          extracted_location?: string | null
+          coordinates?: unknown | null
+          user_note?: string | null
+          verdict?: ArtifactVerdict | null
+          tags?: string[]
+          metadata_json?: Json
+          external_url_hash?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      constellation_case_files: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          description: string | null
+          cover_color: string
+          icon: string
+          visibility: CaseFileVisibility
+          position_x: number | null
+          position_y: number | null
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          description?: string | null
+          cover_color?: string
+          icon?: string
+          visibility?: CaseFileVisibility
+          position_x?: number | null
+          position_y?: number | null
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          description?: string | null
+          cover_color?: string
+          icon?: string
+          visibility?: CaseFileVisibility
+          position_x?: number | null
+          position_y?: number | null
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      constellation_case_file_artifacts: {
+        Row: {
+          case_file_id: string
+          artifact_id: string
+          added_at: string
+          sort_order: number
+        }
+        Insert: {
+          case_file_id: string
+          artifact_id: string
+          added_at?: string
+          sort_order?: number
+        }
+        Update: {
+          case_file_id?: string
+          artifact_id?: string
+          added_at?: string
+          sort_order?: number
+        }
+      }
+      constellation_connections: {
+        Row: {
+          id: string
+          user_id: string
+          artifact_a_id: string
+          artifact_b_id: string
+          relationship_type: ConnectionRelationshipType
+          annotation: string | null
+          ai_suggested: boolean
+          ai_confidence: number | null
+          strength: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          artifact_a_id: string
+          artifact_b_id: string
+          relationship_type: ConnectionRelationshipType
+          annotation?: string | null
+          ai_suggested?: boolean
+          ai_confidence?: number | null
+          strength?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          artifact_a_id?: string
+          artifact_b_id?: string
+          relationship_type?: ConnectionRelationshipType
+          annotation?: string | null
+          ai_suggested?: boolean
+          ai_confidence?: number | null
+          strength?: number
+          created_at?: string
+        }
+      }
+      constellation_ai_insights: {
+        Row: {
+          id: string
+          user_id: string
+          scope_type: InsightScopeType
+          scope_id: string | null
+          insight_type: InsightType
+          title: string
+          body: string
+          primary_view: ResearchHubView | null
+          artifact_ids: string[]
+          connection_ids: string[]
+          confidence: number
+          dismissed: boolean
+          helpful: boolean | null
+          created_at: string
+          expires_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          scope_type: InsightScopeType
+          scope_id?: string | null
+          insight_type: InsightType
+          title: string
+          body: string
+          primary_view?: ResearchHubView | null
+          artifact_ids?: string[]
+          connection_ids?: string[]
+          confidence?: number
+          dismissed?: boolean
+          helpful?: boolean | null
+          created_at?: string
+          expires_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          scope_type?: InsightScopeType
+          scope_id?: string | null
+          insight_type?: InsightType
+          title?: string
+          body?: string
+          primary_view?: ResearchHubView | null
+          artifact_ids?: string[]
+          connection_ids?: string[]
+          confidence?: number
+          dismissed?: boolean
+          helpful?: boolean | null
+          created_at?: string
+          expires_at?: string | null
+        }
+      }
+      constellation_theories: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          thesis: string
+          artifact_ids: string[]
+          connection_ids: string[]
+          case_file_id: string | null
+          is_public: boolean
+          published_at: string | null
+          upvotes: number
+          view_count: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          thesis: string
+          artifact_ids?: string[]
+          connection_ids?: string[]
+          case_file_id?: string | null
+          is_public?: boolean
+          published_at?: string | null
+          upvotes?: number
+          view_count?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          thesis?: string
+          artifact_ids?: string[]
+          connection_ids?: string[]
+          case_file_id?: string | null
+          is_public?: boolean
+          published_at?: string | null
+          upvotes?: number
+          view_count?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
   }
 }
+
+// Research Hub / Constellation V2 types
+export type ArtifactSourceType =
+  | 'paradocs_report'
+  | 'youtube'
+  | 'reddit'
+  | 'tiktok'
+  | 'instagram'
+  | 'podcast'
+  | 'news'
+  | 'website'
+  | 'other'
+
+export type ArtifactVerdict =
+  | 'compelling'
+  | 'inconclusive'
+  | 'skeptical'
+  | 'needs_info'
+
+export type CaseFileVisibility =
+  | 'private'
+  | 'public'
+  | 'shared'
+
+export type ConnectionRelationshipType =
+  | 'same_witness'
+  | 'same_location'
+  | 'same_timeframe'
+  | 'contradicts'
+  | 'corroborates'
+  | 'related'
+  | 'custom'
+
+export type InsightScopeType =
+  | 'artifact'
+  | 'case_file'
+  | 'constellation'
+
+export type InsightType =
+  | 'spatial_cluster'
+  | 'temporal_pattern'
+  | 'witness_overlap'
+  | 'source_correlation'
+  | 'cross_case_pattern'
+  | 'anomaly'
+  | 'suggestion'
+  | 'community_convergence'
+
+export type ResearchHubView =
+  | 'board'
+  | 'timeline'
+  | 'map'
+  | 'constellation'
 
 // Convenience types
 export type Profile = Database['public']['Tables']['profiles']['Row']
@@ -478,6 +795,12 @@ export type SavedReport = Database['public']['Tables']['saved_reports']['Row']
 export type ReportMedia = Database['public']['Tables']['report_media']['Row']
 export type DataSource = Database['public']['Tables']['data_sources']['Row']
 export type ReportLink = Database['public']['Tables']['report_links']['Row']
+export type ConstellationArtifact = Database['public']['Tables']['constellation_artifacts']['Row']
+export type CaseFile = Database['public']['Tables']['constellation_case_files']['Row']
+export type CaseFileArtifact = Database['public']['Tables']['constellation_case_file_artifacts']['Row']
+export type ConstellationConnection = Database['public']['Tables']['constellation_connections']['Row']
+export type AiInsight = Database['public']['Tables']['constellation_ai_insights']['Row']
+export type ConstellationTheory = Database['public']['Tables']['constellation_theories']['Row']
 
 // Report Tags for multi-tagging
 export interface ReportTag {
