@@ -130,16 +130,27 @@ export function ResearchHub() {
     }
   }, [addArtifact, addArtifactToCaseFile])
 
-  const handleCreateCaseFile = useCallback(async () => {
-    const title = window.prompt('New Case File Name:')
+  const handleCreateCaseFile = useCallback(async function() {
+    var title = window.prompt('New Case File Name:')
     if (!title) return
 
-    const result = await addCaseFile({
+    // Capture the artifact being moved (if any) before state changes
+    var artifactToMove = moveArtifactRef.current
+
+    var result = await addCaseFile({
       title,
       cover_color: '#4f46e5',
       icon: 'folder',
     })
-  }, [addCaseFile])
+
+    // If we were in the move-to-case-file flow, auto-move the artifact
+    if (result && artifactToMove) {
+      moveArtifactRef.current = null
+      setMoveArtifact(null)
+      await addArtifactToCaseFile(result.id, artifactToMove.id)
+      refresh()
+    }
+  }, [addCaseFile, addArtifactToCaseFile, refresh])
 
   const handleSelectArtifact = useCallback((artifact: ConstellationArtifact) => {
     setSelectedArtifact(artifact)

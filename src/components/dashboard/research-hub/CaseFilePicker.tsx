@@ -87,7 +87,7 @@ export function CaseFilePicker({
         {/* Create New */}
         <div className="px-3 py-3 border-t border-gray-800">
           <button
-            onClick={function() { onCreateNew(); onClose() }}
+            onClick={function() { onCreateNew() }}
             className={classNames(
               'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg',
               'text-sm text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition-colors'
