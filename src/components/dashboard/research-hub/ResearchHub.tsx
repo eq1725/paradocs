@@ -90,6 +90,12 @@ export function ResearchHub() {
     }
   })
 
+  // Build case file to artifact ID mapping for timeline/map views
+  var caseFileArtifactMap: Record<string, string[]> = {}
+  safeCaseFiles.forEach(function(cf: any) {
+    caseFileArtifactMap[cf.id] = (cf.artifacts || []).map(function(a: any) { return a.id })
+  })
+
   const handleAddArtifact = useCallback(async (data: {
     source_type: ArtifactSourceType
     report_id?: string
