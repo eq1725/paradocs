@@ -19,6 +19,7 @@ interface ArtifactCardProps {
   onSelect?: (artifact: ConstellationArtifact) => void
   onConnect?: (artifact: ConstellationArtifact) => void
   onMove?: (artifact: ConstellationArtifact) => void
+  onDelete?: (id: string) => void
   isConnecting?: boolean
   isSelected?: boolean
   compact?: boolean
@@ -30,6 +31,7 @@ export function ArtifactCard({
   onSelect,
   onConnect,
   onMove,
+  onDelete,
   isConnecting = false,
   isSelected = false,
   compact = false,
@@ -227,9 +229,11 @@ export function ArtifactCard({
         </a>
 
         <button
-          onClick={(e) => {
+          onClick={function(e) {
             e.stopPropagation()
-            // TODO: wire up delete
+            if (onDelete && window.confirm('Delete this artifact? This cannot be undone.')) {
+              onDelete(artifact.id)
+            }
           }}
           className="p-1.5 rounded-lg hover:bg-gray-700 text-gray-400 hover:text-red-400 transition-colors"
           title="Delete"

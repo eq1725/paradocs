@@ -205,6 +205,7 @@ export function BoardView({
                       onSelect={onSelectArtifact}
                       onConnect={handleConnectClick}
                       onMove={onMoveToCaseFile}
+                      onDelete={onRemoveArtifact}
                       isConnecting={connectingArtifact?.id === artifact.id}
                       isSelected={connectingArtifact !== null}
                     />
@@ -262,6 +263,7 @@ export function BoardView({
                       onSelect={onSelectArtifact}
                       onConnect={handleConnectClick}
                       onMove={onMoveToCaseFile}
+                      onDelete={onRemoveArtifact}
                       isConnecting={connectingArtifact?.id === artifact.id}
                       isSelected={connectingArtifact !== null}
                     />
@@ -353,6 +355,7 @@ export function BoardView({
               onSelect={onSelectArtifact}
               onConnect={handleConnectClick}
               onMove={onMoveToCaseFile}
+              onDelete={onRemoveArtifact}
               isConnecting={connectingArtifact?.id === artifact.id}
               isSelected={connectingArtifact !== null}
               compact
@@ -368,6 +371,7 @@ export function BoardView({
               onSelect={onSelectArtifact}
               onConnect={handleConnectClick}
               onMove={onMoveToCaseFile}
+              onDelete={onRemoveArtifact}
               isConnecting={connectingArtifact?.id === artifact.id}
               isSelected={connectingArtifact !== null}
               compact
@@ -386,6 +390,7 @@ export function BoardView({
                 onSelect={onSelectArtifact}
                 onConnect={handleConnectClick}
                 onMove={onMoveToCaseFile}
+                onDelete={onRemoveArtifact}
                 isConnecting={connectingArtifact?.id === artifact.id}
                 isSelected={connectingArtifact !== null}
                 compact
