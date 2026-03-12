@@ -444,10 +444,10 @@ export function useResearchHub(initialView: ResearchHubView = 'board'): Research
 
       setInsights(prev => prev.map(i => i.id === id ? { ...i, dismissed: true } : i))
 
-      const response = await fetch('/api/research-hub/insights/' + id + '/feedback', {
+      const response = await fetch('/api/research-hub/insights', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ dismissed: true }),
+        body: JSON.stringify({ id: id, dismissed: true }),
       })
 
       if (!response.ok) {
@@ -467,10 +467,10 @@ export function useResearchHub(initialView: ResearchHubView = 'board'): Research
       const headers = await getAuthHeaders()
       if (!headers) return false
 
-      const response = await fetch('/api/research-hub/insights/' + id + '/feedback', {
+      const response = await fetch('/api/research-hub/insights', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ helpful }),
+        body: JSON.stringify({ id: id, helpful: helpful }),
       })
 
       if (!response.ok) throw new Error('Failed to rate insight')
