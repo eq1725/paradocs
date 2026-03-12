@@ -50,11 +50,28 @@ interface PublicProfileData {
     title: string
     thesis: string
     entryIds: string[]
+    artifactIds: string[]
     connectionIds: string[]
     createdAt: string
     updatedAt: string
   }>
   tagConnections: Array<{ tag: string; entryIds: string[] }>
+  researchHub?: {
+    artifacts: Array<{
+      id: string
+      sourceType: string
+      title: string
+      thumbnailUrl: string | null
+      sourcePlatform: string | null
+      externalUrl: string | null
+      verdict: string | null
+      tags: string[]
+      createdAt: string
+    }>
+    connections: any[]
+    totalArtifacts: number
+    totalConnections: number
+  }
   private?: boolean
 }
 
@@ -125,7 +142,8 @@ export default function ResearcherProfile() {
     )
   }
 
-  const { profile, stats, entryNodes, theories, tagConnections } = data
+  const { profile, stats, entryNodes, theories, tagConnections, researchHub } = data
+  const hubArtifactCount = researchHub ? researchHub.totalArtifacts : 0
   const rankInfo = RANKS[stats.rank] || RANKS['Stargazer']
 
   // Build user map data for constellation rendering
@@ -227,7 +245,7 @@ export default function ResearcherProfile() {
           {/* Stats row */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             {[
-              { icon: Star, label: 'Logged', value: stats.totalEntries, color: 'text-purple-400' },
+              { icon: Star, label: 'Logged', value: stats.totalEntries + (hubArtifactCount > 0 ? ' + ' + hubArtifactCount + ' artifacts' : ''), color: 'text-purple-400' },
               { icon: Compass, label: 'Categories', value: `${stats.categoriesExplored}/11`, color: 'text-blue-400' },
               { icon: Tag, label: 'Tags', value: stats.uniqueTags, color: 'text-amber-400' },
               { icon: Link2, label: 'Connections', value: stats.connectionsDrawn, color: 'text-cyan-400' },
@@ -262,6 +280,59 @@ export default function ResearcherProfile() {
             </div>
           </div>
 
+          {/* Research Hub Artifacts */}
+          {researchHub && researchHub.artifacts.length > 0 && (
+            <div>
+              <h2 className="text-white font-semibold text-lg flex items-center gap-2 mb-3">
+                <Compass className="w-5 h-5 text-indigo-400" />
+                Research Hub
+                <span className="text-sm font-normal text-gray-500">
+                  {researchHub.totalArtifacts + ' artifacts'}
+                </span>
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {researchHub.artifacts.slice(0, 6).map(function(artifact) {
+                  return (
+                    <div key={artifact.id} className="bg-gray-900 border border-gray-800 rounded-xl p-3">
+                      <div className="flex items-start gap-3">
+                        {artifact.thumbnailUrl && (
+                          <img
+                            src={artifact.thumbnailUrl}
+                            alt=""
+                            className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-white truncate">{artifact.title}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-gray-500 capitalize">
+                              {artifact.sourceType.replace(/_/g, ' ')}
+                            </span>
+                            {artifact.verdict && (
+                              <span className={classNames(
+                                'text-xs',
+                                artifact.verdict === 'compelling' ? 'text-amber-400' :
+                                artifact.verdict === 'inconclusive' ? 'text-blue-400' :
+                                artifact.verdict === 'skeptical' ? 'text-gray-400' : 'text-purple-400'
+                              )}>
+                                {artifact.verdict.replace(/_/g, ' ')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              {researchHub.artifacts.length > 6 && (
+                <p className="text-center text-gray-500 text-sm mt-3">
+                  {'+ ' + (researchHub.artifacts.length - 6) + ' more artifacts'}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Verdict distribution */}
           {Object.keys(stats.verdictCounts).length > 0 && (
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
@@ -291,20 +362,24 @@ export default function ResearcherProfile() {
                 Research Theories
               </h2>
               <div className="space-y-3">
-                {theories.map(theory => {
+                {theories.map(function(theory) {
                   const isExpanded = expandedTheory === theory.id
-                  const theoryEntries = entryNodes.filter((e: any) => theory.entryIds.includes(e.id))
+                  const theoryEntries = entryNodes.filter(function(e: any) { return (theory.entryIds || []).includes(e.id) })
+                  const theoryArtifacts = researchHub
+                    ? researchHub.artifacts.filter(function(a) { return (theory.artifactIds || []).includes(a.id) })
+                    : []
+                  var evidenceCount = theoryEntries.length + theoryArtifacts.length
                   return (
                     <div key={theory.id} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
                       <button
-                        onClick={() => setExpandedTheory(isExpanded ? null : theory.id)}
+                        onClick={function() { setExpandedTheory(isExpanded ? null : theory.id) }}
                         className="w-full flex items-start gap-3 p-4 text-left hover:bg-gray-800/50 transition-colors"
                       >
                         {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-500 mt-0.5" /> : <ChevronRight className="w-4 h-4 text-gray-500 mt-0.5" />}
                         <div className="flex-1">
                           <div className="text-white font-medium">{theory.title}</div>
                           <div className="text-gray-500 text-xs mt-0.5">
-                            {theory.entryIds.length} supporting entries
+                            {evidenceCount + ' supporting evidence'}
                           </div>
                         </div>
                       </button>
@@ -314,18 +389,36 @@ export default function ResearcherProfile() {
                             <p className="text-gray-300 text-sm mb-3">{theory.thesis}</p>
                           )}
                           {theoryEntries.length > 0 && (
-                            <div className="space-y-1">
-                              {theoryEntries.map((e: any) => {
+                            <div className="space-y-1 mb-2">
+                              {theoryEntries.map(function(e: any) {
                                 const vc = VERDICT_CONFIG[e.verdict] || VERDICT_CONFIG.needs_info
                                 return (
                                   <Link
                                     key={e.id}
-                                    href={`/report/${e.slug}`}
+                                    href={'/report/' + e.slug}
                                     className="flex items-center gap-2 text-xs text-gray-400 hover:text-white transition-colors"
                                   >
                                     <span className={vc.color}>{vc.icon}</span>
                                     <span className="truncate">{e.name}</span>
                                   </Link>
+                                )
+                              })}
+                            </div>
+                          )}
+                          {theoryArtifacts.length > 0 && (
+                            <div className="space-y-1">
+                              {theoryArtifacts.map(function(a) {
+                                return (
+                                  <div
+                                    key={a.id}
+                                    className="flex items-center gap-2 text-xs text-gray-400"
+                                  >
+                                    <Globe className="w-3 h-3 text-indigo-400" />
+                                    <span className="truncate">{a.title}</span>
+                                    {a.sourcePlatform && (
+                                      <span className="text-gray-600 flex-shrink-0">{a.sourcePlatform}</span>
+                                    )}
+                                  </div>
                                 )
                               })}
                             </div>

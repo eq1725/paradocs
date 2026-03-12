@@ -1,10 +1,10 @@
 'use client'
 
-import type { CaseFile } from '@/lib/database.types'
+import type { CaseFile, ConstellationTheory } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
-import { Plus, Zap, Circle, ChevronRight, Sparkles, Loader2 } from 'lucide-react'
-import { useState, useCallback } from 'react'
+import { Plus, Zap, Circle, ChevronRight, Sparkles, Loader2, Lightbulb, Globe, Lock, Share2 } from 'lucide-react'
+import { useState, useCallback, useEffect } from 'react'
 
 interface CaseFileWithCount extends CaseFile {
   artifact_count: number
@@ -20,6 +20,9 @@ interface ResearchHubSidebarProps {
   onAddArtifact: () => void
   onOpenInsights: () => void
   onRefresh?: () => void
+  onCreateTheory?: () => void
+  onEditTheory?: (theory: ConstellationTheory) => void
+  onShareTheory?: (theory: ConstellationTheory) => void
 }
 
 export function ResearchHubSidebar({
@@ -32,10 +35,44 @@ export function ResearchHubSidebar({
   onAddArtifact,
   onOpenInsights,
   onRefresh,
+  onCreateTheory,
+  onEditTheory,
+  onShareTheory,
 }: ResearchHubSidebarProps) {
   var [isAnalyzing, setIsAnalyzing] = useState(false)
   var [analyzeError, setAnalyzeError] = useState<string | null>(null)
   var [analyzeResult, setAnalyzeResult] = useState<string | null>(null)
+  var [theories, setTheories] = useState<ConstellationTheory[]>([])
+  var [theoriesLoading, setTheoriesLoading] = useState(false)
+
+  // Fetch theories
+  useEffect(function() {
+    var cancelled = false
+    async function loadTheories() {
+      setTheoriesLoading(true)
+      try {
+        var session = await supabase.auth.getSession()
+        var token = session.data.session?.access_token
+        if (!token) return
+
+        var response = await fetch('/api/research-hub/theories', {
+          headers: { 'Authorization': 'Bearer ' + token },
+        })
+        if (!response.ok) return
+
+        var data = await response.json()
+        if (!cancelled) {
+          setTheories(data.theories || [])
+        }
+      } catch (err) {
+        // Silently fail — theories are a nice-to-have in sidebar
+      } finally {
+        if (!cancelled) setTheoriesLoading(false)
+      }
+    }
+    loadTheories()
+    return function() { cancelled = true }
+  }, [stats])
 
   var handleDeepScan = useCallback(async function() {
     setIsAnalyzing(true)
@@ -183,6 +220,68 @@ export function ResearchHubSidebar({
                 <span className="text-xs text-gray-500 flex-shrink-0">({caseFile.artifact_count})</span>
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Theories Section */}
+        <div className="px-4 py-4 border-t border-gray-800 mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-semibold uppercase text-gray-400 tracking-wider flex items-center gap-1.5">
+              <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
+              Theories
+            </h3>
+            {onCreateTheory && (
+              <button
+                onClick={onCreateTheory}
+                className="p-1 text-gray-400 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors"
+                title="New Theory"
+                aria-label="New Theory"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {theories.length === 0 && !theoriesLoading && (
+            <p className="text-xs text-gray-600 px-1">
+              No theories yet. Create one to document your research hypotheses.
+            </p>
+          )}
+
+          <div className="space-y-1">
+            {theories.map(function(theory) {
+              return (
+                <div key={theory.id} className="group">
+                  <button
+                    onClick={function() { if (onEditTheory) onEditTheory(theory) }}
+                    className={classNames(
+                      'w-full text-left px-3 py-2 rounded-lg transition-all duration-200',
+                      'flex items-center gap-2 text-sm',
+                      'text-gray-300 hover:bg-gray-800/50 hover:text-gray-100'
+                    )}
+                  >
+                    {theory.is_public ? (
+                      <Globe className="w-3 h-3 text-green-400 flex-shrink-0" />
+                    ) : (
+                      <Lock className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                    )}
+                    <span className="truncate flex-1">{theory.title}</span>
+                    {onShareTheory && theory.is_public && (
+                      <button
+                        onClick={function(e) {
+                          e.stopPropagation()
+                          onShareTheory(theory)
+                        }}
+                        className="p-0.5 text-gray-600 hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all"
+                        title="Share"
+                      >
+                        <Share2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </button>
+                </div>
+              )
+            })}
           </div>
         </div>
 

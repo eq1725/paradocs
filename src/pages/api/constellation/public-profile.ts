@@ -47,8 +47,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const userId = profile.id
 
-    // Parallel fetch: entries, connections, theories
-    const [entriesResult, connectionsResult, theoriesResult] = await Promise.all([
+    // Parallel fetch: entries, connections, theories, Research Hub artifacts
+    const [entriesResult, connectionsResult, theoriesResult, artifactsResult, hubConnectionsResult] = await Promise.all([
       supabase
         .from('constellation_entries')
         .select(`
@@ -70,11 +70,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .eq('user_id', userId)
         .eq('is_public', true)
         .order('updated_at', { ascending: false }),
+
+      // Research Hub artifacts (V2)
+      supabase
+        .from('constellation_artifacts')
+        .select('id, source_type, title, thumbnail_url, source_platform, external_url, verdict, tags, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false }),
+
+      // Research Hub connections (V2) — uses artifact_a_id / artifact_b_id
+      supabase
+        .from('constellation_connections')
+        .select('id, artifact_a_id, artifact_b_id, relationship_type, annotation, created_at')
+        .eq('user_id', userId)
+        .not('artifact_a_id', 'is', null)
+        .order('created_at', { ascending: false }),
     ])
 
     const entries = entriesResult.data || []
     const connections = connectionsResult.data || []
     const theories = theoriesResult.data || []
+    const hubArtifacts = artifactsResult.data || []
+    const hubConnections = hubConnectionsResult.data || []
 
     // Build stats
     const categories = new Set(entries.map((e: any) => e.report?.category).filter(Boolean))
@@ -93,8 +110,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .filter(([_, ids]) => ids.length > 1)
       .map(([tag, entryIds]) => ({ tag, entryIds }))
 
-    // Rank calculation
-    const totalEntries = entries.length
+    // Rank calculation (include both old entries and new Research Hub artifacts)
+    const totalEntries = entries.length + hubArtifacts.length
     const categoriesExplored = categories.size
     const theoryCount = theories.length
     let rank = 'Stargazer'
@@ -168,12 +185,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         id: t.id,
         title: t.title,
         thesis: t.thesis,
-        entryIds: t.entry_ids,
-        connectionIds: t.connection_ids,
+        entryIds: t.entry_ids || [],
+        artifactIds: t.artifact_ids || [],
+        connectionIds: t.connection_ids || [],
         createdAt: t.created_at,
         updatedAt: t.updated_at,
       })),
       tagConnections,
+      // Research Hub V2 data
+      researchHub: {
+        artifacts: hubArtifacts.map((a: any) => ({
+          id: a.id,
+          sourceType: a.source_type,
+          title: a.title,
+          thumbnailUrl: a.thumbnail_url,
+          sourcePlatform: a.source_platform,
+          externalUrl: a.external_url,
+          verdict: a.verdict,
+          tags: a.tags || [],
+          createdAt: a.created_at,
+        })),
+        connections: hubConnections.map((c: any) => ({
+          id: c.id,
+          artifactAId: c.artifact_a_id,
+          artifactBId: c.artifact_b_id,
+          relationshipType: c.relationship_type,
+          annotation: c.annotation,
+        })),
+        totalArtifacts: hubArtifacts.length,
+        totalConnections: hubConnections.length,
+      },
     })
   } catch (err: any) {
     console.error('Public profile error:', err)

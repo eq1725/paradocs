@@ -19,8 +19,11 @@ import { MobileSidebar } from './MobileSidebar'
 import { ArtifactDetailDrawer } from './ArtifactDetailDrawer'
 import { ArtifactQuickAdd } from './ArtifactQuickAdd'
 import { ConstellationView } from './ConstellationView'
+import { TheoryComposer } from './TheoryComposer'
+import { SharePanel } from './SharePanel'
 import { Menu, AlertCircle, RefreshCw } from 'lucide-react'
 import { useState, useCallback } from 'react'
+import type { ConstellationTheory } from '@/lib/database.types'
 
 interface CaseFileWithCount extends CaseFile {
   artifact_count: number
@@ -64,6 +67,15 @@ export function ResearchHub() {
   const [activeCaseFileId, setActiveCaseFileId] = useState<string | null>(null)
   const [isConnectingMode, setIsConnectingMode] = useState(false)
   const [connectingFrom, setConnectingFrom] = useState<ConstellationArtifact | null>(null)
+  const [isTheoryOpen, setIsTheoryOpen] = useState(false)
+  const [editingTheory, setEditingTheory] = useState<ConstellationTheory | null>(null)
+  const [shareState, setShareState] = useState<{
+    isOpen: boolean
+    type: 'theory' | 'case_file' | 'profile'
+    title: string
+    url: string
+    embedId?: string
+  }>({ isOpen: false, type: 'theory', title: '', url: '' })
 
   // Build case file to artifact ID mapping from the hub data
   // The hub-data API returns artifacts grouped; we derive the map here
@@ -167,6 +179,30 @@ export function ResearchHub() {
     [removeArtifactFromCaseFile]
   )
 
+  const handleCreateTheory = useCallback(function() {
+    setEditingTheory(null)
+    setIsTheoryOpen(true)
+  }, [])
+
+  const handleEditTheory = useCallback(function(theory: ConstellationTheory) {
+    setEditingTheory(theory)
+    setIsTheoryOpen(true)
+  }, [])
+
+  const handleShareTheory = useCallback(function(theory: ConstellationTheory) {
+    setShareState({
+      isOpen: true,
+      type: 'theory',
+      title: theory.title,
+      url: 'https://beta.discoverparadocs.com/theory/' + theory.id,
+      embedId: theory.id,
+    })
+  }, [])
+
+  const handleTheorySaved = useCallback(function() {
+    refresh()
+  }, [refresh])
+
   // Skeleton loading state
   if (loading) {
     return (
@@ -222,6 +258,9 @@ export function ResearchHub() {
         onAddArtifact={function() { setIsQuickAddOpen(true) }}
         onOpenInsights={function() {}}
         onRefresh={refresh}
+        onCreateTheory={handleCreateTheory}
+        onEditTheory={handleEditTheory}
+        onShareTheory={handleShareTheory}
       />
 
       {/* Main Content */}
@@ -348,6 +387,27 @@ export function ResearchHub() {
         onClose={() => setIsQuickAddOpen(false)}
         onSave={handleAddArtifact}
         caseFiles={caseFilesWithCounts}
+      />
+
+      {/* Theory Composer */}
+      <TheoryComposer
+        isOpen={isTheoryOpen}
+        onClose={function() { setIsTheoryOpen(false); setEditingTheory(null) }}
+        artifacts={safeArtifacts}
+        caseFiles={safeCaseFiles}
+        connections={safeConnections}
+        editingTheory={editingTheory}
+        onSaved={handleTheorySaved}
+      />
+
+      {/* Share Panel */}
+      <SharePanel
+        isOpen={shareState.isOpen}
+        onClose={function() { setShareState(function(prev) { return { ...prev, isOpen: false } }) }}
+        shareType={shareState.type}
+        title={shareState.title}
+        shareUrl={shareState.url}
+        embedId={shareState.embedId}
       />
     </div>
   )
