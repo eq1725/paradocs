@@ -102,7 +102,28 @@ export function useResearchHub(initialView: ResearchHubView = 'board'): Research
       }
 
       const data = await response.json()
-      setArtifacts(data.artifacts || [])
+
+      // hub-data returns artifacts as an object grouped by case file for board view,
+      // but we need a flat array. Normalize it here.
+      var rawArtifacts = data.artifacts || []
+      if (!Array.isArray(rawArtifacts)) {
+        // Board view format: { [caseFileId]: { caseFile, artifacts: [...] }, unsorted: { ... } }
+        var flatList: any[] = []
+        var seen = new Set<string>()
+        Object.values(rawArtifacts).forEach(function(group: any) {
+          if (group && Array.isArray(group.artifacts)) {
+            group.artifacts.forEach(function(a: any) {
+              if (!seen.has(a.id)) {
+                seen.add(a.id)
+                flatList.push(a)
+              }
+            })
+          }
+        })
+        rawArtifacts = flatList
+      }
+
+      setArtifacts(rawArtifacts)
       setCaseFiles(data.caseFiles || [])
       setConnections(data.connections || [])
       setInsights(data.insights || [])
