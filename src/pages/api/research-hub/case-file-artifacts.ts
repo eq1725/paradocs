@@ -92,6 +92,11 @@ export default async function handler(
           if (error.code === '42P01') {
             return res.status(500).json({ error: 'constellation_case_file_artifacts table does not exist' })
           }
+          // Handle unique constraint violation (artifact already in case file)
+          if (error.code === '23505') {
+            return res.status(200).json({ relation: null, created: false, message: 'Artifact already in this case file' })
+          }
+          console.error('case-file-artifacts insert error:', error.code, error.message)
           throw error
         }
 
@@ -149,7 +154,7 @@ export default async function handler(
 
     return res.status(405).json({ error: 'Method not allowed' })
   } catch (error: any) {
-    console.error('Case File Artifacts API error:', error)
-    return res.status(500).json({ error: 'Internal server error' })
+    console.error('Case File Artifacts API error:', error?.code, error?.message, error)
+    return res.status(500).json({ error: error?.message || 'Internal server error', code: error?.code })
   }
 }
