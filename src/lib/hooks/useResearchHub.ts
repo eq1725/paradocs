@@ -248,8 +248,10 @@ export function useResearchHub(initialView: ResearchHubView = 'board'): Research
 
       if (!response.ok) throw new Error('Failed to add case file')
 
-      const newCaseFile = await response.json()
-      setCaseFiles(prev => [...prev, { ...newCaseFile, artifact_count: 0 }])
+      const responseData = await response.json()
+      // API returns { caseFile: {...}, created: true } — unwrap it
+      const newCaseFile = responseData.caseFile || responseData
+      setCaseFiles(prev => [...prev, { ...newCaseFile, artifact_count: newCaseFile.artifact_count || 0 }])
       return newCaseFile
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add case file')

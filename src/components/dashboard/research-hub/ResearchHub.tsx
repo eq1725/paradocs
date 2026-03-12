@@ -19,6 +19,7 @@ import { MobileSidebar } from './MobileSidebar'
 import { ArtifactDetailDrawer } from './ArtifactDetailDrawer'
 import { ArtifactQuickAdd } from './ArtifactQuickAdd'
 import { ConstellationView } from './ConstellationView'
+import { InsightsDrawer } from './InsightsDrawer'
 import { TheoryComposer } from './TheoryComposer'
 import { SharePanel } from './SharePanel'
 import { Menu, AlertCircle, RefreshCw } from 'lucide-react'
@@ -67,6 +68,7 @@ export function ResearchHub() {
   const [activeCaseFileId, setActiveCaseFileId] = useState<string | null>(null)
   const [isConnectingMode, setIsConnectingMode] = useState(false)
   const [connectingFrom, setConnectingFrom] = useState<ConstellationArtifact | null>(null)
+  const [isInsightsOpen, setIsInsightsOpen] = useState(false)
   const [isTheoryOpen, setIsTheoryOpen] = useState(false)
   const [editingTheory, setEditingTheory] = useState<ConstellationTheory | null>(null)
   const [shareState, setShareState] = useState<{
@@ -256,7 +258,7 @@ export function ResearchHub() {
         onSelectCaseFile={setActiveCaseFileId}
         onCreateCaseFile={handleCreateCaseFile}
         onAddArtifact={function() { setIsQuickAddOpen(true) }}
-        onOpenInsights={function() {}}
+        onOpenInsights={function() { setIsInsightsOpen(true) }}
         onRefresh={refresh}
         onCreateTheory={handleCreateTheory}
         onEditTheory={handleEditTheory}
@@ -350,7 +352,7 @@ export function ResearchHub() {
         onSelectCaseFile={setActiveCaseFileId}
         onCreateCaseFile={handleCreateCaseFile}
         onAddArtifact={function() { setIsQuickAddOpen(true) }}
-        onOpenInsights={function() {}}
+        onOpenInsights={function() { setIsInsightsOpen(true) }}
       />
 
       {/* Floating Action Button for Mobile */}
@@ -398,6 +400,15 @@ export function ResearchHub() {
         connections={safeConnections}
         editingTheory={editingTheory}
         onSaved={handleTheorySaved}
+      />
+
+      {/* Insights Drawer */}
+      <InsightsDrawer
+        isOpen={isInsightsOpen}
+        onClose={function() { setIsInsightsOpen(false) }}
+        insights={safeInsights}
+        onDismiss={dismissInsight}
+        onRate={rateInsight}
       />
 
       {/* Share Panel */}
