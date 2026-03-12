@@ -138,8 +138,6 @@ export function useResearchHub(initialView: ResearchHubView = 'board'): Research
           artifacts: cfArtifacts
         })
       })
-      console.log('[ResearchHub] enrichedCaseFiles:', JSON.stringify(enrichedCaseFiles.map(function(cf: any) { return { id: cf.id, title: cf.title, artifact_count: cf.artifact_count, artifactsLen: (cf.artifacts || []).length } })))
-      console.log('[ResearchHub] caseFileArtifactsMap keys:', Object.keys(caseFileArtifactsMap), 'flat artifacts:', rawArtifacts.length)
       setCaseFiles(enrichedCaseFiles)
       setConnections(data.connections || [])
       setInsights(data.insights || [])
