@@ -106,12 +106,18 @@ export function useResearchHub(initialView: ResearchHubView = 'board'): Research
       // hub-data returns artifacts as an object grouped by case file for board view,
       // but we need a flat array. Normalize it here.
       var rawArtifacts = data.artifacts || []
+      var caseFileArtifactsMap: Record<string, any[]> = {}
       if (!Array.isArray(rawArtifacts)) {
         // Board view format: { [caseFileId]: { caseFile, artifacts: [...] }, unsorted: { ... } }
         var flatList: any[] = []
         var seen = new Set<string>()
-        Object.values(rawArtifacts).forEach(function(group: any) {
+        Object.entries(rawArtifacts).forEach(function(entry: any) {
+          var key = entry[0]
+          var group = entry[1]
           if (group && Array.isArray(group.artifacts)) {
+            if (key !== 'unsorted') {
+              caseFileArtifactsMap[key] = group.artifacts
+            }
             group.artifacts.forEach(function(a: any) {
               if (!seen.has(a.id)) {
                 seen.add(a.id)
@@ -124,7 +130,14 @@ export function useResearchHub(initialView: ResearchHubView = 'board'): Research
       }
 
       setArtifacts(rawArtifacts)
-      setCaseFiles(data.caseFiles || [])
+      // Enrich case files with their artifacts so BoardView can render them
+      var enrichedCaseFiles = (data.caseFiles || []).map(function(cf: any) {
+        return Object.assign({}, cf, {
+          artifact_count: caseFileArtifactsMap[cf.id] ? caseFileArtifactsMap[cf.id].length : (cf.artifact_count || 0),
+          artifacts: caseFileArtifactsMap[cf.id] || []
+        })
+      })
+      setCaseFiles(enrichedCaseFiles)
       setConnections(data.connections || [])
       setInsights(data.insights || [])
     } catch (err) {
