@@ -221,6 +221,7 @@ export function ResearchHub() {
         onCreateCaseFile={handleCreateCaseFile}
         onAddArtifact={function() { setIsQuickAddOpen(true) }}
         onOpenInsights={function() {}}
+        onRefresh={refresh}
       />
 
       {/* Main Content */}

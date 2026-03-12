@@ -9,6 +9,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createServerClient } from '@/lib/supabase'
 import { createHash } from 'crypto'
+import { generateOnAddInsights } from '@/lib/services/research-hub-insights.service'
 
 function normalizeUrl(rawUrl: string): string {
   try {
@@ -243,6 +244,13 @@ export default async function handler(
           if (junctionError && junctionError.code !== '42P01') {
             throw junctionError
           }
+        }
+
+        // Async: generate on-add insights (fire and forget — don't block response)
+        if (artifact) {
+          generateOnAddInsights(user.id, artifact as any).catch(function(err) {
+            console.error('On-add insight generation error:', err)
+          })
         }
 
         return res.status(201).json({ artifact, created: true })

@@ -2,8 +2,9 @@
 
 import type { CaseFile } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
-import { Plus, Zap, Circle, ChevronRight } from 'lucide-react'
-import { useState } from 'react'
+import { supabase } from '@/lib/supabase'
+import { Plus, Zap, Circle, ChevronRight, Sparkles, Loader2 } from 'lucide-react'
+import { useState, useCallback } from 'react'
 
 interface CaseFileWithCount extends CaseFile {
   artifact_count: number
@@ -18,6 +19,7 @@ interface ResearchHubSidebarProps {
   onCreateCaseFile: () => void
   onAddArtifact: () => void
   onOpenInsights: () => void
+  onRefresh?: () => void
 }
 
 export function ResearchHubSidebar({
@@ -29,7 +31,51 @@ export function ResearchHubSidebar({
   onCreateCaseFile,
   onAddArtifact,
   onOpenInsights,
+  onRefresh,
 }: ResearchHubSidebarProps) {
+  var [isAnalyzing, setIsAnalyzing] = useState(false)
+  var [analyzeError, setAnalyzeError] = useState<string | null>(null)
+  var [analyzeResult, setAnalyzeResult] = useState<string | null>(null)
+
+  var handleDeepScan = useCallback(async function() {
+    setIsAnalyzing(true)
+    setAnalyzeError(null)
+    setAnalyzeResult(null)
+
+    try {
+      var session = await supabase.auth.getSession()
+      var token = session.data.session?.access_token
+      if (!token) {
+        setAnalyzeError('Not authenticated')
+        return
+      }
+
+      var response = await fetch('/api/research-hub/analyze', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        var errorData = await response.json()
+        setAnalyzeError(errorData.error || 'Analysis failed')
+        return
+      }
+
+      var data = await response.json()
+      setAnalyzeResult(data.insights_generated + ' new insight' + (data.insights_generated !== 1 ? 's' : '') + ' found')
+
+      // Refresh the hub data to show new insights
+      if (onRefresh) onRefresh()
+    } catch (err) {
+      setAnalyzeError('Network error')
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }, [onRefresh])
+
   const unsortedCount = stats.totalArtifacts - caseFiles.reduce((acc, cf) => acc + cf.artifact_count, 0)
 
   return (
@@ -169,6 +215,37 @@ export function ResearchHubSidebar({
             </div>
             <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-400 flex-shrink-0 transition-colors" />
           </button>
+
+          {/* Deep Scan Button */}
+          {stats.totalArtifacts >= 3 && (
+            <div className="mt-3">
+              <button
+                onClick={handleDeepScan}
+                disabled={isAnalyzing}
+                className={classNames(
+                  'w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200',
+                  'flex items-center justify-center gap-2',
+                  isAnalyzing
+                    ? 'bg-cyan-600/20 text-cyan-300 cursor-wait'
+                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white'
+                )}
+              >
+                {isAnalyzing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4" />
+                )}
+                {isAnalyzing ? 'Analyzing...' : 'Run Deep Scan'}
+              </button>
+
+              {analyzeError && (
+                <p className="mt-2 text-xs text-red-400 px-1">{analyzeError}</p>
+              )}
+              {analyzeResult && (
+                <p className="mt-2 text-xs text-cyan-400 px-1">{analyzeResult}</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </aside>
