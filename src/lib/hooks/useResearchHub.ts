@@ -151,7 +151,9 @@ export function useResearchHub(initialView: ResearchHubView = 'board'): Research
 
       if (!response.ok) throw new Error('Failed to add artifact')
 
-      const newArtifact = await response.json()
+      const responseData = await response.json()
+      // API returns { artifact: {...}, created: true } — unwrap it
+      const newArtifact = responseData.artifact || responseData
       setArtifacts(prev => [newArtifact, ...prev])
       return newArtifact
     } catch (err) {
