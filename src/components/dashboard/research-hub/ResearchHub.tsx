@@ -124,8 +124,9 @@ export function ResearchHub() {
 
     if (result && data.case_file_id) {
       await addArtifactToCaseFile(data.case_file_id, result.id)
+      await refresh()
     }
-  }, [addArtifact, addArtifactToCaseFile])
+  }, [addArtifact, addArtifactToCaseFile, refresh])
 
   const handleCreateCaseFile = useCallback(async function() {
     var title = window.prompt('New Case File Name:')
