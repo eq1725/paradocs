@@ -3,6 +3,7 @@
 import type { ConstellationArtifact } from '@/lib/database.types'
 import { classNames, formatRelativeDate, truncate } from '@/lib/utils'
 import { SOURCE_TYPE_CONFIG, VERDICT_CONFIG } from '@/lib/research-hub-helpers'
+import { SourceLogo } from './SourceLogos'
 import {
   Link,
   StickyNote,
@@ -91,10 +92,14 @@ export function ArtifactCard({
             className="h-full w-full object-cover"
           />
         ) : (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-gray-700 opacity-50">
+          <div className="flex flex-col items-center justify-center h-full gap-1">
+            <SourceLogo
+              sourceType={artifact.source_type}
+              className={"w-10 h-10 " + (sourceConfig?.color || 'text-gray-500')}
+            />
+            <span className="text-xs text-gray-600 font-medium">
               {sourceConfig?.label}
-            </div>
+            </span>
           </div>
         )}
 
