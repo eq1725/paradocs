@@ -60,7 +60,7 @@ export function ArtifactCard({
 
   const cardClasses = classNames(
     'rounded-xl border bg-gray-900 transition-all duration-200',
-    'overflow-hidden cursor-pointer group',
+    'overflow-hidden cursor-pointer group h-full flex flex-col',
     isConnecting && 'ring-2 ring-offset-2 ring-offset-gray-950 ring-cyan-500 animate-pulse',
     isSelected && 'ring-2 ring-offset-2 ring-offset-gray-950 ring-blue-500 border-blue-600',
     !isConnecting && !isSelected && 'border-gray-800 hover:border-gray-700'
@@ -77,10 +77,10 @@ export function ArtifactCard({
       onMouseEnter={() => !compact && setShowActions(true)}
       onMouseLeave={() => !compact && setShowActions(false)}
     >
-      {/* Thumbnail and source badge */}
+      {/* Thumbnail and source badge - fixed height */}
       <div
         className={classNames(
-          'relative h-32 w-full overflow-hidden bg-gradient-to-br',
+          'relative h-32 w-full overflow-hidden bg-gradient-to-br flex-shrink-0',
           backgroundColor
         )}
       >
@@ -128,7 +128,7 @@ export function ArtifactCard({
       </div>
 
       {/* Content */}
-      <div className="p-3 space-y-2">
+      <div className="p-3 space-y-2 flex-1 min-h-0 flex flex-col">
         {/* Title */}
         <h3 className="font-medium text-white line-clamp-2 text-sm">
           {truncate(artifact.title, 80)}
@@ -175,7 +175,7 @@ export function ArtifactCard({
         </div>
 
         {/* Timestamp */}
-        <p className="text-xs text-gray-500 pt-1">
+        <p className="text-xs text-gray-500 pt-1 mt-auto">
           {artifact.created_at
             ? 'Saved ' + formatRelativeDate(new Date(artifact.created_at))
             : 'Recently added'}
@@ -185,9 +185,9 @@ export function ArtifactCard({
       {/* Action buttons */}
       <div
         className={classNames(
-          'border-t border-gray-800 px-3 py-2 flex items-center gap-1',
-          'bg-gray-800/30 backdrop-blur-sm',
-          compact || showActions ? 'block' : 'hidden group-hover:block'
+          'border-t border-gray-800 px-3 py-2 flex items-center gap-1 flex-shrink-0',
+          'bg-gray-800/30 backdrop-blur-sm transition-opacity duration-150',
+          compact || showActions ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
         )}
       >
         <button
