@@ -38,6 +38,11 @@ var SOURCE_TYPE_OPTIONS: Array<{ value: ArtifactSourceType; label: string }> = [
   { value: 'podcast', label: 'Podcast' },
   { value: 'news', label: 'News' },
   { value: 'archive', label: 'Archive.org' },
+  { value: 'vimeo', label: 'Vimeo' },
+  { value: 'rumble', label: 'Rumble' },
+  { value: 'substack', label: 'Substack' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'wikipedia', label: 'Wikipedia' },
   { value: 'website', label: 'Website' },
   { value: 'other', label: 'Other' },
 ]

@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS constellation_artifacts (
   source_type TEXT NOT NULL CHECK (source_type IN (
     'paradocs_report', 'youtube', 'reddit', 'tiktok',
     'instagram', 'podcast', 'news', 'twitter', 'archive',
+    'vimeo', 'rumble', 'substack', 'medium', 'wikipedia',
     'website', 'other'
   )),
   report_id UUID REFERENCES reports(id) ON DELETE SET NULL,

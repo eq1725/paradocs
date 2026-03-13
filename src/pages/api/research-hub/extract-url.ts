@@ -28,6 +28,11 @@ var URL_PATTERNS: Array<{ pattern: RegExp; sourceType: string; platform: string 
   { pattern: /spotify\.com\/episode|podcasts\.apple\.com|anchor\.fm/i, sourceType: 'podcast', platform: 'Podcast' },
   { pattern: /cnn\.com|bbc\.com|nytimes\.com|reuters\.com|apnews\.com|theguardian\.com|washingtonpost\.com|nbcnews\.com|foxnews\.com|abcnews\.go\.com/i, sourceType: 'news', platform: 'News' },
   { pattern: /archive\.org\//i, sourceType: 'archive', platform: 'Archive.org' },
+  { pattern: /vimeo\.com\//i, sourceType: 'vimeo', platform: 'Vimeo' },
+  { pattern: /rumble\.com\//i, sourceType: 'rumble', platform: 'Rumble' },
+  { pattern: /(?:[a-z0-9-]+\.)?substack\.com/i, sourceType: 'substack', platform: 'Substack' },
+  { pattern: /medium\.com\/|[a-z0-9-]+\.medium\.com/i, sourceType: 'medium', platform: 'Medium' },
+  { pattern: /(?:[a-z]{2,3}\.)?wikipedia\.org\/wiki\//i, sourceType: 'wikipedia', platform: 'Wikipedia' },
 ]
 
 function detectSourceType(url: string): { sourceType: string; platform: string } {

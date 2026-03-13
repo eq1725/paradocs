@@ -157,6 +157,67 @@ function ArchiveLogo({ className }: LogoProps) {
   )
 }
 
+function VimeoLogo({ className }: LogoProps) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" className={className}>
+      {/* Rounded rectangle background */}
+      <rect x="4" y="10" width="40" height="28" rx="8" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="2" />
+      {/* V shape */}
+      <path d="M15 18 L24 30 L33 18" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  )
+}
+
+function RumbleLogo({ className }: LogoProps) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" className={className}>
+      {/* Shield / badge shape */}
+      <path d="M24 4 L40 12 L40 28 C40 36, 32 42, 24 44 C16 42, 8 36, 8 28 L8 12 Z" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      {/* Play triangle */}
+      <path d="M20 17 L32 24 L20 31 Z" fill="currentColor" />
+    </svg>
+  )
+}
+
+function SubstackLogo({ className }: LogoProps) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" className={className}>
+      {/* Three horizontal bars (Substack icon) */}
+      <line x1="10" y1="12" x2="38" y2="12" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      <line x1="10" y1="22" x2="38" y2="22" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      {/* Angled lines forming V/envelope shape below */}
+      <path d="M10 30 L24 40 L38 30" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <line x1="10" y1="30" x2="10" y2="22" stroke="currentColor" strokeWidth="3" strokeLinecap="round" opacity="0.4" />
+      <line x1="38" y1="30" x2="38" y2="22" stroke="currentColor" strokeWidth="3" strokeLinecap="round" opacity="0.4" />
+    </svg>
+  )
+}
+
+function MediumLogo({ className }: LogoProps) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" className={className}>
+      {/* M shape - the Medium wordmark */}
+      <path d="M8 36 L8 12 L18 28 L24 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d="M24 12 L30 28 L40 12 L40 36" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      {/* Baseline */}
+      <line x1="8" y1="36" x2="40" y2="36" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.3" />
+    </svg>
+  )
+}
+
+function WikipediaLogo({ className }: LogoProps) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" className={className}>
+      {/* Globe puzzle piece outline */}
+      <circle cx="24" cy="22" r="16" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="2" />
+      {/* W shape */}
+      <path d="M12 16 L18 32 L24 20 L30 32 L36 16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      {/* Book base */}
+      <path d="M10 42 L24 38 L38 42" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  )
+}
+
 function DefaultLogo({ className }: LogoProps) {
   return (
     <svg viewBox="0 0 48 48" fill="none" className={className}>
@@ -176,6 +237,11 @@ const SOURCE_LOGO_MAP: Record<string, React.ComponentType<LogoProps>> = {
   podcast: PodcastLogo,
   news: NewsLogo,
   archive: ArchiveLogo,
+  vimeo: VimeoLogo,
+  rumble: RumbleLogo,
+  substack: SubstackLogo,
+  medium: MediumLogo,
+  wikipedia: WikipediaLogo,
   website: WebsiteLogo,
   paradocs_report: ParadocsLogo,
   other: DefaultLogo,

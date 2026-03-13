@@ -746,6 +746,11 @@ export type ArtifactSourceType =
   | 'news'
   | 'twitter'
   | 'archive'
+  | 'vimeo'
+  | 'rumble'
+  | 'substack'
+  | 'medium'
+  | 'wikipedia'
   | 'website'
   | 'other'
 

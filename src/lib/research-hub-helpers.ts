@@ -64,6 +64,36 @@ export const SOURCE_TYPE_CONFIG: Record<
     color: 'text-amber-400',
     bgColor: 'bg-amber-500/20',
   },
+  vimeo: {
+    label: 'Vimeo',
+    icon: 'Play',
+    color: 'text-cyan-400',
+    bgColor: 'bg-cyan-500/20',
+  },
+  rumble: {
+    label: 'Rumble',
+    icon: 'Video',
+    color: 'text-emerald-400',
+    bgColor: 'bg-emerald-500/20',
+  },
+  substack: {
+    label: 'Substack',
+    icon: 'BookOpen',
+    color: 'text-orange-400',
+    bgColor: 'bg-orange-500/20',
+  },
+  medium: {
+    label: 'Medium',
+    icon: 'PenTool',
+    color: 'text-white',
+    bgColor: 'bg-gray-600/20',
+  },
+  wikipedia: {
+    label: 'Wikipedia',
+    icon: 'BookOpen',
+    color: 'text-gray-300',
+    bgColor: 'bg-gray-500/20',
+  },
   website: {
     label: 'Website',
     icon: 'Globe',
