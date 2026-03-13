@@ -33,6 +33,16 @@ var URL_PATTERNS: Array<{ pattern: RegExp; sourceType: string; platform: string 
   { pattern: /(?:[a-z0-9-]+\.)?substack\.com/i, sourceType: 'substack', platform: 'Substack' },
   { pattern: /medium\.com\/|[a-z0-9-]+\.medium\.com/i, sourceType: 'medium', platform: 'Medium' },
   { pattern: /(?:[a-z]{2,3}\.)?wikipedia\.org\/wiki\//i, sourceType: 'wikipedia', platform: 'Wikipedia' },
+  { pattern: /docs\.google\.com|drive\.google\.com/i, sourceType: 'google_docs', platform: 'Google Docs' },
+  { pattern: /imgur\.com\//i, sourceType: 'imgur', platform: 'Imgur' },
+  { pattern: /flickr\.com\/|flic\.kr\//i, sourceType: 'flickr', platform: 'Flickr' },
+  { pattern: /github\.com\//i, sourceType: 'github', platform: 'GitHub' },
+  { pattern: /facebook\.com\/|fb\.watch\//i, sourceType: 'facebook', platform: 'Facebook' },
+  { pattern: /twitch\.tv\//i, sourceType: 'twitch', platform: 'Twitch' },
+  { pattern: /mufon\.com\//i, sourceType: 'mufon', platform: 'MUFON' },
+  { pattern: /nuforc\.org\//i, sourceType: 'nuforc', platform: 'NUFORC' },
+  { pattern: /theblackvault\.com\//i, sourceType: 'blackvault', platform: 'The Black Vault' },
+  { pattern: /coasttocoastam\.com\//i, sourceType: 'coasttocoast', platform: 'Coast to Coast AM' },
 ]
 
 function detectSourceType(url: string): { sourceType: string; platform: string } {

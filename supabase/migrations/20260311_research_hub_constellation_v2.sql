@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS constellation_artifacts (
     'paradocs_report', 'youtube', 'reddit', 'tiktok',
     'instagram', 'podcast', 'news', 'twitter', 'archive',
     'vimeo', 'rumble', 'substack', 'medium', 'wikipedia',
+    'google_docs', 'imgur', 'flickr', 'github', 'facebook',
+    'twitch', 'mufon', 'nuforc', 'blackvault', 'coasttocoast',
     'website', 'other'
   )),
   report_id UUID REFERENCES reports(id) ON DELETE SET NULL,

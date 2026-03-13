@@ -218,6 +218,166 @@ function WikipediaLogo({ className }: LogoProps) {
   )
 }
 
+function GoogleDocsLogo({ className }: LogoProps) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" className={className}>
+      {/* Document with folded corner */}
+      <path d="M12 6 L32 6 L38 12 L38 42 L12 42 Z" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      {/* Folded corner */}
+      <path d="M32 6 L32 12 L38 12" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="currentColor" opacity="0.25" />
+      {/* Text lines */}
+      <line x1="18" y1="20" x2="32" y2="20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="18" y1="26" x2="32" y2="26" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+      <line x1="18" y1="32" x2="28" y2="32" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+    </svg>
+  )
+}
+
+function ImgurLogo({ className }: LogoProps) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" className={className}>
+      {/* Rounded square frame */}
+      <rect x="6" y="6" width="36" height="36" rx="6" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="2" />
+      {/* Mountain/image icon */}
+      <path d="M10 34 L18 22 L24 28 L32 18 L38 34 Z" fill="currentColor" opacity="0.4" />
+      {/* Sun */}
+      <circle cx="16" cy="16" r="3" fill="currentColor" />
+    </svg>
+  )
+}
+
+function FlickrLogo({ className }: LogoProps) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" className={className}>
+      {/* Two overlapping circles (Flickr dots) */}
+      <circle cx="17" cy="24" r="10" fill="currentColor" opacity="0.3" stroke="currentColor" strokeWidth="2" />
+      <circle cx="31" cy="24" r="10" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="2" />
+      {/* Inner dots */}
+      <circle cx="17" cy="24" r="4" fill="currentColor" />
+      <circle cx="31" cy="24" r="4" fill="currentColor" opacity="0.5" />
+    </svg>
+  )
+}
+
+function GitHubLogo({ className }: LogoProps) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" className={className}>
+      {/* Octocat-inspired: circle head with tentacles */}
+      <circle cx="24" cy="20" r="14" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="2" />
+      {/* Eyes */}
+      <circle cx="19" cy="18" r="2.5" fill="currentColor" />
+      <circle cx="29" cy="18" r="2.5" fill="currentColor" />
+      {/* Tentacle/branch arms */}
+      <path d="M14 34 C14 28, 18 26, 20 26" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+      <path d="M34 34 C34 28, 30 26, 28 26" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+      {/* Fork prong */}
+      <path d="M24 34 L24 40" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M20 44 L24 40 L28 44" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  )
+}
+
+function FacebookLogo({ className }: LogoProps) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" className={className}>
+      {/* Rounded square */}
+      <rect x="6" y="6" width="36" height="36" rx="8" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="2" />
+      {/* f letterform */}
+      <path d="M26 14 C26 11, 28 10, 31 10" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+      <line x1="26" y1="14" x2="26" y2="38" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+      <line x1="20" y1="22" x2="32" y2="22" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function TwitchLogo({ className }: LogoProps) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" className={className}>
+      {/* Speech bubble shape with notch */}
+      <path d="M8 6 L40 6 L40 32 L30 32 L24 40 L24 32 L8 32 Z" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      {/* Two vertical bars (Twitch glitch icon) */}
+      <line x1="20" y1="14" x2="20" y2="24" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      <line x1="28" y1="14" x2="28" y2="24" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function MufonLogo({ className }: LogoProps) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" className={className}>
+      {/* UFO/flying saucer */}
+      <ellipse cx="24" cy="24" rx="16" ry="6" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="2" />
+      {/* Dome */}
+      <path d="M16 24 C16 16, 20 12, 24 12 C28 12, 32 16, 32 24" stroke="currentColor" strokeWidth="2" fill="currentColor" opacity="0.1" />
+      {/* Beam lights */}
+      <line x1="18" y1="30" x2="14" y2="40" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.4" />
+      <line x1="24" y1="30" x2="24" y2="42" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.4" />
+      <line x1="30" y1="30" x2="34" y2="40" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.4" />
+      {/* Port lights */}
+      <circle cx="18" cy="24" r="1.5" fill="currentColor" />
+      <circle cx="24" cy="24" r="1.5" fill="currentColor" />
+      <circle cx="30" cy="24" r="1.5" fill="currentColor" />
+    </svg>
+  )
+}
+
+function NuforcLogo({ className }: LogoProps) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" className={className}>
+      {/* Radar/signal circle */}
+      <circle cx="24" cy="24" r="16" fill="currentColor" opacity="0.1" stroke="currentColor" strokeWidth="2" />
+      <circle cx="24" cy="24" r="10" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.3" />
+      <circle cx="24" cy="24" r="4" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+      {/* Radar sweep line */}
+      <line x1="24" y1="24" x2="36" y2="14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      {/* Blip */}
+      <circle cx="30" cy="18" r="2" fill="currentColor" />
+      {/* Label bar */}
+      <rect x="8" y="42" width="32" height="3" rx="1.5" fill="currentColor" opacity="0.3" />
+    </svg>
+  )
+}
+
+function BlackVaultLogo({ className }: LogoProps) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" className={className}>
+      {/* Vault door / safe */}
+      <rect x="6" y="6" width="36" height="36" rx="4" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="2" />
+      {/* Inner circle (vault dial) */}
+      <circle cx="24" cy="24" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
+      {/* Lock keyhole */}
+      <circle cx="24" cy="22" r="3" fill="currentColor" />
+      <path d="M22 24 L22 30 L26 30 L26 24" fill="currentColor" />
+      {/* Corner bolts */}
+      <circle cx="12" cy="12" r="2" fill="currentColor" opacity="0.4" />
+      <circle cx="36" cy="12" r="2" fill="currentColor" opacity="0.4" />
+      <circle cx="12" cy="36" r="2" fill="currentColor" opacity="0.4" />
+      <circle cx="36" cy="36" r="2" fill="currentColor" opacity="0.4" />
+    </svg>
+  )
+}
+
+function CoastToCoastLogo({ className }: LogoProps) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" className={className}>
+      {/* Radio tower */}
+      <line x1="24" y1="8" x2="24" y2="38" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+      {/* Tower base legs */}
+      <line x1="24" y1="38" x2="16" y2="44" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="24" y1="38" x2="32" y2="44" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      {/* Cross bar */}
+      <line x1="18" y1="28" x2="30" y2="28" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+      {/* Radio waves */}
+      <path d="M16 12 C14 8, 10 6, 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.4" />
+      <path d="M18 16 C16 14, 14 12, 10 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.3" />
+      <path d="M32 12 C34 8, 38 6, 42 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.4" />
+      <path d="M30 16 C32 14, 34 12, 38 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.3" />
+      {/* Signal dot */}
+      <circle cx="24" cy="8" r="2.5" fill="currentColor" />
+    </svg>
+  )
+}
+
 function DefaultLogo({ className }: LogoProps) {
   return (
     <svg viewBox="0 0 48 48" fill="none" className={className}>
@@ -242,6 +402,16 @@ const SOURCE_LOGO_MAP: Record<string, React.ComponentType<LogoProps>> = {
   substack: SubstackLogo,
   medium: MediumLogo,
   wikipedia: WikipediaLogo,
+  google_docs: GoogleDocsLogo,
+  imgur: ImgurLogo,
+  flickr: FlickrLogo,
+  github: GitHubLogo,
+  facebook: FacebookLogo,
+  twitch: TwitchLogo,
+  mufon: MufonLogo,
+  nuforc: NuforcLogo,
+  blackvault: BlackVaultLogo,
+  coasttocoast: CoastToCoastLogo,
   website: WebsiteLogo,
   paradocs_report: ParadocsLogo,
   other: DefaultLogo,
