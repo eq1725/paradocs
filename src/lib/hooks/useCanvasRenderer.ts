@@ -184,7 +184,7 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
     centers.forEach(center => {
       if (center.entryCount === 0) return
 
-      const glowColor = CATEGORY_GLOW[center.id] || '#666'
+      const glowColor = CATEGORY_GLOW[center.id] || '#666666'
       const baseRadius = 100 + Math.min(center.entryCount * 25, 200)
       const maxAlpha = Math.min(0.12 + center.entryCount * 0.02, 0.2)
 
@@ -279,8 +279,8 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
         // Tag connections: subtle, more visible when highlighted
         alpha = isHighlighted ? 0.6 : 0.08
         lineWidth = isHighlighted ? 1.5 : 0.5
-        const sourceColor = CATEGORY_GLOW[source.category] || '#888'
-        color = source.category === target.category ? sourceColor : '#888'
+        const sourceColor = CATEGORY_GLOW[source.category] || '#888888'
+        color = source.category === target.category ? sourceColor : '#888888'
       }
 
       ctx.strokeStyle = hexToRGBA(color, alpha)
@@ -312,7 +312,7 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
       const isActive = isHovered || isSelected || isTagHighlighted
 
       const verdictColor = VERDICT_COLORS[node.verdict] || '#9ca3af'
-      const catGlow = CATEGORY_GLOW[node.category] || '#666'
+      const catGlow = CATEGORY_GLOW[node.category] || '#666666'
 
       // Glow effect for active nodes
       if (isActive) {
@@ -518,10 +518,18 @@ function drawEnhancedStar(
 // ── Utility Functions ──
 
 function hexToRGBA(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  if (!hex || hex.length < 4) return 'rgba(128, 128, 128, ' + alpha + ')'
+  // Support 3-char hex (#abc -> #aabbcc)
+  if (hex.length === 4) {
+    hex = '#' + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3]
+  }
+  var r = parseInt(hex.slice(1, 3), 16)
+  var g = parseInt(hex.slice(3, 5), 16)
+  var b = parseInt(hex.slice(5, 7), 16)
+  if (isNaN(r)) r = 128
+  if (isNaN(g)) g = 128
+  if (isNaN(b)) b = 128
+  return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + alpha + ')'
 }
 
 /** Deterministic hash for per-node twinkle phase */
