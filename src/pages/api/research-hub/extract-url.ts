@@ -258,6 +258,19 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
     var post = listing?.data?.children?.[0]?.data
     if (!post) return null
 
+    // Debug: log key post fields for image detection
+    console.log('[extract-url] Reddit post fields:', JSON.stringify({
+      post_hint: post.post_hint,
+      thumbnail: post.thumbnail,
+      url: post.url ? post.url.slice(0, 120) : null,
+      url_overridden_by_dest: post.url_overridden_by_dest ? post.url_overridden_by_dest.slice(0, 120) : null,
+      has_preview: !!(post.preview && post.preview.images),
+      preview_count: post.preview && post.preview.images ? post.preview.images.length : 0,
+      is_gallery: !!post.is_gallery,
+      is_video: !!post.is_video,
+      domain: post.domain,
+    }))
+
     // Extract the best image from Reddit's preview system
     var previewImage: string | null = null
     if (post.preview && post.preview.images && post.preview.images.length > 0) {
@@ -265,12 +278,32 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
       if (source && source.url) {
         // Reddit HTML-encodes URLs in preview
         previewImage = source.url.replace(/&amp;/g, '&')
+        console.log('[extract-url] Found preview image:', previewImage.slice(0, 120))
       }
     }
 
     // Check if the post links directly to an image
     var linkedUrl = post.url_overridden_by_dest || post.url || null
-    var isDirectImage = linkedUrl && /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(linkedUrl)
+    // Detect direct images by extension OR by known image hosts OR by post_hint
+    var isDirectImage = linkedUrl && (
+      /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(linkedUrl) ||
+      /i\.redd\.it/i.test(linkedUrl) ||
+      /i\.imgur\.com/i.test(linkedUrl) ||
+      /preview\.redd\.it/i.test(linkedUrl) ||
+      post.post_hint === 'image'
+    )
+
+    // For gallery posts, try to get the first gallery image
+    if (!previewImage && !isDirectImage && post.is_gallery && post.media_metadata) {
+      var mediaKeys = Object.keys(post.media_metadata)
+      if (mediaKeys.length > 0) {
+        var firstMedia = post.media_metadata[mediaKeys[0]]
+        if (firstMedia && firstMedia.s && firstMedia.s.u) {
+          previewImage = firstMedia.s.u.replace(/&amp;/g, '&')
+          console.log('[extract-url] Found gallery image:', previewImage.slice(0, 120))
+        }
+      }
+    }
 
     // For video posts, get the thumbnail
     var mediaUrl: string | null = null
@@ -278,10 +311,16 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
       mediaUrl = post.media.reddit_video.fallback_url || null
     }
 
+    // Use thumbnail as final fallback if it's a real URL
+    var thumbUrl = post.thumbnail
+    var validThumb = thumbUrl && thumbUrl !== 'self' && thumbUrl !== 'default' && thumbUrl !== 'nsfw' && thumbUrl !== 'spoiler' && thumbUrl.startsWith('http')
+
+    console.log('[extract-url] Image resolution: previewImage=' + (previewImage ? 'yes' : 'no') + ' isDirectImage=' + isDirectImage + ' validThumb=' + validThumb)
+
     return {
       title: post.title || null,
       selftext: post.selftext ? post.selftext.slice(0, 500) : null,
-      thumbnail: post.thumbnail && post.thumbnail !== 'self' && post.thumbnail !== 'default' && post.thumbnail !== 'nsfw' ? post.thumbnail : null,
+      thumbnail: validThumb ? thumbUrl : null,
       preview_image: previewImage || (isDirectImage ? linkedUrl : null),
       url_overridden_by_dest: linkedUrl,
       is_video: !!post.is_video,
@@ -519,7 +558,7 @@ export default async function handler(
 
       // Reddit JSON API fallback — much more reliable than OG scraping
       var redditData = await fetchRedditJsonData(normalizedUrl)
-      debugLog.push('reddit_data=' + (redditData ? 'found(title=' + redditData.title + ',img=' + (redditData.preview_image ? 'yes' : redditData.thumbnail ? 'thumb' : 'none') + ')' : 'null'))
+      debugLog.push('reddit_data=' + (redditData ? 'found(title=' + redditData.title + ',preview_img=' + (redditData.preview_image ? redditData.preview_image.slice(0, 80) : 'null') + ',thumb=' + (redditData.thumbnail || 'null') + ',linked=' + (redditData.url_overridden_by_dest ? redditData.url_overridden_by_dest.slice(0, 80) : 'null') + ')' : 'null'))
       if (redditData) {
         // Fill in missing metadata from Reddit JSON
         if (!metadata.title && redditData.title) {
