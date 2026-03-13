@@ -260,6 +260,7 @@ const lucideIcons: Record<string, React.ComponentType<{ className?: string }>> =
     FileText: require('lucide-react').FileText,
     Globe: require('lucide-react').Globe,
     Book: require('lucide-react').Book,
+    BookOpen: require('lucide-react').BookOpen,
     Database: require('lucide-react').Database,
     Code: require('lucide-react').Code,
     Users: require('lucide-react').Users,
@@ -275,4 +276,9 @@ const lucideIcons: Record<string, React.ComponentType<{ className?: string }>> =
     Camera: require('lucide-react').Camera,
     Headphones: require('lucide-react').Headphones,
     Link: require('lucide-react').Link,
+    Archive: require('lucide-react').Archive,
+    PenTool: require('lucide-react').PenTool,
+    Search: require('lucide-react').Search,
+    Lock: require('lucide-react').Lock,
+    Radio: require('lucide-react').Radio,
   } as const
