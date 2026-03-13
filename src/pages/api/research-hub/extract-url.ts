@@ -864,8 +864,10 @@ export default async function handler(
       console.log('[extract-url] Processing X/Twitter URL')
 
       // 1. Try publish.twitter.com oEmbed — reliable for titles/text
+      // Note: oEmbed requires twitter.com URLs, not x.com URLs
       try {
-        var xOembedUrl = 'https://publish.twitter.com/oembed?url=' + encodeURIComponent(normalizedUrl) + '&format=json'
+        var twitterUrl = normalizedUrl.replace(/https?:\/\/(www\.)?x\.com\//i, 'https://twitter.com/')
+        var xOembedUrl = 'https://publish.twitter.com/oembed?url=' + encodeURIComponent(twitterUrl) + '&format=json'
         var xOeCtrl = new AbortController()
         var xOeTimeout = setTimeout(function() { xOeCtrl.abort() }, 10000)
         var xOeResp = await fetch(xOembedUrl, {
