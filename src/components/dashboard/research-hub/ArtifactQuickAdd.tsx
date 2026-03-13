@@ -461,23 +461,13 @@ export function ArtifactQuickAdd({
                 </div>
                 {isExtracting && (
                   <div className="mt-1.5 flex items-center gap-2">
-                    <div className="flex-1 h-1 rounded-full bg-gray-800 overflow-hidden">
+                    <div className="flex-1 h-1 rounded-full bg-gray-800 overflow-hidden relative">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500"
-                        style={{
-                          width: '40%',
-                          animation: 'extractSlide 1.5s ease-in-out infinite',
-                        }}
+                        className="absolute inset-0 rounded-full bg-indigo-500 animate-pulse"
+                        style={{ opacity: 0.7 }}
                       />
                     </div>
-                    <span className="text-xs text-gray-500 whitespace-nowrap">Extracting...</span>
-                    <style>{'\
-                      @keyframes extractSlide {\
-                        0% { transform: translateX(-100%); width: 40%; }\
-                        50% { transform: translateX(150%); width: 60%; }\
-                        100% { transform: translateX(-100%); width: 40%; }\
-                      }\
-                    '}</style>
+                    <span className="text-xs text-gray-500 whitespace-nowrap animate-pulse">Extracting...</span>
                   </div>
                 )}
               </div>

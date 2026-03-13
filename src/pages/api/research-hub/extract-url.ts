@@ -272,7 +272,95 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
         console.error('[extract-url] oEmbed error:', oembedErr.message || oembedErr)
       }
 
-      // 2. noembed.com — third-party oEmbed proxy, often has thumbnails
+      // 2. Try embed.reddit.com for OG tags (embedding endpoint, less likely to block)
+      if (!fallbackImage) {
+        try {
+          var embedUrl = cleanUrl.replace(/(?:www\.)?reddit\.com/i, 'embed.reddit.com')
+          console.log('[extract-url] Trying embed.reddit.com:', embedUrl)
+          var embedCtrl = new AbortController()
+          var embedTimeout = setTimeout(function() { embedCtrl.abort() }, 8000)
+          var embedResp = await fetch(embedUrl, {
+            signal: embedCtrl.signal,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+              'Accept': 'text/html',
+            },
+            redirect: 'follow',
+          })
+          clearTimeout(embedTimeout)
+          console.log('[extract-url] embed.reddit.com status:', embedResp.status)
+          if (embedResp.ok) {
+            var embedHtml = await embedResp.text()
+            var embedMeta = extractMetaTags(embedHtml)
+            console.log('[extract-url] embed OG:', JSON.stringify({ image: embedMeta.image ? embedMeta.image.slice(0, 80) : null, title: embedMeta.title }))
+            if (embedMeta.image) {
+              fallbackImage = embedMeta.image
+            }
+            if (!fallbackTitle && embedMeta.title) {
+              fallbackTitle = embedMeta.title
+            }
+            if (!fallbackDescription && embedMeta.description) {
+              fallbackDescription = embedMeta.description.slice(0, 500)
+            }
+          }
+        } catch (embedErr: any) {
+          console.log('[extract-url] embed.reddit.com error:', embedErr.message || embedErr)
+        }
+      }
+
+      // 3. Try rxddit.com JSON mirror (alternative Reddit frontend)
+      if (!fallbackImage) {
+        try {
+          var rxUrl = cleanUrl.replace(/(?:www\.)?reddit\.com/i, 'rxddit.com')
+          if (!rxUrl.endsWith('.json')) {
+            rxUrl = rxUrl.replace(/\/?$/, '') + '.json'
+          }
+          console.log('[extract-url] Trying rxddit.com:', rxUrl)
+          var rxCtrl = new AbortController()
+          var rxTimeout = setTimeout(function() { rxCtrl.abort() }, 8000)
+          var rxResp = await fetch(rxUrl, {
+            signal: rxCtrl.signal,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+              'Accept': 'application/json',
+            },
+            redirect: 'follow',
+          })
+          clearTimeout(rxTimeout)
+          console.log('[extract-url] rxddit status:', rxResp.status)
+          if (rxResp.ok) {
+            var rxText = await rxResp.text()
+            if (rxText.trim().startsWith('[') || rxText.trim().startsWith('{')) {
+              var rxJson = JSON.parse(rxText)
+              var rxListing = Array.isArray(rxJson) ? rxJson[0] : rxJson
+              var rxPost = rxListing?.data?.children?.[0]?.data
+              if (rxPost) {
+                if (!fallbackTitle && rxPost.title) fallbackTitle = rxPost.title
+                if (rxPost.preview && rxPost.preview.images && rxPost.preview.images.length > 0) {
+                  var rxSrc = rxPost.preview.images[0].source
+                  if (rxSrc && rxSrc.url) {
+                    fallbackImage = rxSrc.url.replace(/&amp;/g, '&')
+                    console.log('[extract-url] rxddit preview image:', fallbackImage.slice(0, 100))
+                  }
+                }
+                if (!fallbackImage && rxPost.thumbnail && rxPost.thumbnail !== 'self' && rxPost.thumbnail !== 'default' && rxPost.thumbnail.startsWith('http')) {
+                  fallbackImage = rxPost.thumbnail
+                }
+                if (!fallbackDescription && rxPost.selftext) {
+                  fallbackDescription = rxPost.selftext.slice(0, 500)
+                }
+                if (!fallbackSubreddit && rxPost.subreddit) {
+                  fallbackSubreddit = rxPost.subreddit
+                }
+              }
+            }
+          }
+        } catch (rxErr: any) {
+          console.log('[extract-url] rxddit error:', rxErr.message || rxErr)
+        }
+      }
+
+      // 4. noembed.com — third-party oEmbed proxy, often has thumbnails
       if (!fallbackImage) {
         try {
           var noembedUrl = 'https://noembed.com/embed?url=' + encodeURIComponent(cleanUrl)
@@ -300,7 +388,7 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
         }
       }
 
-      // 3. jsonlink.io — metadata extraction API
+      // 5. jsonlink.io — metadata extraction API
       if (!fallbackImage) {
         try {
           var jlUrl2 = 'https://jsonlink.io/api/extract?url=' + encodeURIComponent(cleanUrl)
@@ -331,7 +419,7 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
         }
       }
 
-      // 4. Try microlink.io — another metadata extraction service
+      // 6. Try microlink.io — another metadata extraction service
       if (!fallbackImage) {
         try {
           var mlUrl = 'https://api.microlink.io/?url=' + encodeURIComponent(cleanUrl)
