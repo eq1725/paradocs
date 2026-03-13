@@ -9,6 +9,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
+import dynamic from 'next/dynamic'
 import {
   FileText,
   Bookmark,
@@ -34,7 +35,10 @@ import { UpgradeCard } from '@/components/dashboard/UpgradeCard'
 import { TierBadge } from '@/components/dashboard/TierBadge'
 import ResearchStreak from '@/components/dashboard/ResearchStreak'
 import DashboardTour, { hasDashboardTourCompleted } from '@/components/dashboard/DashboardTour'
-import ConstellationMapV2 from '@/components/dashboard/ConstellationMapV2'
+var ConstellationMapV2 = dynamic(
+  function() { return import('@/components/dashboard/ConstellationMapV2') },
+  { ssr: false }
+)
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { usePersonalization } from '@/lib/hooks/usePersonalization'
 import { supabase } from '@/lib/supabase'
@@ -227,8 +231,8 @@ export default function DashboardPage() {
     )
   }
 
-  var hasEntries = (stats?.constellation.totalEntries || 0) > 0
-  var hasArtifacts = (stats?.researchHub?.totalArtifacts || 0) > 0
+  var hasEntries = (stats && stats.constellation ? stats.constellation.totalEntries : 0) > 0
+  var hasArtifacts = (stats && stats.researchHub ? stats.researchHub.totalArtifacts : 0) > 0
   var userInterests = personalization?.interested_categories || []
   var suggestions = hasEntries ? getSuggestedExplorations(userInterests as PhenomenonCategory[], 3) : []
   var hub = stats?.researchHub || { totalArtifacts: 0, totalCaseFiles: 0, activeInsights: 0, recentArtifacts: [], caseFiles: [] }
@@ -416,10 +420,10 @@ export default function DashboardPage() {
           </div>
           <div className="absolute bottom-0 right-0 bg-gradient-to-l from-gray-950 via-gray-950/90 to-transparent pl-10 pr-3 py-2.5 rounded-bl-lg pointer-events-none">
             <div className="flex items-center gap-3 pointer-events-auto">
-              <span className="text-lg">{stats?.constellation.rankIcon}</span>
-              <span className="text-sm font-medium text-white">{stats?.constellation.rank}</span>
+              <span className="text-lg">{stats && stats.constellation ? stats.constellation.rankIcon : ''}</span>
+              <span className="text-sm font-medium text-white">{stats && stats.constellation ? stats.constellation.rank : ''}</span>
               <span className="text-xs text-gray-500">
-                {'\u00B7 ' + (stats?.constellation.totalEntries || 0) + ' ' + ((stats?.constellation.totalEntries || 0) === 1 ? 'star' : 'stars')}
+                {'\u00B7 ' + (stats && stats.constellation ? stats.constellation.totalEntries : 0) + ' ' + ((stats && stats.constellation ? stats.constellation.totalEntries : 0) === 1 ? 'star' : 'stars')}
               </span>
               <Link
                 href="/dashboard/constellation"
