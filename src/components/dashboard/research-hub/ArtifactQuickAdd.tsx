@@ -37,6 +37,7 @@ var SOURCE_TYPE_OPTIONS: Array<{ value: ArtifactSourceType; label: string }> = [
   { value: 'instagram', label: 'Instagram' },
   { value: 'podcast', label: 'Podcast' },
   { value: 'news', label: 'News' },
+  { value: 'archive', label: 'Archive.org' },
   { value: 'website', label: 'Website' },
   { value: 'other', label: 'Other' },
 ]
