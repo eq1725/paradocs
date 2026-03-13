@@ -346,24 +346,55 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
     var thumbUrl = post.thumbnail
     var validThumb = thumbUrl && thumbUrl !== 'self' && thumbUrl !== 'default' && thumbUrl !== 'nsfw' && thumbUrl !== 'spoiler' && thumbUrl.startsWith('http')
 
-    console.log('[extract-url] Image resolution: previewImage=' + (previewImage ? 'yes' : 'no') + ' isDirectImage=' + isDirectImage + ' validThumb=' + validThumb)
+    var bestImage = previewImage || (isDirectImage ? linkedUrl : null) || (validThumb ? thumbUrl : null)
+
+    console.log('[extract-url] Image resolution: previewImage=' + (previewImage ? 'yes' : 'no') + ' isDirectImage=' + isDirectImage + ' validThumb=' + validThumb + ' bestImage=' + (bestImage ? bestImage.slice(0, 80) : 'null'))
+
+    // If no image found from JSON API, try oEmbed as supplemental source
+    if (!bestImage) {
+      console.log('[extract-url] No image from JSON API, trying oEmbed for thumbnail...')
+      try {
+        var oembedUrl2 = 'https://www.reddit.com/oembed?url=' + encodeURIComponent(cleanUrl) + '&format=json'
+        var oeCtrl = new AbortController()
+        var oeTimeout = setTimeout(function() { oeCtrl.abort() }, 8000)
+        var oeResp = await fetch(oembedUrl2, {
+          signal: oeCtrl.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
+          },
+          redirect: 'follow',
+        })
+        clearTimeout(oeTimeout)
+        console.log('[extract-url] oEmbed supplemental status:', oeResp.status)
+        if (oeResp.ok) {
+          var oeData = await oeResp.json()
+          console.log('[extract-url] oEmbed thumbnail:', oeData.thumbnail_url || 'null')
+          if (oeData.thumbnail_url) {
+            bestImage = oeData.thumbnail_url
+          }
+        }
+      } catch (oeErr: any) {
+        console.log('[extract-url] oEmbed supplemental error:', oeErr.message || oeErr)
+      }
+    }
 
     // Build raw debug string for _debug response
-    var rawDebug = 'post_hint=' + (post.post_hint || 'none') +
-      '|url=' + (post.url || 'null') +
+    var rawDebug = 'ep=' + successEndpoint +
+      '|post_hint=' + (post.post_hint || 'none') +
+      '|url=' + (post.url ? post.url.slice(0, 80) : 'null') +
       '|domain=' + (post.domain || 'null') +
       '|is_self=' + post.is_self +
-      '|is_reddit_media=' + post.is_reddit_media_domain +
       '|has_preview=' + !!(post.preview && post.preview.images) +
       '|gallery=' + !!post.is_gallery +
-      '|crosspost=' + !!(post.crosspost_parent_list && post.crosspost_parent_list.length > 0) +
-      '|keys_count=' + Object.keys(post).length
+      '|keys=' + Object.keys(post).length +
+      '|bestImage=' + (bestImage ? 'yes' : 'null')
 
     return {
       title: post.title || null,
       selftext: post.selftext ? post.selftext.slice(0, 500) : null,
       thumbnail: validThumb ? thumbUrl : null,
-      preview_image: previewImage || (isDirectImage ? linkedUrl : null),
+      preview_image: bestImage,
       url_overridden_by_dest: linkedUrl,
       is_video: !!post.is_video,
       media_url: mediaUrl,
