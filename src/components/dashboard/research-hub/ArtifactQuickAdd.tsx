@@ -32,6 +32,7 @@ type TabType = 'report' | 'url'
 var SOURCE_TYPE_OPTIONS: Array<{ value: ArtifactSourceType; label: string }> = [
   { value: 'youtube', label: 'YouTube' },
   { value: 'reddit', label: 'Reddit' },
+  { value: 'twitter', label: 'X.com' },
   { value: 'tiktok', label: 'TikTok' },
   { value: 'instagram', label: 'Instagram' },
   { value: 'podcast', label: 'Podcast' },
@@ -95,8 +96,32 @@ export function ArtifactQuickAdd({
   var [isDuplicate, setIsDuplicate] = useState(false)
   var [extractedDescription, setExtractedDescription] = useState<string | null>(null)
 
+  var [tagSuggestions, setTagSuggestions] = useState<string[]>([])
+
   var searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   var extractTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Fetch user's previously used tags on mount
+  useEffect(function() {
+    async function fetchTags() {
+      try {
+        var session = await supabase.auth.getSession()
+        var token = session.data.session?.access_token
+        if (!token) return
+
+        var resp = await fetch('/api/research-hub/tags', {
+          headers: { 'Authorization': 'Bearer ' + token },
+        })
+        if (resp.ok) {
+          var data = await resp.json()
+          setTagSuggestions(data.tags || [])
+        }
+      } catch {
+        // Non-critical
+      }
+    }
+    if (isOpen) fetchTags()
+  }, [isOpen])
 
   var handleSearchChange = useCallback(function(query: string) {
     setSearchQuery(query)
@@ -565,6 +590,27 @@ export function ArtifactQuickAdd({
                   )}
                 />
               </div>
+
+              {/* Description (auto-filled from extraction, but editable) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Description (Optional)
+                  {extractedData && extractedData.description && (
+                    <span className="ml-2 text-xs text-green-400 font-normal">Auto-filled</span>
+                  )}
+                </label>
+                <textarea
+                  value={extractedDescription || ''}
+                  onChange={function(e) { setExtractedDescription(e.target.value || null) }}
+                  placeholder="Add a description..."
+                  rows={2}
+                  className={classNames(
+                    'w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-700',
+                    'text-white placeholder-gray-500 text-sm resize-none',
+                    'focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30'
+                  )}
+                />
+              </div>
             </>
           )}
 
@@ -654,6 +700,37 @@ export function ArtifactQuickAdd({
                 'focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30'
               )}
             />
+            {tagSuggestions.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {tagSuggestions
+                  .filter(function(tag) {
+                    var currentTags = tagsInput.split(',').map(function(t) { return t.trim().toLowerCase() })
+                    return !currentTags.includes(tag.toLowerCase())
+                  })
+                  .slice(0, 12)
+                  .map(function(tag) {
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={function() {
+                          var current = tagsInput.trim()
+                          if (current && !current.endsWith(',')) {
+                            setTagsInput(current + ', ' + tag)
+                          } else if (current) {
+                            setTagsInput(current + ' ' + tag)
+                          } else {
+                            setTagsInput(tag)
+                          }
+                        }}
+                        className="px-2 py-0.5 text-xs rounded-full bg-gray-800 text-gray-400 border border-gray-700 hover:border-indigo-500 hover:text-indigo-300 transition-colors"
+                      >
+                        #{tag}
+                      </button>
+                    )
+                  })}
+              </div>
+            )}
           </div>
         </div>
 

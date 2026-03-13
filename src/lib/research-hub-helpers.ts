@@ -28,6 +28,12 @@ export const SOURCE_TYPE_CONFIG: Record<
     color: 'text-orange-400',
     bgColor: 'bg-orange-500/20',
   },
+  twitter: {
+    label: 'X.com',
+    icon: 'Twitter',
+    color: 'text-sky-400',
+    bgColor: 'bg-sky-500/20',
+  },
   tiktok: {
     label: 'TikTok',
     icon: 'Music',

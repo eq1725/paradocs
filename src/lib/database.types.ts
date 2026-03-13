@@ -472,6 +472,7 @@ export interface Database {
           report_id: string | null
           external_url: string | null
           title: string
+          description: string | null
           thumbnail_url: string | null
           source_platform: string | null
           extracted_date: string | null
@@ -492,6 +493,7 @@ export interface Database {
           report_id?: string | null
           external_url?: string | null
           title: string
+          description?: string | null
           thumbnail_url?: string | null
           source_platform?: string | null
           extracted_date?: string | null
@@ -512,6 +514,7 @@ export interface Database {
           report_id?: string | null
           external_url?: string | null
           title?: string
+          description?: string | null
           thumbnail_url?: string | null
           source_platform?: string | null
           extracted_date?: string | null
@@ -741,6 +744,7 @@ export type ArtifactSourceType =
   | 'instagram'
   | 'podcast'
   | 'news'
+  | 'twitter'
   | 'website'
   | 'other'
 

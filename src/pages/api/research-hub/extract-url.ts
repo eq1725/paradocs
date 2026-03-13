@@ -22,6 +22,7 @@ var ARTIFACT_IMAGES_BUCKET = 'artifact-images'
 var URL_PATTERNS: Array<{ pattern: RegExp; sourceType: string; platform: string }> = [
   { pattern: /youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts/i, sourceType: 'youtube', platform: 'YouTube' },
   { pattern: /reddit\.com\//i, sourceType: 'reddit', platform: 'Reddit' },
+  { pattern: /(?:twitter\.com|x\.com)\//i, sourceType: 'twitter', platform: 'X.com' },
   { pattern: /tiktok\.com\//i, sourceType: 'tiktok', platform: 'TikTok' },
   { pattern: /instagram\.com\//i, sourceType: 'instagram', platform: 'Instagram' },
   { pattern: /spotify\.com\/episode|podcasts\.apple\.com|anchor\.fm/i, sourceType: 'podcast', platform: 'Podcast' },
@@ -793,6 +794,181 @@ export default async function handler(
           metadata.image = getYouTubeThumbnail(videoId)
         }
       }
+
+      // YouTube oEmbed fallback for title and description
+      if (!metadata.title || !metadata.description) {
+        try {
+          var ytOembedUrl = 'https://www.youtube.com/oembed?url=' + encodeURIComponent(normalizedUrl) + '&format=json'
+          var ytOeCtrl = new AbortController()
+          var ytOeTimeout = setTimeout(function() { ytOeCtrl.abort() }, 8000)
+          var ytOeResp = await fetch(ytOembedUrl, {
+            signal: ytOeCtrl.signal,
+            headers: { 'Accept': 'application/json' },
+          })
+          clearTimeout(ytOeTimeout)
+          console.log('[extract-url] YouTube oEmbed status:', ytOeResp.status)
+          if (ytOeResp.ok) {
+            var ytOeData = await ytOeResp.json()
+            if (!metadata.title && ytOeData.title) {
+              metadata.title = ytOeData.title
+            }
+            if (!metadata.description && ytOeData.title) {
+              // oEmbed doesn't have description, but at least we get the title
+              // Also grab author info for context
+              if (ytOeData.author_name) {
+                platformMetadata.channel_name = ytOeData.author_name
+              }
+              if (ytOeData.author_url) {
+                platformMetadata.channel_url = ytOeData.author_url
+              }
+            }
+            if (ytOeData.thumbnail_url && !metadata.image) {
+              metadata.image = ytOeData.thumbnail_url
+            }
+            debugLog.push('yt_oembed=ok|title=' + (ytOeData.title || 'null'))
+          }
+        } catch (ytOeErr: any) {
+          console.log('[extract-url] YouTube oEmbed error:', ytOeErr.message || ytOeErr)
+          debugLog.push('yt_oembed_error=' + (ytOeErr.message || ''))
+        }
+      }
+
+      // YouTube noembed fallback for description
+      if (!metadata.description) {
+        try {
+          var ytNeUrl = 'https://noembed.com/embed?url=' + encodeURIComponent(normalizedUrl)
+          var ytNeCtrl = new AbortController()
+          var ytNeTimeout = setTimeout(function() { ytNeCtrl.abort() }, 8000)
+          var ytNeResp = await fetch(ytNeUrl, {
+            signal: ytNeCtrl.signal,
+            headers: { 'Accept': 'application/json' },
+          })
+          clearTimeout(ytNeTimeout)
+          if (ytNeResp.ok) {
+            var ytNeData = await ytNeResp.json()
+            if (!metadata.title && ytNeData.title) {
+              metadata.title = ytNeData.title
+            }
+            if (ytNeData.thumbnail_url && !metadata.image) {
+              metadata.image = ytNeData.thumbnail_url
+            }
+          }
+        } catch {
+          // Non-critical
+        }
+      }
+    }
+
+    // ── X/Twitter-specific extraction ──
+    if (detected.sourceType === 'twitter') {
+      console.log('[extract-url] Processing X/Twitter URL')
+
+      // 1. Try publish.twitter.com oEmbed — reliable for titles/text
+      try {
+        var xOembedUrl = 'https://publish.twitter.com/oembed?url=' + encodeURIComponent(normalizedUrl) + '&format=json'
+        var xOeCtrl = new AbortController()
+        var xOeTimeout = setTimeout(function() { xOeCtrl.abort() }, 10000)
+        var xOeResp = await fetch(xOembedUrl, {
+          signal: xOeCtrl.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
+          },
+          redirect: 'follow',
+        })
+        clearTimeout(xOeTimeout)
+        console.log('[extract-url] X oEmbed status:', xOeResp.status)
+
+        if (xOeResp.ok) {
+          var xOeData = await xOeResp.json()
+          console.log('[extract-url] X oEmbed data:', JSON.stringify({ author: xOeData.author_name, html_len: xOeData.html ? xOeData.html.length : 0 }).slice(0, 300))
+
+          // Extract tweet text from the HTML embed
+          if (xOeData.html) {
+            // The oEmbed HTML contains the tweet text in a <p> tag
+            var tweetTextMatch = /<blockquote[^>]*>.*?<p[^>]*>([\s\S]*?)<\/p>/i.exec(xOeData.html)
+            if (tweetTextMatch) {
+              var tweetText = tweetTextMatch[1]
+                .replace(/<[^>]+>/g, '')
+                .replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .trim()
+
+              if (!metadata.title) {
+                // Use author + truncated tweet as title
+                var authorName = xOeData.author_name || 'Unknown'
+                metadata.title = authorName + ': ' + (tweetText.length > 100 ? tweetText.slice(0, 97) + '...' : tweetText)
+              }
+              if (!metadata.description) {
+                metadata.description = tweetText.slice(0, 500)
+              }
+            }
+
+            // Try to extract image from oEmbed HTML (some tweets embed images)
+            if (!metadata.image) {
+              var xImgMatch = /https:\/\/pbs\.twimg\.com\/media\/[^"'\s]+/i.exec(xOeData.html)
+              if (xImgMatch) {
+                metadata.image = xImgMatch[0].replace(/&amp;/g, '&')
+                console.log('[extract-url] Found X image in oEmbed HTML:', metadata.image.slice(0, 100))
+              }
+            }
+          }
+
+          if (xOeData.author_name) {
+            platformMetadata.author_name = xOeData.author_name
+            metadata.siteName = 'X.com'
+          }
+          if (xOeData.author_url) {
+            platformMetadata.author_url = xOeData.author_url
+          }
+
+          debugLog.push('x_oembed=ok|author=' + (xOeData.author_name || 'null'))
+        } else {
+          debugLog.push('x_oembed_status=' + xOeResp.status)
+        }
+      } catch (xOeErr: any) {
+        console.log('[extract-url] X oEmbed error:', xOeErr.message || xOeErr)
+        debugLog.push('x_oembed_error=' + (xOeErr.message || ''))
+      }
+
+      // 2. Try third-party services for images (X blocks direct image scraping)
+      if (!metadata.image) {
+        // Try microlink.io
+        try {
+          var xMlUrl = 'https://api.microlink.io/?url=' + encodeURIComponent(normalizedUrl)
+          var xMlCtrl = new AbortController()
+          var xMlTimeout = setTimeout(function() { xMlCtrl.abort() }, 8000)
+          var xMlResp = await fetch(xMlUrl, {
+            signal: xMlCtrl.signal,
+            headers: { 'Accept': 'application/json' },
+          })
+          clearTimeout(xMlTimeout)
+          if (xMlResp.ok) {
+            var xMlData = await xMlResp.json()
+            if (xMlData.data && xMlData.data.image && xMlData.data.image.url) {
+              metadata.image = xMlData.data.image.url
+              console.log('[extract-url] X image from microlink:', metadata.image.slice(0, 100))
+              debugLog.push('x_microlink_image=found')
+            }
+            if (!metadata.title && xMlData.data && xMlData.data.title) {
+              metadata.title = xMlData.data.title
+            }
+            if (!metadata.description && xMlData.data && xMlData.data.description) {
+              metadata.description = xMlData.data.description.slice(0, 500)
+            }
+          }
+        } catch (xMlErr: any) {
+          console.log('[extract-url] X microlink error:', xMlErr.message || xMlErr)
+        }
+      }
+
+      // Flag for client-side extraction if no image found
+      if (!metadata.image) {
+        debugLog.push('x_no_image_found')
+      }
     }
 
     if (detected.sourceType === 'reddit') {
@@ -906,7 +1082,7 @@ export default async function handler(
 
     // Flag for client-side extraction fallback
     var finalThumbnail = storedImageUrl || metadata.image || null
-    var needsClientExtraction = !finalThumbnail && (detected.sourceType === 'reddit' || detected.sourceType === 'tiktok' || detected.sourceType === 'instagram')
+    var needsClientExtraction = !finalThumbnail && (detected.sourceType === 'reddit' || detected.sourceType === 'tiktok' || detected.sourceType === 'instagram' || detected.sourceType === 'twitter')
 
     return res.status(200).json({
       url: normalizedUrl,

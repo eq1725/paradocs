@@ -136,7 +136,7 @@ export function ArtifactCard({
 
         {/* Excerpt or user note */}
         <p className="text-sm text-gray-400 line-clamp-2">
-          {artifact.user_note || (artifact as any).description || 'No description'}
+          {artifact.user_note || artifact.description || 'No description'}
         </p>
 
         {/* Verdict and tags */}
@@ -259,10 +259,15 @@ const lucideIcons: Record<string, React.ComponentType<{ className?: string }>> =
     Code: require('lucide-react').Code,
     Users: require('lucide-react').Users,
     MessageSquare: require('lucide-react').MessageSquare,
+    MessageCircle: require('lucide-react').MessageCircle,
     Image: require('lucide-react').Image,
     Music: require('lucide-react').Music,
     Video: require('lucide-react').Video,
     Newspaper: require('lucide-react').Newspaper,
     MapPin: require('lucide-react').MapPin,
     Twitter: require('lucide-react').Twitter,
+    Play: require('lucide-react').Play,
+    Camera: require('lucide-react').Camera,
+    Headphones: require('lucide-react').Headphones,
+    Link: require('lucide-react').Link,
   } as const
