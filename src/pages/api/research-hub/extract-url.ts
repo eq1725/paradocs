@@ -137,9 +137,8 @@ interface RedditPostData {
 
 async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> {
   try {
-    // Try multiple Reddit API endpoints — Reddit blocks many server-side requests
     var cleanUrl = url.replace(/\/?$/, '')
-    // Extract the path portion for api.reddit.com
+    // Extract the path for api.reddit.com (which returns JSON natively — no .json suffix)
     var redditPath = ''
     try {
       var parsedUrl = new URL(cleanUrl)
@@ -147,59 +146,102 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
     } catch {
       redditPath = cleanUrl.replace(/https?:\/\/[^/]+/, '')
     }
+    if (redditPath.endsWith('/')) {
+      redditPath = redditPath.slice(0, -1)
+    }
 
-    // Try these endpoints in order of reliability:
-    // 1. api.reddit.com (most reliable for server-side)
-    // 2. old.reddit.com (less tracking/JS)
-    // 3. www.reddit.com (original)
+    // Try these endpoints in order:
+    // 1. api.reddit.com (native JSON, no .json suffix needed)
+    // 2. www.reddit.com with .json suffix
+    // 3. old.reddit.com with .json suffix
+    // 4. Reddit oEmbed API (limited data but very reliable)
     var endpoints = [
-      'https://api.reddit.com' + redditPath + '.json',
-      'https://old.reddit.com' + redditPath + '.json',
-      cleanUrl + '.json',
+      { url: 'https://api.reddit.com' + redditPath, accept: 'application/json' },
+      { url: 'https://www.reddit.com' + redditPath + '.json', accept: 'application/json' },
+      { url: 'https://old.reddit.com' + redditPath + '.json', accept: 'text/html,application/json' },
     ]
 
-    var resp: Response | null = null
     var rawText = ''
 
     for (var ei = 0; ei < endpoints.length; ei++) {
-      var endpoint = endpoints[ei]
-      console.log('[extract-url] Trying Reddit endpoint ' + (ei + 1) + '/' + endpoints.length + ':', endpoint)
+      var ep = endpoints[ei]
+      console.log('[extract-url] Trying Reddit endpoint ' + (ei + 1) + ':', ep.url)
 
       try {
         var controller = new AbortController()
         var timeoutId = setTimeout(function() { controller.abort() }, 10000)
 
-        var attemptResp = await fetch(endpoint, {
+        var attemptResp = await fetch(ep.url, {
           signal: controller.signal,
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/html;q=0.9, */*;q=0.8',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept': ep.accept,
             'Accept-Language': 'en-US,en;q=0.9',
           },
           redirect: 'follow',
         })
         clearTimeout(timeoutId)
 
-        console.log('[extract-url] Reddit endpoint ' + (ei + 1) + ' status:', attemptResp.status)
+        console.log('[extract-url] Endpoint ' + (ei + 1) + ' status:', attemptResp.status, 'final url:', attemptResp.url)
 
         if (attemptResp.ok) {
           rawText = await attemptResp.text()
-          console.log('[extract-url] Reddit response length:', rawText.length, 'starts with:', rawText.slice(0, 100))
-          // Verify it's actually JSON, not an HTML page
+          console.log('[extract-url] Response length:', rawText.length, 'first 200:', rawText.slice(0, 200))
           if (rawText.trim().startsWith('[') || rawText.trim().startsWith('{')) {
-            resp = attemptResp
             break
           } else {
-            console.log('[extract-url] Got HTML instead of JSON from endpoint ' + (ei + 1))
+            console.log('[extract-url] Got non-JSON from endpoint ' + (ei + 1) + ', trying next...')
+            rawText = ''
           }
+        } else {
+          console.log('[extract-url] Endpoint ' + (ei + 1) + ' returned status', attemptResp.status)
         }
-      } catch (endpointErr) {
-        console.error('[extract-url] Endpoint ' + (ei + 1) + ' error:', endpointErr)
+      } catch (endpointErr: any) {
+        console.error('[extract-url] Endpoint ' + (ei + 1) + ' error:', endpointErr.message || endpointErr)
       }
     }
 
-    if (!rawText || (!rawText.trim().startsWith('[') && !rawText.trim().startsWith('{'))) {
-      console.error('[extract-url] All Reddit endpoints failed or returned HTML')
+    // If all JSON endpoints failed, try oEmbed as last resort (limited but reliable)
+    if (!rawText) {
+      console.log('[extract-url] All JSON endpoints failed, trying oEmbed...')
+      try {
+        var oembedUrl = 'https://www.reddit.com/oembed?url=' + encodeURIComponent(cleanUrl) + '&format=json'
+        var controller3 = new AbortController()
+        var timeoutId3 = setTimeout(function() { controller3.abort() }, 10000)
+        var oembedResp = await fetch(oembedUrl, {
+          signal: controller3.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
+          },
+          redirect: 'follow',
+        })
+        clearTimeout(timeoutId3)
+
+        console.log('[extract-url] oEmbed status:', oembedResp.status)
+
+        if (oembedResp.ok) {
+          var oembedData = await oembedResp.json()
+          console.log('[extract-url] oEmbed data:', JSON.stringify(oembedData).slice(0, 300))
+          // oEmbed returns { title, author_name, thumbnail_url, html, ... }
+          if (oembedData && oembedData.title) {
+            return {
+              title: oembedData.title || null,
+              selftext: null,
+              thumbnail: oembedData.thumbnail_url || null,
+              preview_image: oembedData.thumbnail_url || null,
+              url_overridden_by_dest: null,
+              is_video: false,
+              media_url: null,
+              subreddit: oembedData.author_name || null,
+            }
+          }
+        }
+      } catch (oembedErr: any) {
+        console.error('[extract-url] oEmbed error:', oembedErr.message || oembedErr)
+      }
+
+      console.error('[extract-url] All Reddit endpoints failed including oEmbed')
       return null
     }
 
@@ -396,6 +438,9 @@ export default async function handler(
       // Table might not have column yet
     }
 
+    // ── Debug log (temporary) ──
+    var debugLog: string[] = []
+
     // ── Detect source type ──
     var detected = detectSourceType(normalizedUrl)
 
@@ -423,6 +468,7 @@ export default async function handler(
       clearTimeout(timeoutId)
 
       console.log('[extract-url] OG fetch status:', fetchResponse.status, 'url:', fetchResponse.url)
+      debugLog.push('og_status=' + fetchResponse.status + ' final_url=' + fetchResponse.url)
 
       if (fetchResponse.ok) {
         var reader = fetchResponse.body?.getReader()
@@ -444,7 +490,8 @@ export default async function handler(
         var html = chunks.map(function(c) { return decoder.decode(c, { stream: true }) }).join('')
         metadata = extractMetaTags(html)
       }
-    } catch (fetchErr) {
+    } catch (fetchErr: any) {
+      debugLog.push('og_error=' + (fetchErr.message || fetchErr))
       console.error('[extract-url] OG fetch error:', fetchErr)
       // Fetch failed — continue with empty metadata
     }
@@ -472,7 +519,7 @@ export default async function handler(
 
       // Reddit JSON API fallback — much more reliable than OG scraping
       var redditData = await fetchRedditJsonData(normalizedUrl)
-      console.log('[extract-url] Reddit JSON data:', redditData ? JSON.stringify({ title: redditData.title, preview_image: redditData.preview_image ? redditData.preview_image.slice(0, 80) : null, thumbnail: redditData.thumbnail, selftext: redditData.selftext ? redditData.selftext.slice(0, 80) : null }) : 'null')
+      debugLog.push('reddit_data=' + (redditData ? 'found(title=' + redditData.title + ',img=' + (redditData.preview_image ? 'yes' : redditData.thumbnail ? 'thumb' : 'none') + ')' : 'null'))
       if (redditData) {
         // Fill in missing metadata from Reddit JSON
         if (!metadata.title && redditData.title) {
@@ -512,6 +559,11 @@ export default async function handler(
 
     console.log('[extract-url] Final response:', JSON.stringify({ title: metadata.title, description: metadata.description ? 'yes' : 'no', thumbnail_url: storedImageUrl || metadata.image || null }))
 
+    debugLog.push('source_type=' + detected.sourceType)
+    debugLog.push('og_title=' + (metadata.title || 'null'))
+    debugLog.push('og_image=' + (metadata.image ? metadata.image.slice(0, 80) : 'null'))
+    debugLog.push('stored_image=' + (storedImageUrl ? storedImageUrl.slice(0, 80) : 'null'))
+
     return res.status(200).json({
       url: normalizedUrl,
       url_hash: urlHash,
@@ -524,6 +576,7 @@ export default async function handler(
       platform_metadata: platformMetadata,
       is_duplicate: isDuplicate,
       duplicate_artifact_id: duplicateArtifactId,
+      _debug: debugLog,
     })
   } catch (error: any) {
     console.error('URL extraction error:', error)
