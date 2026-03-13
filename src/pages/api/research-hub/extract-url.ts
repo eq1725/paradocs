@@ -137,24 +137,79 @@ interface RedditPostData {
 
 async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> {
   try {
-    // Reddit JSON API: append .json to the URL
-    var jsonUrl = url.replace(/\/?$/, '.json')
-    var controller = new AbortController()
-    var timeoutId = setTimeout(function() { controller.abort() }, 8000)
+    // Try multiple Reddit API endpoints — Reddit blocks many server-side requests
+    var cleanUrl = url.replace(/\/?$/, '')
+    // Extract the path portion for api.reddit.com
+    var redditPath = ''
+    try {
+      var parsedUrl = new URL(cleanUrl)
+      redditPath = parsedUrl.pathname
+    } catch {
+      redditPath = cleanUrl.replace(/https?:\/\/[^/]+/, '')
+    }
 
-    var resp = await fetch(jsonUrl, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Paradocs/1.0; +https://discoverparadocs.com)',
-        'Accept': 'application/json',
-      },
-      redirect: 'follow',
-    })
-    clearTimeout(timeoutId)
+    // Try these endpoints in order of reliability:
+    // 1. api.reddit.com (most reliable for server-side)
+    // 2. old.reddit.com (less tracking/JS)
+    // 3. www.reddit.com (original)
+    var endpoints = [
+      'https://api.reddit.com' + redditPath + '.json',
+      'https://old.reddit.com' + redditPath + '.json',
+      cleanUrl + '.json',
+    ]
 
-    if (!resp.ok) return null
+    var resp: Response | null = null
+    var rawText = ''
 
-    var json = await resp.json()
+    for (var ei = 0; ei < endpoints.length; ei++) {
+      var endpoint = endpoints[ei]
+      console.log('[extract-url] Trying Reddit endpoint ' + (ei + 1) + '/' + endpoints.length + ':', endpoint)
+
+      try {
+        var controller = new AbortController()
+        var timeoutId = setTimeout(function() { controller.abort() }, 10000)
+
+        var attemptResp = await fetch(endpoint, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/html;q=0.9, */*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+          },
+          redirect: 'follow',
+        })
+        clearTimeout(timeoutId)
+
+        console.log('[extract-url] Reddit endpoint ' + (ei + 1) + ' status:', attemptResp.status)
+
+        if (attemptResp.ok) {
+          rawText = await attemptResp.text()
+          console.log('[extract-url] Reddit response length:', rawText.length, 'starts with:', rawText.slice(0, 100))
+          // Verify it's actually JSON, not an HTML page
+          if (rawText.trim().startsWith('[') || rawText.trim().startsWith('{')) {
+            resp = attemptResp
+            break
+          } else {
+            console.log('[extract-url] Got HTML instead of JSON from endpoint ' + (ei + 1))
+          }
+        }
+      } catch (endpointErr) {
+        console.error('[extract-url] Endpoint ' + (ei + 1) + ' error:', endpointErr)
+      }
+    }
+
+    if (!rawText || (!rawText.trim().startsWith('[') && !rawText.trim().startsWith('{'))) {
+      console.error('[extract-url] All Reddit endpoints failed or returned HTML')
+      return null
+    }
+
+    var json: any
+    try {
+      json = JSON.parse(rawText)
+    } catch (parseErr) {
+      console.error('[extract-url] Reddit JSON parse error:', rawText.slice(0, 300))
+      return null
+    }
 
     // Reddit returns an array: [listing, comments]
     var listing = Array.isArray(json) ? json[0] : json
@@ -191,7 +246,8 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
       media_url: mediaUrl,
       subreddit: post.subreddit || null,
     }
-  } catch {
+  } catch (err) {
+    console.error('[extract-url] fetchRedditJsonData error:', err)
     return null
   }
 }
@@ -353,15 +409,20 @@ export default async function handler(
       var controller = new AbortController()
       var timeoutId = setTimeout(function() { controller.abort() }, 8000)
 
+      console.log('[extract-url] Fetching OG metadata from:', normalizedUrl)
+
       var fetchResponse = await fetch(normalizedUrl, {
         signal: controller.signal,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; Paradocs/1.0; +https://discoverparadocs.com)',
-          'Accept': 'text/html,application/xhtml+xml',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
         },
         redirect: 'follow',
       })
       clearTimeout(timeoutId)
+
+      console.log('[extract-url] OG fetch status:', fetchResponse.status, 'url:', fetchResponse.url)
 
       if (fetchResponse.ok) {
         var reader = fetchResponse.body?.getReader()
@@ -383,9 +444,12 @@ export default async function handler(
         var html = chunks.map(function(c) { return decoder.decode(c, { stream: true }) }).join('')
         metadata = extractMetaTags(html)
       }
-    } catch {
+    } catch (fetchErr) {
+      console.error('[extract-url] OG fetch error:', fetchErr)
       // Fetch failed — continue with empty metadata
     }
+
+    console.log('[extract-url] After OG extraction:', JSON.stringify({ title: metadata.title, description: metadata.description ? metadata.description.slice(0, 80) : null, image: metadata.image ? metadata.image.slice(0, 80) : null }))
 
     // ── Platform-specific enhancements ──
     var platformMetadata: Record<string, any> = {}
@@ -408,6 +472,7 @@ export default async function handler(
 
       // Reddit JSON API fallback — much more reliable than OG scraping
       var redditData = await fetchRedditJsonData(normalizedUrl)
+      console.log('[extract-url] Reddit JSON data:', redditData ? JSON.stringify({ title: redditData.title, preview_image: redditData.preview_image ? redditData.preview_image.slice(0, 80) : null, thumbnail: redditData.thumbnail, selftext: redditData.selftext ? redditData.selftext.slice(0, 80) : null }) : 'null')
       if (redditData) {
         // Fill in missing metadata from Reddit JSON
         if (!metadata.title && redditData.title) {
@@ -438,8 +503,14 @@ export default async function handler(
     // ── Proxy image to Supabase Storage ──
     var storedImageUrl: string | null = null
     if (metadata.image) {
+      console.log('[extract-url] Proxying image:', metadata.image.slice(0, 120))
       storedImageUrl = await proxyImageToStorage(metadata.image, urlHash, supabase)
+      console.log('[extract-url] Proxied image result:', storedImageUrl ? storedImageUrl.slice(0, 120) : 'null')
+    } else {
+      console.log('[extract-url] No image to proxy')
     }
+
+    console.log('[extract-url] Final response:', JSON.stringify({ title: metadata.title, description: metadata.description ? 'yes' : 'no', thumbnail_url: storedImageUrl || metadata.image || null }))
 
     return res.status(200).json({
       url: normalizedUrl,
