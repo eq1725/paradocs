@@ -225,9 +225,15 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
 
     console.log('[extract-url] Using endpoint: ' + (successEndpoint || 'none'))
 
-    // If all JSON endpoints failed, try oEmbed as last resort (limited but reliable)
+    // If all JSON endpoints failed, try oEmbed + third-party services
     if (!rawText) {
-      console.log('[extract-url] All JSON endpoints failed, trying oEmbed...')
+      console.log('[extract-url] All JSON endpoints failed, trying oEmbed + third-party services...')
+      var fallbackTitle: string | null = null
+      var fallbackImage: string | null = null
+      var fallbackDescription: string | null = null
+      var fallbackSubreddit: string | null = null
+
+      // 1. Reddit oEmbed — reliable for title
       try {
         var oembedUrl = 'https://www.reddit.com/oembed?url=' + encodeURIComponent(cleanUrl) + '&format=json'
         var controller3 = new AbortController()
@@ -247,17 +253,17 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
         if (oembedResp.ok) {
           var oembedData = await oembedResp.json()
           console.log('[extract-url] oEmbed data:', JSON.stringify(oembedData).slice(0, 300))
-          // oEmbed returns { title, author_name, thumbnail_url, html, ... }
-          if (oembedData && oembedData.title) {
-            return {
-              title: oembedData.title || null,
-              selftext: null,
-              thumbnail: oembedData.thumbnail_url || null,
-              preview_image: oembedData.thumbnail_url || null,
-              url_overridden_by_dest: null,
-              is_video: false,
-              media_url: null,
-              subreddit: oembedData.author_name || null,
+          fallbackTitle = oembedData.title || null
+          fallbackSubreddit = oembedData.author_name || null
+          if (oembedData.thumbnail_url) {
+            fallbackImage = oembedData.thumbnail_url
+          }
+          // Try to extract image from oEmbed HTML embed code
+          if (!fallbackImage && oembedData.html) {
+            var imgMatch = /src=["']([^"']+)["']/i.exec(oembedData.html)
+            if (imgMatch && /\.(jpg|jpeg|png|gif|webp)/i.test(imgMatch[1])) {
+              fallbackImage = imgMatch[1].replace(/&amp;/g, '&')
+              console.log('[extract-url] Extracted image from oEmbed HTML:', fallbackImage.slice(0, 100))
             }
           }
         }
@@ -265,7 +271,116 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
         console.error('[extract-url] oEmbed error:', oembedErr.message || oembedErr)
       }
 
-      console.error('[extract-url] All Reddit endpoints failed including oEmbed')
+      // 2. noembed.com — third-party oEmbed proxy, often has thumbnails
+      if (!fallbackImage) {
+        try {
+          var noembedUrl = 'https://noembed.com/embed?url=' + encodeURIComponent(cleanUrl)
+          var neCtrl2 = new AbortController()
+          var neTimeout2 = setTimeout(function() { neCtrl2.abort() }, 8000)
+          var neResp2 = await fetch(noembedUrl, {
+            signal: neCtrl2.signal,
+            headers: { 'Accept': 'application/json' },
+            redirect: 'follow',
+          })
+          clearTimeout(neTimeout2)
+          console.log('[extract-url] noembed (fallback) status:', neResp2.status)
+          if (neResp2.ok) {
+            var neData2 = await neResp2.json()
+            console.log('[extract-url] noembed data:', JSON.stringify({ thumbnail_url: neData2.thumbnail_url, title: neData2.title }).slice(0, 200))
+            if (neData2.thumbnail_url) {
+              fallbackImage = neData2.thumbnail_url
+            }
+            if (!fallbackTitle && neData2.title) {
+              fallbackTitle = neData2.title
+            }
+          }
+        } catch (neErr2: any) {
+          console.log('[extract-url] noembed (fallback) error:', neErr2.message || neErr2)
+        }
+      }
+
+      // 3. jsonlink.io — metadata extraction API
+      if (!fallbackImage) {
+        try {
+          var jlUrl2 = 'https://jsonlink.io/api/extract?url=' + encodeURIComponent(cleanUrl)
+          var jlCtrl2 = new AbortController()
+          var jlTimeout2 = setTimeout(function() { jlCtrl2.abort() }, 8000)
+          var jlResp2 = await fetch(jlUrl2, {
+            signal: jlCtrl2.signal,
+            headers: { 'Accept': 'application/json' },
+            redirect: 'follow',
+          })
+          clearTimeout(jlTimeout2)
+          console.log('[extract-url] jsonlink (fallback) status:', jlResp2.status)
+          if (jlResp2.ok) {
+            var jlData2 = await jlResp2.json()
+            console.log('[extract-url] jsonlink data:', JSON.stringify({ images: jlData2.images, title: jlData2.title, description: jlData2.description ? 'yes' : 'no' }).slice(0, 300))
+            if (jlData2.images && jlData2.images.length > 0) {
+              fallbackImage = jlData2.images[0]
+            }
+            if (!fallbackTitle && jlData2.title) {
+              fallbackTitle = jlData2.title
+            }
+            if (jlData2.description) {
+              fallbackDescription = jlData2.description.slice(0, 500)
+            }
+          }
+        } catch (jlErr2: any) {
+          console.log('[extract-url] jsonlink (fallback) error:', jlErr2.message || jlErr2)
+        }
+      }
+
+      // 4. Try microlink.io — another metadata extraction service
+      if (!fallbackImage) {
+        try {
+          var mlUrl = 'https://api.microlink.io/?url=' + encodeURIComponent(cleanUrl)
+          var mlCtrl = new AbortController()
+          var mlTimeout = setTimeout(function() { mlCtrl.abort() }, 8000)
+          var mlResp = await fetch(mlUrl, {
+            signal: mlCtrl.signal,
+            headers: { 'Accept': 'application/json' },
+            redirect: 'follow',
+          })
+          clearTimeout(mlTimeout)
+          console.log('[extract-url] microlink status:', mlResp.status)
+          if (mlResp.ok) {
+            var mlData = await mlResp.json()
+            console.log('[extract-url] microlink data:', JSON.stringify({
+              image: mlData.data && mlData.data.image ? mlData.data.image.url : null,
+              title: mlData.data ? mlData.data.title : null
+            }).slice(0, 300))
+            if (mlData.data && mlData.data.image && mlData.data.image.url) {
+              fallbackImage = mlData.data.image.url
+            }
+            if (!fallbackTitle && mlData.data && mlData.data.title) {
+              fallbackTitle = mlData.data.title
+            }
+            if (!fallbackDescription && mlData.data && mlData.data.description) {
+              fallbackDescription = mlData.data.description.slice(0, 500)
+            }
+          }
+        } catch (mlErr: any) {
+          console.log('[extract-url] microlink error:', mlErr.message || mlErr)
+        }
+      }
+
+      console.log('[extract-url] Fallback results: title=' + (fallbackTitle ? 'yes' : 'no') + ' image=' + (fallbackImage ? fallbackImage.slice(0, 80) : 'null') + ' desc=' + (fallbackDescription ? 'yes' : 'no'))
+
+      if (fallbackTitle || fallbackImage) {
+        return {
+          title: fallbackTitle,
+          selftext: fallbackDescription,
+          thumbnail: fallbackImage,
+          preview_image: fallbackImage,
+          url_overridden_by_dest: null,
+          is_video: false,
+          media_url: null,
+          subreddit: fallbackSubreddit,
+          _raw_debug: 'fallback|oembed_title=' + (fallbackTitle ? 'yes' : 'no') + '|img_source=' + (fallbackImage ? 'found' : 'null'),
+        }
+      }
+
+      console.error('[extract-url] All Reddit endpoints + fallbacks failed')
       return null
     }
 
