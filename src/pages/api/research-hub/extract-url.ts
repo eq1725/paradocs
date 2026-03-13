@@ -350,9 +350,11 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
 
     console.log('[extract-url] Image resolution: previewImage=' + (previewImage ? 'yes' : 'no') + ' isDirectImage=' + isDirectImage + ' validThumb=' + validThumb + ' bestImage=' + (bestImage ? bestImage.slice(0, 80) : 'null'))
 
-    // If no image found from JSON API, try oEmbed as supplemental source
+    // If no image found from JSON API, try multiple supplemental sources
     if (!bestImage) {
-      console.log('[extract-url] No image from JSON API, trying oEmbed for thumbnail...')
+      console.log('[extract-url] No image from JSON API, trying supplemental sources...')
+
+      // 1. Try Reddit oEmbed
       try {
         var oembedUrl2 = 'https://www.reddit.com/oembed?url=' + encodeURIComponent(cleanUrl) + '&format=json'
         var oeCtrl = new AbortController()
@@ -366,16 +368,70 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
           redirect: 'follow',
         })
         clearTimeout(oeTimeout)
-        console.log('[extract-url] oEmbed supplemental status:', oeResp.status)
+        console.log('[extract-url] Reddit oEmbed status:', oeResp.status)
         if (oeResp.ok) {
           var oeData = await oeResp.json()
-          console.log('[extract-url] oEmbed thumbnail:', oeData.thumbnail_url || 'null')
+          console.log('[extract-url] Reddit oEmbed thumbnail:', oeData.thumbnail_url || 'null')
           if (oeData.thumbnail_url) {
             bestImage = oeData.thumbnail_url
           }
         }
       } catch (oeErr: any) {
-        console.log('[extract-url] oEmbed supplemental error:', oeErr.message || oeErr)
+        console.log('[extract-url] Reddit oEmbed error:', oeErr.message || oeErr)
+      }
+
+      // 2. Try noembed.com (third-party oEmbed proxy — handles Reddit well)
+      if (!bestImage) {
+        try {
+          var noembedUrl = 'https://noembed.com/embed?url=' + encodeURIComponent(cleanUrl)
+          var neCtrl = new AbortController()
+          var neTimeout = setTimeout(function() { neCtrl.abort() }, 8000)
+          var neResp = await fetch(noembedUrl, {
+            signal: neCtrl.signal,
+            headers: { 'Accept': 'application/json' },
+            redirect: 'follow',
+          })
+          clearTimeout(neTimeout)
+          console.log('[extract-url] noembed status:', neResp.status)
+          if (neResp.ok) {
+            var neData = await neResp.json()
+            console.log('[extract-url] noembed data:', JSON.stringify({ thumbnail_url: neData.thumbnail_url, title: neData.title }).slice(0, 200))
+            if (neData.thumbnail_url) {
+              bestImage = neData.thumbnail_url
+            }
+          }
+        } catch (neErr: any) {
+          console.log('[extract-url] noembed error:', neErr.message || neErr)
+        }
+      }
+
+      // 3. Try jsonlink.io (another free metadata extraction API)
+      if (!bestImage) {
+        try {
+          var jlUrl = 'https://jsonlink.io/api/extract?url=' + encodeURIComponent(cleanUrl)
+          var jlCtrl = new AbortController()
+          var jlTimeout = setTimeout(function() { jlCtrl.abort() }, 8000)
+          var jlResp = await fetch(jlUrl, {
+            signal: jlCtrl.signal,
+            headers: { 'Accept': 'application/json' },
+            redirect: 'follow',
+          })
+          clearTimeout(jlTimeout)
+          console.log('[extract-url] jsonlink status:', jlResp.status)
+          if (jlResp.ok) {
+            var jlData = await jlResp.json()
+            console.log('[extract-url] jsonlink data:', JSON.stringify({ images: jlData.images, title: jlData.title }).slice(0, 200))
+            if (jlData.images && jlData.images.length > 0) {
+              bestImage = jlData.images[0]
+            }
+            // Also fill description if we don't have one
+            if (!post.selftext && jlData.description) {
+              post.selftext = jlData.description.slice(0, 500)
+            }
+          }
+        } catch (jlErr: any) {
+          console.log('[extract-url] jsonlink error:', jlErr.message || jlErr)
+        }
       }
     }
 
