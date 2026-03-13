@@ -133,6 +133,7 @@ interface RedditPostData {
   is_video: boolean
   media_url: string | null
   subreddit: string | null
+  _raw_debug?: string
 }
 
 async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> {
@@ -258,17 +259,24 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
     var post = listing?.data?.children?.[0]?.data
     if (!post) return null
 
-    // Debug: log key post fields for image detection
+    // Debug: log key post fields for image detection + raw keys to identify data structure
+    var postKeys = Object.keys(post).join(',')
+    console.log('[extract-url] Reddit post keys (' + Object.keys(post).length + '):', postKeys.slice(0, 500))
     console.log('[extract-url] Reddit post fields:', JSON.stringify({
       post_hint: post.post_hint,
       thumbnail: post.thumbnail,
-      url: post.url ? post.url.slice(0, 120) : null,
-      url_overridden_by_dest: post.url_overridden_by_dest ? post.url_overridden_by_dest.slice(0, 120) : null,
+      url: post.url ? post.url.slice(0, 150) : null,
+      url_overridden_by_dest: post.url_overridden_by_dest ? post.url_overridden_by_dest.slice(0, 150) : null,
       has_preview: !!(post.preview && post.preview.images),
       preview_count: post.preview && post.preview.images ? post.preview.images.length : 0,
+      preview_first_source: (post.preview && post.preview.images && post.preview.images[0] && post.preview.images[0].source) ? post.preview.images[0].source.url.slice(0, 150) : null,
       is_gallery: !!post.is_gallery,
       is_video: !!post.is_video,
       domain: post.domain,
+      is_self: post.is_self,
+      is_reddit_media_domain: post.is_reddit_media_domain,
+      media_metadata_keys: post.media_metadata ? Object.keys(post.media_metadata).slice(0, 3) : null,
+      crosspost_parent_list: post.crosspost_parent_list ? post.crosspost_parent_list.length + ' crossposts' : null,
     }))
 
     // Extract the best image from Reddit's preview system
@@ -317,6 +325,17 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
 
     console.log('[extract-url] Image resolution: previewImage=' + (previewImage ? 'yes' : 'no') + ' isDirectImage=' + isDirectImage + ' validThumb=' + validThumb)
 
+    // Build raw debug string for _debug response
+    var rawDebug = 'post_hint=' + (post.post_hint || 'none') +
+      '|url=' + (post.url || 'null') +
+      '|domain=' + (post.domain || 'null') +
+      '|is_self=' + post.is_self +
+      '|is_reddit_media=' + post.is_reddit_media_domain +
+      '|has_preview=' + !!(post.preview && post.preview.images) +
+      '|gallery=' + !!post.is_gallery +
+      '|crosspost=' + !!(post.crosspost_parent_list && post.crosspost_parent_list.length > 0) +
+      '|keys_count=' + Object.keys(post).length
+
     return {
       title: post.title || null,
       selftext: post.selftext ? post.selftext.slice(0, 500) : null,
@@ -326,6 +345,7 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
       is_video: !!post.is_video,
       media_url: mediaUrl,
       subreddit: post.subreddit || null,
+      _raw_debug: rawDebug,
     }
   } catch (err) {
     console.error('[extract-url] fetchRedditJsonData error:', err)
@@ -558,7 +578,10 @@ export default async function handler(
 
       // Reddit JSON API fallback — much more reliable than OG scraping
       var redditData = await fetchRedditJsonData(normalizedUrl)
-      debugLog.push('reddit_data=' + (redditData ? 'found(title=' + redditData.title + ',preview_img=' + (redditData.preview_image ? redditData.preview_image.slice(0, 80) : 'null') + ',thumb=' + (redditData.thumbnail || 'null') + ',linked=' + (redditData.url_overridden_by_dest ? redditData.url_overridden_by_dest.slice(0, 80) : 'null') + ')' : 'null'))
+      debugLog.push('reddit_data=' + (redditData ? 'found(title=' + (redditData.title || '').slice(0, 40) + ',preview_img=' + (redditData.preview_image ? redditData.preview_image.slice(0, 80) : 'null') + ',thumb=' + (redditData.thumbnail || 'null') + ',linked=' + (redditData.url_overridden_by_dest ? redditData.url_overridden_by_dest.slice(0, 80) : 'null') + ')' : 'null'))
+      if (redditData && redditData._raw_debug) {
+        debugLog.push('reddit_raw=' + redditData._raw_debug)
+      }
       if (redditData) {
         // Fill in missing metadata from Reddit JSON
         if (!metadata.title && redditData.title) {
