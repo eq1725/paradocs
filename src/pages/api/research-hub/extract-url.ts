@@ -863,82 +863,140 @@ export default async function handler(
     if (detected.sourceType === 'twitter') {
       console.log('[extract-url] Processing X/Twitter URL')
 
-      // 1. Try publish.twitter.com oEmbed — reliable for titles/text
-      // Note: oEmbed requires twitter.com URLs, not x.com URLs
-      try {
-        var twitterUrl = normalizedUrl.replace(/https?:\/\/(www\.)?x\.com\//i, 'https://twitter.com/')
-        var xOembedUrl = 'https://publish.twitter.com/oembed?url=' + encodeURIComponent(twitterUrl) + '&format=json'
-        var xOeCtrl = new AbortController()
-        var xOeTimeout = setTimeout(function() { xOeCtrl.abort() }, 10000)
-        var xOeResp = await fetch(xOembedUrl, {
-          signal: xOeCtrl.signal,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            'Accept': 'application/json',
-          },
-          redirect: 'follow',
-        })
-        clearTimeout(xOeTimeout)
-        console.log('[extract-url] X oEmbed status:', xOeResp.status)
+      // Clear generic X.com OG data (X returns useless defaults for server-side scraping)
+      var isGenericXTitle = metadata.title && /^X \(@?\w+\) on X$/i.test(metadata.title)
+      var isGenericXDesc = metadata.description && metadata.description === "Don't miss what's happening"
+      var isGenericXImage = metadata.image && /abs\.twimg\.com\/rweb\/ssr\/default/i.test(metadata.image)
+      if (isGenericXTitle) metadata.title = null
+      if (isGenericXDesc) metadata.description = null
+      if (isGenericXImage) metadata.image = null
 
-        if (xOeResp.ok) {
-          var xOeData = await xOeResp.json()
-          console.log('[extract-url] X oEmbed data:', JSON.stringify({ author: xOeData.author_name, html_len: xOeData.html ? xOeData.html.length : 0 }).slice(0, 300))
+      // Extract tweet ID from URL for API calls
+      var tweetIdMatch = /\/status\/(\d+)/i.exec(normalizedUrl)
+      var tweetId = tweetIdMatch ? tweetIdMatch[1] : null
 
-          // Extract tweet text from the HTML embed
-          if (xOeData.html) {
-            // The oEmbed HTML contains the tweet text in a <p> tag
-            var tweetTextMatch = /<blockquote[^>]*>.*?<p[^>]*>([\s\S]*?)<\/p>/i.exec(xOeData.html)
-            if (tweetTextMatch) {
-              var tweetText = tweetTextMatch[1]
-                .replace(/<[^>]+>/g, '')
-                .replace(/&amp;/g, '&')
-                .replace(/&lt;/g, '<')
-                .replace(/&gt;/g, '>')
-                .replace(/&quot;/g, '"')
-                .replace(/&#39;/g, "'")
-                .trim()
+      // 1. Try fxtwitter.com API — most reliable free API for tweet data
+      if (tweetId) {
+        try {
+          // Extract username from URL
+          var xUserMatch = /(?:twitter\.com|x\.com)\/([^/]+)\/status/i.exec(normalizedUrl)
+          var xUsername = xUserMatch ? xUserMatch[1] : 'i'
+          var fxUrl = 'https://api.fxtwitter.com/' + xUsername + '/status/' + tweetId
+          console.log('[extract-url] Trying fxtwitter API:', fxUrl)
+          var fxCtrl = new AbortController()
+          var fxTimeout = setTimeout(function() { fxCtrl.abort() }, 10000)
+          var fxResp = await fetch(fxUrl, {
+            signal: fxCtrl.signal,
+            headers: { 'Accept': 'application/json' },
+          })
+          clearTimeout(fxTimeout)
+          console.log('[extract-url] fxtwitter status:', fxResp.status)
 
+          if (fxResp.ok) {
+            var fxData = await fxResp.json()
+            var tweet = fxData.tweet || fxData
+            console.log('[extract-url] fxtwitter data:', JSON.stringify({
+              author: tweet.author ? tweet.author.name : null,
+              text: tweet.text ? tweet.text.slice(0, 80) : null,
+              has_media: !!(tweet.media && tweet.media.all && tweet.media.all.length > 0),
+              media_count: tweet.media && tweet.media.all ? tweet.media.all.length : 0,
+            }))
+
+            // Extract tweet text
+            if (tweet.text) {
+              var authorDisplay = (tweet.author && tweet.author.name) || xUsername
               if (!metadata.title) {
-                // Use author + truncated tweet as title
-                var authorName = xOeData.author_name || 'Unknown'
-                metadata.title = authorName + ': ' + (tweetText.length > 100 ? tweetText.slice(0, 97) + '...' : tweetText)
+                metadata.title = authorDisplay + ': ' + (tweet.text.length > 100 ? tweet.text.slice(0, 97) + '...' : tweet.text)
               }
               if (!metadata.description) {
-                metadata.description = tweetText.slice(0, 500)
+                metadata.description = tweet.text.slice(0, 500)
               }
             }
 
-            // Try to extract image from oEmbed HTML (some tweets embed images)
-            if (!metadata.image) {
-              var xImgMatch = /https:\/\/pbs\.twimg\.com\/media\/[^"'\s]+/i.exec(xOeData.html)
-              if (xImgMatch) {
-                metadata.image = xImgMatch[0].replace(/&amp;/g, '&')
-                console.log('[extract-url] Found X image in oEmbed HTML:', metadata.image.slice(0, 100))
+            // Extract media (images/videos)
+            if (tweet.media && tweet.media.all && tweet.media.all.length > 0) {
+              var firstMedia = tweet.media.all[0]
+              if (!metadata.image) {
+                if (firstMedia.type === 'photo' && firstMedia.url) {
+                  metadata.image = firstMedia.url
+                } else if (firstMedia.thumbnail_url) {
+                  metadata.image = firstMedia.thumbnail_url
+                }
+                console.log('[extract-url] fxtwitter image:', metadata.image ? metadata.image.slice(0, 100) : 'null')
+              }
+              // Store video URL if present
+              if (firstMedia.type === 'video' && firstMedia.url) {
+                platformMetadata.video_url = firstMedia.url
+                platformMetadata.is_video = true
               }
             }
-          }
 
-          if (xOeData.author_name) {
-            platformMetadata.author_name = xOeData.author_name
+            // Store author metadata
+            if (tweet.author) {
+              platformMetadata.author_name = tweet.author.name || xUsername
+              platformMetadata.author_handle = tweet.author.screen_name || xUsername
+              if (tweet.author.avatar_url) {
+                platformMetadata.author_avatar = tweet.author.avatar_url
+              }
+            }
             metadata.siteName = 'X.com'
-          }
-          if (xOeData.author_url) {
-            platformMetadata.author_url = xOeData.author_url
-          }
 
-          debugLog.push('x_oembed=ok|author=' + (xOeData.author_name || 'null'))
-        } else {
-          debugLog.push('x_oembed_status=' + xOeResp.status)
+            debugLog.push('fxtwitter=ok|text=' + (tweet.text ? 'yes' : 'no') + '|media=' + (tweet.media && tweet.media.all ? tweet.media.all.length : 0))
+          } else {
+            debugLog.push('fxtwitter_status=' + fxResp.status)
+          }
+        } catch (fxErr: any) {
+          console.log('[extract-url] fxtwitter error:', fxErr.message || fxErr)
+          debugLog.push('fxtwitter_error=' + (fxErr.message || ''))
         }
-      } catch (xOeErr: any) {
-        console.log('[extract-url] X oEmbed error:', xOeErr.message || xOeErr)
-        debugLog.push('x_oembed_error=' + (xOeErr.message || ''))
       }
 
-      // 2. Try third-party services for images (X blocks direct image scraping)
+      // 2. Fallback: Try publish.twitter.com oEmbed
+      if (!metadata.title && !metadata.description) {
+        try {
+          var twitterUrl = normalizedUrl.replace(/https?:\/\/(www\.)?x\.com\//i, 'https://twitter.com/')
+          var xOembedUrl = 'https://publish.twitter.com/oembed?url=' + encodeURIComponent(twitterUrl) + '&format=json'
+          var xOeCtrl = new AbortController()
+          var xOeTimeout = setTimeout(function() { xOeCtrl.abort() }, 8000)
+          var xOeResp = await fetch(xOembedUrl, {
+            signal: xOeCtrl.signal,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+              'Accept': 'application/json',
+            },
+            redirect: 'follow',
+          })
+          clearTimeout(xOeTimeout)
+          console.log('[extract-url] X oEmbed status:', xOeResp.status)
+          if (xOeResp.ok) {
+            var xOeData = await xOeResp.json()
+            if (xOeData.html) {
+              var tweetTextMatch = /<blockquote[^>]*>.*?<p[^>]*>([\s\S]*?)<\/p>/i.exec(xOeData.html)
+              if (tweetTextMatch) {
+                var tweetText = tweetTextMatch[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim()
+                if (!metadata.title) {
+                  metadata.title = (xOeData.author_name || 'Unknown') + ': ' + (tweetText.length > 100 ? tweetText.slice(0, 97) + '...' : tweetText)
+                }
+                if (!metadata.description) {
+                  metadata.description = tweetText.slice(0, 500)
+                }
+              }
+            }
+            if (xOeData.author_name) {
+              platformMetadata.author_name = platformMetadata.author_name || xOeData.author_name
+              metadata.siteName = 'X.com'
+            }
+            debugLog.push('x_oembed=ok')
+          } else {
+            debugLog.push('x_oembed_status=' + xOeResp.status)
+          }
+        } catch (xOeErr: any) {
+          debugLog.push('x_oembed_error=' + (xOeErr.message || ''))
+        }
+      }
+
+      // 3. Fallback: microlink.io for images
       if (!metadata.image) {
-        // Try microlink.io
         try {
           var xMlUrl = 'https://api.microlink.io/?url=' + encodeURIComponent(normalizedUrl)
           var xMlCtrl = new AbortController()
@@ -951,15 +1009,11 @@ export default async function handler(
           if (xMlResp.ok) {
             var xMlData = await xMlResp.json()
             if (xMlData.data && xMlData.data.image && xMlData.data.image.url) {
-              metadata.image = xMlData.data.image.url
-              console.log('[extract-url] X image from microlink:', metadata.image.slice(0, 100))
-              debugLog.push('x_microlink_image=found')
-            }
-            if (!metadata.title && xMlData.data && xMlData.data.title) {
-              metadata.title = xMlData.data.title
-            }
-            if (!metadata.description && xMlData.data && xMlData.data.description) {
-              metadata.description = xMlData.data.description.slice(0, 500)
+              // Skip generic X logo
+              if (!/abs\.twimg\.com\/rweb\/ssr\/default/i.test(xMlData.data.image.url)) {
+                metadata.image = xMlData.data.image.url
+                debugLog.push('x_microlink_image=found')
+              }
             }
           }
         } catch (xMlErr: any) {
@@ -967,7 +1021,6 @@ export default async function handler(
         }
       }
 
-      // Flag for client-side extraction if no image found
       if (!metadata.image) {
         debugLog.push('x_no_image_found')
       }
