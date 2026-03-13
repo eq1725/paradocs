@@ -5,12 +5,17 @@
  * Auto-detects source type (YouTube, Reddit, TikTok, etc.)
  * Returns title, description, thumbnail, and detected source type.
  *
- * Also checks for duplicate URLs the user has already saved.
+ * Features:
+ * - Reddit JSON API fallback for reliable image/description extraction
+ * - Image proxy: downloads thumbnails and stores in Supabase Storage
+ * - Duplicate URL detection
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createServerClient } from '@/lib/supabase'
 import { createHash } from 'crypto'
+
+var ARTIFACT_IMAGES_BUCKET = 'artifact-images'
 
 // ── Source Type Detection ──
 
@@ -37,18 +42,11 @@ function detectSourceType(url: string): { sourceType: string; platform: string }
 function normalizeUrl(rawUrl: string): string {
   try {
     var parsed = new URL(rawUrl)
-    // Strip tracking params
     var stripParams = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'ref', 'si']
-    stripParams.forEach(function(p) {
-      parsed.searchParams.delete(p)
-    })
-    // Lowercase host
+    stripParams.forEach(function(p) { parsed.searchParams.delete(p) })
     parsed.hostname = parsed.hostname.toLowerCase()
-    // Remove trailing slash
     var normalized = parsed.toString()
-    if (normalized.endsWith('/')) {
-      normalized = normalized.slice(0, -1)
-    }
+    if (normalized.endsWith('/')) normalized = normalized.slice(0, -1)
     return normalized
   } catch {
     return rawUrl.trim().toLowerCase()
@@ -72,15 +70,10 @@ interface OGMetadata {
 
 function extractMetaTags(html: string): OGMetadata {
   var result: OGMetadata = {
-    title: null,
-    description: null,
-    image: null,
-    siteName: null,
-    type: null,
-    url: null,
+    title: null, description: null, image: null,
+    siteName: null, type: null, url: null,
   }
 
-  // Extract <meta> tags with property or name attributes
   var metaRegex = /<meta\s+[^>]*(?:property|name)\s*=\s*["']([^"']+)["'][^>]*content\s*=\s*["']([^"']*?)["'][^>]*\/?>/gi
   var metaRegex2 = /<meta\s+[^>]*content\s*=\s*["']([^"']*?)["'][^>]*(?:property|name)\s*=\s*["']([^"']+)["'][^>]*\/?>/gi
 
@@ -101,18 +94,15 @@ function extractMetaTags(html: string): OGMetadata {
   result.type = tags['og:type'] || null
   result.url = tags['og:url'] || null
 
-  // Fallback: extract <title> tag if no OG title
   if (!result.title) {
     var titleMatch = /<title[^>]*>([^<]+)<\/title>/i.exec(html)
-    if (titleMatch) {
-      result.title = titleMatch[1].trim()
-    }
+    if (titleMatch) result.title = titleMatch[1].trim()
   }
 
   return result
 }
 
-// ── YouTube-Specific Extraction ──
+// ── YouTube-Specific ──
 
 function extractYouTubeId(url: string): string | null {
   var patterns = [
@@ -122,8 +112,8 @@ function extractYouTubeId(url: string): string | null {
     /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
   ]
   for (var i = 0; i < patterns.length; i++) {
-    var match = patterns[i].exec(url)
-    if (match) return match[1]
+    var m = patterns[i].exec(url)
+    if (m) return m[1]
   }
   return null
 }
@@ -132,7 +122,161 @@ function getYouTubeThumbnail(videoId: string): string {
   return 'https://img.youtube.com/vi/' + videoId + '/hqdefault.jpg'
 }
 
-// ── Reddit-Specific Helpers ──
+// ── Reddit JSON API Fallback ──
+
+interface RedditPostData {
+  title: string | null
+  selftext: string | null
+  thumbnail: string | null
+  preview_image: string | null
+  url_overridden_by_dest: string | null
+  is_video: boolean
+  media_url: string | null
+  subreddit: string | null
+}
+
+async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> {
+  try {
+    // Reddit JSON API: append .json to the URL
+    var jsonUrl = url.replace(/\/?$/, '.json')
+    var controller = new AbortController()
+    var timeoutId = setTimeout(function() { controller.abort() }, 8000)
+
+    var resp = await fetch(jsonUrl, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Paradocs/1.0; +https://discoverparadocs.com)',
+        'Accept': 'application/json',
+      },
+      redirect: 'follow',
+    })
+    clearTimeout(timeoutId)
+
+    if (!resp.ok) return null
+
+    var json = await resp.json()
+
+    // Reddit returns an array: [listing, comments]
+    var listing = Array.isArray(json) ? json[0] : json
+    var post = listing?.data?.children?.[0]?.data
+    if (!post) return null
+
+    // Extract the best image from Reddit's preview system
+    var previewImage: string | null = null
+    if (post.preview && post.preview.images && post.preview.images.length > 0) {
+      var source = post.preview.images[0].source
+      if (source && source.url) {
+        // Reddit HTML-encodes URLs in preview
+        previewImage = source.url.replace(/&amp;/g, '&')
+      }
+    }
+
+    // Check if the post links directly to an image
+    var linkedUrl = post.url_overridden_by_dest || post.url || null
+    var isDirectImage = linkedUrl && /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(linkedUrl)
+
+    // For video posts, get the thumbnail
+    var mediaUrl: string | null = null
+    if (post.is_video && post.media && post.media.reddit_video) {
+      mediaUrl = post.media.reddit_video.fallback_url || null
+    }
+
+    return {
+      title: post.title || null,
+      selftext: post.selftext ? post.selftext.slice(0, 500) : null,
+      thumbnail: post.thumbnail && post.thumbnail !== 'self' && post.thumbnail !== 'default' && post.thumbnail !== 'nsfw' ? post.thumbnail : null,
+      preview_image: previewImage || (isDirectImage ? linkedUrl : null),
+      url_overridden_by_dest: linkedUrl,
+      is_video: !!post.is_video,
+      media_url: mediaUrl,
+      subreddit: post.subreddit || null,
+    }
+  } catch {
+    return null
+  }
+}
+
+// ── Image Proxy: Download and store in Supabase Storage ──
+
+function getExtFromContentType(ct: string): string {
+  if (ct.includes('png')) return 'png'
+  if (ct.includes('gif')) return 'gif'
+  if (ct.includes('webp')) return 'webp'
+  if (ct.includes('svg')) return 'svg'
+  return 'jpg'
+}
+
+async function proxyImageToStorage(
+  imageUrl: string,
+  urlHash: string,
+  supabase: any
+): Promise<string | null> {
+  try {
+    // Don't proxy if already on our Supabase storage
+    if (imageUrl.includes('bhkbctdmwnowfmqpksed.supabase.co')) return imageUrl
+
+    var controller = new AbortController()
+    var timeoutId = setTimeout(function() { controller.abort() }, 10000)
+
+    var resp = await fetch(imageUrl, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Paradocs/1.0; +https://discoverparadocs.com)',
+        'Accept': 'image/*',
+      },
+      redirect: 'follow',
+    })
+    clearTimeout(timeoutId)
+
+    if (!resp.ok) return null
+
+    var contentType = resp.headers.get('content-type') || 'image/jpeg'
+    if (!contentType.startsWith('image/')) return null
+
+    var arrayBuffer = await resp.arrayBuffer()
+    // Skip if too large (> 5MB) or too small (< 1KB, likely error page)
+    if (arrayBuffer.byteLength > 5 * 1024 * 1024 || arrayBuffer.byteLength < 1024) return null
+
+    var buffer = Buffer.from(arrayBuffer)
+    var ext = getExtFromContentType(contentType)
+    var fileName = 'thumbnails/' + urlHash + '.' + ext
+
+    // Ensure bucket exists
+    try {
+      var bucketList = await supabase.storage.listBuckets()
+      var exists = (bucketList.data || []).some(function(b: any) { return b.name === ARTIFACT_IMAGES_BUCKET })
+      if (!exists) {
+        await supabase.storage.createBucket(ARTIFACT_IMAGES_BUCKET, { public: true })
+      }
+    } catch {
+      // Bucket might already exist
+    }
+
+    var uploadResult = await supabase.storage
+      .from(ARTIFACT_IMAGES_BUCKET)
+      .upload(fileName, buffer, {
+        contentType: contentType,
+        upsert: true,
+        cacheControl: '31536000',
+      })
+
+    if (uploadResult.error) {
+      console.error('Image proxy upload error:', uploadResult.error.message)
+      return null
+    }
+
+    var publicUrlResult = supabase.storage
+      .from(ARTIFACT_IMAGES_BUCKET)
+      .getPublicUrl(fileName)
+
+    return publicUrlResult.data.publicUrl || null
+  } catch (err) {
+    console.error('Image proxy error:', err)
+    return null
+  }
+}
+
+// ── Reddit Info Helper ──
 
 function extractRedditInfo(url: string): { subreddit: string | null } {
   var match = /reddit\.com\/r\/([^/]+)/i.exec(url)
@@ -151,7 +295,6 @@ export default async function handler(
 
   var supabase = createServerClient()
 
-  // Authenticate user
   var token = req.headers.authorization?.replace('Bearer ', '')
   if (!token) {
     return res.status(401).json({ error: 'Unauthorized' })
@@ -168,7 +311,6 @@ export default async function handler(
     return res.status(400).json({ error: 'url is required' })
   }
 
-  // Validate URL format
   try {
     new URL(rawUrl)
   } catch {
@@ -179,7 +321,7 @@ export default async function handler(
     var normalizedUrl = normalizeUrl(rawUrl)
     var urlHash = hashUrl(normalizedUrl)
 
-    // ── Check for duplicate (user already saved this URL) ──
+    // ── Check for duplicate ──
     var isDuplicate = false
     var duplicateArtifactId: string | null = null
     try {
@@ -195,7 +337,7 @@ export default async function handler(
         duplicateArtifactId = (dupCheck.data[0] as any).id
       }
     } catch {
-      // Table might not have external_url_hash column yet; ignore
+      // Table might not have column yet
     }
 
     // ── Detect source type ──
@@ -203,12 +345,8 @@ export default async function handler(
 
     // ── Fetch OG metadata ──
     var metadata: OGMetadata = {
-      title: null,
-      description: null,
-      image: null,
-      siteName: null,
-      type: null,
-      url: null,
+      title: null, description: null, image: null,
+      siteName: null, type: null, url: null,
     }
 
     try {
@@ -223,11 +361,9 @@ export default async function handler(
         },
         redirect: 'follow',
       })
-
       clearTimeout(timeoutId)
 
       if (fetchResponse.ok) {
-        // Only read first 50KB to avoid memory issues on huge pages
         var reader = fetchResponse.body?.getReader()
         var chunks: Uint8Array[] = []
         var totalBytes = 0
@@ -248,7 +384,7 @@ export default async function handler(
         metadata = extractMetaTags(html)
       }
     } catch {
-      // Fetch failed (timeout, network error, etc.) — continue with empty metadata
+      // Fetch failed — continue with empty metadata
     }
 
     // ── Platform-specific enhancements ──
@@ -258,7 +394,6 @@ export default async function handler(
       var videoId = extractYouTubeId(normalizedUrl)
       if (videoId) {
         platformMetadata.youtube_video_id = videoId
-        // Use YouTube thumbnail if OG image is missing
         if (!metadata.image) {
           metadata.image = getYouTubeThumbnail(videoId)
         }
@@ -270,6 +405,40 @@ export default async function handler(
       if (redditInfo.subreddit) {
         platformMetadata.subreddit = redditInfo.subreddit
       }
+
+      // Reddit JSON API fallback — much more reliable than OG scraping
+      var redditData = await fetchRedditJsonData(normalizedUrl)
+      if (redditData) {
+        // Fill in missing metadata from Reddit JSON
+        if (!metadata.title && redditData.title) {
+          metadata.title = redditData.title
+        }
+        if (!metadata.description && redditData.selftext) {
+          metadata.description = redditData.selftext
+        }
+        // Reddit preview images are much better than OG images
+        if (redditData.preview_image) {
+          metadata.image = redditData.preview_image
+        } else if (!metadata.image && redditData.thumbnail) {
+          metadata.image = redditData.thumbnail
+        }
+        // Store additional Reddit metadata
+        if (redditData.is_video) {
+          platformMetadata.is_video = true
+          if (redditData.media_url) {
+            platformMetadata.video_url = redditData.media_url
+          }
+        }
+        if (redditData.url_overridden_by_dest) {
+          platformMetadata.linked_url = redditData.url_overridden_by_dest
+        }
+      }
+    }
+
+    // ── Proxy image to Supabase Storage ──
+    var storedImageUrl: string | null = null
+    if (metadata.image) {
+      storedImageUrl = await proxyImageToStorage(metadata.image, urlHash, supabase)
     }
 
     return res.status(200).json({
@@ -279,7 +448,7 @@ export default async function handler(
       source_platform: detected.platform,
       title: metadata.title || null,
       description: metadata.description || null,
-      thumbnail_url: metadata.image || null,
+      thumbnail_url: storedImageUrl || metadata.image || null,
       site_name: metadata.siteName || null,
       platform_metadata: platformMetadata,
       is_duplicate: isDuplicate,

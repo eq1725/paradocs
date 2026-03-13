@@ -14,6 +14,7 @@ interface ArtifactQuickAddProps {
     report_id?: string
     external_url?: string
     title: string
+    description?: string
     thumbnail_url?: string
     source_platform?: string
     metadata_json?: Record<string, any>
@@ -60,6 +61,7 @@ interface ExtractedData {
   duplicate_artifact_id: string | null
 }
 
+
 export function ArtifactQuickAdd({
   isOpen,
   onClose,
@@ -90,6 +92,7 @@ export function ArtifactQuickAdd({
   var [extractError, setExtractError] = useState<string | null>(null)
   var [extractedData, setExtractedData] = useState<ExtractedData | null>(null)
   var [isDuplicate, setIsDuplicate] = useState(false)
+  var [extractedDescription, setExtractedDescription] = useState<string | null>(null)
 
   var searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   var extractTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -128,6 +131,7 @@ export function ArtifactQuickAdd({
     setExtractError(null)
     setExtractedData(null)
     setIsDuplicate(false)
+    setExtractedDescription(null)
 
     if (extractTimeoutRef.current) {
       clearTimeout(extractTimeoutRef.current)
@@ -188,6 +192,9 @@ export function ArtifactQuickAdd({
         if (data.platform_metadata) {
           setPlatformMetadata(data.platform_metadata)
         }
+        if (data.description) {
+          setExtractedDescription(data.description)
+        }
         if (data.is_duplicate) {
           setIsDuplicate(true)
         }
@@ -244,6 +251,7 @@ export function ArtifactQuickAdd({
           source_type: sourceType,
           external_url: externalUrl,
           title: title,
+          description: extractedDescription || undefined,
           thumbnail_url: thumbnailUrl || undefined,
           source_platform: sourcePlatform || undefined,
           metadata_json: Object.keys(platformMetadata).length > 0 ? platformMetadata : undefined,
@@ -278,6 +286,7 @@ export function ArtifactQuickAdd({
     setExtractedData(null)
     setExtractError(null)
     setIsDuplicate(false)
+    setExtractedDescription(null)
   }
 
   if (!isOpen) return null

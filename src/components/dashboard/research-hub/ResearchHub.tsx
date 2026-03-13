@@ -101,6 +101,7 @@ export function ResearchHub() {
     report_id?: string
     external_url?: string
     title: string
+    description?: string
     thumbnail_url?: string
     source_platform?: string
     metadata_json?: Record<string, any>
@@ -114,13 +115,14 @@ export function ResearchHub() {
       report_id: data.report_id,
       external_url: data.external_url,
       title: data.title,
+      description: data.description,
       thumbnail_url: data.thumbnail_url,
       source_platform: data.source_platform,
       metadata_json: data.metadata_json,
       user_note: data.user_note,
       verdict: data.verdict,
       tags: data.tags || [],
-    })
+    } as any)
 
     if (result && data.case_file_id) {
       await addArtifactToCaseFile(data.case_file_id, result.id)

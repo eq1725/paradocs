@@ -136,7 +136,7 @@ export function ArtifactCard({
 
         {/* Excerpt or user note */}
         <p className="text-sm text-gray-400 line-clamp-2">
-          {artifact.user_note || 'No description'}
+          {artifact.user_note || (artifact as any).description || 'No description'}
         </p>
 
         {/* Verdict and tags */}
