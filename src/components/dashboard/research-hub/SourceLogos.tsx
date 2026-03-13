@@ -139,6 +139,24 @@ function ParadocsLogo({ className }: LogoProps) {
   )
 }
 
+function ArchiveLogo({ className }: LogoProps) {
+  return (
+    <svg viewBox="0 0 48 48" fill="none" className={className}>
+      {/* Pediment (triangle roof) */}
+      <path d="M6 18 L24 6 L42 18 Z" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      {/* Architrave (top bar) */}
+      <rect x="6" y="18" width="36" height="3" fill="currentColor" opacity="0.3" />
+      {/* Columns */}
+      <rect x="10" y="21" width="3" height="17" fill="currentColor" opacity="0.5" rx="1" />
+      <rect x="19" y="21" width="3" height="17" fill="currentColor" opacity="0.5" rx="1" />
+      <rect x="26" y="21" width="3" height="17" fill="currentColor" opacity="0.5" rx="1" />
+      <rect x="35" y="21" width="3" height="17" fill="currentColor" opacity="0.5" rx="1" />
+      {/* Base */}
+      <rect x="4" y="38" width="40" height="4" rx="1" fill="currentColor" opacity="0.25" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  )
+}
+
 function DefaultLogo({ className }: LogoProps) {
   return (
     <svg viewBox="0 0 48 48" fill="none" className={className}>
@@ -157,6 +175,7 @@ const SOURCE_LOGO_MAP: Record<string, React.ComponentType<LogoProps>> = {
   instagram: InstagramLogo,
   podcast: PodcastLogo,
   news: NewsLogo,
+  archive: ArchiveLogo,
   website: WebsiteLogo,
   paradocs_report: ParadocsLogo,
   other: DefaultLogo,

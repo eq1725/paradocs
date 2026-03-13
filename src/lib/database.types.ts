@@ -745,6 +745,7 @@ export type ArtifactSourceType =
   | 'podcast'
   | 'news'
   | 'twitter'
+  | 'archive'
   | 'website'
   | 'other'
 

@@ -58,6 +58,12 @@ export const SOURCE_TYPE_CONFIG: Record<
     color: 'text-blue-400',
     bgColor: 'bg-blue-500/20',
   },
+  archive: {
+    label: 'Archive.org',
+    icon: 'Archive',
+    color: 'text-amber-400',
+    bgColor: 'bg-amber-500/20',
+  },
   website: {
     label: 'Website',
     icon: 'Globe',

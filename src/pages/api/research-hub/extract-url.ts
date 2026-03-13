@@ -27,6 +27,7 @@ var URL_PATTERNS: Array<{ pattern: RegExp; sourceType: string; platform: string 
   { pattern: /instagram\.com\//i, sourceType: 'instagram', platform: 'Instagram' },
   { pattern: /spotify\.com\/episode|podcasts\.apple\.com|anchor\.fm/i, sourceType: 'podcast', platform: 'Podcast' },
   { pattern: /cnn\.com|bbc\.com|nytimes\.com|reuters\.com|apnews\.com|theguardian\.com|washingtonpost\.com|nbcnews\.com|foxnews\.com|abcnews\.go\.com/i, sourceType: 'news', platform: 'News' },
+  { pattern: /archive\.org\//i, sourceType: 'archive', platform: 'Archive.org' },
 ]
 
 function detectSourceType(url: string): { sourceType: string; platform: string } {
