@@ -151,22 +151,20 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
       redditPath = redditPath.slice(0, -1)
     }
 
-    // Try these endpoints in order:
-    // 1. api.reddit.com (native JSON, no .json suffix needed)
-    // 2. www.reddit.com with .json suffix
-    // 3. old.reddit.com with .json suffix
-    // 4. Reddit oEmbed API (limited data but very reliable)
+    // Try endpoints that return FULL data first (images, preview, etc.)
+    // api.reddit.com returns stripped-down data (title only, no images), so use as last resort
     var endpoints = [
-      { url: 'https://api.reddit.com' + redditPath, accept: 'application/json' },
-      { url: 'https://www.reddit.com' + redditPath + '.json', accept: 'application/json' },
-      { url: 'https://old.reddit.com' + redditPath + '.json', accept: 'text/html,application/json' },
+      { url: 'https://www.reddit.com' + redditPath + '.json', label: 'www' },
+      { url: 'https://old.reddit.com' + redditPath + '.json', label: 'old' },
+      { url: 'https://api.reddit.com' + redditPath, label: 'api' },
     ]
 
     var rawText = ''
+    var successEndpoint = ''
 
     for (var ei = 0; ei < endpoints.length; ei++) {
       var ep = endpoints[ei]
-      console.log('[extract-url] Trying Reddit endpoint ' + (ei + 1) + ':', ep.url)
+      console.log('[extract-url] Trying Reddit endpoint ' + ep.label + ':', ep.url)
 
       try {
         var controller = new AbortController()
@@ -176,31 +174,56 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
           signal: controller.signal,
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            'Accept': ep.accept,
+            'Accept': 'application/json, text/html;q=0.9',
             'Accept-Language': 'en-US,en;q=0.9',
           },
           redirect: 'follow',
         })
         clearTimeout(timeoutId)
 
-        console.log('[extract-url] Endpoint ' + (ei + 1) + ' status:', attemptResp.status, 'final url:', attemptResp.url)
+        console.log('[extract-url] Endpoint ' + ep.label + ' status:', attemptResp.status)
 
         if (attemptResp.ok) {
-          rawText = await attemptResp.text()
-          console.log('[extract-url] Response length:', rawText.length, 'first 200:', rawText.slice(0, 200))
-          if (rawText.trim().startsWith('[') || rawText.trim().startsWith('{')) {
-            break
+          var text = await attemptResp.text()
+          console.log('[extract-url] Response length:', text.length, 'first 100:', text.slice(0, 100))
+          if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
+            rawText = text
+            successEndpoint = ep.label
+            // If we got JSON, check if it has image data
+            // If it does, great — use it. If not, try next endpoint for richer data.
+            try {
+              var quickParse = JSON.parse(text)
+              var quickListing = Array.isArray(quickParse) ? quickParse[0] : quickParse
+              var quickPost = quickListing?.data?.children?.[0]?.data
+              if (quickPost) {
+                var hasImageData = !!(
+                  quickPost.preview ||
+                  quickPost.thumbnail && quickPost.thumbnail !== 'self' && quickPost.thumbnail !== 'default' ||
+                  quickPost.url_overridden_by_dest ||
+                  quickPost.is_gallery
+                )
+                console.log('[extract-url] Endpoint ' + ep.label + ' has image data:', hasImageData, 'url:', quickPost.url ? quickPost.url.slice(0, 80) : 'null')
+                if (hasImageData) {
+                  break // This endpoint has full data, use it
+                }
+                // No image data — keep this text as fallback but try next endpoint
+                console.log('[extract-url] Endpoint ' + ep.label + ' has no image data, trying next for richer data...')
+              }
+            } catch {
+              break // Can't quick-parse, just use what we got
+            }
           } else {
-            console.log('[extract-url] Got non-JSON from endpoint ' + (ei + 1) + ', trying next...')
-            rawText = ''
+            console.log('[extract-url] Got non-JSON from ' + ep.label)
           }
         } else {
-          console.log('[extract-url] Endpoint ' + (ei + 1) + ' returned status', attemptResp.status)
+          console.log('[extract-url] Endpoint ' + ep.label + ' returned status', attemptResp.status)
         }
       } catch (endpointErr: any) {
-        console.error('[extract-url] Endpoint ' + (ei + 1) + ' error:', endpointErr.message || endpointErr)
+        console.error('[extract-url] Endpoint ' + ep.label + ' error:', endpointErr.message || endpointErr)
       }
     }
+
+    console.log('[extract-url] Using endpoint: ' + (successEndpoint || 'none'))
 
     // If all JSON endpoints failed, try oEmbed as last resort (limited but reliable)
     if (!rawText) {
@@ -578,10 +601,7 @@ export default async function handler(
 
       // Reddit JSON API fallback — much more reliable than OG scraping
       var redditData = await fetchRedditJsonData(normalizedUrl)
-      debugLog.push('reddit_data=' + (redditData ? 'found(title=' + (redditData.title || '').slice(0, 40) + ',preview_img=' + (redditData.preview_image ? redditData.preview_image.slice(0, 80) : 'null') + ',thumb=' + (redditData.thumbnail || 'null') + ',linked=' + (redditData.url_overridden_by_dest ? redditData.url_overridden_by_dest.slice(0, 80) : 'null') + ')' : 'null'))
-      if (redditData && redditData._raw_debug) {
-        debugLog.push('reddit_raw=' + redditData._raw_debug)
-      }
+      debugLog.push('reddit=' + (redditData ? 'found(ep=' + (redditData._raw_debug || '') + ',title=' + (redditData.title || '').slice(0, 30) + ',img=' + (redditData.preview_image ? redditData.preview_image.slice(0, 60) : 'null') + ',thumb=' + (redditData.thumbnail || 'null') + ',linked=' + (redditData.url_overridden_by_dest ? redditData.url_overridden_by_dest.slice(0, 60) : 'null') + ')' : 'null'))
       if (redditData) {
         // Fill in missing metadata from Reddit JSON
         if (!metadata.title && redditData.title) {
