@@ -801,6 +801,62 @@ export default async function handler(
         platformMetadata.subreddit = redditInfo.subreddit
       }
 
+      // If main OG fetch failed (403), retry with alternate Reddit domains
+      if (!metadata.image && !metadata.title) {
+        var altDomains = ['old.reddit.com', 'i.reddit.com']
+        for (var di = 0; di < altDomains.length; di++) {
+          if (metadata.image) break
+          try {
+            var altUrl = normalizedUrl.replace(/(?:www\.)?reddit\.com/i, altDomains[di])
+            console.log('[extract-url] Trying alternate OG fetch:', altUrl)
+            var altCtrl = new AbortController()
+            var altTimeout = setTimeout(function() { altCtrl.abort() }, 8000)
+            var altResp = await fetch(altUrl, {
+              signal: altCtrl.signal,
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+              },
+              redirect: 'follow',
+            })
+            clearTimeout(altTimeout)
+            console.log('[extract-url] Alt OG ' + altDomains[di] + ' status:', altResp.status)
+            debugLog.push('alt_og_' + altDomains[di] + '=' + altResp.status)
+            if (altResp.ok) {
+              var altReader = altResp.body?.getReader()
+              var altChunks: Uint8Array[] = []
+              var altTotal = 0
+              if (altReader) {
+                while (altTotal < 100000) {
+                  var altRead = await altReader.read()
+                  if (altRead.done) break
+                  altChunks.push(altRead.value)
+                  altTotal += altRead.value.length
+                }
+                altReader.cancel()
+              }
+              var altDecoder = new TextDecoder()
+              var altHtml = altChunks.map(function(c) { return altDecoder.decode(c, { stream: true }) }).join('')
+              var altMeta = extractMetaTags(altHtml)
+              console.log('[extract-url] Alt OG ' + altDomains[di] + ' result:', JSON.stringify({ title: altMeta.title, image: altMeta.image ? altMeta.image.slice(0, 80) : null }))
+              if (altMeta.image) {
+                metadata.image = altMeta.image
+                debugLog.push('alt_og_image_from=' + altDomains[di])
+              }
+              if (!metadata.title && altMeta.title) {
+                metadata.title = altMeta.title
+              }
+              if (!metadata.description && altMeta.description) {
+                metadata.description = altMeta.description
+              }
+            }
+          } catch (altErr: any) {
+            console.log('[extract-url] Alt OG ' + altDomains[di] + ' error:', altErr.message || altErr)
+          }
+        }
+      }
+
       // Reddit JSON API fallback — much more reliable than OG scraping
       var redditData = await fetchRedditJsonData(normalizedUrl)
       debugLog.push('reddit=' + (redditData ? 'found(ep=' + (redditData._raw_debug || '') + ',title=' + (redditData.title || '').slice(0, 30) + ',img=' + (redditData.preview_image ? redditData.preview_image.slice(0, 60) : 'null') + ',thumb=' + (redditData.thumbnail || 'null') + ',linked=' + (redditData.url_overridden_by_dest ? redditData.url_overridden_by_dest.slice(0, 60) : 'null') + ')' : 'null'))
@@ -848,6 +904,10 @@ export default async function handler(
     debugLog.push('og_image=' + (metadata.image ? metadata.image.slice(0, 80) : 'null'))
     debugLog.push('stored_image=' + (storedImageUrl ? storedImageUrl.slice(0, 80) : 'null'))
 
+    // Flag for client-side extraction fallback
+    var finalThumbnail = storedImageUrl || metadata.image || null
+    var needsClientExtraction = !finalThumbnail && (detected.sourceType === 'reddit' || detected.sourceType === 'tiktok' || detected.sourceType === 'instagram')
+
     return res.status(200).json({
       url: normalizedUrl,
       url_hash: urlHash,
@@ -855,11 +915,12 @@ export default async function handler(
       source_platform: detected.platform,
       title: metadata.title || null,
       description: metadata.description || null,
-      thumbnail_url: storedImageUrl || metadata.image || null,
+      thumbnail_url: finalThumbnail,
       site_name: metadata.siteName || null,
       platform_metadata: platformMetadata,
       is_duplicate: isDuplicate,
       duplicate_artifact_id: duplicateArtifactId,
+      needs_client_extraction: needsClientExtraction,
       _debug: debugLog,
     })
   } catch (error: any) {

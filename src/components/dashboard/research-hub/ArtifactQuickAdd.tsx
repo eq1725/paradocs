@@ -59,6 +59,7 @@ interface ExtractedData {
   platform_metadata: Record<string, any>
   is_duplicate: boolean
   duplicate_artifact_id: string | null
+  needs_client_extraction?: boolean
 }
 
 
@@ -481,6 +482,39 @@ export function ArtifactQuickAdd({
                       <p className="text-xs text-gray-400 line-clamp-2">{extractedData.description}</p>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* Manual thumbnail URL — shown when server can't extract image */}
+              {extractedData && !extractedData.thumbnail_url && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Thumbnail URL (Optional)
+                    <span className="ml-2 text-xs text-amber-400 font-normal">
+                      Could not auto-detect image
+                    </span>
+                  </label>
+                  <input
+                    type="url"
+                    value={thumbnailUrl}
+                    onChange={function(e) { setThumbnailUrl(e.target.value) }}
+                    placeholder="Paste an image URL..."
+                    className={classNames(
+                      'w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-700',
+                      'text-white placeholder-gray-500 text-sm',
+                      'focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30'
+                    )}
+                  />
+                  {thumbnailUrl && (
+                    <div className="mt-2 h-20 rounded-lg overflow-hidden bg-gray-800">
+                      <img
+                        src={thumbnailUrl}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                        onError={function(e) { (e.target as HTMLImageElement).style.display = 'none' }}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
