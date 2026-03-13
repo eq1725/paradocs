@@ -875,12 +875,92 @@ export default async function handler(
       var tweetIdMatch = /\/status\/(\d+)/i.exec(normalizedUrl)
       var tweetId = tweetIdMatch ? tweetIdMatch[1] : null
 
-      // 1. Try fxtwitter.com API — most reliable free API for tweet data
+      // Extract username from URL
+      var xUserMatch = /(?:twitter\.com|x\.com)\/([^/]+)\/status/i.exec(normalizedUrl)
+      var xUsername = xUserMatch ? xUserMatch[1] : 'unknown'
+
+      // 1. Try syndication.twitter.com — Twitter's own CDN endpoint for embedded tweets
       if (tweetId) {
         try {
-          // Extract username from URL
-          var xUserMatch = /(?:twitter\.com|x\.com)\/([^/]+)\/status/i.exec(normalizedUrl)
-          var xUsername = xUserMatch ? xUserMatch[1] : 'i'
+          var synUrl = 'https://cdn.syndication.twimg.com/tweet-result?id=' + tweetId + '&token=0'
+          console.log('[extract-url] Trying Twitter syndication API for tweet:', tweetId)
+          var synCtrl = new AbortController()
+          var synTimeout = setTimeout(function() { synCtrl.abort() }, 10000)
+          var synResp = await fetch(synUrl, {
+            signal: synCtrl.signal,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+              'Accept': 'application/json',
+            },
+          })
+          clearTimeout(synTimeout)
+          console.log('[extract-url] syndication status:', synResp.status)
+
+          if (synResp.ok) {
+            var synData = await synResp.json()
+            console.log('[extract-url] syndication data:', JSON.stringify({
+              text: synData.text ? synData.text.slice(0, 80) : null,
+              user: synData.user ? synData.user.name : null,
+              has_photos: !!(synData.photos && synData.photos.length > 0),
+              has_video: !!(synData.video),
+              media_count: synData.mediaDetails ? synData.mediaDetails.length : 0,
+            }))
+
+            // Extract tweet text
+            if (synData.text) {
+              var authorDisplay = (synData.user && synData.user.name) || xUsername
+              if (!metadata.title) {
+                metadata.title = authorDisplay + ': ' + (synData.text.length > 100 ? synData.text.slice(0, 97) + '...' : synData.text)
+              }
+              if (!metadata.description) {
+                metadata.description = synData.text.slice(0, 500)
+              }
+            }
+
+            // Extract media
+            if (synData.photos && synData.photos.length > 0 && !metadata.image) {
+              metadata.image = synData.photos[0].url
+              console.log('[extract-url] syndication photo:', metadata.image.slice(0, 100))
+            }
+            if (synData.video && synData.video.poster && !metadata.image) {
+              metadata.image = synData.video.poster
+              platformMetadata.is_video = true
+              console.log('[extract-url] syndication video poster:', metadata.image.slice(0, 100))
+            }
+            // Also check mediaDetails array
+            if (!metadata.image && synData.mediaDetails && synData.mediaDetails.length > 0) {
+              var md = synData.mediaDetails[0]
+              if (md.media_url_https) {
+                metadata.image = md.media_url_https
+              }
+              if (md.type === 'video') {
+                platformMetadata.is_video = true
+              }
+            }
+
+            // Store author metadata
+            if (synData.user) {
+              platformMetadata.author_name = synData.user.name || xUsername
+              platformMetadata.author_handle = synData.user.screen_name || xUsername
+              if (synData.user.profile_image_url_https) {
+                platformMetadata.author_avatar = synData.user.profile_image_url_https
+              }
+            }
+            metadata.siteName = 'X.com'
+
+            debugLog.push('syndication=ok|text=' + (synData.text ? 'yes' : 'no') + '|photos=' + (synData.photos ? synData.photos.length : 0))
+          } else {
+            debugLog.push('syndication_status=' + synResp.status)
+          }
+        } catch (synErr: any) {
+          console.log('[extract-url] syndication error:', synErr.message || synErr)
+          debugLog.push('syndication_error=' + (synErr.message || ''))
+        }
+      }
+
+      // 2. Fallback: Try fxtwitter.com API
+      if (!metadata.title && !metadata.description && tweetId) {
+        try {
           var fxUrl = 'https://api.fxtwitter.com/' + xUsername + '/status/' + tweetId
           console.log('[extract-url] Trying fxtwitter API:', fxUrl)
           var fxCtrl = new AbortController()
@@ -895,58 +975,30 @@ export default async function handler(
           if (fxResp.ok) {
             var fxData = await fxResp.json()
             var tweet = fxData.tweet || fxData
-            console.log('[extract-url] fxtwitter data:', JSON.stringify({
-              author: tweet.author ? tweet.author.name : null,
-              text: tweet.text ? tweet.text.slice(0, 80) : null,
-              has_media: !!(tweet.media && tweet.media.all && tweet.media.all.length > 0),
-              media_count: tweet.media && tweet.media.all ? tweet.media.all.length : 0,
-            }))
-
-            // Extract tweet text
             if (tweet.text) {
-              var authorDisplay = (tweet.author && tweet.author.name) || xUsername
+              var fxAuthor = (tweet.author && tweet.author.name) || xUsername
               if (!metadata.title) {
-                metadata.title = authorDisplay + ': ' + (tweet.text.length > 100 ? tweet.text.slice(0, 97) + '...' : tweet.text)
+                metadata.title = fxAuthor + ': ' + (tweet.text.length > 100 ? tweet.text.slice(0, 97) + '...' : tweet.text)
               }
               if (!metadata.description) {
                 metadata.description = tweet.text.slice(0, 500)
               }
             }
-
-            // Extract media (images/videos)
             if (tweet.media && tweet.media.all && tweet.media.all.length > 0) {
               var firstMedia = tweet.media.all[0]
               if (!metadata.image) {
-                if (firstMedia.type === 'photo' && firstMedia.url) {
-                  metadata.image = firstMedia.url
-                } else if (firstMedia.thumbnail_url) {
-                  metadata.image = firstMedia.thumbnail_url
-                }
-                console.log('[extract-url] fxtwitter image:', metadata.image ? metadata.image.slice(0, 100) : 'null')
-              }
-              // Store video URL if present
-              if (firstMedia.type === 'video' && firstMedia.url) {
-                platformMetadata.video_url = firstMedia.url
-                platformMetadata.is_video = true
+                metadata.image = firstMedia.url || firstMedia.thumbnail_url || null
               }
             }
-
-            // Store author metadata
             if (tweet.author) {
-              platformMetadata.author_name = tweet.author.name || xUsername
-              platformMetadata.author_handle = tweet.author.screen_name || xUsername
-              if (tweet.author.avatar_url) {
-                platformMetadata.author_avatar = tweet.author.avatar_url
-              }
+              platformMetadata.author_name = platformMetadata.author_name || tweet.author.name
+              metadata.siteName = 'X.com'
             }
-            metadata.siteName = 'X.com'
-
-            debugLog.push('fxtwitter=ok|text=' + (tweet.text ? 'yes' : 'no') + '|media=' + (tweet.media && tweet.media.all ? tweet.media.all.length : 0))
+            debugLog.push('fxtwitter=ok')
           } else {
             debugLog.push('fxtwitter_status=' + fxResp.status)
           }
         } catch (fxErr: any) {
-          console.log('[extract-url] fxtwitter error:', fxErr.message || fxErr)
           debugLog.push('fxtwitter_error=' + (fxErr.message || ''))
         }
       }
