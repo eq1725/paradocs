@@ -455,13 +455,31 @@ export function ArtifactQuickAdd({
                         : 'border-gray-700 focus:border-indigo-500 focus:ring-indigo-500/30'
                     )}
                   />
-                  {isExtracting && (
-                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 animate-spin" />
-                  )}
                   {extractedData && !isExtracting && (
                     <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-400" />
                   )}
                 </div>
+                {isExtracting && (
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <div className="flex-1 h-1 rounded-full bg-gray-800 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500"
+                        style={{
+                          width: '40%',
+                          animation: 'extractSlide 1.5s ease-in-out infinite',
+                        }}
+                      />
+                    </div>
+                    <span className="text-xs text-gray-500 whitespace-nowrap">Extracting...</span>
+                    <style>{'\
+                      @keyframes extractSlide {\
+                        0% { transform: translateX(-100%); width: 40%; }\
+                        50% { transform: translateX(150%); width: 60%; }\
+                        100% { transform: translateX(-100%); width: 40%; }\
+                      }\
+                    '}</style>
+                  </div>
+                )}
               </div>
 
               {/* Extraction Error */}
@@ -501,10 +519,7 @@ export function ArtifactQuickAdd({
                       {extractedData.site_name || extractedData.source_platform}
                     </p>
                     {extractedData.title && (
-                      <p className="text-sm text-white font-medium line-clamp-2 mb-1">{extractedData.title}</p>
-                    )}
-                    {extractedData.description && (
-                      <p className="text-xs text-gray-400 line-clamp-2">{extractedData.description}</p>
+                      <p className="text-sm text-white font-medium line-clamp-2">{extractedData.title}</p>
                     )}
                   </div>
                 </div>

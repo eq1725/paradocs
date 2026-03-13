@@ -452,10 +452,50 @@ async function fetchRedditJsonData(url: string): Promise<RedditPostData | null> 
       }
     }
 
-    // For video posts, get the thumbnail
+    // For video posts, get the thumbnail and video URL
     var mediaUrl: string | null = null
     if (post.is_video && post.media && post.media.reddit_video) {
       mediaUrl = post.media.reddit_video.fallback_url || null
+      // Video posts often have scrubber_media_url as a thumbnail
+      if (!previewImage && post.media.reddit_video.scrubber_media_url) {
+        previewImage = post.media.reddit_video.scrubber_media_url
+        console.log('[extract-url] Found video scrubber image:', previewImage.slice(0, 120))
+      }
+    }
+    // Also check secure_media for video thumbnail
+    if (!previewImage && post.secure_media && post.secure_media.reddit_video) {
+      if (!mediaUrl) {
+        mediaUrl = post.secure_media.reddit_video.fallback_url || null
+      }
+      if (post.secure_media.reddit_video.scrubber_media_url) {
+        previewImage = post.secure_media.reddit_video.scrubber_media_url
+        console.log('[extract-url] Found secure_media scrubber image:', previewImage.slice(0, 120))
+      }
+    }
+
+    // For crossposted content, check the original post for preview images
+    if (!previewImage && post.crosspost_parent_list && post.crosspost_parent_list.length > 0) {
+      var xpost = post.crosspost_parent_list[0]
+      if (xpost.preview && xpost.preview.images && xpost.preview.images.length > 0) {
+        var xpSource = xpost.preview.images[0].source
+        if (xpSource && xpSource.url) {
+          previewImage = xpSource.url.replace(/&amp;/g, '&')
+          console.log('[extract-url] Found crosspost preview image:', previewImage.slice(0, 120))
+        }
+      }
+      // Check crosspost video thumbnail
+      if (!previewImage && xpost.media && xpost.media.reddit_video && xpost.media.reddit_video.scrubber_media_url) {
+        previewImage = xpost.media.reddit_video.scrubber_media_url
+        console.log('[extract-url] Found crosspost video scrubber:', previewImage.slice(0, 120))
+      }
+      // Check crosspost thumbnail
+      if (!previewImage && xpost.thumbnail && xpost.thumbnail !== 'self' && xpost.thumbnail !== 'default' && xpost.thumbnail !== 'nsfw' && xpost.thumbnail !== 'spoiler' && xpost.thumbnail.startsWith('http')) {
+        previewImage = xpost.thumbnail
+        console.log('[extract-url] Found crosspost thumbnail:', previewImage.slice(0, 120))
+      }
+      if (!mediaUrl && xpost.is_video && xpost.media && xpost.media.reddit_video) {
+        mediaUrl = xpost.media.reddit_video.fallback_url || null
+      }
     }
 
     // Use thumbnail as final fallback if it's a real URL

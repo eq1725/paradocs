@@ -60,7 +60,7 @@ export function BoardView({
   onDeleteCaseFile,
 }: BoardViewProps) {
   const [expandedCaseFiles, setExpandedCaseFiles] = useState<Set<string>>(
-    new Set(caseFiles.map((cf) => cf.id))
+    new Set([...caseFiles.map((cf) => cf.id), 'unsorted'])
   )
   const [connectingArtifact, setConnectingArtifact] =
     useState<ConstellationArtifact | null>(null)
