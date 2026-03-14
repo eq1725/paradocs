@@ -87,8 +87,8 @@ function SwipeableCardRow({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-1 px-1"
-        style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } as any}
+        className="swipeable-card-row flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-1 px-1"
+        style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', overscrollBehaviorX: 'contain' } as any}
       >
         {artifacts.map(function(artifact) {
           return (
@@ -451,3 +451,14 @@ export function BoardView({
 }
 
 export default BoardView
+
+// Global styles for swipeable card row
+if (typeof document !== 'undefined') {
+  var styleId = 'swipeable-card-styles'
+  if (!document.getElementById(styleId)) {
+    var style = document.createElement('style')
+    style.id = styleId
+    style.textContent = '.swipeable-card-row::-webkit-scrollbar { display: none; } .swipeable-card-row { -ms-overflow-style: none; }'
+    document.head.appendChild(style)
+  }
+}

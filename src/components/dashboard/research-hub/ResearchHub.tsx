@@ -310,7 +310,7 @@ export function ResearchHub() {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto" style={{ overscrollBehavior: 'contain' } as any}>
           {currentView === 'board' && (
             <div className="p-3 sm:p-6">
               <BoardView
