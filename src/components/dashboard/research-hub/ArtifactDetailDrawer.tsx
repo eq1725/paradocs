@@ -134,16 +134,16 @@ export function ArtifactDetailDrawer({
         className={classNames(
           'fixed top-0 right-0 bottom-0 w-full sm:w-96',
           'bg-gray-900 border-l border-gray-800',
-          'transition-transform duration-300 z-50 overflow-y-auto',
+          'transition-transform duration-300 z-50',
           'flex flex-col',
           artifact ? 'translate-x-0' : 'translate-x-full'
         )}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between gap-4">
+        <div className="sticky top-0 bg-gray-900 border-b border-gray-800 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 z-10">
           <button
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-gray-300 hover:bg-gray-800 rounded-lg transition-colors"
+            className="p-2.5 sm:p-1.5 -ml-1 text-gray-400 hover:text-gray-300 hover:bg-gray-800 rounded-lg transition-colors"
             aria-label="Back"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -194,7 +194,7 @@ export function ArtifactDetailDrawer({
             )}
           </div>
 
-          <div className="px-6 py-6 space-y-6">
+          <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-5 sm:space-y-6">
             {/* Source and Metadata */}
             <div>
               <div className="flex items-center gap-2 mb-3">
@@ -206,9 +206,9 @@ export function ArtifactDetailDrawer({
                     sourceConfig.color
                   )}>
                     {sourceConfig.label}
-                    {artifact.source_platform && (
+                    {artifact.source_platform && artifact.source_platform !== sourceConfig.label && (
                       <>
-                        <span className="text-gray-600">·</span>
+                        <span className="text-gray-600">{'\u00B7'}</span>
                         <span>{artifact.source_platform}</span>
                       </>
                     )}
@@ -216,7 +216,7 @@ export function ArtifactDetailDrawer({
                 )}
               </div>
 
-              <h1 className="text-2xl font-bold text-white leading-tight mb-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-white leading-tight mb-2 break-words">
                 {artifact.title}
               </h1>
 
@@ -423,7 +423,7 @@ export function ArtifactDetailDrawer({
                         href={artifact.external_url || '#'}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-cyan-400 hover:text-cyan-300 transition-colors truncate"
+                        className="text-cyan-400 hover:text-cyan-300 transition-colors break-all"
                       >
                         {artifact.source_platform}
                       </a>
