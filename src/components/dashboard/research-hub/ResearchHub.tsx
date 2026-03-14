@@ -235,14 +235,14 @@ export function ResearchHub() {
   // Skeleton loading state
   if (loading) {
     return (
-      <div className="w-full h-screen bg-gray-950 flex items-center justify-center">
-        <div className="space-y-4">
+      <div className="w-full h-screen bg-gray-950 flex items-center justify-center p-4">
+        <div className="space-y-4 w-full max-w-md">
           <div className="h-8 w-48 bg-gray-800 rounded-lg animate-pulse" />
-          <div className="h-96 w-96 bg-gray-800 rounded-lg animate-pulse" />
-          <div className="grid grid-cols-3 gap-4">
-            <div className="h-32 w-32 bg-gray-800 rounded-lg animate-pulse" />
-            <div className="h-32 w-32 bg-gray-800 rounded-lg animate-pulse" />
-            <div className="h-32 w-32 bg-gray-800 rounded-lg animate-pulse" />
+          <div className="h-48 sm:h-64 w-full bg-gray-800 rounded-lg animate-pulse" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="h-28 sm:h-32 bg-gray-800 rounded-lg animate-pulse" />
+            <div className="h-28 sm:h-32 bg-gray-800 rounded-lg animate-pulse" />
+            <div className="h-28 sm:h-32 bg-gray-800 rounded-lg animate-pulse hidden sm:block" />
           </div>
         </div>
       </div>
@@ -295,7 +295,7 @@ export function ResearchHub() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm">
+        <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setIsMobileSidebarOpen(true)}
@@ -312,7 +312,7 @@ export function ResearchHub() {
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto">
           {currentView === 'board' && (
-            <div className="p-6">
+            <div className="p-3 sm:p-6">
               <BoardView
                 artifacts={safeArtifacts}
                 caseFiles={caseFilesWithCounts}
@@ -331,7 +331,7 @@ export function ResearchHub() {
           )}
 
           {currentView === 'timeline' && (
-            <div className="p-6">
+            <div className="p-3 sm:p-6">
               <TimelineView
                 artifacts={safeArtifacts}
                 caseFiles={caseFiles}
@@ -382,20 +382,6 @@ export function ResearchHub() {
         onAddArtifact={function() { setIsQuickAddOpen(true) }}
         onOpenInsights={function() { setIsInsightsOpen(true) }}
       />
-
-      {/* Floating Action Button for Mobile */}
-      <button
-        onClick={() => setIsQuickAddOpen(true)}
-        className={classNames(
-          'lg:hidden fixed bottom-20 right-4 z-40',
-          'w-14 h-14 rounded-full bg-indigo-600 shadow-lg',
-          'flex items-center justify-center text-white hover:bg-indigo-500',
-          'transition-colors'
-        )}
-        aria-label="Add Artifact"
-      >
-        <span className="text-2xl">+</span>
-      </button>
 
       {/* Detail Drawer */}
       <ArtifactDetailDrawer

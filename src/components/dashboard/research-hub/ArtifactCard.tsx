@@ -81,7 +81,7 @@ export function ArtifactCard({
       {/* Thumbnail and source badge - fixed height */}
       <div
         className={classNames(
-          'relative h-32 w-full overflow-hidden bg-gradient-to-br flex-shrink-0',
+          'relative h-28 sm:h-32 w-full overflow-hidden bg-gradient-to-br flex-shrink-0',
           backgroundColor
         )}
       >
@@ -192,7 +192,7 @@ export function ArtifactCard({
         className={classNames(
           'border-t border-gray-800 px-3 py-2 flex items-center gap-1 flex-shrink-0',
           'bg-gray-800/30 backdrop-blur-sm transition-opacity duration-150',
-          compact || showActions ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          compact || showActions ? 'opacity-100' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'
         )}
       >
         <button
