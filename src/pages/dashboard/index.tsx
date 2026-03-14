@@ -276,7 +276,7 @@ export default function DashboardPage() {
 
       {/* ── C. Research Hub Summary (THE CENTERPIECE) ── */}
       {hasArtifacts ? (
-        <div className="mb-5">
+        <div className="mb-5 overflow-hidden">
           {/* Case Files Row */}
           {hub.caseFiles.length > 0 && (
             <div className="mb-4">

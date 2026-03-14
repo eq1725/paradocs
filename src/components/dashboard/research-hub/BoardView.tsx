@@ -153,17 +153,7 @@ export function BoardView({
   )
   var [connectingArtifact, setConnectingArtifact] =
     useState<ConstellationArtifact | null>(null)
-  var [isMobile, setIsMobile] = useState(false)
-
-  // Detect mobile viewport
-  useEffect(function() {
-    function checkMobile() {
-      setIsMobile(window.innerWidth < 768)
-    }
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return function() { window.removeEventListener('resize', checkMobile) }
-  }, [])
+  // Mobile/desktop layout is handled via CSS responsive classes (sm:hidden / hidden sm:grid)
 
   // Compute unsorted artifacts
   var artifactsInCaseFiles = useMemo(function() {
@@ -286,20 +276,31 @@ export function BoardView({
           </p>
         </div>
 
-        {/* Artifacts */}
-        {isExpanded && (
-          isMobile ? (
-            <SwipeableCardRow
-              artifacts={sectionArtifacts}
-              getConnectionCount={getConnectionCount}
-              onSelectArtifact={onSelectArtifact}
-              onConnect={handleConnectClick}
-              onMoveToCaseFile={onMoveToCaseFile}
-              onRemoveArtifact={onRemoveArtifact}
-              connectingArtifact={connectingArtifact}
-            />
-          ) : (
-            <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 ml-4">
+        {/* Artifacts - Mobile: single column, Desktop: grid */}
+        {isExpanded && sectionArtifacts.length > 0 && (
+          <>
+            {/* Mobile: single-column full-width cards */}
+            <div className="sm:hidden space-y-3">
+              {sectionArtifacts.map(function(artifact) {
+                return (
+                  <div key={artifact.id}>
+                    <ArtifactCard
+                      artifact={artifact}
+                      connectionCount={getConnectionCount(artifact.id)}
+                      onSelect={onSelectArtifact}
+                      onConnect={handleConnectClick}
+                      onMove={onMoveToCaseFile}
+                      onDelete={onRemoveArtifact}
+                      isConnecting={connectingArtifact?.id === artifact.id}
+                      isSelected={connectingArtifact !== null}
+                      compact
+                    />
+                  </div>
+                )
+              })}
+            </div>
+            {/* Desktop: multi-column grid */}
+            <div className="hidden sm:grid grid-cols-2 xl:grid-cols-3 gap-4 ml-4">
               {sectionArtifacts.map(function(artifact) {
                 return (
                   <div key={artifact.id}>
@@ -316,13 +317,13 @@ export function BoardView({
                   </div>
                 )
               })}
-              {sectionArtifacts.length === 0 && (
-                <div className="col-span-full px-3 py-6 text-center text-sm text-gray-500">
-                  No artifacts in this case file yet
-                </div>
-              )}
             </div>
-          )
+          </>
+        )}
+        {isExpanded && sectionArtifacts.length === 0 && (
+          <div className="px-3 py-6 text-center text-sm text-gray-500">
+            No artifacts in this case file yet
+          </div>
         )}
       </div>
     )
@@ -381,20 +382,31 @@ export function BoardView({
             </div>
           </button>
 
-          {/* Unsorted artifacts */}
+          {/* Unsorted artifacts - Mobile: single column, Desktop: grid */}
           {expandedCaseFiles.has('unsorted') && (
-            isMobile ? (
-              <SwipeableCardRow
-                artifacts={unsortedArtifacts}
-                getConnectionCount={getConnectionCount}
-                onSelectArtifact={onSelectArtifact}
-                onConnect={handleConnectClick}
-                onMoveToCaseFile={onMoveToCaseFile}
-                onRemoveArtifact={onRemoveArtifact}
-                connectingArtifact={connectingArtifact}
-              />
-            ) : (
-              <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 ml-4">
+            <>
+              {/* Mobile: single-column full-width cards */}
+              <div className="sm:hidden space-y-3">
+                {unsortedArtifacts.map(function(artifact) {
+                  return (
+                    <div key={artifact.id}>
+                      <ArtifactCard
+                        artifact={artifact}
+                        connectionCount={getConnectionCount(artifact.id)}
+                        onSelect={onSelectArtifact}
+                        onConnect={handleConnectClick}
+                        onMove={onMoveToCaseFile}
+                        onDelete={onRemoveArtifact}
+                        isConnecting={connectingArtifact?.id === artifact.id}
+                        isSelected={connectingArtifact !== null}
+                        compact
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+              {/* Desktop: multi-column grid */}
+              <div className="hidden sm:grid grid-cols-2 xl:grid-cols-3 gap-4 ml-4">
                 {unsortedArtifacts.map(function(artifact) {
                   return (
                     <div key={artifact.id}>
@@ -412,7 +424,7 @@ export function BoardView({
                   )
                 })}
               </div>
-            )
+            </>
           )}
         </div>
       )}
