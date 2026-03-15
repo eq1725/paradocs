@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** March 13, 2026
+**Last updated:** March 14, 2026
 **Project:** beta.discoverparadocs.com
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -29,7 +29,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 2 | **Explore & Discovery** | Personalized feed, category filters, content surfacing, recommendations | `HANDOFF_EXPLORE.md` | Not started |
 | 3 | **Map & Geospatial** | Leaflet map, PostGIS queries, clustering, proximity search, geocoding | `HANDOFF_MAP.md` | Not started |
 | 4 | **Insights & Pattern Analysis** | Pattern detection algorithms, AI narratives, skeptic mode, trending, methodology | `HANDOFF_INSIGHTS.md` | Not started |
-| 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 (External URLs) deployed |
+| 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
 | 6 | **Report Experience** | Report detail page, submission form, connections, evidence, related reports | `HANDOFF_REPORTS.md` | Not started |
 | 7 | **Search & Navigation** | Full-text search, site navigation, onboarding flows, UX polish | `HANDOFF_SEARCH_NAV.md` | Not started |
 | 8 | **Subscription & Monetization** | Stripe checkout, paywall, tier system, billing portal, cancellation | `HANDOFF_SUBSCRIPTION.md` | Not started |
@@ -37,6 +37,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 10 | **Data Ingestion & Pipeline** | Source adapters, quality filters, dedup, bulk import, media extraction | `HANDOFF_INGESTION.md` | Not started |
 | 11 | **Admin & Operations** | Admin dashboard, batch operations, cron jobs, A/B testing, monitoring | `HANDOFF_ADMIN.md` | Not started |
 | 12 | **Foundation & Infrastructure** | Shared components, auth/RLS, database schema, deployment, performance, SEO | `HANDOFF_FOUNDATION.md` | Not started |
+| 13 | **Mobile-First Design System** | Cross-cutting mobile UX: bottom tabs, bottom sheets, design tokens, screen-by-screen redesign | `HANDOFF_MOBILE.md` | Not started — Session prompt ready |
 
 ---
 
@@ -168,11 +169,13 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Database tables:** `profiles`, `constellation_entries`, `saved_reports`, `saved_phenomena`, `constellation_artifacts` (NEW), `constellation_case_files` (NEW), `constellation_case_file_artifacts` (NEW), `constellation_connections` (REBUILT), `constellation_ai_insights` (NEW), `constellation_theories` (REBUILT), `constellation_external_url_signals` (NEW)
 
-**Current state (March 13, 2026):**
+**Current state (March 14, 2026):**
 - **Research Hub Phase 1 COMPLETE:** Multi-view architecture deployed. Board View (mobile-first default) with sidebar, case files, artifact cards, quick-add modal, detail drawer. Auth check with login redirect.
 - **Research Hub Phase 2 COMPLETE:** Timeline View (decade/year/month/week zoom with case file color coding) and Map View (Leaflet with clustering, spatial insights, mobile bottom sheet) built and deployed.
-- **Research Hub Phase 3 External URLs COMPLETE:** Full URL extraction pipeline with source auto-detection (YouTube/Reddit/Twitter/TikTok/Instagram/podcast/news), OG scraping, multi-source Reddit fallback chain, branded SVG logo fallbacks for cards without thumbnails, manual thumbnail URL override, uniform card heights, action bar opacity toggle.
-- **Database migration LIVE:** 7 new tables with RLS policies, indexes, and backward-compatible migration from old constellation_entries. Twitter source type added.
+- **Research Hub Phase 3 External URLs COMPLETE:** Full URL extraction pipeline with source auto-detection for 16+ source types (YouTube, Reddit, Twitter/X, TikTok, Instagram, podcast, news, Archive.org, academia, forum, government, blog, book, documentary, interview, and generic website). OG scraping, multi-source Reddit fallback chain, branded SVG logo fallbacks, manual thumbnail URL override, uniform card heights, action bar opacity toggle.
+- **PUT /api/research-hub/artifacts/[id] CREATED:** Artifact update endpoint (verdict, user_note, tags, title, description). Was previously missing — useResearchHub hook was calling it but getting 405.
+- **Mobile CSS fixes applied:** Replaced JS viewport detection with CSS-only Tailwind responsive classes (eliminates SSR hydration flash). Added overflow containment, truncation, responsive padding across dashboard and Research Hub.
+- **Database migration LIVE:** 7 new tables with RLS policies, indexes, and backward-compatible migration from old constellation_entries. 16+ source types in CHECK constraint.
 - Old constellation-first dashboard still exists alongside new Research Hub.
 
 **What needs work (Phases 3b-5):**
@@ -183,7 +186,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 - Journal curation workflow refinement
 - Gamification system (challenges, badges, levels)
 - Dashboard tour / onboarding improvements
-- Mobile dashboard experience polish
+- Mobile dashboard experience polish → **Moved to Session 13 (Mobile-First Design System)**
 
 **Touches other sessions:** Subscription (tier gating — Board+Timeline free, Map basic, Constellation pro), Insights (AI insights integration), Encyclopedia (saved phenomena, report artifacts), Reports (save-to-hub flow), Email (digest preferences), Ingestion (external URL signal aggregation feeds pipeline)
 
@@ -387,6 +390,37 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 ---
 
+### 13. Mobile-First Design System
+
+**Key files:**
+- `SESSION_PROMPT_MOBILE.md` — Full session prompt with startup instructions, design philosophy, three-phase plan
+- `HANDOFF_MOBILE.md` — Current mobile state documentation, known issues, tech stack notes
+- `src/components/dashboard/DashboardLayout.tsx` — Mobile header, hamburger menu, safe area handling
+- `src/components/dashboard/research-hub/BoardView.tsx` — CSS-only responsive layout (sm:hidden / hidden sm:grid)
+- `src/components/dashboard/research-hub/ArtifactDetailDrawer.tsx` — Full-screen mobile drawer, enlarged back button
+- `src/components/dashboard/research-hub/ResearchHub.tsx` — overflow-x-hidden, overscroll-behavior containment
+- `src/pages/dashboard/index.tsx` — Extensive overflow/truncation mobile fixes
+- All other page and component files across sessions (cross-cutting concern)
+
+**Database tables:** None (CSS/UX only)
+
+**Current state (March 14, 2026):**
+- Session prompt and handoff doc created and ready for a new session
+- Incremental mobile CSS fixes applied during Session 5 work (responsive padding, truncation, overflow-hidden, CSS-only responsive layout replacing JS viewport detection)
+- Key architectural fix deployed: replaced JS `useState`/`useEffect` viewport detection with CSS-only Tailwind responsive classes to eliminate hydration flash
+- PUT /api/research-hub/artifacts/[id] endpoint created (was missing, causing silent data loss)
+- X.com source duplication fix in ArtifactDetailDrawer
+
+**What needs work (Session 13 scope):**
+- **Phase 1:** Design tokens and component library (spacing scale, color system, typography, reusable mobile primitives like bottom sheets, swipe-to-dismiss, pull-to-refresh)
+- **Phase 2:** Navigation shell (bottom tab bar replacing hamburger menu, modeled on Netflix/Uber/Spotify)
+- **Phase 3:** Screen-by-screen redesign (Dashboard home, Research Hub, Explore, Report detail, Map, Journal, Search, Settings)
+- Known unsolved issues: no bottom tab navigation, no swipe-to-dismiss on drawers, no swipe-back gesture, quick-add modal not optimized for mobile keyboard, Explore/Report/Map/Constellation/Journal/Search pages not audited for mobile
+
+**Touches other sessions:** ALL sessions — mobile design system is cross-cutting. Especially Dashboard (navigation shell), Reports (40K+ line detail page mobile audit), Map (touch interactions), Explore (feed card mobile layout), Search (mobile search UX), Foundation (shared components, globals.css)
+
+---
+
 ## Cross-Feature Notes
 
 > **Instructions:** When a session makes a change that affects another feature, add a dated note here. The affected session checks this section on startup.
@@ -395,6 +429,8 @@ Each major feature area has a dedicated Claude session with its own deep context
 |------|--------------|------|---------|
 | 2026-03-11 | Encyclopedia | Cryptid category 100% complete. `ai_summary` field standardized to 150-350 chars for all cryptid entries. | Explore (feed cards), Search (index) |
 | 2026-03-05 | Encyclopedia | All `ai_quick_facts` now populated (9-key JSONB). All `ai_history` >= 800 chars. | Report detail (quick facts display), Explore (filtering) |
+| 2026-03-14 | Dashboard | Mobile CSS fixes: replaced JS viewport detection with CSS-only Tailwind responsive classes (eliminates hydration flash). Added overflow-x-hidden, overscroll-behavior containment, truncation across dashboard and Research Hub. Created PUT /api/research-hub/artifacts/[id] endpoint (was missing). Fixed X.com source duplication in ArtifactDetailDrawer. Expanded source types to 16+ (archive_org, academia, forum, government, tiktok, instagram, podcast, news, etc.). | Foundation (database.types.ts updated with 16+ source types, new DB CHECK constraint), All sessions (mobile layout pattern: use CSS-only responsive, never JS viewport detection) |
+| 2026-03-14 | Dashboard | Session 13 (Mobile-First Design System) created with full session prompt and handoff doc. Cross-cutting mobile redesign modeled on Netflix/Uber/Spotify planned. | All sessions (Session 13 will touch every page for mobile optimization) |
 | 2026-03-13 | Dashboard | Phase 3 External URL support deployed: extract-url.ts endpoint (7th API route), SourceLogos.tsx (13th component), twitter source type added to DB CHECK constraint + types. Uniform card heights. Branded SVG fallback thumbnails. | Foundation (database.types.ts updated with twitter type, new DB CHECK constraint), Ingestion (external URL signal table ready for pipeline integration) |
 | 2026-03-11 | Dashboard | Research Hub deployed with multi-view architecture (Board/Timeline/Map/Constellation). 7 new DB tables (constellation_artifacts, constellation_case_files, etc.) with RLS. Nav link added to DashboardLayout. | Foundation (database.types.ts updated), Navigation (new sidebar link), Subscription (view-based tier gating planned) |
 | 2026-02-26 | Dashboard | Dashboard rewritten as constellation-first research hub. Sidebar reorganized into Research/Library/Tools groups. | Navigation (sidebar links), Subscription (tier display) |
@@ -450,7 +486,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 - Code pushes via GitHub API (no git CLI) — documented in SESSION_NOTES.md
 - No CI/CD pipeline (no tests, no linting on push)
 - No error monitoring service
-- Mobile responsiveness gaps
+- Mobile responsiveness gaps → **Session 13 created to address comprehensively**
 
 ---
 
