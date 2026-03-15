@@ -266,7 +266,7 @@ export default function ConstellationPage() {
 
   return (
     <DashboardLayout title="My Constellation">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
 
         {/* Explorer Rank Banner */}
         <div className="bg-gradient-to-r from-gray-900 via-gray-900 to-primary-900/20 border border-gray-800 rounded-2xl p-4 sm:p-6">
@@ -330,7 +330,7 @@ export default function ConstellationPage() {
                   <XIcon className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-sm">
                 <div className="relative">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold shrink-0">1</span>
@@ -415,12 +415,12 @@ export default function ConstellationPage() {
         </div>
 
         {/* Phase 2/3: Action Buttons - always visible */}
-        <div className="flex flex-wrap gap-3">
+        <div className="flex gap-2 sm:gap-3 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-1 sm:flex-wrap sm:overflow-visible sm:mx-0 sm:px-0 sm:pb-0">
           <button
             onClick={() => mapStats && mapStats.totalEntries > 0 ? setConnectionDrawerOpen(true) : null}
             disabled={!mapStats || mapStats.totalEntries < 2}
             title={!mapStats || mapStats.totalEntries < 2 ? 'Log at least 2 entries to draw connections' : 'Draw a connection between entries'}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 border border-gray-700 hover:border-green-500/40 text-gray-300 hover:text-green-400 disabled:opacity-40 disabled:hover:border-gray-700 disabled:hover:text-gray-300 disabled:cursor-not-allowed rounded-xl text-sm font-medium transition-all"
+            className="inline-flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-gray-900 border border-gray-700 hover:border-green-500/40 text-gray-300 hover:text-green-400 disabled:opacity-40 disabled:hover:border-gray-700 disabled:hover:text-gray-300 disabled:cursor-not-allowed rounded-xl text-sm font-medium transition-all flex-shrink-0"
           >
             <Link2 className="w-4 h-4" />
             Draw Connection
@@ -432,7 +432,7 @@ export default function ConstellationPage() {
             onClick={() => mapStats && mapStats.totalEntries > 0 ? setTheoryPanelOpen(true) : null}
             disabled={!mapStats || mapStats.totalEntries === 0}
             title={!mapStats || mapStats.totalEntries === 0 ? 'Log entries first to build theories' : 'Create and manage your theories'}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 border border-gray-700 hover:border-amber-500/40 text-gray-300 hover:text-amber-400 disabled:opacity-40 disabled:hover:border-gray-700 disabled:hover:text-gray-300 disabled:cursor-not-allowed rounded-xl text-sm font-medium transition-all"
+            className="inline-flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-gray-900 border border-gray-700 hover:border-amber-500/40 text-gray-300 hover:text-amber-400 disabled:opacity-40 disabled:hover:border-gray-700 disabled:hover:text-gray-300 disabled:cursor-not-allowed rounded-xl text-sm font-medium transition-all flex-shrink-0"
           >
             <Lightbulb className="w-4 h-4" />
             Theories
@@ -444,7 +444,7 @@ export default function ConstellationPage() {
           </button>
           <button
             onClick={() => setShareOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 border border-gray-700 hover:border-purple-500/40 text-gray-300 hover:text-purple-400 rounded-xl text-sm font-medium transition-all"
+            className="inline-flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-gray-900 border border-gray-700 hover:border-purple-500/40 text-gray-300 hover:text-purple-400 rounded-xl text-sm font-medium transition-all flex-shrink-0"
           >
             <Share2 className="w-4 h-4" />
             Share
@@ -490,8 +490,8 @@ export default function ConstellationPage() {
         {/* Recently Logged Entries */}
         {userMapData && userMapData.entryNodes.length > 0 && (
           <div>
-            <h2 className="text-white font-semibold text-lg flex items-center gap-2 mb-3">
-              <Star className="w-5 h-5 text-purple-400" />
+            <h2 className="text-white font-semibold text-base sm:text-lg flex items-center gap-2 mb-3">
+              <Star className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
               Your Research Log
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -546,8 +546,8 @@ export default function ConstellationPage() {
         {/* Tag Connections */}
         {userMapData && userMapData.tagConnections.length > 0 && (
           <div>
-            <h2 className="text-white font-semibold text-lg flex items-center gap-2 mb-3">
-              <Link2 className="w-5 h-5 text-green-400" />
+            <h2 className="text-white font-semibold text-base sm:text-lg flex items-center gap-2 mb-3">
+              <Link2 className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
               Your Connections
               <span className="text-gray-500 text-sm font-normal">({userMapData.tagConnections.length} found)</span>
             </h2>
@@ -589,8 +589,8 @@ export default function ConstellationPage() {
         {/* User-Drawn Connections (Phase 2) */}
         {userMapData?.userConnections && userMapData.userConnections.length > 0 && (
           <div>
-            <h2 className="text-white font-semibold text-lg flex items-center gap-2 mb-3">
-              <Link2 className="w-5 h-5 text-green-400" />
+            <h2 className="text-white font-semibold text-base sm:text-lg flex items-center gap-2 mb-3">
+              <Link2 className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
               Your Drawn Connections
               <span className="text-gray-500 text-sm font-normal">({userMapData.userConnections.length})</span>
             </h2>
@@ -618,8 +618,8 @@ export default function ConstellationPage() {
         {/* User Theories (Phase 2) */}
         {userMapData?.userTheories && userMapData.userTheories.length > 0 && (
           <div>
-            <h2 className="text-white font-semibold text-lg flex items-center gap-2 mb-3">
-              <Lightbulb className="w-5 h-5 text-amber-400" />
+            <h2 className="text-white font-semibold text-base sm:text-lg flex items-center gap-2 mb-3">
+              <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
               Your Theories
               <span className="text-gray-500 text-sm font-normal">({userMapData.userTheories.length})</span>
             </h2>
@@ -648,8 +648,8 @@ export default function ConstellationPage() {
         {/* Suggested explorations */}
         {suggestions.length > 0 && (
           <div>
-            <h2 className="text-white font-semibold text-lg flex items-center gap-2 mb-3 sm:mb-4">
-              <Compass className="w-5 h-5 text-amber-400" />
+            <h2 className="text-white font-semibold text-base sm:text-lg flex items-center gap-2 mb-3 sm:mb-4">
+              <Compass className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
               Suggested Explorations
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">

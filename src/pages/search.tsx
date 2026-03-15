@@ -170,11 +170,11 @@ export default function SearchPage() {
         <title>{q ? `Search: ${q}` : 'Advanced Search'} - Paradocs</title>
       </Head>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-display font-bold text-white mb-2">
+      <div className="max-w-7xl mx-auto px-4 py-5 sm:py-8 pb-20 sm:pb-8">
+        <h1 className="text-xl sm:text-3xl font-display font-bold text-white mb-1 sm:mb-2">
           Search Paradocs
         </h1>
-        <p className="text-gray-400 mb-8">
+        <p className="text-gray-400 text-sm sm:text-base mb-5 sm:mb-8">
           Search across all paranormal reports with advanced filtering
         </p>
 
@@ -188,7 +188,7 @@ export default function SearchPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search..."
-                className="w-full pl-12 pr-12 py-4 text-lg"
+                className="w-full pl-12 pr-12 py-3 sm:py-4 text-base sm:text-lg"
                 autoFocus
               />
               {query && (
@@ -225,7 +225,7 @@ export default function SearchPage() {
 
         {/* Filters panel */}
         {showFilters && (
-          <div className="glass-card p-6 mb-6 animate-fade-in">
+          <div className="glass-card p-4 sm:p-6 mb-6 animate-fade-in">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium text-white">Advanced Filters</h3>
               {hasActiveFilters && (
@@ -342,9 +342,9 @@ export default function SearchPage() {
                   </div>
                 </>
               ) : (
-                <div className="text-center py-16">
-                  <p className="text-gray-400 mb-4">
-                    No results found for "{q}"
+                <div className="text-center py-10 sm:py-16">
+                  <p className="text-gray-400 text-sm sm:text-base mb-4">
+                    No results found for &ldquo;{q}&rdquo;
                   </p>
                   <p className="text-sm text-gray-500">
                     Try different keywords or browse{' '}
@@ -355,8 +355,8 @@ export default function SearchPage() {
                 </div>
               )
             ) : (
-              <div className="text-center py-16">
-                <p className="text-gray-400 mb-6">
+              <div className="text-center py-10 sm:py-16">
+                <p className="text-gray-400 text-sm sm:text-base mb-4 sm:mb-6">
                   Enter a search term to find paranormal reports
                 </p>
                 <div>
@@ -373,7 +373,7 @@ export default function SearchPage() {
                           router.push(`/search?q=${encodeURIComponent(term)}`, undefined, { shallow: true })
                           performSearch(term)
                         }}
-                        className="px-4 py-2 rounded-full bg-white/5 text-gray-300 hover:bg-white/10 text-sm"
+                        className="px-3.5 sm:px-4 py-2.5 sm:py-2 rounded-full bg-white/5 text-gray-300 hover:bg-white/10 active:bg-white/15 text-sm"
                       >
                         {term}
                       </button>

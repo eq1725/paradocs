@@ -376,7 +376,7 @@ export default function NewJournalEntryPage() {
                     )
                   }}
                   className={classNames(
-                    'px-3 py-1.5 rounded-full text-xs font-medium border transition-colors',
+                    'px-3 py-2 sm:py-1.5 rounded-full text-xs font-medium border transition-colors',
                     linkedCategories.includes(key)
                       ? 'border-primary-500 bg-primary-500/10 text-primary-300'
                       : 'border-gray-800 bg-gray-900 text-gray-500 hover:text-gray-300 hover:border-gray-700'
@@ -389,7 +389,7 @@ export default function NewJournalEntryPage() {
         </div>
 
         {/* Save button */}
-        <div className="flex items-center justify-between border-t border-gray-800 pt-6">
+        <div className="flex items-center justify-between border-t border-gray-800 pt-4 sm:pt-6 pb-6 sm:pb-0 sticky bottom-0 bg-gray-950 sm:static sm:bg-transparent -mx-4 px-4 sm:mx-0 sm:px-0">
           <Link
             href="/dashboard/journal"
             className="text-gray-400 hover:text-white text-sm transition-colors"
@@ -399,7 +399,7 @@ export default function NewJournalEntryPage() {
           <button
             onClick={handleSave}
             disabled={!title.trim() || saving}
-            className="flex items-center gap-2 px-6 py-3 bg-primary-600 hover:bg-primary-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-5 sm:px-6 py-3 bg-primary-600 hover:bg-primary-500 active:bg-primary-500 text-white rounded-xl sm:rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save className="w-4 h-4" />
             {saving ? 'Saving...' : 'Save Entry'}

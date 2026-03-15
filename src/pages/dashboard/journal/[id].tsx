@@ -183,14 +183,14 @@ export default function JournalEntryPage() {
               <>
                 <button
                   onClick={() => setEditing(true)}
-                  className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors"
+                  className="flex items-center gap-1 px-3 py-2.5 sm:py-2 bg-gray-800 hover:bg-gray-700 active:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors"
                 >
                   <Edit3 className="w-4 h-4" />
                   Edit
                 </button>
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-red-900/50 text-gray-400 hover:text-red-400 rounded-lg text-sm transition-colors"
+                  className="flex items-center gap-1 px-3 py-2.5 sm:py-2 bg-gray-800 hover:bg-red-900/50 active:bg-red-900/50 text-gray-400 hover:text-red-400 rounded-lg text-sm transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -222,7 +222,7 @@ export default function JournalEntryPage() {
         )}
 
         {/* Entry content */}
-        <article className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+        <article className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
           {/* Header metadata */}
           <div className="flex items-center gap-3 mb-4 flex-wrap">
             <span className={classNames(
@@ -259,10 +259,10 @@ export default function JournalEntryPage() {
               type="text"
               value={editTitle}
               onChange={e => setEditTitle(e.target.value)}
-              className="w-full text-2xl font-bold text-white bg-transparent border-b border-gray-700 pb-2 mb-6 focus:outline-none focus:border-primary-500"
+              className="w-full text-xl sm:text-2xl font-bold text-white bg-transparent border-b border-gray-700 pb-2 mb-4 sm:mb-6 focus:outline-none focus:border-primary-500"
             />
           ) : (
-            <h1 className="text-2xl font-bold text-white mb-6">{entry.title}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">{entry.title}</h1>
           )}
 
           {/* Hypothesis */}

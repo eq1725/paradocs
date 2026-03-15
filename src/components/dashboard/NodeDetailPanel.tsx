@@ -99,7 +99,16 @@ export default function NodeDetailPanel({
   )
 
   return (
-    <div className="absolute top-0 right-0 bottom-0 w-full sm:w-[340px] bg-gray-900/95 backdrop-blur-md border-l border-gray-800 z-30 overflow-y-auto transition-transform duration-300">
+    <div className={[
+      'absolute z-30 bg-gray-900/95 backdrop-blur-md overflow-y-auto transition-transform duration-300',
+      'bottom-0 left-0 right-0 max-h-[80vh] rounded-t-2xl border-t border-gray-800',
+      'sm:top-0 sm:right-0 sm:left-auto sm:bottom-0 sm:max-h-none sm:rounded-none sm:border-t-0 sm:border-l sm:w-[340px]',
+    ].join(' ')}>
+      {/* Mobile drag handle */}
+      <div className="flex justify-center pt-2 pb-1 sm:hidden">
+        <div className="w-10 h-1 rounded-full bg-gray-700" />
+      </div>
+
       {/* Header */}
       <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-sm border-b border-gray-800 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
@@ -108,13 +117,13 @@ export default function NodeDetailPanel({
         </div>
         <button
           onClick={onClose}
-          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
+          className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
         >
           <XIcon className="w-4 h-4" />
         </button>
       </div>
 
-      <div className="px-4 py-4 space-y-4">
+      <div className="px-4 py-4 space-y-4 pb-6 sm:pb-4">
         {/* Report image */}
         {entry.imageUrl && (
           <div className="relative rounded-xl overflow-hidden">
