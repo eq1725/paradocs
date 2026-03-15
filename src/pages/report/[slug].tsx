@@ -47,7 +47,8 @@ const AcademicObservationPanel = dynamic(
 import FormattedDescription from '@/components/FormattedDescription'
 import OnboardingTour, { hasCompletedOnboarding } from '@/components/OnboardingTour'
 import AskTheUnknown from '@/components/AskTheUnknown'
-import { MobileHeader, MobileBottomTabs } from '@/components/mobile'
+// Mobile components available but not used here — Layout.tsx provides global nav
+// import { MobileHeader, MobileBottomTabs } from '@/components/mobile'
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
 const LocationMap = dynamic(
@@ -547,36 +548,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         style={{ width: scrollProgress + '%', background: 'linear-gradient(90deg, #5b63f1, #8b5cf6)', transition: 'width 0.1s ease-out' }}
       />
 
-      {/* Mobile reading header — back button, truncated title, save/share actions */}
-      <MobileHeader
-        title={report.title}
-        showBack
-        actions={
-          <div className="flex items-center">
-            {user && (
-              <button
-                onClick={handleSave}
-                disabled={savingReport}
-                className={classNames(
-                  'p-2.5 transition-colors',
-                  isSaved ? 'text-primary-400' : 'text-gray-400'
-                )}
-                aria-label={isSaved ? 'Unsave report' : 'Save report'}
-              >
-                <Bookmark className="w-5 h-5" fill={isSaved ? 'currentColor' : 'none'} />
-              </button>
-            )}
-            <button
-              onClick={handleShare}
-              className="p-2.5 text-gray-400 hover:text-white transition-colors"
-              aria-label="Share report"
-            >
-              <Share2 className="w-5 h-5" />
-            </button>
-          </div>
-        }
-      />
-
       <Head>
         <title>{report.title} - Paradocs</title>
         <meta name="description" content={report.summary || report.description?.slice(0, 160)} />
@@ -603,18 +574,35 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         ))}
       </Head>
 
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8 mobile-title-offset md:pt-8 mobile-content-pb">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <div className="lg:flex lg:gap-8">
           {/* Main content */}
           <article className="flex-1 max-w-4xl overflow-hidden">
-        {/* Breadcrumb nav */}
+        {/* Mobile: back button + category link */}
+        <div className="flex md:hidden items-center gap-1 mb-4 -ml-2">
+          <button
+            onClick={function() { router.back() }}
+            className="p-2.5 text-gray-400 hover:text-white transition-colors rounded-lg"
+            aria-label="Go back"
+          >
+            <ChevronRight className="w-5 h-5 rotate-180" />
+          </button>
+          <Link
+            href={'/explore?category=' + report.category}
+            className="text-sm text-gray-400 hover:text-white transition-colors"
+          >
+            {categoryConfig.label}
+          </Link>
+        </div>
+
+        {/* Desktop: full breadcrumb */}
         <nav className="hidden md:flex items-center gap-1.5 text-sm text-gray-400 mb-6 overflow-hidden">
           <Link href="/explore" className="hover:text-white transition-colors shrink-0">
             Explore
           </Link>
           <ChevronRight className="w-3.5 h-3.5 shrink-0 text-gray-600" />
           <Link
-            href={`/explore?category=${report.category}`}
+            href={'/explore?category=' + report.category}
             className="hover:text-white transition-colors shrink-0"
           >
             {categoryConfig.label}
@@ -1172,8 +1160,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           />
         )}
 
-        {/* Mobile bottom navigation — persistent across all pages */}
-        <MobileBottomTabs />
     </>
   )
 }

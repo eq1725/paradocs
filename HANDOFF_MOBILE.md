@@ -105,10 +105,8 @@ Incremental mobile fixes applied during Research Hub development:
 **`src/pages/report/[slug].tsx`** — Mobile reading experience overhaul:
 
 - **Bug fix:** Reading progress bar was misplaced inside the error/not-found conditional block. Moved to main render so it displays during actual report reading.
-- **MobileHeader added:** Sticky top bar with back button (router.back), truncated report title, save/share action buttons. Hidden on desktop (md:hidden). Handles safe-area-inset-top for notch/Dynamic Island.
-- **MobileBottomTabs added:** Persistent bottom navigation added directly (page is not in DashboardLayout). Provides consistent navigation: Home, Explore, Research, Stars, More.
-- **Breadcrumb hidden on mobile:** Replaced by MobileHeader back button. Still visible on desktop (`hidden md:flex`).
-- **Sticky action bar → inline on mobile:** Voting/share/save bar is `md:sticky md:bottom-0` — stays sticky on desktop but flows inline on mobile to avoid overlapping bottom tabs. Added `rounded-xl` on mobile for visual distinction.
+- **Mobile back button:** Inline back button (ChevronRight rotated 180) + category link replaces breadcrumb on mobile. Desktop breadcrumb unchanged. Note: report page is wrapped in `Layout.tsx` (not DashboardLayout), which already provides its own fixed header and mobile bottom nav bar (Explore, Map, Discover, Encyclopedia, More). MobileHeader and MobileBottomTabs are NOT used here to avoid duplicate navigation.
+- **Sticky action bar → inline on mobile:** Voting/share/save bar is `md:sticky md:bottom-0` — stays sticky on desktop but flows inline on mobile to avoid overlapping Layout.tsx's bottom nav. Added `rounded-xl` on mobile for visual distinction.
 - **Native share:** `navigator.share` is now the primary share method (triggers iOS/Android share sheet). Falls back to clipboard copy on desktop.
 - **Typography:** Title scales from `text-xl` (mobile) to `text-4xl` (desktop) with `leading-tight`. Prose content uses `max-w-prose` on mobile for comfortable line length, `max-w-none` on desktop. Font size forced to 16px on mobile (prevents iOS zoom on focus).
 - **Content spacing:** `mobile-title-offset` class adds top padding to clear MobileHeader + safe area. `mobile-content-pb` adds bottom padding to clear bottom tabs.
