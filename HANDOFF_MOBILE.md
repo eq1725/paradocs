@@ -8,98 +8,132 @@
 
 ## Current Mobile State
 
-### What's Been Done (Session 5, March 13-14, 2026)
+### Phase 1 & 2 COMPLETE (Session 13, March 14, 2026)
 
-Incremental mobile fixes applied during Research Hub development. These are CSS patches, not a cohesive design system:
+Mobile design system foundation deployed. Bottom tab navigation replaces hamburger menu. Reusable components created. Design tokens established.
 
-**BoardView.tsx (Research Hub):**
-- Replaced JS viewport detection (`useState` + `useEffect` on `window.innerWidth`) with CSS-only responsive layout (`sm:hidden` / `hidden sm:grid`)
-- Mobile: single-column full-width stacked cards. Desktop: 2-3 column grid.
-- Floating action buttons ("New Case" + "Add Artifact") span full width on mobile, fixed position on desktop
-- Case file headers use responsive padding (`p-3 sm:p-4`), truncated titles, responsive icons
-- SwipeableCardRow component exists (CSS scroll-snap) but is NOT currently used — was replaced by single-column layout due to touch-action issues with parent scroll container
+#### New Components Created
 
-**ArtifactDetailDrawer.tsx:**
-- Full-screen on mobile (`w-full sm:w-96`), side drawer on desktop
-- Back button touch target enlarged to `p-2.5` on mobile
-- Responsive padding (`px-4 sm:px-6`, `py-4 sm:py-6`)
-- Title: `text-xl sm:text-2xl` with `break-words`
-- Source platform deduplication fix: skips showing `source_platform` if it matches `sourceConfig.label` (fixed "X.com · X.com")
-- Source URLs use `break-all` for long URLs
+**`src/components/mobile/MobileBottomTabs.tsx`**
+- Persistent 5-tab bottom navigation bar: Home, Explore, Research, Stars (Constellation), More
+- Tab ordering prioritizes content browsing ($5.99 casual users) over research tools ($14.99 power users)
+- "More" tab opens a MobileBottomSheet with secondary nav: Saved Reports, My Reports, Journal, Digests, AI Insights, Subscription, Settings, Sign Out
+- Constellation tab shows lock icon for non-pro users, links to subscription page
+- Respects safe-area-inset-bottom for iPhone home indicator
+- Hidden on desktop (`md:hidden`)
 
-**ResearchHub.tsx:**
-- Content area: `overflow-y-auto overflow-x-hidden` with `overscrollBehavior: 'contain'`
-- Responsive padding: `p-3 sm:p-6` on board and timeline views
-- Removed duplicate floating FAB (was overlapping with BoardView's buttons)
-- Responsive loading skeleton
+**`src/components/mobile/MobileBottomSheet.tsx`**
+- Gesture-driven bottom sheet with touch swipe-to-dismiss
+- Three snap points: peek (35vh), half (55vh), full (90vh)
+- Velocity-based dismiss detection (swipe down fast = dismiss)
+- CSS transform + transition animations (no libraries)
+- Prevents body scroll when open (adds `sheet-open` class)
+- Reusable for: artifact detail, case file picker, quick-add, "More" nav, map report panel
 
-**ArtifactCard.tsx:**
-- Action buttons always visible on mobile: `compact || showActions ? 'opacity-100' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'`
-- Responsive thumbnail height: `h-28 sm:h-32`
-- Added missing Lucide icons to the `lucideIcons` map (Archive, BookOpen, PenTool, Search, Lock, Radio)
+**`src/components/mobile/MobileHeader.tsx`**
+- Consistent mobile top bar with safe-area handling
+- Patterns: default (centered title), detail (back + title + actions), search (full-width bar)
+- Props: `title`, `showBack`, `onBack`, `actions` (right slot), `leftSlot`, `bordered`
+- 44px minimum touch targets on back button
 
-**Dashboard (index.tsx):**
-- Hero: `truncate` on welcome text, `flex-shrink-0` on CTAs, responsive button padding
-- Case file cards: responsive padding (`p-3 sm:p-3.5`), `overflow-hidden`
-- Recent artifact cards: `overflow-hidden`, `min-w-0`, `flex-shrink-0` on icons
-- AI Insights banner: `truncate`, `flex-shrink-0`, `overflow-hidden`, responsive padding
-- Activity feed: `overflow-hidden`, `truncate` on labels, responsive gap/padding
-- Metric pills: responsive padding/gap (`px-2.5 sm:px-3.5`, `text-xs sm:text-sm`)
-- Constellation overlay: responsive — shorter button text, hidden star count on mobile
-- Account footer: hidden "saved" stat on mobile, `flex-shrink-0` on Manage link
-- Empty state CTAs: stack vertically on mobile (`flex-col sm:flex-row`)
-- Research Hub summary section: `overflow-hidden`
+**`src/components/mobile/MobileCardRow.tsx`**
+- Netflix-style horizontal scrollable card row
+- Scroll-snap alignment, peek-at-next (85% card width), hidden scrollbar
+- Touch-action isolation (`pan-x` only)
+- Optional section title, subtitle, icon, "See All" link
+- Optional dot indicators for active card
+- `MobileCardRowItem` wrapper component for snap-aligned cards
 
-**DashboardLayout.tsx:**
-- Mobile header with safe area handling (`env(safe-area-inset-top)`)
-- Hamburger menu slides from right with backdrop blur
-- Content area: `p-4 md:p-6 overflow-x-hidden overflow-y-auto pb-20 md:pb-6`
-- Mobile title offset calculated with safe area
+**`src/components/mobile/index.ts`** — barrel export
 
-### Known Issues (Unsolved)
+#### Design Tokens Added
 
-1. **No bottom tab navigation** — users must reach top-right hamburger menu
-2. **No swipe-to-dismiss** on artifact detail drawer
-3. **No swipe-back gesture** support (drawer blocks iOS edge swipe)
-4. **Quick-add modal** not optimized for mobile keyboard
-5. **Explore page** not audited for mobile
-6. **Report detail page** (40K+ lines) not audited for mobile
-7. **Map page** touch interactions unknown
-8. **Constellation map** D3 touch controls unknown
-9. **Journal** mobile state unknown
-10. **Search page** mobile state unknown
-11. **View switcher** in Research Hub is icon-only buttons — not obvious on mobile
+**`tailwind.config.js`**
+- `spacing.touch`: 44px (Apple HIG minimum touch target)
+- `spacing.nav`: 64px (bottom tab bar height)
+- `animation.slide-up`, `slide-down`, `slide-in-right`, `fade-in`
+- Corresponding keyframes (in config, not inline `<style>`)
 
-## API Endpoint Created
+**`src/styles/globals.css`** — new mobile utilities:
+- `.mobile-nav-height`: height including safe area
+- `.mobile-content-pb`: content padding to clear bottom tab bar (resets to 1.5rem on desktop)
+- `.mobile-fab-bottom`: FAB positioning above bottom tabs (resets to 2rem on desktop)
+- `.safe-area-background`, `.dashboard-mobile-header-positioned`, `.mobile-title-offset`: migrated from inline `<style jsx global>` in DashboardLayout
+- `.bottom-sheet-backdrop`, `.sheet-handle`: bottom sheet UI utilities
+- `.touch-pan-x`, `.touch-pan-y`, `.overscroll-contain`: touch interaction isolation
+- `body.sheet-open`: prevents scroll when sheet is open
+
+#### Files Modified
+
+**`src/components/dashboard/DashboardLayout.tsx`** — Major rewrite:
+- REMOVED: Hamburger menu (slide-from-right overlay), mobileMenuOpen state, entire Mobile Menu Overlay section
+- REMOVED: `<style jsx global>` block (CSS migrated to globals.css and tailwind.config.js)
+- ADDED: `MobileBottomTabs` component rendered at bottom of layout
+- CHANGED: Mobile content area uses `.mobile-content-pb` instead of hardcoded `pb-20`
+- CHANGED: Mobile header simplified — no hamburger button, just logo + bell notification
+- CHANGED: Converted arrow functions to function declarations for SWC compliance
+- Desktop sidebar completely untouched
+
+**`src/components/dashboard/research-hub/ViewSwitcher.tsx`** — Rewritten:
+- Labels now VISIBLE on mobile (was `hidden sm:inline`, now always shown)
+- Short labels on mobile ("Stars"), full labels on desktop ("Constellation")
+- Smaller padding on mobile (`px-2.5 py-1.5 text-xs` vs `px-3 py-2 text-sm`)
+- Removed unused tooltip state for "Coming Soon" feature
+- Converted to SWC-compliant syntax
+
+**`src/components/dashboard/research-hub/ResearchHub.tsx`** — Minor update:
+- Case file picker button (hamburger icon) remains but is now specifically for opening the case file sidebar, not for navigation
+- ViewSwitcher wrapper div now has `overflow-x-auto scrollbar-hide` for horizontal scroll on narrow screens
+
+**`src/components/dashboard/research-hub/BoardView.tsx`** — Minor update:
+- Floating action buttons now use `.mobile-fab-bottom` class instead of `bottom-6`
+- This positions FABs above the bottom tab bar on mobile, at normal position on desktop
+
+### What's Been Done Previously (Session 5, March 13-14, 2026)
+
+Incremental mobile fixes applied during Research Hub development:
+
+- BoardView: CSS-only responsive layout (`sm:hidden` / `hidden sm:grid`), single-column on mobile
+- ArtifactDetailDrawer: Full-screen on mobile (`w-full sm:w-96`), enlarged back button touch target
+- ResearchHub: overflow containment, responsive padding
+- ArtifactCard: Always-visible actions on mobile, responsive thumbnail height
+- Dashboard index: Truncation, overflow-hidden, responsive metric pills
+- DashboardLayout: Safe area handling (now migrated to globals.css)
+
+### Known Issues (Remaining for Phase 3)
+
+1. **ArtifactDetailDrawer** — Still slides from right as a full-screen overlay on mobile. Should become a bottom sheet (use MobileBottomSheet). Deferred to Phase 3.
+2. **ArtifactQuickAdd** — Modal overlay, not a bottom sheet. URL paste field should be at top of sheet for mobile keyboard. Deferred to Phase 3.
+3. **Explore page** — Title `text-3xl` too large on mobile. Feed scroll arrows invisible on touch. Not wrapped in DashboardLayout (public page, no bottom tabs). Needs Phase 3 treatment.
+4. **Report detail page** — No mobile reading experience optimization. Needs sticky bottom action bar, max-w-prose, progressive disclosure. Phase 3.
+5. **Map page** — Selected report panel should be bottom sheet on mobile. Legend/filter button collision on narrow screens. Phase 3.
+6. **Constellation map** — D3 touch controls unverified. Phase 3.
+7. **Journal, Search, Settings** — Unaudited. Phase 3.
+8. **MobileSidebar.tsx** — Still exists and works as case-file picker sheet within Research Hub. Could be refactored to use MobileBottomSheet for consistency. Low priority.
+
+## API Endpoints
 
 **PUT /api/research-hub/artifacts/[id]** — Created March 14, 2026
-- File: `src/pages/api/research-hub/artifacts/[id].ts`
 - Handles verdict, user_note, tags, title, description updates
-- Auth: Bearer token, verifies artifact belongs to user
-- Previously missing — the `useResearchHub` hook was calling this endpoint but it didn't exist
 
 ## Database Schema Reference
 
 No mobile-specific tables. All existing tables documented in `HANDOFF_DASHBOARD.md`.
 
-## Files Modified by Session 13's Predecessor Work
+## Design Philosophy
 
-All changes listed here were made during Session 5 and should be considered baseline for Session 13:
+Per Chase's direction: Paradocs is **content-browsing first, research tool second** on mobile.
 
-| File | Changes |
-|------|---------|
-| `src/components/dashboard/research-hub/BoardView.tsx` | CSS-only responsive layout, SwipeableCardRow (unused), floating buttons |
-| `src/components/dashboard/research-hub/ResearchHub.tsx` | overflow-x-hidden, responsive padding, removed duplicate FAB |
-| `src/components/dashboard/research-hub/ArtifactCard.tsx` | Always-visible actions on mobile, responsive thumbnail height |
-| `src/components/dashboard/research-hub/ArtifactDetailDrawer.tsx` | Full-screen mobile, enlarged back button, responsive padding, dedup fix |
-| `src/components/dashboard/DashboardLayout.tsx` | Safe area handling, hamburger menu, mobile header |
-| `src/pages/dashboard/index.tsx` | Truncation, overflow, responsive pills/cards/CTAs |
-| `src/pages/api/research-hub/artifacts/[id].ts` | NEW — PUT endpoint for artifact updates |
+- $5.99 users (500K potential) are browsers — Netflix-scrolling through reports at midnight. The experience should feel like falling down a rabbit hole.
+- $14.99 users (100K+ potential) are researchers — building case files, tagging artifacts, drawing connections. They probably started as $5.99 users who got hooked.
+- Bottom tab ordering reflects this: Home > Explore > Research > Stars > More
+- Content browsing UX (Explore feed, report reading, save/react/share) is higher priority than Research Hub polish
 
 ## Tech Stack Notes for Mobile
 
-- **CSS-first responsive:** Always use Tailwind responsive classes (`sm:hidden`, `hidden sm:block`). NEVER use JavaScript viewport detection — it causes hydration flash.
-- **Touch targets:** Minimum 44px (Apple HIG). Use `p-2.5` or `p-3` on buttons, not `p-1.5`.
-- **Safe areas:** Use `env(safe-area-inset-top)` and `env(safe-area-inset-bottom)` for notch/Dynamic Island and home indicator.
-- **Scroll containers:** Use `overscroll-behavior: contain` to prevent scroll chaining. Use `touch-action: pan-x` on horizontal scrollers.
-- **Bottom sheets:** Consider using a lightweight CSS-based approach (transform + transition) rather than a heavy library.
+- **CSS-first responsive:** Always use Tailwind responsive classes. NEVER use JavaScript viewport detection.
+- **Touch targets:** Minimum 44px (Apple HIG). Use `p-2.5` or `p-3` on buttons.
+- **Safe areas:** Handled by CSS utilities in globals.css.
+- **Animations:** Use Tailwind config keyframes, NOT inline `<style>` with CSS keyframes.
+- **SWC constraints:** No template literals in JSX, use `var`, use `function(){}`, string concatenation with `+`, `classNames()` utility.
+- **Bottom sheets:** Use MobileBottomSheet component for all mobile detail/picker/modal surfaces.

@@ -1,5 +1,13 @@
 'use client'
 
+/**
+ * ViewSwitcher — horizontal pill selector for Research Hub views.
+ *
+ * Session 13 update: Labels now visible on mobile (was hidden sm:inline).
+ * Uses horizontal scroll with snap for mobile so all four views are accessible.
+ * Icons + short labels on mobile, full labels on desktop.
+ */
+
 import { classNames } from '@/lib/utils'
 import { LayoutGrid, Clock, Map, Stars } from 'lucide-react'
 import { useState } from 'react'
@@ -11,50 +19,39 @@ interface ViewSwitcherProps {
   onViewChange: (view: ResearchHubView) => void
 }
 
-const VIEWS = [
+var VIEWS = [
   { id: 'board' as ResearchHubView, label: 'Board', icon: LayoutGrid },
   { id: 'timeline' as ResearchHubView, label: 'Timeline', icon: Clock },
   { id: 'map' as ResearchHubView, label: 'Map', icon: Map },
-  { id: 'constellation' as ResearchHubView, label: 'Constellation', icon: Stars },
+  { id: 'constellation' as ResearchHubView, label: 'Stars', mobileLabel: 'Stars', desktopLabel: 'Constellation', icon: Stars },
 ]
 
 export function ViewSwitcher({ activeView, onViewChange }: ViewSwitcherProps) {
-  const [showTooltip, setShowTooltip] = useState<ResearchHubView | null>(null)
+  var [showTooltip, setShowTooltip] = useState<ResearchHubView | null>(null)
 
   return (
-    <div className="flex gap-1 p-2 bg-gray-800/50 rounded-lg border border-gray-700 w-fit">
-      {VIEWS.map((view) => {
-        const Icon = view.icon
-        const isActive = activeView === view.id
-        const isComingSoon = view.comingSoon
+    <div className="flex gap-1 p-1.5 sm:p-2 bg-gray-800/50 rounded-lg border border-gray-700 w-fit">
+      {VIEWS.map(function(view) {
+        var Icon = view.icon
+        var isActive = activeView === view.id
 
         return (
-          <div key={view.id} className="relative">
-            <button
-              onClick={() => !isComingSoon && onViewChange(view.id)}
-              onMouseEnter={() => isComingSoon && setShowTooltip(view.id)}
-              onMouseLeave={() => setShowTooltip(null)}
-              className={classNames(
-                'flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition-all duration-200',
-                'text-sm',
-                isActive
-                  ? 'bg-gray-700 text-white'
-                  : 'text-gray-400 hover:text-gray-200',
-                isComingSoon && 'opacity-60'
-              )}
-            >
-              <Icon className="w-4 h-4" />
-              <span className="hidden sm:inline">{view.label}</span>
-            </button>
-
-            {/* Coming Soon tooltip */}
-            {isComingSoon && showTooltip === view.id && (
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 rounded-md bg-gray-900 border border-gray-700 text-xs text-gray-400 whitespace-nowrap pointer-events-none z-50">
-                Coming Soon
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-gray-700" />
-              </div>
+          <button
+            key={view.id}
+            onClick={function() { onViewChange(view.id) }}
+            className={classNames(
+              'flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg font-medium transition-all duration-200',
+              'text-xs sm:text-sm whitespace-nowrap',
+              isActive
+                ? 'bg-gray-700 text-white'
+                : 'text-gray-400 hover:text-gray-200'
             )}
-          </div>
+          >
+            <Icon className="w-4 h-4 flex-shrink-0" />
+            {/* Mobile: short label. Desktop: full label */}
+            <span className="sm:hidden">{view.mobileLabel || view.label}</span>
+            <span className="hidden sm:inline">{view.desktopLabel || view.label}</span>
+          </button>
         )
       })}
     </div>

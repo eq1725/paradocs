@@ -277,3 +277,84 @@ input:disabled, textarea:disabled, select:disabled {
 .skeleton {
   @apply bg-white/5 rounded animate-pulse;
 }
+
+/* ========================================
+   MOBILE DESIGN SYSTEM (Session 13)
+   ======================================== */
+
+/* Bottom tab bar height including safe area */
+.mobile-nav-height {
+  height: calc(64px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Content padding to clear bottom tab bar */
+.mobile-content-pb {
+  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 0.5rem);
+}
+
+/* FAB positioning above bottom tab bar */
+.mobile-fab-bottom {
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 0.75rem);
+}
+
+/* Safe area background - fills the notch/Dynamic Island area */
+.safe-area-background {
+  height: env(safe-area-inset-top, 0px);
+}
+
+/* Dashboard mobile header: positioned below safe area */
+.dashboard-mobile-header-positioned {
+  top: env(safe-area-inset-top, 0px);
+}
+
+/* Mobile title offset: header height (56px) + safe area for notch + 12px breathing room */
+.mobile-title-offset {
+  padding-top: calc(4.25rem + env(safe-area-inset-top, 0px));
+}
+
+/* Bottom sheet backdrop */
+.bottom-sheet-backdrop {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Touch-action isolation for horizontal scrollers */
+.touch-pan-x {
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
+}
+
+.touch-pan-y {
+  touch-action: pan-y;
+}
+
+/* Overscroll containment for nested scroll areas */
+.overscroll-contain {
+  overscroll-behavior: contain;
+}
+
+/* Bottom sheet drag handle */
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Prevent body scroll when modal/sheet is open */
+body.sheet-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+}
+
+/* Desktop: reset mobile-only utilities */
+@media (min-width: 768px) {
+  .mobile-content-pb {
+    padding-bottom: 1.5rem;
+  }
+  .mobile-fab-bottom {
+    bottom: 2rem;
+  }
+}

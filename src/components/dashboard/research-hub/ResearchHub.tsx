@@ -296,16 +296,18 @@ export function ResearchHub() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            {/* Case file picker trigger — replaces the old hamburger menu on mobile */}
             <button
-              onClick={() => setIsMobileSidebarOpen(true)}
-              className={classNames(
-                'lg:hidden p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-gray-200 transition-colors'
-              )}
+              onClick={function() { setIsMobileSidebarOpen(true) }}
+              className="lg:hidden p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-gray-200 transition-colors flex-shrink-0"
+              aria-label="Open case files"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <ViewSwitcher activeView={currentView} onViewChange={setView} />
+            <div className="flex-1 min-w-0 overflow-x-auto scrollbar-hide">
+              <ViewSwitcher activeView={currentView} onViewChange={setView} />
+            </div>
           </div>
         </div>
 

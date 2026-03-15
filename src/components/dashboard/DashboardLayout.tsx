@@ -1,9 +1,12 @@
 /**
  * DashboardLayout Component
  *
- * Wrapper layout for all dashboard pages with responsive sidebar navigation.
- * Mobile: Bottom sheet navigation triggered by menu button
- * Desktop: Fixed sidebar
+ * Wrapper layout for all dashboard pages with responsive navigation.
+ * Mobile: Persistent bottom tab bar (MobileBottomTabs) + compact header (MobileHeader)
+ * Desktop: Fixed sidebar (unchanged)
+ *
+ * Session 13 rewrite: replaced hamburger slide-from-right menu with bottom tabs.
+ * Removed inline <style jsx global> — CSS now in globals.css and tailwind.config.js.
  */
 
 import React, { ReactNode, useEffect, useState } from 'react'
@@ -23,14 +26,13 @@ import {
   ChevronLeft,
   LogOut,
   Bell,
-  Menu,
-  X,
   FlaskConical
 } from 'lucide-react'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { TierBadge } from './TierBadge'
 import { Avatar } from '@/components/AvatarSelector'
 import { supabase } from '@/lib/supabase'
+import { MobileBottomTabs } from '@/components/mobile/MobileBottomTabs'
 
 interface DashboardLayoutProps {
   children: ReactNode
@@ -49,7 +51,7 @@ interface NavGroup {
   items: NavItem[]
 }
 
-const navGroups: NavGroup[] = [
+var navGroups: NavGroup[] = [
   {
     label: 'Research',
     items: [
@@ -77,21 +79,19 @@ const navGroups: NavGroup[] = [
   }
 ]
 
-// Flatten for backward compat
-const navItems: NavItem[] = navGroups.flatMap(g => g.items)
-
-export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayoutProps) {
-  const router = useRouter()
-  const { subscription, tierName, tierDisplayName, loading } = useSubscription()
-  const [userProfile, setUserProfile] = useState<{ avatar_url?: string | null; display_name?: string | null } | null>(null)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+export function DashboardLayout({ children, title }: DashboardLayoutProps) {
+  var pageTitle = title || 'Dashboard'
+  var router = useRouter()
+  var { subscription, tierName, tierDisplayName, loading } = useSubscription()
+  var [userProfile, setUserProfile] = useState<{ avatar_url?: string | null; display_name?: string | null } | null>(null)
 
   // Fetch user profile for avatar
-  useEffect(() => {
+  useEffect(function() {
     async function fetchProfile() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        const { data } = await supabase
+      var sessionResult = await supabase.auth.getSession()
+      var session = sessionResult.data.session
+      if (session && session.user) {
+        var { data } = await supabase
           .from('profiles')
           .select('avatar_url, display_name')
           .eq('id', session.user.id)
@@ -102,101 +102,99 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
     fetchProfile()
 
     // Listen for profile updates from settings page
-    const handleProfileUpdate = () => {
+    var handleProfileUpdate = function() {
       fetchProfile()
     }
     window.addEventListener('profile-updated', handleProfileUpdate)
-    return () => {
+    return function() {
       window.removeEventListener('profile-updated', handleProfileUpdate)
     }
   }, [])
 
-  // Close mobile menu on route change
-  useEffect(() => {
-    setMobileMenuOpen(false)
-  }, [router.pathname])
-
-  const handleSignOut = async () => {
+  var handleSignOut = async function() {
     await supabase.auth.signOut()
     router.push('/')
   }
 
-  const isActiveRoute = (href: string) => {
+  var isActiveRoute = function(href: string) {
     if (href === '/dashboard') {
       return router.pathname === '/dashboard'
     }
     return router.pathname.startsWith(href)
   }
 
-  const canAccessNavItem = (item: NavItem) => {
+  var canAccessNavItem = function(item: NavItem) {
     if (!item.requiredTier) return true
     if (!tierName) return false
     return item.requiredTier.includes(tierName)
   }
 
-  // Shared navigation content
-  const NavContent = ({ onItemClick }: { onItemClick?: () => void }) => (
-    <div className="space-y-4">
-      {navGroups.map((group, gi) => (
-        <div key={group.label}>
-          {gi > 0 && <div className="border-t border-gray-800/50 mb-3" />}
-          <p className="text-[10px] text-gray-600 uppercase tracking-wider font-medium px-3 mb-1.5">{group.label}</p>
-          <ul className="space-y-0.5">
-            {group.items.map((item) => {
-              const Icon = item.icon
-              const isActive = isActiveRoute(item.href)
-              const hasAccess = canAccessNavItem(item)
+  // Shared navigation content (desktop sidebar only — mobile uses MobileBottomTabs)
+  var NavContent = function({ onItemClick }: { onItemClick?: () => void }) {
+    return (
+      <div className="space-y-4">
+        {navGroups.map(function(group, gi) {
+          return (
+            <div key={group.label}>
+              {gi > 0 && <div className="border-t border-gray-800/50 mb-3" />}
+              <p className="text-[10px] text-gray-600 uppercase tracking-wider font-medium px-3 mb-1.5">{group.label}</p>
+              <ul className="space-y-0.5">
+                {group.items.map(function(item) {
+                  var Icon = item.icon
+                  var isActive = isActiveRoute(item.href)
+                  var hasAccess = canAccessNavItem(item)
 
-              return (
-                <li key={item.href}>
-                  {hasAccess ? (
-                    <Link
-                      href={item.href}
-                      onClick={onItemClick}
-                      className={`
-                        flex items-center gap-3 px-3 py-3 md:py-2 rounded-lg transition-colors
-                        ${isActive
-                          ? 'bg-purple-600 text-white'
-                          : 'text-gray-400 hover:text-white hover:bg-gray-800'
-                        }
-                      `}
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span>{item.label}</span>
-                    </Link>
-                  ) : (
-                    <div
-                      className="flex items-center gap-3 px-3 py-3 md:py-2 rounded-lg text-gray-600 cursor-not-allowed"
-                      title={`Upgrade to ${item.requiredTier?.[0]} to access`}
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span>{item.label}</span>
-                      <span className="ml-auto text-xs bg-gray-800 px-2 py-0.5 rounded">
-                        Pro
-                      </span>
-                    </div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      ))}
-    </div>
-  )
+                  return (
+                    <li key={item.href}>
+                      {hasAccess ? (
+                        <Link
+                          href={item.href}
+                          onClick={onItemClick}
+                          className={
+                            'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ' +
+                            (isActive
+                              ? 'bg-purple-600 text-white'
+                              : 'text-gray-400 hover:text-white hover:bg-gray-800')
+                          }
+                        >
+                          <Icon className="w-5 h-5" />
+                          <span>{item.label}</span>
+                        </Link>
+                      ) : (
+                        <div
+                          className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 cursor-not-allowed"
+                          title={'Upgrade to ' + (item.requiredTier ? item.requiredTier[0] : '') + ' to access'}
+                        >
+                          <Icon className="w-5 h-5" />
+                          <span>{item.label}</span>
+                          <span className="ml-auto text-xs bg-gray-800 px-2 py-0.5 rounded">
+                            Pro
+                          </span>
+                        </div>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
 
   return (
     <>
       <Head>
-        <title>{title} | Paradocs</title>
+        <title>{pageTitle + ' | Paradocs'}</title>
       </Head>
 
       <div className="min-h-screen bg-gray-950">
         {/* Safe area background - fills the notch/Dynamic Island area */}
         <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-gray-900 safe-area-background" />
 
-        {/* Mobile Header - sits below safe area */}
-        <header className="md:hidden fixed left-0 right-0 z-40 bg-gray-900 border-b border-gray-800 dashboard-mobile-header-positioned">
+        {/* Mobile Header — compact, no hamburger */}
+        <header className="md:hidden fixed left-0 right-0 z-40 bg-gray-900/95 backdrop-blur-lg border-b border-gray-800 dashboard-mobile-header-positioned">
           <div className="flex items-center justify-between h-14 px-4">
             <Link href="/" className="flex items-center gap-2 text-white">
               <ChevronLeft className="w-4 h-4" />
@@ -207,75 +205,9 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
                 <Bell className="w-5 h-5" />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-purple-500 rounded-full"></span>
               </button>
-              <button
-                onClick={() => setMobileMenuOpen(true)}
-                className="p-2 text-gray-400 hover:text-white transition-colors"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
             </div>
           </div>
         </header>
-
-        {/* Mobile Menu Overlay - higher z-index than header */}
-        {mobileMenuOpen && (
-          <div className="md:hidden fixed inset-0 z-[60]">
-            {/* Backdrop */}
-            <div
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => setMobileMenuOpen(false)}
-            />
-
-            {/* Slide-in Menu */}
-            <div className="absolute top-0 right-0 bottom-0 w-72 bg-gray-900 border-l border-gray-800 flex flex-col animate-slide-in-right">
-              {/* Menu Header */}
-              <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-                <span className="font-semibold text-white">Menu</span>
-                <button
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="p-2 text-gray-400 hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* User Info */}
-              <div className="p-4 border-b border-gray-800">
-                <div className="flex items-center gap-3">
-                  <Avatar
-                    avatar={userProfile?.avatar_url}
-                    fallback={userProfile?.display_name || 'U'}
-                    size="lg"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-medium truncate">
-                      {loading ? 'Loading...' : (userProfile?.display_name || 'My Account')}
-                    </p>
-                    {tierName && (
-                      <TierBadge tier={tierName} size="sm" />
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Navigation */}
-              <nav className="flex-1 p-4 overflow-y-auto">
-                <NavContent onItemClick={() => setMobileMenuOpen(false)} />
-              </nav>
-
-              {/* Footer */}
-              <div className="p-4 border-t border-gray-800">
-                <button
-                  onClick={handleSignOut}
-                  className="flex items-center gap-3 px-3 py-3 w-full rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
-                >
-                  <LogOut className="w-5 h-5" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Desktop Layout */}
         <div className="flex">
@@ -329,7 +261,7 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
           <main className="flex-1 md:ml-64 flex flex-col min-h-screen">
             {/* Desktop Top Bar - Hidden on mobile */}
             <header className="hidden md:flex h-16 bg-gray-900 border-b border-gray-800 items-center justify-between px-6">
-              <h1 className="text-xl font-semibold text-white">{title}</h1>
+              <h1 className="text-xl font-semibold text-white">{pageTitle}</h1>
               <div className="flex items-center gap-4">
                 <button className="p-2 text-gray-400 hover:text-white transition-colors relative">
                   <Bell className="w-5 h-5" />
@@ -338,45 +270,21 @@ export function DashboardLayout({ children, title = 'Dashboard' }: DashboardLayo
               </div>
             </header>
 
-            {/* Mobile Title Bar - pt for header + safe-area-pt for notch + extra breathing room */}
+            {/* Mobile Title Bar - offset for header + safe area */}
             <div className="md:hidden px-4 pb-3 bg-gray-950 mobile-title-offset">
-              <h1 className="text-lg font-semibold text-white">{title}</h1>
+              <h1 className="text-lg font-semibold text-white">{pageTitle}</h1>
             </div>
 
-            {/* Page Content */}
-            <div className="flex-1 p-4 md:p-6 overflow-x-hidden overflow-y-auto pb-20 md:pb-6">
+            {/* Page Content — mobile-content-pb adds bottom padding for tab bar */}
+            <div className="flex-1 p-4 md:p-6 overflow-x-hidden overflow-y-auto mobile-content-pb">
               {children}
             </div>
           </main>
         </div>
-      </div>
 
-      {/* Animation styles and safe area handling */}
-      <style jsx global>{`
-        @keyframes slide-in-right {
-          from {
-            transform: translateX(100%);
-          }
-          to {
-            transform: translateX(0);
-          }
-        }
-        .animate-slide-in-right {
-          animation: slide-in-right 0.2s ease-out;
-        }
-        /* Safe area background - fills Dynamic Island / notch area */
-        .safe-area-background {
-          height: env(safe-area-inset-top, 0px);
-        }
-        /* Dashboard mobile header: positioned below safe area */
-        .dashboard-mobile-header-positioned {
-          top: env(safe-area-inset-top, 0px);
-        }
-        /* Mobile title offset: header height (56px) + safe area for notch + 12px breathing room */
-        .mobile-title-offset {
-          padding-top: calc(4.25rem + env(safe-area-inset-top, 0px));
-        }
-      `}</style>
+        {/* Mobile Bottom Tabs — persistent navigation bar */}
+        <MobileBottomTabs />
+      </div>
     </>
   )
 }

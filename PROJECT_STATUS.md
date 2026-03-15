@@ -10,6 +10,49 @@
 
 ---
 
+## Product Vision
+
+Paradocs operates on three layers, each serving a distinct audience but sharing a single data foundation.
+
+**Layer 1 — The People's Tool.** Anyone who's had an experience — seen a UFO, had an NDE, encountered something they can't explain — can log it, search through what others have reported, save things, and study them. The database is the core asset: the largest aggregated collection of experiencer reports and phenomena data online, pulled from every legally accessible source. The experiencer demographic is genuinely underserved — MUFON is bureaucratic, Gaia is entertainment, the Black Vault is raw and unfiltered. Paradocs is the first product that meets that person where they are.
+
+**Layer 2 — The AI Brain.** This is what makes Paradocs more than a database. The AI sees across millions of reports, detects patterns humans can't, identifies temporal and geographic clusters, and eventually predicts flaps and activity surges. The editorial position is deliberate: we hypothesize that the data points toward consciousness being fundamental and these phenomena being real, but the platform leads with evidence and analysis rather than declarations. Let the data speak. Present the best analysis possible and let people draw their own conclusions — while making it clear through the depth and seriousness of the platform that this deserves rigorous attention.
+
+**Layer 3 — The Professional Platform.** Content creators researching a show episode, podcasters building an outline, academics writing a paper for peer review — Paradocs gives them research tools (the Research Hub, case files, artifact collection, external URL aggregation) that make their work faster and more thorough. The goal is to become the infrastructure the paranormal research ecosystem runs on, with relationships across all major networks and content channels.
+
+**Data Aggregation Strategy:** Aggressive and comprehensive. Scrape and aggregate everything legally available: Reddit posts and comments, YouTube video metadata/transcripts/comments, Erowid trip reports, MUFON case files, NUFORC sightings, BFRO reports, NDERF/IANDS accounts, forum posts, podcast transcripts, news articles, academic papers, government documents — all flowing into one normalized database where the AI can see connections across sources that no human could track. The more data, the more valuable the platform becomes.
+
+---
+
+## Critical Sequencing — DO NOT SKIP
+
+Mass ingestion cannot happen until the foundation is right. The order matters:
+
+**Phase A: Encyclopedia (the schema).** The 4,792 phenomena entries are the structural taxonomy that every report classifies against. All 11 categories need the full 7-field AI enrichment treatment completed to the same standard as the cryptid category (208/208 done). This defines what "good" looks like for phenomena content and ensures reports have a complete, high-quality taxonomy to classify into. Without this, mass ingestion produces unclassifiable or poorly organized data.
+
+**Phase B: Perfect Reports (the quality bar).** The Roswell cluster and related curated witness entries are the gold standard — what a report should look like with the right balance of text content, rich media, and external links. These are still under development. They set the display standard, the data model expectations, and the UX patterns that every other report will follow. The current ~900 approved reports and ~2M hidden Reddit reports are essentially test data from pipeline development — most will need to be removed or re-ingested through the final pipeline.
+
+**Phase C: Mass Ingestion (the scale).** Only after the encyclopedia is complete and the perfect reports establish the quality bar do you open the floodgates — YouTube, Erowid, MUFON, forums, podcasts, everything. At that point the taxonomy is locked, the quality standard is defined, and the pipeline knows what "good" looks like. Every report ingested will classify cleanly against the encyclopedia and display to the standard set by the curated reports.
+
+**Current data status:** Existing site content is test data. The ~2M hidden Reddit reports are development data. Neither represents launch quality. The curated Roswell/witness cluster is the seed of what launch content will look like, but it's not finished yet.
+
+**Design implications:** All feature sessions — especially Mobile-First Design and any UX work — must design for three content layers simultaneously: (1) the curated perfect reports and enriched encyclopedia content that will define launch quality, (2) the Research Hub and user-generated artifacts, where users add their own URLs, media, notes, case files, and connections across 16+ source types (YouTube, Reddit, Twitter/X, TikTok, podcasts, academia, government docs, etc.), and (3) the eventual scale of millions of aggregated reports. The dashboard is not a passive display — it's an active research workspace with multi-view architecture (Board/Timeline/Map/Constellation), artifact cards, detail drawers, quick-add flows, and external URL extraction. Mobile design must account for all of this interactive complexity, not just content browsing.
+
+---
+
+## Subscription Tiers
+
+| Tier | Price | Audience | What They Get |
+|------|-------|----------|---------------|
+| **Free** | $0 | Everyone | Curated slice of the database. Enough to experience the product, get hooked on a case, browse reports. No barrier. Free users are the funnel and the social proof engine — shares, screenshots, word of mouth. |
+| **Core** | $5.99/mo | Casual explorers + experiencers | Two equally important audiences. The casual explorer drawn in by breadth — UFOs, NDEs, cryptids, consciousness, reincarnation, occultism, all searchable and browsable. And the experiencer: the person who saw something, had an NDE, has a family history of encounters — looking for context, validation, or simply to know they're not alone. For them, Paradocs isn't entertainment, it's a mirror. Full database access, clean UX, less than a coffee a month. |
+| **Pro** | $14.99/mo | Deep researchers + creators | Podcasters sourcing material, independent investigators, content creators needing primary sources and AI cross-referencing, serious experiencers mapping encounters against historical data. Full toolkit: advanced search, AI cross-referencing, saved collections, annotations, alerts. Most engaged users. Backbone of recurring revenue. They'd pay $29 without hesitation; $14.99 gets them in faster and keeps them longer. |
+| **Enterprise** | $99/mo | Organizations | Research groups, podcast networks, academic institutions, investigation orgs, media outlets. Small pool (dozens to low hundreds) but each worth 7x Pro with institutional stickiness. MUFON chapters, university parapsychology programs, UFO investigation orgs, paranormal media companies. Multi-seat, priority support, API potential. |
+
+**Tier gating approach (per Dashboard session):** Board+Timeline views free, Map view basic, Constellation view pro-gated. Pattern insights, AI cross-referencing, and advanced search are pro features. Enterprise gets API access and multi-seat.
+
+---
+
 ## How Sessions Work
 
 Each major feature area has a dedicated Claude session with its own deep context. Sessions follow this protocol:
@@ -37,7 +80,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 10 | **Data Ingestion & Pipeline** | Source adapters, quality filters, dedup, bulk import, media extraction | `HANDOFF_INGESTION.md` | Not started |
 | 11 | **Admin & Operations** | Admin dashboard, batch operations, cron jobs, A/B testing, monitoring | `HANDOFF_ADMIN.md` | Not started |
 | 12 | **Foundation & Infrastructure** | Shared components, auth/RLS, database schema, deployment, performance, SEO | `HANDOFF_FOUNDATION.md` | Not started |
-| 13 | **Mobile-First Design System** | Cross-cutting mobile UX: bottom tabs, bottom sheets, design tokens, screen-by-screen redesign | `HANDOFF_MOBILE.md` | Not started — Session prompt ready |
+| 13 | **Mobile-First Design System** | Cross-cutting mobile UX: bottom tabs, bottom sheets, design tokens, screen-by-screen redesign | `HANDOFF_MOBILE.md` | Active — Phase 1-2 deployed (design tokens, components, bottom tabs, nav shell) |
 
 ---
 
@@ -55,8 +98,9 @@ Each major feature area has a dedicated Claude session with its own deep context
 - Total phenomena: 4,792 entries across 11 categories
 - Quality standard: 7 AI fields populated, character minimums, verified sources, no fabrication
 
-**What's next:**
+**What's next (PHASE A — blocks mass ingestion):**
 - Enrich remaining categories beyond cryptids (UFOs, ghosts, etc.) with the full 7-field treatment (ai_description, ai_characteristics, ai_theories, ai_paradocs_analysis, ai_quick_facts, ai_summary, primary_regions)
+- The encyclopedia serves as the structural taxonomy/schema — every ingested report classifies against it, so it must be complete and high-quality before mass ingestion begins
 - Media enrichment (images for phenomena entries)
 - Cross-link phenomena to reports more comprehensively
 
@@ -319,15 +363,25 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Database tables:** `reports`, `ingestion_logs`
 
-**Current state:** Pipeline locked in and tested on ~2,500 reports. 8 source adapters (NUFORC, BFRO, Reddit, NDERF, IANDS, Ghosts of America, Shadowlands, Wikipedia). Quality filter, dedup, title improvement, location parsing. ~900 approved reports currently live.
+**Current state:** Pipeline locked in and tested on ~2,500 reports. 8 source adapters (NUFORC, BFRO, Reddit, NDERF, IANDS, Ghosts of America, Shadowlands, Wikipedia). Quality filter, dedup, title improvement, location parsing. ~900 approved reports currently live (TEST DATA — not launch quality). ~2M Reddit reports ingested but hidden (development data — will be wiped or re-ingested). **Mass ingestion is blocked until Phase A (encyclopedia) and Phase B (perfect reports) are complete — see Critical Sequencing section.**
 
 **What needs work:**
 - Curate to 1,000 "perfect" reports for alpha (need ~100 more from diverse sources)
-- New source adapters (MUFON, podcasts, books, news)
+- **Massive source expansion** (see Product Vision — aggregate everything legally available):
+  - YouTube: video metadata, transcripts, comments (paranormal channels, witness testimony, documentary clips)
+  - Erowid: trip reports (consciousness, DMT entities, altered states)
+  - MUFON: case files (if API/scraping access available)
+  - Podcast transcripts: major paranormal podcasts (Coast to Coast, Mysterious Universe, etc.)
+  - News articles: mainstream and alternative coverage of paranormal events
+  - Academic papers: parapsychology journals, consciousness studies
+  - Government documents: AARO, Project Blue Book, FOIA releases
+  - Forums: AboveTopSecret, Phantoms & Monsters, specialized communities
+  - Books: public domain and fair-use excerpts
 - Pipeline monitoring and error alerting
 - Automated scheduled ingestion (cron optimization)
 - Content viability checks at scale
 - De-archive or re-ingest Reddit data through final pipeline (Phase 4)
+- Scale target: tens of millions of reports, all consistent quality
 
 **Touches other sessions:** Encyclopedia (phenomena linking after ingestion), Map (location quality), Reports (report quality), Search (searchable content), Insights (more data = better patterns)
 
@@ -427,6 +481,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 | Date | Source Session | Note | Affects |
 |------|--------------|------|---------|
+| 2026-03-14 | Mobile Design | Phase 1-2 deployed: Bottom tab bar replaces hamburger menu on mobile. 4 new components (MobileBottomTabs, MobileBottomSheet, MobileHeader, MobileCardRow) in src/components/mobile/. Design tokens added to tailwind.config.js (spacing.touch, spacing.nav, slide animations). Mobile CSS utilities added to globals.css. DashboardLayout rewritten: removed inline style jsx global, removed hamburger slide-from-right overlay. ViewSwitcher now shows labels on mobile. BoardView FABs repositioned above bottom tabs. | All dashboard sessions (new bottom tab bar changes mobile navigation pattern), Foundation (globals.css + tailwind.config.js updated), Dashboard (DashboardLayout.tsx rewritten, ViewSwitcher.tsx rewritten, ResearchHub.tsx header updated, BoardView.tsx FAB positioning) |
 | 2026-03-11 | Encyclopedia | Cryptid category 100% complete. `ai_summary` field standardized to 150-350 chars for all cryptid entries. | Explore (feed cards), Search (index) |
 | 2026-03-05 | Encyclopedia | All `ai_quick_facts` now populated (9-key JSONB). All `ai_history` >= 800 chars. | Report detail (quick facts display), Explore (filtering) |
 | 2026-03-14 | Dashboard | Mobile CSS fixes: replaced JS viewport detection with CSS-only Tailwind responsive classes (eliminates hydration flash). Added overflow-x-hidden, overscroll-behavior containment, truncation across dashboard and Research Hub. Created PUT /api/research-hub/artifacts/[id] endpoint (was missing). Fixed X.com source duplication in ArtifactDetailDrawer. Expanded source types to 16+ (archive_org, academia, forum, government, tiktok, instagram, podcast, news, etc.). | Foundation (database.types.ts updated with 16+ source types, new DB CHECK constraint), All sessions (mobile layout pattern: use CSS-only responsive, never JS viewport detection) |
@@ -468,13 +523,15 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 ## Content Targets
 
-| Metric | Current | Target | Notes |
-|--------|---------|--------|-------|
-| Approved reports | ~900 | 1,000 (alpha) | Need ~100 more from diverse sources |
-| Phenomena entries | 4,792 | 4,792+ | Enrichment ongoing across categories |
-| Cryptid entries enriched | 208/208 | 208/208 | 100% COMPLETE |
-| Other categories enriched | Partial | All | Next encyclopedia session work |
-| Source adapters | 8 | 12+ | MUFON, podcasts, books, news planned |
+| Metric | Current | Launch Target | Scale Target | Notes |
+|--------|---------|-------------|-------------|-------|
+| Curated "perfect" reports | In progress (Roswell cluster) | Enough to set the quality bar | — | **PHASE B** — must complete before mass ingestion |
+| Approved reports (test data) | ~900 | To be removed/replaced | — | Current content is test data, not launch quality |
+| Reddit reports (dev data) | ~2M (hidden) | To be wiped or re-ingested | — | Development data from pipeline testing |
+| Phenomena entries (encyclopedia) | 4,792 | All 11 categories fully enriched | 10,000+ | **PHASE A** — must complete before mass ingestion |
+| Cryptid entries enriched | 208/208 | 208/208 | — | 100% COMPLETE — model for other categories |
+| Other categories enriched | Partial | All 11 categories | — | Next encyclopedia session work |
+| Source adapters | 8 | 12+ | 20+ | YouTube, Erowid, MUFON, podcasts, news, academic, govt docs — **PHASE C** |
 
 ---
 

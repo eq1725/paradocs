@@ -429,11 +429,11 @@ export function BoardView({
         </div>
       )}
 
-      {/* Floating action buttons - responsive */}
+      {/* Floating action buttons - positioned above bottom tab bar on mobile */}
       <div className={classNames(
         'flex gap-2 sm:gap-3 fixed z-30',
-        'bottom-6 left-3 right-3',
-        'sm:bottom-8 sm:left-auto sm:right-8'
+        'left-3 right-3 mobile-fab-bottom',
+        'sm:left-auto sm:right-8'
       )}>
         <button
           onClick={onCreateCaseFile}
