@@ -129,18 +129,27 @@ export function ArtifactDetailDrawer({
         style={{ backgroundColor: 'rgba(0, 0, 0, ' + (artifact ? 0.5 : 0) + ')' }}
       />
 
-      {/* Drawer */}
+      {/* Drawer — bottom sheet on mobile, right panel on desktop */}
       <div
         className={classNames(
-          'fixed top-0 right-0 bottom-0 w-full sm:w-96',
-          'bg-gray-900 border-l border-gray-800',
+          /* Mobile: bottom sheet */
+          'fixed bottom-0 left-0 right-0 max-h-[85vh] rounded-t-2xl',
+          /* Desktop: right-sliding panel */
+          'sm:top-0 sm:left-auto sm:max-h-none sm:rounded-none sm:w-96',
+          'bg-gray-900 border-t sm:border-t-0 sm:border-l border-gray-800',
           'transition-transform duration-300 z-50',
           'flex flex-col',
-          artifact ? 'translate-x-0' : 'translate-x-full'
+          /* Mobile: slide up/down. Desktop: slide left/right */
+          artifact ? 'translate-y-0 sm:translate-y-0 sm:translate-x-0' : 'translate-y-full sm:translate-y-0 sm:translate-x-full'
         )}
       >
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden flex justify-center pt-2 pb-1">
+          <div className="w-10 h-1 rounded-full bg-gray-700" />
+        </div>
+
         {/* Header */}
-        <div className="sticky top-0 bg-gray-900 border-b border-gray-800 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 z-10">
+        <div className="sticky top-0 bg-gray-900 border-b border-gray-800 px-3 sm:px-6 py-2 sm:py-4 flex items-center justify-between gap-3 z-10">
           <button
             onClick={onClose}
             className="p-2.5 sm:p-1.5 -ml-1 text-gray-400 hover:text-gray-300 hover:bg-gray-800 rounded-lg transition-colors"

@@ -253,16 +253,17 @@ export default function MapPage() {
         <title>Interactive Map - Paradocs</title>
       </Head>
 
-      <div className="h-[calc(100vh-4rem)] flex flex-col">
+      {/* Account for bottom tabs on mobile: subtract header (56px) + bottom nav (56px + safe area) */}
+      <div className="h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] pb-14 sm:pb-0 flex flex-col">
         {/* Top bar with header */}
-        <div className="p-4 border-b border-white/5 bg-black/30 backdrop-blur">
+        <div className="p-3 sm:p-4 border-b border-white/5 bg-black/30 backdrop-blur">
           <div className="max-w-7xl mx-auto space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-display font-bold text-white">
+                <h1 className="text-lg sm:text-2xl font-display font-bold text-white">
                   Global Sightings Map
                 </h1>
-                <p className="text-sm text-gray-400">
+                <p className="text-xs sm:text-sm text-gray-400">
                   {displayReports.length.toLocaleString()} locations mapped
                   {useProximity && userLocation && ` • Within ${proximityRadius} miles`}
                 </p>
@@ -477,9 +478,9 @@ export default function MapPage() {
               />
             )}
 
-            {/* Selected report panel */}
+            {/* Selected report panel — bottom sheet on mobile, side panel on desktop */}
             {selectedReport && categoryConfig && (
-              <div className="absolute top-4 right-4 w-full sm:w-96 glass-card p-5 animate-slide-in max-h-[calc(100vh-8rem)] overflow-y-auto">
+              <div className="absolute bottom-0 left-0 right-0 sm:bottom-auto sm:left-auto sm:top-4 sm:right-4 sm:w-96 glass-card p-4 sm:p-5 rounded-t-2xl sm:rounded-xl max-h-[50vh] sm:max-h-[calc(100vh-8rem)] overflow-y-auto z-20">
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div className={classNames(
                     'w-10 h-10 rounded-lg flex items-center justify-center text-xl flex-shrink-0',
@@ -551,23 +552,23 @@ export default function MapPage() {
               </div>
             )}
 
-            {/* Legend */}
-            <div className="absolute bottom-4 left-4 glass-card p-4">
-              <h4 className="text-xs font-semibold text-gray-400 mb-3">Category Legend</h4>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+            {/* Legend — compact on mobile (single row), expanded on desktop */}
+            <div className="absolute bottom-16 sm:bottom-4 left-2 sm:left-4 glass-card p-2 sm:p-4 z-10">
+              <h4 className="text-[10px] sm:text-xs font-semibold text-gray-400 mb-1.5 sm:mb-3 hidden sm:block">Category Legend</h4>
+              <div className="flex sm:grid sm:grid-cols-2 gap-x-2 sm:gap-x-3 gap-y-1 sm:gap-y-2 text-xs">
                 {Object.entries(CATEGORY_CONFIG).slice(0, 6).map(([key, config]) => (
-                  <div key={key} className="flex items-center gap-2">
-                    <span className="text-lg">{config.icon}</span>
-                    <span className={classNames('text-gray-400 text-xs')}>{config.label.split(' ')[0]}</span>
+                  <div key={key} className="flex items-center gap-1 sm:gap-2">
+                    <span className="text-sm sm:text-lg">{config.icon}</span>
+                    <span className="text-gray-400 text-[10px] sm:text-xs hidden sm:inline">{config.label.split(' ')[0]}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Mobile filter button */}
+            {/* Mobile filter button — positioned above bottom tabs */}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="md:hidden absolute bottom-4 right-4 p-3 rounded-lg bg-primary-500/20 text-primary-400 border border-primary-500/30 hover:bg-primary-500/30 transition-all"
+              className="md:hidden absolute bottom-16 right-2 p-3 rounded-lg bg-primary-500/20 text-primary-400 border border-primary-500/30 hover:bg-primary-500/30 transition-all z-10"
             >
               <Filter className="w-5 h-5" />
             </button>

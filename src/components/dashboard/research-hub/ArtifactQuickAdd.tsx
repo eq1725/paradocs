@@ -334,11 +334,15 @@ export function ArtifactQuickAdd({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-gray-900 rounded-2xl border border-gray-700 overflow-hidden max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center sm:p-4">
+      <div className="w-full sm:max-w-lg bg-gray-900 rounded-t-2xl sm:rounded-2xl border-t sm:border border-gray-700 overflow-hidden max-h-[90vh] flex flex-col">
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden flex justify-center pt-2 pb-1">
+          <div className="w-10 h-1 rounded-full bg-gray-700" />
+        </div>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-800/50">
-          <h2 className="text-lg font-semibold text-white">Add to Research Hub</h2>
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-800 bg-gray-800/50">
+          <h2 className="text-base sm:text-lg font-semibold text-white">Add to Research Hub</h2>
           <button
             onClick={onClose}
             className="p-1 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-gray-200 transition-colors"

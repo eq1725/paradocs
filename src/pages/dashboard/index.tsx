@@ -1,6 +1,14 @@
 /**
  * Dashboard Overview Page — Research Hub Mission Control
  *
+ * Mobile-first redesign (Session 13 Phase 3):
+ * - Welcome hero with single prominent CTA on mobile
+ * - Netflix-style horizontal card rows for case files (MobileCardRow)
+ * - Horizontal scroll metric pills (not wrapping grid) on mobile
+ * - Compact activity feed
+ * - Constellation preview with "View Map" overlay
+ * - <style jsx global> migrated to globals.css
+ *
  * Layout: Hero + CTAs → Research Hub Summary (case files + recent artifacts) →
  *         AI Insights banner → Constellation Mini-Map → Activity Feed →
  *         Metric Pills → Suggested Explorations → Usage Footer
@@ -27,14 +35,13 @@ import {
   Plus,
   Globe,
   Zap,
-  Circle,
-  ExternalLink,
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { UpgradeCard } from '@/components/dashboard/UpgradeCard'
 import { TierBadge } from '@/components/dashboard/TierBadge'
 import ResearchStreak from '@/components/dashboard/ResearchStreak'
 import DashboardTour, { hasDashboardTourCompleted } from '@/components/dashboard/DashboardTour'
+import { MobileCardRow, MobileCardRowItem } from '@/components/mobile/MobileCardRow'
 var ConstellationMapV2 = dynamic(
   function() { return import('@/components/dashboard/ConstellationMapV2') },
   { ssr: false }
@@ -240,31 +247,33 @@ export default function DashboardPage() {
   return (
     <DashboardLayout title="Dashboard">
       {/* ── A. Hero: Welcome + Smart CTAs ── */}
+      {/* Mobile: stacked with single prominent CTA. Desktop: side-by-side */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
         <div className="min-w-0">
-          <h2 className="text-xl sm:text-2xl font-bold text-white truncate">
+          <h2 className="text-lg sm:text-2xl font-bold text-white truncate">
             {'Welcome back' + (stats?.profile.display_name ? ', ' + stats.profile.display_name : '')}
           </h2>
-          <p className="text-gray-500 text-sm mt-0.5 truncate">
+          <p className="text-gray-500 text-xs sm:text-sm mt-0.5 truncate">
             {hasArtifacts
               ? hub.totalArtifacts + ' artifact' + (hub.totalArtifacts !== 1 ? 's' : '') + ' across ' + hub.totalCaseFiles + ' case file' + (hub.totalCaseFiles !== 1 ? 's' : '')
               : 'Start building your research hub'}
           </p>
         </div>
+        {/* Mobile: single full-width CTA. Desktop: two buttons inline */}
         <div className="flex items-center gap-2.5 flex-shrink-0">
           <Link
             href="/dashboard/research-hub"
-            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium text-sm transition-colors"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium text-sm transition-colors w-full sm:w-auto"
           >
             <Sparkles className="w-4 h-4" />
             Research Hub
           </Link>
           <Link
             href="/explore"
-            className="flex items-center gap-2 px-3 sm:px-4 py-2 border border-gray-700 hover:border-gray-600 text-gray-300 hover:text-white rounded-lg text-sm transition-colors"
+            className="hidden sm:flex items-center gap-2 px-4 py-2 border border-gray-700 hover:border-gray-600 text-gray-300 hover:text-white rounded-lg text-sm transition-colors"
           >
             <Compass className="w-4 h-4" />
-            <span className="hidden sm:inline">Explore</span>
+            Explore
           </Link>
         </div>
       </div>
@@ -277,94 +286,186 @@ export default function DashboardPage() {
       {/* ── C. Research Hub Summary (THE CENTERPIECE) ── */}
       {hasArtifacts ? (
         <div className="mb-5 overflow-hidden">
-          {/* Case Files Row */}
+          {/* Case Files — Mobile: horizontal scroll cards. Desktop: grid */}
           {hub.caseFiles.length > 0 && (
             <div className="mb-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <FolderOpen className="w-4 h-4 text-indigo-400" />
-                  Active Investigations
-                </h3>
-                <Link
-                  href="/dashboard/research-hub"
-                  className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+              {/* Mobile: Netflix-style horizontal row */}
+              <div className="sm:hidden">
+                <MobileCardRow
+                  title="Active Investigations"
+                  icon={<FolderOpen className="w-4 h-4 text-indigo-400" />}
+                  seeAllHref="/dashboard/research-hub"
+                  cardWidthPercent={75}
+                  minCardWidth={220}
+                  maxCardWidth={280}
+                  showDots={hub.caseFiles.length > 1}
+                  itemCount={hub.caseFiles.length}
                 >
-                  View All <ArrowRight className="w-3 h-3" />
-                </Link>
+                  {hub.caseFiles.map(function(cf) {
+                    return (
+                      <MobileCardRowItem
+                        key={cf.id}
+                        widthPercent={75}
+                        minWidth={220}
+                        maxWidth={280}
+                      >
+                        <Link
+                          href="/dashboard/research-hub"
+                          className="block p-3 bg-gray-900 border border-gray-800 rounded-xl hover:border-indigo-500/30 transition-all h-full"
+                          style={{ borderLeftWidth: '3px', borderLeftColor: cf.cover_color || '#6366f1' }}
+                        >
+                          <p className="text-sm font-medium text-white truncate">
+                            {cf.title}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {cf.artifact_count + ' artifact' + (cf.artifact_count !== 1 ? 's' : '')}
+                          </p>
+                        </Link>
+                      </MobileCardRowItem>
+                    )
+                  })}
+                </MobileCardRow>
               </div>
-              <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-                {hub.caseFiles.map(function(cf) {
-                  return (
-                    <Link
-                      key={cf.id}
-                      href="/dashboard/research-hub"
-                      className="group p-3 sm:p-3.5 bg-gray-900 border border-gray-800 rounded-xl hover:border-indigo-500/30 transition-all overflow-hidden"
-                      style={{ borderLeftWidth: '3px', borderLeftColor: cf.cover_color || '#6366f1' }}
-                    >
-                      <p className="text-sm font-medium text-white group-hover:text-indigo-300 truncate transition-colors">
-                        {cf.title}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {cf.artifact_count + ' artifact' + (cf.artifact_count !== 1 ? 's' : '')}
-                      </p>
-                    </Link>
-                  )
-                })}
+
+              {/* Desktop: grid layout (unchanged from original) */}
+              <div className="hidden sm:block">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <FolderOpen className="w-4 h-4 text-indigo-400" />
+                    Active Investigations
+                  </h3>
+                  <Link
+                    href="/dashboard/research-hub"
+                    className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                  >
+                    View All <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
+                <div className="grid grid-cols-3 lg:grid-cols-5 gap-2.5">
+                  {hub.caseFiles.map(function(cf) {
+                    return (
+                      <Link
+                        key={cf.id}
+                        href="/dashboard/research-hub"
+                        className="group p-3.5 bg-gray-900 border border-gray-800 rounded-xl hover:border-indigo-500/30 transition-all overflow-hidden"
+                        style={{ borderLeftWidth: '3px', borderLeftColor: cf.cover_color || '#6366f1' }}
+                      >
+                        <p className="text-sm font-medium text-white group-hover:text-indigo-300 truncate transition-colors">
+                          {cf.title}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {cf.artifact_count + ' artifact' + (cf.artifact_count !== 1 ? 's' : '')}
+                        </p>
+                      </Link>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           )}
 
-          {/* Recent Artifacts */}
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-white">Recent Artifacts</h3>
-            <Link
-              href="/dashboard/research-hub"
-              className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+          {/* Recent Artifacts — Mobile: horizontal scroll. Desktop: grid */}
+          <div className="sm:hidden">
+            <MobileCardRow
+              title="Recent Artifacts"
+              seeAllHref="/dashboard/research-hub"
+              cardWidthPercent={80}
+              minCardWidth={260}
+              maxCardWidth={320}
             >
-              Open Hub <ArrowRight className="w-3 h-3" />
-            </Link>
+              {hub.recentArtifacts.map(function(artifact) {
+                var sourceConfig = SOURCE_ICONS[artifact.source_type] || SOURCE_ICONS.other
+                var SourceIcon = sourceConfig.icon
+                var verdictDot = artifact.verdict ? VERDICT_DOTS[artifact.verdict] : null
+                return (
+                  <MobileCardRowItem
+                    key={artifact.id}
+                    widthPercent={80}
+                    minWidth={260}
+                    maxWidth={320}
+                  >
+                    <Link
+                      href="/dashboard/research-hub"
+                      className="block p-3 bg-gray-900 border border-gray-800 rounded-xl hover:border-cyan-500/30 transition-all h-full"
+                    >
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className={classNames('p-2 rounded-lg flex-shrink-0', artifact.source_type === 'paradocs_report' ? 'bg-indigo-500/15' : 'bg-cyan-500/15')}>
+                          <SourceIcon className={classNames('w-4 h-4', sourceConfig.color)} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">
+                            {artifact.title}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            {verdictDot && (
+                              <span className={classNames('w-1.5 h-1.5 rounded-full flex-shrink-0', verdictDot)} />
+                            )}
+                            <span className="text-xs text-gray-500">
+                              {formatRelativeTime(artifact.created_at)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  </MobileCardRowItem>
+                )
+              })}
+            </MobileCardRow>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {hub.recentArtifacts.map(function(artifact) {
-              var sourceConfig = SOURCE_ICONS[artifact.source_type] || SOURCE_ICONS.other
-              var SourceIcon = sourceConfig.icon
-              var verdictDot = artifact.verdict ? VERDICT_DOTS[artifact.verdict] : null
-              return (
-                <Link
-                  key={artifact.id}
-                  href="/dashboard/research-hub"
-                  className="group p-3 sm:p-4 bg-gray-900 border border-gray-800 rounded-xl hover:border-cyan-500/30 transition-all overflow-hidden"
-                >
-                  <div className="flex items-start gap-3 min-w-0">
-                    <div className={classNames('p-2 rounded-lg flex-shrink-0', artifact.source_type === 'paradocs_report' ? 'bg-indigo-500/15' : 'bg-cyan-500/15')}>
-                      <SourceIcon className={classNames('w-4 h-4', sourceConfig.color)} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white group-hover:text-cyan-300 truncate transition-colors">
-                        {artifact.title}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        {verdictDot && (
-                          <span className={classNames('w-1.5 h-1.5 rounded-full flex-shrink-0', verdictDot)} />
-                        )}
-                        <span className="text-xs text-gray-500">
-                          {formatRelativeTime(artifact.created_at)}
-                        </span>
+
+          {/* Desktop: grid layout for artifacts */}
+          <div className="hidden sm:block">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-white">Recent Artifacts</h3>
+              <Link
+                href="/dashboard/research-hub"
+                className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+              >
+                Open Hub <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {hub.recentArtifacts.map(function(artifact) {
+                var sourceConfig = SOURCE_ICONS[artifact.source_type] || SOURCE_ICONS.other
+                var SourceIcon = sourceConfig.icon
+                var verdictDot = artifact.verdict ? VERDICT_DOTS[artifact.verdict] : null
+                return (
+                  <Link
+                    key={artifact.id}
+                    href="/dashboard/research-hub"
+                    className="group p-4 bg-gray-900 border border-gray-800 rounded-xl hover:border-cyan-500/30 transition-all overflow-hidden"
+                  >
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className={classNames('p-2 rounded-lg flex-shrink-0', artifact.source_type === 'paradocs_report' ? 'bg-indigo-500/15' : 'bg-cyan-500/15')}>
+                        <SourceIcon className={classNames('w-4 h-4', sourceConfig.color)} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white group-hover:text-cyan-300 truncate transition-colors">
+                          {artifact.title}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {verdictDot && (
+                            <span className={classNames('w-1.5 h-1.5 rounded-full flex-shrink-0', verdictDot)} />
+                          )}
+                          <span className="text-xs text-gray-500">
+                            {formatRelativeTime(artifact.created_at)}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </Link>
-              )
-            })}
+                  </Link>
+                )
+              })}
+            </div>
           </div>
         </div>
       ) : (
         /* Empty state — first time user */
-        <div className="mb-5 p-8 bg-gray-900 border border-gray-800 rounded-xl text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-indigo-500/10 flex items-center justify-center">
-            <Sparkles className="w-8 h-8 text-indigo-400" />
+        <div className="mb-5 p-6 sm:p-8 bg-gray-900 border border-gray-800 rounded-xl text-center">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-4 rounded-full bg-indigo-500/10 flex items-center justify-center">
+            <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-indigo-400" />
           </div>
-          <h3 className="text-lg font-semibold text-white mb-2">Your Research Hub is ready</h3>
+          <h3 className="text-base sm:text-lg font-semibold text-white mb-2">Your Research Hub is ready</h3>
           <p className="text-gray-400 text-sm max-w-md mx-auto mb-5">
             Save URLs from YouTube, Reddit, news sites, or log Paradocs reports. Organize evidence into case files, draw connections, and build theories.
           </p>
@@ -409,6 +510,7 @@ export default function DashboardPage() {
       )}
 
       {/* ── E. Constellation Mini-Map ── */}
+      {/* Mobile: slightly shorter (200px via globals.css). Overlay always right-aligned */}
       {hasEntries && userMapData && (
         <div className="mb-5 rounded-xl overflow-hidden border border-gray-800 relative">
           <div className="dashboard-constellation-wrap">
@@ -429,7 +531,7 @@ export default function DashboardPage() {
                 href="/dashboard/constellation"
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium rounded-lg transition-colors"
               >
-                {'Full Map '}
+                {'View Map '}
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
@@ -437,10 +539,10 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── F. Research Activity ── */}
+      {/* ── F. Research Activity (compact on mobile) ── */}
       {stats?.research_activity && stats.research_activity.length > 0 && (
-        <div className="mb-5 p-4 bg-gray-900 rounded-xl border border-gray-800">
-          <div className="flex items-center justify-between mb-3">
+        <div className="mb-5 p-3 sm:p-4 bg-gray-900 rounded-xl border border-gray-800">
+          <div className="flex items-center justify-between mb-2 sm:mb-3">
             <h3 className="text-sm font-semibold text-white">Research Activity</h3>
             <Link
               href="/dashboard/research-hub"
@@ -449,7 +551,7 @@ export default function DashboardPage() {
               View All <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             {stats.research_activity.map(function(activity) {
               var config = ACTIVITY_TYPE_CONFIG[activity.type] || ACTIVITY_TYPE_CONFIG.constellation_entry
               var Icon = config.icon
@@ -458,12 +560,11 @@ export default function DashboardPage() {
                   key={activity.id}
                   className="flex items-center gap-2 sm:gap-3 p-2 sm:p-2.5 bg-gray-950/50 rounded-lg overflow-hidden"
                 >
-                  <Icon className={'w-4 h-4 ' + config.color + ' flex-shrink-0'} />
+                  <Icon className={'w-3.5 h-3.5 sm:w-4 sm:h-4 ' + config.color + ' flex-shrink-0'} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm truncate">{activity.title}</p>
-                    <p className="text-[11px] text-gray-600 truncate">{config.label}</p>
+                    <p className="text-white text-xs sm:text-sm truncate">{activity.title}</p>
                   </div>
-                  <span className="text-[11px] text-gray-600 flex-shrink-0">{formatRelativeTime(activity.created_at)}</span>
+                  <span className="text-[10px] sm:text-[11px] text-gray-600 flex-shrink-0">{formatRelativeTime(activity.created_at)}</span>
                 </div>
               )
             })}
@@ -472,54 +573,90 @@ export default function DashboardPage() {
       )}
 
       {/* ── G. Research Snapshot (metric pills) ── */}
-      <div className="mb-5 flex flex-wrap gap-1.5 sm:gap-2">
-        <Link
-          href="/dashboard/research-hub"
-          className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gray-900 border border-gray-800 hover:border-indigo-500/30 rounded-full text-xs sm:text-sm transition-colors group"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-          <span className="text-white font-medium">{hub.totalArtifacts}</span>
-          <span className="text-gray-500 group-hover:text-gray-400">Artifacts</span>
-        </Link>
-        <Link
-          href="/dashboard/constellation"
-          className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-xs sm:text-sm transition-colors group"
-        >
-          <Star className="w-3.5 h-3.5 text-amber-400" />
-          <span className="text-white font-medium">{stats?.constellation.totalEntries || 0}</span>
-          <span className="text-gray-500 group-hover:text-gray-400">Stars</span>
-        </Link>
-        <Link
-          href="/dashboard/constellation"
-          className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-xs sm:text-sm transition-colors group"
-        >
-          <Link2 className="w-3.5 h-3.5 text-green-400" />
-          <span className="text-white font-medium">{stats?.constellation.totalConnections || 0}</span>
-          <span className="text-gray-500 group-hover:text-gray-400">Connections</span>
-        </Link>
-        <Link
-          href="/dashboard/journal"
-          className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-xs sm:text-sm transition-colors group"
-        >
-          <BookOpen className="w-3.5 h-3.5 text-blue-400" />
-          <span className="text-white font-medium">{stats?.journal.totalEntries || 0}</span>
-          <span className="text-gray-500 group-hover:text-gray-400">Journal</span>
-        </Link>
-        <Link
-          href="/dashboard/saved"
-          className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-xs sm:text-sm transition-colors group"
-        >
-          <Bookmark className="w-3.5 h-3.5 text-purple-400" />
-          <span className="text-white font-medium">{stats?.saved.total || 0}</span>
-          <span className="text-gray-500 group-hover:text-gray-400">Saved</span>
-        </Link>
+      {/* Mobile: horizontal scroll (no wrapping). Desktop: flex-wrap */}
+      <div className="mb-5">
+        <div className="flex gap-1.5 sm:gap-2 overflow-x-auto sm:overflow-x-visible sm:flex-wrap scrollbar-hide touch-pan-x pb-1 sm:pb-0">
+          <Link
+            href="/dashboard/research-hub"
+            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gray-900 border border-gray-800 hover:border-indigo-500/30 rounded-full text-xs sm:text-sm transition-colors group flex-shrink-0"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="text-white font-medium">{hub.totalArtifacts}</span>
+            <span className="text-gray-500 group-hover:text-gray-400">Artifacts</span>
+          </Link>
+          <Link
+            href="/dashboard/constellation"
+            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-xs sm:text-sm transition-colors group flex-shrink-0"
+          >
+            <Star className="w-3.5 h-3.5 text-amber-400" />
+            <span className="text-white font-medium">{stats?.constellation.totalEntries || 0}</span>
+            <span className="text-gray-500 group-hover:text-gray-400">Stars</span>
+          </Link>
+          <Link
+            href="/dashboard/constellation"
+            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-xs sm:text-sm transition-colors group flex-shrink-0"
+          >
+            <Link2 className="w-3.5 h-3.5 text-green-400" />
+            <span className="text-white font-medium">{stats?.constellation.totalConnections || 0}</span>
+            <span className="text-gray-500 group-hover:text-gray-400">Connections</span>
+          </Link>
+          <Link
+            href="/dashboard/journal"
+            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-xs sm:text-sm transition-colors group flex-shrink-0"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-blue-400" />
+            <span className="text-white font-medium">{stats?.journal.totalEntries || 0}</span>
+            <span className="text-gray-500 group-hover:text-gray-400">Journal</span>
+          </Link>
+          <Link
+            href="/dashboard/saved"
+            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-xs sm:text-sm transition-colors group flex-shrink-0"
+          >
+            <Bookmark className="w-3.5 h-3.5 text-purple-400" />
+            <span className="text-white font-medium">{stats?.saved.total || 0}</span>
+            <span className="text-gray-500 group-hover:text-gray-400">Saved</span>
+          </Link>
+        </div>
       </div>
 
       {/* ── H. Suggested Explorations ── */}
       {suggestions.length > 0 && (
         <div className="mb-5">
           <h3 className="text-sm font-semibold text-white mb-3">Suggested Explorations</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          {/* Mobile: horizontal scroll. Desktop: grid */}
+          <div className="sm:hidden">
+            <MobileCardRow
+              cardWidthPercent={80}
+              minCardWidth={240}
+              maxCardWidth={300}
+            >
+              {suggestions.map(function(suggestion) {
+                var config = CATEGORY_CONFIG[suggestion.category as keyof typeof CATEGORY_CONFIG]
+                return (
+                  <MobileCardRowItem
+                    key={suggestion.category}
+                    widthPercent={80}
+                    minWidth={240}
+                    maxWidth={300}
+                  >
+                    <Link
+                      href={'/explore?category=' + suggestion.category}
+                      className="block p-3.5 bg-gray-900 border border-gray-800 rounded-xl hover:border-purple-500/30 transition-all h-full"
+                    >
+                      <div className="flex items-center gap-2.5 mb-1.5">
+                        <span className="text-lg">{config?.icon || '\u2728'}</span>
+                        <span className="text-sm font-medium text-white">
+                          {config?.label || suggestion.category}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 line-clamp-2">{suggestion.reason}</p>
+                    </Link>
+                  </MobileCardRowItem>
+                )
+              })}
+            </MobileCardRow>
+          </div>
+          <div className="hidden sm:grid grid-cols-3 gap-2.5">
             {suggestions.map(function(suggestion) {
               var config = CATEGORY_CONFIG[suggestion.category as keyof typeof CATEGORY_CONFIG]
               return (
@@ -574,9 +711,6 @@ export default function DashboardPage() {
       {showDashboardTour && (
         <DashboardTour onComplete={function() { setShowDashboardTour(false) }} />
       )}
-
-      {/* Constellation map height override */}
-      <style jsx global>{"\n        .dashboard-constellation-wrap {\n          height: 240px;\n        }\n        @media (min-width: 640px) {\n          .dashboard-constellation-wrap {\n            height: 300px;\n          }\n        }\n        .dashboard-constellation-wrap > div {\n          height: 100% !important;\n        }\n      "}</style>
     </DashboardLayout>
   )
 }

@@ -467,7 +467,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 **What needs work:**
 - ~~Quick fix: Reading progress bar~~ ✅ (h-[3px] → h-1.5, March 15)
 - ~~Nav unification~~ ✅ (MobileBottomTabs unified across Layout.tsx + DashboardLayout, March 15)
-- **Phase 3 remaining screens:** Dashboard home, Explore feed, Map page, Constellation, ArtifactDetailDrawer→bottom sheet, ArtifactQuickAdd→bottom sheet, Journal, Search, Settings
+- **Phase 3 remaining screens:** ~~Dashboard home~~ ✅, ~~Explore feed~~ ✅, ~~Map page~~ ✅, ~~ArtifactDetailDrawer→bottom sheet~~ ✅, ~~ArtifactQuickAdd→bottom sheet~~ ✅. Remaining: Constellation touch controls, Journal, Search, Settings (lower priority)
 
 **Touches other sessions:** ALL sessions — mobile design system is cross-cutting. Especially Dashboard (navigation shell), Reports (40K+ line detail page mobile audit), Map (touch interactions), Explore (feed card mobile layout), Search (mobile search UX), Foundation (shared components, globals.css)
 

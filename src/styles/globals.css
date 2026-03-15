@@ -349,6 +349,19 @@ body.sheet-open {
   width: 100%;
 }
 
+/* Dashboard constellation mini-map height */
+.dashboard-constellation-wrap {
+  height: 200px;
+}
+@media (min-width: 640px) {
+  .dashboard-constellation-wrap {
+    height: 300px;
+  }
+}
+.dashboard-constellation-wrap > div {
+  height: 100% !important;
+}
+
 /* Desktop: reset mobile-only utilities */
 @media (min-width: 768px) {
   .mobile-content-pb {

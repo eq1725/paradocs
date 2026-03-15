@@ -414,18 +414,18 @@ export default function ExplorePage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-display font-bold text-white">Explore Reports</h1>
-          <p className="mt-2 text-gray-400">
+          <h1 className="text-xl sm:text-3xl font-display font-bold text-white">Explore Reports</h1>
+          <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-400">
             Browse {totalCount.toLocaleString()} documented paranormal encounters
           </p>
         </div>
 
         {/* View Toggle */}
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-2 sm:gap-3 mb-5 sm:mb-6">
           <button
             onClick={() => setActiveView('feed')}
             className={classNames(
-              'px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2',
+              'px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-1.5 sm:gap-2',
               activeView === 'feed'
                 ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30 shadow-lg shadow-primary-500/10'
                 : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
@@ -437,33 +437,35 @@ export default function ExplorePage() {
           <button
             onClick={() => setActiveView('browse')}
             className={classNames(
-              'px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2',
+              'px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-1.5 sm:gap-2',
               activeView === 'browse'
                 ? 'bg-gradient-to-r from-primary-500 to-purple-500 text-white border border-primary-400/30 shadow-lg shadow-primary-500/20'
                 : 'bg-gradient-to-r from-primary-500/20 to-purple-500/20 text-primary-300 border border-primary-500/20 hover:from-primary-500/30 hover:to-purple-500/30 hover:text-primary-200 hover:shadow-lg hover:shadow-primary-500/10'
             )}
           >
             <Search className="w-4 h-4" />
-            Browse All {baselineCount > 0 && <span className="ml-0.5 text-xs opacity-75">({baselineCount.toLocaleString()})</span>}
+            <span className="hidden sm:inline">Browse All</span>
+            <span className="sm:hidden">Browse</span>
+            {baselineCount > 0 && <span className="ml-0.5 text-xs opacity-75">({baselineCount.toLocaleString()})</span>}
           </button>
         </div>
 
         {/* Pattern Insights Banner */}
         <Link
           href="/insights"
-          className="block mb-6 p-4 glass-card bg-gradient-to-r from-primary-900/30 to-purple-900/30 border border-primary-500/20 hover:border-primary-500/40 transition-all group"
+          className="block mb-5 sm:mb-6 p-3 sm:p-4 glass-card bg-gradient-to-r from-primary-900/30 to-purple-900/30 border border-primary-500/20 hover:border-primary-500/40 transition-all group"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary-500/20">
-                <Sparkles className="w-5 h-5 text-primary-400" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <div className="p-1.5 sm:p-2 rounded-lg bg-primary-500/20 flex-shrink-0">
+                <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-primary-400" />
               </div>
-              <div>
-                <h3 className="font-medium text-white">Discover Pattern Insights</h3>
-                <p className="text-sm text-gray-400">AI-detected patterns, geographic clusters & temporal anomalies</p>
+              <div className="min-w-0">
+                <h3 className="font-medium text-white text-sm sm:text-base">Discover Pattern Insights</h3>
+                <p className="text-xs sm:text-sm text-gray-400 truncate">AI-detected patterns, geographic clusters & temporal anomalies</p>
               </div>
             </div>
-            <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-primary-400 group-hover:translate-x-1 transition-all" />
+            <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-primary-400 group-hover:translate-x-1 transition-all flex-shrink-0" />
           </div>
         </Link>
 
@@ -511,7 +513,7 @@ export default function ExplorePage() {
                         <p className="text-xs text-gray-500">{section.subtitle}</p>
                       </div>
                     </div>
-                    <div className="flex gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity">
+                    <div className="hidden sm:flex gap-1 opacity-0 group-hover/section:opacity-100 transition-opacity">
                       <button onClick={() => scrollContainer(`feed-${section.id}`, 'left')} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400">
                         <ChevronLeft className="w-4 h-4" />
                       </button>
@@ -523,7 +525,7 @@ export default function ExplorePage() {
                   <div className="relative">
                     <div id={`feed-${section.id}`} className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory pr-8">
                       {section.reports.map((report) => (
-                        <Link key={report.id} href={`/report/${report.slug}`} className="min-w-[300px] max-w-[300px] flex-shrink-0 snap-start glass-card p-4 hover:border-primary-500/30 transition-all group/card">
+                        <Link key={report.id} href={`/report/${report.slug}`} className="min-w-[260px] sm:min-w-[300px] max-w-[280px] sm:max-w-[300px] flex-shrink-0 snap-start glass-card p-3 sm:p-4 hover:border-primary-500/30 transition-all group/card">
                           <div className="flex items-start justify-between mb-2">
                             {report.phenomenon_type && (
                               <span className="text-xs px-2 py-0.5 rounded-full bg-primary-500/20 text-primary-400 truncate max-w-[180px]">
