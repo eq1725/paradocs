@@ -80,7 +80,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 10 | **Data Ingestion & Pipeline** | Source adapters, quality filters, dedup, bulk import, media extraction | `HANDOFF_INGESTION.md` | Not started |
 | 11 | **Admin & Operations** | Admin dashboard, batch operations, cron jobs, A/B testing, monitoring | `HANDOFF_ADMIN.md` | Not started |
 | 12 | **Foundation & Infrastructure** | Shared components, auth/RLS, database schema, deployment, performance, SEO | `HANDOFF_FOUNDATION.md` | Not started |
-| 13 | **Mobile-First Design System** | Cross-cutting mobile UX: bottom tabs, bottom sheets, design tokens, screen-by-screen redesign | `HANDOFF_MOBILE.md` | Active — Phase 1-2 deployed (design tokens, components, bottom tabs, nav shell) |
+| 13 | **Mobile-First Design System** | Cross-cutting mobile UX: bottom tabs, bottom sheets, design tokens, screen-by-screen redesign | `HANDOFF_MOBILE.md` | Active — Phase 1-2 + 3a + Nav Unification deployed. Screen-by-screen redesign next. |
 
 ---
 
@@ -458,18 +458,16 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Database tables:** None (CSS/UX only)
 
-**Current state (March 14, 2026):**
-- Session prompt and handoff doc created and ready for a new session
-- Incremental mobile CSS fixes applied during Session 5 work (responsive padding, truncation, overflow-hidden, CSS-only responsive layout replacing JS viewport detection)
-- Key architectural fix deployed: replaced JS `useState`/`useEffect` viewport detection with CSS-only Tailwind responsive classes to eliminate hydration flash
-- PUT /api/research-hub/artifacts/[id] endpoint created (was missing, causing silent data loss)
-- X.com source duplication fix in ArtifactDetailDrawer
+**Current state (March 15, 2026):**
+- **Phase 1-2 COMPLETE:** Design tokens (spacing.touch, spacing.nav, slide animations), 4 reusable mobile components (MobileBottomTabs, MobileBottomSheet, MobileHeader, MobileCardRow), CSS utilities in globals.css. DashboardLayout rewritten — hamburger menu removed, MobileBottomTabs added. ViewSwitcher mobile labels visible.
+- **Phase 3a COMPLETE:** Report detail mobile redesign — reading progress bar bug fix, mobile back button, non-sticky action bar on mobile, native share (`navigator.share`), responsive typography, content spacing.
+- **DISCOVERED:** Dual layout architecture — Layout.tsx (public pages) has its own completely different mobile bottom nav from DashboardLayout's MobileBottomTabs. Nav unification is next priority.
+- PUT /api/research-hub/artifacts/[id] endpoint created (was missing)
 
-**What needs work (Session 13 scope):**
-- **Phase 1:** Design tokens and component library (spacing scale, color system, typography, reusable mobile primitives like bottom sheets, swipe-to-dismiss, pull-to-refresh)
-- **Phase 2:** Navigation shell (bottom tab bar replacing hamburger menu, modeled on Netflix/Uber/Spotify)
-- **Phase 3:** Screen-by-screen redesign (Dashboard home, Research Hub, Explore, Report detail, Map, Journal, Search, Settings)
-- Known unsolved issues: no bottom tab navigation, no swipe-to-dismiss on drawers, no swipe-back gesture, quick-add modal not optimized for mobile keyboard, Explore/Report/Map/Constellation/Journal/Search pages not audited for mobile
+**What needs work:**
+- ~~Quick fix: Reading progress bar~~ ✅ (h-[3px] → h-1.5, March 15)
+- ~~Nav unification~~ ✅ (MobileBottomTabs unified across Layout.tsx + DashboardLayout, March 15)
+- **Phase 3 remaining screens:** Dashboard home, Explore feed, Map page, Constellation, ArtifactDetailDrawer→bottom sheet, ArtifactQuickAdd→bottom sheet, Journal, Search, Settings
 
 **Touches other sessions:** ALL sessions — mobile design system is cross-cutting. Especially Dashboard (navigation shell), Reports (40K+ line detail page mobile audit), Map (touch interactions), Explore (feed card mobile layout), Search (mobile search UX), Foundation (shared components, globals.css)
 
@@ -481,6 +479,8 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 | Date | Source Session | Note | Affects |
 |------|--------------|------|---------|
+| 2026-03-15 | Mobile Design | **Nav Unification COMPLETE.** MobileBottomTabs rewritten as unified component used by BOTH Layout.tsx and DashboardLayout. Same 5 tabs on every page: Explore, Map, Discover FAB (elevated center), Library/Encyclopedia (auth-aware 4th tab), More. Layout.tsx mobile inline nav + slide-up menu + style jsx global all removed. Progress bar thickness fix (h-1.5). | Search & Nav (Layout.tsx mobile nav completely replaced — public mobile navigation now uses MobileBottomTabs), Foundation (Layout.tsx style jsx global removed), All sessions (mobile bottom nav is now unified across all pages) |
+| 2026-03-15 | Mobile Design | Phase 3a: Report detail mobile redesign deployed (report/[slug].tsx). Progress bar bug fix, mobile back button, non-sticky action bar, native share, responsive typography. DISCOVERED dual layout architecture: Layout.tsx (public pages) has its own mobile bottom nav completely different from DashboardLayout's MobileBottomTabs. Nav unification is next priority — will modify Layout.tsx significantly. Discover page confirmed intentionally standalone (TikTok-like, no nav chrome). | Reports (report/[slug].tsx modified), Search & Nav (Layout.tsx nav unification upcoming, will change public mobile navigation), Foundation (globals.css already updated, Layout.tsx <style jsx global> needs migration) |
 | 2026-03-14 | Mobile Design | Phase 1-2 deployed: Bottom tab bar replaces hamburger menu on mobile. 4 new components (MobileBottomTabs, MobileBottomSheet, MobileHeader, MobileCardRow) in src/components/mobile/. Design tokens added to tailwind.config.js (spacing.touch, spacing.nav, slide animations). Mobile CSS utilities added to globals.css. DashboardLayout rewritten: removed inline style jsx global, removed hamburger slide-from-right overlay. ViewSwitcher now shows labels on mobile. BoardView FABs repositioned above bottom tabs. | All dashboard sessions (new bottom tab bar changes mobile navigation pattern), Foundation (globals.css + tailwind.config.js updated), Dashboard (DashboardLayout.tsx rewritten, ViewSwitcher.tsx rewritten, ResearchHub.tsx header updated, BoardView.tsx FAB positioning) |
 | 2026-03-11 | Encyclopedia | Cryptid category 100% complete. `ai_summary` field standardized to 150-350 chars for all cryptid entries. | Explore (feed cards), Search (index) |
 | 2026-03-05 | Encyclopedia | All `ai_quick_facts` now populated (9-key JSONB). All `ai_history` >= 800 chars. | Report detail (quick facts display), Explore (filtering) |

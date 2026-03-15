@@ -1,149 +1,181 @@
 'use client'
 
 /**
- * MobileBottomTabs — persistent bottom tab bar for mobile navigation.
+ * MobileBottomTabs — unified bottom tab bar for ALL mobile pages.
  *
- * Tab order is intentional: prioritizes content browsing (the $5.99 user flow)
- * before research tools (the $14.99 power user flow).
+ * Used by both Layout.tsx (public pages) and DashboardLayout.tsx (dashboard pages).
+ * Same 5 tabs everywhere for seamless navigation:
  *
- * 1. Home — personalized landing, trending, recent saves
- * 2. Explore — discovery feed, the Netflix-scroll experience
- * 3. Research — Research Hub (Board/Timeline/Map/Constellation)
- * 4. Constellation — pro-gated star map (upgrade prompt for free tier)
- * 5. More — bottom sheet with Library, Settings, Sign Out, etc.
+ * 1. Explore — discovery feed, the Netflix-scroll experience
+ * 2. Map — interactive sighting map, high-value visual feature
+ * 3. Discover (FAB) — TikTok-like immersive feed, the casual user hook
+ * 4. Library/Encyclopedia — auth-aware: Encyclopedia for guests, Library for logged-in
+ * 5. More — bottom sheet with everything else (auth-gated items)
+ *
+ * Session 13 Nav Unification: replaces both the old Layout.tsx inline nav
+ * and the original dashboard-only MobileBottomTabs with one consistent bar.
  */
 
 import { classNames } from '@/lib/utils'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import {
-  LayoutDashboard,
   Compass,
+  Map as MapIcon,
+  Flame,
+  BookOpen,
+  LayoutDashboard,
+  Menu,
   FlaskConical,
   Stars,
-  Menu,
   Bookmark,
   FileText,
   Newspaper,
-  BookOpen,
+  Sparkles,
   CreditCard,
   Settings,
   LogOut,
-  Lock,
-  Sparkles,
+  LogIn,
+  Home,
+  PlusCircle,
 } from 'lucide-react'
-import { useState, useCallback } from 'react'
-import { useSubscription } from '@/lib/hooks/useSubscription'
+import { useState, useCallback, useEffect } from 'react'
 import { MobileBottomSheet } from './MobileBottomSheet'
 import { supabase } from '@/lib/supabase'
 
-interface MoreSheetItem {
-  href: string
-  label: string
-  icon: React.ElementType
-}
-
-var MORE_ITEMS: MoreSheetItem[] = [
-  { href: '/dashboard/saved', label: 'Saved Reports', icon: Bookmark },
-  { href: '/dashboard/reports', label: 'My Reports', icon: FileText },
-  { href: '/dashboard/journal', label: 'Journal', icon: BookOpen },
-  { href: '/dashboard/digests', label: 'Weekly Digests', icon: Newspaper },
-  { href: '/dashboard/insights', label: 'AI Insights', icon: Sparkles },
-  { href: '/dashboard/subscription', label: 'Subscription', icon: CreditCard },
-  { href: '/dashboard/settings', label: 'Settings', icon: Settings },
-]
-
 export function MobileBottomTabs() {
   var router = useRouter()
-  var { tierName } = useSubscription()
   var [isMoreOpen, setIsMoreOpen] = useState(false)
+  var [isLoggedIn, setIsLoggedIn] = useState(false)
 
-  var isProUser = tierName === 'pro' || tierName === 'enterprise' || tierName === 'basic'
+  // Lightweight auth check — session existence only, no API call
+  useEffect(function() {
+    function checkAuth() {
+      supabase.auth.getSession().then(function(result) {
+        setIsLoggedIn(!!result.data.session)
+      })
+    }
+    checkAuth()
+    var authListener = supabase.auth.onAuthStateChange(function() {
+      checkAuth()
+    })
+    return function() {
+      authListener.data.subscription.unsubscribe()
+    }
+  }, [])
 
   var handleSignOut = useCallback(async function() {
     await supabase.auth.signOut()
     router.push('/')
   }, [router])
 
-  var isActive = function(path: string) {
-    if (path === '/dashboard') {
-      return router.pathname === '/dashboard'
+  // Route matching for tab active states
+  var isRouteActive = function(path: string) {
+    if (path === '/explore') {
+      return router.pathname === '/explore' || router.pathname.startsWith('/explore/')
     }
-    return router.pathname.startsWith(path)
+    if (path === '/map') {
+      return router.pathname === '/map'
+    }
+    if (path === '/discover') {
+      return router.pathname === '/discover'
+    }
+    if (path === '/phenomena') {
+      return router.pathname === '/phenomena' || router.pathname.startsWith('/phenomena/')
+    }
+    // For More sheet items, match specific dashboard sub-routes
+    return router.pathname === path || router.pathname.startsWith(path + '/')
   }
 
-  var tabs = [
-    {
-      href: '/dashboard',
-      label: 'Home',
-      icon: LayoutDashboard,
-      active: isActive('/dashboard') && !isActive('/dashboard/research-hub') && !isActive('/dashboard/constellation'),
-    },
-    {
-      href: '/explore',
-      label: 'Explore',
-      icon: Compass,
-      active: isActive('/explore'),
-    },
-    {
-      href: '/dashboard/research-hub',
-      label: 'Research',
-      icon: FlaskConical,
-      active: isActive('/dashboard/research-hub'),
-    },
-    {
-      href: '/dashboard/constellation',
-      label: 'Stars',
-      icon: Stars,
-      active: isActive('/dashboard/constellation'),
-      locked: !isProUser,
-    },
-  ]
+  // 4th tab: "Library" (dashboard) for logged-in, "Encyclopedia" for guests
+  var isDashboardRoute = router.pathname.startsWith('/dashboard')
+  var isPhenomenaRoute = router.pathname === '/phenomena' || router.pathname.startsWith('/phenomena/')
+
+  var FourthIcon = isLoggedIn ? LayoutDashboard : BookOpen
+  var fourthLabel = isLoggedIn ? 'Library' : 'Encyclopedia'
+  var fourthHref = isLoggedIn ? '/dashboard' : '/phenomena'
+  var fourthActive = isLoggedIn ? isDashboardRoute : isPhenomenaRoute
 
   return (
     <>
-      {/* Tab bar — md:hidden ensures desktop sidebar is untouched */}
+      {/* Tab bar \u2014 md:hidden ensures desktop nav is untouched */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-gray-900/95 backdrop-blur-lg border-t border-gray-800">
         <div
           className="flex items-stretch justify-around"
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
-          {tabs.map(function(tab) {
-            var Icon = tab.icon
-            return (
-              <Link
-                key={tab.href}
-                href={tab.locked ? '/dashboard/subscription' : tab.href}
-                className={classNames(
-                  'flex flex-col items-center justify-center flex-1 py-2 min-h-[56px] transition-colors relative',
-                  tab.active
-                    ? 'text-primary-400'
-                    : tab.locked
-                      ? 'text-gray-600'
-                      : 'text-gray-500'
-                )}
-              >
-                <div className="relative">
-                  <Icon className="w-5 h-5" />
-                  {tab.locked && (
-                    <Lock className="w-2.5 h-2.5 absolute -top-1 -right-1.5 text-gray-500" />
-                  )}
-                </div>
-                <span className={classNames(
-                  'text-[10px] mt-1 font-medium',
-                  tab.active ? 'text-primary-400' : tab.locked ? 'text-gray-600' : 'text-gray-500'
-                )}>
-                  {tab.label}
-                </span>
-                {/* Active indicator dot */}
-                {tab.active && (
-                  <div className="absolute top-1.5 w-1 h-1 rounded-full bg-primary-400" />
-                )}
-              </Link>
-            )
-          })}
+          {/* Explore */}
+          <Link
+            href="/explore"
+            className={classNames(
+              'flex flex-col items-center justify-center flex-1 py-2 min-h-[56px] transition-colors relative',
+              isRouteActive('/explore') ? 'text-primary-400' : 'text-gray-500'
+            )}
+          >
+            <Compass className="w-5 h-5" />
+            <span className={classNames(
+              'text-[10px] mt-1 font-medium',
+              isRouteActive('/explore') ? 'text-primary-400' : 'text-gray-500'
+            )}>Explore</span>
+            {isRouteActive('/explore') && (
+              <div className="absolute top-1.5 w-1 h-1 rounded-full bg-primary-400" />
+            )}
+          </Link>
 
-          {/* More tab — opens bottom sheet instead of navigating */}
+          {/* Map */}
+          <Link
+            href="/map"
+            className={classNames(
+              'flex flex-col items-center justify-center flex-1 py-2 min-h-[56px] transition-colors relative',
+              isRouteActive('/map') ? 'text-primary-400' : 'text-gray-500'
+            )}
+          >
+            <MapIcon className="w-5 h-5" />
+            <span className={classNames(
+              'text-[10px] mt-1 font-medium',
+              isRouteActive('/map') ? 'text-primary-400' : 'text-gray-500'
+            )}>Map</span>
+            {isRouteActive('/map') && (
+              <div className="absolute top-1.5 w-1 h-1 rounded-full bg-primary-400" />
+            )}
+          </Link>
+
+          {/* Discover FAB \u2014 elevated center button, the hook for casual users */}
+          <Link
+            href="/discover"
+            className="flex flex-col items-center justify-center flex-1 py-2 min-h-[56px]"
+          >
+            <div className={classNames(
+              'flex items-center justify-center w-12 h-12 -mt-4 rounded-full shadow-lg transition-all',
+              isRouteActive('/discover')
+                ? 'bg-primary-500 text-white shadow-primary-500/40 scale-110'
+                : 'bg-primary-600 text-white shadow-primary-600/30'
+            )}>
+              <Flame className="w-6 h-6" />
+            </div>
+          </Link>
+
+          {/* Auth-aware 4th tab */}
+          <Link
+            href={fourthHref}
+            className={classNames(
+              'flex flex-col items-center justify-center flex-1 py-2 min-h-[56px] transition-colors relative',
+              fourthActive ? 'text-primary-400' : 'text-gray-500'
+            )}
+          >
+            <FourthIcon className="w-5 h-5" />
+            <span className={classNames(
+              'text-[10px] mt-1 font-medium',
+              fourthActive ? 'text-primary-400' : 'text-gray-500'
+            )}>
+              {fourthLabel}
+            </span>
+            {fourthActive && (
+              <div className="absolute top-1.5 w-1 h-1 rounded-full bg-primary-400" />
+            )}
+          </Link>
+
+          {/* More \u2014 opens bottom sheet */}
           <button
             onClick={function() { setIsMoreOpen(true) }}
             className={classNames(
@@ -155,59 +187,101 @@ export function MobileBottomTabs() {
             <span className={classNames(
               'text-[10px] mt-1 font-medium',
               isMoreOpen ? 'text-primary-400' : 'text-gray-500'
-            )}>
-              More
-            </span>
+            )}>More</span>
           </button>
         </div>
       </nav>
 
-      {/* More sheet */}
+      {/* More sheet \u2014 unified menu for all contexts */}
       <MobileBottomSheet
         isOpen={isMoreOpen}
         onClose={function() { setIsMoreOpen(false) }}
         title="More"
         snapPoint="half"
       >
-        <div className="px-4 py-3 space-y-1">
-          {MORE_ITEMS.map(function(item) {
-            var Icon = item.icon
-            var active = isActive(item.href)
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={function() { setIsMoreOpen(false) }}
-                className={classNames(
-                  'flex items-center gap-3 px-3 py-3 rounded-lg transition-colors',
-                  active
-                    ? 'bg-primary-600/20 text-primary-400'
-                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                )}
-              >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                <span className="text-sm font-medium">{item.label}</span>
-              </Link>
-            )
-          })}
+        <div className="px-4 py-3">
+          {/* Browse section */}
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider px-3 mb-2">Browse</p>
+          <div className="space-y-0.5">
+            <MoreLink href="/" label="Home" icon={Home} active={router.pathname === '/'} onClose={function() { setIsMoreOpen(false) }} />
 
-          {/* Divider */}
-          <div className="my-2 border-t border-gray-800" />
+            {/* Show Encyclopedia here for logged-in users (their 4th tab is Library/Dashboard) */}
+            {isLoggedIn && (
+              <MoreLink href="/phenomena" label="Encyclopedia" icon={BookOpen} active={isPhenomenaRoute} onClose={function() { setIsMoreOpen(false) }} />
+            )}
 
-          {/* Sign out */}
-          <button
-            onClick={function() {
-              setIsMoreOpen(false)
-              handleSignOut()
-            }}
-            className="flex items-center gap-3 px-3 py-3 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors w-full"
-          >
-            <LogOut className="w-5 h-5 flex-shrink-0" />
-            <span className="text-sm font-medium">Sign Out</span>
-          </button>
+            <MoreLink href="/insights" label="AI Insights" icon={Sparkles} active={isRouteActive('/insights')} onClose={function() { setIsMoreOpen(false) }} />
+            <MoreLink href="/submit" label="Submit Report" icon={PlusCircle} active={false} onClose={function() { setIsMoreOpen(false) }} iconClassName="text-primary-400" />
+          </div>
+
+          {/* My Paradocs \u2014 only for logged-in users */}
+          {isLoggedIn && (
+            <>
+              <div className="my-3 border-t border-gray-800" />
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider px-3 mb-2">My Paradocs</p>
+              <div className="space-y-0.5">
+                <MoreLink href="/dashboard/research-hub" label="Research Hub" icon={FlaskConical} active={isRouteActive('/dashboard/research-hub')} onClose={function() { setIsMoreOpen(false) }} />
+                <MoreLink href="/dashboard/constellation" label="Constellation" icon={Stars} active={isRouteActive('/dashboard/constellation')} onClose={function() { setIsMoreOpen(false) }} />
+                <MoreLink href="/dashboard/saved" label="Saved Reports" icon={Bookmark} active={isRouteActive('/dashboard/saved')} onClose={function() { setIsMoreOpen(false) }} />
+                <MoreLink href="/dashboard/reports" label="My Reports" icon={FileText} active={isRouteActive('/dashboard/reports')} onClose={function() { setIsMoreOpen(false) }} />
+                <MoreLink href="/dashboard/journal" label="Journal" icon={BookOpen} active={isRouteActive('/dashboard/journal')} onClose={function() { setIsMoreOpen(false) }} />
+                <MoreLink href="/dashboard/digests" label="Weekly Digests" icon={Newspaper} active={isRouteActive('/dashboard/digests')} onClose={function() { setIsMoreOpen(false) }} />
+              </div>
+            </>
+          )}
+
+          {/* Account section */}
+          <div className="my-3 border-t border-gray-800" />
+          <div className="space-y-0.5">
+            {isLoggedIn ? (
+              <>
+                <MoreLink href="/dashboard/subscription" label="Subscription" icon={CreditCard} active={isRouteActive('/dashboard/subscription')} onClose={function() { setIsMoreOpen(false) }} />
+                <MoreLink href="/dashboard/settings" label="Settings" icon={Settings} active={isRouteActive('/dashboard/settings')} onClose={function() { setIsMoreOpen(false) }} />
+                <button
+                  onClick={function() {
+                    setIsMoreOpen(false)
+                    handleSignOut()
+                  }}
+                  className="flex items-center gap-3 px-3 py-3 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors w-full"
+                >
+                  <LogOut className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-sm font-medium">Sign Out</span>
+                </button>
+              </>
+            ) : (
+              <MoreLink href="/login" label="Sign In" icon={LogIn} active={false} onClose={function() { setIsMoreOpen(false) }} />
+            )}
+          </div>
         </div>
       </MobileBottomSheet>
     </>
+  )
+}
+
+/** Reusable link row for the More sheet */
+function MoreLink(props: {
+  href: string
+  label: string
+  icon: React.ElementType
+  active: boolean
+  onClose: () => void
+  iconClassName?: string
+}) {
+  var Icon = props.icon
+  return (
+    <Link
+      href={props.href}
+      onClick={props.onClose}
+      className={classNames(
+        'flex items-center gap-3 px-3 py-3 rounded-lg transition-colors',
+        props.active
+          ? 'bg-primary-600/20 text-primary-400'
+          : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+      )}
+    >
+      <Icon className={classNames('w-5 h-5 flex-shrink-0', props.iconClassName || '')} />
+      <span className="text-sm font-medium">{props.label}</span>
+    </Link>
   )
 }
 

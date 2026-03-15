@@ -1,8 +1,46 @@
 # HANDOFF - Mobile-First Design System (Session 13)
 
-**Last updated:** March 14, 2026
+**Last updated:** March 15, 2026
 **Session focus:** Cross-cutting mobile UX design system, navigation, and screen-by-screen redesign
 **Design references:** Netflix, Uber, Spotify, Apple Maps
+
+---
+
+## Nav Architecture: Unified Mobile Bottom Tabs (RESOLVED)
+
+Discovered dual layout problem during Phase 3a (March 14). **RESOLVED** during Session 13 Nav Unification (March 15).
+
+### How Page Layouts Work (`_app.tsx`)
+
+```
+STANDALONE_PAGES = ['/beta-access', '/survey', '/discover']  → No layout wrapper (full-screen immersive)
+CUSTOM_LAYOUT_PREFIXES = ['/dashboard']                       → DashboardLayout.tsx (sidebar + MobileBottomTabs)
+Everything else                                                → Layout.tsx (public header + MobileBottomTabs)
+```
+
+### Unified Bottom Tab Bar (SAME component everywhere)
+
+Both `Layout.tsx` and `DashboardLayout.tsx` now render the same `MobileBottomTabs` component. The tabs are identical on every page:
+
+**Tabs:** Explore (Compass) | Map (MapIcon) | **Discover FAB** (Flame, elevated center) | Library/Encyclopedia (auth-aware) | More (Menu)
+
+- **4th tab is auth-aware:** Non-logged-in users see "Encyclopedia" (BookOpen → `/phenomena`). Logged-in users see "Library" (LayoutDashboard → `/dashboard`).
+- **Discover FAB:** Elevated circular center button with Flame icon — the TikTok-like casual user hook. Visually distinct from other tabs (larger, elevated, colored background).
+- **More sheet** (MobileBottomSheet): Unified menu with sections:
+  - Browse: Home, Encyclopedia (logged-in only, since their tab is Library), AI Insights, Submit Report
+  - My Paradocs (logged-in only): Research Hub, Constellation, Saved Reports, My Reports, Journal, Weekly Digests
+  - Account: Subscription + Settings + Sign Out (logged-in) OR Sign In (guest)
+
+### Auth Detection
+
+MobileBottomTabs uses a lightweight `supabase.auth.getSession()` check — no API call, just session existence. Listens for auth state changes to update in real-time.
+
+**Discover page** (`/discover`): Standalone — no layout wrapper, no nav chrome. TikTok-like full-screen immersive. Intentionally standalone per Chase's direction.
+
+### What Was Removed
+
+- Layout.tsx: Entire inline mobile bottom nav (old Explore/Map/Discover FAB/Encyclopedia/More bar), slide-up "More" panel, `mobileMenuOpen` state, `<style jsx global>` MobileDropdownHide block (no longer needed — desktop dropdown already uses `hidden md:block`)
+- Old MobileBottomTabs: Dashboard-only tabs (Home/Explore/Research/Stars/More) replaced with unified tabs
 
 ---
 
@@ -10,7 +48,7 @@
 
 ### Phase 1 & 2 COMPLETE (Session 13, March 14, 2026)
 
-Mobile design system foundation deployed. Bottom tab navigation replaces hamburger menu. Reusable components created. Design tokens established.
+Mobile design system foundation deployed. Bottom tab navigation replaces hamburger menu in DashboardLayout. Reusable components created. Design tokens established.
 
 #### New Components Created
 
@@ -111,16 +149,46 @@ Incremental mobile fixes applied during Research Hub development:
 - **Typography:** Title scales from `text-xl` (mobile) to `text-4xl` (desktop) with `leading-tight`. Prose content uses `max-w-prose` on mobile for comfortable line length, `max-w-none` on desktop. Font size forced to 16px on mobile (prevents iOS zoom on focus).
 - **Content spacing:** `mobile-title-offset` class adds top padding to clear MobileHeader + safe area. `mobile-content-pb` adds bottom padding to clear bottom tabs.
 
-### Known Issues (Remaining for Phase 3)
+### Nav Unification COMPLETE (Session 13, March 15, 2026)
 
-1. **ArtifactDetailDrawer** — Still slides from right as a full-screen overlay on mobile. Should become a bottom sheet (use MobileBottomSheet). Deferred to Phase 3.
-2. **ArtifactQuickAdd** — Modal overlay, not a bottom sheet. URL paste field should be at top of sheet for mobile keyboard. Deferred to Phase 3.
-3. **Explore page** — Title `text-3xl` too large on mobile. Feed scroll arrows invisible on touch. Not wrapped in DashboardLayout (public page, no bottom tabs). Needs Phase 3 treatment.
-4. **Map page** — Selected report panel should be bottom sheet on mobile. Legend/filter button collision on narrow screens. Phase 3.
-5. **Constellation map** — D3 touch controls unverified. Phase 3.
-6. **Journal, Search, Settings** — Unaudited. Phase 3.
-7. **MobileSidebar.tsx** — Still exists and works as case-file picker sheet within Research Hub. Could be refactored to use MobileBottomSheet for consistency. Low priority.
-8. **Report detail: progressive disclosure** — Environmental Context + Academic Observation Panel could be collapsible on mobile to reduce scroll depth. Low priority enhancement.
+**`src/components/mobile/MobileBottomTabs.tsx`** — Complete rewrite:
+- REMOVED: Dashboard-only tab structure (Home/Explore/Research/Stars/More)
+- REMOVED: `useSubscription` dependency (no longer needed for tab gating)
+- ADDED: Unified 5-tab bar used by both Layout.tsx and DashboardLayout
+- ADDED: Auth-aware 4th tab (Encyclopedia for guests, Library/Dashboard for logged-in)
+- ADDED: Discover FAB (elevated center button with Flame icon)
+- ADDED: Comprehensive More sheet with Browse + My Paradocs + Account sections
+- ADDED: Lightweight auth check via `supabase.auth.getSession()` (no API call)
+- ADDED: `MoreLink` helper component for DRY More sheet items
+- SWC compliant: `var`, `function(){}`, string concatenation
+
+**`src/components/Layout.tsx`** — Major cleanup:
+- REMOVED: Entire mobile bottom nav (lines 212-285 of old file)
+- REMOVED: Slide-up "More" menu panel (lines 287-433 of old file)
+- REMOVED: `mobileMenuOpen` state
+- REMOVED: `<style jsx global>` MobileDropdownHide component (SWC violation eliminated)
+- REMOVED: Unused imports (Menu, X, BarChart3, Star, Bookmark)
+- ADDED: `MobileBottomTabs` import and render
+- Desktop header nav unchanged
+
+**`src/pages/report/[slug].tsx`** — Quick fix:
+- Reading progress bar: `h-[3px]` → `h-1.5` (6px) for better visibility
+
+### Known Issues (Remaining)
+
+**RESOLVED:** ~~Nav Unification~~ ✅ (March 15, 2026)
+**RESOLVED:** ~~Layout.tsx `<style jsx global>` block~~ ✅ (removed entirely, no longer needed)
+
+**Phase 3 Remaining Screens:**
+3. **ArtifactDetailDrawer** — Still slides from right as a full-screen overlay on mobile. Should become a bottom sheet (use MobileBottomSheet).
+4. **ArtifactQuickAdd** — Modal overlay, not a bottom sheet. URL paste field should be at top of sheet for mobile keyboard.
+5. **Explore page** — Title `text-3xl` too large on mobile. Feed scroll arrows invisible on touch. Uses Layout.tsx wrapper.
+6. **Map page** — Selected report panel should be bottom sheet on mobile. Legend/filter button collision on narrow screens.
+7. **Constellation map** — D3 touch controls unverified.
+8. **Dashboard home** — Needs mobile-first layout hierarchy (Netflix-style card rows, compact activity feed, horizontal metric pills).
+9. **Journal, Search, Settings** — Unaudited.
+10. **MobileSidebar.tsx** — Still exists as case-file picker in Research Hub. Could refactor to use MobileBottomSheet for consistency. Low priority.
+11. **Report detail: progressive disclosure** — Environmental Context + Academic Observation Panel could be collapsible on mobile. Low priority.
 
 ## API Endpoints
 

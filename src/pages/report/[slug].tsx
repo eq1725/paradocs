@@ -544,7 +544,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     <>
       {/* Reading progress bar — fixed at very top, z-index above everything */}
       <div
-        className="fixed top-0 left-0 h-[3px] z-[9999] pointer-events-none"
+        className="fixed top-0 left-0 h-1.5 z-[9999] pointer-events-none"
         style={{ width: scrollProgress + '%', background: 'linear-gradient(90deg, #5b63f1, #8b5cf6)', transition: 'width 0.1s ease-out' }}
       />
 

@@ -1,18 +1,30 @@
 'use client'
 
+/**
+ * Layout Component — public page wrapper (Explore, Map, Report, Encyclopedia, Insights, etc.)
+ *
+ * Session 13 Nav Unification: Mobile bottom nav replaced with shared MobileBottomTabs.
+ * The old inline 5-tab nav (Explore/Map/Discover FAB/Encyclopedia/More) and slide-up
+ * menu panel have been removed. MobileBottomTabs now provides consistent navigation
+ * across ALL pages (public + dashboard).
+ *
+ * Desktop header nav is unchanged.
+ */
+
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import {
-  Search, Menu, X, Home, Compass, Map, PlusCircle,
-  BarChart3, User, LogOut, LogIn, Settings, LayoutDashboard, BookOpen, Sparkles,
-  Flame, Bookmark, Star
+  Search, Home, Compass, Map, PlusCircle,
+  BookOpen, Sparkles, Flame,
+  User, LogOut, LogIn, Settings, LayoutDashboard
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Profile } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
 import { Avatar } from '@/components/AvatarSelector'
 import NavigationHelper from '@/components/NavigationHelper'
+import { MobileBottomTabs } from '@/components/mobile/MobileBottomTabs'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -22,7 +34,6 @@ export default function Layout({ children }: LayoutProps) {
   const router = useRouter()
   const [user, setUser] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
@@ -76,9 +87,6 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen">
-      {/* Force hide desktop dropdown on mobile */}
-      <MobileDropdownHide />
-
       {/* Starfield background */}
       <Starfield />
 
@@ -145,7 +153,7 @@ export default function Layout({ children }: LayoutProps) {
               {!loading && (
                 user ? (
                   <>
-                    {/* Mobile: Simple link to dashboard (no dropdown) */}
+                    {/* Mobile: Simple link to dashboard */}
                     <Link
                       href="/dashboard"
                       className="md:hidden flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 transition-colors"
@@ -156,8 +164,8 @@ export default function Layout({ children }: LayoutProps) {
                         size="md"
                       />
                     </Link>
-                    {/* Desktop: Hover dropdown menu - HIDDEN ON MOBILE */}
-                    <div className="desktop-user-dropdown relative group hidden md:block">
+                    {/* Desktop: Hover dropdown menu */}
+                    <div className="relative group hidden md:block">
                       <button className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 transition-colors">
                         <Avatar
                           avatar={user.avatar_url}
@@ -202,237 +210,15 @@ export default function Layout({ children }: LayoutProps) {
                   </Link>
                 )
               )}
-
-              {/* Mobile menu button - hidden, bottom bar handles this */}
             </div>
           </div>
         </div>
       </header>
 
-      {/* Mobile Bottom Navigation Bar - Always visible on mobile */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-xl border-t border-white/10 safe-area-pb">
-        <div className="flex items-center justify-around h-16">
-          <Link
-            href="/explore"
-            className={classNames(
-              'flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors relative',
-              router.pathname === '/explore' || router.pathname.startsWith('/explore')
-                ? 'text-primary-400'
-                : 'text-gray-400 hover:text-white'
-            )}
-          >
-            <Compass className="w-5 h-5" />
-            <span className="text-xs mt-1">Explore</span>
-            {(router.pathname === '/explore' || router.pathname.startsWith('/explore')) && (
-              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary-500 rounded-full" />
-            )}
-          </Link>
-          <Link
-            href="/map"
-            className={classNames(
-              'flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors relative',
-              router.pathname === '/map'
-                ? 'text-primary-400'
-                : 'text-gray-400 hover:text-white'
-            )}
-          >
-            <Map className="w-5 h-5" />
-            <span className="text-xs mt-1">Map</span>
-            {router.pathname === '/map' && (
-              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary-500 rounded-full" />
-            )}
-          </Link>
-          {/* Center FAB: Discover for everyone - the hook that pulls casual users in */}
-          <Link
-            href="/discover"
-            className="flex flex-col items-center justify-center flex-1 h-full py-2"
-          >
-            <div className={classNames(
-              'flex items-center justify-center w-12 h-12 -mt-4 rounded-full shadow-lg transition-all',
-              router.pathname === '/discover'
-                ? 'bg-primary-500 text-white shadow-primary-500/40 scale-110'
-                : 'bg-primary-600 text-white shadow-primary-600/30'
-            )}>
-              <Flame className="w-6 h-6" />
-            </div>
-          </Link>
-          <Link
-            href="/phenomena"
-            className={classNames(
-              'flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors relative',
-              router.pathname === '/phenomena' || router.pathname.startsWith('/phenomena')
-                ? 'text-primary-400'
-                : 'text-gray-400 hover:text-white'
-            )}
-          >
-            <BookOpen className="w-5 h-5" />
-            <span className="text-xs mt-1">Encyclopedia</span>
-            {(router.pathname === '/phenomena' || router.pathname.startsWith('/phenomena')) && (
-              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary-500 rounded-full" />
-            )}
-          </Link>
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className={classNames(
-              'flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors relative',
-              mobileMenuOpen ? 'text-primary-400' : 'text-gray-400 hover:text-white'
-            )}
-          >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            <span className="text-xs mt-1">More</span>
-          </button>
-        </div>
-      </nav>
+      {/* Unified Mobile Bottom Navigation — same component used by DashboardLayout */}
+      <MobileBottomTabs />
 
-      {/* Mobile Slide-up Menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-40" onClick={() => setMobileMenuOpen(false)}>
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-
-          {/* Menu Panel */}
-          <div
-            className="absolute bottom-16 left-0 right-0 bg-gray-900/98 backdrop-blur-xl border-t border-white/10 rounded-t-2xl max-h-[70vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Search */}
-            <div className="p-4 border-b border-white/5">
-              <form onSubmit={handleSearch}>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input
-                    type="text"
-                    placeholder="Search phenomena..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm"
-                  />
-                </div>
-              </form>
-            </div>
-
-            {/* BROWSE Section */}
-            <div className="px-4 pt-4 pb-2">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Browse</p>
-              <div className="space-y-1">
-                <Link
-                  href="/"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
-                >
-                  <Home className="w-5 h-5" />
-                  <span>Home</span>
-                </Link>
-                <Link
-                  href="/discover"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
-                >
-                  <Flame className="w-5 h-5" />
-                  <span>Discover Feed</span>
-                </Link>
-                <Link
-                  href="/insights"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
-                >
-                  <Sparkles className="w-5 h-5" />
-                  <span>AI Insights</span>
-                </Link>
-                <Link
-                  href="/analytics"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
-                >
-                  <BarChart3 className="w-5 h-5" />
-                  <span>Analytics</span>
-                </Link>
-              </div>
-            </div>
-
-            {/* ACTIONS Section */}
-            <div className="px-4 pt-2 pb-2">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Actions</p>
-              <div className="space-y-1">
-                <Link
-                  href="/submit"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
-                >
-                  <PlusCircle className="w-5 h-5 text-primary-400" />
-                  <span>Submit Report</span>
-                </Link>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="mx-4 border-t border-white/5" />
-
-            {/* MY PARADOCS Section */}
-            <div className="px-4 pt-4 pb-2">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">My Paradocs</p>
-              <div className="space-y-1">
-                {user ? (
-                  <>
-                    {/* User profile header */}
-                    <div className="flex items-center gap-3 px-3 py-3 mb-2 bg-white/5 rounded-xl">
-                      <Avatar
-                        avatar={user.avatar_url}
-                        fallback={user.display_name || user.username}
-                        size="md"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-white truncate">{user.display_name || user.username}</p>
-                        <p className="text-xs text-gray-400 truncate">@{user.username}</p>
-                      </div>
-                    </div>
-                    <Link
-                      href="/dashboard"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
-                    >
-                      <LayoutDashboard className="w-5 h-5" />
-                      <span>Dashboard</span>
-                    </Link>
-                    <Link
-                      href="/dashboard/settings"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
-                    >
-                      <Settings className="w-5 h-5" />
-                      <span>Settings</span>
-                    </Link>
-                    <button
-                      onClick={() => {
-                        handleSignOut()
-                        setMobileMenuOpen(false)
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
-                    >
-                      <LogOut className="w-5 h-5" />
-                      <span>Sign out</span>
-                    </button>
-                  </>
-                ) : (
-                  <Link
-                    href="/login"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
-                  >
-                    <LogIn className="w-5 h-5" />
-                    <span>Sign in</span>
-                  </Link>
-                )}
-              </div>
-            </div>
-
-            {/* Bottom padding for safe area */}
-            <div className="h-4" />
-          </div>
-        </div>
-      )}
-
-      {/* Scroll position restoration for list→detail→list navigation */}
+      {/* Scroll position restoration for list-detail-list navigation */}
       <NavigationHelper />
 
       {/* Main content - accounts for header + safe area (Dynamic Island) + bottom nav */}
@@ -486,20 +272,6 @@ export default function Layout({ children }: LayoutProps) {
     </div>
   )
 }
-
-// Force hide desktop dropdown on mobile - CSS override
-const MobileDropdownHide = () => (
-  <style jsx global>{`
-    @media (max-width: 767px) {
-      .desktop-user-dropdown {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
-      }
-    }
-  `}</style>
-)
 
 // Starfield component
 function Starfield() {
