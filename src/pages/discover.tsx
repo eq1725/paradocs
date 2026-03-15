@@ -274,10 +274,11 @@ export default function DiscoverPage() {
       <Head>
         <title>Discover - Paradocs</title>
         <meta name="description" content="Scroll through the world's most fascinating paranormal phenomena. Cryptids, UFOs, ghosts, and unexplained events — one swipe at a time." />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </Head>
 
-      {/* Fixed header — compact on mobile to avoid overlap */}
-      <div className="fixed top-0 left-0 right-0 z-50 px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between bg-gradient-to-b from-gray-950 via-gray-950/80 to-transparent pointer-events-none">
+      {/* Fixed header — sits below status bar on mobile via safe-area-inset */}
+      <div className="fixed top-0 left-0 right-0 z-50 px-3 sm:px-4 pt-[max(0.625rem,env(safe-area-inset-top))] sm:pt-3 pb-2 sm:pb-3 flex items-center justify-between bg-gradient-to-b from-gray-950 via-gray-950/80 to-transparent pointer-events-none">
         <div className="flex items-center gap-2.5 pointer-events-auto">
           <Link href="/">
             <span className="text-lg sm:text-xl font-bold text-white tracking-tight">Paradocs<span className="text-purple-500">.</span></span>
@@ -308,19 +309,18 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      {/* Progress indicator */}
-      <div className="fixed top-0 left-0 right-0 z-40 h-0.5 bg-gray-900">
+      {/* Progress indicator — below safe area */}
+      <div className="fixed left-0 right-0 z-40 h-0.5 bg-gray-900" style={{ top: 'env(safe-area-inset-top, 0px)' }}>
         <div
           className="h-full bg-purple-500 transition-all duration-300"
           style={{ width: totalAvailable > 0 ? ((currentIndex + 1) / totalAvailable * 100) + '%' : items.length > 0 ? ((currentIndex + 1) / items.length * 100) + '%' : '0%' }}
         />
       </div>
 
-      {/* Main scroll container */}
+      {/* Main scroll container — overscroll-none prevents bounce-through on iOS */}
       <div
         ref={containerRef}
-        className="h-screen overflow-y-auto snap-y snap-mandatory"
-        style={{ scrollBehavior: 'smooth' }}
+        className="h-screen overflow-y-auto snap-y snap-mandatory overscroll-y-none"
       >
         {items.map(function (item, index) {
           return (
@@ -340,14 +340,14 @@ export default function DiscoverPage() {
 
         {/* Loading more indicator */}
         {loadingMore && (
-          <div className="h-screen w-full snap-start flex items-center justify-center bg-gray-950">
+          <div className="h-screen w-full snap-start snap-always flex items-center justify-center bg-gray-950">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
           </div>
         )}
 
         {/* End of feed */}
         {!hasMore && items.length > 0 && (
-          <div className="h-screen w-full snap-start flex flex-col items-center justify-center bg-gray-950 px-6 text-center">
+          <div className="h-screen w-full snap-start snap-always flex flex-col items-center justify-center bg-gray-950 px-6 text-center">
             <Sparkles className="w-12 h-12 text-purple-500 mb-4" />
             <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">You have explored them all!</h2>
             <p className="text-gray-400 text-sm sm:text-base mb-8 max-w-md">
@@ -467,7 +467,7 @@ function DiscoverCard({ item, index, isActive, user, imgError, onImageError, onR
     <div
       ref={onRef}
       data-index={index}
-      className="h-screen w-full snap-start relative overflow-hidden bg-gray-950"
+      className="h-screen w-full snap-start snap-always relative overflow-hidden bg-gray-950"
     >
       {/* Background image */}
       {hasImage && !isPlaceholder ? (
