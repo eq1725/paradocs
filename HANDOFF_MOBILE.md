@@ -100,16 +100,29 @@ Incremental mobile fixes applied during Research Hub development:
 - Dashboard index: Truncation, overflow-hidden, responsive metric pills
 - DashboardLayout: Safe area handling (now migrated to globals.css)
 
+### Phase 3a COMPLETE: Report Detail Mobile Redesign (Session 13, March 14, 2026)
+
+**`src/pages/report/[slug].tsx`** — Mobile reading experience overhaul:
+
+- **Bug fix:** Reading progress bar was misplaced inside the error/not-found conditional block. Moved to main render so it displays during actual report reading.
+- **MobileHeader added:** Sticky top bar with back button (router.back), truncated report title, save/share action buttons. Hidden on desktop (md:hidden). Handles safe-area-inset-top for notch/Dynamic Island.
+- **MobileBottomTabs added:** Persistent bottom navigation added directly (page is not in DashboardLayout). Provides consistent navigation: Home, Explore, Research, Stars, More.
+- **Breadcrumb hidden on mobile:** Replaced by MobileHeader back button. Still visible on desktop (`hidden md:flex`).
+- **Sticky action bar → inline on mobile:** Voting/share/save bar is `md:sticky md:bottom-0` — stays sticky on desktop but flows inline on mobile to avoid overlapping bottom tabs. Added `rounded-xl` on mobile for visual distinction.
+- **Native share:** `navigator.share` is now the primary share method (triggers iOS/Android share sheet). Falls back to clipboard copy on desktop.
+- **Typography:** Title scales from `text-xl` (mobile) to `text-4xl` (desktop) with `leading-tight`. Prose content uses `max-w-prose` on mobile for comfortable line length, `max-w-none` on desktop. Font size forced to 16px on mobile (prevents iOS zoom on focus).
+- **Content spacing:** `mobile-title-offset` class adds top padding to clear MobileHeader + safe area. `mobile-content-pb` adds bottom padding to clear bottom tabs.
+
 ### Known Issues (Remaining for Phase 3)
 
 1. **ArtifactDetailDrawer** — Still slides from right as a full-screen overlay on mobile. Should become a bottom sheet (use MobileBottomSheet). Deferred to Phase 3.
 2. **ArtifactQuickAdd** — Modal overlay, not a bottom sheet. URL paste field should be at top of sheet for mobile keyboard. Deferred to Phase 3.
 3. **Explore page** — Title `text-3xl` too large on mobile. Feed scroll arrows invisible on touch. Not wrapped in DashboardLayout (public page, no bottom tabs). Needs Phase 3 treatment.
-4. **Report detail page** — No mobile reading experience optimization. Needs sticky bottom action bar, max-w-prose, progressive disclosure. Phase 3.
-5. **Map page** — Selected report panel should be bottom sheet on mobile. Legend/filter button collision on narrow screens. Phase 3.
-6. **Constellation map** — D3 touch controls unverified. Phase 3.
-7. **Journal, Search, Settings** — Unaudited. Phase 3.
-8. **MobileSidebar.tsx** — Still exists and works as case-file picker sheet within Research Hub. Could be refactored to use MobileBottomSheet for consistency. Low priority.
+4. **Map page** — Selected report panel should be bottom sheet on mobile. Legend/filter button collision on narrow screens. Phase 3.
+5. **Constellation map** — D3 touch controls unverified. Phase 3.
+6. **Journal, Search, Settings** — Unaudited. Phase 3.
+7. **MobileSidebar.tsx** — Still exists and works as case-file picker sheet within Research Hub. Could be refactored to use MobileBottomSheet for consistency. Low priority.
+8. **Report detail: progressive disclosure** — Environmental Context + Academic Observation Panel could be collapsible on mobile to reduce scroll depth. Low priority enhancement.
 
 ## API Endpoints
 

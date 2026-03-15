@@ -47,6 +47,7 @@ const AcademicObservationPanel = dynamic(
 import FormattedDescription from '@/components/FormattedDescription'
 import OnboardingTour, { hasCompletedOnboarding } from '@/components/OnboardingTour'
 import AskTheUnknown from '@/components/AskTheUnknown'
+import { MobileHeader, MobileBottomTabs } from '@/components/mobile'
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
 const LocationMap = dynamic(
@@ -479,17 +480,17 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   }
 
   function handleShare() {
-    const url = window.location.href
-    navigator.clipboard.writeText(url).then(() => {
+    var url = window.location.href
+    // Use native share sheet on mobile (better UX), clipboard on desktop
+    if (navigator.share) {
+      navigator.share({ title: report?.title || 'Paradocs', url: url }).catch(function() {})
+      return
+    }
+    navigator.clipboard.writeText(url).then(function() {
       setCopiedShare(true)
-      setTimeout(() => setCopiedShare(false), 2000)
+      setTimeout(function() { setCopiedShare(false) }, 2000)
       showToast('success', 'Link copied to clipboard')
-    }).catch(() => {
-      // Fallback for older browsers
-      if (navigator.share) {
-        navigator.share({ title: report?.title, url })
-      }
-    })
+    }).catch(function() {})
   }
 
   if (loading) {
@@ -507,8 +508,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
       <div className="max-w-4xl mx-auto px-4 py-16 text-center">
         {fetchError ? (
           <>
-      {/* Reading progress bar */}
-      <div style={{ position: 'fixed', top: 0, left: 0, width: scrollProgress + '%', height: '3px', background: 'linear-gradient(90deg, #5b63f1, #8b5cf6)', zIndex: 9999, transition: 'width 0.1s ease-out' }} />
             <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-white mb-2">Temporarily Unavailable</h2>
             <p className="text-gray-400 mb-6">We&apos;re experiencing a brief service interruption. This page will be back shortly.</p>
@@ -542,6 +541,42 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
 
   return (
     <>
+      {/* Reading progress bar — fixed at very top, z-index above everything */}
+      <div
+        className="fixed top-0 left-0 h-[3px] z-[9999] pointer-events-none"
+        style={{ width: scrollProgress + '%', background: 'linear-gradient(90deg, #5b63f1, #8b5cf6)', transition: 'width 0.1s ease-out' }}
+      />
+
+      {/* Mobile reading header — back button, truncated title, save/share actions */}
+      <MobileHeader
+        title={report.title}
+        showBack
+        actions={
+          <div className="flex items-center">
+            {user && (
+              <button
+                onClick={handleSave}
+                disabled={savingReport}
+                className={classNames(
+                  'p-2.5 transition-colors',
+                  isSaved ? 'text-primary-400' : 'text-gray-400'
+                )}
+                aria-label={isSaved ? 'Unsave report' : 'Save report'}
+              >
+                <Bookmark className="w-5 h-5" fill={isSaved ? 'currentColor' : 'none'} />
+              </button>
+            )}
+            <button
+              onClick={handleShare}
+              className="p-2.5 text-gray-400 hover:text-white transition-colors"
+              aria-label="Share report"
+            >
+              <Share2 className="w-5 h-5" />
+            </button>
+          </div>
+        }
+      />
+
       <Head>
         <title>{report.title} - Paradocs</title>
         <meta name="description" content={report.summary || report.description?.slice(0, 160)} />
@@ -568,12 +603,12 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         ))}
       </Head>
 
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8 mobile-title-offset md:pt-8 mobile-content-pb">
         <div className="lg:flex lg:gap-8">
           {/* Main content */}
           <article className="flex-1 max-w-4xl overflow-hidden">
         {/* Breadcrumb nav */}
-        <nav className="flex items-center gap-1.5 text-sm text-gray-400 mb-6 overflow-hidden">
+        <nav className="hidden md:flex items-center gap-1.5 text-sm text-gray-400 mb-6 overflow-hidden">
           <Link href="/explore" className="hover:text-white transition-colors shrink-0">
             Explore
           </Link>
@@ -662,7 +697,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             )}
           </div>
 
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold text-white mb-4">
+          <h1 className="text-xl sm:text-3xl md:text-4xl font-display font-bold text-white mb-4 leading-tight">
             {report.title}
           </h1>
 
@@ -769,12 +804,12 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           </div>
         )}
 
-        {/* Main content */}
+        {/* Main content — optimized reading typography on mobile */}
         <div className="glass-card p-4 sm:p-6 md:p-8 mb-6 sm:mb-8 overflow-hidden" data-tour-step="description">
-          <div className="prose prose-invert max-w-none">
+          <div className="prose prose-invert max-w-prose mx-auto md:max-w-none md:mx-0">
             <FormattedDescription
               text={report.description || ''}
-              className="text-gray-300 leading-relaxed break-words"
+              className="text-gray-300 leading-relaxed break-words text-[16px] md:text-base"
             />
           </div>
 
@@ -891,8 +926,8 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         {/* Did You Know? Connection Cards */}
         <ConnectionCards reportSlug={slug as string} className="mb-6 sm:mb-8" />
 
-        {/* Actions bar */}
-        <div className="sticky bottom-0 z-40 -mx-3 sm:-mx-4 px-3 sm:px-4 py-3 bg-black/80 backdrop-blur-md border-t border-white/10 mb-6 sm:mb-8">
+        {/* Actions bar — non-sticky on mobile (bottom tabs handle nav), sticky on desktop */}
+        <div className="md:sticky md:bottom-0 z-40 -mx-3 sm:-mx-4 px-3 sm:px-4 py-3 bg-black/80 backdrop-blur-md border-t border-white/10 mb-6 sm:mb-8 rounded-xl md:rounded-none">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 sm:gap-4">
               <button
@@ -1136,6 +1171,9 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             onLogged={(entry: any) => setIsLogged(!!entry)}
           />
         )}
+
+        {/* Mobile bottom navigation — persistent across all pages */}
+        <MobileBottomTabs />
     </>
   )
 }
