@@ -2,7 +2,7 @@
 
 **Session:** Map & Geospatial
 **Date:** 2026-03-16
-**Status:** Phase 1 & 2 COMPLETE — Phase 3 deferred to post-ingestion
+**Status:** Phase 1 & 2 COMPLETE — Phase 3 partially complete (placeholder cards deployed, UX tuned)
 
 ---
 
@@ -880,7 +880,7 @@ src/pages/map.tsx                      — UPDATED: wired timeline, basemap stat
 Phase 3 focuses on cross-page integration and is best tackled after mass data ingestion when there's enough data to make spotlight cards and deep-link views compelling.
 
 1. **Explore page Map Spotlight cards:** Horizontal-scroll card row with curated map views. Each card deep-links to `/map?category=...&bounds=...`.
-   - **PLACEHOLDER CARDS DEPLOYED (March 16, 2026):** 5 hardcoded cards in `src/components/map/MapSpotlightRow.tsx` — UFO Hotspots (US), Cryptid Sightings, Ghost & Hauntings, Global Heatmap, Pre-Modern Encounters. Inserted after 1st feed section on Explore Discover tab.
+   - **PLACEHOLDER CARDS DEPLOYED (March 16, 2026):** 5 hardcoded cards in `src/components/map/MapSpotlightRow.tsx` — UFO Hotspots (US), Cryptid Sightings, Ghost & Hauntings, Global Heatmap, Pre-Modern Encounters. Renders as 2nd row in Explore Discover feed (after Encyclopedia Spotlight). Card dimensions matched to Encyclopedia Spotlight cards (`min-w-[75vw] sm:min-w-[260px]`, `h-44 sm:h-48`).
    - **POST-INGESTION TODO:** Replace hardcoded `SPOTLIGHT_CARDS` array with dynamically generated cards based on cluster density, recent activity hotspots, and user-relevant geographic areas. Add pre-rendered static map thumbnail images. Update report counts from actual data.
 2. **Deep-link URL schema:** Already partially done via URL-synced filters. Extend to support `?phenomenon=bigfoot`, `?bounds=lat1,lng1,lat2,lng2`, `?heatmap=true`.
 3. **Encyclopedia → map links:** "View all on map →" link on phenomenon pages opening `/map?phenomenon={slug}` pre-filtered and bounded.
