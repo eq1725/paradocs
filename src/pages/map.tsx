@@ -92,7 +92,7 @@ export default function MapPage() {
         setFlyToTarget({
           lng: pos.coords.longitude,
           lat: pos.coords.latitude,
-          zoom: 10,
+          zoom: 5,
         })
       },
       () => {
