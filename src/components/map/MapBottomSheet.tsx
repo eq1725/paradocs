@@ -104,10 +104,25 @@ export default function MapBottomSheet({
   const onSnapChangeRef = useRef(onSnapChange)
   onSnapChangeRef.current = onSnapChange
   const dragZoneRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
+  // Track whether a content-area swipe-down has been "captured" as a sheet drag
+  const contentDragCaptured = useRef(false)
 
-  // ─── Touch events with preventDefault to stop page scroll ──
-  // All values read from refs so the effect never needs to re-register
+  // ─── Snap-to-nearest helper ─────────────────────────────────
+  const snapToNearest = () => {
+    const h = currentHeightRef.current
+    const fh = fullHeightRef.current
+    const peekDist = Math.abs(h - SNAP_HEIGHTS.peek)
+    const halfDist = Math.abs(h - SNAP_HEIGHTS.half)
+    const fullDist = Math.abs(h - fh)
+    const minDist = Math.min(peekDist, halfDist, fullDist)
+    if (minDist === peekDist) onSnapChangeRef.current('peek')
+    else if (minDist === halfDist) onSnapChangeRef.current('half')
+    else onSnapChangeRef.current('full')
+  }
+
+  // ─── Drag-zone touch events (handle bar) ────────────────────
   useEffect(() => {
     const el = dragZoneRef.current
     if (!el) return
@@ -136,18 +151,7 @@ export default function MapBottomSheet({
       if (!isDraggingRef.current) return
       isDraggingRef.current = false
       setIsDragging(false)
-
-      // Snap to nearest
-      const h = currentHeightRef.current
-      const fh = fullHeightRef.current
-      const peekDist = Math.abs(h - SNAP_HEIGHTS.peek)
-      const halfDist = Math.abs(h - SNAP_HEIGHTS.half)
-      const fullDist = Math.abs(h - fh)
-
-      const minDist = Math.min(peekDist, halfDist, fullDist)
-      if (minDist === peekDist) onSnapChangeRef.current('peek')
-      else if (minDist === halfDist) onSnapChangeRef.current('half')
-      else onSnapChangeRef.current('full')
+      snapToNearest()
     }
 
     el.addEventListener('touchstart', onTouchStart, { passive: true })
@@ -160,6 +164,64 @@ export default function MapBottomSheet({
       el.removeEventListener('touchend', onTouchEnd)
     }
   }, []) // Empty deps — listeners are stable, all values read from refs
+
+  // ─── Content-area touch events: pull-down-to-dismiss ────────
+  // When scrolled to the top and swiping down, drag the sheet instead of scrolling
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+
+    const onTouchStart = (e: TouchEvent) => {
+      dragStartY.current = e.touches[0].clientY
+      dragStartHeight.current = currentHeightRef.current
+      contentDragCaptured.current = false
+    }
+
+    const onTouchMove = (e: TouchEvent) => {
+      const clientY = e.touches[0].clientY
+      const dy = clientY - dragStartY.current // positive = swiping down
+
+      // If content is scrolled to top and swiping down → capture as sheet drag
+      if (!contentDragCaptured.current && el.scrollTop <= 0 && dy > 8) {
+        contentDragCaptured.current = true
+        isDraggingRef.current = true
+        setIsDragging(true)
+        // Reset start point to current position for smooth transition
+        dragStartY.current = clientY
+        dragStartHeight.current = currentHeightRef.current
+      }
+
+      if (contentDragCaptured.current) {
+        e.preventDefault()
+        const dragDy = dragStartY.current - clientY
+        const newHeight = Math.max(
+          SNAP_HEIGHTS.peek,
+          Math.min(fullHeightRef.current, dragStartHeight.current + dragDy)
+        )
+        currentHeightRef.current = newHeight
+        setCurrentHeight(newHeight)
+      }
+    }
+
+    const onTouchEnd = () => {
+      if (contentDragCaptured.current) {
+        contentDragCaptured.current = false
+        isDraggingRef.current = false
+        setIsDragging(false)
+        snapToNearest()
+      }
+    }
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    el.addEventListener('touchend', onTouchEnd, { passive: true })
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('touchend', onTouchEnd)
+    }
+  }, []) // Empty deps — all values read from refs
 
   // Mouse events (for desktop testing)
   const onMouseDown = (e: React.MouseEvent) => {
@@ -242,7 +304,7 @@ export default function MapBottomSheet({
       </div>
 
       {/* Content below drag zone */}
-      <div className="overflow-y-auto px-4" style={{ height: `calc(100% - 56px)` }}>
+      <div ref={contentRef} className="overflow-y-auto px-4" style={{ height: `calc(100% - 56px)` }}>
         {/* Half state: report card OR stats overview */}
         {snap !== 'peek' && selectedReport && (
           <div className="pb-4">
