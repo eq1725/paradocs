@@ -14,6 +14,7 @@ import ReportCard from '@/components/ReportCard'
 import { classNames, formatRelativeDate } from '@/lib/utils'
 import AskTheUnknown from '@/components/AskTheUnknown'
 import WelcomeOnboarding, { hasCompletedWelcome } from '@/components/WelcomeOnboarding'
+import MapSpotlightRow from '@/components/map/MapSpotlightRow'
 
 interface FeedReport {
   id: string
@@ -547,6 +548,11 @@ export default function ExplorePage() {
                 {feedSections.map(function(section, sectionIndex) {
                   return (
                     <React.Fragment key={section.id}>
+                      {/* Map Spotlight — injected after 1st section */}
+                      {sectionIndex === 1 && (
+                        <MapSpotlightRow />
+                      )}
+
                       {/* Soft-wall signup card — injected after 2nd section for anonymous users */}
                       {sectionIndex === 2 && !user && (
                         <div className="relative overflow-hidden rounded-2xl border border-primary-500/20 bg-gradient-to-br from-primary-950/60 via-gray-900 to-purple-950/40 p-6 sm:p-8">
