@@ -212,52 +212,57 @@ body {
 .ai-fab-glow::before {
   content: '';
   position: absolute;
-  inset: -2px;
-  border-radius: 18px;
+  inset: -3px;
+  border-radius: 19px;
   background: conic-gradient(
     from var(--ai-glow-angle, 0deg),
     #7c3aed,
-    #6366f1,
-    #8b5cf6,
-    #a855f7,
+    #818cf8,
+    #a78bfa,
+    #c084fc,
+    #818cf8,
     #7c3aed
   );
   opacity: 0;
   z-index: -1;
-  animation: ai-border-spin 3s linear infinite, ai-border-pulse 6s ease-in-out infinite;
+  animation: ai-border-spin 2.5s linear infinite, ai-border-pulse 13s ease-in-out infinite;
 }
 
-/* Soft ambient glow underneath — the "breathing" effect */
+/* Ambient glow underneath — visible breathing effect */
 .ai-fab-glow::after {
   content: '';
   position: absolute;
-  inset: -8px;
-  border-radius: 24px;
+  inset: -14px;
+  border-radius: 30px;
   background: radial-gradient(
     ellipse at center,
-    rgba(139, 92, 246, 0.3) 0%,
-    rgba(99, 102, 241, 0.15) 40%,
+    rgba(139, 92, 246, 0.5) 0%,
+    rgba(129, 140, 248, 0.25) 40%,
     transparent 70%
   );
   z-index: -2;
   animation: ai-breathe 4s ease-in-out infinite;
-  filter: blur(8px);
+  filter: blur(12px);
 }
 
 @keyframes ai-border-spin {
   to { --ai-glow-angle: 360deg; }
 }
 
-/* Show the border ring for 3s, hide for 5s — intermittent to avoid fatigue */
+/* 13s total cycle: 3s visible burst, then 10s rest — long enough
+   rest to re-trigger novelty response per NNG attention research */
 @keyframes ai-border-pulse {
-  0%, 37.5% { opacity: 0.8; }
-  50%, 100% { opacity: 0; }
+  0% { opacity: 0; }
+  3% { opacity: 0.9; }
+  23% { opacity: 0.9; }
+  28% { opacity: 0; }
+  100% { opacity: 0; }
 }
 
-/* Gentle breathing glow — always on but subtle */
+/* Breathing glow — bolder presence, always subtly active */
 @keyframes ai-breathe {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 0.7; transform: scale(1.08); }
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.12); }
 }
 
 /* Register the custom property for conic-gradient animation */
