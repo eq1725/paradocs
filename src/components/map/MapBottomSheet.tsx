@@ -124,10 +124,55 @@ export default function MapBottomSheet({
     else onSnapChange('full')
   }, [currentHeight, fullHeight, onSnapChange])
 
-  // Touch events
-  const onTouchStart = (e: React.TouchEvent) => handleDragStart(e.touches[0].clientY)
-  const onTouchMove = (e: React.TouchEvent) => handleDragMove(e.touches[0].clientY)
-  const onTouchEnd = () => handleDragEnd()
+  // ─── Touch events with preventDefault to stop page scroll ──
+  // We use a ref-based approach so we can register { passive: false }
+  const dragZoneRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = dragZoneRef.current
+    if (!el) return
+
+    let startY = 0
+    let startH = 0
+    let dragging = false
+
+    const onTouchStart = (e: TouchEvent) => {
+      startY = e.touches[0].clientY
+      startH = currentHeight
+      dragging = true
+      setIsDragging(true)
+      dragStartY.current = startY
+      dragStartHeight.current = startH
+    }
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!dragging) return
+      e.preventDefault() // This is the key — stops the browser from scrolling the page
+      const clientY = e.touches[0].clientY
+      const dy = dragStartY.current - clientY
+      const newHeight = Math.max(
+        SNAP_HEIGHTS.peek,
+        Math.min(fullHeight, dragStartHeight.current + dy)
+      )
+      setCurrentHeight(newHeight)
+    }
+
+    const onTouchEnd = () => {
+      if (!dragging) return
+      dragging = false
+      handleDragEnd()
+    }
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchmove', onTouchMove, { passive: false }) // Must be non-passive to preventDefault
+    el.addEventListener('touchend', onTouchEnd, { passive: true })
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [currentHeight, fullHeight, handleDragEnd])
 
   // Mouse events (for desktop testing)
   const onMouseDown = (e: React.MouseEvent) => {
@@ -151,21 +196,19 @@ export default function MapBottomSheet({
         transition: isDragging ? 'none' : 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
       }}
     >
-      {/* Drag handle */}
+      {/* Drag zone — handle + stat line, tall enough to grab easily */}
       <div
-        className="flex justify-center pt-2.5 pb-2 cursor-grab active:cursor-grabbing touch-none"
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
+        ref={dragZoneRef}
+        className="cursor-grab active:cursor-grabbing touch-none select-none"
         onMouseDown={onMouseDown}
       >
-        <div className="w-10 h-1 bg-gray-600 rounded-full" />
-      </div>
+        {/* Visual drag handle */}
+        <div className="flex justify-center pt-2.5 pb-1">
+          <div className="w-10 h-1 bg-gray-600 rounded-full" />
+        </div>
 
-      {/* Content */}
-      <div className="overflow-y-auto h-[calc(100%-28px)] px-4">
-        {/* Peek state: stat line */}
-        <div className="flex items-center justify-between text-xs text-gray-400 pb-2">
+        {/* Stat line — part of the drag zone so the whole top is swipeable */}
+        <div className="flex items-center justify-between text-xs text-gray-400 pb-2 px-4">
           <span>
             {filteredCount.toLocaleString()} sighting{filteredCount !== 1 ? 's' : ''} mapped
           </span>
@@ -186,7 +229,10 @@ export default function MapBottomSheet({
             </button>
           )}
         </div>
+      </div>
 
+      {/* Content below drag zone */}
+      <div className="overflow-y-auto px-4" style={{ height: `calc(100% - 56px)` }}>
         {/* Half state: report card OR stats overview */}
         {snap !== 'peek' && selectedReport && (
           <div className="pb-4">
