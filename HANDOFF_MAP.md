@@ -2,7 +2,7 @@
 
 **Session:** Map & Geospatial
 **Date:** 2026-03-16
-**Status:** Phase 1 COMPLETE — Phase 2 in progress
+**Status:** Phase 1 & 2 COMPLETE — Phase 3 deferred to post-ingestion
 
 ---
 
@@ -368,9 +368,10 @@ Mobile: Inside bottom sheet peek area
 ```
 
 ### Features
-- Dual handles for start/end date range (1800–2026, 226 positions)
-- Era preset buttons: All Time, Pre-1900, 1900-1950, 1950-2000, 2000-Present
-- "All Time" includes reports dated before 1800 (schema DATE has no floor)
+- Dual handles for start/end date range (1400–2026, 626 positions)
+- Era preset buttons: All Time, Pre-Modern, 1900-1950, 1950-2000, 2000-Present
+- "All Time" includes reports dated before 1400 (schema DATE has no floor)
+- 1400 start covers Age of Exploration, medieval accounts, early colonial sightings
 - Histogram behind the slider showing report density per year (sparkline)
 - "Play" button that auto-advances the range (animation mode: 1 year per second)
 - Snap to decades at low zoom, individual years at high zoom
@@ -771,7 +772,7 @@ The map itself should be fully accessible to everyone — it's a top-of-funnel d
 
 3. **Pre-rendered static PNGs for Map Spotlight cards.** Stored in `/public/images/map-cards/`. Regenerated after major data ingestions. Dynamic API deferred to a future phase if personalized map cards become a feature.
 
-4. **Timeline slider: year-level granularity, 1800–2026.** 226 snap positions on the dual-handle slider. Era preset buttons above the slider: "All Time", "Pre-1900", "1900-1950", "1950-2000", "2000-Present". Reports with dates before 1800 appear when "All Time" or "Pre-1900" is active. Density histogram shows one bar per year. Month precision deferred — most report dates lack that precision anyway.
+4. **Timeline slider: year-level granularity, 1400–2026.** 626 snap positions on the dual-handle slider. Era preset buttons above the slider: "All Time", "Pre-Modern", "1900-1950", "1950-2000", "2000-Present". Reports with dates before 1400 appear when "All Time" or "Pre-Modern" is active. 1400 chosen to cover Age of Exploration, medieval accounts, and early colonial-era sightings without making the modern range too compressed. Density histogram shows one bar per decade. Month precision deferred — most report dates lack that precision anyway.
 
 5. **3D terrain: included in Phase 2 as optional toggle.** Off by default. Terrain button in map controls. Low implementation effort (~50-100 lines), high visual impact for users who opt in. Avoids performance issues on older mobile devices.
 
@@ -831,15 +832,66 @@ src/pages/
 5. Locate Me button not working — was a placeholder. Wired to `navigator.geolocation.getCurrentPosition` → `map.flyTo`.
 6. Map controls cut off by bottom sheet on mobile — increased `bottom` offset from `100px` to `150px`.
 
-### Phase 2 Work (In Progress)
+### Phase 2 Completion Log (2026-03-16)
 
-Per the design doc:
-1. Timeline slider with year histogram and era presets
-2. Satellite/terrain basemap toggle
-3. 3D terrain toggle (optional, off by default)
-4. Spiderfy for overlapping markers at high zoom
-5. Locate Me proximity circle
-6. Category pie chart clusters (stretch)
+**All Phase 2 core items COMPLETE and deployed to beta.discoverparadocs.com.**
+
+#### What Was Built
+
+- **Timeline slider (MapTimeline.tsx):** Dual-handle date range slider (1400–2026). Decade histogram sparkline behind track. Era preset buttons (All Time, Pre-Modern, 1900–1950, 1950–2000, 2000+) visible on both desktop and mobile. Pointer events API for cross-device compatibility. 200ms debounce. Touch targets enlarged to 44×44px (Apple minimum) with 18px visible dot.
+- **Basemap toggle (MapControls.tsx rewritten):** Cycles through dark (dataviz-dark) → satellite (hybrid) → terrain (outdoor-v2) MapTiler styles. Globe icon for dark/satellite, Mountain icon for terrain.
+- **Basemap style switching (MapContainer.tsx + mapStyles.ts):** `BASEMAP_STYLES` record with three MapTiler style URLs. `basemapStyle` prop switches style dynamically.
+- **Year histogram (useViewportData.ts):** Buckets all reports by year for timeline sparkline. Also computes `categoryCounts`, `topCountries`, and `dataBounds`.
+- **Bottom sheet improvements (MapBottomSheet.tsx):**
+  - Compact timeline with era presets integrated into empty state
+  - Peek height raised from 80px → 100px to clear bottom nav bar
+  - Pull-down-to-dismiss from content area: when content is scrolled to top and user swipes down, gesture is captured as sheet drag (fixes stuck-at-full-height bug)
+- **Desktop timeline bar (map.tsx):** Fixed bar at bottom of map with backdrop blur, full-width timeline.
+
+#### Phase 2 Files Modified/Created
+
+```
+src/components/map/MapTimeline.tsx     — NEW: Dual-handle timeline slider
+src/components/map/MapControls.tsx     — REWRITTEN: Basemap cycle toggle added
+src/components/map/mapStyles.ts        — UPDATED: BASEMAP_STYLES record, TIMELINE min→1400, Pre-Modern label
+src/components/map/MapContainer.tsx    — UPDATED: basemapStyle prop
+src/components/map/MapBottomSheet.tsx  — UPDATED: compact timeline, raised peek, pull-to-dismiss from content
+src/components/map/useViewportData.ts  — UPDATED: yearHistogram computation
+src/pages/map.tsx                      — UPDATED: wired timeline, basemap state, desktop bar
+```
+
+#### Bugs Fixed During Phase 2
+
+1. Bottom sheet content clipped behind bottom nav bar — raised peek from 80→100px.
+2. Timeline slider handles too small to grab on mobile — enlarged touch target to 44×44px wrapping 18px visible dot.
+3. Era preset buttons hidden on mobile — removed `!compact` gate, now visible in both modes.
+4. Bottom sheet stuck at full height (can't drag down) — added content-area touch listener that intercepts downward swipes when scrolled to top.
+5. Timeline range too narrow (1800) — extended to 1400, renamed "Pre-1900" to "Pre-Modern".
+
+#### Deferred from Phase 2
+
+- **Spiderfy:** Cluster expansion zoom handles most overlap cases with 312 reports. Revisit post-ingestion.
+- **Locate Me proximity circle:** Functional locate me exists (flyTo at zoom 5). Decorative circle deferred.
+- **Category pie chart clusters:** Stretch goal, deferred to post-ingestion when visual density justifies it.
+- **3D terrain:** MapTiler terrain style (outdoor-v2) is included in basemap cycle. True 3D extrusion deferred.
+
+### Phase 3 Plan (Deferred to Post-Ingestion)
+
+Phase 3 focuses on cross-page integration and is best tackled after mass data ingestion when there's enough data to make spotlight cards and deep-link views compelling.
+
+1. **Explore page Map Spotlight cards:** Horizontal-scroll card row with curated map views (e.g., "UFO Hotspots: US", "Cryptid Reports: Pacific Northwest"). Pre-rendered static map thumbnails. Each card deep-links to `/map?category=...&bounds=...`. Consider building placeholder spotlight cards in the interim to validate UX before mass ingestion.
+2. **Deep-link URL schema:** Already partially done via URL-synced filters. Extend to support `?phenomenon=bigfoot`, `?bounds=lat1,lng1,lat2,lng2`, `?heatmap=true`.
+3. **Encyclopedia → map links:** "View all on map →" link on phenomenon pages opening `/map?phenomenon={slug}` pre-filtered and bounded.
+4. **Cross-page map state persistence:** Navigating away and back retains map position/filters.
+
+### Phase 4 Plan (Post Mass-Ingestion, Scale)
+
+1. Server-side viewport clustering API (PostGIS `ST_ClusterDBSCAN`)
+2. PostGIS materialized views for aggregations (report counts by year/category/country)
+3. Vector tile server evaluation (Martin) for 100K+ points
+4. Geocoding queue for batch processing
+5. Location quality scoring pipeline
+6. CDN tile caching
 
 ---
 
