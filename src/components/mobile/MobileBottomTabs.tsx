@@ -141,19 +141,19 @@ export function MobileBottomTabs() {
           </Link>
 
           {/* Discover FAB — elevated center button, the hook for casual users
-              56px (w-14 h-14) follows Material Design FAB spec, -mt-5 lifts it
-              above the nav plane for visual hierarchy */}
+              64px (w-16 h-16) is upper bound for nav-embedded FAB,
+              -mt-6 lifts it well above the nav plane */}
           <Link
             href="/discover"
             className="flex flex-col items-center justify-center flex-1 py-2 min-h-[56px]"
           >
             <div className={classNames(
-              'flex items-center justify-center w-14 h-14 -mt-5 rounded-full shadow-lg transition-all',
+              'flex items-center justify-center w-16 h-16 -mt-6 rounded-full shadow-xl transition-all',
               isRouteActive('/discover')
                 ? 'bg-primary-500 text-white shadow-primary-500/50 scale-110'
-                : 'bg-gradient-to-br from-primary-500 to-purple-600 text-white shadow-primary-500/30 hover:shadow-primary-500/50'
+                : 'bg-gradient-to-br from-primary-500 to-purple-600 text-white shadow-primary-500/40 shadow-purple-500/20'
             )}>
-              <Flame className="w-7 h-7" />
+              <Flame className="w-8 h-8" />
             </div>
           </Link>
 
