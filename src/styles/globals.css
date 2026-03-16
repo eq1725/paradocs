@@ -202,6 +202,84 @@ body {
   50% { opacity: 0.8; }
 }
 
+/* === Ask the Unknown FAB — AI presence animations === */
+
+/* Rotating gradient border that signals "alive" */
+.ai-fab-glow {
+  position: relative;
+  isolation: isolate;
+}
+
+.ai-fab-glow::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 18px;
+  background: conic-gradient(
+    from var(--ai-glow-angle, 0deg),
+    #7c3aed,
+    #6366f1,
+    #8b5cf6,
+    #a855f7,
+    #7c3aed
+  );
+  opacity: 0;
+  z-index: -1;
+  animation: ai-border-spin 3s linear infinite, ai-border-pulse 6s ease-in-out infinite;
+}
+
+/* Soft ambient glow underneath — the "breathing" effect */
+.ai-fab-glow::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 24px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(139, 92, 246, 0.3) 0%,
+    rgba(99, 102, 241, 0.15) 40%,
+    transparent 70%
+  );
+  z-index: -2;
+  animation: ai-breathe 4s ease-in-out infinite;
+  filter: blur(8px);
+}
+
+@keyframes ai-border-spin {
+  to { --ai-glow-angle: 360deg; }
+}
+
+/* Show the border ring for 3s, hide for 5s — intermittent to avoid fatigue */
+@keyframes ai-border-pulse {
+  0%, 37.5% { opacity: 0.8; }
+  50%, 100% { opacity: 0; }
+}
+
+/* Gentle breathing glow — always on but subtle */
+@keyframes ai-breathe {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.08); }
+}
+
+/* Register the custom property for conic-gradient animation */
+@property --ai-glow-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/* Sparkle icon micro-animation */
+.ai-fab-sparkle {
+  animation: ai-sparkle-rotate 6s ease-in-out infinite;
+}
+
+@keyframes ai-sparkle-rotate {
+  0%, 80%, 100% { transform: rotate(0deg) scale(1); }
+  85% { transform: rotate(15deg) scale(1.15); }
+  90% { transform: rotate(-10deg) scale(1.1); }
+  95% { transform: rotate(5deg) scale(1); }
+}
+
 /* Glass morphism card */
 .glass-card {
   background: rgba(255, 255, 255, 0.03);

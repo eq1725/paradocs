@@ -149,13 +149,13 @@ export default function AskTheUnknown({ context, suggestedQuestions }: AskTheUnk
   }
   return (
     <>
-      {/* Floating Action Button — positioned above mobile bottom nav (pb-20 = 80px) */}
+      {/* Floating Action Button — positioned above mobile bottom nav */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`fixed bottom-28 md:bottom-6 right-4 md:right-6 z-40 flex items-center gap-2 px-3.5 py-2.5 md:px-4 md:py-3 rounded-2xl shadow-lg shadow-primary-500/20 transition-all duration-300 ${
+        className={`fixed bottom-28 md:bottom-6 right-4 md:right-6 z-40 flex items-center gap-2 px-3.5 py-2.5 md:px-4 md:py-3 rounded-2xl transition-all duration-300 ${
           isOpen
-            ? 'bg-gray-800 text-gray-300 scale-90'
-            : 'bg-gradient-to-r from-primary-500 to-purple-500 text-white hover:shadow-xl hover:shadow-primary-500/30 hover:scale-105'
+            ? 'bg-gray-800 text-gray-300 scale-90 shadow-lg'
+            : 'ai-fab-glow bg-gradient-to-r from-primary-500 via-purple-500 to-indigo-500 text-white shadow-xl shadow-purple-500/25 hover:shadow-2xl hover:shadow-purple-500/40 hover:scale-105'
         }`}
         aria-label={isOpen ? 'Close chat' : 'Ask the Unknown'}
       >
@@ -163,7 +163,7 @@ export default function AskTheUnknown({ context, suggestedQuestions }: AskTheUnk
           <X className="w-5 h-5" />
         ) : (
           <>
-            <Sparkles className="w-5 h-5" />
+            <Sparkles className="w-5 h-5 ai-fab-sparkle" />
             <span className="text-sm font-medium hidden md:inline">Ask the Unknown</span>
           </>
         )}
