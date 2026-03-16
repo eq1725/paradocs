@@ -86,11 +86,11 @@ export const HEATMAP_COLORS = [
 
 // ─── Timeline ──────────────────────────────────────────────
 export const TIMELINE = {
-  min: 1800,
+  min: 1400,
   max: new Date().getFullYear(),
   eras: [
     { label: 'All Time', from: null, to: null },
-    { label: 'Pre-1900', from: null, to: 1899 },
+    { label: 'Pre-Modern', from: null, to: 1899 },
     { label: '1900–1950', from: 1900, to: 1950 },
     { label: '1950–2000', from: 1950, to: 2000 },
     { label: '2000+', from: 2000, to: null },
