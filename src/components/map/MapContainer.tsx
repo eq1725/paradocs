@@ -48,6 +48,8 @@ interface MapContainerProps {
   onLocateMe?: () => void
   /** Bounding box of all data — map auto-fits to this on first load */
   dataBounds?: DataBounds
+  /** Coordinates to fly to (e.g. from geolocation) — triggers flyTo when changed */
+  flyToTarget?: { lng: number; lat: number; zoom?: number } | null
 }
 
 export default function MapContainer({
@@ -59,6 +61,7 @@ export default function MapContainer({
   onSelectReport,
   onViewportChange,
   dataBounds,
+  flyToTarget,
 }: MapContainerProps) {
   const mapRef = useRef<MapRef>(null)
   const [viewState, setViewState] = useState<{
@@ -138,6 +141,18 @@ export default function MapContainer({
       )
     }
   }, [mapLoaded, dataBounds])
+
+  // Fly to a target location (e.g. user geolocation)
+  useEffect(() => {
+    if (!mapLoaded || !flyToTarget) return
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    map.flyTo({
+      center: [flyToTarget.lng, flyToTarget.lat],
+      zoom: flyToTarget.zoom ?? 10,
+      duration: 1200,
+    })
+  }, [mapLoaded, flyToTarget])
 
   // ─── Click handling ────────────────────────────────────────
   const handleClick = useCallback(

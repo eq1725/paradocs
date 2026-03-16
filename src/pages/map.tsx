@@ -41,6 +41,7 @@ export default function MapPage() {
   const [zoom, setZoom] = useState(2.2)
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
   const [bottomSheetSnap, setBottomSheetSnap] = useState<BottomSheetSnap>('peek')
+  const [flyToTarget, setFlyToTarget] = useState<{ lng: number; lat: number; zoom?: number } | null>(null)
 
   const {
     features,
@@ -88,12 +89,16 @@ export default function MapPage() {
     if (!navigator.geolocation) return
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        // MapContainer will need to expose flyTo — for now this is a placeholder
-        // We'll enhance this in Phase 2
+        setFlyToTarget({
+          lng: pos.coords.longitude,
+          lat: pos.coords.latitude,
+          zoom: 10,
+        })
       },
       () => {
-        // Silently fail
-      }
+        // Silently fail — user denied or unavailable
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
     )
   }, [])
 
@@ -119,6 +124,7 @@ export default function MapPage() {
           onSelectReport={handleSelectReport}
           onViewportChange={handleViewportChange}
           dataBounds={dataBounds}
+          flyToTarget={flyToTarget}
         />
 
         {/* ─── Loading overlay ─── */}
