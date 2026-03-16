@@ -70,7 +70,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 |---|-------------|-------|-------------|--------|
 | 1 | **Encyclopedia Enrichment** | Phenomena content, AI fields, QA/QC, triage | `HANDOFF.md` (existing) | Active — Cryptid category 100% complete |
 | 2 | **Explore & Discovery** | Personalized feed, category filters, content surfacing, recommendations | `HANDOFF_EXPLORE.md` | Active — Anonymous feed, soft-wall prompts, mobile UX optimized, Discover feed randomization |
-| 3 | **Map & Geospatial** | Leaflet map, PostGIS queries, clustering, proximity search, geocoding | `HANDOFF_MAP.md` | Not started |
+| 3 | **Map & Geospatial** | MapLibre GL map, PostGIS queries, Supercluster, heatmap, bottom sheet | `HANDOFF_MAP.md` | Active — Phase 1 COMPLETE, Phase 2 in progress |
 | 4 | **Insights & Pattern Analysis** | Pattern detection algorithms, AI narratives, skeptic mode, trending, methodology | `HANDOFF_INSIGHTS.md` | Not started |
 | 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
 | 6 | **Report Experience** | Report detail page, submission form, connections, evidence, related reports | `HANDOFF_REPORTS.md` | Not started |
@@ -141,33 +141,42 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 ---
 
-### 3. Map & Geospatial
+### 3. Map & Geospatial (ACTIVE)
 
-**Key files:**
-- `src/pages/map.tsx` — Main map page
-- `src/components/MapView.tsx` — Full interactive map
-- `src/components/PhenomenonMiniMap.tsx` — Lightweight phenomenon map
-- `src/components/patterns/PatternMiniMap.tsx` — Pattern location map
+**Key files (new — Phase 1):**
+- `src/pages/map.tsx` — Complete rewrite (~220 lines, MapLibre GL)
+- `src/components/map/MapContainer.tsx` — Core MapLibre GL renderer (heatmap + clusters + markers)
+- `src/components/map/MapBottomSheet.tsx` — Mobile 3-snap-point bottom sheet with category stats
+- `src/components/map/MapControls.tsx` — Floating control buttons (heatmap, locate me)
+- `src/components/map/MapFilterPanel.tsx` — Collapsible filter drawer / inline filters
+- `src/components/map/MapReportCard.tsx` — Selected report detail card
+- `src/components/map/mapStyles.ts` — Style constants, category colors, types, timeline config
+- `src/components/map/useMapState.ts` — URL-synced filter state hook
+- `src/components/map/useViewportData.ts` — Supabase fetch + Supercluster clustering + category/country stats
+
+**Key files (unchanged — still used):**
+- `src/components/PhenomenonMiniMap.tsx` — Lightweight Leaflet phenomenon map (kept as-is per design decision)
+- `src/components/patterns/PatternMiniMap.tsx` — Pattern location map (Leaflet, kept)
 - `src/pages/api/search/proximity.ts` — Geospatial proximity search
-- `src/pages/api/geocode/regions.ts` — Geocoding API
-- `src/lib/services/geocoding.service.ts` — Mapbox integration
-- `src/lib/hooks/useMapInteractions.ts`
-- `src/lib/ingestion/utils/location-parser.ts`, `location-inferrer.ts`
+- `src/lib/services/geocoding.service.ts` — Mapbox geocoding (server-side)
+- `src/lib/ingestion/utils/location-parser.ts`, `location-inferrer.ts` — Location extraction
 
-**Database:** PostGIS extension, `coordinates` column on reports, `primary_regions` on phenomena
+**Database:** PostGIS extension, `latitude`/`longitude` columns on reports, `primary_regions` on phenomena, GIST index
 
-**Current state:** MapBox-powered map exists. PostGIS queries work. Geocoding service operational.
+**Dependencies added:** `maplibre-gl ^4.7.1`, `react-map-gl ^7.1.7`, `supercluster ^8.0.1`, `@types/supercluster ^7.1.3`
 
-**What needs work:**
-- Clustering logic for dense report areas
-- Heatmap visualization layer
-- Regional filtering / geographic browsing
-- Phenomenon-specific map views (e.g., "all Bigfoot sightings")
-- Timeline slider (filter by date range on map)
-- Performance at scale (current 900 reports fine, but 10K+ needs optimization)
-- Mobile map UX
+**Environment variables:** `NEXT_PUBLIC_MAPTILER_KEY` — MapTiler API key (Flex plan, domain-restricted to beta.discoverparadocs.com + localhost). Must be set in Vercel env vars.
 
-**Touches other sessions:** Reports (report location data), Encyclopedia (primary_regions field), Ingestion (location parsing quality), Insights (geospatial pattern detection)
+**Current state (March 16, 2026):**
+- **Phase 1 COMPLETE:** Full MapLibre GL migration deployed. Leaflet replaced on main map page. 312 geocoded reports rendering with Supercluster clustering, heatmap layer, category-colored markers, mobile bottom sheet (3-snap), auto-fit to data bounds, URL-synced filters, locate me (geolocation → flyTo), desktop filter drawer + report detail panel.
+- **Phase 2 IN PROGRESS:** Timeline slider, satellite/terrain toggle, 3D terrain, spiderfy
+
+**What needs work (Phases 2-4):**
+- **Phase 2 (current):** Timeline slider with year histogram + era presets, satellite/terrain basemap toggle, 3D terrain toggle, spiderfy for overlapping markers, locate me proximity circle
+- **Phase 3:** Explore page Map Spotlight cards (horizontal scroll), deep-link URL schema for phenomenon-specific views, encyclopedia "View all on map" links
+- **Phase 4 (post mass-ingestion):** Server-side viewport clustering API, PostGIS materialized views, vector tile server (Martin), geocoding queue, location quality scoring
+
+**Touches other sessions:** Reports (report location data), Encyclopedia (primary_regions field, "View all on map" links), Ingestion (location parsing quality), Insights (geospatial pattern detection), Explore (Map Spotlight cards), Mobile Design (bottom sheet, touch gestures), Foundation (new dependencies, env var)
 
 ---
 
@@ -486,6 +495,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 | Date | Source Session | Note | Affects |
 |------|--------------|------|---------|
+| 2026-03-16 | Map & Geospatial | **Phase 1 COMPLETE: MapLibre GL migration deployed.** Leaflet replaced with MapLibre GL + react-map-gl + Supercluster on `/map`. New `src/components/map/` directory with 8 components. MapTiler basemap (dataviz-dark, Flex plan). Heatmap layer, clustered markers, mobile bottom sheet with category stats, auto-fit to data bounds, locate me, URL-synced filters. `map.tsx` rewritten from 752 to ~220 lines. New env var `NEXT_PUBLIC_MAPTILER_KEY` required in Vercel. Mini-maps (PhenomenonMiniMap, PatternMiniMap) remain on Leaflet by design. | Foundation (4 new npm dependencies, new env var), Mobile Design (bottom sheet touch handling, controls positioning), Explore (Map Spotlight cards planned for Phase 3) |
 | 2026-03-16 | Explore & Discovery | **Mobile UX optimized + Discover feed randomized.** Layout.tsx header modified (logo nowrap, Submit Report `hidden md:flex` secondary, Sign In pill button). MobileBottomTabs enlarged (Discover FAB 64px, nav icons 24px). AskTheUnknown FAB repositioned to `bottom-28` on mobile with AI presence CSS animations (globals.css). Explore page compacted (inline header, 75vw encyclopedia cards, compressed banners). Discover feed seed moved to component useRef (fresh order every visit). Feed API uses interleaved 3:1:1 explore-exploit tiering. | Mobile Design (bottom nav sizing changed), Foundation (Layout.tsx header + globals.css animations), Search & Nav (header structure changed), All sessions (AskTheUnknown FAB position changed) |
 | 2026-03-15 | Explore & Discovery | **Anonymous feed + soft-wall prompts deployed.** Feed API (`/api/feed/personalized`) rewritten: returns Encyclopedia Spotlight (phenomena with images), category highlights (rotating), trending, recent for ALL users (not just authenticated). Explore Discover tab replaced empty state with rich editorial feed. Three soft-wall signup touchpoints: bookmark button, in-feed card after 2nd section, bottom CTA. Feed API response now includes `type` field ('reports' or 'phenomena'). Login redirect uses `?reason=save` for contextual messaging. | Search & Nav (login page should handle `reason` param), Encyclopedia (image quality affects spotlight), Email (digest could reuse feed sections), Dashboard (if consuming feed API), Subscription (tier gating plan documented in HANDOFF_EXPLORE.md) |
 | 2026-03-15 | Mobile Design | **Nav Unification COMPLETE.** MobileBottomTabs rewritten as unified component used by BOTH Layout.tsx and DashboardLayout. Same 5 tabs on every page: Explore, Map, Discover FAB (elevated center), Library/Encyclopedia (auth-aware 4th tab), More. Layout.tsx mobile inline nav + slide-up menu + style jsx global all removed. Progress bar thickness fix (h-1.5). | Search & Nav (Layout.tsx mobile nav completely replaced — public mobile navigation now uses MobileBottomTabs), Foundation (Layout.tsx style jsx global removed), All sessions (mobile bottom nav is now unified across all pages) |
@@ -564,7 +574,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 **SWC rules:** No template literals in JSX, use `var`, use `function(){}`, unicode escapes for smart quotes
 **AI providers:** Anthropic Claude (primary), OpenAI (fallback, currently $0 balance)
 **Email:** Resend
-**Maps:** Mapbox (server-side geocoding), Leaflet (client-side maps)
+**Maps:** MapLibre GL + MapTiler (main map page), Leaflet (mini-maps only), Mapbox (server-side geocoding)
 **Payments:** Stripe (key not yet provided)
 
 ---

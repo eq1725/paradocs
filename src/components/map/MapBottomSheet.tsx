@@ -10,6 +10,7 @@ import { MapFilters, ReportProperties, CATEGORY_COLORS, CATEGORY_ICONS } from '.
 import { PhenomenonCategory } from '@/lib/database.types'
 import MapReportCard from './MapReportCard'
 import MapFilterPanel from './MapFilterPanel'
+import MapTimeline from './MapTimeline'
 
 type SnapPoint = 'peek' | 'half' | 'full'
 
@@ -31,6 +32,10 @@ interface MapBottomSheetProps {
   totalCount: number
   categoryCounts?: Record<string, number>
   topCountries?: { name: string; count: number }[]
+  dateFrom?: number | null
+  dateTo?: number | null
+  onDateChange?: (from: number | null, to: number | null) => void
+  yearHistogram?: { year: number; count: number }[]
 }
 
 // Format category name for display
@@ -53,6 +58,10 @@ export default function MapBottomSheet({
   totalCount,
   categoryCounts = {},
   topCountries = [],
+  dateFrom,
+  dateTo,
+  onDateChange,
+  yearHistogram = [],
 }: MapBottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null)
   const dragStartY = useRef(0)
@@ -241,9 +250,20 @@ export default function MapBottomSheet({
           </div>
         )}
 
-        {/* Empty state: category breakdown + top locations */}
+        {/* Empty state: timeline + category breakdown + top locations */}
         {snap !== 'peek' && !selectedReport && (
           <div className="pb-4 space-y-4">
+            {/* Compact timeline */}
+            {onDateChange && (
+              <MapTimeline
+                dateFrom={dateFrom ?? null}
+                dateTo={dateTo ?? null}
+                onDateChange={onDateChange}
+                yearHistogram={yearHistogram}
+                compact
+              />
+            )}
+
             {/* Category breakdown */}
             <div>
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">

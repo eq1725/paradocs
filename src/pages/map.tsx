@@ -7,10 +7,11 @@ import { Filter, X, Loader, AlertCircle } from 'lucide-react'
 import { useMapState } from '@/components/map/useMapState'
 import { useViewportData } from '@/components/map/useViewportData'
 import { ReportProperties } from '@/components/map/mapStyles'
-import MapControls from '@/components/map/MapControls'
+import MapControls, { BasemapStyle } from '@/components/map/MapControls'
 import MapFilterPanel from '@/components/map/MapFilterPanel'
 import MapBottomSheet from '@/components/map/MapBottomSheet'
 import MapReportCard from '@/components/map/MapReportCard'
+import MapTimeline from '@/components/map/MapTimeline'
 
 // Dynamic import to avoid SSR issues with MapLibre GL (WebGL)
 const MapContainer = dynamic(
@@ -42,6 +43,7 @@ export default function MapPage() {
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
   const [bottomSheetSnap, setBottomSheetSnap] = useState<BottomSheetSnap>('peek')
   const [flyToTarget, setFlyToTarget] = useState<{ lng: number; lat: number; zoom?: number } | null>(null)
+  const [basemapStyle, setBasemapStyle] = useState<BasemapStyle>('dark')
 
   const {
     features,
@@ -51,6 +53,7 @@ export default function MapPage() {
     categoryCounts,
     topCountries,
     dataBounds,
+    yearHistogram,
     loading,
     error,
     supercluster,
@@ -102,6 +105,13 @@ export default function MapPage() {
     )
   }, [])
 
+  const handleDateChange = useCallback(
+    (from: number | null, to: number | null) => {
+      setFilters({ ...filters, dateFrom: from, dateTo: to })
+    },
+    [filters, setFilters]
+  )
+
   const handleToggleHeatmap = useCallback(() => {
     setHeatmapActive(!heatmapActive)
   }, [heatmapActive, setHeatmapActive])
@@ -125,6 +135,7 @@ export default function MapPage() {
           onViewportChange={handleViewportChange}
           dataBounds={dataBounds}
           flyToTarget={flyToTarget}
+          basemapStyle={basemapStyle}
         />
 
         {/* ─── Loading overlay ─── */}
@@ -178,12 +189,24 @@ export default function MapPage() {
           </div>
         )}
 
+        {/* ─── Desktop: Timeline bar (bottom of map) ─── */}
+        <div className="hidden lg:block absolute bottom-0 left-0 right-0 z-20 px-16 py-3 bg-gray-950/80 backdrop-blur-sm border-t border-gray-800/30">
+          <MapTimeline
+            dateFrom={filters.dateFrom}
+            dateTo={filters.dateTo}
+            onDateChange={handleDateChange}
+            yearHistogram={yearHistogram}
+          />
+        </div>
+
         {/* ─── Map controls ─── */}
         <MapControls
           heatmapActive={heatmapActive}
           onToggleHeatmap={handleToggleHeatmap}
           onLocateMe={handleLocateMe}
-          className="absolute bottom-4 right-4 z-20 lg:bottom-6 lg:right-6 max-lg:bottom-[150px]"
+          basemapStyle={basemapStyle}
+          onBasemapChange={setBasemapStyle}
+          className="absolute bottom-4 right-4 z-20 lg:bottom-[90px] lg:right-6 max-lg:bottom-[150px]"
         />
 
         {/* ─── Mobile: Filter button ─── */}
@@ -223,6 +246,10 @@ export default function MapPage() {
           totalCount={totalReports}
           categoryCounts={categoryCounts}
           topCountries={topCountries}
+          dateFrom={filters.dateFrom}
+          dateTo={filters.dateTo}
+          onDateChange={handleDateChange}
+          yearHistogram={yearHistogram}
         />
       </div>
     </>

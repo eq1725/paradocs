@@ -4,19 +4,27 @@
  */
 
 import React, { useCallback, useState } from 'react'
-import { Layers, Flame, Locate, Maximize, Minimize } from 'lucide-react'
+import { Flame, Locate, Maximize, Minimize, Globe, Mountain } from 'lucide-react'
+
+export type BasemapStyle = 'dark' | 'satellite' | 'terrain'
 
 interface MapControlsProps {
   heatmapActive: boolean
   onToggleHeatmap: () => void
   onLocateMe: () => void
+  basemapStyle: BasemapStyle
+  onBasemapChange: (style: BasemapStyle) => void
   className?: string
 }
+
+const BASEMAP_CYCLE: BasemapStyle[] = ['dark', 'satellite', 'terrain']
 
 export default function MapControls({
   heatmapActive,
   onToggleHeatmap,
   onLocateMe,
+  basemapStyle,
+  onBasemapChange,
   className = '',
 }: MapControlsProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -31,14 +39,37 @@ export default function MapControls({
     }
   }, [])
 
+  const cycleBasemap = useCallback(() => {
+    const idx = BASEMAP_CYCLE.indexOf(basemapStyle)
+    const next = BASEMAP_CYCLE[(idx + 1) % BASEMAP_CYCLE.length]
+    onBasemapChange(next)
+  }, [basemapStyle, onBasemapChange])
+
   const buttonBase =
     'flex items-center justify-center w-10 h-10 rounded-lg bg-gray-900/90 backdrop-blur-sm border border-gray-700/50 text-gray-300 hover:text-white hover:bg-gray-800 transition-all shadow-lg'
 
   const buttonActive =
     'flex items-center justify-center w-10 h-10 rounded-lg bg-purple-600/90 backdrop-blur-sm border border-purple-500/50 text-white hover:bg-purple-500 transition-all shadow-lg'
 
+  const basemapLabel =
+    basemapStyle === 'dark'
+      ? 'Switch to satellite'
+      : basemapStyle === 'satellite'
+      ? 'Switch to terrain'
+      : 'Switch to dark'
+
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
+      {/* Basemap toggle (cycles: dark → satellite → terrain) */}
+      <button
+        onClick={cycleBasemap}
+        className={basemapStyle !== 'dark' ? buttonActive : buttonBase}
+        title={basemapLabel}
+        aria-label={basemapLabel}
+      >
+        {basemapStyle === 'terrain' ? <Mountain size={18} /> : <Globe size={18} />}
+      </button>
+
       {/* Heatmap toggle */}
       <button
         onClick={onToggleHeatmap}

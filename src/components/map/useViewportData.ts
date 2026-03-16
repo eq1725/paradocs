@@ -34,6 +34,8 @@ interface UseViewportDataReturn {
   topCountries: { name: string; count: number }[]
   /** Data bounds for auto-fitting the map */
   dataBounds: DataBounds
+  /** Year histogram (all reports, pre-filter) for timeline sparkline */
+  yearHistogram: { year: number; count: number }[]
   /** Loading state */
   loading: boolean
   /** Error message if any */
@@ -242,6 +244,22 @@ export function useViewportData(
       .slice(0, 5)
   }, [filteredReports])
 
+  // ─── Year histogram (all reports, not filtered) ─────────────
+  const yearHistogram = useMemo(() => {
+    const counts: Record<number, number> = {}
+    for (const r of allReports) {
+      const dateStr = r.properties.event_date
+      if (!dateStr) continue
+      const year = new Date(dateStr).getFullYear()
+      if (year >= 1800 && year <= new Date().getFullYear()) {
+        counts[year] = (counts[year] || 0) + 1
+      }
+    }
+    return Object.entries(counts)
+      .map(([y, c]) => ({ year: parseInt(y), count: c }))
+      .sort((a, b) => a.year - b.year)
+  }, [allReports])
+
   // ─── Data bounds for auto-fit ───────────────────────────────
   const dataBounds = useMemo((): DataBounds => {
     if (allReports.length === 0) return null
@@ -275,6 +293,7 @@ export function useViewportData(
     categoryCounts,
     topCountries,
     dataBounds,
+    yearHistogram,
     loading,
     error,
     supercluster,

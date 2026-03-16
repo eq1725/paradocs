@@ -2,7 +2,7 @@
 
 **Session:** Map & Geospatial
 **Date:** 2026-03-16
-**Status:** Design Review Complete → Ready for Implementation
+**Status:** Phase 1 COMPLETE — Phase 2 in progress
 
 ---
 
@@ -774,6 +774,72 @@ The map itself should be fully accessible to everyone — it's a top-of-funnel d
 4. **Timeline slider: year-level granularity, 1800–2026.** 226 snap positions on the dual-handle slider. Era preset buttons above the slider: "All Time", "Pre-1900", "1900-1950", "1950-2000", "2000-Present". Reports with dates before 1800 appear when "All Time" or "Pre-1900" is active. Density histogram shows one bar per year. Month precision deferred — most report dates lack that precision anyway.
 
 5. **3D terrain: included in Phase 2 as optional toggle.** Off by default. Terrain button in map controls. Low implementation effort (~50-100 lines), high visual impact for users who opt in. Avoids performance issues on older mobile devices.
+
+---
+
+## Phase 1 Completion Log (2026-03-16)
+
+**All Phase 1 items COMPLETE and deployed to beta.discoverparadocs.com.**
+
+### What Was Built
+
+- **MapLibre GL migration:** Replaced Leaflet with MapLibre GL JS + react-map-gl + Supercluster. WebGL rendering, vector tiles from MapTiler (dataviz-dark style).
+- **MapTiler integration:** Flex plan ($25/mo), domain-restricted API key (`NEXT_PUBLIC_MAPTILER_KEY`). Domains: `beta.discoverparadocs.com`, `localhost`.
+- **Client-side clustering:** Supercluster with radius=60, maxZoom=16. Cluster circles sized/colored by point_count. Click-to-expand zoom. 312 reports clustered.
+- **Heatmap layer:** Separate GeoJSON source with all raw unclustered points. Purple-to-red gradient. Toggle via floating button.
+- **Mobile bottom sheet:** 3-snap-point (peek 80px / half 340px / full 85vh). Touch drag with `preventDefault` on non-passive listeners for smooth swiping. Ref-based state to prevent effect re-registration during drag.
+- **Bottom sheet empty state:** Category breakdown with colored progress bars (tappable to filter by category), top countries as pill buttons (tappable to filter), hint text.
+- **Desktop layout:** Full-viewport map below 56px nav. Collapsible filter drawer (left). Selected report card (right, 340px). Floating controls (bottom-right).
+- **URL-synced state:** All filters persist in query params via `useMapState` hook (shallow routing).
+- **Auto-fit to data bounds:** Map computes bounding box of all reports on load and flies to fit them (no more Atlantic Ocean default center).
+- **Locate Me:** Geolocation API → flyTo user position at zoom 5 (regional view).
+- **Navigation control hidden on mobile:** CSS media query hides MapLibre's +/- buttons below 1024px (pinch-to-zoom is standard).
+- **Fullscreen button hidden on mobile:** iOS Safari doesn't support Fullscreen API.
+- **Category-colored individual markers:** Each report dot colored by its PhenomenonCategory.
+
+### New Files Created (Phase 1)
+
+```
+src/components/map/
+  mapStyles.ts          — Style constants, category colors, types, TIMELINE config
+  useMapState.ts        — URL-synced filter state hook
+  useViewportData.ts    — Supabase fetch + Supercluster + filtering + stats
+  MapContainer.tsx      — Core MapLibre GL renderer (heatmap + clusters + markers)
+  MapControls.tsx       — Floating control buttons (heatmap, locate, fullscreen)
+  MapFilterPanel.tsx    — Collapsible filter drawer / inline filters
+  MapBottomSheet.tsx    — Mobile 3-snap-point bottom sheet with stats
+  MapReportCard.tsx     — Selected report detail card
+src/pages/
+  map.tsx               — Complete rewrite (~220 lines, down from 752)
+```
+
+### Dependencies Added
+
+```json
+"maplibre-gl": "^4.7.1",
+"react-map-gl": "^7.1.7",
+"supercluster": "^8.0.1",
+"@types/supercluster": "^7.1.3"
+```
+
+### Bugs Fixed During Phase 1
+
+1. Heatmap showing transparent dots instead of heat blobs — root cause: heatmap layer was reading from clustered source (~10 centroids). Fixed by creating separate `reports-heat-source` with all raw unclustered points.
+2. Blank map after switching to `dark-matter` basemap — style doesn't exist on MapTiler. Reverted to `dataviz-dark`.
+3. Bottom sheet swipe moving the page instead of the sheet — React synthetic touch events are passive by default. Fixed with native `addEventListener({ passive: false })` + `e.preventDefault()`.
+4. Bottom sheet barely moving on swipe — `useEffect` deps included `currentHeight`, causing listener re-registration on every height change (resetting drag state). Fixed by reading all values from refs with `[]` deps.
+5. Locate Me button not working — was a placeholder. Wired to `navigator.geolocation.getCurrentPosition` → `map.flyTo`.
+6. Map controls cut off by bottom sheet on mobile — increased `bottom` offset from `100px` to `150px`.
+
+### Phase 2 Work (In Progress)
+
+Per the design doc:
+1. Timeline slider with year histogram and era presets
+2. Satellite/terrain basemap toggle
+3. 3D terrain toggle (optional, off by default)
+4. Spiderfy for overlapping markers at high zoom
+5. Locate Me proximity circle
+6. Category pie chart clusters (stretch)
 
 ---
 

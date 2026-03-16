@@ -6,7 +6,14 @@
 import { PhenomenonCategory } from '@/lib/database.types'
 
 // ─── Basemap ───────────────────────────────────────────────
-export const MAPTILER_STYLE_URL = `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${process.env.NEXT_PUBLIC_MAPTILER_KEY}`
+const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY
+export const MAPTILER_STYLE_URL = `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`
+
+export const BASEMAP_STYLES: Record<string, string> = {
+  dark: `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`,
+  satellite: `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}`,
+  terrain: `https://api.maptiler.com/maps/outdoor-v2/style.json?key=${MAPTILER_KEY}`,
+}
 
 // ─── Initial View ──────────────────────────────────────────
 export const INITIAL_VIEW = {

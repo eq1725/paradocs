@@ -26,6 +26,7 @@ const mapOverrideStyles = `
 import type Supercluster from 'supercluster'
 import {
   MAPTILER_STYLE_URL,
+  BASEMAP_STYLES,
   INITIAL_VIEW,
   MAP_BOUNDS,
   CATEGORY_COLORS,
@@ -50,6 +51,8 @@ interface MapContainerProps {
   dataBounds?: DataBounds
   /** Coordinates to fly to (e.g. from geolocation) — triggers flyTo when changed */
   flyToTarget?: { lng: number; lat: number; zoom?: number } | null
+  /** Basemap style key (dark, satellite, terrain) */
+  basemapStyle?: string
 }
 
 export default function MapContainer({
@@ -62,6 +65,7 @@ export default function MapContainer({
   onViewportChange,
   dataBounds,
   flyToTarget,
+  basemapStyle = 'dark',
 }: MapContainerProps) {
   const mapRef = useRef<MapRef>(null)
   const [viewState, setViewState] = useState<{
@@ -208,7 +212,7 @@ export default function MapContainer({
       onMove={(e) => setViewState(e.viewState)}
       onMoveEnd={handleMoveEnd}
       onLoad={() => setMapLoaded(true)}
-      mapStyle={MAPTILER_STYLE_URL}
+      mapStyle={BASEMAP_STYLES[basemapStyle] || MAPTILER_STYLE_URL}
       style={{ width: '100%', height: '100%' }}
       minZoom={MAP_BOUNDS.minZoom}
       maxZoom={MAP_BOUNDS.maxZoom}
