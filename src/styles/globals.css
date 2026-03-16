@@ -206,7 +206,6 @@ body {
 
 /* Rotating gradient border that signals "alive" */
 .ai-fab-glow {
-  position: relative;
   isolation: isolate;
 }
 
