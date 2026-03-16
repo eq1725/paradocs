@@ -37,3 +37,22 @@ next-env.d.ts
 data/reddit/*.ndjson
 data/reddit/*.zst
 *.zst
+
+# Working files - do not commit
+*.sql
+*.patch
+*.bundle
+*.bundle.lock
+*.tar.gz
+public/_push_data.json
+BATCH*.md
+SESSION_PROMPT*.md
+SESSION_PROTOCOL.md
+ENRICHMENT_GUIDE.md
+PARADOCS_PROJECT_NOTES.md
+ParaDocs_QA_QC_Report.md
+HANDOFF_MAP.md
+sql_chunks/
+sql_small_chunks/
+Adlet-profile.png
+research-hub-files.tar.gz
