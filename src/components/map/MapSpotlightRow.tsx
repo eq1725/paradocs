@@ -115,7 +115,7 @@ export default function MapSpotlightRow() {
               <Link
                 key={card.id}
                 href={card.href}
-                className={'min-w-[70vw] sm:min-w-[240px] max-w-[75vw] sm:max-w-[260px] flex-shrink-0 snap-start group/card relative overflow-hidden rounded-xl border border-white/10 ' + card.accentColor + ' transition-all'}
+                className={'min-w-[75vw] sm:min-w-[260px] max-w-[80vw] sm:max-w-[280px] flex-shrink-0 snap-start group/card relative overflow-hidden rounded-xl border border-white/10 ' + card.accentColor + ' transition-all'}
               >
                 {/* Gradient background */}
                 <div className={'absolute inset-0 bg-gradient-to-br ' + card.gradient} />
@@ -124,7 +124,7 @@ export default function MapSpotlightRow() {
                 <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-white/5 blur-2xl -translate-y-1/2 translate-x-1/4" />
 
                 {/* Content */}
-                <div className="relative p-4 sm:p-5 flex flex-col justify-between h-[140px] sm:h-[160px]">
+                <div className="relative p-4 sm:p-5 flex flex-col justify-between h-44 sm:h-48">
                   <div className="flex items-start justify-between">
                     <div className="p-2 rounded-lg bg-white/10 text-white/80 group-hover/card:text-white transition-colors">
                       {card.icon}

@@ -545,9 +545,6 @@ export default function ExplorePage() {
               </div>
             ) : (
               <>
-                {/* Map Spotlight — always first in the Discover feed */}
-                <MapSpotlightRow />
-
                 {feedSections.map(function(section, sectionIndex) {
                   return (
                     <React.Fragment key={section.id}>
@@ -752,6 +749,8 @@ export default function ExplorePage() {
                           </div>
                         )}
                       </div>
+                      {/* Map Spotlight — always renders after the first section (Encyclopedia Spotlight) */}
+                      {sectionIndex === 0 && <MapSpotlightRow />}
                     </React.Fragment>
                   )
                 })}
