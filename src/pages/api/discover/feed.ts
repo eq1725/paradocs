@@ -136,21 +136,40 @@ export default async function handler(
       return { id: item.id, category: item.category, score: score };
     });
 
-    // Step 3: Deterministic seeded shuffle (weighted)
-    // First sort by score descending, then shuffle within score tiers using the seed
+    // Step 3: Deterministic seeded shuffle with interleaved quality tiers.
+    // Instead of showing ALL high-tier first (boring — user sees the same
+    // "top 15" every time), we interleave: for every 5 items, pick ~3 high,
+    // ~1 mid, ~1 low (when available). This ensures quality stays high while
+    // creating genuine variety across sessions with different seeds.
     scored.sort(function (a, b) { return b.score - a.score; });
 
-    // Group into quality tiers for better variety
-    var highTier = scored.filter(function (s) { return s.score >= 7; });
-    var midTier = scored.filter(function (s) { return s.score >= 4 && s.score < 7; });
-    var lowTier = scored.filter(function (s) { return s.score < 4; });
+    var highTier = seededShuffle(
+      scored.filter(function (s) { return s.score >= 7; }), seed
+    );
+    var midTier = seededShuffle(
+      scored.filter(function (s) { return s.score >= 4 && s.score < 7; }), seed + 1
+    );
+    var lowTier = seededShuffle(
+      scored.filter(function (s) { return s.score < 4; }), seed + 2
+    );
 
-    // Shuffle each tier with the seed, then concatenate
-    var shuffledOrder = [
-      ...seededShuffle(highTier, seed),
-      ...seededShuffle(midTier, seed + 1),
-      ...seededShuffle(lowTier, seed + 2),
-    ];
+    // Interleave: 3 high, 1 mid, 1 low per batch (explore-exploit pattern)
+    var shuffledOrder: typeof scored = [];
+    var hi = 0, mi = 0, lo = 0;
+    while (hi < highTier.length || mi < midTier.length || lo < lowTier.length) {
+      // Pull up to 3 from high tier
+      for (var k = 0; k < 3 && hi < highTier.length; k++) {
+        shuffledOrder.push(highTier[hi++]);
+      }
+      // Pull 1 from mid tier
+      if (mi < midTier.length) {
+        shuffledOrder.push(midTier[mi++]);
+      }
+      // Pull 1 from low tier (discovery/surprise slot)
+      if (lo < lowTier.length) {
+        shuffledOrder.push(lowTier[lo++]);
+      }
+    }
 
     // Step 4: Apply category variety — no more than 2 same category in a row
     var diversified: typeof shuffledOrder = [];

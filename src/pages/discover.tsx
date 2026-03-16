@@ -95,13 +95,17 @@ var DANGER_COLORS: Record<string, { bg: string; text: string; glow: string }> = 
   'Varies': { bg: 'bg-purple-500/20', text: 'text-purple-400', glow: 'shadow-purple-500/20' },
 }
 
-// Generate a session seed once (persists across navigations but not across tabs)
-var SESSION_SEED = Math.floor(Math.random() * 2147483647)
-
 export default function DiscoverPage() {
   var router = useRouter()
   var [items, setItems] = useState<FeedItem[]>([])
   var [loading, setLoading] = useState(true)
+
+  // Fresh seed on every component mount — generates a new random order
+  // each time the user navigates to /discover. Stable across pagination
+  // (useRef persists for the component's lifetime) but resets when they
+  // leave and come back, creating the "you never know what's next"
+  // surprise factor that drives TikTok-style re-engagement.
+  var sessionSeed = useRef(Math.floor(Math.random() * 2147483647))
   var [loadingMore, setLoadingMore] = useState(false)
   var [hasMore, setHasMore] = useState(true)
   var [totalAvailable, setTotalAvailable] = useState(0)
@@ -148,7 +152,7 @@ export default function DiscoverPage() {
     var params = new URLSearchParams({
       limit: '15',
       offset: String(feedOffset),
-      seed: String(SESSION_SEED),
+      seed: String(sessionSeed.current),
     })
 
     fetch('/api/discover/feed?' + params.toString())
