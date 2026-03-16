@@ -177,7 +177,7 @@ export default function MapPage() {
           heatmapActive={heatmapActive}
           onToggleHeatmap={handleToggleHeatmap}
           onLocateMe={handleLocateMe}
-          className="absolute bottom-4 right-4 z-20 lg:bottom-6 lg:right-6 max-lg:bottom-[100px]"
+          className="absolute bottom-4 right-4 z-20 lg:bottom-6 lg:right-6 max-lg:bottom-[150px]"
         />
 
         {/* ─── Mobile: Filter button ─── */}
