@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** March 14, 2026
+**Last updated:** March 16, 2026
 **Project:** beta.discoverparadocs.com
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -69,7 +69,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | # | Session Name | Scope | HANDOFF File | Status |
 |---|-------------|-------|-------------|--------|
 | 1 | **Encyclopedia Enrichment** | Phenomena content, AI fields, QA/QC, triage | `HANDOFF.md` (existing) | Active — Cryptid category 100% complete |
-| 2 | **Explore & Discovery** | Personalized feed, category filters, content surfacing, recommendations | `HANDOFF_EXPLORE.md` | Active — Anonymous feed + soft-wall prompts deployed |
+| 2 | **Explore & Discovery** | Personalized feed, category filters, content surfacing, recommendations | `HANDOFF_EXPLORE.md` | Active — Anonymous feed, soft-wall prompts, mobile UX optimized, Discover feed randomization |
 | 3 | **Map & Geospatial** | Leaflet map, PostGIS queries, clustering, proximity search, geocoding | `HANDOFF_MAP.md` | Not started |
 | 4 | **Insights & Pattern Analysis** | Pattern detection algorithms, AI narratives, skeptic mode, trending, methodology | `HANDOFF_INSIGHTS.md` | Not started |
 | 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
@@ -111,26 +111,33 @@ Each major feature area has a dedicated Claude session with its own deep context
 ### 2. Explore & Discovery
 
 **Key files:**
-- `src/pages/explore.tsx` — Main discovery feed page
-- `src/pages/api/discover/feed.ts` — Personalized feed API
-- `src/pages/api/feed/personalized.ts` — Alternative personalization endpoint
+- `src/pages/explore.tsx` — Main discovery feed page (Discover + Browse tabs)
+- `src/pages/discover.tsx` — TikTok-style fullscreen swipe feed (standalone, no nav chrome)
+- `src/pages/api/discover/feed.ts` — Discover swipe feed API (seeded shuffle, quality tiering, category diversity)
+- `src/pages/api/feed/personalized.ts` — Explore feed API (encyclopedia spotlight, trending, category highlights)
 - `src/lib/services/personalization.service.ts` — User preference engine
 - `src/components/CategoryFilter.tsx`, `SubcategoryFilter.tsx`, `PhenomenaFilter.tsx`
 - `src/lib/hooks/usePersonalization.ts`
+- `src/components/AskTheUnknown.tsx` — AI chat FAB (on explore + report pages)
 
 **Database tables:** `reports`, `phenomena`, `saved_reports`, `user_preferences`
 
-**Current state:** Basic discovery feed built with category filters. Personalization service exists but limited.
+**Current state (March 16, 2026):**
+- **Anonymous feed COMPLETE:** Rich 5-7 section editorial feed for all users (Encyclopedia Spotlight, Trending, Category Highlights, Recently Added). No empty states for logged-out users.
+- **Soft-wall signup COMPLETE:** 3 contextual touchpoints (bookmark, in-feed card, bottom CTA). Research-backed: gate depth not breadth.
+- **Mobile UX optimized (March 16):** Layout.tsx header fixed (logo nowrap, Submit demoted, Sign In pill button). Explore page compacted (inline title+toggle, larger encyclopedia cards at 75vw, compressed Pattern Insights banner). Ask the Unknown FAB repositioned above bottom nav with AI presence animations (rotating aurora border, breathing glow, sparkle micro-animation). MobileBottomTabs enlarged (Discover FAB 64px, nav icons 24px).
+- **Discover feed randomization (March 16):** Seed moved from module scope to component useRef (fresh order every visit). API tier interleaving (3:1:1 explore-exploit pattern) replaces concatenated tiers. Users now see genuinely different content on each visit.
 
 **What needs work:**
-- Recommendation algorithm improvements
-- Content surfacing logic (trending, new, relevant-to-you)
-- Feed performance optimization at scale
+- Free tier content limits (e.g., 50 full reports/month)
+- Core upgrade prompts when free users hit limit
+- Save functionality for logged-in users (bookmark currently only gates anonymous)
+- Feed personalization quality (A/B test section ordering, track engagement)
 - "Connection cards" / "Did You Know?" cross-report relationships (Sprint 2, not built)
 - Smart match alerts (Sprint 2, not built)
-- Category-specific feed tuning
+- Image fallback (onError handling for phenomena images that 404)
 
-**Touches other sessions:** Encyclopedia (content quality affects feed), Insights (trending patterns surface in feed), Dashboard (personalization preferences), Search (shared filter components)
+**Touches other sessions:** Encyclopedia (content quality affects feed + spotlight), Insights (trending patterns surface in feed), Dashboard (personalization preferences), Search (shared filter components), Foundation (Layout.tsx + globals.css modified), Mobile Design (MobileBottomTabs modified)
 
 ---
 
@@ -479,6 +486,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 | Date | Source Session | Note | Affects |
 |------|--------------|------|---------|
+| 2026-03-16 | Explore & Discovery | **Mobile UX optimized + Discover feed randomized.** Layout.tsx header modified (logo nowrap, Submit Report `hidden md:flex` secondary, Sign In pill button). MobileBottomTabs enlarged (Discover FAB 64px, nav icons 24px). AskTheUnknown FAB repositioned to `bottom-28` on mobile with AI presence CSS animations (globals.css). Explore page compacted (inline header, 75vw encyclopedia cards, compressed banners). Discover feed seed moved to component useRef (fresh order every visit). Feed API uses interleaved 3:1:1 explore-exploit tiering. | Mobile Design (bottom nav sizing changed), Foundation (Layout.tsx header + globals.css animations), Search & Nav (header structure changed), All sessions (AskTheUnknown FAB position changed) |
 | 2026-03-15 | Explore & Discovery | **Anonymous feed + soft-wall prompts deployed.** Feed API (`/api/feed/personalized`) rewritten: returns Encyclopedia Spotlight (phenomena with images), category highlights (rotating), trending, recent for ALL users (not just authenticated). Explore Discover tab replaced empty state with rich editorial feed. Three soft-wall signup touchpoints: bookmark button, in-feed card after 2nd section, bottom CTA. Feed API response now includes `type` field ('reports' or 'phenomena'). Login redirect uses `?reason=save` for contextual messaging. | Search & Nav (login page should handle `reason` param), Encyclopedia (image quality affects spotlight), Email (digest could reuse feed sections), Dashboard (if consuming feed API), Subscription (tier gating plan documented in HANDOFF_EXPLORE.md) |
 | 2026-03-15 | Mobile Design | **Nav Unification COMPLETE.** MobileBottomTabs rewritten as unified component used by BOTH Layout.tsx and DashboardLayout. Same 5 tabs on every page: Explore, Map, Discover FAB (elevated center), Library/Encyclopedia (auth-aware 4th tab), More. Layout.tsx mobile inline nav + slide-up menu + style jsx global all removed. Progress bar thickness fix (h-1.5). | Search & Nav (Layout.tsx mobile nav completely replaced — public mobile navigation now uses MobileBottomTabs), Foundation (Layout.tsx style jsx global removed), All sessions (mobile bottom nav is now unified across all pages) |
 | 2026-03-15 | Mobile Design | Phase 3a: Report detail mobile redesign deployed (report/[slug].tsx). Progress bar bug fix, mobile back button, non-sticky action bar, native share, responsive typography. DISCOVERED dual layout architecture: Layout.tsx (public pages) has its own mobile bottom nav completely different from DashboardLayout's MobileBottomTabs. Nav unification is next priority — will modify Layout.tsx significantly. Discover page confirmed intentionally standalone (TikTok-like, no nav chrome). | Reports (report/[slug].tsx modified), Search & Nav (Layout.tsx nav unification upcoming, will change public mobile navigation), Foundation (globals.css already updated, Layout.tsx <style jsx global> needs migration) |
@@ -552,7 +560,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Database:** Supabase project `bhkbctdmwnowfmqpksed`
 **Deploy:** Auto on push to main via Vercel
-**Push method:** GitHub API (browser-based, not git CLI)
+**Push method:** `git push origin main` from local terminal (sandbox proxy blocks git CLI)
 **SWC rules:** No template literals in JSX, use `var`, use `function(){}`, unicode escapes for smart quotes
 **AI providers:** Anthropic Claude (primary), OpenAI (fallback, currently $0 balance)
 **Email:** Resend
