@@ -458,8 +458,10 @@ export default function ExplorePage() {
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <div>
             <h1 className="text-lg sm:text-3xl font-display font-bold text-white">Explore</h1>
-            <p className="text-xs sm:text-base text-gray-500">
-              {totalCount.toLocaleString()} documented encounters
+            <p className="text-[11px] sm:text-sm text-gray-500 flex items-center gap-1.5">
+              <span className="tabular-nums font-medium text-gray-400">{totalCount.toLocaleString()}</span>
+              <span className="hidden sm:inline">documented encounters</span>
+              <span className="sm:hidden">encounters</span>
             </p>
           </div>
           {/* View Toggle — inline with title on mobile */}
@@ -479,7 +481,7 @@ export default function ExplorePage() {
             <button
               onClick={() => setActiveView('browse')}
               className={classNames(
-                'px-3 sm:px-5 py-1.5 sm:py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-1.5',
+                'px-3 sm:px-5 py-1.5 sm:py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap',
                 activeView === 'browse'
                   ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
                   : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
@@ -487,7 +489,6 @@ export default function ExplorePage() {
             >
               <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               Browse
-              {baselineCount > 0 && <span className="ml-0.5 text-xs opacity-75">({baselineCount.toLocaleString()})</span>}
             </button>
           </div>
         </div>
