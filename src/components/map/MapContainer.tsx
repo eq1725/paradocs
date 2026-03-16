@@ -1,0 +1,302 @@
+/**
+ * MapContainer — Core MapLibre GL map with clustered markers and heatmap
+ *
+ * This is the main map renderer. It receives data (features from Supercluster)
+ * and renders them as clustered circle markers or a heatmap layer.
+ */
+
+import React, { useCallback, useRef, useMemo, useState, useEffect } from 'react'
+import Map, {
+  Source,
+  Layer,
+  NavigationControl,
+  GeolocateControl,
+  MapRef,
+  ViewStateChangeEvent,
+  MapLayerMouseEvent,
+} from 'react-map-gl/maplibre'
+import 'maplibre-gl/dist/maplibre-gl.css'
+import type Supercluster from 'supercluster'
+import {
+  MAPTILER_STYLE_URL,
+  INITIAL_VIEW,
+  MAP_BOUNDS,
+  CATEGORY_COLORS,
+  HEATMAP_COLORS,
+  ReportProperties,
+  isCluster,
+} from './mapStyles'
+import { PhenomenonCategory } from '@/lib/database.types'
+
+interface MapContainerProps {
+  features: (Supercluster.ClusterFeature<ReportProperties> | Supercluster.PointFeature<ReportProperties>)[]
+  /** Raw unclustered points for the heatmap layer */
+  allPoints: GeoJSON.FeatureCollection
+  supercluster: Supercluster<ReportProperties> | null
+  heatmapActive: boolean
+  selectedReportId: string | null
+  onSelectReport: (id: string) => void
+  onViewportChange: (bounds: [number, number, number, number], zoom: number) => void
+  onLocateMe?: () => void
+}
+
+export default function MapContainer({
+  features,
+  allPoints,
+  supercluster,
+  heatmapActive,
+  selectedReportId,
+  onSelectReport,
+  onViewportChange,
+}: MapContainerProps) {
+  const mapRef = useRef<MapRef>(null)
+  const [viewState, setViewState] = useState<{
+    longitude: number
+    latitude: number
+    zoom: number
+    pitch: number
+    bearing: number
+  }>(INITIAL_VIEW)
+  const [mapLoaded, setMapLoaded] = useState(false)
+
+  // ─── Build GeoJSON for the source ──────────────────────────
+  const geojsonData = useMemo(
+    (): GeoJSON.FeatureCollection => ({
+      type: 'FeatureCollection',
+      features: features as GeoJSON.Feature[],
+    }),
+    [features]
+  )
+
+  // ─── Category color expression for MapLibre ────────────────
+  const categoryColorExpr = useMemo(() => {
+    const stops: (string | PhenomenonCategory)[] = []
+    for (const [cat, color] of Object.entries(CATEGORY_COLORS)) {
+      stops.push(cat, color)
+    }
+    return ['match', ['get', 'category'], ...stops, '#9ca3af'] as any
+  }, [])
+
+  // ─── Report viewport changes ───────────────────────────────
+  const handleMoveEnd = useCallback(
+    (e: ViewStateChangeEvent) => {
+      const map = mapRef.current?.getMap()
+      if (!map) return
+
+      const bounds = map.getBounds()
+      if (!bounds) return
+
+      onViewportChange(
+        [
+          bounds.getWest(),
+          bounds.getSouth(),
+          bounds.getEast(),
+          bounds.getNorth(),
+        ],
+        e.viewState.zoom
+      )
+    },
+    [onViewportChange]
+  )
+
+  // Fire initial viewport after map loads
+  useEffect(() => {
+    if (mapLoaded) {
+      const map = mapRef.current?.getMap()
+      if (!map) return
+      const bounds = map.getBounds()
+      if (bounds) {
+        onViewportChange(
+          [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()],
+          viewState.zoom
+        )
+      }
+    }
+  }, [mapLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Click handling ────────────────────────────────────────
+  const handleClick = useCallback(
+    (e: MapLayerMouseEvent) => {
+      const feature = e.features?.[0]
+      if (!feature) return
+
+      const props = feature.properties
+      if (!props) return
+
+      // Cluster click → zoom in
+      if (props.cluster && supercluster) {
+        const clusterId = props.cluster_id
+        try {
+          const zoom = supercluster.getClusterExpansionZoom(clusterId)
+          const geometry = feature.geometry as GeoJSON.Point
+          mapRef.current?.flyTo({
+            center: geometry.coordinates as [number, number],
+            zoom: Math.min(zoom, MAP_BOUNDS.maxZoom),
+            duration: 500,
+          })
+        } catch {
+          // ignore
+        }
+        return
+      }
+
+      // Individual report click
+      if (props.id) {
+        onSelectReport(props.id as string)
+      }
+    },
+    [supercluster, onSelectReport]
+  )
+
+  // ─── Cursor changes ───────────────────────────────────────
+  const handleMouseEnter = useCallback(() => {
+    const map = mapRef.current?.getMap()
+    if (map) map.getCanvas().style.cursor = 'pointer'
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
+    const map = mapRef.current?.getMap()
+    if (map) map.getCanvas().style.cursor = ''
+  }, [])
+
+  return (
+    <Map
+      ref={mapRef}
+      {...viewState}
+      onMove={(e) => setViewState(e.viewState)}
+      onMoveEnd={handleMoveEnd}
+      onLoad={() => setMapLoaded(true)}
+      mapStyle={MAPTILER_STYLE_URL}
+      style={{ width: '100%', height: '100%' }}
+      minZoom={MAP_BOUNDS.minZoom}
+      maxZoom={MAP_BOUNDS.maxZoom}
+      interactiveLayerIds={['clusters', 'unclustered-point']}
+      onClick={handleClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      attributionControl={false}
+    >
+      {/* Navigation controls — desktop only */}
+      <NavigationControl position="top-right" showCompass={false} />
+
+      {/* ─── Heatmap: separate source with ALL raw points (not clustered) ─── */}
+      {heatmapActive && (
+        <Source id="reports-heat-source" type="geojson" data={allPoints}>
+          <Layer
+            id="reports-heat"
+            type="heatmap"
+            paint={{
+              'heatmap-weight': 1,
+              'heatmap-intensity': [
+                'interpolate', ['linear'], ['zoom'],
+                0, 1,
+                3, 2,
+                6, 3,
+                10, 4,
+              ] as any,
+              'heatmap-radius': [
+                'interpolate', ['linear'], ['zoom'],
+                0, 20,
+                3, 40,
+                6, 50,
+                10, 60,
+                14, 80,
+              ] as any,
+              'heatmap-opacity': [
+                'interpolate', ['linear'], ['zoom'],
+                0, 0.85,
+                10, 0.7,
+                14, 0.3,
+                16, 0,
+              ] as any,
+              'heatmap-color': HEATMAP_COLORS as any,
+            }}
+          />
+        </Source>
+      )}
+
+      {/* ─── Clustered markers source ─── */}
+      <Source
+        id="reports"
+        type="geojson"
+        data={geojsonData}
+      >
+        {/* ─── Cluster circles ─── */}
+        <Layer
+          id="clusters"
+          type="circle"
+          filter={['has', 'point_count']}
+          paint={{
+            'circle-color': [
+              'step', ['get', 'point_count'],
+              '#6366f1', // indigo < 10
+              10, '#8b5cf6', // violet < 100
+              100, '#a855f7', // purple < 1000
+              1000, '#c084fc', // purple-400
+            ] as any,
+            'circle-radius': [
+              'step', ['get', 'point_count'],
+              16, // < 10
+              10, 20, // < 100
+              100, 26, // < 1000
+              1000, 32,
+            ] as any,
+            'circle-stroke-width': 2,
+            'circle-stroke-color': 'rgba(255,255,255,0.15)',
+            'circle-opacity': heatmapActive ? 0.3 : 0.9,
+          }}
+        />
+
+        {/* ─── Cluster count labels ─── */}
+        <Layer
+          id="cluster-count"
+          type="symbol"
+          filter={['has', 'point_count']}
+          layout={{
+            'text-field': [
+              'step', ['get', 'point_count'],
+              ['to-string', ['get', 'point_count']],
+              1000, ['concat', ['to-string', ['/', ['round', ['/', ['get', 'point_count'], 100]], 10]], 'K'],
+            ] as any,
+            'text-size': 12,
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+            'text-allow-overlap': true,
+          }}
+          paint={{
+            'text-color': '#ffffff',
+            'text-opacity': heatmapActive ? 0.3 : 1,
+          }}
+        />
+
+        {/* ─── Individual report markers ─── */}
+        <Layer
+          id="unclustered-point"
+          type="circle"
+          filter={['!', ['has', 'point_count']]}
+          paint={{
+            'circle-color': categoryColorExpr,
+            'circle-radius': [
+              'case',
+              ['==', ['get', 'id'], selectedReportId || ''],
+              10,
+              6,
+            ] as any,
+            'circle-stroke-width': [
+              'case',
+              ['==', ['get', 'id'], selectedReportId || ''],
+              3,
+              1.5,
+            ] as any,
+            'circle-stroke-color': [
+              'case',
+              ['==', ['get', 'id'], selectedReportId || ''],
+              '#ffffff',
+              'rgba(255,255,255,0.3)',
+            ] as any,
+            'circle-opacity': heatmapActive ? 0.4 : 0.9,
+          }}
+        />
+      </Source>
+    </Map>
+  )
+}
