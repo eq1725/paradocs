@@ -59,10 +59,10 @@ export default function MapControls({
         <Locate size={18} />
       </button>
 
-      {/* Fullscreen */}
+      {/* Fullscreen — hidden on mobile (iOS Safari doesn't support Fullscreen API) */}
       <button
         onClick={toggleFullscreen}
-        className={buttonBase}
+        className={`${buttonBase} hidden lg:flex`}
         title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
         aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
       >

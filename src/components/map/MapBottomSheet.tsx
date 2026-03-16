@@ -87,84 +87,62 @@ export default function MapBottomSheet({
     }
   }, [selectedReport, snap, onSnapChange])
 
-  // ─── Drag handling ─────────────────────────────────────────
-  const handleDragStart = useCallback(
-    (clientY: number) => {
-      dragStartY.current = clientY
-      dragStartHeight.current = currentHeight
-      setIsDragging(true)
-    },
-    [currentHeight]
-  )
-
-  const handleDragMove = useCallback(
-    (clientY: number) => {
-      if (!isDragging) return
-      const dy = dragStartY.current - clientY
-      const newHeight = Math.max(
-        SNAP_HEIGHTS.peek,
-        Math.min(fullHeight, dragStartHeight.current + dy)
-      )
-      setCurrentHeight(newHeight)
-    },
-    [isDragging, fullHeight]
-  )
-
-  const handleDragEnd = useCallback(() => {
-    setIsDragging(false)
-
-    // Snap to nearest
-    const peekDist = Math.abs(currentHeight - SNAP_HEIGHTS.peek)
-    const halfDist = Math.abs(currentHeight - SNAP_HEIGHTS.half)
-    const fullDist = Math.abs(currentHeight - fullHeight)
-
-    const minDist = Math.min(peekDist, halfDist, fullDist)
-    if (minDist === peekDist) onSnapChange('peek')
-    else if (minDist === halfDist) onSnapChange('half')
-    else onSnapChange('full')
-  }, [currentHeight, fullHeight, onSnapChange])
+  // ─── Refs for drag state (stable across renders) ───────────
+  const currentHeightRef = useRef(currentHeight)
+  currentHeightRef.current = currentHeight
+  const fullHeightRef = useRef(fullHeight)
+  fullHeightRef.current = fullHeight
+  const onSnapChangeRef = useRef(onSnapChange)
+  onSnapChangeRef.current = onSnapChange
+  const dragZoneRef = useRef<HTMLDivElement>(null)
+  const isDraggingRef = useRef(false)
 
   // ─── Touch events with preventDefault to stop page scroll ──
-  // We use a ref-based approach so we can register { passive: false }
-  const dragZoneRef = useRef<HTMLDivElement>(null)
-
+  // All values read from refs so the effect never needs to re-register
   useEffect(() => {
     const el = dragZoneRef.current
     if (!el) return
 
-    let startY = 0
-    let startH = 0
-    let dragging = false
-
     const onTouchStart = (e: TouchEvent) => {
-      startY = e.touches[0].clientY
-      startH = currentHeight
-      dragging = true
+      dragStartY.current = e.touches[0].clientY
+      dragStartHeight.current = currentHeightRef.current
+      isDraggingRef.current = true
       setIsDragging(true)
-      dragStartY.current = startY
-      dragStartHeight.current = startH
     }
 
     const onTouchMove = (e: TouchEvent) => {
-      if (!dragging) return
-      e.preventDefault() // This is the key — stops the browser from scrolling the page
+      if (!isDraggingRef.current) return
+      e.preventDefault()
       const clientY = e.touches[0].clientY
       const dy = dragStartY.current - clientY
       const newHeight = Math.max(
         SNAP_HEIGHTS.peek,
-        Math.min(fullHeight, dragStartHeight.current + dy)
+        Math.min(fullHeightRef.current, dragStartHeight.current + dy)
       )
+      currentHeightRef.current = newHeight
       setCurrentHeight(newHeight)
     }
 
     const onTouchEnd = () => {
-      if (!dragging) return
-      dragging = false
-      handleDragEnd()
+      if (!isDraggingRef.current) return
+      isDraggingRef.current = false
+      setIsDragging(false)
+
+      // Snap to nearest
+      const h = currentHeightRef.current
+      const fh = fullHeightRef.current
+      const peekDist = Math.abs(h - SNAP_HEIGHTS.peek)
+      const halfDist = Math.abs(h - SNAP_HEIGHTS.half)
+      const fullDist = Math.abs(h - fh)
+
+      const minDist = Math.min(peekDist, halfDist, fullDist)
+      if (minDist === peekDist) onSnapChangeRef.current('peek')
+      else if (minDist === halfDist) onSnapChangeRef.current('half')
+      else onSnapChangeRef.current('full')
     }
 
     el.addEventListener('touchstart', onTouchStart, { passive: true })
-    el.addEventListener('touchmove', onTouchMove, { passive: false }) // Must be non-passive to preventDefault
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
     el.addEventListener('touchend', onTouchEnd, { passive: true })
 
     return () => {
@@ -172,14 +150,37 @@ export default function MapBottomSheet({
       el.removeEventListener('touchmove', onTouchMove)
       el.removeEventListener('touchend', onTouchEnd)
     }
-  }, [currentHeight, fullHeight, handleDragEnd])
+  }, []) // Empty deps — listeners are stable, all values read from refs
 
   // Mouse events (for desktop testing)
   const onMouseDown = (e: React.MouseEvent) => {
-    handleDragStart(e.clientY)
-    const onMouseMove = (me: MouseEvent) => handleDragMove(me.clientY)
+    dragStartY.current = e.clientY
+    dragStartHeight.current = currentHeight
+    setIsDragging(true)
+    isDraggingRef.current = true
+
+    const onMouseMove = (me: MouseEvent) => {
+      if (!isDraggingRef.current) return
+      const dy = dragStartY.current - me.clientY
+      const newHeight = Math.max(
+        SNAP_HEIGHTS.peek,
+        Math.min(fullHeightRef.current, dragStartHeight.current + dy)
+      )
+      currentHeightRef.current = newHeight
+      setCurrentHeight(newHeight)
+    }
     const onMouseUp = () => {
-      handleDragEnd()
+      isDraggingRef.current = false
+      setIsDragging(false)
+      const h = currentHeightRef.current
+      const fh = fullHeightRef.current
+      const peekDist = Math.abs(h - SNAP_HEIGHTS.peek)
+      const halfDist = Math.abs(h - SNAP_HEIGHTS.half)
+      const fullDist = Math.abs(h - fh)
+      const minDist = Math.min(peekDist, halfDist, fullDist)
+      if (minDist === peekDist) onSnapChangeRef.current('peek')
+      else if (minDist === halfDist) onSnapChangeRef.current('half')
+      else onSnapChangeRef.current('full')
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', onMouseUp)
     }
