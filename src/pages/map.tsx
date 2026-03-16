@@ -47,6 +47,9 @@ export default function MapPage() {
     allPointsGeoJSON,
     totalReports,
     filteredCount,
+    categoryCounts,
+    topCountries,
+    dataBounds,
     loading,
     error,
     supercluster,
@@ -115,6 +118,7 @@ export default function MapPage() {
           selectedReportId={selectedReportId}
           onSelectReport={handleSelectReport}
           onViewportChange={handleViewportChange}
+          dataBounds={dataBounds}
         />
 
         {/* ─── Loading overlay ─── */}
@@ -211,6 +215,8 @@ export default function MapPage() {
           onResetFilters={resetFilters}
           filteredCount={filteredCount}
           totalCount={totalReports}
+          categoryCounts={categoryCounts}
+          topCountries={topCountries}
         />
       </div>
     </>

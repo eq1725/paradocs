@@ -16,6 +16,13 @@ import Map, {
   MapLayerMouseEvent,
 } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
+
+// Hide MapLibre's native navigation control on mobile (we use pinch-to-zoom)
+const mapOverrideStyles = `
+  @media (max-width: 1023px) {
+    .maplibregl-ctrl-top-right { display: none !important; }
+  }
+`
 import type Supercluster from 'supercluster'
 import {
   MAPTILER_STYLE_URL,
@@ -26,6 +33,7 @@ import {
   ReportProperties,
   isCluster,
 } from './mapStyles'
+import { DataBounds } from './useViewportData'
 import { PhenomenonCategory } from '@/lib/database.types'
 
 interface MapContainerProps {
@@ -38,6 +46,8 @@ interface MapContainerProps {
   onSelectReport: (id: string) => void
   onViewportChange: (bounds: [number, number, number, number], zoom: number) => void
   onLocateMe?: () => void
+  /** Bounding box of all data — map auto-fits to this on first load */
+  dataBounds?: DataBounds
 }
 
 export default function MapContainer({
@@ -48,6 +58,7 @@ export default function MapContainer({
   selectedReportId,
   onSelectReport,
   onViewportChange,
+  dataBounds,
 }: MapContainerProps) {
   const mapRef = useRef<MapRef>(null)
   const [viewState, setViewState] = useState<{
@@ -58,6 +69,7 @@ export default function MapContainer({
     bearing: number
   }>(INITIAL_VIEW)
   const [mapLoaded, setMapLoaded] = useState(false)
+  const hasFittedBounds = useRef(false)
 
   // ─── Build GeoJSON for the source ──────────────────────────
   const geojsonData = useMemo(
@@ -114,6 +126,19 @@ export default function MapContainer({
     }
   }, [mapLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-fit to data bounds on first load
+  useEffect(() => {
+    if (mapLoaded && dataBounds && !hasFittedBounds.current) {
+      const map = mapRef.current?.getMap()
+      if (!map) return
+      hasFittedBounds.current = true
+      map.fitBounds(
+        [[dataBounds[0], dataBounds[1]], [dataBounds[2], dataBounds[3]]],
+        { padding: { top: 60, bottom: 100, left: 40, right: 40 }, duration: 1000, maxZoom: 12 }
+      )
+    }
+  }, [mapLoaded, dataBounds])
+
   // ─── Click handling ────────────────────────────────────────
   const handleClick = useCallback(
     (e: MapLayerMouseEvent) => {
@@ -160,6 +185,8 @@ export default function MapContainer({
   }, [])
 
   return (
+    <>
+    <style>{mapOverrideStyles}</style>
     <Map
       ref={mapRef}
       {...viewState}
@@ -176,7 +203,7 @@ export default function MapContainer({
       onMouseLeave={handleMouseLeave}
       attributionControl={false}
     >
-      {/* Navigation controls — desktop only */}
+      {/* Navigation controls — hidden on mobile via CSS */}
       <NavigationControl position="top-right" showCompass={false} />
 
       {/* ─── Heatmap: separate source with ALL raw points (not clustered) ─── */}
@@ -298,5 +325,6 @@ export default function MapContainer({
         />
       </Source>
     </Map>
+    </>
   )
 }

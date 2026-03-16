@@ -6,7 +6,8 @@
  */
 
 import React, { useCallback, useRef, useEffect, useState } from 'react'
-import { MapFilters, ReportProperties } from './mapStyles'
+import { MapFilters, ReportProperties, CATEGORY_COLORS, CATEGORY_ICONS } from './mapStyles'
+import { PhenomenonCategory } from '@/lib/database.types'
 import MapReportCard from './MapReportCard'
 import MapFilterPanel from './MapFilterPanel'
 
@@ -28,6 +29,16 @@ interface MapBottomSheetProps {
   onResetFilters: () => void
   filteredCount: number
   totalCount: number
+  categoryCounts?: Record<string, number>
+  topCountries?: { name: string; count: number }[]
+}
+
+// Format category name for display
+function formatCategory(cat: string): string {
+  return cat
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
 }
 
 export default function MapBottomSheet({
@@ -40,6 +51,8 @@ export default function MapBottomSheet({
   onResetFilters,
   filteredCount,
   totalCount,
+  categoryCounts = {},
+  topCountries = [],
 }: MapBottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null)
   const dragStartY = useRef(0)
@@ -164,12 +177,91 @@ export default function MapBottomSheet({
               View selected
             </button>
           )}
+          {!selectedReport && snap === 'peek' && (
+            <button
+              onClick={() => onSnapChange('half')}
+              className="text-purple-400 font-medium"
+            >
+              Explore
+            </button>
+          )}
         </div>
 
-        {/* Half state: report card */}
+        {/* Half state: report card OR stats overview */}
         {snap !== 'peek' && selectedReport && (
           <div className="pb-4">
             <MapReportCard report={selectedReport} onClose={onCloseReport} />
+          </div>
+        )}
+
+        {/* Empty state: category breakdown + top locations */}
+        {snap !== 'peek' && !selectedReport && (
+          <div className="pb-4 space-y-4">
+            {/* Category breakdown */}
+            <div>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                By Category
+              </h3>
+              <div className="space-y-1.5">
+                {Object.entries(categoryCounts)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([cat, count]) => {
+                    const pct = filteredCount > 0 ? (count / filteredCount) * 100 : 0
+                    const color = CATEGORY_COLORS[cat as PhenomenonCategory] || '#9ca3af'
+                    const icon = CATEGORY_ICONS[cat as PhenomenonCategory] || '📍'
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => onFilterChange('category', cat as PhenomenonCategory)}
+                        className="w-full flex items-center gap-2 group"
+                      >
+                        <span className="text-sm w-5 text-center">{icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-xs text-gray-300 group-hover:text-white transition-colors truncate">
+                              {formatCategory(cat)}
+                            </span>
+                            <span className="text-[10px] text-gray-500 ml-2 flex-shrink-0">
+                              {count}
+                            </span>
+                          </div>
+                          <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{ width: `${pct}%`, backgroundColor: color }}
+                            />
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+              </div>
+            </div>
+
+            {/* Top locations */}
+            {topCountries.length > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                  Top Locations
+                </h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {topCountries.map(({ name, count }) => (
+                    <button
+                      key={name}
+                      onClick={() => onFilterChange('country', name)}
+                      className="px-2.5 py-1 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-700/50 rounded-full text-xs text-gray-300 hover:text-white transition-colors"
+                    >
+                      {name} <span className="text-gray-500">{count}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Hint */}
+            <p className="text-[11px] text-gray-600 text-center pt-1">
+              Tap a marker on the map to view details
+            </p>
           </div>
         )}
 

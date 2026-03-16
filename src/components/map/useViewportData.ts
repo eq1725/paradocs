@@ -16,6 +16,9 @@ type ReportPoint = GeoJSON.Feature<GeoJSON.Point, ReportProperties>
 type ClusterFeature = Supercluster.ClusterFeature<ReportProperties> | Supercluster.PointFeature<ReportProperties>
 type AnyClusterFeature = ClusterFeature
 
+/** Bounding box of all data points [west, south, east, north] */
+export type DataBounds = [number, number, number, number] | null
+
 interface UseViewportDataReturn {
   /** All features (clusters + individual points) for current viewport */
   features: any[]
@@ -25,6 +28,12 @@ interface UseViewportDataReturn {
   totalReports: number
   /** Number of reports matching current filters */
   filteredCount: number
+  /** Category counts for the current filtered data */
+  categoryCounts: Record<string, number>
+  /** Top countries by report count */
+  topCountries: { name: string; count: number }[]
+  /** Data bounds for auto-fitting the map */
+  dataBounds: DataBounds
   /** Loading state */
   loading: boolean
   /** Error message if any */
@@ -208,6 +217,49 @@ export function useViewportData(
     [filteredReports]
   )
 
+  // ─── Category counts for stats display ─────────────────────
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const r of filteredReports) {
+      const cat = r.properties.category
+      counts[cat] = (counts[cat] || 0) + 1
+    }
+    return counts
+  }, [filteredReports])
+
+  // ─── Top countries ──────────────────────────────────────────
+  const topCountries = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const r of filteredReports) {
+      const country = r.properties.country
+      if (country) {
+        counts[country] = (counts[country] || 0) + 1
+      }
+    }
+    return Object.entries(counts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+  }, [filteredReports])
+
+  // ─── Data bounds for auto-fit ───────────────────────────────
+  const dataBounds = useMemo((): DataBounds => {
+    if (allReports.length === 0) return null
+
+    let west = 180, south = 90, east = -180, north = -90
+    for (const r of allReports) {
+      const [lng, lat] = r.geometry.coordinates
+      if (lng < west) west = lng
+      if (lng > east) east = lng
+      if (lat < south) south = lat
+      if (lat > north) north = lat
+    }
+    // Add a small padding
+    const lngPad = (east - west) * 0.05
+    const latPad = (north - south) * 0.05
+    return [west - lngPad, south - latPad, east + lngPad, north + latPad]
+  }, [allReports])
+
   const getReport = useCallback(
     (id: string) => reportMapRef.current.get(id),
     []
@@ -220,6 +272,9 @@ export function useViewportData(
     allPointsGeoJSON,
     totalReports: allReports.length,
     filteredCount: filteredReports.length,
+    categoryCounts,
+    topCountries,
+    dataBounds,
     loading,
     error,
     supercluster,
