@@ -15,8 +15,8 @@ import MapTimeline from './MapTimeline'
 type SnapPoint = 'peek' | 'half' | 'full'
 
 const SNAP_HEIGHTS = {
-  peek: 80,   // just the drag handle + stat line
-  half: 340,  // report card
+  peek: 100,  // drag handle + stat line (above nav bar)
+  half: 360,  // report card
   full: 0,    // calculated as vh * 0.85
 }
 

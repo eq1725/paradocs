@@ -172,8 +172,7 @@ export default function MapTimeline({
   return (
     <div className={`${className}`}>
       {/* Era presets */}
-      {!compact && (
-        <div className="flex items-center gap-1.5 mb-2 overflow-x-auto no-scrollbar">
+      <div className={`flex items-center gap-1.5 ${compact ? 'mb-1.5' : 'mb-2'} overflow-x-auto no-scrollbar`}>
           {TIMELINE.eras.map((era) => {
             const isActive =
               (era.from === null && era.to === null && isAllTime) ||
@@ -194,8 +193,7 @@ export default function MapTimeline({
               </button>
             )
           })}
-        </div>
-      )}
+      </div>
 
       {/* Slider track */}
       <div className="relative px-2">
@@ -252,27 +250,37 @@ export default function MapTimeline({
             style={{ left: `${fromPct}%`, width: `${toPct - fromPct}%` }}
           />
 
-          {/* From handle */}
+          {/* From handle — large touch target wrapping visible dot */}
           <div
-            className={`absolute bottom-0 -translate-x-1/2 -translate-y-[3px] w-3.5 h-3.5 rounded-full border-2 cursor-grab active:cursor-grabbing transition-shadow ${
-              dragging === 'from'
-                ? 'bg-purple-400 border-purple-300 shadow-lg shadow-purple-500/30 scale-125'
-                : 'bg-purple-500 border-purple-400 hover:shadow-md hover:shadow-purple-500/20'
-            }`}
-            style={{ left: `${fromPct}%` }}
+            className="absolute bottom-0 -translate-x-1/2 flex items-center justify-center cursor-grab active:cursor-grabbing"
+            style={{ left: `${fromPct}%`, width: 44, height: 44, marginBottom: -18 }}
             onPointerDown={handlePointerDown('from')}
-          />
+          >
+            <div
+              className={`w-4.5 h-4.5 rounded-full border-2 transition-shadow pointer-events-none ${
+                dragging === 'from'
+                  ? 'bg-purple-400 border-purple-300 shadow-lg shadow-purple-500/30 scale-125'
+                  : 'bg-purple-500 border-purple-400 hover:shadow-md hover:shadow-purple-500/20'
+              }`}
+              style={{ width: 18, height: 18 }}
+            />
+          </div>
 
-          {/* To handle */}
+          {/* To handle — large touch target wrapping visible dot */}
           <div
-            className={`absolute bottom-0 -translate-x-1/2 -translate-y-[3px] w-3.5 h-3.5 rounded-full border-2 cursor-grab active:cursor-grabbing transition-shadow ${
-              dragging === 'to'
-                ? 'bg-purple-400 border-purple-300 shadow-lg shadow-purple-500/30 scale-125'
-                : 'bg-purple-500 border-purple-400 hover:shadow-md hover:shadow-purple-500/20'
-            }`}
-            style={{ left: `${toPct}%` }}
+            className="absolute bottom-0 -translate-x-1/2 flex items-center justify-center cursor-grab active:cursor-grabbing"
+            style={{ left: `${toPct}%`, width: 44, height: 44, marginBottom: -18 }}
             onPointerDown={handlePointerDown('to')}
-          />
+          >
+            <div
+              className={`rounded-full border-2 transition-shadow pointer-events-none ${
+                dragging === 'to'
+                  ? 'bg-purple-400 border-purple-300 shadow-lg shadow-purple-500/30 scale-125'
+                  : 'bg-purple-500 border-purple-400 hover:shadow-md hover:shadow-purple-500/20'
+              }`}
+              style={{ width: 18, height: 18 }}
+            />
+          </div>
         </div>
       </div>
     </div>
