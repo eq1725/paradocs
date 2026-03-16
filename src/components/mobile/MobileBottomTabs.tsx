@@ -112,7 +112,7 @@ export function MobileBottomTabs() {
               isRouteActive('/explore') ? 'text-primary-400' : 'text-gray-500'
             )}
           >
-            <Compass className="w-5 h-5" />
+            <Compass className="w-6 h-6" />
             <span className={classNames(
               'text-[10px] mt-1 font-medium',
               isRouteActive('/explore') ? 'text-primary-400' : 'text-gray-500'
@@ -130,7 +130,7 @@ export function MobileBottomTabs() {
               isRouteActive('/map') ? 'text-primary-400' : 'text-gray-500'
             )}
           >
-            <MapIcon className="w-5 h-5" />
+            <MapIcon className="w-6 h-6" />
             <span className={classNames(
               'text-[10px] mt-1 font-medium',
               isRouteActive('/map') ? 'text-primary-400' : 'text-gray-500'
@@ -140,18 +140,20 @@ export function MobileBottomTabs() {
             )}
           </Link>
 
-          {/* Discover FAB \u2014 elevated center button, the hook for casual users */}
+          {/* Discover FAB — elevated center button, the hook for casual users
+              56px (w-14 h-14) follows Material Design FAB spec, -mt-5 lifts it
+              above the nav plane for visual hierarchy */}
           <Link
             href="/discover"
             className="flex flex-col items-center justify-center flex-1 py-2 min-h-[56px]"
           >
             <div className={classNames(
-              'flex items-center justify-center w-12 h-12 -mt-4 rounded-full shadow-lg transition-all',
+              'flex items-center justify-center w-14 h-14 -mt-5 rounded-full shadow-lg transition-all',
               isRouteActive('/discover')
-                ? 'bg-primary-500 text-white shadow-primary-500/40 scale-110'
-                : 'bg-primary-600 text-white shadow-primary-600/30'
+                ? 'bg-primary-500 text-white shadow-primary-500/50 scale-110'
+                : 'bg-gradient-to-br from-primary-500 to-purple-600 text-white shadow-primary-500/30 hover:shadow-primary-500/50'
             )}>
-              <Flame className="w-6 h-6" />
+              <Flame className="w-7 h-7" />
             </div>
           </Link>
 
@@ -163,7 +165,7 @@ export function MobileBottomTabs() {
               fourthActive ? 'text-primary-400' : 'text-gray-500'
             )}
           >
-            <FourthIcon className="w-5 h-5" />
+            <FourthIcon className="w-6 h-6" />
             <span className={classNames(
               'text-[10px] mt-1 font-medium',
               fourthActive ? 'text-primary-400' : 'text-gray-500'
@@ -183,7 +185,7 @@ export function MobileBottomTabs() {
               isMoreOpen ? 'text-primary-400' : 'text-gray-500'
             )}
           >
-            <Menu className="w-5 h-5" />
+            <Menu className="w-6 h-6" />
             <span className={classNames(
               'text-[10px] mt-1 font-medium',
               isMoreOpen ? 'text-primary-400' : 'text-gray-500'
