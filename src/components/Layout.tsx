@@ -96,7 +96,7 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex items-center justify-between h-14 sm:h-16">
             {/* Logo */}
             <Link href="/" className="flex items-center mr-8">
-              <span className="font-sans font-black text-2xl text-white tracking-tight">Paradocs<span className="text-primary-500">.</span></span>
+              <span className="font-sans font-black text-xl sm:text-2xl text-white tracking-tight whitespace-nowrap">Paradocs<span className="text-primary-500">.</span></span>
             </Link>
 
             {/* Desktop Navigation */}
@@ -140,13 +140,13 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Right section */}
             <div className="flex items-center gap-3">
-              {/* Submit button */}
+              {/* Submit button — desktop only, secondary styling (not a core CTA) */}
               <Link
                 href="/submit"
-                className="hidden sm:flex btn btn-primary text-sm"
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
               >
                 <PlusCircle className="w-4 h-4" />
-                Submit Report
+                Submit
               </Link>
 
               {/* User menu */}
@@ -203,7 +203,7 @@ export default function Layout({ children }: LayoutProps) {
                 ) : (
                   <Link
                     href="/login"
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-white bg-white/10 border border-white/15 hover:bg-primary-600 hover:border-primary-500 transition-all"
                   >
                     <LogIn className="w-4 h-4" />
                     Sign in

@@ -454,66 +454,62 @@ export default function ExplorePage() {
         <title>Explore Paranormal Reports - Paradocs</title>
       </Head>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-xl sm:text-3xl font-display font-bold text-white">Explore Reports</h1>
-          <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-400">
-            Browse {totalCount.toLocaleString()} documented paranormal encounters
-          </p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        <div className="flex items-center justify-between mb-4 sm:mb-6">
+          <div>
+            <h1 className="text-lg sm:text-3xl font-display font-bold text-white">Explore</h1>
+            <p className="text-xs sm:text-base text-gray-500">
+              {totalCount.toLocaleString()} documented encounters
+            </p>
+          </div>
+          {/* View Toggle — inline with title on mobile */}
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            <button
+              onClick={() => setActiveView('feed')}
+              className={classNames(
+                'px-3 sm:px-5 py-1.5 sm:py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-1.5',
+                activeView === 'feed'
+                  ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
+                  : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
+              )}
+            >
+              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              Discover
+            </button>
+            <button
+              onClick={() => setActiveView('browse')}
+              className={classNames(
+                'px-3 sm:px-5 py-1.5 sm:py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-1.5',
+                activeView === 'browse'
+                  ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
+                  : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
+              )}
+            >
+              <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              Browse
+              {baselineCount > 0 && <span className="ml-0.5 text-xs opacity-75">({baselineCount.toLocaleString()})</span>}
+            </button>
+          </div>
         </div>
 
-        {/* View Toggle */}
-        <div className="flex items-center gap-2 sm:gap-3 mb-5 sm:mb-6">
-          <button
-            onClick={() => setActiveView('feed')}
-            className={classNames(
-              'px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-1.5 sm:gap-2',
-              activeView === 'feed'
-                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30 shadow-lg shadow-primary-500/10'
-                : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10'
-            )}
-          >
-            <Sparkles className="w-4 h-4" />
-            Discover
-          </button>
-          <button
-            onClick={() => setActiveView('browse')}
-            className={classNames(
-              'px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-1.5 sm:gap-2',
-              activeView === 'browse'
-                ? 'bg-gradient-to-r from-primary-500 to-purple-500 text-white border border-primary-400/30 shadow-lg shadow-primary-500/20'
-                : 'bg-gradient-to-r from-primary-500/20 to-purple-500/20 text-primary-300 border border-primary-500/20 hover:from-primary-500/30 hover:to-purple-500/30 hover:text-primary-200 hover:shadow-lg hover:shadow-primary-500/10'
-            )}
-          >
-            <Search className="w-4 h-4" />
-            <span className="hidden sm:inline">Browse All</span>
-            <span className="sm:hidden">Browse</span>
-            {baselineCount > 0 && <span className="ml-0.5 text-xs opacity-75">({baselineCount.toLocaleString()})</span>}
-          </button>
-        </div>
-
-        {/* Pattern Insights Banner */}
+        {/* Pattern Insights Banner — compact on mobile */}
         <Link
           href="/insights"
-          className="block mb-5 sm:mb-6 p-3 sm:p-4 glass-card bg-gradient-to-r from-primary-900/30 to-purple-900/30 border border-primary-500/20 hover:border-primary-500/40 transition-all group"
+          className="block mb-4 sm:mb-6 px-3 py-2.5 sm:p-4 glass-card bg-gradient-to-r from-primary-900/20 to-purple-900/20 border border-primary-500/15 hover:border-primary-500/40 transition-all group"
         >
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-              <div className="p-1.5 sm:p-2 rounded-lg bg-primary-500/20 flex-shrink-0">
-                <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-primary-400" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-medium text-white text-sm sm:text-base">Discover Pattern Insights</h3>
-                <p className="text-xs sm:text-sm text-gray-400 truncate">AI-detected patterns, geographic clusters & temporal anomalies</p>
-              </div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <Sparkles className="w-4 h-4 text-primary-400 flex-shrink-0" />
+              <span className="font-medium text-white text-sm truncate">Pattern Insights</span>
+              <span className="hidden sm:inline text-xs text-gray-500">AI-detected patterns & clusters</span>
             </div>
-            <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-primary-400 group-hover:translate-x-1 transition-all flex-shrink-0" />
+            <ArrowRight className="w-4 h-4 text-gray-500 group-hover:text-primary-400 group-hover:translate-x-1 transition-all flex-shrink-0" />
           </div>
         </Link>
 
         {/* === FEED VIEW === */}
         {activeView === 'feed' && (
-          <div className="space-y-8 sm:space-y-10">
+          <div className="space-y-6 sm:space-y-10">
             {feedLoading ? (
               <div className="space-y-8">
                 {/* Spotlight skeleton */}
@@ -607,11 +603,11 @@ export default function ExplorePage() {
                                   <Link
                                     key={item.id}
                                     href={'/phenomena/' + item.slug}
-                                    className="min-w-[220px] sm:min-w-[260px] max-w-[240px] sm:max-w-[280px] flex-shrink-0 snap-start group/card relative overflow-hidden rounded-xl border border-white/10 hover:border-primary-500/30 transition-all"
+                                    className="min-w-[75vw] sm:min-w-[260px] max-w-[80vw] sm:max-w-[280px] flex-shrink-0 snap-start group/card relative overflow-hidden rounded-xl border border-white/10 hover:border-primary-500/30 transition-all"
                                   >
                                     {/* Card image or gradient background */}
                                     {hasImage ? (
-                                      <div className="relative h-36 sm:h-44 overflow-hidden">
+                                      <div className="relative h-44 sm:h-48 overflow-hidden">
                                         <img
                                           src={item.primary_image_url!}
                                           alt=""
@@ -622,24 +618,24 @@ export default function ExplorePage() {
                                         <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/40 to-transparent" />
                                       </div>
                                     ) : (
-                                      <div className={classNames('relative h-36 sm:h-44 flex items-center justify-center', config.bgColor)}>
+                                      <div className={classNames('relative h-44 sm:h-48 flex items-center justify-center', config.bgColor)}>
                                         <span className="text-6xl opacity-40 group-hover/card:scale-110 transition-transform">{item.icon || config.icon}</span>
                                         <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/30 to-transparent" />
                                       </div>
                                     )}
                                     {/* Content overlay at bottom of image */}
-                                    <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4">
+                                    <div className="absolute bottom-0 left-0 right-0 p-4">
                                       <div className="flex items-center gap-1.5 mb-1.5">
-                                        <span className={classNames('text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-medium', config.bgColor, config.color)}>
+                                        <span className={classNames('text-xs px-2 py-0.5 rounded-full font-medium', config.bgColor, config.color)}>
                                           {config.icon} {config.label}
                                         </span>
                                         {item.report_count > 0 && (
-                                          <span className="text-[10px] text-gray-400">{item.report_count} reports</span>
+                                          <span className="text-[11px] text-gray-400">{item.report_count} reports</span>
                                         )}
                                       </div>
-                                      <h3 className="font-semibold text-white text-sm sm:text-base line-clamp-1 group-hover/card:text-primary-300 transition-colors">{item.name}</h3>
+                                      <h3 className="font-semibold text-white text-base sm:text-lg line-clamp-1 group-hover/card:text-primary-300 transition-colors">{item.name}</h3>
                                       {item.ai_summary && (
-                                        <p className="text-[11px] sm:text-xs text-gray-400 line-clamp-2 mt-1 leading-relaxed">{item.ai_summary}</p>
+                                        <p className="text-xs text-gray-400 line-clamp-2 mt-1 leading-relaxed">{item.ai_summary}</p>
                                       )}
                                     </div>
                                   </Link>
@@ -648,9 +644,9 @@ export default function ExplorePage() {
                               {/* "See all" card at end */}
                               <Link
                                 href="/encyclopedia"
-                                className="min-w-[160px] sm:min-w-[180px] flex-shrink-0 snap-start flex flex-col items-center justify-center rounded-xl border border-white/10 hover:border-primary-500/30 bg-white/[0.02] hover:bg-white/[0.04] transition-all gap-2 px-4"
+                                className="min-w-[50vw] sm:min-w-[180px] flex-shrink-0 snap-start flex flex-col items-center justify-center rounded-xl border border-white/10 hover:border-primary-500/30 bg-white/[0.02] hover:bg-white/[0.04] transition-all gap-3 px-6"
                               >
-                                <BookOpen className="w-6 h-6 text-primary-400" />
+                                <BookOpen className="w-8 h-8 text-primary-400" />
                                 <span className="text-sm font-medium text-primary-400">Browse Encyclopedia</span>
                                 <span className="text-xs text-gray-500">4,792 phenomena</span>
                               </Link>
