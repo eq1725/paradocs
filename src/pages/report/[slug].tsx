@@ -789,10 +789,10 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           )}
         </header>
 
-        {/* Media Gallery */}
+        {/* Hero Media Gallery — images only, shown compactly above TOC */}
         {media.length > 0 && (
           <div className="mb-8" data-tour-step="media">
-            <MediaGallery media={media} />
+            <MediaGallery media={media} mode="images" />
           </div>
         )}
 
@@ -809,6 +809,17 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               className="text-gray-300 leading-relaxed break-words text-[16px] md:text-base"
             />
           </div>
+
+          {/* Sources & Documents — external links and embedded videos shown after body text */}
+          {media.length > 0 && (
+            <div className="mt-8 pt-8 border-t border-white/10">
+              <h3 className="font-medium text-white mb-4 flex items-center gap-2">
+                <span>Sources & Documents</span>
+                <span className="text-xs text-white/30 font-normal">Primary source material</span>
+              </h3>
+              <MediaGallery media={media} mode="sources" />
+            </div>
+          )}
 
           {/* Evidence section */}
           {(report.has_physical_evidence || report.has_photo_video || report.has_official_report || report.evidence_summary) && (

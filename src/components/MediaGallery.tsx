@@ -60,9 +60,15 @@ function getSourceLabel(url: string): string {
 interface MediaGalleryProps {
   media: MediaItem[]
   className?: string
+  /** Optional mode to filter displayed media:
+   * - 'all' (default): show everything
+   * - 'images': only show image thumbnails (no external links/embeds)
+   * - 'sources': only show external links and embedded videos/audio
+   */
+  mode?: 'all' | 'images' | 'sources'
 }
 
-export default function MediaGallery({ media, className }: MediaGalleryProps) {
+export default function MediaGallery({ media, className, mode = 'all' }: MediaGalleryProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
@@ -70,8 +76,15 @@ export default function MediaGallery({ media, className }: MediaGalleryProps) {
   if (!media || media.length === 0) return null
 
   // Separate images from external links (documents, non-direct videos)
-  const imageMedia = media.filter(item => !isExternalLink(item))
-  const externalMedia = media.filter(item => isExternalLink(item))
+  const allImageMedia = media.filter(item => !isExternalLink(item))
+  const allExternalMedia = media.filter(item => isExternalLink(item))
+
+  // Apply mode filter
+  const imageMedia = mode === 'sources' ? [] : allImageMedia
+  const externalMedia = mode === 'images' ? [] : allExternalMedia
+
+  // Nothing to show after filtering
+  if (imageMedia.length === 0 && externalMedia.length === 0) return null
 
   // Sort to put primary image first
   const sortedMedia = [...imageMedia].sort((a, b) => {
