@@ -948,7 +948,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         </div>
 
         {/* Did You Know? Connection Cards */}
-        <ConnectionCards reportSlug={slug as string} className="mb-6 sm:mb-8" />
+        <ConnectionCards reportSlug={slug as string} caseGroup={(report as any).case_group} className="mb-6 sm:mb-8" />
 
         {/* Engagement & Actions — integrated card, not a sticky bar */}
         <div className="mb-6 sm:mb-8 rounded-xl bg-white/[0.03] border border-white/[0.06] p-4">

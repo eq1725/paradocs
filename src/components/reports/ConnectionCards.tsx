@@ -2,13 +2,14 @@
  * ConnectionCards ("Did You Know?") Component
  *
  * Displays AI-detected connections between reports.
- * Shows surprising links like geographic clusters, temporal patterns,
- * characteristic similarities, and cross-phenomenon correlations.
+ * Filters out same-case connections (those belong in Related Reports).
+ * Prioritizes cross-category and genuinely surprising links.
  */
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Sparkles, MapPin, Clock, Fingerprint, ChevronRight, Lightbulb } from 'lucide-react';
+import { CATEGORY_CONFIG } from '@/lib/constants';
 
 interface Connection {
   id: string;
@@ -16,6 +17,7 @@ interface Connection {
   connected_report_title: string;
   connected_report_slug: string;
   connected_report_category: string;
+  connected_report_case_group: string | null;
   connection_type: string;
   connection_strength: number;
   ai_explanation: string;
@@ -24,6 +26,7 @@ interface Connection {
 
 interface Props {
   reportSlug: string;
+  caseGroup?: string | null;
   className?: string;
 }
 
@@ -32,6 +35,8 @@ var CONNECTION_ICONS: Record<string, React.ReactNode> = {
   temporal: <Clock className="w-4 h-4" />,
   characteristic: <Fingerprint className="w-4 h-4" />,
   cross_phenomenon: <Sparkles className="w-4 h-4" />,
+  witness_pattern: <Fingerprint className="w-4 h-4" />,
+  evidence_similarity: <Sparkles className="w-4 h-4" />,
   default: <Lightbulb className="w-4 h-4" />
 };
 
@@ -40,7 +45,7 @@ var CONNECTION_LABELS: Record<string, string> = {
   temporal: 'Same Time Period',
   characteristic: 'Similar Details',
   cross_phenomenon: 'Cross-Phenomenon Link',
-  witness_pattern: 'Witness Pattern Match',
+  witness_pattern: 'Witness Pattern',
   evidence_similarity: 'Similar Evidence'
 };
 
@@ -62,7 +67,12 @@ var CONNECTION_TEXT_COLORS: Record<string, string> = {
   evidence_similarity: 'text-cyan-400'
 };
 
-export default function ConnectionCards({ reportSlug, className }: Props) {
+function getCategoryLabel(category: string): string {
+  var config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG];
+  return config ? config.label : category.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+}
+
+export default function ConnectionCards({ reportSlug, caseGroup, className }: Props) {
   var [connections, setConnections] = useState<Connection[]>([]);
   var [loading, setLoading] = useState(true);
   var [expanded, setExpanded] = useState(false);
@@ -107,11 +117,34 @@ export default function ConnectionCards({ reportSlug, className }: Props) {
     );
   }
 
-  if (connections.length === 0) {
+  // Filter out same-case connections — those belong in the Related Reports sidebar
+  var filtered = connections.filter(function(conn) {
+    if (caseGroup && conn.connected_report_case_group === caseGroup) return false;
+    return true;
+  });
+
+  // Sort: cross-phenomenon first (most surprising), then by strength
+  filtered.sort(function(a, b) {
+    var typeOrder: Record<string, number> = {
+      cross_phenomenon: 0,
+      evidence_similarity: 1,
+      characteristic: 2,
+      geographic: 3,
+      temporal: 4,
+      witness_pattern: 5
+    };
+    var aOrder = typeOrder[a.connection_type] !== undefined ? typeOrder[a.connection_type] : 6;
+    var bOrder = typeOrder[b.connection_type] !== undefined ? typeOrder[b.connection_type] : 6;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return b.connection_strength - a.connection_strength;
+  });
+
+  // Don't render if no non-case connections
+  if (filtered.length === 0) {
     return null;
   }
 
-  var visible = expanded ? connections : connections.slice(0, 4);
+  var visible = expanded ? filtered : filtered.slice(0, 4);
 
   return (
     <div className={className || ''}>
@@ -120,7 +153,7 @@ export default function ConnectionCards({ reportSlug, className }: Props) {
           <Lightbulb className="w-5 h-5 text-amber-400" />
           <h3 className="text-lg font-semibold text-white">Did You Know?</h3>
           <span className="text-xs text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">
-            {connections.length + ' connection' + (connections.length !== 1 ? 's' : '')}
+            {filtered.length + ' connection' + (filtered.length !== 1 ? 's' : '')}
           </span>
         </div>
       </div>
@@ -143,33 +176,19 @@ export default function ConnectionCards({ reportSlug, className }: Props) {
                   {icon}
                   {label}
                 </span>
-                <div className="flex items-center gap-1">
-                  <div className="flex">
-                    {[1, 2, 3].map(function(dot) {
-                      var opacity = dot <= Math.ceil(conn.connection_strength * 3) ? 'opacity-100' : 'opacity-30';
-                      return (
-                        <div
-                          key={dot}
-                          className={'w-1.5 h-1.5 rounded-full mx-0.5 ' + textColor + ' ' + opacity}
-                          style={{ backgroundColor: 'currentColor' }}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
               </div>
 
-              <p className="text-sm text-gray-200 font-medium mb-1 line-clamp-1">
+              <p className="text-sm text-gray-200 font-medium mb-1 line-clamp-2">
                 {conn.connected_report_title}
               </p>
 
               <p className="text-xs text-gray-400 line-clamp-2 mb-2">
-                {conn.fun_fact || conn.ai_explanation}
+                {conn.ai_explanation}
               </p>
 
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-500">
-                  {conn.connected_report_category}
+                  {getCategoryLabel(conn.connected_report_category)}
                 </span>
                 <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
               </div>
@@ -178,12 +197,12 @@ export default function ConnectionCards({ reportSlug, className }: Props) {
         })}
       </div>
 
-      {connections.length > 4 && !expanded && (
+      {filtered.length > 4 && !expanded && (
         <button
           onClick={function(e) { e.preventDefault(); setExpanded(true); }}
           className="mt-3 text-sm text-primary-400 hover:text-primary-300 transition-colors"
         >
-          {'Show ' + (connections.length - 4) + ' more connections'}
+          {'Show ' + (filtered.length - 4) + ' more connections'}
         </button>
       )}
     </div>

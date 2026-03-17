@@ -24,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Get the source report ID and phenomenon_type_id
     var reportResult = await supabase
       .from('reports')
-      .select('id, category, phenomenon_type_id')
+      .select('id, category, phenomenon_type_id, case_group')
       .eq('slug', slug)
       .single();
 
@@ -68,9 +68,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json({ connections: [], total: 0 });
       }
 
+      var sourceCaseGroup = reportResult.data.case_group;
+
       var relatedResult = await supabase
         .from('reports')
-        .select('id, title, slug, category, phenomenon_type_id')
+        .select('id, title, slug, category, phenomenon_type_id, case_group')
         .neq('id', reportId)
         .eq('status', 'approved')
         .or(orFilters.join(','))
@@ -90,12 +92,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           var matchesCategory = r.category === reportCategory;
           var matchesPhenomenon = reportPhenomenonTypeId && r.phenomenon_type_id === reportPhenomenonTypeId;
 
-          var connectionType = matchesPhenomenon && !matchesCategory ? 'Related Phenomenon' : 'Same Category';
-          var connectionStrength = connectionType === 'Related Phenomenon' ? 0.85 : 0.7;
-          var aiExplanation = connectionType === 'Related Phenomenon'
-            ? 'These reports share a connection to the same phenomenon type'
-            : 'Both reports involve ' + reportCategory + ' phenomena';
-          var funFact = 'Reports in the same category often share underlying patterns that researchers find compelling.';
+          var connectionType = matchesPhenomenon && !matchesCategory ? 'cross_phenomenon' : 'temporal';
+          var connectionStrength = connectionType === 'cross_phenomenon' ? 0.85 : 0.7;
+          var aiExplanation = connectionType === 'cross_phenomenon'
+            ? 'Different phenomenon categories connected through shared research themes'
+            : 'Both reports involve similar phenomena and may share underlying patterns';
 
           return {
             id: 'fallback_' + r.id,
@@ -103,10 +104,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             connected_report_title: r.title,
             connected_report_slug: r.slug,
             connected_report_category: r.category || 'Unknown',
+            connected_report_case_group: r.case_group || null,
             connection_type: connectionType,
             connection_strength: connectionStrength,
             ai_explanation: aiExplanation,
-            fun_fact: funFact
+            fun_fact: null
           };
         });
 
@@ -120,7 +122,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     var reportsResult = await supabase
       .from('reports')
-      .select('id, title, slug, category')
+      .select('id, title, slug, category, case_group')
       .in('id', connectedIds);
 
     if (reportsResult.error) {
@@ -143,6 +145,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           connected_report_title: connectedReport.title,
           connected_report_slug: connectedReport.slug,
           connected_report_category: connectedReport.category || 'Unknown',
+          connected_report_case_group: connectedReport.case_group || null,
           connection_type: conn.connection_type,
           connection_strength: conn.connection_strength,
           ai_explanation: conn.ai_explanation,
