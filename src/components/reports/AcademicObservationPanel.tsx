@@ -1,16 +1,19 @@
 /**
  * AcademicObservationPanel Component
  *
- * Displays structured observation data for researchers
- * Includes export functionality for journal submissions
+ * Displays structured observation data for researchers.
+ * Quick stats visible to all tiers. Expanded details + export gated to Pro+.
+ * NLP-extracted data flagged with confidence indicators.
  */
 
 import React, { useEffect, useState } from 'react'
+import Link from 'next/link'
 import {
   BookOpen, Download, Copy, Check, ChevronDown, ChevronUp,
-  Clock, MapPin, Eye, Sparkles, Wind, FileText, AlertTriangle
+  Clock, MapPin, Eye, Sparkles, FileText, AlertTriangle, Lock, Cpu
 } from 'lucide-react'
 import { classNames } from '@/lib/utils'
+import { useSubscription } from '@/lib/hooks/useSubscription'
 
 interface AcademicData {
   caseId: string
@@ -107,6 +110,9 @@ export default function AcademicObservationPanel({ reportSlug, className }: Prop
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
+  const { canAccess, tierName } = useSubscription()
+
+  const canExport = canAccess('data_export')
 
   useEffect(() => {
     fetchAcademicData()
@@ -126,10 +132,15 @@ export default function AcademicObservationPanel({ reportSlug, className }: Prop
   }
 
   function formatDuration(seconds: number | null): string {
-    if (!seconds) return 'Unknown'
+    if (!seconds) return 'Not recorded'
     if (seconds < 60) return `${seconds} seconds`
     if (seconds < 3600) return `${Math.round(seconds / 60)} minutes`
     return `${(seconds / 3600).toFixed(1)} hours`
+  }
+
+  function formatWitnessCount(count: number): string {
+    if (count >= 10) return `~${count} (est.)`
+    return String(count)
   }
 
   function generateCitation(): string {
@@ -138,7 +149,7 @@ export default function AcademicObservationPanel({ reportSlug, className }: Prop
       year: 'numeric', month: 'long', day: 'numeric'
     }) : 'Date unknown'
 
-    return `Paradocs Case #${data.caseSlug}. "${data.title}." ${data.location.name || 'Location unspecified'}, ${date}. Paradocs Database. Accessed ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}. https://paradocs-sooty.vercel.app/report/${data.caseSlug}`
+    return `Paradocs Case #${data.caseSlug}. "${data.title}." ${data.location.name || 'Location unspecified'}, ${date}. Paradocs Database. Accessed ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}. https://beta.discoverparadocs.com/report/${data.caseSlug}`
   }
 
   function generateStructuredExport(): string {
@@ -186,13 +197,29 @@ export default function AcademicObservationPanel({ reportSlug, className }: Prop
     return null
   }
 
-  const DataRow = ({ label, value, icon }: { label: string; value: React.ReactNode; icon?: React.ReactNode }) => (
+  // Determine if phenomenon data was NLP-extracted vs structured
+  const isExtracted = !data.metadata.hasStructuredData
+
+  const DataRow = ({ label, value, icon, extracted }: { label: string; value: React.ReactNode; icon?: React.ReactNode; extracted?: boolean }) => (
     <div className="flex items-start gap-2 py-1.5 border-b border-white/5 last:border-0">
-      {icon && <span className="text-gray-500 mt-0.5">{icon}</span>}
+      {icon && <span className="text-gray-500 mt-0.5 flex-shrink-0">{icon}</span>}
       <span className="text-xs text-gray-500 w-28 flex-shrink-0">{label}</span>
-      <span className="text-xs text-gray-300 flex-1">{value || <span className="text-gray-600">—</span>}</span>
+      <span className="text-xs text-gray-300 flex-1 min-w-0">
+        {value || <span className="text-gray-600">—</span>}
+        {extracted && value && (
+          <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] text-amber-500/70" title="Auto-extracted from report text — may not be precise">
+            <Cpu className="w-2.5 h-2.5" />
+            extracted
+          </span>
+        )}
+      </span>
     </div>
   )
+
+  // Quick stat display values
+  const durationDisplay = formatDuration(data.temporal.durationSeconds)
+  const durationNumber = durationDisplay.split(' ')[0]
+  const durationUnit = durationDisplay.split(' ').slice(1).join(' ') || ''
 
   return (
     <div className={classNames('glass-card overflow-hidden', className)}>
@@ -202,9 +229,14 @@ export default function AcademicObservationPanel({ reportSlug, className }: Prop
           <div className="flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-primary-400" />
             <h4 className="text-sm font-medium text-white">Research Data Panel</h4>
-            {data.metadata.hasStructuredData && (
+            {data.metadata.hasStructuredData ? (
               <span className="px-1.5 py-0.5 text-[10px] bg-green-500/20 text-green-400 rounded">
                 Verified
+              </span>
+            ) : (
+              <span className="px-1.5 py-0.5 text-[10px] bg-amber-500/15 text-amber-500/70 rounded flex items-center gap-0.5">
+                <Cpu className="w-2.5 h-2.5" />
+                Auto-extracted
               </span>
             )}
           </div>
@@ -220,167 +252,191 @@ export default function AcademicObservationPanel({ reportSlug, className }: Prop
         </p>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-4 gap-px bg-white/5">
-        <div className="bg-gray-900/50 p-2 text-center">
-          <div className="text-lg font-medium text-white">{data.observer.witnessCount}</div>
+      {/* Quick Stats — always 2 cols for stable layout */}
+      <div className="grid grid-cols-2 gap-px bg-white/5">
+        <div className="bg-gray-900/50 p-3 text-center">
+          <div className="text-lg font-medium text-white">
+            {formatWitnessCount(data.observer.witnessCount)}
+          </div>
           <div className="text-[10px] text-gray-500">Witnesses</div>
         </div>
-        <div className="bg-gray-900/50 p-2 text-center">
-          <div className="text-lg font-medium text-white">
-            {formatDuration(data.temporal.durationSeconds).split(' ')[0]}
+        <div className="bg-gray-900/50 p-3 text-center">
+          <div className="text-lg font-medium text-white truncate">
+            {durationNumber}
           </div>
-          <div className="text-[10px] text-gray-500">
-            {formatDuration(data.temporal.durationSeconds).split(' ')[1] || 'Duration'}
+          <div className="text-[10px] text-gray-500 truncate">
+            {durationUnit || 'Duration'}
           </div>
         </div>
-        <div className="bg-gray-900/50 p-2 text-center">
+        <div className="bg-gray-900/50 p-3 text-center">
           <div className="text-lg font-medium text-white">{data.phenomenon.objectCount}</div>
           <div className="text-[10px] text-gray-500">Object(s)</div>
         </div>
-        <div className="bg-gray-900/50 p-2 text-center">
+        <div className="bg-gray-900/50 p-3 text-center">
           <div className="text-lg font-medium text-white">
-            {data.quality.completenessScore || '—'}
+            {data.quality.completenessScore ? `${data.quality.completenessScore}/10` : '—'}
           </div>
           <div className="text-[10px] text-gray-500">Completeness</div>
         </div>
       </div>
 
-      {/* Expanded Details */}
+      {/* Expanded Details — Pro+ for full data + export */}
       {expanded && (
-        <div className="p-4 space-y-4">
-          {/* Temporal Data */}
-          <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <Clock className="w-3.5 h-3.5 text-gray-400" />
-              <span className="text-xs text-white font-medium">Temporal Data</span>
-            </div>
-            <div className="pl-5 space-y-0.5">
-              <DataRow label="Event Date" value={data.temporal.eventDate} />
-              <DataRow label="Event Time" value={data.temporal.eventTime} />
-              <DataRow label="Duration" value={formatDuration(data.temporal.durationSeconds)} />
-              <DataRow label="Time Certainty" value={data.temporal.timeCertainty} />
-            </div>
-          </div>
-
-          {/* Location Data */}
-          <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <MapPin className="w-3.5 h-3.5 text-gray-400" />
-              <span className="text-xs text-white font-medium">Location</span>
-            </div>
-            <div className="pl-5 space-y-0.5">
-              <DataRow label="Location" value={[data.location.name, data.location.stateProvince, data.location.country].filter(Boolean).join(', ')} />
-              {data.location.coordinates && (
-                <DataRow
-                  label="Coordinates"
-                  value={`${data.location.coordinates.latitude.toFixed(4)}, ${data.location.coordinates.longitude.toFixed(4)} (${data.location.coordinates.precision})`}
-                />
-              )}
-              <DataRow label="Location Type" value={data.location.locationType} />
-            </div>
-          </div>
-
-          {/* Phenomenon */}
-          <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <Sparkles className="w-3.5 h-3.5 text-gray-400" />
-              <span className="text-xs text-white font-medium">Phenomenon Characteristics</span>
-            </div>
-            <div className="pl-5 space-y-0.5">
-              <DataRow label="Shape" value={data.phenomenon.shape} />
-              <DataRow label="Colors" value={data.phenomenon.colors?.join(', ')} />
-              <DataRow label="Brightness" value={data.phenomenon.brightness} />
-              <DataRow label="Sound" value={data.phenomenon.sound} />
-              <DataRow label="Motion" value={data.motion.type} />
-              <DataRow label="Speed" value={data.motion.speedApparent} />
-              <DataRow label="Altitude" value={data.motion.altitudeApparent} />
-            </div>
-          </div>
-
-          {/* Observer */}
-          <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <Eye className="w-3.5 h-3.5 text-gray-400" />
-              <span className="text-xs text-white font-medium">Observer Information</span>
-            </div>
-            <div className="pl-5 space-y-0.5">
-              <DataRow label="Witness Count" value={data.observer.witnessCount} />
-              <DataRow label="Experience" value={data.observer.experienceLevel} />
-              <DataRow label="Visual Aids" value={data.observer.visualAids?.join(', ')} />
-              <DataRow label="Physical State" value={data.observer.physicalState} />
-            </div>
-          </div>
-
-          {/* Documentation */}
-          <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <FileText className="w-3.5 h-3.5 text-gray-400" />
-              <span className="text-xs text-white font-medium">Documentation</span>
-            </div>
-            <div className="pl-5 space-y-0.5">
-              <DataRow label="Photo/Video" value={data.documentation.hasPhotoVideo ? 'Yes' : 'No'} />
-              <DataRow label="Physical Evidence" value={data.documentation.hasPhysicalEvidence ? 'Yes' : 'No'} />
-              <DataRow label="Official Report" value={data.documentation.hasOfficialReport ? 'Yes' : 'No'} />
-              <DataRow label="Source" value={data.quality.sourceType} />
-            </div>
-          </div>
-
-          {/* Data Quality */}
-          {(data.quality.dataQualityScore || data.quality.credibilityScore) && (
-            <div>
-              <div className="flex items-center gap-1.5 mb-2">
-                <AlertTriangle className="w-3.5 h-3.5 text-gray-400" />
-                <span className="text-xs text-white font-medium">Data Quality</span>
+        <>
+          {canExport ? (
+            <div className="p-4 space-y-4">
+              {/* Temporal Data */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Clock className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="text-xs text-white font-medium">Temporal Data</span>
+                </div>
+                <div className="pl-5 space-y-0.5">
+                  <DataRow label="Event Date" value={data.temporal.eventDate} />
+                  <DataRow label="Event Time" value={data.temporal.eventTime || 'Not recorded'} />
+                  <DataRow label="Duration" value={formatDuration(data.temporal.durationSeconds)} extracted={isExtracted && !!data.temporal.durationSeconds} />
+                  <DataRow label="Time Certainty" value={data.temporal.timeCertainty} />
+                </div>
               </div>
-              <div className="pl-5 space-y-0.5">
-                {data.quality.dataQualityScore && (
-                  <DataRow label="Quality Score" value={`${data.quality.dataQualityScore}/10`} />
-                )}
-                {data.quality.completenessScore && (
-                  <DataRow label="Completeness" value={`${data.quality.completenessScore}/10`} />
-                )}
-                {data.quality.credibilityScore && (
-                  <DataRow label="Credibility" value={`${data.quality.credibilityScore}/100`} />
-                )}
+
+              {/* Location Data */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="text-xs text-white font-medium">Location</span>
+                </div>
+                <div className="pl-5 space-y-0.5">
+                  <DataRow label="Location" value={[data.location.name, data.location.stateProvince, data.location.country].filter(Boolean).join(', ')} />
+                  {data.location.coordinates && (
+                    <DataRow
+                      label="Coordinates"
+                      value={`${data.location.coordinates.latitude.toFixed(4)}, ${data.location.coordinates.longitude.toFixed(4)} (${data.location.coordinates.precision})`}
+                    />
+                  )}
+                  <DataRow label="Location Type" value={data.location.locationType} />
+                </div>
+              </div>
+
+              {/* Phenomenon — flag extracted data */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Sparkles className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="text-xs text-white font-medium">Phenomenon Characteristics</span>
+                </div>
+                <div className="pl-5 space-y-0.5">
+                  <DataRow label="Shape" value={data.phenomenon.shape} extracted={isExtracted} />
+                  <DataRow label="Colors" value={data.phenomenon.colors?.join(', ')} extracted={isExtracted} />
+                  <DataRow label="Brightness" value={data.phenomenon.brightness} />
+                  <DataRow label="Sound" value={data.phenomenon.sound} extracted={isExtracted} />
+                  <DataRow label="Motion" value={data.motion.type} extracted={isExtracted} />
+                  <DataRow label="Speed" value={data.motion.speedApparent} />
+                  <DataRow label="Altitude" value={data.motion.altitudeApparent} />
+                </div>
+              </div>
+
+              {/* Observer */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Eye className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="text-xs text-white font-medium">Observer Information</span>
+                </div>
+                <div className="pl-5 space-y-0.5">
+                  <DataRow label="Witness Count" value={formatWitnessCount(data.observer.witnessCount)} />
+                  <DataRow label="Experience" value={data.observer.experienceLevel} />
+                  <DataRow label="Visual Aids" value={data.observer.visualAids?.join(', ')} />
+                  <DataRow label="Physical State" value={data.observer.physicalState} />
+                </div>
+              </div>
+
+              {/* Documentation */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <FileText className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="text-xs text-white font-medium">Documentation</span>
+                </div>
+                <div className="pl-5 space-y-0.5">
+                  <DataRow label="Photo/Video" value={data.documentation.hasPhotoVideo ? 'Yes' : 'No'} />
+                  <DataRow label="Physical Evidence" value={data.documentation.hasPhysicalEvidence ? 'Yes' : 'No'} />
+                  <DataRow label="Official Report" value={data.documentation.hasOfficialReport ? 'Yes' : 'No'} />
+                  <DataRow label="Source" value={data.quality.sourceType} />
+                </div>
+              </div>
+
+              {/* Data Quality */}
+              {(data.quality.dataQualityScore || data.quality.credibilityScore) && (
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <AlertTriangle className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-xs text-white font-medium">Data Quality</span>
+                  </div>
+                  <div className="pl-5 space-y-0.5">
+                    {data.quality.dataQualityScore && (
+                      <DataRow label="Quality Score" value={`${data.quality.dataQualityScore}/10`} />
+                    )}
+                    {data.quality.completenessScore && (
+                      <DataRow label="Completeness" value={`${data.quality.completenessScore}/10`} />
+                    )}
+                    {data.quality.credibilityScore && (
+                      <DataRow label="Credibility" value={data.quality.credibilityScore} />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Citation & Export */}
+              <div className="pt-3 border-t border-white/10">
+                <div className="flex items-center gap-1.5 mb-3">
+                  <BookOpen className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="text-xs text-white font-medium">Citation & Export</span>
+                </div>
+
+                {/* Citation */}
+                <div className="bg-gray-900/50 rounded p-2 mb-3">
+                  <p className="text-[10px] text-gray-400 mb-1">Suggested Citation:</p>
+                  <p className="text-xs text-gray-300 font-mono leading-relaxed break-words">
+                    {generateCitation()}
+                  </p>
+                </div>
+
+                {/* Export Buttons */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => copyToClipboard(generateCitation())}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs bg-white/5 hover:bg-white/10 text-gray-300 rounded transition-colors"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied ? 'Copied!' : 'Copy Citation'}
+                  </button>
+                  <button
+                    onClick={downloadJSON}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs bg-primary-500/20 hover:bg-primary-500/30 text-primary-400 rounded transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Export JSON
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Soft paywall for non-Pro users */
+            <div className="p-4">
+              <div className="text-center py-4">
+                <Lock className="w-5 h-5 text-gray-500 mx-auto mb-2" />
+                <p className="text-sm text-gray-400 mb-1">Full research data & export tools</p>
+                <p className="text-xs text-gray-500 mb-3">
+                  Structured observation data, citation generation, and JSON export are available on the Pro plan.
+                </p>
+                <Link
+                  href="/dashboard/subscription"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white rounded-lg transition-all hover:scale-105"
+                  style={{ background: 'linear-gradient(135deg, #5b63f1, #4f46e5)' }}
+                >
+                  Upgrade to Pro
+                </Link>
               </div>
             </div>
           )}
-
-          {/* Citation & Export */}
-          <div className="pt-3 border-t border-white/10">
-            <div className="flex items-center gap-1.5 mb-3">
-              <BookOpen className="w-3.5 h-3.5 text-gray-400" />
-              <span className="text-xs text-white font-medium">Citation & Export</span>
-            </div>
-
-            {/* Citation */}
-            <div className="bg-gray-900/50 rounded p-2 mb-3">
-              <p className="text-[10px] text-gray-400 mb-1">Suggested Citation:</p>
-              <p className="text-xs text-gray-300 font-mono leading-relaxed">
-                {generateCitation()}
-              </p>
-            </div>
-
-            {/* Export Buttons */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => copyToClipboard(generateCitation())}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs bg-white/5 hover:bg-white/10 text-gray-300 rounded transition-colors"
-              >
-                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? 'Copied!' : 'Copy Citation'}
-              </button>
-              <button
-                onClick={downloadJSON}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs bg-primary-500/20 hover:bg-primary-500/30 text-primary-400 rounded transition-colors"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Export JSON
-              </button>
-            </div>
-          </div>
-        </div>
+        </>
       )}
 
       {/* Collapsed prompt */}
@@ -390,7 +446,10 @@ export default function AcademicObservationPanel({ reportSlug, className }: Prop
             onClick={() => setExpanded(true)}
             className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
           >
-            View full structured data & export options
+            {canExport
+              ? 'View full structured data & export options'
+              : 'View structured data'
+            }
           </button>
         </div>
       )}

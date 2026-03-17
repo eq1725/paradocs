@@ -1,7 +1,8 @@
 /**
  * EnvironmentalContext Component
  *
- * Displays astronomical and environmental conditions at the time of a sighting
+ * Displays astronomical and environmental conditions at the time of a sighting.
+ * Date-aware: adjusts satellite info and analysis notes based on event era.
  */
 
 import React, { useEffect, useState } from 'react'
@@ -97,6 +98,29 @@ export default function EnvironmentalContext({ reportSlug, className }: Props) {
     return null
   }
 
+  // Determine event year for date-aware filtering
+  const eventYear = data.eventDate ? new Date(data.eventDate).getFullYear() : null
+
+  // Filter satellites by era — Starlink didn't exist before 2019, ISS before 1998
+  const relevantSatellites = data.possibleSatellites.filter(sat => {
+    if (!eventYear) return true
+    if (sat.name === 'Starlink' && eventYear < 2019) return false
+    if (sat.name === 'ISS' && eventYear < 1998) return false
+    if (sat.name === 'Iridium Flares' && eventYear < 1997) return false
+    return true
+  })
+
+  // Filter analysis notes — remove satellite note if pre-satellite era
+  const relevantNotes = data.analysisNotes.filter(note => {
+    if (eventYear && eventYear < 1957 && note.toLowerCase().includes('satellite')) return false
+    return true
+  })
+
+  // Add era-specific note for historical cases
+  if (eventYear && eventYear < 1957) {
+    relevantNotes.push('Pre-satellite era — no artificial satellites were in orbit at this time')
+  }
+
   const getIntensityColor = (intensity: string) => {
     switch (intensity) {
       case 'peak': return 'text-yellow-400'
@@ -105,6 +129,9 @@ export default function EnvironmentalContext({ reportSlug, className }: Props) {
       default: return 'text-gray-400'
     }
   }
+
+  // Handle unknown time gracefully
+  const timeIsUnknown = data.timeOfDay.period === 'Unknown'
 
   return (
     <div className={classNames('glass-card overflow-hidden', className)}>
@@ -123,48 +150,70 @@ export default function EnvironmentalContext({ reportSlug, className }: Props) {
           </button>
         </div>
         <p className="text-xs text-gray-500 mt-1">
-          Astronomical conditions at time of sighting
+          {data.eventDate
+            ? `Astronomical conditions on ${new Date(data.eventDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
+            : 'Astronomical conditions at time of sighting'
+          }
         </p>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-white/5">
+      {/* Quick Stats — always 2 cols for stability */}
+      <div className="grid grid-cols-2 gap-px bg-white/5">
         {/* Moon Phase */}
         <div className="bg-gray-900/50 p-3 text-center">
           <div className="text-2xl mb-1">{data.moonPhase.emoji}</div>
-          <div className="text-xs text-white font-medium">{data.moonPhase.phase}</div>
+          <div className="text-xs text-white font-medium truncate">{data.moonPhase.phase}</div>
           <div className="text-xs text-gray-500">{data.moonPhase.illumination}% lit</div>
         </div>
 
-        {/* Time of Day */}
+        {/* Season */}
         <div className="bg-gray-900/50 p-3 text-center">
-          <div className="text-2xl mb-1">{data.timeOfDay.emoji}</div>
-          <div className="text-xs text-white font-medium">{data.timeOfDay.period}</div>
-          <div className="text-xs text-gray-500">{data.season}</div>
+          <div className="text-2xl mb-1">
+            {data.season === 'Summer' ? '☀️' : data.season === 'Winter' ? '❄️' : data.season === 'Spring' ? '🌱' : '🍂'}
+          </div>
+          <div className="text-xs text-white font-medium">{data.season}</div>
+          <div className="text-xs text-gray-500">
+            {timeIsUnknown ? 'Time not recorded' : data.timeOfDay.period}
+          </div>
         </div>
 
         {/* Meteor Showers */}
         <div className="bg-gray-900/50 p-3 text-center">
-          <div className="text-2xl mb-1">☄️</div>
-          <div className="text-xs text-white font-medium">
-            {data.meteorShowers.length > 0 ? 'Showers Active' : 'No Showers'}
+          <div className="text-2xl mb-1">
+            {data.meteorShowers.length > 0 ? '☄️' : '✨'}
           </div>
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-white font-medium truncate">
             {data.meteorShowers.length > 0
-              ? data.meteorShowers.map(s => s.name).join(', ')
+              ? data.meteorShowers[0].name
+              : 'No Showers'
+            }
+          </div>
+          <div className="text-xs text-gray-500 truncate">
+            {data.meteorShowers.length > 0
+              ? `${data.meteorShowers[0].intensity} activity`
               : 'Clear period'
             }
           </div>
         </div>
 
-        {/* Witching Hour */}
+        {/* Sky Conditions / Satellite Era */}
         <div className="bg-gray-900/50 p-3 text-center">
-          <div className="text-2xl mb-1">{data.isWitchingHour ? '👻' : '⏰'}</div>
-          <div className="text-xs text-white font-medium">
-            {data.isWitchingHour ? 'Witching Hour' : 'Standard Time'}
+          <div className="text-2xl mb-1">
+            {eventYear && eventYear < 1957 ? '🌌' : timeIsUnknown ? '🌙' : data.timeOfDay.emoji}
           </div>
-          <div className="text-xs text-gray-500">
-            {data.eventTime || 'Time unknown'}
+          <div className="text-xs text-white font-medium truncate">
+            {eventYear && eventYear < 1957
+              ? 'Pre-Satellite Era'
+              : relevantSatellites.length > 0
+                ? `${relevantSatellites.length} Sat. Types`
+                : 'Clear Skies'
+            }
+          </div>
+          <div className="text-xs text-gray-500 truncate">
+            {eventYear && eventYear < 1957
+              ? 'No artificial objects'
+              : data.isWitchingHour ? 'Witching hour' : (timeIsUnknown ? 'Visibility unknown' : data.timeOfDay.visibility.split(' - ')[0])
+            }
           </div>
         </div>
       </div>
@@ -205,40 +254,44 @@ export default function EnvironmentalContext({ reportSlug, className }: Props) {
           )}
 
           {/* Visibility Conditions */}
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Sun className="w-4 h-4 text-gray-400" />
-              <span className="text-sm text-white font-medium">Visibility</span>
+          {!timeIsUnknown && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Sun className="w-4 h-4 text-gray-400" />
+                <span className="text-sm text-white font-medium">Visibility</span>
+              </div>
+              <p className="text-sm text-gray-400 pl-6">{data.timeOfDay.visibility}</p>
             </div>
-            <p className="text-sm text-gray-400 pl-6">{data.timeOfDay.visibility}</p>
-          </div>
+          )}
 
-          {/* Satellite Information */}
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Satellite className="w-4 h-4 text-gray-400" />
-              <span className="text-sm text-white font-medium">Possible Satellite Activity</span>
+          {/* Satellite Information — only show if relevant to era */}
+          {relevantSatellites.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Satellite className="w-4 h-4 text-gray-400" />
+                <span className="text-sm text-white font-medium">Possible Satellite Activity</span>
+              </div>
+              <div className="space-y-2 pl-6">
+                {relevantSatellites.slice(0, 2).map((sat) => (
+                  <div key={sat.name} className="text-sm">
+                    <span className="text-gray-300 font-medium">{sat.name}:</span>
+                    <span className="text-gray-500 ml-1">{sat.appearance}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="space-y-2 pl-6">
-              {data.possibleSatellites.slice(0, 2).map((sat) => (
-                <div key={sat.name} className="text-sm">
-                  <span className="text-gray-300 font-medium">{sat.name}:</span>
-                  <span className="text-gray-500 ml-1">{sat.appearance}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          )}
 
           {/* Analysis Notes */}
-          {data.analysisNotes.length > 0 && (
+          {relevantNotes.length > 0 && (
             <div className="pt-3 border-t border-white/10">
               <div className="flex items-center gap-2 mb-2">
                 <AlertCircle className="w-4 h-4 text-amber-400" />
                 <span className="text-sm text-amber-400 font-medium">Analysis Notes</span>
               </div>
               <ul className="space-y-1 pl-6">
-                {data.analysisNotes.map((note, i) => (
-                  <li key={i} className="text-sm text-gray-400">• {note}</li>
+                {relevantNotes.map((note, i) => (
+                  <li key={i} className="text-sm text-gray-400">{'\u2022'} {note}</li>
                 ))}
               </ul>
             </div>
@@ -247,13 +300,13 @@ export default function EnvironmentalContext({ reportSlug, className }: Props) {
       )}
 
       {/* Expand prompt */}
-      {!expanded && data.analysisNotes.length > 0 && (
+      {!expanded && relevantNotes.length > 0 && (
         <div className="px-4 pb-3 pt-1">
           <button
             onClick={() => setExpanded(true)}
             className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
           >
-            {data.analysisNotes.length} analysis note{data.analysisNotes.length !== 1 ? 's' : ''} available
+            {relevantNotes.length} analysis note{relevantNotes.length !== 1 ? 's' : ''} available
           </button>
         </div>
       )}
