@@ -1102,8 +1102,8 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         />
       )}
 
-        {/* Contextual CTA — compact, centered */}
-        <div className="mt-6 mb-10 mx-auto max-w-xl">
+        {/* Contextual CTA — full article width */}
+        <div className="mt-6 mb-10">
           <div className="relative overflow-hidden rounded-xl border border-purple-500/15 bg-gradient-to-r from-purple-500/[0.04] via-indigo-500/[0.04] to-purple-500/[0.04] p-5 sm:p-6 text-center">
             <div className="relative">
               {report.content_type === 'historical_case' || report.content_type === 'research_analysis' || report.content_type === 'news_discussion' ? (
