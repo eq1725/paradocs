@@ -6,7 +6,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import {
   MapPin, Calendar, Clock, Users, Eye, Star,
-  ThumbsUp, ThumbsDown, MessageCircle, Share2, Bookmark, BookOpen,
+  ThumbsUp, ThumbsDown, Share2, Bookmark, BookOpen,
   Award, AlertTriangle, Check, ChevronRight, ChevronDown
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -103,6 +103,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const [media, setMedia] = useState<any[]>(initialMedia || [])
   const [loading, setLoading] = useState(!initialReport && !fetchError)
   const [user, setUser] = useState<any>(null)
+  // Comment state retained for data compatibility — UI removed from report pages
   const [newComment, setNewComment] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
   const [showTour, setShowTour] = useState(false)
@@ -987,18 +988,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                 </button>
               </div>
 
-              <div className="w-px h-4 bg-white/[0.06] mx-2 hidden sm:block" />
-
-              {/* Comment jump */}
-              <button
-                onClick={() => document.getElementById('comments')?.scrollIntoView({ behavior: 'smooth' })}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-full text-gray-400 hover:text-primary-400 hover:bg-white/[0.04] transition-all"
-              >
-                <MessageCircle className="w-4 h-4" />
-                {comments.length > 0 && <span className="text-xs">{comments.length}</span>}
-                <span className="text-xs hidden sm:inline">{comments.length === 0 ? 'Comment' : ''}</span>
-              </button>
-
               {/* View count — only show if meaningful */}
               {report.view_count > 0 && (
                 <>
@@ -1067,78 +1056,9 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           </div>
         </div>
 
-        {/* Comments */}
-        <section id="comments">
-          <h3 className="text-xl font-display font-semibold text-white mb-6 flex items-center gap-2">
-            <MessageCircle className="w-5 h-5" />
-            Comments ({comments.length})
-          </h3>
-
-          {/* Comment form */}
-          {user ? (
-            <div className="glass-card p-4 mb-6">
-              <textarea
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Share your thoughts..."
-                className="w-full h-24 resize-none mb-3"
-              />
-              <div className="flex justify-end">
-                <button
-                  onClick={handleComment}
-                  disabled={!newComment.trim() || submittingComment}
-                  className="btn btn-primary text-sm disabled:opacity-50"
-                >
-                  {submittingComment ? 'Posting...' : 'Post Comment'}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="glass-card p-4 mb-6 text-center">
-              <p className="text-gray-400">
-                <Link href="/login" className="text-primary-400 hover:text-primary-300">
-                  Sign in
-                </Link>
-                {' '}to join the discussion
-              </p>
-            </div>
-          )}
-
-          {/* Comments list */}
-          {comments.length === 0 ? (
-            <div className="text-center py-8">
-              <MessageCircle className="w-8 h-8 text-white/10 mx-auto mb-3" />
-              <p className="text-gray-500 text-sm">
-                Start the discussion — what stands out to you about this case?
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {comments.map((comment) => (
-                <div key={comment.id} className="glass-card p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-sm font-medium shrink-0">
-                      {comment.user?.username?.[0]?.toUpperCase() || '?'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-white text-sm">
-                          {comment.user?.display_name || comment.user?.username || 'Anonymous'}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {formatRelativeDate(comment.created_at)}
-                        </span>
-                      </div>
-                      <p className="text-gray-300 text-sm whitespace-pre-wrap">
-                        {comment.content}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+        {/* Comments section removed — doesn't serve either user journey
+             (casual browsing/saving or researcher hub-building).
+             Community discussion may return as a dedicated space in a future phase. */}
           </article>
 
           {/* Sidebar with related reports and patterns */}
