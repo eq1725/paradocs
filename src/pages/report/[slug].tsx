@@ -115,6 +115,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const [logModalOpen, setLogModalOpen] = useState(false)
   const [isLogged, setIsLogged] = useState(false)
   const [parentCase, setParentCase] = useState<{ slug: string; title: string } | null>(null)
+  const [showAllTags, setShowAllTags] = useState(false)
 
   // Load parent case report when this report belongs to a case group
   // Reading progress bar
@@ -821,39 +822,45 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             </div>
           )}
 
-          {/* Evidence section */}
+          {/* Evidence section — elevated visual treatment for credibility */}
           {(report.has_physical_evidence || report.has_photo_video || report.has_official_report || report.evidence_summary) && (
             <div className="mt-8 pt-8 border-t border-white/10">
-              <h3 className="font-medium text-white mb-4">Evidence</h3>
+              <h3 className="font-medium text-white mb-4 flex items-center gap-2">
+                <Award className="w-4 h-4 text-amber-400" />
+                Evidence & Documentation
+              </h3>
               <div className="flex flex-wrap gap-2 mb-4">
                 {report.has_photo_video && (
-                  <span className="px-3 py-1 rounded-full text-xs bg-blue-500/20 text-blue-400">
+                  <span className="px-3 py-1.5 rounded-lg text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center gap-1.5">
+                    <Check className="w-3 h-3" />
                     Photos/Video Available
                   </span>
                 )}
                 {report.has_physical_evidence && (
-                  <span className="px-3 py-1 rounded-full text-xs bg-green-500/20 text-green-400">
+                  <span className="px-3 py-1.5 rounded-lg text-xs bg-green-500/10 text-green-400 border border-green-500/20 flex items-center gap-1.5">
+                    <Check className="w-3 h-3" />
                     Physical Evidence
                   </span>
                 )}
                 {report.has_official_report && (
-                  <span className="px-3 py-1 rounded-full text-xs bg-purple-500/20 text-purple-400">
+                  <span className="px-3 py-1.5 rounded-lg text-xs bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center gap-1.5">
+                    <Check className="w-3 h-3" />
                     Official Report Filed
                   </span>
                 )}
               </div>
               {report.evidence_summary && (
-                <p className="text-sm text-gray-400">{report.evidence_summary}</p>
+                <p className="text-sm text-gray-300 leading-relaxed">{report.evidence_summary}</p>
               )}
             </div>
           )}
 
         </div>
 
-        {/* Tags */}
+        {/* Tags — show first 6 with expand toggle to reduce visual noise */}
         {report.tags && report.tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-6 sm:mb-8">
-            {report.tags.map((tag, i) => (
+          <div className="flex flex-wrap gap-2 mb-6 sm:mb-8 items-center">
+            {(showAllTags ? report.tags : report.tags.slice(0, 6)).map((tag, i) => (
               <Link
                 key={i}
                 href={`/search?q=${encodeURIComponent(tag)}`}
@@ -862,6 +869,14 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                 #{tag}
               </Link>
             ))}
+            {!showAllTags && report.tags.length > 6 && (
+              <button
+                onClick={function () { setShowAllTags(true) }}
+                className="px-3 py-1.5 rounded-full text-xs bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/60 border border-white/5 transition-colors"
+              >
+                +{report.tags.length - 6} more
+              </button>
+            )}
           </div>
         )}
 
@@ -1060,9 +1075,12 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
 
           {/* Comments list */}
           {comments.length === 0 ? (
-            <p className="text-center text-gray-500 py-8">
-              No comments yet. Be the first to share your thoughts!
-            </p>
+            <div className="text-center py-8">
+              <MessageCircle className="w-8 h-8 text-white/10 mx-auto mb-3" />
+              <p className="text-gray-500 text-sm">
+                Start the discussion — what stands out to you about this case?
+              </p>
+            </div>
           ) : (
             <div className="space-y-4">
               {comments.map((comment) => (
@@ -1146,20 +1164,36 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         />
       )}
 
-        {/* Share Your Experience CTA */}
+        {/* Contextual CTA — adapts based on content type */}
         <div className="mt-8 mb-12 mx-auto max-w-2xl">
           <div className="relative overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-r from-purple-500/5 via-indigo-500/5 to-purple-500/5 p-6 sm:p-8 text-center">
             <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-indigo-500/5 animate-pulse" style={{ animationDuration: '4s' }} />
             <div className="relative">
-              <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">Have you seen something similar?</h3>
-              <p className="text-gray-400 text-sm sm:text-base mb-5">Your experience could help others understand the unexplained. Every report matters.</p>
-              <a
-                href="/submit"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-105"
-                style={{ background: 'linear-gradient(135deg, #5b63f1, #4f46e5)', boxShadow: '0 2px 16px rgba(91, 99, 241, 0.4)' }}
-              >
-                Share Your Experience
-              </a>
+              {report.content_type === 'historical' || report.content_type === 'analysis' || report.source === 'curated' ? (
+                <>
+                  <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">Help build the record</h3>
+                  <p className="text-gray-400 text-sm sm:text-base mb-5">Know of additional evidence, documents, or witness accounts related to this case? Every contribution strengthens our understanding.</p>
+                  <a
+                    href="/submit"
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-105"
+                    style={{ background: 'linear-gradient(135deg, #5b63f1, #4f46e5)', boxShadow: '0 2px 16px rgba(91, 99, 241, 0.4)' }}
+                  >
+                    Contribute Research
+                  </a>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">Have you seen something similar?</h3>
+                  <p className="text-gray-400 text-sm sm:text-base mb-5">Your experience could help others understand the unexplained. Every report matters.</p>
+                  <a
+                    href="/submit"
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-105"
+                    style={{ background: 'linear-gradient(135deg, #5b63f1, #4f46e5)', boxShadow: '0 2px 16px rgba(91, 99, 241, 0.4)' }}
+                  >
+                    Share Your Experience
+                  </a>
+                </>
+              )}
             </div>
           </div>
         </div>
