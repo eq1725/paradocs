@@ -293,10 +293,10 @@ export default function MediaGallery({ media, className }: MediaGalleryProps) {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white/90 group-hover:text-white truncate transition-colors">
+                    <p className="text-sm text-white/90 group-hover:text-white transition-colors line-clamp-2 leading-snug">
                       {item.caption || 'External resource'}
                     </p>
-                    <p className="text-xs text-white/40 mt-0.5">{getSourceLabel(item.url)}</p>
+                    <p className="text-xs text-white/40 mt-1">{getSourceLabel(item.url)}</p>
                   </div>
                   <ExternalLink className="w-4 h-4 text-white/20 group-hover:text-white/50 flex-shrink-0 transition-colors" />
                 </a>
