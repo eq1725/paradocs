@@ -949,76 +949,106 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         {/* Did You Know? Connection Cards */}
         <ConnectionCards reportSlug={slug as string} className="mb-6 sm:mb-8" />
 
-        {/* Actions bar — non-sticky on mobile (bottom tabs handle nav), sticky on desktop */}
-        <div className="md:sticky md:bottom-0 z-40 -mx-3 sm:-mx-4 px-3 sm:px-4 py-3 bg-black/80 backdrop-blur-md border-t border-white/10 mb-6 sm:mb-8 rounded-xl md:rounded-none">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <button
-                onClick={() => handleVote(1)}
-                disabled={!user}
-                className={classNames(
-                  'flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 transition-colors',
-                  userVote === 1 ? 'text-green-400' : 'text-gray-400 hover:text-green-400'
-                )}
-              >
-                <ThumbsUp className="w-4 h-4 sm:w-5 sm:h-5" fill={userVote === 1 ? 'currentColor' : 'none'} />
-                <span className="text-sm">{report.upvotes}</span>
-              </button>
-              <button
-                onClick={() => handleVote(-1)}
-                disabled={!user}
-                className={classNames(
-                  'flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 transition-colors',
-                  userVote === -1 ? 'text-red-400' : 'text-gray-400 hover:text-red-400'
-                )}
-              >
-                <ThumbsDown className="w-4 h-4 sm:w-5 sm:h-5" fill={userVote === -1 ? 'currentColor' : 'none'} />
-                <span className="text-sm">{report.downvotes}</span>
-              </button>
-              <span className="flex items-center gap-1.5 sm:gap-2 text-gray-400">
-                <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="text-sm">{report.view_count}</span>
-              </span>
+        {/* Engagement & Actions — integrated card, not a sticky bar */}
+        <div className="mb-6 sm:mb-8 rounded-xl bg-white/[0.03] border border-white/[0.06] p-4">
+          <div className="flex items-center justify-between">
+            {/* Left: Engagement signals */}
+            <div className="flex items-center gap-1">
+              {/* Vote buttons — pill style */}
+              <div className="flex items-center bg-white/[0.04] rounded-full">
+                <button
+                  onClick={() => handleVote(1)}
+                  disabled={!user}
+                  className={classNames(
+                    'flex items-center gap-1.5 px-3 py-2 rounded-l-full transition-all disabled:opacity-40',
+                    userVote === 1
+                      ? 'text-green-400 bg-green-500/10'
+                      : 'text-gray-400 hover:text-green-400 hover:bg-white/[0.04]'
+                  )}
+                  title="Helpful"
+                >
+                  <ThumbsUp className="w-4 h-4" fill={userVote === 1 ? 'currentColor' : 'none'} />
+                  {report.upvotes > 0 && <span className="text-xs">{report.upvotes}</span>}
+                </button>
+                <div className="w-px h-4 bg-white/10" />
+                <button
+                  onClick={() => handleVote(-1)}
+                  disabled={!user}
+                  className={classNames(
+                    'flex items-center gap-1.5 px-3 py-2 rounded-r-full transition-all disabled:opacity-40',
+                    userVote === -1
+                      ? 'text-red-400 bg-red-500/10'
+                      : 'text-gray-400 hover:text-red-400 hover:bg-white/[0.04]'
+                  )}
+                  title="Not helpful"
+                >
+                  <ThumbsDown className="w-4 h-4" fill={userVote === -1 ? 'currentColor' : 'none'} />
+                  {report.downvotes > 0 && <span className="text-xs">{report.downvotes}</span>}
+                </button>
+              </div>
+
+              <div className="w-px h-4 bg-white/[0.06] mx-2 hidden sm:block" />
+
+              {/* Comment jump */}
               <button
                 onClick={() => document.getElementById('comments')?.scrollIntoView({ behavior: 'smooth' })}
-                className="flex items-center gap-1.5 sm:gap-2 text-gray-400 hover:text-primary-400 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-full text-gray-400 hover:text-primary-400 hover:bg-white/[0.04] transition-all"
               >
-                <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="text-sm">{comments.length}</span>
+                <MessageCircle className="w-4 h-4" />
+                {comments.length > 0 && <span className="text-xs">{comments.length}</span>}
+                <span className="text-xs hidden sm:inline">{comments.length === 0 ? 'Comment' : ''}</span>
               </button>
+
+              {/* View count — only show if meaningful */}
+              {report.view_count > 0 && (
+                <>
+                  <div className="w-px h-4 bg-white/[0.06] mx-1 hidden sm:block" />
+                  <span className="flex items-center gap-1.5 px-2 py-2 text-gray-500 text-xs hidden sm:flex">
+                    <Eye className="w-3.5 h-3.5" />
+                    {report.view_count > 999 ? Math.round(report.view_count / 100) / 10 + 'k' : report.view_count}
+                  </span>
+                </>
+              )}
             </div>
-            <div className="flex items-center gap-2">
+
+            {/* Right: Utility actions */}
+            <div className="flex items-center gap-1">
               {user && (
                 <button
                   onClick={() => setLogModalOpen(true)}
                   className={classNames(
-                    'btn text-xs sm:text-sm transition-all',
+                    'flex items-center gap-1.5 px-3 py-2 rounded-full text-xs transition-all',
                     isLogged
-                      ? 'btn-ghost text-indigo-400'
-                      : 'bg-indigo-600/80 hover:bg-indigo-500 text-white border-0'
+                      ? 'text-indigo-400 bg-indigo-500/10'
+                      : 'text-gray-400 hover:text-indigo-400 hover:bg-white/[0.04]'
                   )}
+                  title="Save to Research Hub"
                 >
                   <BookOpen className="w-4 h-4" />
-                  <span className="hidden sm:inline">{isLogged ? 'Saved' : 'Save'}</span>
+                  <span className="hidden sm:inline">{isLogged ? 'In Research Hub' : 'Research'}</span>
                 </button>
               )}
               <button
                 onClick={handleSave}
                 disabled={!user || savingReport}
                 className={classNames(
-                  'btn btn-ghost text-xs sm:text-sm transition-colors',
-                  isSaved ? 'text-primary-400' : ''
+                  'flex items-center gap-1.5 px-3 py-2 rounded-full text-xs transition-all disabled:opacity-40',
+                  isSaved
+                    ? 'text-primary-400 bg-primary-500/10'
+                    : 'text-gray-400 hover:text-primary-400 hover:bg-white/[0.04]'
                 )}
+                title={isSaved ? 'Bookmarked' : 'Bookmark'}
               >
                 <Bookmark className="w-4 h-4" fill={isSaved ? 'currentColor' : 'none'} />
-                <span className="hidden sm:inline">{isSaved ? 'Saved' : 'Save'}</span>
+                <span className="hidden sm:inline">{isSaved ? 'Bookmarked' : 'Bookmark'}</span>
               </button>
               <button
                 onClick={handleShare}
                 className={classNames(
-                  'btn btn-ghost text-xs sm:text-sm transition-colors',
-                  copiedShare ? 'text-green-400' : ''
+                  'flex items-center gap-1.5 px-3 py-2 rounded-full text-xs transition-all',
+                  copiedShare ? 'text-green-400 bg-green-500/10' : 'text-gray-400 hover:text-gray-300 hover:bg-white/[0.04]'
                 )}
+                title="Share"
               >
                 {copiedShare ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
                 <span className="hidden sm:inline">{copiedShare ? 'Copied!' : 'Share'}</span>
@@ -1026,7 +1056,8 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               {user && (
                 <Link
                   href={`/dashboard/journal/new?report_id=${report.id}&report_title=${encodeURIComponent(report.title)}&report_slug=${report.slug}&report_category=${report.category}`}
-                  className="btn btn-ghost text-xs sm:text-sm"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs text-gray-400 hover:text-amber-400 hover:bg-white/[0.04] transition-all"
+                  title="Write journal entry"
                 >
                   <BookOpen className="w-4 h-4" />
                   <span className="hidden sm:inline">Journal</span>
