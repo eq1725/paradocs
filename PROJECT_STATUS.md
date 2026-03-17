@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** March 16, 2026
+**Last updated:** March 17, 2026
 **Project:** beta.discoverparadocs.com
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -70,10 +70,10 @@ Each major feature area has a dedicated Claude session with its own deep context
 |---|-------------|-------|-------------|--------|
 | 1 | **Encyclopedia Enrichment** | Phenomena content, AI fields, QA/QC, triage | `HANDOFF.md` (existing) | Active — Cryptid category 100% complete |
 | 2 | **Explore & Discovery** | Personalized feed, category filters, content surfacing, recommendations | `HANDOFF_EXPLORE.md` | Active — Anonymous feed, soft-wall prompts, mobile UX optimized, Discover feed randomization |
-| 3 | **Map & Geospatial** | MapLibre GL map, PostGIS queries, Supercluster, heatmap, bottom sheet | `HANDOFF_MAP.md` | Active — Phase 1 & 2 COMPLETE, Phase 3 partially complete (placeholder cards deployed) |
+| 3 | **Map & Geospatial** | MapLibre GL map, PostGIS queries, Supercluster, heatmap, bottom sheet | `HANDOFF_MAP.md` | Active — Phase 1 & 2 COMPLETE, Phase 3 partial. Deep-link URL params added (lat/lng/zoom) |
 | 4 | **Insights & Pattern Analysis** | Pattern detection algorithms, AI narratives, skeptic mode, trending, methodology | `HANDOFF_INSIGHTS.md` | Not started |
 | 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
-| 6 | **Report Experience** | Report detail page, submission form, connections, evidence, related reports | `HANDOFF_REPORTS.md` | Not started |
+| 6 | **Report Experience** | Report detail page, submission form, connections, evidence, related reports | `HANDOFF_REPORTS.md` | Active — Phase B Roswell showcase polish substantially complete |
 | 7 | **Search & Navigation** | Full-text search, site navigation, onboarding flows, UX polish | `HANDOFF_SEARCH_NAV.md` | Not started |
 | 8 | **Subscription & Monetization** | Stripe checkout, paywall, tier system, billing portal, cancellation | `HANDOFF_SUBSCRIPTION.md` | Not started |
 | 9 | **Email & Engagement** | Weekly digests, drip campaigns, smart alerts, winback, notifications | `HANDOFF_EMAIL.md` | Not started |
@@ -253,33 +253,40 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 ---
 
-### 6. Report Experience
+### 6. Report Experience (ACTIVE)
 
 **Key files:**
-- `src/pages/report/[slug].tsx` — Report detail page (40K+ lines)
+- `src/pages/report/[slug].tsx` — Report detail page (~1100 lines)
 - `src/pages/submit.tsx` — Report submission form
-- `src/pages/api/reports/[slug]/` — patterns, phenomena, nearby, connections, academicData, environment, insight
-- `src/lib/services/report-insights.service.ts` — AI-powered per-report analysis
-- `src/lib/services/ai-title.service.ts` — Title improvement
-- `src/components/ReportCard.tsx` — Preview card
-- `src/components/RelatedReports.tsx`, `MediaGallery.tsx`, `FormattedDescription.tsx`, `SourceBadge.tsx`
-- `src/components/LogToConstellation.tsx` — Add to research map
+- `src/pages/api/reports/[slug]/` — nearby, connections, academicData, environment, insight
+- `src/components/reports/` — LocationMap, EnvironmentalContext, AcademicObservationPanel, ConnectionCards
+- `src/components/FormattedDescription.tsx` — Body text renderer (ALL-CAPS headers, pull quotes)
+- `src/components/ReadingProgress.tsx`, `ArticleTableOfContents.tsx` — Reading experience
+- `src/components/MediaGallery.tsx` — Hero images + sources/documents (mode prop)
+- `src/pages/api/admin/generate-connections.ts` — Batch connection generation (v2)
 
-**Database tables:** `reports`, `report_media`
+**Database tables:** `reports`, `report_media`, `report_connections`, `report_links`, `academic_observations`
 
-**Current state:** Full report detail page with reactions, comments, share, save, related reports, phenomena links, credibility scoring, investigation journal, evidence section. Submission form built.
+**Current state (March 17, 2026) — Phase B substantially complete:**
+- **Body text:** FormattedDescription rewrite (ALL-CAPS headers → styled h2s, pull quotes with attribution, anchor IDs)
+- **Reading UX:** ReadingProgress bar, ArticleTableOfContents with IntersectionObserver, MediaGallery split (hero images vs Sources & Documents)
+- **LocationMap:** Upgraded from Leaflet to MapLibre GL + MapTiler (same stack as main /map). Satellite toggle, category-colored markers, "Explore on Map" deep-link with URL params
+- **Environmental Context:** Date-aware (no Starlink for 1947), responsive 2-col grid, clean Unknown states
+- **Research Data Panel:** NLP confidence flags, Pro-gated export, responsive grid, witness count ~est. treatment
+- **Did You Know?:** Same-case filtering, cross-phenomenon priority, unique explanations, category labels
+- **generate-connections v2:** Skips same-case, specific explanations, miles, supports ?slug= targeting
+- **Data accuracy:** Roswell coordinates corrected (Foster Ranch 33.96,-105.31 not Roswell city), witness count audit, all values verified
+- **Visual polish:** Compact badges, subtler tags, cleaner metadata cards, merged engagement+CTA bottom section
+- **Removed:** Comments section (doesn't serve user journeys), "Featured" badge (internal signal)
 
-**What needs work:**
-- Report detail page performance (40K+ file needs refactoring)
-- Connection cards ("Did You Know?" cross-report relationships)
-- Shareable story cards (viral share images) — Sprint 3
-- Report moderation workflow improvements
-- Evidence section enhancement
-- Witness credibility display refinement
-- Mobile reading experience optimization
+**What still needs work:**
+- Mobile reading experience optimization (focused pass)
 - Breadcrumb navigation
+- Shareable story cards (viral share images) — post-ingestion
+- Research Data Panel cross-referencing features — post-ingestion
+- Location extraction subsystem for ingestion pipeline
 
-**Touches other sessions:** Encyclopedia (phenomena links), Map (report location display), Insights (per-report patterns), Dashboard (submitted/saved reports), Explore (report cards in feed)
+**Touches other sessions:** Map (shared MapLibre/MapTiler stack, deep-link URL params), Subscription (Research Data Panel Pro-gated), Ingestion (generate-connections ready for batch, location validation needed), Encyclopedia (phenomena links), Mobile (reading experience pass needed)
 
 ---
 
