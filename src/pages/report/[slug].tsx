@@ -746,9 +746,9 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               </span>
             )}
             {report.witness_count > 1 && (
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1.5" title={report.witness_count >= 10 ? 'Approximate count based on available records' : report.witness_count + ' documented witnesses'}>
                 <Users className="w-4 h-4" />
-                {report.witness_count} witnesses
+                {report.witness_count >= 10 ? '~' : ''}{report.witness_count} witnesses{report.witness_count >= 10 ? ' (est.)' : ''}
               </span>
             )}
             {report.description && (
