@@ -35,6 +35,10 @@ const Circle = dynamic(
   { ssr: false }
 )
 
+const KM_PER_MILE = 1.60934
+const milesToKm = (miles: number) => miles * KM_PER_MILE
+const kmToMiles = (km: number) => km / KM_PER_MILE
+
 interface NearbyReport {
   id: string
   title: string
@@ -65,9 +69,12 @@ export default function LocationMap({
 }: Props) {
   const [nearbyReports, setNearbyReports] = useState<NearbyReport[]>([])
   const [loading, setLoading] = useState(true)
-  const [radiusKm, setRadiusKm] = useState(50)
+  const [radiusMiles, setRadiusMiles] = useState(30)
   const [mounted, setMounted] = useState(false)
   const [L, setL] = useState<any>(null)
+
+  // Convert miles to km for the API (which uses km internally)
+  const radiusKm = milesToKm(radiusMiles)
 
   // Load Leaflet on client side only
   useEffect(() => {
@@ -83,11 +90,11 @@ export default function LocationMap({
     } else {
       setLoading(false)
     }
-  }, [reportSlug, radiusKm])
+  }, [reportSlug, radiusMiles])
 
   async function fetchNearbyReports() {
     try {
-      const res = await fetch(`/api/reports/${reportSlug}/nearby?radius=${radiusKm}&limit=15`)
+      const res = await fetch(`/api/reports/${reportSlug}/nearby?radius=${Math.round(radiusKm)}&limit=15`)
       if (!res.ok) {
         throw new Error('Failed to fetch nearby reports')
       }
@@ -141,7 +148,7 @@ export default function LocationMap({
   }
 
   return (
-    <div className={classNames('glass-card overflow-hidden', className)}>
+    <div className={classNames('glass-card overflow-hidden', className)} style={{ overflowX: 'hidden' }}>
       {/* Header */}
       <div className="p-4 border-b border-white/10">
         <div className="flex items-center justify-between">
@@ -150,19 +157,19 @@ export default function LocationMap({
             <h4 className="text-sm font-medium text-white">Location Intelligence</h4>
           </div>
           <select
-            value={radiusKm}
-            onChange={(e) => setRadiusKm(parseInt(e.target.value))}
+            value={radiusMiles}
+            onChange={(e) => setRadiusMiles(parseInt(e.target.value))}
             className="text-xs bg-white/10 border border-white/20 rounded px-2 py-1 text-white"
           >
-            <option value={25}>25 km</option>
-            <option value={50}>50 km</option>
-            <option value={100}>100 km</option>
-            <option value={200}>200 km</option>
+            <option value={15}>15 mi</option>
+            <option value={30}>30 mi</option>
+            <option value={60}>60 mi</option>
+            <option value={125}>125 mi</option>
           </select>
         </div>
         {nearbyReports.length > 0 && (
           <p className="text-xs text-gray-500 mt-1">
-            {nearbyReports.length} report{nearbyReports.length !== 1 ? 's' : ''} within {radiusKm}km
+            {nearbyReports.length} report{nearbyReports.length !== 1 ? 's' : ''} within {radiusMiles} mi
           </p>
         )}
       </div>
@@ -195,10 +202,13 @@ export default function LocationMap({
         .leaflet-popup-tip {
           background: rgba(15, 23, 42, 0.95);
         }
+        .leaflet-container {
+          overflow: hidden !important;
+        }
       `}</style>
 
       {/* Map */}
-      <div className="h-64 md:h-80 relative bg-gray-900">
+      <div className="h-64 md:h-80 relative bg-gray-900 overflow-hidden">
         {!mounted || !L || loading ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-8 h-8 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
@@ -252,7 +262,7 @@ export default function LocationMap({
                   <div className="text-sm max-w-[200px]">
                     <p className="font-medium line-clamp-2">{report.title}</p>
                     <p className="text-gray-500 text-xs mt-1">
-                      {report.distance_km} km away
+                      {Math.round(kmToMiles(report.distance_km) * 10) / 10} mi away
                       {report.event_date && ` • ${new Date(report.event_date).toLocaleDateString()}`}
                     </p>
                     <Link
@@ -273,7 +283,7 @@ export default function LocationMap({
       {nearbyReports.length > 0 && (
         <div className="p-4 border-t border-white/10">
           <p className="text-xs text-gray-400 mb-2">Nearby Reports:</p>
-          <div className="space-y-2 max-h-32 overflow-y-auto">
+          <div className="space-y-2 max-h-32 overflow-y-auto overflow-x-hidden">
             {nearbyReports.slice(0, 5).map((report) => {
               const config = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
               return (
@@ -285,7 +295,7 @@ export default function LocationMap({
                   <span>{config.icon}</span>
                   <span className="text-white truncate flex-1">{report.title}</span>
                   <span className="text-gray-500 text-xs flex-shrink-0">
-                    {report.distance_km} km
+                    {Math.round(kmToMiles(report.distance_km) * 10) / 10} mi
                   </span>
                 </Link>
               )
