@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useCallback, useMemo } from 'react'
+import React, { useState, useCallback, useMemo, useEffect } from 'react'
+import { useRouter } from 'next/router'
 import Head from 'next/head'
 import dynamic from 'next/dynamic'
 import { Filter, X, Loader, AlertCircle } from 'lucide-react'
@@ -26,6 +27,8 @@ const MapContainer = dynamic(
 type BottomSheetSnap = 'peek' | 'half' | 'full'
 
 export default function MapPage() {
+  const router = useRouter()
+
   // ─── State ─────────────────────────────────────────────────
   const {
     filters,
@@ -44,6 +47,24 @@ export default function MapPage() {
   const [bottomSheetSnap, setBottomSheetSnap] = useState<BottomSheetSnap>('peek')
   const [flyToTarget, setFlyToTarget] = useState<{ lng: number; lat: number; zoom?: number } | null>(null)
   const [basemapStyle, setBasemapStyle] = useState<BasemapStyle>('dark')
+
+  // ─── Deep-link support: fly to location from URL params ────
+  // Supports ?lat=33.39&lng=-104.52&zoom=9 (e.g. from report "Explore on Map")
+  useEffect(() => {
+    if (!router.isReady) return
+    const { lat, lng, zoom: zoomParam } = router.query
+    if (lat && lng) {
+      const parsedLat = parseFloat(lat as string)
+      const parsedLng = parseFloat(lng as string)
+      const parsedZoom = zoomParam ? parseFloat(zoomParam as string) : 9
+      if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
+        // Small delay to let the map initialize first
+        setTimeout(() => {
+          setFlyToTarget({ lat: parsedLat, lng: parsedLng, zoom: parsedZoom })
+        }, 500)
+      }
+    }
+  }, [router.isReady]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const {
     features,

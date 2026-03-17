@@ -52,7 +52,7 @@ import AskTheUnknown from '@/components/AskTheUnknown'
 // Mobile components available but not used here — Layout.tsx provides global nav
 // import { MobileHeader, MobileBottomTabs } from '@/components/mobile'
 
-// Dynamically import LocationMap to avoid SSR issues with Leaflet
+// Dynamically import LocationMap to avoid SSR issues with MapLibre GL (WebGL)
 const LocationMap = dynamic(
   () => import('@/components/reports/LocationMap'),
   { ssr: false, loading: () => <div className="h-64 bg-white/5 rounded-lg animate-pulse" /> }

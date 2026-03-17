@@ -1,43 +1,48 @@
 /**
  * LocationMap Component
  *
- * Displays a mini-map showing the report location and nearby reports
+ * Displays a mini-map showing the report location and nearby reports.
+ * Uses MapLibre GL + MapTiler — the same stack as the main /map page —
+ * for visual consistency and a seamless "Explore on Map" deep-link.
  */
 
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
-import { Navigation, ExternalLink } from 'lucide-react'
+import { Navigation, ExternalLink, Maximize2, Layers } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 
-// Dynamically import the entire map component to avoid SSR issues
-const MapContainer = dynamic(
-  () => import('react-leaflet').then(mod => mod.MapContainer),
+// Dynamically import react-map-gl (MapLibre) to avoid SSR/WebGL issues
+const Map = dynamic(
+  () => import('react-map-gl/maplibre').then(mod => mod.default || mod.Map || mod),
   { ssr: false }
 )
-const TileLayer = dynamic(
-  () => import('react-leaflet').then(mod => mod.TileLayer),
+const MapSource = dynamic(
+  () => import('react-map-gl/maplibre').then(mod => mod.Source),
   { ssr: false }
 )
-const Marker = dynamic(
-  () => import('react-leaflet').then(mod => mod.Marker),
+const MapLayer = dynamic(
+  () => import('react-map-gl/maplibre').then(mod => mod.Layer),
   { ssr: false }
 )
-const Popup = dynamic(
-  () => import('react-leaflet').then(mod => mod.Popup),
-  { ssr: false }
-)
-const Circle = dynamic(
-  () => import('react-leaflet').then(mod => mod.Circle),
+const NavigationControl = dynamic(
+  () => import('react-map-gl/maplibre').then(mod => mod.NavigationControl),
   { ssr: false }
 )
 
 const KM_PER_MILE = 1.60934
 const milesToKm = (miles: number) => miles * KM_PER_MILE
 const kmToMiles = (km: number) => km / KM_PER_MILE
+
+// MapTiler basemap styles — matches the main /map page
+const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY
+const BASEMAP_STYLES: Record<string, string> = {
+  dark: `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`,
+  satellite: `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}`,
+}
 
 interface NearbyReport {
   id: string
@@ -71,17 +76,14 @@ export default function LocationMap({
   const [loading, setLoading] = useState(true)
   const [radiusMiles, setRadiusMiles] = useState(30)
   const [mounted, setMounted] = useState(false)
-  const [L, setL] = useState<any>(null)
+  const [basemap, setBasemap] = useState<'dark' | 'satellite'>('dark')
+  const mapRef = useRef<any>(null)
 
   // Convert miles to km for the API (which uses km internally)
   const radiusKm = milesToKm(radiusMiles)
 
-  // Load Leaflet on client side only
   useEffect(() => {
     setMounted(true)
-    import('leaflet').then((leaflet) => {
-      setL(leaflet.default)
-    })
   }, [])
 
   useEffect(() => {
@@ -112,40 +114,91 @@ export default function LocationMap({
     return null
   }
 
-  // Create custom icons using loaded Leaflet instance
-  const createIcon = (category: string, isMain: boolean = false) => {
-    if (!L) return undefined
+  // Build GeoJSON for the radius circle (approximation using 64-point polygon)
+  const radiusGeoJSON = (() => {
+    const points = 64
+    const coords: [number, number][] = []
+    const radiusInDeg = radiusKm / 111.32
+    for (let i = 0; i <= points; i++) {
+      const angle = (i / points) * 2 * Math.PI
+      const dx = radiusInDeg * Math.cos(angle) / Math.cos(latitude * Math.PI / 180)
+      const dy = radiusInDeg * Math.sin(angle)
+      coords.push([longitude + dx, latitude + dy])
+    }
+    return {
+      type: 'Feature' as const,
+      geometry: { type: 'Polygon' as const, coordinates: [coords] },
+      properties: {},
+    }
+  })()
 
-    const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
-    const size = isMain ? 32 : 24
-    const bgColor = isMain ? '#8b5cf6' : 'rgba(255,255,255,0.9)'
-    const borderColor = isMain ? '#7c3aed' : 'rgba(0,0,0,0.2)'
-    const textColor = isMain ? 'white' : 'inherit'
-
-    return L.divIcon({
-      className: 'custom-marker',
-      html: `
-        <div style="
-          width: ${size}px;
-          height: ${size}px;
-          border-radius: 50%;
-          background: ${bgColor};
-          border: 2px solid ${borderColor};
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: ${isMain ? '14px' : '12px'};
-          color: ${textColor};
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          ${isMain ? 'animation: pulse 2s infinite;' : ''}
-        ">
-          ${isMain ? '📍' : config.icon}
-        </div>
-      `,
-      iconSize: [size, size],
-      iconAnchor: [size / 2, size / 2]
-    })
+  // Build GeoJSON for the main report marker
+  const mainMarkerGeoJSON = {
+    type: 'FeatureCollection' as const,
+    features: [{
+      type: 'Feature' as const,
+      geometry: { type: 'Point' as const, coordinates: [longitude, latitude] },
+      properties: { type: 'main', title: reportTitle },
+    }],
   }
+
+  // Build GeoJSON for nearby report markers
+  const nearbyMarkersGeoJSON = {
+    type: 'FeatureCollection' as const,
+    features: nearbyReports.map(r => ({
+      type: 'Feature' as const,
+      geometry: { type: 'Point' as const, coordinates: [r.longitude, r.latitude] },
+      properties: {
+        type: 'nearby',
+        id: r.id,
+        title: r.title,
+        slug: r.slug,
+        category: r.category,
+        distance_mi: Math.round(kmToMiles(r.distance_km) * 10) / 10,
+      },
+    })),
+  }
+
+  // Category color mapping for nearby markers
+  const categoryColorExpr = [
+    'match', ['get', 'category'],
+    'ufos_aliens', '#22c55e',
+    'cryptids', '#f59e0b',
+    'ghosts_hauntings', '#a855f7',
+    'psychic_phenomena', '#3b82f6',
+    'consciousness_practices', '#6366f1',
+    'psychological_experiences', '#ec4899',
+    'biological_factors', '#10b981',
+    'perception_sensory', '#06b6d4',
+    'religion_mythology', '#eab308',
+    'esoteric_practices', '#8b5cf6',
+    '#9ca3af', // fallback
+  ] as any
+
+  const handleMapClick = useCallback((e: any) => {
+    const features = e.features
+    if (!features || features.length === 0) return
+    const feature = features[0]
+    if (feature.properties?.slug) {
+      window.location.href = `/report/${feature.properties.slug}`
+    }
+  }, [])
+
+  const handleMouseEnter = useCallback(() => {
+    const map = mapRef.current
+    if (map) {
+      const canvas = map.getMap?.()?.getCanvas?.() || map.getCanvas?.()
+      if (canvas) canvas.style.cursor = 'pointer'
+    }
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
+    const map = mapRef.current
+    if (map) {
+      const canvas = map.getMap?.()?.getCanvas?.() || map.getCanvas?.()
+      if (canvas) canvas.style.cursor = ''
+    }
+  }, [])
 
   return (
     <div className={classNames('glass-card overflow-hidden', className)} style={{ overflowX: 'hidden' }}>
@@ -156,16 +209,28 @@ export default function LocationMap({
             <Navigation className="w-4 h-4 text-primary-400" />
             <h4 className="text-sm font-medium text-white">Location Intelligence</h4>
           </div>
-          <select
-            value={radiusMiles}
-            onChange={(e) => setRadiusMiles(parseInt(e.target.value))}
-            className="text-xs bg-white/10 border border-white/20 rounded px-2 py-1 text-white"
-          >
-            <option value={15}>15 mi</option>
-            <option value={30}>30 mi</option>
-            <option value={60}>60 mi</option>
-            <option value={125}>125 mi</option>
-          </select>
+          <div className="flex items-center gap-2">
+            {/* Basemap toggle */}
+            <button
+              onClick={() => setBasemap(b => b === 'dark' ? 'satellite' : 'dark')}
+              className="text-xs bg-white/10 hover:bg-white/15 border border-white/20 rounded px-2 py-1 text-white/70 hover:text-white transition-colors flex items-center gap-1"
+              title={basemap === 'dark' ? 'Switch to satellite view' : 'Switch to dark view'}
+            >
+              <Layers className="w-3 h-3" />
+              {basemap === 'dark' ? 'Satellite' : 'Dark'}
+            </button>
+            {/* Radius selector */}
+            <select
+              value={radiusMiles}
+              onChange={(e) => setRadiusMiles(parseInt(e.target.value))}
+              className="text-xs bg-white/10 border border-white/20 rounded px-2 py-1 text-white"
+            >
+              <option value={15}>15 mi</option>
+              <option value={30}>30 mi</option>
+              <option value={60}>60 mi</option>
+              <option value={125}>125 mi</option>
+            </select>
+          </div>
         </div>
         {nearbyReports.length > 0 && (
           <p className="text-xs text-gray-500 mt-1">
@@ -174,115 +239,136 @@ export default function LocationMap({
         )}
       </div>
 
-      {/* Leaflet CSS - Required for proper map rendering */}
-      <link
-        rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-        crossOrigin=""
-      />
+      {/* MapLibre GL CSS */}
+      <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
       <style>{`
-        .custom-marker {
-          background: transparent !important;
-          border: none !important;
+        .location-map-container .maplibregl-ctrl-attrib {
+          display: none !important;
         }
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.1); opacity: 0.8; }
+        .location-map-container .maplibregl-ctrl-top-right {
+          top: 4px;
+          right: 4px;
         }
-        .leaflet-popup-content-wrapper {
-          background: rgba(15, 23, 42, 0.95);
-          border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 8px;
+        .location-map-container .maplibregl-ctrl-group {
+          background: rgba(15, 23, 42, 0.8) !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+          border-radius: 6px !important;
         }
-        .leaflet-popup-content {
-          color: white;
-          margin: 8px 12px;
+        .location-map-container .maplibregl-ctrl-group button {
+          width: 28px !important;
+          height: 28px !important;
         }
-        .leaflet-popup-tip {
-          background: rgba(15, 23, 42, 0.95);
+        .location-map-container .maplibregl-ctrl-group button + button {
+          border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
         }
-        .leaflet-container {
-          overflow: hidden !important;
+        .location-map-container .maplibregl-ctrl-group button span {
+          filter: invert(1) !important;
         }
       `}</style>
 
       {/* Map */}
-      <div className="h-64 md:h-80 relative bg-gray-900 overflow-hidden">
-        {!mounted || !L || loading ? (
+      <div className="h-64 md:h-80 relative bg-gray-900 overflow-hidden location-map-container">
+        {!mounted || loading ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-8 h-8 border-2 border-primary-400 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
-          <MapContainer
-            center={[latitude, longitude]}
-            zoom={9}
-            style={{ height: '100%', width: '100%' }}
-            zoomControl={true}
-            scrollWheelZoom={false}
+          <Map
+            ref={mapRef}
+            initialViewState={{
+              longitude,
+              latitude,
+              zoom: 8,
+            }}
+            style={{ width: '100%', height: '100%' }}
+            mapStyle={BASEMAP_STYLES[basemap]}
+            scrollZoom={false}
+            attributionControl={false}
+            interactiveLayerIds={['nearby-points']}
+            onClick={handleMapClick}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
           >
-            <TileLayer
-              attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-            />
+            <NavigationControl position="top-right" showCompass={false} />
 
-            {/* Search radius circle */}
-            <Circle
-              center={[latitude, longitude]}
-              radius={radiusKm * 1000}
-              pathOptions={{
-                color: '#8b5cf6',
-                fillColor: '#8b5cf6',
-                fillOpacity: 0.1,
-                weight: 1
-              }}
-            />
-
-            {/* Main report marker */}
-            <Marker
-              position={[latitude, longitude]}
-              icon={createIcon('main', true)}
-            >
-              <Popup>
-                <div className="text-sm">
-                  <p className="font-medium">{reportTitle}</p>
-                  <p className="text-gray-500 text-xs">This report</p>
-                </div>
-              </Popup>
-            </Marker>
+            {/* Radius circle */}
+            <MapSource id="radius-circle" type="geojson" data={radiusGeoJSON as any}>
+              <MapLayer
+                id="radius-fill"
+                type="fill"
+                paint={{
+                  'fill-color': '#8b5cf6',
+                  'fill-opacity': 0.08,
+                }}
+              />
+              <MapLayer
+                id="radius-border"
+                type="line"
+                paint={{
+                  'line-color': '#8b5cf6',
+                  'line-width': 1.5,
+                  'line-opacity': 0.4,
+                }}
+              />
+            </MapSource>
 
             {/* Nearby report markers */}
-            {nearbyReports.map((report) => (
-              <Marker
-                key={report.id}
-                position={[report.latitude, report.longitude]}
-                icon={createIcon(report.category)}
-              >
-                <Popup>
-                  <div className="text-sm max-w-[200px]">
-                    <p className="font-medium line-clamp-2">{report.title}</p>
-                    <p className="text-gray-500 text-xs mt-1">
-                      {Math.round(kmToMiles(report.distance_km) * 10) / 10} mi away
-                      {report.event_date && ` • ${new Date(report.event_date).toLocaleDateString()}`}
-                    </p>
-                    <Link
-                      href={`/report/${report.slug}`}
-                      className="text-primary-400 hover:text-primary-300 text-xs mt-2 inline-flex items-center gap-1"
-                    >
-                      View report <ExternalLink className="w-3 h-3" />
-                    </Link>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
-          </MapContainer>
+            <MapSource id="nearby-reports" type="geojson" data={nearbyMarkersGeoJSON as any}>
+              <MapLayer
+                id="nearby-points"
+                type="circle"
+                paint={{
+                  'circle-color': categoryColorExpr,
+                  'circle-radius': 6,
+                  'circle-stroke-width': 1.5,
+                  'circle-stroke-color': 'rgba(255,255,255,0.3)',
+                  'circle-opacity': 0.9,
+                }}
+              />
+            </MapSource>
+
+            {/* Main report marker — rendered last so it's on top */}
+            <MapSource id="main-marker" type="geojson" data={mainMarkerGeoJSON as any}>
+              {/* Pulsing halo */}
+              <MapLayer
+                id="main-pulse"
+                type="circle"
+                paint={{
+                  'circle-color': '#8b5cf6',
+                  'circle-radius': 16,
+                  'circle-opacity': 0.15,
+                }}
+              />
+              {/* Core marker */}
+              <MapLayer
+                id="main-point"
+                type="circle"
+                paint={{
+                  'circle-color': '#8b5cf6',
+                  'circle-radius': 8,
+                  'circle-stroke-width': 2.5,
+                  'circle-stroke-color': '#ffffff',
+                  'circle-opacity': 1,
+                }}
+              />
+            </MapSource>
+          </Map>
         )}
       </div>
 
       {/* Nearby reports list */}
       {nearbyReports.length > 0 && (
         <div className="p-4 border-t border-white/10">
-          <p className="text-xs text-gray-400 mb-2">Nearby Reports:</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-gray-400">Nearby Reports:</p>
+            <Link
+              href={`/map?lat=${latitude}&lng=${longitude}&zoom=9`}
+              className="text-xs text-primary-400 hover:text-primary-300 flex items-center gap-1 transition-colors"
+            >
+              <Maximize2 className="w-3 h-3" />
+              Explore on Map
+            </Link>
+          </div>
           <div className="space-y-2 max-h-32 overflow-y-auto overflow-x-hidden">
             {nearbyReports.slice(0, 5).map((report) => {
               const config = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
