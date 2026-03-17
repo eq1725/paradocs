@@ -18,6 +18,8 @@ import RelatedReports from '@/components/RelatedReports'
 import { logActivity } from '@/lib/services/streak.service'
 import { useToast } from '@/components/Toast'
 import MediaGallery from '@/components/MediaGallery'
+import ReadingProgress from '@/components/ReadingProgress'
+import ArticleTableOfContents from '@/components/ArticleTableOfContents'
 const LogToConstellation = dynamic(
   () => import('@/components/LogToConstellation'),
   { ssr: false }
@@ -574,6 +576,8 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         ))}
       </Head>
 
+      <ReadingProgress />
+
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <div className="lg:flex lg:gap-8">
           {/* Main content */}
@@ -790,6 +794,11 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           <div className="mb-8" data-tour-step="media">
             <MediaGallery media={media} />
           </div>
+        )}
+
+        {/* Table of Contents — shown for longer articles with multiple sections */}
+        {report.description && (
+          <ArticleTableOfContents description={report.description} />
         )}
 
         {/* Main content — optimized reading typography on mobile */}
