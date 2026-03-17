@@ -1120,7 +1120,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           <div className="relative overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-r from-purple-500/5 via-indigo-500/5 to-purple-500/5 p-6 sm:p-8 text-center">
             <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-indigo-500/5 animate-pulse" style={{ animationDuration: '4s' }} />
             <div className="relative">
-              {report.content_type === 'historical' || report.content_type === 'analysis' || report.source === 'curated' ? (
+              {report.content_type === 'historical_case' || report.content_type === 'research_analysis' || report.content_type === 'news_discussion' ? (
                 <>
                   <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">Help build the record</h3>
                   <p className="text-gray-400 text-sm sm:text-base mb-5">Know of additional evidence, documents, or witness accounts related to this case? Every contribution strengthens our understanding.</p>
