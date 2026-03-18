@@ -51,6 +51,30 @@ function slugify(text: string): string {
 
 // Extract the first significant quoted passage from a paragraph for pull-quote treatment
 // Returns the quote text and the speaker attribution if detectable
+// Words that look like names (capitalized) but aren't — pronouns, articles, common words
+const NOT_NAMES = new Set([
+  'He', 'She', 'It', 'We', 'They', 'His', 'Her', 'Its', 'Our', 'Their',
+  'The', 'This', 'That', 'These', 'Those', 'There', 'Here', 'Where', 'When',
+  'One', 'Two', 'Three', 'Some', 'Many', 'Most', 'All', 'Both', 'Each',
+  'According', 'However', 'Although', 'Because', 'Before', 'After', 'During',
+  'Several', 'Multiple', 'Various', 'Other', 'Another', 'Such', 'What',
+])
+
+// Validate that a captured string looks like an actual person's name
+function isLikelyName(candidate: string): boolean {
+  if (!candidate || candidate.length < 3) return false
+  // Split into words and check each
+  const words = candidate.split(/\s+/)
+  // First word must not be a common non-name word
+  if (NOT_NAMES.has(words[0])) return false
+  // First word must be at least 3 chars (no "He", "Mr" without period)
+  if (words[0].length < 3) return false
+  // Should not contain periods except for initials (e.g. "Dr." or "J.")
+  // Should look like 1-4 proper name words
+  if (words.length > 4) return false
+  return true
+}
+
 function extractPullQuote(text: string): { quote: string; attribution: string } | null {
   // Match quoted text that's substantial (40+ chars) — both straight and curly quotes
   const quotePattern = /["\u201C]([^"\u201D]{40,250})["\u201D]/
@@ -59,20 +83,23 @@ function extractPullQuote(text: string): { quote: string; attribution: string } 
 
   const quote = match[1].trim()
 
-  // Try to find attribution: look for "Name said/stated/told/described/recalled" near the quote
-  // or "according to Name" patterns
+  // Try to find attribution near the quote
   const beforeQuote = text.slice(0, match.index || 0)
   const afterQuote = text.slice((match.index || 0) + match[0].length)
 
-  // Check for "Name verb:" or "Name verb that" before the quote
-  const beforeAttr = beforeQuote.match(/([A-Z][a-z]+(?: [A-Z][a-z.]+){0,3})\s+(?:[Ss]aid|[Ss]tated|[Tt]old|[Dd]escribed|[Rr]ecalled|[Nn]oted|[Ww]rote|[Tt]estified|[Rr]evealed|[Ee]xplained|[Rr]eported|[Cc]laimed|[Dd]eclared|[Mm]entioned|[Aa]dded|[Cc]ontinued|[Mm]aintained|[Ii]nsisted|[Aa]cknowledged|[Cc]onfirmed|[Aa]dmitted)\b/)
-  if (beforeAttr) {
+  // Attribution verbs — the word that connects a name to their quote
+  const verbs = '(?:[Ss]aid|[Ss]tated|[Tt]old|[Rr]ecalled|[Nn]oted|[Ww]rote|[Tt]estified|[Rr]evealed|[Ee]xplained|[Rr]eported|[Cc]laimed|[Dd]eclared)'
+
+  // Check for "Name verb:" pattern CLOSE to the quote (last 200 chars before it)
+  const nearBefore = beforeQuote.slice(-200)
+  const beforeAttr = nearBefore.match(new RegExp('([A-Z][a-z]{2,}(?:\\s[A-Z][a-z.]{1,}){0,3})\\s+' + verbs + '\\b'))
+  if (beforeAttr && isLikelyName(beforeAttr[1])) {
     return { quote, attribution: beforeAttr[1] }
   }
 
   // Check for attribution after the quote
-  const afterAttr = afterQuote.match(/^\s*(?:[Ss]aid|[Ss]tated|[Rr]ecalled|[Ww]rote|[Tt]estified)\s+([A-Z][a-z]+(?: [A-Z][a-z.]+){0,3})/)
-  if (afterAttr) {
+  const afterAttr = afterQuote.match(new RegExp('^\\s*' + verbs + '\\s+([A-Z][a-z]{2,}(?:\\s[A-Z][a-z.]{1,}){0,3})'))
+  if (afterAttr && isLikelyName(afterAttr[1])) {
     return { quote, attribution: afterAttr[1] }
   }
 
