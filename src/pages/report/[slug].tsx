@@ -180,7 +180,19 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         incrementViewCount(initialReport.id, initialReport.view_count)
         checkUser()
       } else if (!fetchError) {
-        // No matching server data â client-side fetch (handles navigation between reports)
+        // CRITICAL: Clear stale report data IMMEDIATELY before async fetch.
+        // Without this, component renders new slug + old report for one frame,
+        // crashing child components that receive mismatched props.
+        setReport(null)
+        setMedia([])
+        setComments([])
+        setLoading(true)
+        setParentCase(null)
+        setShowAllTags(false)
+        setIsLogged(false)
+        // Scroll to top for the new report
+        window.scrollTo(0, 0)
+        // Then fetch the new report data
         loadReport()
         checkUser()
       }
@@ -278,6 +290,9 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   }
 
   async function loadReport() {
+    // Capture the slug we're fetching for — if user navigates again before
+    // this fetch completes, we must not set state for the stale slug
+    const fetchingSlug = slug
     setLoading(true)
     // Reset stale state from previous report during client-side navigation
     setUserVote(null)
@@ -298,6 +313,9 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         .single()
 
       if (reportError) throw reportError
+
+      // Stale navigation guard: if user navigated away during fetch, discard results
+      if (slug !== fetchingSlug) return
 
       // Load comments
       const { data: commentsData } = await supabase
