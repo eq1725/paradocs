@@ -179,7 +179,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           url: item.url,
           caption: item.caption,
           is_primary: item.is_primary,
-          display_order: j,
         });
 
       if (insertErr) {
