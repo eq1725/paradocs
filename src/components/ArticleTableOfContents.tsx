@@ -88,10 +88,9 @@ export default function ArticleTableOfContents({ description }: ArticleTableOfCo
   var [activeId, setActiveId] = useState('')
   var [isExpanded, setIsExpanded] = useState(false)
 
-  // Don't render if fewer than 3 sections
-  if (items.length < 3) return null
-
+  // useEffect MUST be called before any conditional return (Rules of Hooks)
   useEffect(function () {
+    if (items.length < 3) return // No sections to observe
     // Track which section is currently in view
     var observer = new IntersectionObserver(
       function (entries) {
@@ -111,6 +110,9 @@ export default function ArticleTableOfContents({ description }: ArticleTableOfCo
 
     return function () { observer.disconnect() }
   }, [items.length])
+
+  // Don't render if fewer than 3 sections — AFTER all hooks
+  if (items.length < 3) return null
 
   function handleClick(id: string) {
     var el = document.getElementById(id)
