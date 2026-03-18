@@ -73,7 +73,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 3 | **Map & Geospatial** | MapLibre GL map, PostGIS queries, Supercluster, heatmap, bottom sheet | `HANDOFF_MAP.md` | Active — Phase 1 & 2 COMPLETE, Phase 3 partial. Deep-link URL params added (lat/lng/zoom) |
 | 4 | **Insights & Pattern Analysis** | Pattern detection algorithms, AI narratives, skeptic mode, trending, methodology | `HANDOFF_INSIGHTS.md` | Not started |
 | 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
-| 6 | **Report Experience** | Report detail page, submission form, connections, evidence, related reports | `HANDOFF_REPORTS.md` | Active — Phase B mobile optimization + Roswell audit complete |
+| 6 | **Report Experience** | Report detail page, submission form, connections, evidence, related reports | `HANDOFF_REPORTS.md` | Active — Roswell cluster expanded to 13 reports, AI Analysis grounded |
 | 7 | **Search & Navigation** | Full-text search, site navigation, onboarding flows, UX polish | `HANDOFF_SEARCH_NAV.md` | Not started |
 | 8 | **Subscription & Monetization** | Stripe checkout, paywall, tier system, billing portal, cancellation | `HANDOFF_SUBSCRIPTION.md` | Not started |
 | 9 | **Email & Engagement** | Weekly digests, drip campaigns, smart alerts, winback, notifications | `HANDOFF_EMAIL.md` | Not started |
@@ -277,7 +277,9 @@ Each major feature area has a dedicated Claude session with its own deep context
 - **Research Data Panel:** NLP confidence flags, Pro-gated export, responsive grid, witness count ~est. treatment
 - **Did You Know?:** Same-case filtering, cross-phenomenon priority, unique explanations, category labels. NOTE: Stargate Project cross-phenomenon link NOT showing — all showcase connections are geographic/temporal within ufos_aliens. Needs cross-category report data.
 - **generate-connections v2:** Skips same-case, specific explanations, miles, supports ?slug= targeting
-- **Data accuracy:** Roswell coordinates corrected (Foster Ranch 33.96,-105.31 not Roswell city), witness count audit, all 6 witness reports audited March 18 — all meet quality bar
+- **AI Analysis fix (NEW):** Hash-based caching (no more 24h regeneration), DB-grounded Similar Cases (no hallucination), anti-hallucination system prompt. 72 insights invalidated for regeneration.
+- **Roswell cluster expanded (NEW):** 5 new witness reports added (Rickett, Dennis, Barnett, Lytle, Corso). Total cluster: 13 reports (1 showcase + 12 witnesses). All with detailed uncertainty notes per accuracy-first principle.
+- **Data accuracy:** Roswell coordinates corrected (Foster Ranch 33.96,-105.31 not Roswell city), witness count audit, all 6 original witness reports audited March 18 — all meet quality bar
 - **Visual polish:** Compact badges, subtler tags, cleaner metadata cards, merged engagement+CTA bottom section
 - **Removed:** Comments section (doesn't serve user journeys), "Featured" badge (internal signal)
 

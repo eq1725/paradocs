@@ -2,7 +2,7 @@
 
 **Session:** Report Experience (Session 6)
 **Date:** 2026-03-18
-**Status:** Active — Phase B mobile optimization + Roswell audit complete
+**Status:** Active — Phase B mobile optimization + Roswell cluster expanded to 13 reports + AI Analysis grounded
 
 ---
 
@@ -129,9 +129,35 @@ The report detail page (`/report/[slug]`) has been extensively improved across m
 
 ---
 
+## AI Analysis Anti-Hallucination Fix (March 18)
+
+**Problem:** AI Analysis "Similar Historical Cases" was generating fabricated case names from Claude's training data. Insights also regenerated every 24 hours with inconsistent results.
+
+**Fix (report-insights.service.ts):**
+1. Hash-based caching — insights only regenerate when report content changes, not on a timer
+2. DB-grounded Similar Cases — service queries related reports and injects them into the prompt
+3. Anti-hallucination instructions in system prompt and format spec
+4. All 72 existing report insights invalidated — regenerate with grounded system on next view
+
+## 5 New Roswell Witness Reports (March 18)
+
+Created via `add-roswell-witnesses-2.ts`. All linked to showcase, case_group=roswell-1947, connections generated.
+
+| Report | Slug | Cred | Notes |
+|--------|------|------|-------|
+| Bill Rickett | bill-rickett-roswell-cic-agent-1947 | high | CIC agent, direct testimony |
+| Glenn Dennis | glenn-dennis-roswell-mortician-1947 | medium | Controversial, nurse unverified |
+| Barney Barnett | barney-barnett-roswell-san-agustin-1947 | medium | Second-hand only, died 1969 |
+| Chester Lytle | chester-lytle-roswell-blanchard-testimony-1953 | medium | Manhattan Project engineer, told by Blanchard |
+| Philip Corso | philip-corso-roswell-reverse-engineering-1997 | low | NYT bestseller, documented factual errors |
+
+Total Roswell cluster now: 13 reports (1 showcase + 12 witnesses). Related Reports sidebar shows "Case 10" with overflow.
+
+---
+
 ## Roswell Cluster Audit (March 18)
 
-All 6 witness reports reviewed and confirmed meeting quality bar:
+All 6 original witness reports reviewed and confirmed meeting quality bar:
 
 | Report | Coords | Location | Date | Witnesses | Cred | Desc |
 |--------|--------|----------|------|-----------|------|------|
