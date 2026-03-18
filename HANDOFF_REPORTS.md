@@ -2,7 +2,7 @@
 
 **Session:** Report Experience (Session 6)
 **Date:** 2026-03-18
-**Status:** Active — Phase B mobile optimization + Roswell cluster expanded to 13 reports + AI Analysis grounded
+**Status:** Active — Phase B: mobile optimization, Roswell cluster expanded to 13 reports, AI Analysis grounded, images stored in Supabase Storage, client-side nav crash fixed
 
 ---
 
@@ -113,8 +113,13 @@ The report detail page (`/report/[slug]`) has been extensively improved across m
 **Remaining Phase B items:**
 - ~~Mobile reading experience optimization~~ ✅ Complete (March 18)
 - ~~Breadcrumb navigation~~ ✅ Complete (March 18)
-- "Did You Know?" connection quality: Stargate Project cross-phenomenon link NOT showing on showcase — all 8 connections are geographic/temporal within ufos_aliens. Needs either: (a) a Stargate Project report to exist in the DB, or (b) regeneration of connections with cross-category reports after more data ingestion.
+- ~~Pull quote system~~ ✅ Fixed (March 18) — expanded quotes, attribution regex rewrite
+- ~~Client-side navigation crash~~ ✅ Fixed (March 18) — React hooks violation + stale state
+- ~~Media images~~ ✅ All stored in Supabase Storage (March 18) — no more hotlinking
+- ~~Barnett photo~~ ✅ Sourced from Find a Grave (March 18)
+- "Did You Know?" connection quality: Stargate Project cross-phenomenon link NOT showing on showcase — all 8 connections are geographic/temporal within ufos_aliens. Needs cross-category report data.
 - `roswell-incident` slug is a thin stub (382 chars, no case_group, no images, generic title). Consider merging into the showcase or deprecating.
+- Migrate existing pre-session report images (DuBose, Marcel, etc.) from Wikimedia hotlinks to Supabase Storage — same pattern as new reports.
 - Research Data Panel cross-referencing and statistical comparison features (post-ingestion)
 
 **Post-ingestion enhancements:**
@@ -152,6 +157,39 @@ Created via `add-roswell-witnesses-2.ts`. All linked to showcase, case_group=ros
 | Philip Corso | philip-corso-roswell-reverse-engineering-1997 | low | NYT bestseller, documented factual errors |
 
 Total Roswell cluster now: 13 reports (1 showcase + 12 witnesses). Related Reports sidebar shows "Case 10" with overflow.
+
+## Media & Image Storage (March 18)
+
+**Problem:** Images were hotlinked to Wikimedia Commons — some URLs were wrong (404), and external hosting is unreliable. One caption falsely claimed "No photograph of Barnett himself is known to exist" when Find a Grave has his photo.
+
+**Fixes:**
+1. All 14+ images downloaded from external sources and uploaded to Supabase Storage (`report-media` bucket). URLs in `report_media` table updated to `bhkbctdmwnowfmqpksed.supabase.co/storage/v1/object/public/report-media/roswell/...`
+2. Barnett photo sourced from Find a Grave memorial records (WWI ID card). Added as primary image with proper attribution.
+3. False "no photo exists" claim removed from Barnett caption.
+4. On-demand ISR revalidation endpoint created (`/api/admin/revalidate`) — POST array of paths to force page cache refresh after DB changes.
+
+**Admin scripts created:**
+- `add-roswell-media.ts` — Inserts media records for the 5 new reports
+- `store-roswell-media.ts` — Downloads external images → Supabase Storage, updates URLs
+- `fix-roswell-captions.ts` — Fixes captions, sources Barnett photo from Find a Grave
+- `revalidate.ts` — On-demand ISR revalidation for any page paths
+
+**Key principle violated and corrected:** Never make absolute claims about something not existing without thorough verification. The Barnett "no photo exists" claim was factually wrong.
+
+## Pull Quote System Fixes (March 18)
+
+1. Expanded short quotes in all 5 report descriptions to be 40+ chars (the pull quote system's minimum). Each report now has a compelling, attributed pull quote.
+2. Fixed attribution regex — removed `/i` flag that caused lowercase words ("from the crash. He") to match as names. Added `NOT_NAMES` blocklist (He, She, They, According, However, etc.), `isLikelyName()` validator, 3-char minimum, 200-char proximity limit.
+
+## Client-Side Navigation Fix (March 18)
+
+**Root cause:** React error #310 — `ArticleTableOfContents` had an early `return null` between `useState` and `useEffect` calls. When navigating between reports with different section counts, React saw different hook counts and crashed.
+
+**Fixes:**
+1. Moved early return AFTER `useEffect` in `ArticleTableOfContents.tsx` (Rules of Hooks compliance)
+2. Added immediate state clearing in `[slug].tsx` when slug changes (prevents stale data + new slug frame)
+3. Added stale-slug guard in `loadReport()` (discards fetch results if user navigated again)
+4. Added `window.scrollTo(0, 0)` on client-side report navigation
 
 ---
 

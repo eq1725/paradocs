@@ -73,7 +73,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 3 | **Map & Geospatial** | MapLibre GL map, PostGIS queries, Supercluster, heatmap, bottom sheet | `HANDOFF_MAP.md` | Active — Phase 1 & 2 COMPLETE, Phase 3 partial. Deep-link URL params added (lat/lng/zoom) |
 | 4 | **Insights & Pattern Analysis** | Pattern detection algorithms, AI narratives, skeptic mode, trending, methodology | `HANDOFF_INSIGHTS.md` | Not started |
 | 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
-| 6 | **Report Experience** | Report detail page, submission form, connections, evidence, related reports | `HANDOFF_REPORTS.md` | Active — Roswell cluster expanded to 13 reports, AI Analysis grounded |
+| 6 | **Report Experience** | Report detail page, submission form, connections, evidence, related reports | `HANDOFF_REPORTS.md` | Active — 13 Roswell reports, AI grounded, images in Supabase Storage, nav crash fixed |
 | 7 | **Search & Navigation** | Full-text search, site navigation, onboarding flows, UX polish | `HANDOFF_SEARCH_NAV.md` | Not started |
 | 8 | **Subscription & Monetization** | Stripe checkout, paywall, tier system, billing portal, cancellation | `HANDOFF_SUBSCRIPTION.md` | Not started |
 | 9 | **Email & Engagement** | Weekly digests, drip campaigns, smart alerts, winback, notifications | `HANDOFF_EMAIL.md` | Not started |
@@ -267,32 +267,32 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Database tables:** `reports`, `report_media`, `report_connections`, `report_links`, `academic_observations`
 
-**Current state (March 18, 2026) — Phase B mobile optimization + Roswell audit complete:**
+**Current state (March 18, 2026) — Phase B comprehensive: mobile, Roswell cluster, AI grounding, media storage, nav fix:**
 - **Body text:** FormattedDescription rewrite (ALL-CAPS headers → styled h2s, pull quotes with attribution, anchor IDs). Single-word headers (e.g. "LEGACY") now supported (≥4 chars).
-- **Reading UX:** ReadingProgress bar, ArticleTableOfContents with IntersectionObserver, MediaGallery split (hero images vs Sources & Documents)
-- **Mobile reading (NEW):** Pull quotes responsive (`text-base sm:text-lg`), section headers scaled (`text-lg sm:text-xl`), TOC compact on mobile, AskTheUnknown FAB less intrusive (smaller, semi-transparent), connection cards explicit single-column, event_time formatted to 12-hour.
-- **Breadcrumbs (NEW):** Mobile breadcrumb shows parent case trail (Category > Case File). Desktop breadcrumb includes parent case title in full trail. Both have `aria-label="Breadcrumb"`.
-- **LocationMap:** Upgraded from Leaflet to MapLibre GL + MapTiler (same stack as main /map). Satellite toggle, category-colored markers, "Explore on Map" deep-link with URL params
-- **Environmental Context:** Date-aware (no Starlink for 1947), responsive 2-col grid, clean Unknown states
-- **Research Data Panel:** NLP confidence flags, Pro-gated export, responsive grid, witness count ~est. treatment
-- **Did You Know?:** Same-case filtering, cross-phenomenon priority, unique explanations, category labels. NOTE: Stargate Project cross-phenomenon link NOT showing — all showcase connections are geographic/temporal within ufos_aliens. Needs cross-category report data.
-- **generate-connections v2:** Skips same-case, specific explanations, miles, supports ?slug= targeting
-- **AI Analysis fix (NEW):** Hash-based caching (no more 24h regeneration), DB-grounded Similar Cases (no hallucination), anti-hallucination system prompt. 72 insights invalidated for regeneration.
-- **Roswell cluster expanded (NEW):** 5 new witness reports added (Rickett, Dennis, Barnett, Lytle, Corso). Total cluster: 13 reports (1 showcase + 12 witnesses). All with detailed uncertainty notes per accuracy-first principle.
-- **Data accuracy:** Roswell coordinates corrected (Foster Ranch 33.96,-105.31 not Roswell city), witness count audit, all 6 original witness reports audited March 18 — all meet quality bar
-- **Visual polish:** Compact badges, subtler tags, cleaner metadata cards, merged engagement+CTA bottom section
-- **Removed:** Comments section (doesn't serve user journeys), "Featured" badge (internal signal)
+- **Pull quotes (NEW):** Attribution regex rewritten with `NOT_NAMES` blocklist, `isLikelyName()` validator, 3-char minimum, 200-char proximity limit. Expanded quotes in all 5 new reports to 40+ chars.
+- **Reading UX:** ReadingProgress bar, ArticleTableOfContents with IntersectionObserver (hooks violation fixed), MediaGallery split (hero images vs Sources & Documents)
+- **Mobile reading:** Pull quotes responsive, section headers scaled, TOC compact, AskTheUnknown FAB less intrusive, connection cards single-column, event_time 12-hour.
+- **Breadcrumbs:** Mobile shows parent case trail. Desktop shows full path including parent case title.
+- **Client-side navigation fix (NEW):** React error #310 fixed — ArticleTableOfContents early return moved after useEffect. State cleared immediately on slug change. Stale-slug guard in loadReport(). Scroll-to-top on navigation.
+- **LocationMap:** MapLibre GL + MapTiler. Satellite toggle, "Explore on Map" deep-link.
+- **Environmental Context:** Date-aware, responsive 2-col grid, clean Unknown states.
+- **Research Data Panel:** NLP confidence flags, Pro-gated export, witness count ~est.
+- **Did You Know?:** Same-case filtering, cross-phenomenon priority. Stargate Project link needs cross-category data.
+- **AI Analysis fix (NEW):** Hash-based caching (content-hash comparison, not 24h timer). DB-grounded Similar Cases (no hallucination). Anti-hallucination system prompt. 72 insights invalidated.
+- **Roswell cluster expanded (NEW):** 5 new witness reports (Rickett, Dennis, Barnett, Lytle, Corso). Total: 13 reports. All with uncertainty notes. Connections generated.
+- **Media storage (NEW):** All images downloaded to Supabase Storage (`report-media` bucket). No more hotlinking to Wikimedia. Barnett photo sourced from Find a Grave. On-demand ISR revalidation endpoint (`/api/admin/revalidate`).
+- **Data accuracy:** Foster Ranch coords, witness count audit, all reports verified. False "no photo exists" claim corrected on Barnett.
+- **Visual polish:** Compact badges, subtler tags, cleaner metadata cards, merged engagement+CTA.
 
 **What still needs work:**
-- ~~Mobile reading experience optimization~~ ✅ Complete (March 18)
-- ~~Breadcrumb navigation~~ ✅ Complete (March 18)
 - Did You Know? cross-phenomenon connections need cross-category report data (Stargate Project etc.)
 - `roswell-incident` stub report (382 chars, no case_group) — consider merging or deprecating
+- Migrate pre-session report images (DuBose, Marcel, Haut, etc.) from Wikimedia hotlinks to Supabase Storage
 - Shareable story cards (viral share images) — post-ingestion
 - Research Data Panel cross-referencing features — post-ingestion
 - Location extraction subsystem for ingestion pipeline
 
-**Touches other sessions:** Map (shared MapLibre/MapTiler stack, deep-link URL params), Subscription (Research Data Panel Pro-gated), Ingestion (generate-connections ready for batch, location validation needed, cross-category connections need data), Encyclopedia (phenomena links), Mobile (reading experience pass COMPLETE)
+**Touches other sessions:** Map (shared MapLibre/MapTiler stack, deep-link URL params), Subscription (Research Data Panel Pro-gated), Ingestion (generate-connections ready for batch, cross-category connections need data), Encyclopedia (phenomena links), Mobile (reading experience COMPLETE), Foundation (on-demand ISR revalidation endpoint available for all sessions)
 
 ---
 
@@ -511,6 +511,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 |------|--------------|------|---------|
 | 2026-03-16 | Map & Geospatial | **Phase 3 partial: Map Spotlight placeholder cards on Explore page.** `MapSpotlightRow.tsx` with 5 hardcoded cards rendering as 2nd row in Discover feed (after Encyclopedia Spotlight). Cards sized to match Encyclopedia Spotlight (`min-w-[75vw]`, `h-44`). Deep-links to `/map` with filter params. Cards flagged as placeholder data — must be replaced with dynamic cards post-ingestion. | Explore (new row in Discover feed, `explore.tsx` modified), Ingestion (cards need real report counts + thumbnails post-ingestion) |
 | 2026-03-16 | Map & Geospatial | **Phase 2 COMPLETE: Timeline slider, basemap toggle, bottom sheet UX.** Timeline slider (1400–2026) with era presets (All Time, Pre-Modern, 1900–1950, 1950–2000, 2000+) and decade histogram. Basemap toggle (dark/satellite/terrain). Bottom sheet: raised above nav, pull-down-to-dismiss from scrolled content, enlarged touch targets. Phase 3 (Map Spotlight cards, deep-link URLs, encyclopedia map links) deferred to post-ingestion. | Explore (Map Spotlight cards planned for Phase 3 post-ingestion), Mobile Design (bottom sheet pull-to-dismiss pattern reusable) |
+| 2026-03-18 | Report Experience | **On-demand ISR revalidation endpoint.** `/api/admin/revalidate` — POST array of paths to force Next.js ISR page cache refresh. Use whenever DB data changes (media, descriptions, etc.) and pages need to reflect updates immediately. Also: `report-insights.service.ts` now uses hash-based caching and DB-grounded Similar Cases (anti-hallucination). `FormattedDescription.tsx` pull quote attribution regex rewritten with `NOT_NAMES` blocklist. `ArticleTableOfContents.tsx` hooks violation fixed. `[slug].tsx` client-side navigation crash fixed (state clearing + stale-slug guard). All new report images stored in Supabase Storage (`report-media` bucket) — no external hotlinking. | Foundation (revalidation endpoint available for all sessions), All sessions (anti-hallucination pattern for AI features), Admin (new admin scripts: add-roswell-witnesses-2, add-roswell-media, store-roswell-media, fix-roswell-quotes, fix-roswell-captions) |
 | 2026-03-16 | Map & Geospatial | **Phase 1 COMPLETE: MapLibre GL migration deployed.** Leaflet replaced with MapLibre GL + react-map-gl + Supercluster on `/map`. New `src/components/map/` directory with 8 components. MapTiler basemap (dataviz-dark, Flex plan). Heatmap layer, clustered markers, mobile bottom sheet with category stats, auto-fit to data bounds, locate me, URL-synced filters. `map.tsx` rewritten from 752 to ~220 lines. New env var `NEXT_PUBLIC_MAPTILER_KEY` required in Vercel. Mini-maps (PhenomenonMiniMap, PatternMiniMap) remain on Leaflet by design. | Foundation (4 new npm dependencies, new env var), Mobile Design (bottom sheet touch handling, controls positioning), Explore (Map Spotlight cards planned for Phase 3) |
 | 2026-03-16 | Explore & Discovery | **Mobile UX optimized + Discover feed randomized.** Layout.tsx header modified (logo nowrap, Submit Report `hidden md:flex` secondary, Sign In pill button). MobileBottomTabs enlarged (Discover FAB 64px, nav icons 24px). AskTheUnknown FAB repositioned to `bottom-28` on mobile with AI presence CSS animations (globals.css). Explore page compacted (inline header, 75vw encyclopedia cards, compressed banners). Discover feed seed moved to component useRef (fresh order every visit). Feed API uses interleaved 3:1:1 explore-exploit tiering. | Mobile Design (bottom nav sizing changed), Foundation (Layout.tsx header + globals.css animations), Search & Nav (header structure changed), All sessions (AskTheUnknown FAB position changed) |
 | 2026-03-15 | Explore & Discovery | **Anonymous feed + soft-wall prompts deployed.** Feed API (`/api/feed/personalized`) rewritten: returns Encyclopedia Spotlight (phenomena with images), category highlights (rotating), trending, recent for ALL users (not just authenticated). Explore Discover tab replaced empty state with rich editorial feed. Three soft-wall signup touchpoints: bookmark button, in-feed card after 2nd section, bottom CTA. Feed API response now includes `type` field ('reports' or 'phenomena'). Login redirect uses `?reason=save` for contextual messaging. | Search & Nav (login page should handle `reason` param), Encyclopedia (image quality affects spotlight), Email (digest could reuse feed sections), Dashboard (if consuming feed API), Subscription (tier gating plan documented in HANDOFF_EXPLORE.md) |
