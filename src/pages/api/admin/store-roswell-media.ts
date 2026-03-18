@@ -49,6 +49,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await supabase.storage.createBucket(MEDIA_BUCKET, { public: true });
     }
 
+    // Fix known broken Wikimedia URLs (wrong hash paths) before downloading
+    var urlFixes: Record<string, string> = {
+      'https://upload.wikimedia.org/wikipedia/commons/a/a3/Roswell_AAF_sign_-_1946.jpg': 'https://upload.wikimedia.org/wikipedia/commons/3/31/Roswell_AAF_sign_-_1946.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/0/06/Philip_j_corso_1.jpg': 'https://upload.wikimedia.org/wikipedia/commons/8/84/Philip_j_corso_1.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/5/53/Philip_j_corso_3.jpg': 'https://upload.wikimedia.org/wikipedia/commons/7/7b/Philip_j_corso_3.jpg',
+    };
+    for (var fixUrl of Object.keys(urlFixes)) {
+      await supabase.from('report_media').update({ url: urlFixes[fixUrl] }).eq('url', fixUrl);
+    }
+
     // Find all report_media with external URLs (wikimedia, archive.org, etc.)
     var slugs = [
       'bill-rickett-roswell-cic-agent-1947',
