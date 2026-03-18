@@ -65,13 +65,13 @@ function extractPullQuote(text: string): { quote: string; attribution: string } 
   const afterQuote = text.slice((match.index || 0) + match[0].length)
 
   // Check for "Name verb:" or "Name verb that" before the quote
-  const beforeAttr = beforeQuote.match(/([A-Z][a-z]+(?: [A-Z][a-z.]+){0,3})\s+(?:said|stated|told|described|recalled|noted|wrote|testified|revealed|explained|reported|claimed|declared|mentioned|added|continued|maintained|insisted|acknowledged|confirmed|admitted|later|subsequently|also)\b/i)
+  const beforeAttr = beforeQuote.match(/([A-Z][a-z]+(?: [A-Z][a-z.]+){0,3})\s+(?:[Ss]aid|[Ss]tated|[Tt]old|[Dd]escribed|[Rr]ecalled|[Nn]oted|[Ww]rote|[Tt]estified|[Rr]evealed|[Ee]xplained|[Rr]eported|[Cc]laimed|[Dd]eclared|[Mm]entioned|[Aa]dded|[Cc]ontinued|[Mm]aintained|[Ii]nsisted|[Aa]cknowledged|[Cc]onfirmed|[Aa]dmitted)\b/)
   if (beforeAttr) {
     return { quote, attribution: beforeAttr[1] }
   }
 
   // Check for attribution after the quote
-  const afterAttr = afterQuote.match(/^\s*(?:said|stated|recalled|wrote|testified)\s+([A-Z][a-z]+(?: [A-Z][a-z.]+){0,3})/i)
+  const afterAttr = afterQuote.match(/^\s*(?:[Ss]aid|[Ss]tated|[Rr]ecalled|[Ww]rote|[Tt]estified)\s+([A-Z][a-z]+(?: [A-Z][a-z.]+){0,3})/)
   if (afterAttr) {
     return { quote, attribution: afterAttr[1] }
   }
