@@ -16,7 +16,8 @@ const anthropic = new Anthropic({
 
 const MODEL = 'claude-sonnet-4-5-20250929'
 const MAX_TOKENS = 1500
-const CACHE_VALIDITY_HOURS = 24
+// Cache insights until the report content changes (hash-based), with a long fallback TTL
+const CACHE_VALIDITY_HOURS = 8760 // 1 year — effectively permanent; regeneration is hash-driven
 
 // Types
 export interface ReportInsight {
@@ -121,15 +122,22 @@ Flag content that is NOT a first-hand experiencer report - this is important for
 
 IMPORTANT NUANCE for historical_case: If the report contains or references specific first-hand witness testimony (named witnesses, direct quotes, sworn affidavits, military personnel accounts, etc.), set "Contains First-Hand Accounts: yes" in your assessment. Historical compilations that preserve first-hand testimony are highly valuable even though the report itself is not a single first-hand account. Only flag "Not a First-Hand Account" warnings for news_discussion and research_analysis content — NOT for historical_case content that contains documented witness testimony.
 
-Your analysis should help both researchers and the general public understand the context and significance of reports.`
+Your analysis should help both researchers and the general public understand the context and significance of reports.
+
+CRITICAL ANTI-HALLUCINATION RULES:
+- For the SIMILAR_CASES section, you may ONLY reference cases from the "RELATED REPORTS IN DATABASE" list provided in the prompt. If no list is provided, state "No related cases in database."
+- NEVER invent, fabricate, or reference historical cases, witness names, or events from your training data in the Similar Cases section. This is a research platform where accuracy is paramount.
+- If you are uncertain about a specific factual claim (date, name, location), say so explicitly rather than stating it as fact.
+- All analysis must be grounded in the report content provided. Do not introduce external claims as if they are established facts.`
 
 /**
  * Generate insight for a specific report
  */
 export async function generateReportInsight(
-  report: Report & { phenomenon_type?: { name: string } | null }
+  report: Report & { phenomenon_type?: { name: string } | null },
+  relatedReportsContext?: string
 ): Promise<InsightGenerationResult> {
-  const prompt = buildReportPrompt(report)
+  const prompt = buildReportPrompt(report, relatedReportsContext)
 
   try {
     const message = await anthropic.messages.create({
@@ -163,23 +171,7 @@ export async function generateReportInsight(
 export async function getReportInsight(reportId: string): Promise<ReportInsight | null> {
   const supabase = createServerClient()
 
-  // Check for cached, valid insight
-  const { data: cachedInsight } = await (supabase
-    .from('report_insights' as any) as any)
-    .select('*')
-    .eq('report_id', reportId)
-    .eq('insight_type', 'analysis')
-    .eq('is_stale', false)
-    .gt('valid_until', new Date().toISOString())
-    .order('generated_at', { ascending: false })
-    .limit(1)
-    .single()
-
-  if (cachedInsight) {
-    return cachedInsight as ReportInsight
-  }
-
-  // Fetch the report
+  // Fetch the report first — we need it for hash comparison
   const { data: report, error: reportError } = await supabase
     .from('reports')
     .select(`
@@ -194,8 +186,57 @@ export async function getReportInsight(reportId: string): Promise<ReportInsight 
     return null
   }
 
-  // Generate new insight
-  const result = await generateReportInsight(report)
+  const currentHash = computeReportHash(report)
+
+  // Check for cached insight — valid if hash matches (content unchanged)
+  const { data: cachedInsight } = await (supabase
+    .from('report_insights' as any) as any)
+    .select('*')
+    .eq('report_id', reportId)
+    .eq('insight_type', 'analysis')
+    .eq('is_stale', false)
+    .order('generated_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  // Return cached insight if it exists AND the report content hasn't changed
+  if (cachedInsight && cachedInsight.source_data_hash === currentHash) {
+    return cachedInsight as ReportInsight
+  }
+
+  // Fetch related reports from DB for grounding the AI (prevents hallucination)
+  let relatedReportsContext = ''
+  if ((report as any).case_group) {
+    // Same case group — most relevant
+    const { data: relatedReports } = await supabase
+      .from('reports')
+      .select('title, slug, summary, credibility')
+      .eq('case_group', (report as any).case_group)
+      .neq('id', reportId)
+      .eq('status', 'approved')
+      .limit(20)
+    if (relatedReports && relatedReports.length > 0) {
+      relatedReportsContext = '\n\nRELATED REPORTS IN DATABASE (same case group):\n' +
+        relatedReports.map(function(r: any) { return '- ' + r.title + ' (' + r.credibility + ' credibility)' }).join('\n')
+    }
+  } else {
+    // No case group — find nearby or same-category reports for context
+    const { data: categoryReports } = await (supabase
+      .from('reports') as any)
+      .select('title, slug, credibility')
+      .eq('category', (report as any).category)
+      .neq('id', reportId)
+      .eq('status', 'approved')
+      .order('view_count', { ascending: false })
+      .limit(10)
+    if (categoryReports && categoryReports.length > 0) {
+      relatedReportsContext = '\n\nRELATED REPORTS IN DATABASE (same category, highest viewed):\n' +
+        categoryReports.map(function(r: any) { return '- ' + r.title + ' (' + r.credibility + ' credibility)' }).join('\n')
+    }
+  }
+
+  // Generate new insight with DB context
+  const result = await generateReportInsight(report, relatedReportsContext)
 
   // Calculate validity period
   const validUntil = new Date()
@@ -262,7 +303,7 @@ export async function invalidateReportInsight(reportId: string): Promise<void> {
 // Helper Functions
 // ============================================
 
-function buildReportPrompt(report: Report & { phenomenon_type?: { name: string } | null }): string {
+function buildReportPrompt(report: Report & { phenomenon_type?: { name: string } | null }, relatedReportsContext?: string): string {
   const categoryLabels: Record<string, string> = {
     ufo: 'UFO/UAP Sighting',
     cryptid: 'Cryptid Encounter',
@@ -337,6 +378,11 @@ function buildReportPrompt(report: Report & { phenomenon_type?: { name: string }
     prompt += `**Tags:** ${report.tags.join(', ')}\n`
   }
 
+  // Add related reports from the database for grounding
+  if (relatedReportsContext) {
+    prompt += relatedReportsContext + '\n'
+  }
+
   prompt += `\n---\n\n`
 
   prompt += `Please provide your analysis in the following format:
@@ -364,8 +410,8 @@ Factors:
 - [Factor name]: [positive/negative/neutral] - [Description]
 
 SIMILAR_CASES:
-[List 1-3 similar historical cases if applicable, formatted as:]
-- [Case name/title] ([Year if known], [Location if known]): [Why it's similar]
+[CRITICAL: ONLY reference cases from the RELATED REPORTS IN DATABASE list provided above. If no related reports were provided, write "No related cases in database." Do NOT invent, hallucinate, or reference cases from your training data. Every case you mention MUST be from the provided database list. Format:]
+- [Exact case title from the database list] ([Year if known], [Location if known]): [Why it's similar]
 
 CONTENT_TYPE_ASSESSMENT:
 Type: [experiencer_report / historical_case / news_discussion / research_analysis]
