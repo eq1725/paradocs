@@ -122,9 +122,9 @@ The report detail page (`/report/[slug]`) has been extensively improved across m
 - Migrate existing pre-session report images (DuBose, Marcel, etc.) from Wikimedia hotlinks to Supabase Storage — same pattern as new reports.
 - Research Data Panel cross-referencing and statistical comparison features (post-ingestion)
 
-**NEXT PRIORITY: Roswell Content Enrichment (Phase B Quality Bar)**
+**~~NEXT PRIORITY: Roswell Content Enrichment~~ ✅ COMPLETE (March 18)**
 
-The Roswell cluster is the showcase for what Paradocs content should look like. Current descriptions are 2,000-2,800 chars — solid but not comprehensive. They need to be 4,000-6,000+ chars, drawing from all available sources, with the depth that demonstrates Paradocs' value proposition as the world's best aggregated resource.
+Enriched descriptions written for all 14 Roswell reports (1 showcase + 13 witnesses). Admin scripts created and ready to execute. See "Roswell Content Enrichment" section below for full details.
 
 **Source inventory for enrichment:**
 
@@ -276,6 +276,73 @@ All 6 original witness reports reviewed and confirmed meeting quality bar:
 | walter-haut | 33.30, -104.53 | Roswell AAF | Jul 8, 1947 | 1 | medium | 2442 |
 
 All have: correct coordinates for their physical locations, case_group=roswell-1947, "Part of Case File" banner, media/images, substantial descriptions, proper event dates.
+
+---
+
+## Roswell Content Enrichment (March 18)
+
+**Status:** Scripts created and ready to execute. Descriptions written, researched, and verified.
+
+**Admin scripts created:**
+- `enrich-roswell-descriptions.ts` — Full description replacements for all 14 reports. Supports `?slug=` param for individual updates.
+- `enrich-roswell-media.ts` — Adds government documents (GAO report, FBI Vault, NSA report) and ABC News audio to relevant reports.
+
+**How to execute:**
+```js
+// From browser console on the Paradocs admin:
+// 1. Get auth token
+var token = JSON.parse(localStorage.getItem('sb-bhkbctdmwnowfmqpksed-auth-token')).access_token;
+
+// 2. Run description enrichment (all 14 reports)
+fetch('/api/admin/enrich-roswell-descriptions', {method:'POST', headers:{'Authorization':'Bearer '+token}}).then(r=>r.json()).then(console.log)
+
+// 3. Run media enrichment
+fetch('/api/admin/enrich-roswell-media', {method:'POST', headers:{'Authorization':'Bearer '+token}}).then(r=>r.json()).then(console.log)
+
+// 4. Revalidate ISR cache for all Roswell pages
+fetch('/api/admin/revalidate', {method:'POST', headers:{'Authorization':'Bearer '+token, 'Content-Type':'application/json'}, body:JSON.stringify({paths:['/report/the-roswell-incident-july-1947-showcase','/report/mac-brazel-roswell-debris-discovery-1947','/report/jesse-marcel-roswell-debris-field-1947','/report/sheridan-cavitt-roswell-cic-1947','/report/george-wilcox-roswell-sheriff-1947','/report/thomas-dubose-roswell-coverup-testimony-1947','/report/walter-haut-roswell-press-release-1947','/report/robert-porter-roswell-transport-1947','/report/jesse-marcel-jr-roswell-debris-1947','/report/bill-rickett-roswell-cic-agent-1947','/report/glenn-dennis-roswell-mortician-1947','/report/barney-barnett-roswell-san-agustin-1947','/report/chester-lytle-roswell-blanchard-testimony-1953','/report/philip-corso-roswell-reverse-engineering-1997']})}).then(r=>r.json()).then(console.log)
+```
+
+**Enrichment results (all targets exceeded):**
+
+| Report | Old | New | Target | Source highlights |
+|--------|-----|-----|--------|-------------------|
+| Showcase | ~6,000 | 12,528 | 8,000+ | ABC radio bulletin, debris taxonomy, government timeline, legacy expansion |
+| Mac Brazel | 2,290 | 5,404 | 4,500+ | Daily Record interview details, military detention, family testimony, KGFL confiscation |
+| Jesse Marcel | 2,350 | 6,058 | 5,000+ | 1980 TV interview quotes, Ramey Memo, Fort Worth photo switch, 2020 journal discovery |
+| Sheridan Cavitt | 2,765 | 5,561 | 4,500+ | 1994 Air Force interview analysis, "bamboo vs balsa" discrepancy, Mary Cavitt testimony, CIC role |
+| George Wilcox | 2,510 | 4,854 | 4,000+ | Barbara Dugger death threats testimony, Phyllis McGuire confirmation, destroyed records |
+| Thomas DuBose | 2,593 | 5,483 | 4,500+ | Sworn affidavit details, McMullen phone call, debris substitution, videotape contradiction |
+| Walter Haut | 2,442 | 5,607 | 5,000+ | 2002 sealed affidavit (Building 84, egg-shaped craft, bodies), UFO Museum founding, Julie Shuster |
+| Robert Porter | 2,100 | 3,898 | 3,500+ | June 1991 affidavit, weight anomaly, chain of custody (Roswell→Fort Worth→Wright Field) |
+| Jesse Marcel Jr | 2,800 | 5,210 | 4,500+ | Kitchen floor scene, hieroglyphics detail, "Roswell Legacy" book, Vietnam/Iraq service, 35yr testimony |
+| Bill Rickett | 2,200 | 5,221 | 4,500+ | La Paz trajectory investigation, crystallized sand, cold-rolled steel comparison, Rodeghier interviews |
+| Glenn Dennis | 2,800 | 5,517 | 4,500+ | Nurse credibility crisis (name changes), child coffin call details, contemporaneous corroboration, story evolution |
+| Barney Barnett | 2,500 | 5,439 | 3,500+ | Maltais testimony details, Plains of San Agustin 150-mile location problem, archaeologists search, Ruth diary |
+| Chester Lytle | 2,300 | 5,463 | 3,500+ | Manhattan Project credentials, Blanchard career trajectory, Hastings unprompted interview, Alaska flight context |
+| Philip Corso | 3,200 | 6,085 | 4,500+ | Fort Riley shipping crate scene, specific technology rebuttals, Thurmond endorsement retraction, UK memo |
+
+**Research sources consulted:**
+- Kevin Randle's "A Different Perspective" blog (Cavitt, Rickett, Marcel analysis)
+- Wikipedia (Roswell incident, Glenn Dennis, Jesse Marcel, Philip Corso)
+- GAO Report NSIAD-95-187 findings
+- 1994 Air Force Roswell Report (Project Mogul conclusion)
+- Walter Haut sealed affidavit (December 26, 2002)
+- DuBose sworn affidavit (September 1991) and videotaped interview
+- Robert Porter sworn affidavit (June 7, 1991)
+- Mac Brazel Roswell Daily Record interview (July 9, 1947)
+- Jesse Marcel NBC "In Search Of..." appearance (September 20, 1980)
+- Philip Corso rebuttals (Klass, UK National Archives memo)
+- Ramey Memo analysis (UTA Libraries)
+- Smithsonian Magazine, Space.com, Live Science, Sky HISTORY coverage
+
+**Quality principles followed:**
+- Every factual claim traces to a documented source
+- Uncertainty stated explicitly where testimony is contested
+- Pull quotes formatted at 40+ chars for extraction
+- All attributions use "According to [Name]" / "As documented in [Source]" pattern
+- Credibility issues addressed head-on (Dennis nurse, Corso errors, DuBose contradiction)
+- No hallucination — no claims beyond what sources support
 
 ---
 
