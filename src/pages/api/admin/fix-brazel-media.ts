@@ -38,6 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   var duplicateIds = [
     '3fd5781e-16cf-4c54-a2ba-af1ce45b5fbe',
     'c92e9d4c-5ad7-416e-804d-7da40876430f',
+    '83d2aa08-9240-4736-b293-ba28a4322361',
   ];
 
   var results = { deleted: 0, errors: [] as string[] };
@@ -58,7 +59,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Add a proper New Mexico landscape image via Wikimedia Commons
   // Torrance County is adjacent to Lincoln County where the Foster Ranch is located
   var reportId = '805c046d-a424-49fb-8279-82981fef6b7c';
-  var landscapeUrl = 'https://upload.wikimedia.org/wikipedia/commons/5/51/Torrance_County_New_Mexico_Landscape.JPG';
+  var landscapeUrl = 'https://upload.wikimedia.org/wikipedia/commons/5/56/Torrance_County_New_Mexico_Landscape.JPG';
 
   // Check if already exists
   var { data: existing } = await supabase
