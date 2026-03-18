@@ -73,7 +73,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 3 | **Map & Geospatial** | MapLibre GL map, PostGIS queries, Supercluster, heatmap, bottom sheet | `HANDOFF_MAP.md` | Active — Phase 1 & 2 COMPLETE, Phase 3 partial. Deep-link URL params added (lat/lng/zoom) |
 | 4 | **Insights & Pattern Analysis** | Pattern detection algorithms, AI narratives, skeptic mode, trending, methodology | `HANDOFF_INSIGHTS.md` | Not started |
 | 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
-| 6 | **Report Experience** | Report detail page, submission form, connections, evidence, related reports | `HANDOFF_REPORTS.md` | Active — Phase B Roswell showcase polish substantially complete |
+| 6 | **Report Experience** | Report detail page, submission form, connections, evidence, related reports | `HANDOFF_REPORTS.md` | Active — Phase B mobile optimization + Roswell audit complete |
 | 7 | **Search & Navigation** | Full-text search, site navigation, onboarding flows, UX polish | `HANDOFF_SEARCH_NAV.md` | Not started |
 | 8 | **Subscription & Monetization** | Stripe checkout, paywall, tier system, billing portal, cancellation | `HANDOFF_SUBSCRIPTION.md` | Not started |
 | 9 | **Email & Engagement** | Weekly digests, drip campaigns, smart alerts, winback, notifications | `HANDOFF_EMAIL.md` | Not started |
@@ -267,26 +267,30 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Database tables:** `reports`, `report_media`, `report_connections`, `report_links`, `academic_observations`
 
-**Current state (March 17, 2026) — Phase B substantially complete:**
-- **Body text:** FormattedDescription rewrite (ALL-CAPS headers → styled h2s, pull quotes with attribution, anchor IDs)
+**Current state (March 18, 2026) — Phase B mobile optimization + Roswell audit complete:**
+- **Body text:** FormattedDescription rewrite (ALL-CAPS headers → styled h2s, pull quotes with attribution, anchor IDs). Single-word headers (e.g. "LEGACY") now supported (≥4 chars).
 - **Reading UX:** ReadingProgress bar, ArticleTableOfContents with IntersectionObserver, MediaGallery split (hero images vs Sources & Documents)
+- **Mobile reading (NEW):** Pull quotes responsive (`text-base sm:text-lg`), section headers scaled (`text-lg sm:text-xl`), TOC compact on mobile, AskTheUnknown FAB less intrusive (smaller, semi-transparent), connection cards explicit single-column, event_time formatted to 12-hour.
+- **Breadcrumbs (NEW):** Mobile breadcrumb shows parent case trail (Category > Case File). Desktop breadcrumb includes parent case title in full trail. Both have `aria-label="Breadcrumb"`.
 - **LocationMap:** Upgraded from Leaflet to MapLibre GL + MapTiler (same stack as main /map). Satellite toggle, category-colored markers, "Explore on Map" deep-link with URL params
 - **Environmental Context:** Date-aware (no Starlink for 1947), responsive 2-col grid, clean Unknown states
 - **Research Data Panel:** NLP confidence flags, Pro-gated export, responsive grid, witness count ~est. treatment
-- **Did You Know?:** Same-case filtering, cross-phenomenon priority, unique explanations, category labels
+- **Did You Know?:** Same-case filtering, cross-phenomenon priority, unique explanations, category labels. NOTE: Stargate Project cross-phenomenon link NOT showing — all showcase connections are geographic/temporal within ufos_aliens. Needs cross-category report data.
 - **generate-connections v2:** Skips same-case, specific explanations, miles, supports ?slug= targeting
-- **Data accuracy:** Roswell coordinates corrected (Foster Ranch 33.96,-105.31 not Roswell city), witness count audit, all values verified
+- **Data accuracy:** Roswell coordinates corrected (Foster Ranch 33.96,-105.31 not Roswell city), witness count audit, all 6 witness reports audited March 18 — all meet quality bar
 - **Visual polish:** Compact badges, subtler tags, cleaner metadata cards, merged engagement+CTA bottom section
 - **Removed:** Comments section (doesn't serve user journeys), "Featured" badge (internal signal)
 
 **What still needs work:**
-- Mobile reading experience optimization (focused pass)
-- Breadcrumb navigation
+- ~~Mobile reading experience optimization~~ ✅ Complete (March 18)
+- ~~Breadcrumb navigation~~ ✅ Complete (March 18)
+- Did You Know? cross-phenomenon connections need cross-category report data (Stargate Project etc.)
+- `roswell-incident` stub report (382 chars, no case_group) — consider merging or deprecating
 - Shareable story cards (viral share images) — post-ingestion
 - Research Data Panel cross-referencing features — post-ingestion
 - Location extraction subsystem for ingestion pipeline
 
-**Touches other sessions:** Map (shared MapLibre/MapTiler stack, deep-link URL params), Subscription (Research Data Panel Pro-gated), Ingestion (generate-connections ready for batch, location validation needed), Encyclopedia (phenomena links), Mobile (reading experience pass needed)
+**Touches other sessions:** Map (shared MapLibre/MapTiler stack, deep-link URL params), Subscription (Research Data Panel Pro-gated), Ingestion (generate-connections ready for batch, location validation needed, cross-category connections need data), Encyclopedia (phenomena links), Mobile (reading experience pass COMPLETE)
 
 ---
 

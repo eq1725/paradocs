@@ -584,25 +584,36 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         <div className="lg:flex lg:gap-8">
           {/* Main content */}
           <article className="flex-1 max-w-4xl overflow-hidden">
-        {/* Mobile: back button + category link */}
-        <div className="flex md:hidden items-center gap-1 mb-4 -ml-2">
+        {/* Mobile: breadcrumb trail */}
+        <nav className="flex md:hidden items-center gap-1 mb-3 -ml-1 text-sm overflow-hidden" aria-label="Breadcrumb">
           <button
             onClick={function() { router.back() }}
-            className="p-2.5 text-gray-400 hover:text-white transition-colors rounded-lg"
+            className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg shrink-0"
             aria-label="Go back"
           >
-            <ChevronRight className="w-5 h-5 rotate-180" />
+            <ChevronRight className="w-4 h-4 rotate-180" />
           </button>
           <Link
             href={'/explore?category=' + report.category}
-            className="text-sm text-gray-400 hover:text-white transition-colors"
+            className="text-gray-400 hover:text-white transition-colors shrink-0"
           >
             {categoryConfig.label}
           </Link>
-        </div>
+          {parentCase && (
+            <>
+              <ChevronRight className="w-3 h-3 shrink-0 text-gray-600" />
+              <Link
+                href={'/report/' + parentCase.slug}
+                className="text-gray-400 hover:text-white transition-colors truncate"
+              >
+                Case File
+              </Link>
+            </>
+          )}
+        </nav>
 
         {/* Desktop: full breadcrumb */}
-        <nav className="hidden md:flex items-center gap-1.5 text-sm text-gray-400 mb-6 overflow-hidden">
+        <nav className="hidden md:flex items-center gap-1.5 text-sm text-gray-400 mb-6 overflow-hidden" aria-label="Breadcrumb">
           <Link href="/explore" className="hover:text-white transition-colors shrink-0">
             Explore
           </Link>
@@ -613,6 +624,17 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           >
             {categoryConfig.label}
           </Link>
+          {parentCase && (
+            <>
+              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-gray-600" />
+              <Link
+                href={'/report/' + parentCase.slug}
+                className="hover:text-white transition-colors shrink-0"
+              >
+                {parentCase.title}
+              </Link>
+            </>
+          )}
           <ChevronRight className="w-3.5 h-3.5 shrink-0 text-gray-600" />
           <span className="text-gray-500 truncate">{report.title}</span>
         </nav>
@@ -738,7 +760,16 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             {report.event_time && (
               <span className="flex items-center gap-1.5">
                 <Clock className="w-4 h-4" />
-                {report.event_time}
+                {(() => {
+                  // Format "14:00:00" → "2:00 PM", pass through non-standard formats
+                  const match = report.event_time.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
+                  if (!match) return report.event_time
+                  const h = parseInt(match[1], 10)
+                  const m = match[2]
+                  const period = h >= 12 ? 'PM' : 'AM'
+                  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+                  return h12 + ':' + m + ' ' + period
+                })()}
               </span>
             )}
             {report.witness_count > 1 && (
@@ -938,7 +969,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         )}
 
         {/* Environmental Context & Academic Data - Side by Side on larger screens */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8" data-tour-step="environmental">
+        <div className="grid md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8" data-tour-step="environmental">
           <EnvironmentalContext reportSlug={slug as string} />
           <AcademicObservationPanel reportSlug={slug as string} />
         </div>

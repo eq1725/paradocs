@@ -158,7 +158,7 @@ export default function ConnectionCards({ reportSlug, caseGroup, className }: Pr
         </div>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
         {visible.map(function(conn) {
           var bgClass = CONNECTION_COLORS[conn.connection_type] || 'from-gray-500/20 to-gray-600/5 border-gray-500/30';
           var textColor = CONNECTION_TEXT_COLORS[conn.connection_type] || 'text-gray-400';
@@ -169,7 +169,7 @@ export default function ConnectionCards({ reportSlug, caseGroup, className }: Pr
             <Link
               key={conn.id}
               href={'/report/' + conn.connected_report_slug}
-              className={'block rounded-xl border bg-gradient-to-br p-4 transition-all duration-200 hover:scale-[1.02] hover:shadow-lg ' + bgClass}
+              className={'block rounded-xl border bg-gradient-to-br p-3 sm:p-4 transition-all duration-200 hover:scale-[1.02] hover:shadow-lg ' + bgClass}
             >
               <div className="flex items-start justify-between mb-2">
                 <span className={'flex items-center gap-1.5 text-xs font-medium ' + textColor}>

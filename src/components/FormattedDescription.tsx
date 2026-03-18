@@ -6,15 +6,17 @@ interface FormattedDescriptionProps {
 }
 
 // Check if a line is an ALL-CAPS section header
-// Must be mostly uppercase letters, at least 3 words, and no lowercase-dominated words
+// Must be mostly uppercase letters and look like a heading (not a sentence)
 function isAllCapsHeader(line: string): boolean {
   const trimmed = line.trim()
-  // Must be under 120 chars (headers shouldn't be paragraphs)
-  if (trimmed.length > 120 || trimmed.length < 5) return false
+  // Must be under 120 chars (headers shouldn't be paragraphs) and at least 3 chars
+  if (trimmed.length > 120 || trimmed.length < 3) return false
   // Remove em-dashes, hyphens, and punctuation for analysis
   const cleaned = trimmed.replace(/[—\-:.,'"]/g, ' ').trim()
   const words = cleaned.split(/\s+/).filter(w => w.length > 0)
-  if (words.length < 2) return false
+  // Single words must be at least 4 chars to be a header (avoids "A", "IT", "OK")
+  if (words.length < 1) return false
+  if (words.length === 1 && cleaned.length < 4) return false
   // At least 80% of alphabetic characters should be uppercase
   const letters = trimmed.replace(/[^a-zA-Z]/g, '')
   if (letters.length < 3) return false
@@ -134,10 +136,10 @@ export default function FormattedDescription({ text, className = '' }: Formatted
               id={headerId}
               className={
                 level === 1
-                  ? 'text-xl font-semibold text-white mt-10 mb-4 pl-4 border-l-2 border-primary-500'
+                  ? 'text-lg sm:text-xl font-semibold text-white mt-8 sm:mt-10 mb-3 sm:mb-4 pl-3 sm:pl-4 border-l-2 border-primary-500'
                   : level === 2
-                  ? 'text-lg font-semibold text-white mt-8 mb-3 pl-4 border-l-2 border-primary-500/60'
-                  : 'text-base font-semibold text-white mt-6 mb-3'
+                  ? 'text-base sm:text-lg font-semibold text-white mt-6 sm:mt-8 mb-2.5 sm:mb-3 pl-3 sm:pl-4 border-l-2 border-primary-500/60'
+                  : 'text-sm sm:text-base font-semibold text-white mt-5 sm:mt-6 mb-2.5 sm:mb-3'
               }
             >
               {formatInlineText(headerText)}
@@ -153,7 +155,7 @@ export default function FormattedDescription({ text, className = '' }: Formatted
             <h2
               key={pIdx}
               id={headerId}
-              className="text-xl font-semibold text-white mt-10 mb-4 pl-4 border-l-2 border-primary-500 tracking-wide"
+              className="text-lg sm:text-xl font-semibold text-white mt-8 sm:mt-10 mb-3 sm:mb-4 pl-3 sm:pl-4 border-l-2 border-primary-500 tracking-wide"
             >
               {displayText}
             </h2>
@@ -176,19 +178,19 @@ export default function FormattedDescription({ text, className = '' }: Formatted
                     </React.Fragment>
                   ))}
                 </p>
-                <aside className="my-8 mx-auto max-w-2xl" aria-label="Pull quote">
-                  <blockquote className="relative px-6 py-5 rounded-xl bg-white/[0.03] border border-white/[0.08]">
+                <aside className="my-6 sm:my-8 mx-auto max-w-2xl" aria-label="Pull quote">
+                  <blockquote className="relative px-4 sm:px-6 py-4 sm:py-5 rounded-xl bg-white/[0.03] border border-white/[0.08]">
                     <div
-                      className="absolute top-3 left-4 text-4xl text-primary-500/30 font-serif leading-none select-none"
+                      className="absolute top-2.5 sm:top-3 left-3 sm:left-4 text-3xl sm:text-4xl text-primary-500/30 font-serif leading-none select-none"
                       aria-hidden="true"
                     >
                       {'\u201C'}
                     </div>
-                    <p className="text-lg text-white/90 italic leading-relaxed pl-6">
+                    <p className="text-base sm:text-lg text-white/90 italic leading-relaxed pl-5 sm:pl-6">
                       {pq.quote}
                     </p>
                     {pq.attribution && (
-                      <footer className="mt-3 pl-6 text-sm text-white/50">
+                      <footer className="mt-2 sm:mt-3 pl-5 sm:pl-6 text-xs sm:text-sm text-white/50">
                         {'\u2014 '}{pq.attribution}
                       </footer>
                     )}

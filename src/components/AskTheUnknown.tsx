@@ -152,7 +152,7 @@ export default function AskTheUnknown({ context, suggestedQuestions }: AskTheUnk
       {/* Floating Action Button — positioned above mobile bottom nav */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`fixed bottom-28 md:bottom-6 right-4 md:right-6 z-40 flex items-center gap-2 px-3.5 py-2.5 md:px-4 md:py-3 rounded-2xl transition-all duration-300 ${
+        className={`fixed bottom-24 md:bottom-6 right-3 md:right-6 z-40 flex items-center gap-2 px-2.5 py-2 md:px-4 md:py-3 rounded-2xl transition-all duration-300 opacity-70 hover:opacity-100 md:opacity-100 ${
           isOpen
             ? 'bg-gray-800 text-gray-300 scale-90 shadow-lg'
             : 'ai-fab-glow bg-gradient-to-r from-primary-500 via-purple-500 to-indigo-500 text-white shadow-xl shadow-purple-500/25 hover:shadow-2xl hover:shadow-purple-500/40 hover:scale-105'
@@ -163,7 +163,7 @@ export default function AskTheUnknown({ context, suggestedQuestions }: AskTheUnk
           <X className="w-5 h-5" />
         ) : (
           <>
-            <Sparkles className="w-5 h-5 ai-fab-sparkle" />
+            <Sparkles className="w-4 h-4 md:w-5 md:h-5 ai-fab-sparkle" />
             <span className="text-sm font-medium hidden md:inline">Ask the Unknown</span>
           </>
         )}
@@ -171,7 +171,7 @@ export default function AskTheUnknown({ context, suggestedQuestions }: AskTheUnk
 
       {/* Chat Panel — above FAB */}
       <div
-        className={`fixed bottom-40 md:bottom-20 right-4 md:right-6 z-40 w-[calc(100vw-2rem)] sm:w-96 transition-all duration-300 origin-bottom-right ${
+        className={`fixed bottom-36 md:bottom-20 right-3 md:right-6 z-40 w-[calc(100vw-1.5rem)] sm:w-96 transition-all duration-300 origin-bottom-right ${
           isOpen ? 'scale-100 opacity-100 pointer-events-auto' : 'scale-95 opacity-0 pointer-events-none'
         }`}
       >

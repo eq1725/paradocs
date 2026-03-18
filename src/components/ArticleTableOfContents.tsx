@@ -14,10 +14,11 @@ interface ArticleTableOfContentsProps {
 // Check if a line is an ALL-CAPS section header (mirrors FormattedDescription logic)
 function isAllCapsHeader(line: string): boolean {
   var trimmed = line.trim()
-  if (trimmed.length > 120 || trimmed.length < 5) return false
+  if (trimmed.length > 120 || trimmed.length < 3) return false
   var cleaned = trimmed.replace(/[—\-:.,'"]/g, ' ').trim()
   var words = cleaned.split(/\s+/).filter(function (w) { return w.length > 0 })
-  if (words.length < 2) return false
+  if (words.length < 1) return false
+  if (words.length === 1 && cleaned.length < 4) return false
   var letters = trimmed.replace(/[^a-zA-Z]/g, '')
   if (letters.length < 3) return false
   var upperCount = (letters.match(/[A-Z]/g) || []).length
@@ -127,10 +128,10 @@ export default function ArticleTableOfContents({ description }: ArticleTableOfCo
   var hasMore = items.length > 4
 
   return (
-    <nav className="mb-6 rounded-xl bg-white/[0.03] border border-white/[0.06] p-4" aria-label="Table of contents">
-      <div className="flex items-center gap-2 mb-3">
+    <nav className="mb-4 sm:mb-6 rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 sm:p-4" aria-label="Table of contents">
+      <div className="flex items-center gap-2 mb-2.5 sm:mb-3">
         <List className="w-4 h-4 text-primary-400" />
-        <span className="text-sm font-medium text-white/70">In This Report</span>
+        <span className="text-xs sm:text-sm font-medium text-white/70">In This Report</span>
         <span className="text-xs text-white/30 ml-auto">{items.length} sections</span>
       </div>
       <ol className="space-y-1">
@@ -141,8 +142,8 @@ export default function ArticleTableOfContents({ description }: ArticleTableOfCo
               <button
                 onClick={function () { handleClick(item.id) }}
                 className={
-                  'w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors ' +
-                  (item.level > 1 ? 'pl-6 ' : '') +
+                  'w-full text-left px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm transition-colors ' +
+                  (item.level > 1 ? 'pl-5 sm:pl-6 ' : '') +
                   (isActive
                     ? 'text-primary-400 bg-primary-500/10'
                     : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]')

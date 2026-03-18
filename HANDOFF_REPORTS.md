@@ -1,8 +1,8 @@
 # HANDOFF_REPORTS.md — Report Experience
 
 **Session:** Report Experience (Session 6)
-**Date:** 2026-03-17
-**Status:** Active — Phase B Roswell showcase polish substantially complete
+**Date:** 2026-03-18
+**Status:** Active — Phase B mobile optimization + Roswell audit complete
 
 ---
 
@@ -50,6 +50,21 @@ The report detail page (`/report/[slug]`) has been extensively improved across m
 - Header badges: removed "Featured" (internal signal), removed redundant "Notable Case". Slightly smaller on mobile.
 - Tags: show 8 (was 6), smaller/subtler (`text-[11px]`, `bg-white/[0.04]`), tighter gaps.
 - Metadata cards: labels now `text-[11px] uppercase tracking-wider`. "curated" → "Editorial". "Submitted: about 1 month ago" → "Added: Feb 2026". Compact padding.
+- Event time format: raw "14:00:00" → "2:00 PM" (12-hour with AM/PM).
+
+**Mobile Reading Experience (March 18)**
+- `FormattedDescription.tsx` — Pull quotes: responsive padding (`px-4 sm:px-6`), smaller text on mobile (`text-base sm:text-lg`), tighter margins. Section headers: responsive sizing (`text-lg sm:text-xl` for h2, `text-base sm:text-lg` for h3), reduced top margin on mobile.
+- `ArticleTableOfContents.tsx` — Compact mobile padding (`p-3 sm:p-4`), smaller heading text (`text-xs sm:text-sm`), tighter item padding (`py-1 sm:py-1.5`, `text-xs sm:text-sm`).
+- `AskTheUnknown.tsx` — Floating button less intrusive on mobile: smaller (`px-2.5 py-2`), semi-transparent when not hovered (`opacity-70 hover:opacity-100`), tighter positioning (`bottom-24 right-3`), smaller icon (`w-4 h-4 md:w-5 md:h-5`).
+- `ConnectionCards.tsx` — Explicit single-column on mobile (`grid-cols-1 sm:grid-cols-2`), compact card padding (`p-3 sm:p-4`).
+- Environmental/Academic grid gap reduced on mobile (`gap-4 sm:gap-6`).
+
+**Single-Word ALL-CAPS Header Fix (March 18)**
+- `FormattedDescription.tsx` + `ArticleTableOfContents.tsx` — Lowered minimum from 2 words to 1 word for ALL-CAPS header detection. Single words must be ≥4 chars (avoids "A", "IT", "OK"). Fixes "LEGACY" not being styled as a section header.
+
+**Breadcrumb Navigation (March 18)**
+- Mobile breadcrumb: now shows parent case trail (`Category > Case File`) when viewing a witness report that belongs to a case group. Added `aria-label="Breadcrumb"`.
+- Desktop breadcrumb: now includes parent case title in the trail (`Explore > Category > Case Title > Report Title`). Added `aria-label="Breadcrumb"`.
 
 ---
 
@@ -96,9 +111,10 @@ The report detail page (`/report/[slug]`) has been extensively improved across m
 ## What Still Needs Work
 
 **Remaining Phase B items:**
-- Mobile reading experience optimization (focused pass on body text, pull quotes, TOC on small screens)
-- Breadcrumb navigation
-- "Did You Know?" connection quality improves with data volume (post-ingestion: cross-category links, pattern-based insights)
+- ~~Mobile reading experience optimization~~ ✅ Complete (March 18)
+- ~~Breadcrumb navigation~~ ✅ Complete (March 18)
+- "Did You Know?" connection quality: Stargate Project cross-phenomenon link NOT showing on showcase — all 8 connections are geographic/temporal within ufos_aliens. Needs either: (a) a Stargate Project report to exist in the DB, or (b) regeneration of connections with cross-category reports after more data ingestion.
+- `roswell-incident` slug is a thin stub (382 chars, no case_group, no images, generic title). Consider merging into the showcase or deprecating.
 - Research Data Panel cross-referencing and statistical comparison features (post-ingestion)
 
 **Post-ingestion enhancements:**
@@ -113,13 +129,31 @@ The report detail page (`/report/[slug]`) has been extensively improved across m
 
 ---
 
+## Roswell Cluster Audit (March 18)
+
+All 6 witness reports reviewed and confirmed meeting quality bar:
+
+| Report | Coords | Location | Date | Witnesses | Cred | Desc |
+|--------|--------|----------|------|-----------|------|------|
+| showcase | 33.96, -105.31 | Foster Ranch | Jul 8, 1947 | ~30 (est.) | high | 6000+ |
+| mac-brazel | 33.96, -105.31 | Foster Ranch | Jul 3, 1947 | 1 | high | 2290 |
+| jesse-marcel | 33.96, -105.31 | Foster Ranch/RAAF | Jul 7, 1947 | 3 | high | 2350 |
+| sheridan-cavitt | 33.96, -105.31 | Foster Ranch/RAAF | Jul 7, 1947 | 1 | medium | 2765 |
+| george-wilcox | 33.39, -104.52 | Courthouse, Roswell | Jul 7, 1947 | 1 | medium | 2510 |
+| thomas-dubose | 32.77, -97.44 | Ft Worth AAF | Jul 8, 1947 | 1 | high | 2593 |
+| walter-haut | 33.30, -104.53 | Roswell AAF | Jul 8, 1947 | 1 | medium | 2442 |
+
+All have: correct coordinates for their physical locations, case_group=roswell-1947, "Part of Case File" banner, media/images, substantial descriptions, proper event dates.
+
+---
+
 ## Cross-Session Impacts
 
 - **Map (Session 3):** Embedded LocationMap now uses same MapLibre/MapTiler stack. Deep-link URL params added to `/map` page.
 - **Subscription (Session 8):** Research Data Panel expanded section Pro-gated via `canAccess('data_export')`.
 - **Ingestion (Session 10):** `generate-connections.ts` ready for batch processing. Location validation subsystem needed.
 - **Encyclopedia (Session 1):** Phenomena links display on report pages; taxonomy quality affects report classification.
-- **Mobile (Session 13):** Report page needs focused mobile reading pass.
+- **Mobile (Session 13):** Report page mobile reading pass complete (March 18). Pull quotes, TOC, headers, connection cards all optimized for small screens. AskTheUnknown FAB made less intrusive.
 
 ---
 
