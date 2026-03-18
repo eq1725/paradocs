@@ -122,6 +122,74 @@ The report detail page (`/report/[slug]`) has been extensively improved across m
 - Migrate existing pre-session report images (DuBose, Marcel, etc.) from Wikimedia hotlinks to Supabase Storage — same pattern as new reports.
 - Research Data Panel cross-referencing and statistical comparison features (post-ingestion)
 
+**NEXT PRIORITY: Roswell Content Enrichment (Phase B Quality Bar)**
+
+The Roswell cluster is the showcase for what Paradocs content should look like. Current descriptions are 2,000-2,800 chars — solid but not comprehensive. They need to be 4,000-6,000+ chars, drawing from all available sources, with the depth that demonstrates Paradocs' value proposition as the world's best aggregated resource.
+
+**Source inventory for enrichment:**
+
+1. **roswellproof.com** — Comprehensive research site with dedicated pages for:
+   - Individual witnesses: Chester Lytle, Glenn Dennis, DuBose, Marcel, Brazel interview, Lovekin
+   - Debris categories: I-beams with hieroglyphics, memory foil, parchment, misc metal, debris field size/quantity
+   - ABC News radio bulletin audio (July 8, 1947 — original acetate recording by Taylor Grant)
+   - Ramey Memo analysis, post-1947 references
+   - URLs: `roswellproof.com/Chester_Lytle.html`, `/Dennis.html`, `/dubose.html`, `/brazel_interview.html`, `/debris_main.html`, `/debris1_beams.html`, `/debris2_memory_foil.html`, `/ABC_News_July8.html`
+
+2. **roswellfiles.com** — Witness pages with detailed individual profiles:
+   - `roswellfiles.com/Witnesses/glenndennis.htm`, `/Blanchard.htm`, etc.
+
+3. **"Witness to Roswell" by Carey & Schmitt** — 600+ witnesses referenced across multiple editions (2007, 2009, 75th Anniversary). The most comprehensive published collection.
+
+4. **"Roswell: The Ultimate Cold Case" by Carey & Schmitt** — New exclusive eyewitness testimonies, connections to astronauts Mitchell and Armstrong.
+
+5. **Kevin Randle's "A Different Perspective" blog** — Detailed analytical posts on individual witnesses (Cavitt, Rickett, Marcel, Blanchard).
+
+6. **Government documents:**
+   - GAO Report NSIAD-95-187 (RAAF records destroyed)
+   - NSA declassified Air Force Roswell Report (1994)
+   - FBI Vault Roswell files
+   - National Archives footage (gov.archives.341-roswell series)
+
+7. **SoundCloud/Archive.org** — Original ABC News 1947 broadcast audio (`soundcloud.com/x503/abc-news-1947-roswell-ufo`)
+
+8. **Find a Grave** — Memorial pages with photos/records for Barnett, potentially others
+
+9. **ufoevidence.org** — Compiled witness testimonies document
+
+10. **thinkaboutitdocs.com** — 1992 witness testimony compilation
+
+**Per-report enrichment plan:**
+
+| Report | Current | Target | Key additions needed |
+|--------|---------|--------|---------------------|
+| Showcase | 6,000+ | 8,000+ | ABC radio bulletin embed, debris taxonomy section, government response timeline, legacy section |
+| Mac Brazel | 2,290 | 4,500+ | Brazel interview transcript details, military detention account, family testimony |
+| Jesse Marcel | 2,350 | 5,000+ | 1980 TV interview quotes, debris handling details, son's corroboration, Fort Worth photo switch |
+| Sheridan Cavitt | 2,765 | 4,500+ | 1994 Air Force interview analysis, wife Mary's contradicting testimony, CIC role context |
+| George Wilcox | 2,510 | 4,000+ | Granddaughter Barbara Dugger testimony expansion, daughter Phyllis McGuire details |
+| Thomas DuBose | 2,593 | 4,500+ | Sworn affidavit details, debris substitution testimony, Ramey memo connection |
+| Walter Haut | 2,442 | 5,000+ | 2002 sealed deathbed affidavit (full details), Building 84 hangar account, UFO Museum founding |
+| Robert Porter | 2,100 | 3,500+ | Flight details, weight anomaly testimony, chain of custody (Roswell→Fort Worth→Wright Field) |
+| Jesse Marcel Jr | 2,800 | 4,500+ | Kitchen floor scene details, I-beam hieroglyphics, "Roswell Legacy" book, 35 years of testimony |
+| Bill Rickett | 2,200 | 4,500+ | La Paz trajectory investigation details, crystallized sand, debris handling testimony |
+| Glenn Dennis | 2,800 | 4,500+ | Nurse story evolution and credibility issues, child coffin call details, contemporaneous corroboration |
+| Barney Barnett | 2,500 | 3,500+ | Maltais testimony details, Plains of San Agustin location debate, archaeologists claim |
+| Chester Lytle | 2,300 | 3,500+ | Manhattan Project credentials, Blanchard relationship context, Robert Hastings interview details |
+| Philip Corso | 3,200 | 4,500+ | Fort Riley shipping crate scene, specific technology claims and rebuttals, Senate testimony |
+
+**Media enrichment plan:**
+- ABC News 1947 radio bulletin (SoundCloud embed or archive.org link) — add to showcase
+- Additional document links (GAO report, NSA report, FBI vault) — add to relevant witness pages
+- YouTube interview clips where available (Glenn Dennis interview already added)
+- Migrate all remaining Wikimedia hotlinks to Supabase Storage
+
+**Critical principles for enrichment:**
+1. NEVER hallucinate. Every factual claim must trace to a documented source.
+2. Include uncertainty explicitly. Where testimony is contested, say so with specifics.
+3. Use direct quotes where available (and format for pull quote extraction at 40+ chars).
+4. Attribute everything. "According to [Name]", "As documented in [Source]".
+5. Store all images locally in Supabase Storage. No external hotlinking.
+
 **Post-ingestion enhancements:**
 - Location extraction subsystem for pipeline: NLP extract → geocode → reconcile → precision tag → review queue
 - Research Data Panel: corroboration scoring, comparative analysis against dataset baseline

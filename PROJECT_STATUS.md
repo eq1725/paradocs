@@ -285,6 +285,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 - **Visual polish:** Compact badges, subtler tags, cleaner metadata cards, merged engagement+CTA.
 
 **What still needs work:**
+- **NEXT PRIORITY: Roswell content enrichment** — All 13 reports need 2x-3x longer descriptions synthesized from roswellproof.com, roswellfiles.com, "Witness to Roswell" book data, government docs, and other sources. See detailed enrichment plan in HANDOFF_REPORTS.md. ABC News 1947 radio bulletin, government documents, and additional media need embedding.
 - Did You Know? cross-phenomenon connections need cross-category report data (Stargate Project etc.)
 - `roswell-incident` stub report (382 chars, no case_group) — consider merging or deprecating
 - Migrate pre-session report images (DuBose, Marcel, Haut, etc.) from Wikimedia hotlinks to Supabase Storage
