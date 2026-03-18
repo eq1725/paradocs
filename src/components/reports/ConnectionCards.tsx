@@ -158,7 +158,7 @@ export default function ConnectionCards({ reportSlug, caseGroup, className }: Pr
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 overflow-visible">
         {visible.map(function(conn) {
           var bgClass = CONNECTION_COLORS[conn.connection_type] || 'from-gray-500/20 to-gray-600/5 border-gray-500/30';
           var textColor = CONNECTION_TEXT_COLORS[conn.connection_type] || 'text-gray-400';

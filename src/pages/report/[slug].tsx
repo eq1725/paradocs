@@ -601,7 +601,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <div className="lg:flex lg:gap-8">
           {/* Main content */}
-          <article className="flex-1 max-w-4xl overflow-hidden">
+          <article className="flex-1 max-w-4xl">
         {/* Mobile: breadcrumb trail */}
         <nav className="flex md:hidden items-center gap-1 mb-3 -ml-1 text-sm overflow-hidden" aria-label="Breadcrumb">
           <button
@@ -992,8 +992,10 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           <AcademicObservationPanel reportSlug={slug as string} />
         </div>
 
-        {/* Did You Know? Connection Cards */}
-        <ConnectionCards reportSlug={slug as string} caseGroup={(report as any).case_group} className="mb-8 sm:mb-10" />
+        {/* Did You Know? Connection Cards — py-1 provides space for hover:scale effect */}
+        <div className="py-1 -my-1">
+          <ConnectionCards reportSlug={slug as string} caseGroup={(report as any).case_group} className="mb-8 sm:mb-10" />
+        </div>
 
         {/* Combined engagement + CTA block — one cohesive closing section */}
         <div className="mb-4 rounded-xl bg-white/[0.03] border border-white/[0.06] overflow-hidden">
@@ -1134,28 +1136,12 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             </div>
           </aside>
         </div>
-      </div>
 
-      {/* Onboarding Tour Overlay */}
-      {showTour && (
-        <OnboardingTour
-          onComplete={() => {
-            setShowTour(false)
-            // Clean up tour query param if present
-            const url = new URL(window.location.href)
-            if (url.searchParams.has('tour')) {
-              url.searchParams.delete('tour')
-              window.history.replaceState({}, '', url.pathname)
-            }
-          }}
-        />
-      )}
-
-        {/* Contextual CTA — full article width */}
-        <div className="mt-6 mb-10">
-          <div className="relative overflow-hidden rounded-xl border border-purple-500/15 bg-gradient-to-r from-purple-500/[0.04] via-indigo-500/[0.04] to-purple-500/[0.04] p-5 sm:p-6 text-center">
+        {/* Contextual CTA — spans full width across article + sidebar */}
+        <div className="mt-6 sm:mt-8 mb-4">
+          <div className="relative overflow-hidden rounded-xl border border-purple-500/15 bg-gradient-to-r from-purple-500/[0.04] via-indigo-500/[0.04] to-purple-500/[0.04] p-5 sm:p-6 lg:p-8 text-center">
             <div className="relative">
-              {report.content_type === 'historical_case' || report.content_type === 'research_analysis' || report.content_type === 'news_discussion' ? (
+              {(report as any).content_type === 'historical_case' || (report as any).content_type === 'research_analysis' || (report as any).content_type === 'news_discussion' ? (
                 <>
                   <h3 className="text-lg font-semibold text-white mb-1.5">Help build the record</h3>
                   <p className="text-gray-400 text-sm mb-4">Know of additional evidence or witness accounts related to this case?</p>
@@ -1183,6 +1169,22 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Onboarding Tour Overlay */}
+      {showTour && (
+        <OnboardingTour
+          onComplete={() => {
+            setShowTour(false)
+            // Clean up tour query param if present
+            const url = new URL(window.location.href)
+            if (url.searchParams.has('tour')) {
+              url.searchParams.delete('tour')
+              window.history.replaceState({}, '', url.pathname)
+            }
+          }}
+        />
+      )}
 
         <AskTheUnknown
           contextType="report"
