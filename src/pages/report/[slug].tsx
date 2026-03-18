@@ -98,7 +98,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const slug = propSlug || router.query.slug
 
   const [report, setReport] = useState<ReportWithDetails | null>(initialReport || null)
-  const [scrollProgress, setScrollProgress] = useState(0)
   const [comments, setComments] = useState<CommentWithUser[]>(initialComments || [])
   const [media, setMedia] = useState<any[]>(initialMedia || [])
   const [loading, setLoading] = useState(!initialReport && !fetchError)
@@ -119,19 +118,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const [showAllTags, setShowAllTags] = useState(false)
 
   // Load parent case report when this report belongs to a case group
-  // Reading progress bar
-  useEffect(function() {
-    var handleScroll = function() {
-      var winHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-      if (winHeight > 0) {
-        setScrollProgress(Math.min(100, (window.scrollY / winHeight) * 100));
-      }
-    };
-    window.addEventListener('scroll', handleScroll);
-    return function() { window.removeEventListener('scroll', handleScroll); };
-  }, []);
-
-    useEffect(() => {
+  useEffect(() => {
     if (!report || !(report as any).case_group) {
       setParentCase(null)
       return
@@ -564,12 +551,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
 
   return (
     <>
-      {/* Reading progress bar — fixed at very top, z-index above everything */}
-      <div
-        className="fixed top-0 left-0 h-1.5 z-[9999] pointer-events-none"
-        style={{ width: scrollProgress + '%', background: 'linear-gradient(90deg, #5b63f1, #8b5cf6)', transition: 'width 0.1s ease-out' }}
-      />
-
       <Head>
         <title>{report.title} - Paradocs</title>
         <meta name="description" content={report.summary || report.description?.slice(0, 160)} />
