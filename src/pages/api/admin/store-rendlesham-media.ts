@@ -49,6 +49,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await supabase.storage.createBucket(MEDIA_BUCKET, { public: true });
     }
 
+    // Step 0: Revert any incorrectly-stored Supabase URLs back to correct Wikimedia URLs
+    // This handles the case where a previous run stored images with wrong content
+    var correctWikimediaUrls: Record<string, string> = {
+      'sculpture': 'https://upload.wikimedia.org/wikipedia/commons/f/f2/Rendlesham_Forest_UFO_Sculpture_-_geograph.org.uk_-_8120767.jpg',
+      'aerial': 'https://upload.wikimedia.org/wikipedia/commons/6/67/RAF_Woodbridge_and_Former_RAF_Bentwaters_from_the_air_-_geograph.org.uk_-_2962734.jpg',
+      'halt_memo': 'https://upload.wikimedia.org/wikipedia/commons/b/bd/Halt_Memorandum.jpg',
+      'penniston_symbols': 'https://upload.wikimedia.org/wikipedia/commons/5/50/Gliewe_op_Rendlesham-tuig_uit_Jim_Penniston-notaboek.png',
+      'forest': 'https://upload.wikimedia.org/wikipedia/commons/d/d0/Rendlesham_Forest_-_geograph.org.uk_-_2399424.jpg',
+    };
+    // Revert records that point to our storage back to Wikimedia for re-download
+    var revertMap: Array<{ caption_match: string; correct_url: string }> = [
+      { caption_match: 'UFO Trail sculpture', correct_url: correctWikimediaUrls.sculpture },
+      { caption_match: 'Aerial view of RAF Woodbridge', correct_url: correctWikimediaUrls.aerial },
+      { caption_match: 'Halt Memorandum', correct_url: correctWikimediaUrls.halt_memo },
+      { caption_match: 'Halt\'s official January', correct_url: correctWikimediaUrls.halt_memo },
+      { caption_match: 'Symbols from Penniston', correct_url: correctWikimediaUrls.penniston_symbols },
+      { caption_match: 'Rendlesham Forest, Suffolk', correct_url: correctWikimediaUrls.forest },
+      { caption_match: 'Rendlesham Forest edge', correct_url: correctWikimediaUrls.forest },
+      { caption_match: 'RAF Woodbridge and Bentwaters from the air', correct_url: correctWikimediaUrls.aerial },
+    ];
+    for (var r = 0; r < revertMap.length; r++) {
+      var rv = revertMap[r];
+      // Find records with matching caption that point to supabase storage
+      var { data: toRevert } = await supabase.from('report_media')
+        .select('id, url')
+        .like('caption', '%' + rv.caption_match + '%')
+        .like('url', '%supabase.co%');
+      if (toRevert) {
+        for (var rr = 0; rr < toRevert.length; rr++) {
+          await supabase.from('report_media').update({ url: rv.correct_url }).eq('id', toRevert[rr].id);
+        }
+      }
+    }
+
     // Fix wrong Wikimedia hash paths (research agent gave incorrect hashes)
     var urlFixes: Record<string, string> = {
       'https://upload.wikimedia.org/wikipedia/commons/0/02/Rendlesham_Forest_UFO_Sculpture_-_geograph.org.uk_-_8120767.jpg': 'https://upload.wikimedia.org/wikipedia/commons/f/f2/Rendlesham_Forest_UFO_Sculpture_-_geograph.org.uk_-_8120767.jpg',
@@ -93,14 +127,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         var mediaItem = mediaResult.data[j] as any;
         var externalUrl = mediaItem.url;
 
-        // Skip if already stored in our bucket
-        if (externalUrl.indexOf('supabase.co') !== -1) {
+        // Only process images (not videos, audio, documents)
+        if (mediaItem.media_type !== 'image') {
           results.skipped++;
           continue;
         }
 
-        // Only process images (not videos, audio, documents)
-        if (mediaItem.media_type !== 'image') {
+        // Skip if already stored in our bucket
+        if (externalUrl.indexOf('supabase.co') !== -1) {
           results.skipped++;
           continue;
         }
@@ -128,9 +162,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           else if (externalUrl.indexOf('.webp') !== -1 || contentType.indexOf('webp') !== -1) ext = 'webp';
           else if (externalUrl.indexOf('.gif') !== -1 || contentType.indexOf('gif') !== -1) ext = 'gif';
 
-          // Clean storage path: rendlesham/{slug-suffix}/{index}.{ext}
+          // Use media record ID for unique filename (avoids index mismatch bugs)
           var slugSuffix = slug.replace('rendlesham-', '').replace('-1980', '').slice(0, 30);
-          var storagePath = 'rendlesham/' + slugSuffix + '/' + j + '.' + ext;
+          var storagePath = 'rendlesham/' + slugSuffix + '/' + mediaItem.id.slice(0, 8) + '.' + ext;
 
           // Upload to Supabase Storage
           var uploadResult = await supabase.storage
