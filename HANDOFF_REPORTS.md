@@ -1,8 +1,12 @@
-# HANDOFF_REPORTS.md — Report Experience
+# HANDOFF_REPORTS.md — Report Experience (Curated Content)
 
-**Session:** Report Experience (Session 6)
+**Session:** Report Experience — Curated Content (Session 6a)
 **Date:** 2026-03-18
-**Status:** Active — Phase B: mobile optimization, Roswell cluster expanded to 13 reports, AI Analysis grounded, images stored in Supabase Storage, client-side nav crash fixed
+**Status:** Active — Phase B COMPLETE. Roswell cluster: 14 reports enriched to 4,000-12,500 chars, engagement-optimized, book recommendations live, Featured Investigations curation system deployed.
+
+**Sister session:** Session 6b (Report Experience — Ingestion & Scale) handles reports generated from mass ingestion pipeline, quality templates, and automated enrichment. See `HANDOFF_REPORTS_INGESTION.md`.
+
+**Related session:** Session 14 (Amazon Affiliate & Revenue Content) owns the book recommendation strategy, ASIN curation, compliance, and expansion beyond Roswell. See `HANDOFF_AFFILIATE.md`.
 
 ---
 
@@ -46,8 +50,20 @@ The report detail page (`/report/[slug]`) has been extensively improved across m
 - All 9 Roswell cluster reports audited for witness_count accuracy against content.
 - Roswell coordinates fixed: showcase and 3 witness reports corrected from Roswell city center (33.39, -104.52) to actual Foster Ranch debris field (33.96, -105.31). Migration endpoint created and executed. Seed scripts updated.
 
+**Credibility Rationale (March 19)**
+- New `credibility_rationale` text column on `reports` table. Stores reader-facing editorial explanation of why a report has its credibility rating (2-4 sentences).
+- UI: Credibility badge in info grid is now tappable (button with chevron). Expands a panel below the grid showing "Why [Rating]?" with the rationale. Falls back to generic `CREDIBILITY_CONFIG.description` when no rationale exists.
+- All 14 Roswell reports seeded with hand-written rationales. Ingested reports will use null (generic fallback) until Session 6b adds auto-generation.
+- Admin script: `seed-credibility-rationales.ts` — seeds rationales by slug.
+
+**Badge System Redesign (March 19)**
+- Removed redundant category badge from report detail page header — already in breadcrumb navigation above.
+- Removed "Notable Case" phenomenon type placeholder from badge display (filtered in code).
+- New "Featured Investigation" badge (amber/gold, star icon) renders for reports with `featured=true`. Driven by editorial flag rather than misusing `phenomenon_type`.
+- Phenomenon type badge preserved for reports with meaningful types (CE categories, Historical Sighting, etc.).
+- Net effect: 1-2 purposeful badges instead of 3 redundant ones. Consistent styling.
+
 **Visual Polish**
-- Header badges: removed "Featured" (internal signal), removed redundant "Notable Case". Slightly smaller on mobile.
 - Tags: show 8 (was 6), smaller/subtler (`text-[11px]`, `bg-white/[0.04]`), tighter gaps.
 - Metadata cards: labels now `text-[11px] uppercase tracking-wider`. "curated" → "Editorial". "Submitted: about 1 month ago" → "Added: Feb 2026". Compact padding.
 - Event time format: raw "14:00:00" → "2:00 PM" (12-hour with AM/PM).
@@ -104,7 +120,7 @@ The report detail page (`/report/[slug]`) has been extensively improved across m
 - `src/lib/services/astronomical.service.ts` — Moon phase, meteor showers, satellite info
 - `src/lib/services/report-insights.service.ts` — AI analysis generation
 
-**Database tables:** `reports`, `report_media`, `report_connections`, `report_links`, `academic_observations`, `report_insights`
+**Database tables:** `reports` (includes `credibility_rationale` column), `report_media`, `report_connections`, `report_links`, `academic_observations`, `report_insights`, `featured_investigations`, `report_books`
 
 ---
 
@@ -117,6 +133,7 @@ The report detail page (`/report/[slug]`) has been extensively improved across m
 - ~~Client-side navigation crash~~ ✅ Fixed (March 18) — React hooks violation + stale state
 - ~~Media images~~ ✅ All stored in Supabase Storage (March 18) — no more hotlinking
 - ~~Barnett photo~~ ✅ Sourced from Find a Grave (March 18)
+- **Phenomenon type taxonomy cleanup (PM decision):** All 14 Roswell reports have `phenomenon_type` set to "Notable Case" — a placeholder, not a real phenomenon type. Need to add "Crash & Retrieval" (or similar) to `phenomenon_types` table and reassign. "Notable Case" is now filtered from badge display, so this is data-quality only — affects filtering, search, and cross-referencing once mass ingestion begins.
 - "Did You Know?" connection quality: Stargate Project cross-phenomenon link NOT showing on showcase — all 8 connections are geographic/temporal within ufos_aliens. Needs cross-category report data.
 - `roswell-incident` slug is a thin stub (382 chars, no case_group, no images, generic title). Consider merging into the showcase or deprecating.
 - Migrate existing pre-session report images (DuBose, Marcel, etc.) from Wikimedia hotlinks to Supabase Storage — same pattern as new reports.
@@ -346,13 +363,85 @@ fetch('/api/admin/revalidate', {method:'POST', headers:{'Authorization':'Bearer 
 
 ---
 
+## Featured Investigations Editorial Curation System (March 18)
+
+**Status:** DEPLOYED and live on homepage.
+
+**What it is:** An admin-curated system for featuring case files on the homepage hero section. Each featured investigation has an editorial title, subtitle, blurb (written to sell, not inform), custom hero image, showcase report link, and secondary story cards pulled from the case group.
+
+**Database:** `featured_investigations` table with fields: case_group, title, subtitle, editorial_blurb, hero_image_url, showcase_slug, report_count, category, location_label, date_label, display_order, is_active, starts_at/ends_at (scheduled rotation).
+
+**API:** `GET /api/public/featured-investigations` — returns active investigations with enriched sub-stories. 60s CDN cache.
+
+**Homepage integration:** `index.tsx` now checks `featuredInvestigations` state first, falls back to existing spotlight stories (view-count-based) if no editorial data exists. Editorial data populates: hero image, title, subtitle, location/date/report count, editorial blurb, and secondary story cards.
+
+**Current content:** Roswell seeded as first featured investigation. Ready for additional case files (Skinwalker Ranch, Phoenix Lights, Rendlesham Forest, etc.) as they're built.
+
+**Admin scripts:**
+- `seed-featured-and-books.ts` — Seeds featured investigations and book recommendations
+
+**How to add a new featured investigation:**
+1. Build the case file cluster (showcase report + witness reports, linked via case_group)
+2. Insert a row into `featured_investigations` with editorial content
+3. The homepage will pick it up automatically based on `display_order` and `is_active`
+
+---
+
+## Amazon Affiliate Book Recommendations (March 18)
+
+**Status:** DEPLOYED and live on 10 Roswell report pages. Owned by Session 14 (Amazon Affiliate & Revenue Content) going forward.
+
+**What it is:** Source-integrated "Further Reading" sections on report pages, contextually matched to the cited sources in each report's description. Each book has: title, author, Amazon ASIN, cover image, editorial note explaining why the book matters for that report, and an affiliate link with `tag=paradocs-20`.
+
+**Database:** `report_books` table with fields: report_id, title, author, amazon_asin, cover_image_url, editorial_note, display_order.
+
+**Component:** `src/components/reports/FurtherReading.tsx` — dynamically imported on report pages. Glass-card styling, 2-column grid, cover thumbnails from Amazon, amber "View on Amazon" links with shopping bag icon, per-section affiliate disclosure.
+
+**API:** `GET /api/reports/[slug]/books` — returns books for a report. 1-hour CDN cache.
+
+**FTC compliance:**
+- Per-section disclosure: "As an Amazon Associate, Paradocs earns from qualifying purchases. Book recommendations are editorially selected based on source material cited in this report."
+- Site-wide footer disclosure in `Layout.tsx`
+- All links use `rel="noopener noreferrer nofollow"` and `target="_blank"`
+
+**Current book inventory (16 books across 10 reports):**
+- Showcase: Witness to Roswell, UFO Crash at Roswell, The Roswell Incident, Crash at Corona
+- Marcel Sr: The Roswell Legacy, Witness to Roswell
+- Marcel Jr: The Roswell Legacy
+- Haut: Witness to Roswell
+- Brazel: UFO Crash at Roswell, Witness to Roswell
+- Corso: The Day After Roswell
+- Rickett: UFO Crash at Roswell
+- Dennis: The Truth About the UFO Crash at Roswell
+- Barnett: The Roswell Incident, Crash at Corona
+- Lytle: UFOs and Nukes
+
+**ASIN audit completed (March 18):** Three incorrect ASINs fixed via `fix-book-asins.ts`. All 8 unique ASINs verified against Amazon product pages.
+
+**Reports without books (4):** Cavitt, DuBose, Wilcox, Porter — lower priority, could be added by Session 14.
+
+---
+
+## Brazel Media Fix (March 18)
+
+**Problem:** Mac Brazel's report had 3 images — two nearly identical Roswell Daily Record newspaper crops and one mislabeled "crash site" photo that was actually a third newspaper image. All hotlinked from Wikimedia Commons.
+
+**Fix:**
+- Deleted 3 duplicate/broken media records via `fix-brazel-media.ts`
+- Added correct landscape image via `/api/admin/add-media` (Torrance County, NM — adjacent to Foster Ranch area)
+- Result: one newspaper + one landscape (two distinct, relevant images)
+
+---
+
 ## Cross-Session Impacts
 
 - **Map (Session 3):** Embedded LocationMap now uses same MapLibre/MapTiler stack. Deep-link URL params added to `/map` page.
 - **Subscription (Session 8):** Research Data Panel expanded section Pro-gated via `canAccess('data_export')`.
-- **Ingestion (Session 10):** `generate-connections.ts` ready for batch processing. Location validation subsystem needed.
+- **Ingestion (Session 10):** `generate-connections.ts` ready for batch processing. Location validation subsystem needed. Session 6b (Report Experience — Ingestion & Scale) will own report quality templates for ingested content.
 - **Encyclopedia (Session 1):** Phenomena links display on report pages; taxonomy quality affects report classification.
 - **Mobile (Session 13):** Report page mobile reading pass complete (March 18). Pull quotes, TOC, headers, connection cards all optimized for small screens. AskTheUnknown FAB made less intrusive.
+- **Affiliate (Session 14):** `report_books` table, `FurtherReading.tsx` component, and FTC disclosure in `Layout.tsx` footer all created by Session 6a. Session 14 owns expansion beyond Roswell, ASIN curation strategy, and revenue optimization.
+- **Homepage (Session 2/7):** `featured_investigations` table and `/api/public/featured-investigations` API created by Session 6a. Homepage `index.tsx` modified to use editorial curation with spotlight fallback. Session 6a owns case file curation; homepage layout is Session 2/7.
 
 ---
 

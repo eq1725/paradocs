@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** March 17, 2026
+**Last updated:** March 18, 2026
 **Project:** beta.discoverparadocs.com
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -73,7 +73,8 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 3 | **Map & Geospatial** | MapLibre GL map, PostGIS queries, Supercluster, heatmap, bottom sheet | `HANDOFF_MAP.md` | Active — Phase 1 & 2 COMPLETE, Phase 3 partial. Deep-link URL params added (lat/lng/zoom) |
 | 4 | **Insights & Pattern Analysis** | Pattern detection algorithms, AI narratives, skeptic mode, trending, methodology | `HANDOFF_INSIGHTS.md` | Not started |
 | 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
-| 6 | **Report Experience** | Report detail page, submission form, connections, evidence, related reports | `HANDOFF_REPORTS.md` | Active — 13 Roswell reports, AI grounded, images in Supabase Storage, nav crash fixed |
+| 6a | **Report Experience — Curated Content** | Handcrafted case files, editorial enrichment, Featured Investigations, curated media, book recommendations | `HANDOFF_REPORTS.md` | Active — 14 Roswell reports enriched (4,000-12,500 chars), engagement-optimized, Featured Investigations + books deployed |
+| 6b | **Report Experience — Ingestion & Scale** | Reports from mass ingestion pipeline, quality templates, automated enrichment, connection generation at scale | `HANDOFF_REPORTS_INGESTION.md` | Not started — blocked by Phase C (mass ingestion) |
 | 7 | **Search & Navigation** | Full-text search, site navigation, onboarding flows, UX polish | `HANDOFF_SEARCH_NAV.md` | Not started |
 | 8 | **Subscription & Monetization** | Stripe checkout, paywall, tier system, billing portal, cancellation | `HANDOFF_SUBSCRIPTION.md` | Not started |
 | 9 | **Email & Engagement** | Weekly digests, drip campaigns, smart alerts, winback, notifications | `HANDOFF_EMAIL.md` | Not started |
@@ -81,6 +82,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 11 | **Admin & Operations** | Admin dashboard, batch operations, cron jobs, A/B testing, monitoring | `HANDOFF_ADMIN.md` | Not started |
 | 12 | **Foundation & Infrastructure** | Shared components, auth/RLS, database schema, deployment, performance, SEO | `HANDOFF_FOUNDATION.md` | Not started |
 | 13 | **Mobile-First Design System** | Cross-cutting mobile UX: bottom tabs, bottom sheets, design tokens, screen-by-screen redesign | `HANDOFF_MOBILE.md` | Active — Phase 1-2 + 3a + Nav Unification deployed. Screen-by-screen redesign next. |
+| 14 | **Amazon Affiliate & Revenue Content** | Book recommendations, ASIN curation, affiliate strategy, FTC compliance, revenue optimization | `HANDOFF_AFFILIATE.md` | Active — Foundation deployed (report_books table, FurtherReading component, 16 Roswell books). Expansion needed. |
 
 ---
 
@@ -253,7 +255,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 ---
 
-### 6. Report Experience (ACTIVE)
+### 6a. Report Experience — Curated Content (ACTIVE)
 
 **Key files:**
 - `src/pages/report/[slug].tsx` — Report detail page (~1100 lines)
@@ -267,7 +269,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Database tables:** `reports`, `report_media`, `report_connections`, `report_links`, `academic_observations`
 
-**Current state (March 18, 2026) — Phase B comprehensive: mobile, Roswell cluster, AI grounding, media storage, nav fix:**
+**Current state (March 18, 2026) — Phase B comprehensive: mobile, Roswell cluster, AI grounding, media storage, nav fix, CONTENT ENRICHMENT COMPLETE:**
 - **Body text:** FormattedDescription rewrite (ALL-CAPS headers → styled h2s, pull quotes with attribution, anchor IDs). Single-word headers (e.g. "LEGACY") now supported (≥4 chars).
 - **Pull quotes (NEW):** Attribution regex rewritten with `NOT_NAMES` blocklist, `isLikelyName()` validator, 3-char minimum, 200-char proximity limit. Expanded quotes in all 5 new reports to 40+ chars.
 - **Reading UX:** ReadingProgress bar, ArticleTableOfContents with IntersectionObserver (hooks violation fixed), MediaGallery split (hero images vs Sources & Documents)
@@ -279,21 +281,78 @@ Each major feature area has a dedicated Claude session with its own deep context
 - **Research Data Panel:** NLP confidence flags, Pro-gated export, witness count ~est.
 - **Did You Know?:** Same-case filtering, cross-phenomenon priority. Stargate Project link needs cross-category data.
 - **AI Analysis fix (NEW):** Hash-based caching (content-hash comparison, not 24h timer). DB-grounded Similar Cases (no hallucination). Anti-hallucination system prompt. 72 insights invalidated.
-- **Roswell cluster expanded (NEW):** 5 new witness reports (Rickett, Dennis, Barnett, Lytle, Corso). Total: 13 reports. All with uncertainty notes. Connections generated.
+- **Roswell cluster expanded (NEW):** 14 total reports (1 showcase + 13 witnesses). All with uncertainty notes. Connections generated.
 - **Media storage (NEW):** All images downloaded to Supabase Storage (`report-media` bucket). No more hotlinking to Wikimedia. Barnett photo sourced from Find a Grave. On-demand ISR revalidation endpoint (`/api/admin/revalidate`).
+- **Content enrichment COMPLETE (March 18):** All 14 Roswell reports enriched from 2,000-6,000 chars to 4,000-12,500 chars. Engagement-optimized with tension hooks, dramatic pacing at reveals (Building 84, debris switch, Fort Riley crate), pull quotes at reading breakpoints. Sources: Kevin Randle blog, GAO Report NSIAD-95-187, 1994 Air Force report, Walter Haut sealed affidavit, DuBose sworn affidavit, Porter affidavit, Mac Brazel Daily Record interview, Marcel NBC interview, Corso rebuttals (Klass, UK National Archives). Government documents (GAO, FBI Vault, NSA) and ABC News 1947 radio bulletin added as media. Brazel duplicate newspaper images fixed, landscape photo added.
 - **Data accuracy:** Foster Ranch coords, witness count audit, all reports verified. False "no photo exists" claim corrected on Barnett.
 - **Visual polish:** Compact badges, subtler tags, cleaner metadata cards, merged engagement+CTA.
 
-**What still needs work:**
-- **NEXT PRIORITY: Roswell content enrichment** — All 13 reports need 2x-3x longer descriptions synthesized from roswellproof.com, roswellfiles.com, "Witness to Roswell" book data, government docs, and other sources. See detailed enrichment plan in HANDOFF_REPORTS.md. ABC News 1947 radio bulletin, government documents, and additional media need embedding.
+- **Featured Investigations system DEPLOYED (March 18):** `featured_investigations` table, `/api/public/featured-investigations` API, homepage `index.tsx` updated to use editorial curation with spotlight fallback. Roswell seeded as first featured investigation. Ready for additional case file clusters.
+- **Amazon affiliate book recommendations DEPLOYED (March 18):** `report_books` table, `FurtherReading.tsx` component on report pages, 16 books across 10 Roswell reports, FTC-compliant disclosures. All ASINs verified. Owned by Session 14 going forward.
+- **Brazel media fixed (March 18):** Duplicate newspaper images removed, correct landscape photo added.
+
+**What still needs work (Session 6a — Curated Content):**
+- **Next curated case files:** Skinwalker Ranch, Phoenix Lights, Rendlesham Forest, Ariel School, etc. — each follows the Roswell pattern (showcase + witness cluster + editorial enrichment + book recommendations + credibility rationales)
+- **Phenomenon type taxonomy cleanup (PM decision):** All 14 Roswell reports currently have `phenomenon_type` set to "Notable Case" — a placeholder, not a real phenomenon type. Need to add "Crash & Retrieval" (or similar) to the `phenomenon_types` table and reassign the showcase and relevant witness reports. The "Notable Case" label is now filtered from badge display on report pages, so this is cosmetic/data-quality only — but it affects filtering, search, and cross-referencing once mass ingestion begins.
 - Did You Know? cross-phenomenon connections need cross-category report data (Stargate Project etc.)
-- `roswell-incident` stub report (382 chars, no case_group) — consider merging or deprecating
+- `roswell-incident` stub report (382 chars, no case_group) — consider merging into the showcase or deprecating
 - Migrate pre-session report images (DuBose, Marcel, Haut, etc.) from Wikimedia hotlinks to Supabase Storage
 - Shareable story cards (viral share images) — post-ingestion
 - Research Data Panel cross-referencing features — post-ingestion
-- Location extraction subsystem for ingestion pipeline
 
-**Touches other sessions:** Map (shared MapLibre/MapTiler stack, deep-link URL params), Subscription (Research Data Panel Pro-gated), Ingestion (generate-connections ready for batch, cross-category connections need data), Encyclopedia (phenomena links), Mobile (reading experience COMPLETE), Foundation (on-demand ISR revalidation endpoint available for all sessions)
+**Touches other sessions:** Map (shared MapLibre/MapTiler stack, deep-link URL params), Subscription (Research Data Panel Pro-gated), Session 6b (quality bar templates for ingested reports), Session 14 (book recommendations, affiliate strategy), Ingestion (generate-connections ready for batch), Encyclopedia (phenomena links), Mobile (reading experience COMPLETE), Foundation (on-demand ISR revalidation endpoint, FTC disclosure in Layout.tsx footer)
+
+---
+
+### 6b. Report Experience — Ingestion & Scale (NOT STARTED)
+
+**Scope:** Reports generated from mass ingestion pipeline. Quality templates, automated enrichment, connection generation at scale, automated media sourcing.
+
+**Depends on:** Phase A (encyclopedia complete) and Phase B (curated quality bar set by Session 6a).
+
+**Key responsibilities:**
+- Define quality templates for ingested reports (minimum description length, required fields, credibility scoring)
+- Automated connection generation at ingestion time
+- Media sourcing automation (image extraction, thumbnail generation)
+- Report deduplication and merging for similar incidents
+- Location extraction subsystem for pipeline
+- Quality scoring and grading automation
+- Batch operations for report cleanup and enrichment
+
+**Shares with Session 6a:** Report detail page components, FormattedDescription, MediaGallery, FurtherReading, AI Analysis, reading experience. Session 6b should not modify shared components without coordinating with 6a.
+
+---
+
+### 14. Amazon Affiliate & Revenue Content (ACTIVE)
+
+**Owner files:** `HANDOFF_AFFILIATE.md`
+**Key files:**
+- `src/components/reports/FurtherReading.tsx` — Book recommendation component on report pages
+- `src/pages/api/reports/[slug]/books.ts` — API for fetching books per report
+- `src/pages/api/admin/seed-featured-and-books.ts` — Admin script for populating books
+- `src/pages/api/admin/fix-book-asins.ts` — ASIN correction script
+- `src/components/Layout.tsx` — Site-wide FTC disclosure in footer
+
+**Database tables:** `report_books`
+
+**Current state (March 18, 2026):**
+- Foundation DEPLOYED: `report_books` table, `FurtherReading.tsx` component, books API, FTC disclosures
+- 16 books seeded across 10 Roswell reports, all ASINs verified against Amazon
+- Amazon Associates StoreID: `paradocs-20`
+- All links use `tag=paradocs-20` parameter
+- Covers load from Amazon's image service with fallback icon
+
+**What needs work:**
+- **ASIN curation expansion:** Add books to the 4 Roswell reports without recommendations (Cavitt, DuBose, Wilcox, Porter)
+- **New case file books:** As Session 6a builds case files (Skinwalker Ranch, Phoenix Lights, etc.), Session 14 curates relevant book recommendations for each
+- **Dedicated bookshelf page:** `/books` or `/library` — organized by topic/case, SEO-optimized for book-related searches
+- **Revenue analytics:** Track click-through rates, conversion attribution, and revenue per report
+- **Product expansion:** Beyond books — documentaries, equipment, merchandise relevant to case files
+- **Cover image quality:** Some Amazon image service covers are low-res or wrong edition; consider storing verified cover images in Supabase Storage
+- **Seasonal/promotional rotation:** Feature timely books (e.g., new Roswell book releases, anniversary editions)
+- **Affiliate compliance monitoring:** Regular ASIN audits, link health checks, Amazon Associates program compliance
+
+**Touches other sessions:** Session 6a (book data seeded per case file), Session 6b (automated book suggestion for ingested reports — future), Subscription (potential Pro-only book lists), Foundation (Layout.tsx footer disclosure)
 
 ---
 
@@ -510,6 +569,9 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 | Date | Source Session | Note | Affects |
 |------|--------------|------|---------|
+| 2026-03-18 | Report Experience (6a) | **Session split: 6a (Curated Content) + 6b (Ingestion & Scale) + 14 (Affiliate).** Session 6 split into three sessions. 6a owns handcrafted case files, editorial enrichment, Featured Investigations curation. 6b (not started) will own ingestion-generated reports, quality templates, automated enrichment. Session 14 owns Amazon affiliate book recommendations, ASIN curation, compliance, revenue optimization. | All sessions (session registry updated), Ingestion (6b dependency), Subscription (14 potential Pro book lists) |
+| 2026-03-18 | Report Experience (6a) | **Featured Investigations + Book Recommendations deployed.** `featured_investigations` table created (editorial curation for homepage hero). `report_books` table created (Amazon affiliate). Homepage `index.tsx` modified (editorial data with spotlight fallback). `FurtherReading.tsx` component added to `report/[slug].tsx`. `Layout.tsx` footer updated with FTC disclosure. 16 books across 10 reports, all ASINs verified. Roswell seeded as first featured investigation. | Explore/Homepage (index.tsx modified, new API), Foundation (Layout.tsx footer, new DB tables), Subscription (affiliate revenue tracking), Session 14 (owns expansion) |
+| 2026-03-18 | Report Experience (6a) | **Roswell content enrichment COMPLETE.** All 14 reports enriched to 4,000-12,500 chars with engagement hooks, dramatic pacing, and pull quotes. Government documents (GAO, FBI Vault, NSA) and ABC News 1947 audio added as media. Brazel duplicate images fixed. All descriptions researched against documented sources with explicit uncertainty and attribution. | All sessions (Roswell cluster is now the quality bar for Phase B), Session 6b (quality templates should match this standard) |
 | 2026-03-16 | Map & Geospatial | **Phase 3 partial: Map Spotlight placeholder cards on Explore page.** `MapSpotlightRow.tsx` with 5 hardcoded cards rendering as 2nd row in Discover feed (after Encyclopedia Spotlight). Cards sized to match Encyclopedia Spotlight (`min-w-[75vw]`, `h-44`). Deep-links to `/map` with filter params. Cards flagged as placeholder data — must be replaced with dynamic cards post-ingestion. | Explore (new row in Discover feed, `explore.tsx` modified), Ingestion (cards need real report counts + thumbnails post-ingestion) |
 | 2026-03-16 | Map & Geospatial | **Phase 2 COMPLETE: Timeline slider, basemap toggle, bottom sheet UX.** Timeline slider (1400–2026) with era presets (All Time, Pre-Modern, 1900–1950, 1950–2000, 2000+) and decade histogram. Basemap toggle (dark/satellite/terrain). Bottom sheet: raised above nav, pull-down-to-dismiss from scrolled content, enlarged touch targets. Phase 3 (Map Spotlight cards, deep-link URLs, encyclopedia map links) deferred to post-ingestion. | Explore (Map Spotlight cards planned for Phase 3 post-ingestion), Mobile Design (bottom sheet pull-to-dismiss pattern reusable) |
 | 2026-03-18 | Report Experience | **On-demand ISR revalidation endpoint.** `/api/admin/revalidate` — POST array of paths to force Next.js ISR page cache refresh. Use whenever DB data changes (media, descriptions, etc.) and pages need to reflect updates immediately. Also: `report-insights.service.ts` now uses hash-based caching and DB-grounded Similar Cases (anti-hallucination). `FormattedDescription.tsx` pull quote attribution regex rewritten with `NOT_NAMES` blocklist. `ArticleTableOfContents.tsx` hooks violation fixed. `[slug].tsx` client-side navigation crash fixed (state clearing + stale-slug guard). All new report images stored in Supabase Storage (`report-media` bucket) — no external hotlinking. | Foundation (revalidation endpoint available for all sessions), All sessions (anti-hallucination pattern for AI features), Admin (new admin scripts: add-roswell-witnesses-2, add-roswell-media, store-roswell-media, fix-roswell-quotes, fix-roswell-captions) |
