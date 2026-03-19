@@ -17,6 +17,15 @@
 - **Removed redundant Quick Links section** (4 cards for Explore/Encyclopedia/Map/Insights) — these duplicate the desktop nav exactly. Removing them shortens the page and focuses attention on content.
 - **Featured Investigations from Session 6a preserved as centerpiece** — no changes to editorial content, hero image, or story cards. This section is the best conversion asset on the page.
 
+**A/B Testing Integration:**
+- Hero headline + subheadline now use `useABTest('hero_headline', ['A','B','C','D','E'])` from `src/lib/ab-testing.ts`
+- 5 variants match the admin panel at `/admin/ab-testing`: A (Identity/Emotional), B (Authority/Scale), C (Curiosity/Mystery), D (Community/Belonging), E (Action/Urgency)
+- View events fire automatically on page load (via `useABTest` hook)
+- Click events fire on "Start Exploring" and "Share Your Experience" CTAs
+- Conversion events fire on search submission
+- Variant B ("The World's Largest Paranormal Database") is the default/fallback if no variant is assigned
+- Also fixed `trackEvent` type signature in `ab-testing.ts` to properly type `metadata` as optional
+
 **What was NOT changed (intentionally):**
 - Featured Investigation section layout (6a owns editorial)
 - Stats counter section (working well)
@@ -95,6 +104,7 @@ Components 2 and 3 were overlapping (both ask for interests + location after aut
 | `src/components/Layout.tsx` | Minor | Search bar focus states |
 | `src/components/UnifiedOnboarding.tsx` | New | Consolidated onboarding flow |
 | `src/pages/explore.tsx` | Modified | Import switched to UnifiedOnboarding |
+| `src/lib/ab-testing.ts` | Modified | Fixed `trackEvent` type signature (metadata now optional) |
 | `HANDOFF_SEARCH_NAV.md` | New | This file |
 
 ---

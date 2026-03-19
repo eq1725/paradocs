@@ -12,6 +12,31 @@ import ReportCard from '@/components/ReportCard'
 import ImageWithFallback from '@/components/ImageWithFallback'
 import { TrendingPatternsWidget } from '@/components/patterns'
 import { hasCompletedOnboarding } from '@/components/OnboardingTour'
+import { useABTest } from '@/lib/ab-testing'
+
+// Hero headline variants — must match admin/ab-testing.tsx variant table
+var HERO_VARIANTS: Record<string, { headline: string; subheadline: string }> = {
+  A: {
+    headline: 'Have You Experienced Something You Can\u2019t Explain?',
+    subheadline: 'Join thousands of researchers documenting UFO sightings, cryptid encounters, ghost reports, and unexplained events worldwide.',
+  },
+  B: {
+    headline: 'The World\u2019s Largest Paranormal Database',
+    subheadline: '258,000+ reports. UFO sightings, cryptid encounters, ghost reports, and unexplained events\u2014searchable, mapped, and AI-analyzed.',
+  },
+  C: {
+    headline: 'What If Everything You\u2019ve Been Told Is Wrong?',
+    subheadline: 'Explore 258,000+ documented encounters that challenge what we think we know. Search, map, and analyze the unknown.',
+  },
+  D: {
+    headline: 'Join the Researchers Tracking What Can\u2019t Be Explained',
+    subheadline: 'A growing community documenting UFO sightings, cryptid encounters, and unexplained events\u2014with data, not just stories.',
+  },
+  E: {
+    headline: 'Something Strange Is Happening \u2014 And We\u2019re Documenting It',
+    subheadline: '258,000+ paranormal reports and counting. Search, map, and cross-reference the world\u2019s unexplained encounters.',
+  },
+}
 
 const DEFAULT_STATS = { total: 258000, thisMonth: 1000, locations: 14 }
 const STATS_CACHE_KEY = 'paradocs_homepage_stats'
@@ -102,6 +127,10 @@ interface FeaturedInvestigation {
 }
 
 export default function Home() {
+  // A/B test for hero headline — 5 variants defined in admin/ab-testing.tsx
+  var heroTest = useABTest('hero_headline', ['A', 'B', 'C', 'D', 'E'])
+  var heroContent = HERO_VARIANTS[heroTest.variant] || HERO_VARIANTS.B
+
   const [featuredReports, setFeaturedReports] = useState<(Report & { phenomenon_type?: PhenomenonType })[]>([])
   const [recentReports, setRecentReports] = useState<(Report & { phenomenon_type?: PhenomenonType })[]>([])
   const [featuredPhenomena, setFeaturedPhenomena] = useState<Phenomenon[]>([])
@@ -337,6 +366,7 @@ export default function Home() {
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
     if (searchQuery.trim()) {
+      heroTest.trackConversion('search')
       window.location.href = `/search?q=${encodeURIComponent(searchQuery)}`
     }
   }
@@ -419,19 +449,17 @@ export default function Home() {
             )}
 
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold text-white leading-tight">
-              The World{'\u2019'}s Largest{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-purple-400">
-                Paranormal Database
-              </span>
+              {heroContent.headline}
             </h1>
             <p className="mt-6 text-lg md:text-xl text-gray-400 max-w-2xl mx-auto">
-              258,000+ reports. UFO sightings, cryptid encounters, ghost reports, and unexplained events{'\u2014'}searchable, mapped, and AI-analyzed.
+              {heroContent.subheadline}
             </p>
 
             {/* Dual CTA buttons */}
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
                 href="/explore"
+                onClick={function() { heroTest.trackClick('start_exploring') }}
                 className="btn btn-primary px-8 py-4 text-lg font-semibold flex items-center gap-2 w-full sm:w-auto justify-center"
               >
                 <Compass className="w-5 h-5" />
@@ -439,6 +467,7 @@ export default function Home() {
               </Link>
               <Link
                 href="/submit"
+                onClick={function() { heroTest.trackClick('share_experience') }}
                 className="px-8 py-4 text-lg font-semibold flex items-center gap-2 rounded-xl border border-white/20 text-white hover:bg-white/5 transition-colors w-full sm:w-auto justify-center"
               >
                 <MessageCircle className="w-5 h-5" />

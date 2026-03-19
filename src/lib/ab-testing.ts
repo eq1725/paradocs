@@ -27,7 +27,7 @@ export function getVariant(testName, variants) {
   return variant;
 }
 
-export async function trackEvent(testName, variant, eventType, metadata) {
+export async function trackEvent(testName: string, variant: string, eventType: string, metadata?: Record<string, unknown>) {
   try {
     var sessionId = getSessionId();
     var pagePath = typeof window !== 'undefined' ? window.location.pathname : '';
