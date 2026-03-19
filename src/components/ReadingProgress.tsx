@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-// Thin reading progress bar fixed at the top of the viewport
+// Reading progress bar fixed at the top of the viewport
 // Tracks scroll position relative to the article element
 export default function ReadingProgress() {
   const [progress, setProgress] = useState(0)
@@ -35,7 +35,7 @@ export default function ReadingProgress() {
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-[9999] h-[2px] bg-transparent pointer-events-none"
+      className="fixed top-0 left-0 right-0 z-[9999] h-[4px] bg-transparent pointer-events-none"
       aria-hidden="true"
     >
       <div

@@ -75,6 +75,28 @@ function isLikelyName(candidate: string): boolean {
   return true
 }
 
+// Check if quoted text looks like a title/citation rather than testimony
+function looksLikeTitle(quote: string): boolean {
+  // Contains a colon followed by subtitle (common in report/book titles)
+  if (/^[A-Z].*:\s+[A-Z]/.test(quote)) return true
+  // Mostly title-cased words with few lowercase (titles capitalize most words)
+  const titleWords = quote.match(/\b[A-Z][a-z]+\b/g) || []
+  const totalWords = quote.split(/\s+/).length
+  if (totalWords <= 12 && titleWords.length / totalWords > 0.6) return true
+  // Contains publication/reference indicators
+  if (/\b(Report|Edition|Volume|Journal|Published|Press|University)\b/.test(quote)) return true
+  return false
+}
+
+// Check if quote is followed by citation-like context
+function looksLikeCitation(afterQuote: string): boolean {
+  // Followed by year in parentheses
+  if (/^\s*[,.]?\s*\(\d{4}\)/.test(afterQuote)) return true
+  // Followed by "by Author" pattern
+  if (/^\s*by\s+[A-Z]/.test(afterQuote)) return true
+  return false
+}
+
 function extractPullQuote(text: string): { quote: string; attribution: string } | null {
   // Match quoted text that's substantial (40+ chars) — both straight and curly quotes
   const quotePattern = /["\u201C]([^"\u201D]{40,250})["\u201D]/
@@ -82,10 +104,15 @@ function extractPullQuote(text: string): { quote: string; attribution: string } 
   if (!match) return null
 
   const quote = match[1].trim()
+  const matchIndex = match.index || 0
 
   // Try to find attribution near the quote
-  const beforeQuote = text.slice(0, match.index || 0)
-  const afterQuote = text.slice((match.index || 0) + match[0].length)
+  const beforeQuote = text.slice(0, matchIndex)
+  const afterQuote = text.slice(matchIndex + match[0].length)
+
+  // Reject quotes that look like titles or citations — not testimony
+  if (looksLikeTitle(quote)) return null
+  if (looksLikeCitation(afterQuote)) return null
 
   // Attribution verbs — the word that connects a name to their quote
   const verbs = '(?:[Ss]aid|[Ss]tated|[Tt]old|[Rr]ecalled|[Nn]oted|[Ww]rote|[Tt]estified|[Rr]evealed|[Ee]xplained|[Rr]eported|[Cc]laimed|[Dd]eclared)'
@@ -97,13 +124,22 @@ function extractPullQuote(text: string): { quote: string; attribution: string } 
     return { quote, attribution: beforeAttr[1] }
   }
 
-  // Check for attribution after the quote
+  // Check for "verb Name" after the quote
   const afterAttr = afterQuote.match(new RegExp('^\\s*' + verbs + '\\s+([A-Z][a-z]{2,}(?:\\s[A-Z][a-z.]{1,}){0,3})'))
   if (afterAttr && isLikelyName(afterAttr[1])) {
     return { quote, attribution: afterAttr[1] }
   }
 
-  return { quote, attribution: '' }
+  // Check for em-dash attribution: — Name (common in formatted quotes)
+  const dashAttr = afterQuote.match(/^\s*[\n]?\s*[\u2014\-]{1,2}\s*([A-Z][a-z]{2,}(?:\s[A-Z][a-z.]{1,}){0,3})/)
+  if (dashAttr && isLikelyName(dashAttr[1])) {
+    return { quote, attribution: dashAttr[1] }
+  }
+
+  // No attribution found — do not render as pull quote
+  // Unattributed quotes are confusing to readers and often indicate
+  // the quoted text is a title, reference, or contextual phrase
+  return null
 }
 
 // Renders report description text with:
