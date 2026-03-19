@@ -558,12 +558,12 @@ export default function Home() {
                         </span>
                       )}
                       {(featuredInvestigations[0]?.date_label || spotlightStories[0]?.eventDate) && (
-                        <span className="text-sm text-gray-400 before:content-['\u00B7'] before:mr-4 before:text-gray-600">
+                        <span className="text-sm text-gray-400 before:content-['·'] before:mr-4 before:text-gray-600">
                           {featuredInvestigations[0]?.date_label || spotlightStories[0]?.eventDate}
                         </span>
                       )}
                       {featuredInvestigations[0]?.report_count && featuredInvestigations[0].report_count > 1 && (
-                        <span className="text-sm text-gray-400 before:content-['\u00B7'] before:mr-4 before:text-gray-600">
+                        <span className="text-sm text-gray-400 before:content-['·'] before:mr-4 before:text-gray-600">
                           {featuredInvestigations[0].report_count} witness accounts
                         </span>
                       )}
