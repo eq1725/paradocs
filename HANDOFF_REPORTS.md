@@ -1,8 +1,8 @@
 # HANDOFF_REPORTS.md — Report Experience (Curated Content)
 
 **Session:** Report Experience — Curated Content (Session 6a)
-**Date:** 2026-03-18
-**Status:** Active — Phase B COMPLETE. Roswell cluster: 14 reports enriched to 4,000-12,500 chars, engagement-optimized, book recommendations live, Featured Investigations curation system deployed.
+**Date:** 2026-03-19
+**Status:** Active — Phase B ongoing. Roswell cluster (14 reports) + Rendlesham Forest cluster (6 reports) COMPLETE. Credibility rationale feature, badge redesign, pull quote QA hardening, and homepage "More Investigations" discovery row all deployed.
 
 **Sister session:** Session 6b (Report Experience — Ingestion & Scale) handles reports generated from mass ingestion pipeline, quality templates, and automated enrichment. See `HANDOFF_REPORTS_INGESTION.md`.
 
@@ -63,6 +63,42 @@ The report detail page (`/report/[slug]`) has been extensively improved across m
 - Phenomenon type badge preserved for reports with meaningful types (CE categories, Historical Sighting, etc.).
 - Net effect: 1-2 purposeful badges instead of 3 redundant ones. Consistent styling.
 
+**Rendlesham Forest Case Cluster — COMPLETE (March 19)**
+- Full case cluster: 1 showcase + 5 witness reports (Penniston, Burroughs, Halt, Warren, Cabansag). Case group: `rendlesham-1980`.
+- Showcase: 13,400 chars. Witnesses: 4,700-5,900 chars each. All with ALL-CAPS section headers, pull quotes with attribution, Sources sections.
+- Academic-level research from: Halt Memo (FOIA 1983), Halt audio tape, Ian Ridpath skeptical analysis, James Easton witness statement discoveries (1997), UK Parliamentary debates (Hansard 2001, 2015), Burroughs VA medical settlement (2015), Pope/Burroughs/Penniston book (2014), Bruni book (2000).
+- Skeptical positions given full treatment (Orfordness Lighthouse, fireball, Cabansag's lighthouse identification).
+- Credibility ratings: Showcase (high), Penniston (medium — binary code controversy), Burroughs (high — VA medical settlement), Halt (high — audio tape + memo), Warren (low — co-author disavowal), Cabansag (medium — contemporaneous lighthouse identification).
+- Credibility rationales written for all 6 reports.
+- 8 book recommendations across 5 reports (4 verified ASINs: "Encounter in Rendlesham Forest", "You Can't Tell the People", "The Halt Perspective", "Left at East Gate").
+- Media: 8 images (UFO sculpture, aerial RAF bases, Halt Memo document, Penniston notebook symbols, forest views) — all in Supabase Storage. 4 documents (Halt Memo PDF, Halt audio tape). 7 YouTube videos (Halt tape/testimony, Penniston interview, Burroughs revelations, Halt/Coulthart NewsNation, Warren credibility discussion).
+- 5 witness portrait screenshots captured and uploaded to Supabase Storage (Penniston x2, Burroughs, Halt, Warren). Set as primary images on respective report pages.
+- Featured Investigation entry created (display_order: 2, hero image set).
+- 5 witness-to-showcase links created.
+- Admin scripts: `seed-rendlesham-cluster.ts` (all reports + media + books + links + featured), `store-rendlesham-media.ts` (Wikimedia → Supabase Storage migration with URL hash fix + revert logic), `upload-rendlesham-portraits.ts` (serverless — failed due to Vercel filesystem), `scripts/upload-rendlesham-portraits.mjs` (local Node.js script — works).
+
+**Pull Quote QA Hardening (March 19)**
+- `FormattedDescription.tsx` — `extractPullQuote()` now rejects title-like text (colon-subtitle pattern, high title-case ratio, publication keywords) and citation-like text (followed by years/authors).
+- Added em-dash attribution detection (`— Name` pattern).
+- Quotes without any detected attribution are now suppressed entirely (prevents orphaned quotes).
+- New audit endpoint: `/api/admin/audit-pull-quotes` — GET, returns per-report quote extraction diagnostics with issue flags.
+
+**Reading Progress Bar (March 19)**
+- Thickness increased from 2px to 4px for mobile visibility.
+
+**MediaGallery Audio Fix (March 19)**
+- `isDirectMediaUrl()` now excludes wiki page URLs (e.g., `commons.wikimedia.org/wiki/File:*.ogg`) from being classified as direct media files. Audio items now correctly appear in Sources & Documents section instead of hero gallery.
+- Added source labels for Wikimedia Commons, NICAP Archives, UK National Archives.
+
+**Homepage "More Investigations" Discovery Row (March 19)**
+- Added secondary discovery row below the main Featured Investigation hero on the homepage (`index.tsx`).
+- Shows additional Featured Investigations (Rendlesham, future cases) in a card grid with hero image, location/date, title, subtitle, report count, and hover effects.
+- Based on UX research: auto-rotating carousels have ~1% CTR (Erik Runyon/Notre Dame study). Static hero + discovery grid is the proven pattern (Netflix, NYT, Spotify).
+- Row only renders when 2+ featured investigations exist.
+
+**Corso Media (March 19)**
+- Added 2 YouTube videos to Philip Corso report: Corso himself (Greer archive) and Corso Jr. 2018 interview.
+
 **Visual Polish**
 - Tags: show 8 (was 6), smaller/subtler (`text-[11px]`, `bg-white/[0.04]`), tighter gaps.
 - Metadata cards: labels now `text-[11px] uppercase tracking-wider`. "curated" → "Editorial". "Submitted: about 1 month ago" → "Added: Feb 2026". Compact padding.
@@ -115,6 +151,14 @@ The report detail page (`/report/[slug]`) has been extensively improved across m
 - `upgrade-roswell-cluster.ts` — 4 new witness reports + media for all 8
 - `generate-connections.ts` — Batch connection generation (v2, case-group aware)
 - `fix-roswell-coordinates.ts` — Migration: Foster Ranch coordinate corrections
+- `seed-credibility-rationales.ts` — Seeds credibility rationales for Roswell cluster
+- `audit-pull-quotes.ts` — GET: Returns per-report pull quote extraction diagnostics
+- `seed-rendlesham-cluster.ts` — Full Rendlesham case cluster (6 reports + media + books + links + featured)
+- `store-rendlesham-media.ts` — Downloads Wikimedia images to Supabase Storage (with URL hash fix + revert logic)
+- `upload-rendlesham-portraits.ts` — Serverless portrait upload (failed — Vercel filesystem limitation)
+
+**Local Scripts (in `scripts/`):**
+- `upload-rendlesham-portraits.mjs` — Local Node.js script to upload witness portrait images to Supabase Storage. Run with `node scripts/upload-rendlesham-portraits.mjs`. Use this pattern for future portrait uploads (Vercel serverless cannot access repo root files).
 
 **Services:**
 - `src/lib/services/astronomical.service.ts` — Moon phase, meteor showers, satellite info

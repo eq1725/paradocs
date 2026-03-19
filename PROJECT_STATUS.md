@@ -73,7 +73,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 3 | **Map & Geospatial** | MapLibre GL map, PostGIS queries, Supercluster, heatmap, bottom sheet | `HANDOFF_MAP.md` | Active — Phase 1 & 2 COMPLETE, Phase 3 partial. Deep-link URL params added (lat/lng/zoom) |
 | 4 | **Insights & Pattern Analysis** | Pattern detection algorithms, AI narratives, skeptic mode, trending, methodology | `HANDOFF_INSIGHTS.md` | Not started |
 | 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
-| 6a | **Report Experience — Curated Content** | Handcrafted case files, editorial enrichment, Featured Investigations, curated media, book recommendations | `HANDOFF_REPORTS.md` | Active — 14 Roswell reports enriched (4,000-12,500 chars), engagement-optimized, Featured Investigations + books deployed |
+| 6a | **Report Experience — Curated Content** | Handcrafted case files, editorial enrichment, Featured Investigations, curated media, book recommendations | `HANDOFF_REPORTS.md` | Active — 20 reports across 2 case clusters (Roswell 14 + Rendlesham 6), credibility rationales, badge redesign, homepage discovery row |
 | 6b | **Report Experience — Ingestion & Scale** | Reports from mass ingestion pipeline, quality templates, automated enrichment, connection generation at scale | `HANDOFF_REPORTS_INGESTION.md` | Not started — blocked by Phase C (mass ingestion) |
 | 7 | **Search & Navigation** | Full-text search, site navigation, onboarding flows, UX polish | `HANDOFF_SEARCH_NAV.md` | Not started |
 | 8 | **Subscription & Monetization** | Stripe checkout, paywall, tier system, billing portal, cancellation | `HANDOFF_SUBSCRIPTION.md` | Not started |
@@ -83,6 +83,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 12 | **Foundation & Infrastructure** | Shared components, auth/RLS, database schema, deployment, performance, SEO | `HANDOFF_FOUNDATION.md` | Not started |
 | 13 | **Mobile-First Design System** | Cross-cutting mobile UX: bottom tabs, bottom sheets, design tokens, screen-by-screen redesign | `HANDOFF_MOBILE.md` | Active — Phase 1-2 + 3a + Nav Unification deployed. Screen-by-screen redesign next. |
 | 14 | **Amazon Affiliate & Revenue Content** | Book recommendations, ASIN curation, affiliate strategy, FTC compliance, revenue optimization | `HANDOFF_AFFILIATE.md` | Active — Foundation deployed (report_books table, FurtherReading component, 16 Roswell books). Expansion needed. |
+| 15 | **AI Experience & Intelligence** | Ask the Unknown chat, AI report analysis, AI cross-referencing, AI search, AI voice/personality, provider management | `HANDOFF_AI.md` | Not started |
 
 ---
 
@@ -291,16 +292,27 @@ Each major feature area has a dedicated Claude session with its own deep context
 - **Amazon affiliate book recommendations DEPLOYED (March 18):** `report_books` table, `FurtherReading.tsx` component on report pages, 16 books across 10 Roswell reports, FTC-compliant disclosures. All ASINs verified. Owned by Session 14 going forward.
 - **Brazel media fixed (March 18):** Duplicate newspaper images removed, correct landscape photo added.
 
+**March 19, 2026 updates:**
+- **Rendlesham Forest case cluster COMPLETE:** 1 showcase + 5 witness reports (Penniston, Burroughs, Halt, Warren, Cabansag). 4,700-13,400 chars each. Academic research, credibility rationales, 8 book recommendations, 8 Supabase-stored images, 5 witness portraits, 7 YouTube videos, Halt Memo PDF, Halt audio tape. Featured Investigation entry (display_order: 2).
+- **Credibility rationale feature DEPLOYED:** New `credibility_rationale` column on `reports`. Tappable credibility badge expands editorial explanation below info grid. 20 reports seeded (14 Roswell + 6 Rendlesham). Falls back to generic description for reports without rationales.
+- **Badge system redesigned:** Removed redundant category badge (already in breadcrumb). New "Featured Investigation" badge (amber/gold, star icon) for `featured=true`. "Notable Case" phenomenon type filtered from display.
+- **Pull quote QA hardened:** Title/citation rejection, em-dash attribution detection, unattributed quotes suppressed. Audit endpoint added (`/api/admin/audit-pull-quotes`).
+- **Reading progress bar:** 2px → 4px for mobile visibility.
+- **MediaGallery audio fix:** Wiki page URLs no longer misclassified as direct media files.
+- **Homepage "More Investigations" row:** Secondary discovery grid below the main hero. Static (no auto-rotation — UX research shows carousels have ~1% CTR). Renders when 2+ featured investigations exist.
+- **Corso media:** 2 YouTube videos added to Philip Corso report.
+- **Lesson learned:** Wikimedia hash paths from research agents are frequently wrong. Must verify via Wikimedia API (`action=query&prop=imageinfo&iiprop=url`). Vercel serverless functions cannot access repo root files — use local Node.js scripts for file uploads.
+
 **What still needs work (Session 6a — Curated Content):**
-- **Next curated case files:** Skinwalker Ranch, Phoenix Lights, Rendlesham Forest, Ariel School, etc. — each follows the Roswell pattern (showcase + witness cluster + editorial enrichment + book recommendations + credibility rationales)
-- **Phenomenon type taxonomy cleanup (PM decision):** All 14 Roswell reports currently have `phenomenon_type` set to "Notable Case" — a placeholder, not a real phenomenon type. Need to add "Crash & Retrieval" (or similar) to the `phenomenon_types` table and reassign the showcase and relevant witness reports. The "Notable Case" label is now filtered from badge display on report pages, so this is cosmetic/data-quality only — but it affects filtering, search, and cross-referencing once mass ingestion begins.
+- **Next curated case files:** Skinwalker Ranch, Phoenix Lights, Ariel School, etc. — each follows the Roswell/Rendlesham pattern (showcase + witness cluster + editorial enrichment + book recommendations + credibility rationales + YouTube videos + witness portraits)
+- **Phenomenon type taxonomy cleanup (PM decision):** All 14 Roswell + 6 Rendlesham reports have `phenomenon_type` set to "Notable Case" — a placeholder. Need to add "Crash & Retrieval", "Military Encounter", etc. to `phenomenon_types` table. Badge display already filters "Notable Case" so this is data-quality only.
 - Did You Know? cross-phenomenon connections need cross-category report data (Stargate Project etc.)
 - `roswell-incident` stub report (382 chars, no case_group) — consider merging into the showcase or deprecating
-- Migrate pre-session report images (DuBose, Marcel, Haut, etc.) from Wikimedia hotlinks to Supabase Storage
+- Migrate pre-session Roswell report images (DuBose, Marcel, Haut) from Wikimedia hotlinks to Supabase Storage
 - Shareable story cards (viral share images) — post-ingestion
 - Research Data Panel cross-referencing features — post-ingestion
 
-**Touches other sessions:** Map (shared MapLibre/MapTiler stack, deep-link URL params), Subscription (Research Data Panel Pro-gated), Session 6b (quality bar templates for ingested reports), Session 14 (book recommendations, affiliate strategy), Ingestion (generate-connections ready for batch), Encyclopedia (phenomena links), Mobile (reading experience COMPLETE), Foundation (on-demand ISR revalidation endpoint, FTC disclosure in Layout.tsx footer)
+**Touches other sessions:** Map (shared MapLibre/MapTiler stack, deep-link URL params), Subscription (Research Data Panel Pro-gated), Session 6b (quality bar templates for ingested reports), Session 14 (book recommendations, affiliate strategy), Ingestion (generate-connections ready for batch), Encyclopedia (phenomena links), Mobile (reading experience COMPLETE), Foundation (on-demand ISR revalidation endpoint, FTC disclosure in Layout.tsx footer), Homepage/Explore (index.tsx "More Investigations" row added)
 
 ---
 
@@ -356,32 +368,59 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 ---
 
-### 7. Search & Navigation
+### 15. AI Experience & Intelligence (NOT STARTED)
+
+**Scope:** All user-facing AI interactions across the product. The AI "brain" that users interact with.
+
+**Key files (existing):**
+- `src/components/AskTheUnknown.tsx` — Floating AI chat button (on Explore + Report pages)
+- `src/components/reports/ReportAIInsight.tsx` — Per-report AI analysis section
+- `src/lib/services/report-insights.service.ts` — AI analysis generation (hash-based caching, DB-grounded, anti-hallucination)
+- `src/lib/services/ai-insights.service.ts` — Claude-powered pattern narratives
+- `src/pages/api/reports/[slug]/insight.ts` — AI insight API
+
+**Key responsibilities:**
+- **Ask the Unknown** — Chat interface UX, prompt engineering, context injection (current report, user history), response quality, conversation memory
+- **AI Report Analysis** — Per-report insight generation, source grounding, similar case cross-referencing, skeptical/believer modes
+- **AI Search & Natural Language Query** — "Find me military UFO encounters near nuclear facilities" → structured query
+- **AI Cross-Referencing** — Surfacing connections and patterns to users in natural language
+- **AI Voice & Personality** — Consistent Paradocs editorial voice across all AI interactions (informed, balanced, evidence-first)
+- **Provider Management** — Claude primary, OpenAI fallback, cost optimization, rate limiting
+- **AI Intelligence Layer** — Research Hub AI insights (Session 5 Phase 4 overlap — coordinate), weekly deep scan, community pattern detection
+
+**Depends on:** Foundation (API keys, provider config), Session 4 (pattern algorithms feed AI narratives), Session 5 (Research Hub AI integration)
+
+**Touches other sessions:** Reports (AI Analysis section), Explore (AI-powered recommendations), Dashboard (Research Hub AI insights), Insights (pattern narratives), Search (natural language query), Foundation (provider config, API costs)
+
+---
+
+### 7. Search, Navigation & Homepage
 
 **Key files:**
+- `src/pages/index.tsx` — Homepage (hero, Featured Investigations, "More Investigations" discovery row, stats, category cards)
 - `src/pages/search.tsx` — Full-text search page
 - `src/pages/api/search/fulltext.ts` — Full-text search API
 - `src/components/Layout.tsx` — Global navigation
 - `src/components/Navigation*.tsx` — Navigation components
 - `src/components/NavigationHelper.tsx` — Breadcrumbs
 - `src/components/OnboardingTour.tsx`, `WelcomeOnboarding.tsx`, `ThreeTapOnboarding.tsx`
-- `src/pages/about.tsx`, `src/pages/index.tsx` (landing)
+- `src/pages/about.tsx`
 
-**Database:** `search_vector` column, full-text search indexes
+**Database:** `search_vector` column, full-text search indexes, `featured_investigations` (data owned by Session 6a, layout owned by Session 7)
 
-**Current state:** Full-text search works. Basic navigation built. Three onboarding components exist.
+**Current state:** Full-text search works. Basic navigation built. Three onboarding components exist. Homepage has Featured Investigation hero (Roswell) + "More Investigations" secondary row (Rendlesham) — added by Session 6a March 19.
 
 **What needs work:**
+- **Homepage layout and UX optimization** — Session 7 owns the homepage structure, flow, and conversion. Session 6a provides the Featured Investigation editorial content.
 - Search results quality and ranking
 - Autocomplete / typeahead suggestions
 - Advanced search filters (date, location, category, credibility)
 - Site-wide navigation UX overhaul (header/mobile nav — noted as outstanding)
-- Homepage flow optimization
 - Onboarding flow consolidation (three separate components)
 - SEO optimization (meta tags, structured data, sitemap)
 - 404 / error page experience
 
-**Touches other sessions:** All sessions (navigation is global), Foundation (shared layout components), Explore (search integration with feed)
+**Touches other sessions:** All sessions (navigation is global), Foundation (shared layout components), Explore (search integration with feed), Session 6a (Featured Investigation editorial content for homepage)
 
 ---
 
@@ -569,6 +608,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 | Date | Source Session | Note | Affects |
 |------|--------------|------|---------|
+| 2026-03-19 | Report Experience (6a) | **Rendlesham Forest cluster DEPLOYED + homepage "More Investigations" row + badge redesign + credibility rationale feature.** Rendlesham (6 reports, case_group rendlesham-1980) is second curated case cluster. Homepage `index.tsx` modified: added secondary discovery card grid below hero for additional Featured Investigations. Report `[slug].tsx` modified: badge system redesigned (category badge removed, "Featured Investigation" badge added, "Notable Case" filtered), credibility badge now tappable/expandable with rationale. `FormattedDescription.tsx` modified: pull quote extraction hardened. `MediaGallery.tsx` modified: audio wiki URL fix + new source labels. `ReadingProgress.tsx`: 2px→4px. New DB column: `reports.credibility_rationale`. | Explore/Homepage (index.tsx modified), Foundation (FormattedDescription, MediaGallery, ReadingProgress modified), Session 14 (8 new books across Rendlesham reports), All sessions (credibility rationale pattern for all future reports) |
 | 2026-03-18 | Report Experience (6a) | **Session split: 6a (Curated Content) + 6b (Ingestion & Scale) + 14 (Affiliate).** Session 6 split into three sessions. 6a owns handcrafted case files, editorial enrichment, Featured Investigations curation. 6b (not started) will own ingestion-generated reports, quality templates, automated enrichment. Session 14 owns Amazon affiliate book recommendations, ASIN curation, compliance, revenue optimization. | All sessions (session registry updated), Ingestion (6b dependency), Subscription (14 potential Pro book lists) |
 | 2026-03-18 | Report Experience (6a) | **Featured Investigations + Book Recommendations deployed.** `featured_investigations` table created (editorial curation for homepage hero). `report_books` table created (Amazon affiliate). Homepage `index.tsx` modified (editorial data with spotlight fallback). `FurtherReading.tsx` component added to `report/[slug].tsx`. `Layout.tsx` footer updated with FTC disclosure. 16 books across 10 reports, all ASINs verified. Roswell seeded as first featured investigation. | Explore/Homepage (index.tsx modified, new API), Foundation (Layout.tsx footer, new DB tables), Subscription (affiliate revenue tracking), Session 14 (owns expansion) |
 | 2026-03-18 | Report Experience (6a) | **Roswell content enrichment COMPLETE.** All 14 reports enriched to 4,000-12,500 chars with engagement hooks, dramatic pacing, and pull quotes. Government documents (GAO, FBI Vault, NSA) and ABC News 1947 audio added as media. Brazel duplicate images fixed. All descriptions researched against documented sources with explicit uncertainty and attribution. | All sessions (Roswell cluster is now the quality bar for Phase B), Session 6b (quality templates should match this standard) |
