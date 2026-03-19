@@ -367,7 +367,35 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Paradocs - The World's Largest Paranormal Database</title>
+        <title>Paradocs - The World{'\u2019'}s Largest Paranormal Database</title>
+        <meta name="description" content="Explore 258,000+ paranormal reports. UFO sightings, cryptid encounters, ghost reports, and unexplained events from around the world. Search, map, and analyze the unknown." />
+        <meta property="og:title" content="Paradocs - Where Mysteries Meet Discovery" />
+        <meta property="og:description" content="The world's largest database of paranormal phenomena. Discover UFO sightings, cryptid encounters, ghost reports, and unexplained events." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://beta.discoverparadocs.com" />
+        <meta property="og:image" content="https://beta.discoverparadocs.com/og-home.png" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Paradocs - Where Mysteries Meet Discovery" />
+        <meta name="twitter:description" content="Explore the world's largest database of paranormal phenomena." />
+        <link rel="canonical" href="https://beta.discoverparadocs.com" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'WebSite',
+            name: 'Paradocs',
+            url: 'https://beta.discoverparadocs.com',
+            description: 'The world\'s largest database of paranormal phenomena.',
+            potentialAction: {
+              '@type': 'SearchAction',
+              target: {
+                '@type': 'EntryPoint',
+                urlTemplate: 'https://beta.discoverparadocs.com/search?q={search_term_string}'
+              },
+              'query-input': 'required name=search_term_string'
+            }
+          }) }}
+        />
       </Head>
 
       {/* Hero Section */}
@@ -391,13 +419,13 @@ export default function Home() {
             )}
 
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold text-white leading-tight">
-              Where Mysteries Meet{' '}
+              The World{'\u2019'}s Largest{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-purple-400">
-                Discovery
+                Paranormal Database
               </span>
             </h1>
             <p className="mt-6 text-lg md:text-xl text-gray-400 max-w-2xl mx-auto">
-              Explore the world's largest database of paranormal phenomena. Discover UFO sightings, cryptid encounters, ghost reports, and unexplained events.
+              258,000+ reports. UFO sightings, cryptid encounters, ghost reports, and unexplained events{'\u2014'}searchable, mapped, and AI-analyzed.
             </p>
 
             {/* Dual CTA buttons */}
@@ -418,17 +446,42 @@ export default function Home() {
               </Link>
             </div>
 
-            {/* Search bar - now secondary */}
+            {/* Search bar */}
             <form onSubmit={handleSearch} className="mt-8 max-w-xl mx-auto">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+              <div className="relative group">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-primary-400 transition-colors" />
                 <input
                   type="text"
-                  placeholder="Search 258,000+ reports..."
+                  placeholder="Search reports, phenomena, locations..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+                  className="w-full pl-12 pr-24 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 text-base"
                 />
+                {searchQuery.trim() && (
+                  <button
+                    type="submit"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-primary-500 hover:bg-primary-400 text-white text-sm font-medium rounded-xl transition-colors"
+                  >
+                    Search
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap justify-center gap-2 mt-3">
+                {['Roswell', 'Bigfoot', 'strange lights', 'ghost apparition'].map(function(term) {
+                  return (
+                    <button
+                      key={term}
+                      type="button"
+                      onClick={function() {
+                        setSearchQuery(term)
+                        window.location.href = '/search?q=' + encodeURIComponent(term)
+                      }}
+                      className="px-3 py-1 text-xs text-gray-500 hover:text-gray-300 hover:bg-white/5 rounded-full transition-colors"
+                    >
+                      {term}
+                    </button>
+                  )
+                })}
               </div>
             </form>
 
@@ -969,42 +1022,6 @@ export default function Home() {
           </div>
         </section>
       )}
-
-      {/* Quick Links */}
-      <section className="py-12 border-t border-white/5">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Link href="/explore" className="glass-card p-5 group flex items-start gap-4">
-              <Compass className="w-8 h-8 text-primary-400 shrink-0" />
-              <div>
-                <h3 className="font-display font-semibold text-white group-hover:text-primary-400 transition-colors">Explore</h3>
-                <p className="mt-1 text-gray-400 text-xs hidden sm:block">Browse with powerful filters</p>
-              </div>
-            </Link>
-            <Link href="/phenomena" className="glass-card p-5 group flex items-start gap-4">
-              <Sparkles className="w-8 h-8 text-amber-400 shrink-0" />
-              <div>
-                <h3 className="font-display font-semibold text-white group-hover:text-amber-400 transition-colors">Encyclopedia</h3>
-                <p className="mt-1 text-gray-400 text-xs hidden sm:block">Bigfoot, Mothman & more</p>
-              </div>
-            </Link>
-            <Link href="/map" className="glass-card p-5 group flex items-start gap-4">
-              <MapIcon className="w-8 h-8 text-green-400 shrink-0" />
-              <div>
-                <h3 className="font-display font-semibold text-white group-hover:text-green-400 transition-colors">Global Map</h3>
-                <p className="mt-1 text-gray-400 text-xs hidden sm:block">Visualize sightings worldwide</p>
-              </div>
-            </Link>
-            <Link href="/insights" className="glass-card p-5 group flex items-start gap-4">
-              <TrendingUp className="w-8 h-8 text-purple-400 shrink-0" />
-              <div>
-                <h3 className="font-display font-semibold text-white group-hover:text-purple-400 transition-colors">AI Insights</h3>
-                <p className="mt-1 text-gray-400 text-xs hidden sm:block">Patterns & anomalies</p>
-              </div>
-            </Link>
-          </div>
-        </div>
-      </section>
 
       {/* Email Capture + CTA Section */}
       <section className="py-16 border-t border-white/5 bg-gradient-to-b from-transparent to-primary-900/10">

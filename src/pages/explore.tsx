@@ -13,7 +13,7 @@ import SubcategoryFilter from '@/components/SubcategoryFilter'
 import ReportCard from '@/components/ReportCard'
 import { classNames, formatRelativeDate } from '@/lib/utils'
 import AskTheUnknown from '@/components/AskTheUnknown'
-import WelcomeOnboarding, { hasCompletedWelcome } from '@/components/WelcomeOnboarding'
+import UnifiedOnboarding, { hasCompletedUnifiedOnboarding } from '@/components/UnifiedOnboarding'
 import MapSpotlightRow from '@/components/map/MapSpotlightRow'
 
 interface FeedReport {
@@ -69,7 +69,7 @@ export default function ExplorePage() {
   const [showWelcome, setShowWelcome] = useState(false)
 
   useEffect(() => {
-    if (!hasCompletedWelcome()) setShowWelcome(true)
+    if (!hasCompletedUnifiedOnboarding()) setShowWelcome(true)
   }, [])
   const [loading, setLoading] = useState(true)
 
@@ -970,7 +970,7 @@ export default function ExplorePage() {
           </>
         )}
       </div>
-      {showWelcome && <WelcomeOnboarding onComplete={() => setShowWelcome(false)} />}
+      {showWelcome && <UnifiedOnboarding onComplete={() => setShowWelcome(false)} />}
       <AskTheUnknown />
     </>
   )

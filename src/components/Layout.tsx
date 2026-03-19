@@ -126,14 +126,14 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Search Bar */}
             <form onSubmit={handleSearch} className="hidden md:block flex-1 max-w-md mx-8">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <div className="relative group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-focus-within:text-primary-400 transition-colors" />
                 <input
                   type="text"
-                  placeholder="Search phenomena..."
+                  placeholder="Search reports, phenomena..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-full text-sm focus:outline-none focus:border-primary-500"
+                  className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-full text-sm focus:outline-none focus:border-primary-500 focus:bg-white/[0.08] transition-colors"
                 />
               </div>
             </form>

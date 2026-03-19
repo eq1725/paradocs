@@ -408,19 +408,24 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Database:** `search_vector` column, full-text search indexes, `featured_investigations` (data owned by Session 6a, layout owned by Session 7)
 
-**Current state:** Full-text search works. Basic navigation built. Three onboarding components exist. Homepage has Featured Investigation hero (Roswell) + "More Investigations" secondary row (Rendlesham) — added by Session 6a March 19.
+**Current state (March 19 Session 7 update):**
+- Homepage hero rewritten for 5-second cold-traffic comprehension, search bar enhanced with quick-search tags, redundant Quick Links section removed
+- Search page rewritten to use `fulltext_search` RPC with ts_rank ranking (was using ILIKE). Autocomplete added (searches phenomena table). Search mode toggle (keywords/exact phrase).
+- SEO meta tags + JSON-LD structured data added to homepage. OG tags for social sharing.
+- Onboarding consolidated: `UnifiedOnboarding.tsx` replaces overlapping WelcomeOnboarding + ThreeTapOnboarding. OnboardingTour (report page) unchanged.
+- Layout.tsx: minor search bar focus state improvements only.
 
-**What needs work:**
-- **Homepage layout and UX optimization** — Session 7 owns the homepage structure, flow, and conversion. Session 6a provides the Featured Investigation editorial content.
-- Search results quality and ranking
-- Autocomplete / typeahead suggestions
-- Advanced search filters (date, location, category, credibility)
-- Site-wide navigation UX overhaul (header/mobile nav — noted as outstanding)
-- Onboarding flow consolidation (three separate components)
-- SEO optimization (meta tags, structured data, sitemap)
+**What still needs work:**
+- OG image (`/og-home.png`) needs to be created
+- Per-page SEO for report/phenomenon pages, sitemap generation
+- Proximity search UI (API exists at `/api/search/proximity.ts`)
+- Search analytics (tracking queries, zero-result queries)
+- Mobile search UX (no search in mobile nav)
+- Desktop mega-menu for categories
 - 404 / error page experience
+- Delete legacy WelcomeOnboarding.tsx and ThreeTapOnboarding.tsx (left in place for safety)
 
-**Touches other sessions:** All sessions (navigation is global), Foundation (shared layout components), Explore (search integration with feed), Session 6a (Featured Investigation editorial content for homepage)
+**Touches other sessions:** All sessions (navigation is global), Foundation (shared layout components), Explore (search integration with feed, onboarding import updated), Session 6a (Featured Investigation editorial content for homepage)
 
 ---
 
@@ -608,6 +613,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 | Date | Source Session | Note | Affects |
 |------|--------------|------|---------|
+| 2026-03-19 | Search & Nav (7) | **Homepage + Search + Onboarding overhaul.** Homepage hero rewritten for cold-traffic comprehension, search bar enhanced with quick-search tags, redundant Quick Links removed. Search page rewritten to use `fulltext_search` RPC (was ILIKE), autocomplete added (phenomena table), search mode toggle. SEO meta tags + JSON-LD added. Onboarding consolidated: `UnifiedOnboarding.tsx` replaces WelcomeOnboarding + ThreeTapOnboarding. `explore.tsx` import updated. Layout.tsx minor search bar CSS. See `HANDOFF_SEARCH_NAV.md`. | Explore (explore.tsx onboarding import changed), Foundation (Layout.tsx minor CSS), All sessions (homepage structure changed, Quick Links section removed) |
 | 2026-03-19 | Report Experience (6a) | **Rendlesham Forest cluster DEPLOYED + homepage "More Investigations" row + badge redesign + credibility rationale feature.** Rendlesham (6 reports, case_group rendlesham-1980) is second curated case cluster. Homepage `index.tsx` modified: added secondary discovery card grid below hero for additional Featured Investigations. Report `[slug].tsx` modified: badge system redesigned (category badge removed, "Featured Investigation" badge added, "Notable Case" filtered), credibility badge now tappable/expandable with rationale. `FormattedDescription.tsx` modified: pull quote extraction hardened. `MediaGallery.tsx` modified: audio wiki URL fix + new source labels. `ReadingProgress.tsx`: 2px→4px. New DB column: `reports.credibility_rationale`. | Explore/Homepage (index.tsx modified), Foundation (FormattedDescription, MediaGallery, ReadingProgress modified), Session 14 (8 new books across Rendlesham reports), All sessions (credibility rationale pattern for all future reports) |
 | 2026-03-18 | Report Experience (6a) | **Session split: 6a (Curated Content) + 6b (Ingestion & Scale) + 14 (Affiliate).** Session 6 split into three sessions. 6a owns handcrafted case files, editorial enrichment, Featured Investigations curation. 6b (not started) will own ingestion-generated reports, quality templates, automated enrichment. Session 14 owns Amazon affiliate book recommendations, ASIN curation, compliance, revenue optimization. | All sessions (session registry updated), Ingestion (6b dependency), Subscription (14 potential Pro book lists) |
 | 2026-03-18 | Report Experience (6a) | **Featured Investigations + Book Recommendations deployed.** `featured_investigations` table created (editorial curation for homepage hero). `report_books` table created (Amazon affiliate). Homepage `index.tsx` modified (editorial data with spotlight fallback). `FurtherReading.tsx` component added to `report/[slug].tsx`. `Layout.tsx` footer updated with FTC disclosure. 16 books across 10 reports, all ASINs verified. Roswell seeded as first featured investigation. | Explore/Homepage (index.tsx modified, new API), Foundation (Layout.tsx footer, new DB tables), Subscription (affiliate revenue tracking), Session 14 (owns expansion) |
