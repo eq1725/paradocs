@@ -49,6 +49,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await supabase.storage.createBucket(MEDIA_BUCKET, { public: true });
     }
 
+    // Fix wrong Wikimedia hash paths (research agent gave incorrect hashes)
+    var urlFixes: Record<string, string> = {
+      'https://upload.wikimedia.org/wikipedia/commons/0/02/Rendlesham_Forest_UFO_Sculpture_-_geograph.org.uk_-_8120767.jpg': 'https://upload.wikimedia.org/wikipedia/commons/f/f2/Rendlesham_Forest_UFO_Sculpture_-_geograph.org.uk_-_8120767.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/5/5e/RAF_Woodbridge_and_Former_RAF_Bentwaters_from_the_air_-_geograph.org.uk_-_2962734.jpg': 'https://upload.wikimedia.org/wikipedia/commons/6/67/RAF_Woodbridge_and_Former_RAF_Bentwaters_from_the_air_-_geograph.org.uk_-_2962734.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/1/12/Halt_Memorandum.jpg': 'https://upload.wikimedia.org/wikipedia/commons/b/bd/Halt_Memorandum.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/a/a9/Gliewe_op_Rendlesham-tuig_uit_Jim_Penniston-notaboek.png': 'https://upload.wikimedia.org/wikipedia/commons/5/50/Gliewe_op_Rendlesham-tuig_uit_Jim_Penniston-notaboek.png',
+      'https://upload.wikimedia.org/wikipedia/commons/5/5b/Rendlesham_Forest_-_geograph.org.uk_-_2399424.jpg': 'https://upload.wikimedia.org/wikipedia/commons/d/d0/Rendlesham_Forest_-_geograph.org.uk_-_2399424.jpg',
+    };
+    for (var fixUrl of Object.keys(urlFixes)) {
+      await supabase.from('report_media').update({ url: urlFixes[fixUrl] }).eq('url', fixUrl);
+    }
+
     // All Rendlesham report slugs
     var slugs = [
       'the-rendlesham-forest-incident-december-1980-showcase',
@@ -157,14 +169,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // Also update the Featured Investigation hero image if it points to Wikimedia
+    // Also fix the Featured Investigation hero image URL hash
+    var featHeroFixes: Record<string, string> = {
+      'https://upload.wikimedia.org/wikipedia/commons/0/02/Rendlesham_Forest_UFO_Sculpture_-_geograph.org.uk_-_8120767.jpg': 'https://upload.wikimedia.org/wikipedia/commons/f/f2/Rendlesham_Forest_UFO_Sculpture_-_geograph.org.uk_-_8120767.jpg',
+    };
+    for (var heroFixUrl of Object.keys(featHeroFixes)) {
+      await supabase.from('featured_investigations').update({ hero_image_url: featHeroFixes[heroFixUrl] }).eq('hero_image_url', heroFixUrl);
+    }
+
+    // Update Featured Investigation hero to use Supabase Storage URL after migration
     var featResult = await supabase.from('featured_investigations')
       .select('id, hero_image_url')
       .eq('case_group', 'rendlesham-1980')
       .single();
 
     if (featResult.data && featResult.data.hero_image_url && featResult.data.hero_image_url.indexOf('supabase.co') === -1) {
-      // Find the showcase's primary image (which we just stored) and use that URL
       var showcaseResult = await supabase.from('reports').select('id').eq('slug', 'the-rendlesham-forest-incident-december-1980-showcase').single();
       if (showcaseResult.data) {
         var primaryMedia = await supabase.from('report_media')

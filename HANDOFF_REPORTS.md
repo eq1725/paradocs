@@ -203,9 +203,24 @@ Enriched descriptions written for all 14 Roswell reports (1 showcase + 13 witnes
 **Critical principles for enrichment:**
 1. NEVER hallucinate. Every factual claim must trace to a documented source.
 2. Include uncertainty explicitly. Where testimony is contested, say so with specifics.
-3. Use direct quotes where available (and format for pull quote extraction at 40+ chars).
+3. Use direct quotes where available (and format for pull quote extraction at 40+ chars with "Name verb:" attribution).
 4. Attribute everything. "According to [Name]", "As documented in [Source]".
 5. Store all images locally in Supabase Storage. No external hotlinking.
+6. Include YouTube videos and relevant media sources in every case file (Sources & Documents section).
+7. Write credibility rationales for every report (2-4 sentences explaining the rating).
+
+**MANDATORY: Image Storage Process for All Case File Builds**
+
+All images MUST be downloaded to Supabase Storage (`report-media` bucket) before a case file is considered complete. External hotlinking is NOT acceptable — URLs break, hosts block server-side fetches, and images disappear.
+
+Steps:
+1. Find images on Wikimedia Commons (preferred) or other CC-licensed sources.
+2. **Verify the direct file URL** by using the Wikimedia API (`action=query&prop=imageinfo&iiprop=url`) — do NOT trust guessed hash paths (they are frequently wrong).
+3. Add images via `/api/admin/add-media` with verified URLs.
+4. Run the case-specific `store-{case}-media.ts` script to download images to Supabase Storage and update DB URLs.
+5. Update the Featured Investigation hero image URL to the Supabase Storage URL.
+6. Revalidate all affected pages via `/api/admin/revalidate`.
+7. Visually verify images load on live report pages.
 
 **Post-ingestion enhancements:**
 - Location extraction subsystem for pipeline: NLP extract → geocode → reconcile → precision tag → review queue
