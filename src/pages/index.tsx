@@ -689,6 +689,63 @@ export default function Home() {
                 )}
               </div>
             )}
+
+            {/* More Featured Investigations — secondary discovery row for additional case files */}
+            {featuredInvestigations.length > 1 && (
+              <div className="mt-6 sm:mt-8">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-1 h-5 rounded-full bg-amber-500/60" />
+                  <h3 className="text-sm font-display font-semibold text-white/70 tracking-wide uppercase">
+                    More Investigations
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                  {featuredInvestigations.slice(1).map((inv: any) => (
+                    <Link
+                      key={inv.case_group}
+                      href={'/report/' + inv.showcase_slug}
+                      className="group glass-card overflow-hidden flex flex-row border border-white/5 hover:border-primary-500/30 hover:bg-white/[0.03] transition-all duration-300"
+                    >
+                      <div className="relative w-28 sm:w-36 shrink-0 overflow-hidden">
+                        {inv.hero_image_url ? (
+                          <img
+                            src={inv.hero_image_url}
+                            alt=""
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                            onError={function(e: any) { e.target.style.display = 'none' }}
+                          />
+                        ) : null}
+                        <div className={'absolute inset-0 flex items-center justify-center ' + (inv.hero_image_url ? 'hidden' : 'bg-gradient-to-br from-primary-900/60 to-gray-900')}>
+                          <span className="text-4xl opacity-40">{CATEGORY_CONFIG[inv.category as keyof typeof CATEGORY_CONFIG]?.icon || '\u2728'}</span>
+                        </div>
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/30" />
+                      </div>
+                      <div className="p-3 sm:p-4 flex-1 min-w-0 flex flex-col justify-center">
+                        <span className="text-[10px] sm:text-xs font-semibold text-amber-400/80 uppercase tracking-wider">
+                          {inv.location_label} &middot; {inv.date_label}
+                        </span>
+                        <h4 className="mt-1 text-sm sm:text-base font-display font-semibold text-white line-clamp-2 group-hover:text-primary-300 transition-colors leading-snug">
+                          {inv.title}
+                        </h4>
+                        {inv.subtitle && (
+                          <p className="mt-1 text-xs text-gray-400 line-clamp-1">{inv.subtitle}</p>
+                        )}
+                        <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
+                          {inv.report_count > 1 && (
+                            <span className="flex items-center gap-1">
+                              <Users className="w-3 h-3" /> {inv.report_count} reports
+                            </span>
+                          )}
+                          <span className="inline-flex items-center gap-1 text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                            Investigate <ArrowRight className="w-3 h-3" />
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </section>
       ) : previewCards.length > 0 ? (

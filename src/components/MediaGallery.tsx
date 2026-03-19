@@ -13,9 +13,17 @@ interface MediaItem {
 }
 
 // Check if a URL is a direct media file (not a webpage link)
+// Excludes wiki pages that happen to contain media extensions in the path
 function isDirectMediaUrl(url: string): boolean {
-  const mediaExtensions = /\.(mp4|webm|ogg|mp3|wav|m4a|flac|avi|mov)(\?|$)/i
-  return mediaExtensions.test(url)
+  try {
+    const u = new URL(url)
+    // Wiki pages about files are webpages, not direct media
+    if (u.pathname.includes('/wiki/') || u.pathname.includes('/File:')) return false
+    const mediaExtensions = /\.(mp4|webm|ogg|mp3|wav|m4a|flac|avi|mov)(\?|$)/i
+    return mediaExtensions.test(url)
+  } catch {
+    return false
+  }
 }
 
 // Check if a media item should render as an external link
@@ -53,6 +61,9 @@ function getSourceLabel(url: string): string {
     if (host.includes('nsa.gov')) return 'NSA Archives'
     if (host.includes('gao.gov')) return 'GAO Report'
     if (host.includes('archive.org')) return 'Internet Archive'
+    if (host.includes('commons.wikimedia.org')) return 'Wikimedia Commons'
+    if (host.includes('nicap.org')) return 'NICAP Archives'
+    if (host.includes('nationalarchives.gov.uk')) return 'UK National Archives'
     return host
   } catch { return 'External' }
 }
