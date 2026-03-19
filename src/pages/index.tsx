@@ -85,6 +85,22 @@ interface SpotlightStory {
   imageCaption: string | null
 }
 
+interface FeaturedInvestigation {
+  id: string
+  case_group: string
+  title: string
+  subtitle: string | null
+  editorial_blurb: string
+  hero_image_url: string | null
+  hero_image_caption: string | null
+  showcase_slug: string
+  report_count: number
+  category: string | null
+  location_label: string | null
+  date_label: string | null
+  stories: Array<{ id: string; title: string; slug: string; teaser: string; imageUrl: string | null }>
+}
+
 export default function Home() {
   const [featuredReports, setFeaturedReports] = useState<(Report & { phenomenon_type?: PhenomenonType })[]>([])
   const [recentReports, setRecentReports] = useState<(Report & { phenomenon_type?: PhenomenonType })[]>([])
@@ -98,6 +114,8 @@ export default function Home() {
   const [activePreview, setActivePreview] = useState(0)
   const [spotlightStories, setSpotlightStories] = useState<SpotlightStory[]>([])
   const [spotlightImageLoaded, setSpotlightImageLoaded] = useState(false)
+  const [featuredInvestigations, setFeaturedInvestigations] = useState<FeaturedInvestigation[]>([])
+  const [featuredHeroLoaded, setFeaturedHeroLoaded] = useState(false)
   const [emailInput, setEmailInput] = useState('')
   const [emailSubmitting, setEmailSubmitting] = useState(false)
   const [emailSuccess, setEmailSuccess] = useState(false)
@@ -256,6 +274,17 @@ export default function Home() {
           stories.unshift(roswell)
         }
         setSpotlightStories(stories.slice(0, 4))
+      }
+
+      // Fetch editorially curated featured investigations
+      try {
+        const featuredResp = await fetch('/api/public/featured-investigations')
+        if (featuredResp.ok) {
+          const featuredData = await featuredResp.json()
+          setFeaturedInvestigations(featuredData.investigations || [])
+        }
+      } catch (e) {
+        // Silently fall back to spotlight stories
       }
 
       const statsResponse = await fetch('/api/public/stats')
@@ -452,8 +481,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Cinematic Story Spotlight */}
-      {spotlightStories.length > 0 ? (
+      {/* Cinematic Story Spotlight — uses editorial curation when available */}
+      {(featuredInvestigations.length > 0 || spotlightStories.length > 0) ? (
         <section className="py-6 -mt-2 relative z-10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             {/* Section header */}
@@ -465,24 +494,27 @@ export default function Home() {
             </div>
 
             {/* Primary Featured Story - Full-width cinematic card */}
+            {/* Use editorial featured investigation if available, otherwise fall back to spotlight stories */}
             <Link
-              href={`/report/${spotlightStories[0]?.slug}`}
+              href={featuredInvestigations.length > 0
+                ? `/report/${featuredInvestigations[0]?.showcase_slug}`
+                : `/report/${spotlightStories[0]?.slug}`}
               className="block group"
             >
               <div className="relative rounded-2xl overflow-hidden" style={{ minHeight: '520px' }}>
-                {/* Background Image */}
-                {spotlightStories[0]?.imageUrl && (
+                {/* Background Image — editorial hero or spotlight fallback */}
+                {(featuredInvestigations[0]?.hero_image_url || spotlightStories[0]?.imageUrl) && (
                   <img
-                    src={spotlightStories[0].imageUrl}
+                    src={featuredInvestigations[0]?.hero_image_url || spotlightStories[0]?.imageUrl || ''}
                     alt=""
                     className="absolute inset-0 w-full h-full object-cover transition-transform duration-[1.5s] group-hover:scale-[1.03]"
-                    onLoad={() => setSpotlightImageLoaded(true)}
+                    onLoad={() => { setSpotlightImageLoaded(true); setFeaturedHeroLoaded(true) }}
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                   />
                 )}
                 {/* Fallback gradient when no image or loading */}
                 <div className={`absolute inset-0 transition-opacity duration-700 ${
-                  spotlightImageLoaded && spotlightStories[0]?.imageUrl ? 'opacity-0' : 'opacity-100'
+                  (featuredHeroLoaded || spotlightImageLoaded) && (featuredInvestigations[0]?.hero_image_url || spotlightStories[0]?.imageUrl) ? 'opacity-0' : 'opacity-100'
                 } bg-gradient-to-br from-primary-900 via-gray-900 to-purple-900`} />
 
                 {/* Cinematic gradient overlays - much stronger for readability */}
@@ -496,35 +528,50 @@ export default function Home() {
                 <div className="relative z-10 p-6 sm:p-10 md:p-14 lg:p-16 flex flex-col justify-end" style={{ minHeight: '520px' }}>
                   {/* Bottom content */}
                   <div className="max-w-2xl">
-                    {spotlightStories[0]?.phenomenon && (
+                    {/* Category badge */}
+                    {(featuredInvestigations[0]?.category || spotlightStories[0]?.phenomenon) && (
                       <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-widest mb-4"
                         style={{ background: 'rgba(91, 99, 241, 0.3)', border: '1px solid rgba(91, 99, 241, 0.4)', color: '#c4b5fd' }}>
-                        {spotlightStories[0].phenomenon}
+                        {featuredInvestigations[0]
+                          ? (CATEGORY_CONFIG[featuredInvestigations[0].category as keyof typeof CATEGORY_CONFIG]?.label || 'Featured Case')
+                          : spotlightStories[0]?.phenomenon}
                       </span>
                     )}
 
                     <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-display font-bold text-white leading-[1.1] tracking-tight">
-                      {spotlightStories[0]?.title}
+                      {featuredInvestigations[0]?.title || spotlightStories[0]?.title}
                     </h2>
+
+                    {/* Subtitle (editorial only) */}
+                    {featuredInvestigations[0]?.subtitle && (
+                      <p className="mt-2 text-lg sm:text-xl text-primary-300/80 font-display font-medium">
+                        {featuredInvestigations[0].subtitle}
+                      </p>
+                    )}
 
                     {/* Location & Date */}
                     <div className="flex flex-wrap items-center gap-4 mt-4">
-                      {spotlightStories[0]?.location && (
+                      {(featuredInvestigations[0]?.location_label || spotlightStories[0]?.location) && (
                         <span className="flex items-center gap-2 text-sm text-gray-200">
                           <MapPin className="w-4 h-4 text-primary-400" />
-                          {spotlightStories[0].location}
+                          {featuredInvestigations[0]?.location_label || spotlightStories[0]?.location}
                         </span>
                       )}
-                      {spotlightStories[0]?.eventDate && (
-                        <span className="text-sm text-gray-400 before:content-['·'] before:mr-4 before:text-gray-600">
-                          {spotlightStories[0].eventDate}
+                      {(featuredInvestigations[0]?.date_label || spotlightStories[0]?.eventDate) && (
+                        <span className="text-sm text-gray-400 before:content-['\u00B7'] before:mr-4 before:text-gray-600">
+                          {featuredInvestigations[0]?.date_label || spotlightStories[0]?.eventDate}
+                        </span>
+                      )}
+                      {featuredInvestigations[0]?.report_count && featuredInvestigations[0].report_count > 1 && (
+                        <span className="text-sm text-gray-400 before:content-['\u00B7'] before:mr-4 before:text-gray-600">
+                          {featuredInvestigations[0].report_count} witness accounts
                         </span>
                       )}
                     </div>
 
-                    {/* Teaser */}
+                    {/* Teaser — editorial blurb or report summary */}
                     <p className="mt-5 text-base sm:text-lg text-gray-300 line-clamp-3 leading-relaxed">
-                      {spotlightStories[0]?.teaser}
+                      {featuredInvestigations[0]?.editorial_blurb || spotlightStories[0]?.teaser}
                     </p>
 
                     {/* Evidence pills */}
@@ -564,10 +611,16 @@ export default function Home() {
               </div>
             </Link>
 
-            {/* Secondary Stories Row */}
-            {spotlightStories.length > 1 && (
+            {/* Secondary Stories Row — editorial sub-stories or spotlight fallback */}
+            {(() => {
+              const secondaryStories = featuredInvestigations[0]?.stories?.slice(0, 3) ||
+                spotlightStories.slice(1, 4).map(s => ({ id: s.id, title: s.title, slug: s.slug, teaser: s.teaser, imageUrl: s.imageUrl }));
+              return secondaryStories.length > 0;
+            })() && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 sm:gap-4">
-                {spotlightStories.slice(1, 4).map((story, i) => (
+                {(featuredInvestigations[0]?.stories?.slice(0, 3) ||
+                  spotlightStories.slice(1, 4).map(s => ({ id: s.id, title: s.title, slug: s.slug, teaser: s.teaser, imageUrl: s.imageUrl }))
+                ).map((story: any, i: number) => (
                   <Link
                     key={story.id}
                     href={`/report/${story.slug}`}

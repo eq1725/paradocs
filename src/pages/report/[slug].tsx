@@ -29,6 +29,10 @@ const ReportAIInsight = dynamic(
   () => import('@/components/reports/ReportAIInsight'),
   { ssr: false, loading: () => <div className="h-32 bg-white/5 rounded-lg animate-pulse mb-8" /> }
 )
+const FurtherReading = dynamic(
+  () => import('@/components/reports/FurtherReading'),
+  { ssr: false }
+)
 const PatternConnections = dynamic(
   () => import('@/components/reports/PatternConnections'),
   { ssr: false, loading: () => <div className="h-24 bg-white/5 rounded-lg animate-pulse" /> }
@@ -948,6 +952,9 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             </div>
           </div>
         </div>
+
+        {/* Further Reading — Amazon affiliate book recommendations */}
+        <FurtherReading reportId={report.id} />
 
         {/* AI Analysis Section */}
         <div data-tour-step="ai-insight">
