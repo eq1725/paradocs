@@ -120,6 +120,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const [isLogged, setIsLogged] = useState(false)
   const [parentCase, setParentCase] = useState<{ slug: string; title: string } | null>(null)
   const [showAllTags, setShowAllTags] = useState(false)
+  const [showRationale, setShowRationale] = useState(false)
 
   // Load parent case report when this report belongs to a case group
   useEffect(() => {
@@ -290,6 +291,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     setIsSaved(false)
     setSavedId(null)
     setSidebarOpen(false)
+    setShowRationale(false)
     setParentCase(null)
     try {
       // Load report
@@ -925,16 +927,26 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             </div>
           </div>
 
-          {/* Credibility */}
-          <div className="glass-card p-3 sm:p-4">
-            <h4 className="text-[11px] text-gray-500 mb-1.5 uppercase tracking-wider">Credibility</h4>
+          {/* Credibility — expandable with rationale */}
+          <button
+            className="glass-card p-3 sm:p-4 text-left w-full cursor-pointer hover:bg-white/[0.04] transition-colors"
+            onClick={() => setShowRationale(!showRationale)}
+            aria-expanded={showRationale}
+          >
+            <h4 className="text-[11px] text-gray-500 mb-1.5 uppercase tracking-wider flex items-center justify-between">
+              <span>Credibility</span>
+              <ChevronDown className={classNames(
+                'w-3 h-3 text-gray-500 transition-transform duration-200',
+                showRationale ? 'rotate-180' : ''
+              )} />
+            </h4>
             <div className={classNames(
               'text-sm font-medium',
               credibilityConfig.color
             )}>
               {credibilityConfig.label}
             </div>
-          </div>
+          </button>
 
           {/* Source Origin */}
           <div className="glass-card p-3 sm:p-4">
@@ -952,6 +964,23 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             </div>
           </div>
         </div>
+
+        {/* Credibility Rationale — expandable explanation below the info grid */}
+        {showRationale && (
+          <div className="mb-6 sm:mb-8 -mt-2 sm:-mt-4 glass-card p-4 sm:p-5 border border-white/[0.08]">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className={classNames('w-4 h-4 mt-0.5 shrink-0', credibilityConfig.color)} />
+              <div>
+                <h4 className={classNames('text-sm font-medium mb-1.5', credibilityConfig.color)}>
+                  Why {credibilityConfig.label}?
+                </h4>
+                <p className="text-sm text-gray-300 leading-relaxed">
+                  {(report as any).credibility_rationale || credibilityConfig.description}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Further Reading — Amazon affiliate book recommendations */}
         <FurtherReading reportId={report.id} />
