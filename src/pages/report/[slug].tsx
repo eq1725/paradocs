@@ -697,19 +697,23 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               <span className="hidden sm:inline">{contentTypeConfig.label}</span>
               <span className="sm:hidden">{contentTypeConfig.shortLabel}</span>
             </span>
-            {/* Category Badge */}
-            <span className={classNames(
-              'px-3 py-1 rounded-full text-xs sm:text-sm font-medium border',
-              categoryConfig.bgColor,
-              categoryConfig.color,
-              'border-current/30'
-            )}>
-              {categoryConfig.icon} {categoryConfig.label}
-            </span>
-            {/* Phenomenon type — only if different from category label */}
-            {report.phenomenon_type && report.phenomenon_type.name !== categoryConfig.label && (
-              <span className="px-2.5 py-1 rounded-full text-xs bg-white/5 text-gray-400">
-                {report.phenomenon_type.name}
+            {/* Featured Investigation — editorial distinction for curated showcases */}
+            {report.featured && (
+              <span className="px-3 py-1 rounded-full text-xs sm:text-sm font-medium border flex items-center gap-1.5 bg-amber-500/20 text-amber-400 border-amber-500/30">
+                <Star className="w-3 h-3" />
+                <span className="hidden sm:inline">Featured Investigation</span>
+                <span className="sm:hidden">Featured</span>
+              </span>
+            )}
+            {/* Phenomenon type — show if present and meaningful (not "Notable Case" placeholder) */}
+            {report.phenomenon_type && report.phenomenon_type.name !== categoryConfig.label && report.phenomenon_type.name !== 'Notable Case' && (
+              <span className={classNames(
+                'px-3 py-1 rounded-full text-xs sm:text-sm font-medium border',
+                categoryConfig.bgColor,
+                categoryConfig.color,
+                'border-current/30'
+              )}>
+                {categoryConfig.icon} {report.phenomenon_type.name}
               </span>
             )}
           </div>
