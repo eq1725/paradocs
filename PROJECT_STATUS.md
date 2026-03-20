@@ -368,7 +368,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 ---
 
-### 15. AI Experience & Intelligence (ACTIVE — Architecture Complete)
+### 15. AI Experience & Intelligence (DEPLOYED — Live on Production)
 
 **Scope:** RAG pipeline, vector embeddings, semantic search, pattern detection, conversational AI, all AI-powered features across the platform.
 
@@ -392,20 +392,19 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Database tables (new):** `vector_chunks` (pgvector), `embedding_sync`, `ai_featured_patterns`
 
-**Current state (March 20, 2026):**
-- **P0 COMPLETE:** Vector embedding pipeline built. pgvector migration ready. Admin endpoint for bulk/incremental embedding.
-- **P1 COMPLETE:** Semantic search API at `/api/ai/search`. Deduplicates by source, rate-limited by tier.
-- **P2 COMPLETE:** Pattern detection (geographic clusters, temporal spikes, phenomena similarity). API at `/api/ai/patterns`.
-- **P3 COMPLETE:** RAG-powered chat. Embeds query, retrieves top-8 chunks, injects into Claude context. Anti-hallucination rules. Source citations with `[slug:x]` format.
-- **P4 COMPLETE:** Integration endpoints for Session 7 (featured patterns, related search, report similarity).
+**Current state (March 20, 2026) — DEPLOYED AND LIVE:**
+- **P0 DEPLOYED:** Vector embedding pipeline. pgvector migration executed. ~900 reports fully embedded, ~1,150/4,792 phenomena embedded (remaining rate-limited, safe to re-run).
+- **P1 DEPLOYED:** Semantic search API at `/api/ai/search`. Confirmed working ("Roswell crash debris" → 66.5% match).
+- **P2 DEPLOYED:** Pattern detection (geographic clusters, temporal spikes, phenomena similarity). API at `/api/ai/patterns`.
+- **P3 DEPLOYED:** RAG-powered chat. Embeds query, retrieves top-8 chunks, injects into Claude context. Anti-hallucination rules. Source citations with `[slug:x]` format.
+- **P4 DEPLOYED:** Integration endpoints for Session 7 (featured patterns, related search, report similarity).
+- **3 commits on main:** `e06c977` (main pipeline), `09b3df7` (column name fix), `158443d` (phenomena column fix).
+- **Column name discoveries:** `reports` uses `location_name` (not `location`), `phenomenon_type_id` (not `phenomenon_type`). `phenomena` has no `subcategory` column.
 
-**BLOCKING DEPLOYMENT STEPS:**
-1. Run SQL migration `20260320_vector_embeddings.sql` in Supabase
-2. Set `OPENAI_API_KEY` in Vercel environment variables (needed for embeddings)
-3. Run initial embedding via admin endpoint
-4. Verify `ANTHROPIC_API_KEY` is set in Vercel (should already exist)
+**Remaining work in this session:**
+- Finish embedding remaining ~3,600 phenomena (re-run with staggered batches to avoid OpenAI rate limits)
 
-**What still needs work:**
+**What still needs work (future sessions):**
 - Incremental embedding hooks (auto-embed on report insert/update)
 - AskTheUnknown UI: parse `[slug:x]` citation format into clickable links
 - Session 7 homepage wiring: consume `/api/ai/featured-patterns`
@@ -414,7 +413,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 - Conversation memory (multi-session)
 - Skeptic/believer mode toggle
 
-**Touches other sessions:** Session 7 (homepage AI preview, search enrichment, "Ask AI" nav), Session 5 (Research Hub AI), Session 4 (complements pattern detection), Session 6a/6b (report similarity), Session 10 (new reports must be embedded after ingestion), Foundation (OPENAI_API_KEY env var)
+**Touches other sessions:** Session 7 (homepage AI preview, search enrichment — **UNBLOCKED**), Session 5 (Research Hub AI), Session 4 (complements pattern detection), Session 6a/6b (report similarity), Session 10 (new reports must be embedded after ingestion), Foundation (OPENAI_API_KEY env var)
 
 ---
 
@@ -674,10 +673,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | Issue | Blocks | Owner | Status |
 |-------|--------|-------|--------|
 | STRIPE_SECRET_KEY not provided | Subscription checkout flow | Chase | Waiting |
-| OpenAI API balance is $0 | AI chat fallback, **vector embeddings** | Chase | **CRITICAL** — must fund for semantic search/RAG |
-| OPENAI_API_KEY not in Vercel env | Semantic search, RAG chat, pattern similarity | Chase | Set in Vercel dashboard |
-| pgvector migration not yet run | All vector-based features | Chase | Run `20260320_vector_embeddings.sql` in Supabase SQL editor |
-| 2 unpushed local commits | Possible code drift | Chase | Waiting |
+| ~3,600 phenomena not yet embedded | Full semantic search coverage for encyclopedia | Chase | Re-run embed batches with staggered timing (see HANDOFF_AI_EXPERIENCE.md) |
 
 ---
 

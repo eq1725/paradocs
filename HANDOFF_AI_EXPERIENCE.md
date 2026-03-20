@@ -2,7 +2,7 @@
 
 **Date:** March 20, 2026
 **Session:** AI Experience & Intelligence (Session 15)
-**Status:** Architecture complete. Pipeline and endpoints built. Pending: database migration execution, API key configuration, initial embedding run.
+**Status:** DEPLOYED AND LIVE. RAG pipeline operational. Semantic search confirmed working. Embeddings: ~900 reports fully embedded, ~1,150/4,792 phenomena embedded (remainder rate-limited, re-run needed). All 7 API endpoints live on beta.discoverparadocs.com.
 
 ---
 
@@ -259,74 +259,42 @@ GET /api/ai/patterns?type=geographic_cluster
 
 ---
 
-## Deployment Steps (REQUIRED)
+## Deployment Steps — ALL COMPLETED (March 20, 2026)
 
-### 1. Run the Database Migration
+### 1. Database Migration — DONE
+Executed `20260320_vector_embeddings.sql` in Supabase SQL editor. pgvector extension enabled, all tables/indexes/RPC/RLS created.
 
-Execute `supabase/migrations/20260320_vector_embeddings.sql` in the Supabase SQL editor. This:
-- Enables the `vector` extension
-- Creates `vector_chunks`, `embedding_sync`, `ai_featured_patterns` tables
-- Creates HNSW index for fast vector search
-- Creates `search_vectors()` RPC function
-- Sets up RLS policies
+### 2. Environment Variables — DONE
+`OPENAI_API_KEY` was already set in Vercel. `ANTHROPIC_API_KEY` also present.
 
-### 2. Set Environment Variables in Vercel
+### 3. Code Deployed — DONE (3 commits)
+- `e06c977` — Session 15: AI Experience & Intelligence (main pipeline + all endpoints)
+- `09b3df7` — Fix: correct column names (`location_name`, `phenomenon_type_id`)
+- `158443d` — Fix: phenomena embedding (`subcategory` column doesn't exist)
 
-**Required new variable:**
-```
-OPENAI_API_KEY=sk-...
-```
-This is needed for vector embeddings (`text-embedding-3-small`). Without it, semantic search, RAG chat, and pattern similarity detection will gracefully degrade but won't function.
-
-**Verify existing:**
-```
-ANTHROPIC_API_KEY=sk-ant-...  (should already be set)
-```
-
-### 3. Run Initial Embedding
-
-After deploying and configuring the API key, trigger the initial bulk embed:
-
+### 4. Initial Embedding — DONE (partial phenomena)
+- **Reports: ~900 fully embedded** (all approved reports). Confirmed working.
+- **Phenomena: ~1,150 of 4,792 embedded**. Remaining ~3,600 were rate-limited by OpenAI (too many parallel batches). To finish, re-run:
 ```js
-// From browser console while logged in as admin:
-var token = JSON.parse(localStorage.getItem('sb-bhkbctdmwnowfmqpksed-auth-token')).access_token;
-
-// Embed all approved reports
-fetch('/api/admin/ai/embed', {
-  method: 'POST',
-  headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-  body: JSON.stringify({ action: 'all_reports' })
-}).then(r => r.json()).then(console.log)
-
-// Embed all encyclopedia entries
-fetch('/api/admin/ai/embed', {
-  method: 'POST',
-  headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-  body: JSON.stringify({ action: 'all_phenomena', limit: 500 })
-}).then(r => r.json()).then(console.log)
-
-// Repeat with offset for remaining phenomena:
-// { action: 'all_phenomena', limit: 500, offset: 500 }
-// { action: 'all_phenomena', limit: 500, offset: 1000 }
-// ... up to 4792 entries
+var session = JSON.parse(localStorage.getItem('sb-bhkbctdmwnowfmqpksed-auth-token'));
+var token = session.access_token;
+// Run in batches of 20 (not 96 parallel) to avoid rate limits:
+for (var i = 0; i < 4800; i += 50) {
+  setTimeout(function(offset) {
+    fetch('/api/admin/ai/embed', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'all_phenomena', limit: 50, offset: offset })
+    }).then(function(r) { return r.json() }).then(function(d) { console.log('offset=' + offset, d.stats) });
+  }.bind(null, i), i * 100); // Staggered by 5 seconds each
+}
 ```
+Already-embedded records are automatically skipped (hash-based), so this is safe to re-run.
 
-### 4. Verify
-
-```js
-// Check embedding stats
-fetch('/api/admin/ai/embed', {
-  method: 'POST',
-  headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-  body: JSON.stringify({ action: 'stats' })
-}).then(r => r.json()).then(console.log)
-
-// Test semantic search
-fetch('/api/ai/search', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ query: 'triangular craft' })
-}).then(r => r.json()).then(console.log)
+### 5. Verified — DONE
+Semantic search confirmed working:
+- Query: "Roswell crash debris" → returned The Roswell Incident report at 66.5% similarity
+- Pattern detection API returning valid (empty) results (patterns will populate as more data is embedded)
 ```
 
 ---
@@ -362,11 +330,15 @@ fetch('/api/ai/search', {
 
 ## What's Next
 
-### Immediate (before next session)
-- [ ] Run the SQL migration in Supabase
-- [ ] Set `OPENAI_API_KEY` in Vercel environment variables
-- [ ] Run initial embedding of ~900 reports + 4,792 phenomena
-- [ ] Deploy to Vercel (auto-deploy on push to main)
+### Immediate — COMPLETED
+- [x] Run the SQL migration in Supabase
+- [x] Set `OPENAI_API_KEY` in Vercel environment variables (was already set)
+- [x] Run initial embedding of ~900 reports (all done) + ~1,150 phenomena (partial — re-run needed for remaining ~3,600)
+- [x] Deploy to Vercel (3 commits auto-deployed)
+- [x] Semantic search verified working ("Roswell crash debris" → 66.5% match)
+
+### Immediate — REMAINING IN THIS SESSION
+- [ ] **Finish phenomena embedding:** Re-run with staggered batches to avoid OpenAI rate limits (~3,600 remaining)
 
 ### Short-term
 - [ ] **Incremental embedding hooks:** Add Supabase database webhooks or post-insert triggers to auto-embed new reports and updated phenomena
