@@ -50,7 +50,7 @@ interface EvidenceAnalysisProps {
 }
 
 const SOURCE_LABELS: Record<string, { label: string; color: string }> = {
-  user_submission: { label: 'User Submissions', color: '#5b63f1' },
+  user_submission: { label: 'User Submissions', color: '#9000f0' },
   nuforc: { label: 'NUFORC Database', color: '#22c55e' },
   mufon: { label: 'MUFON Reports', color: '#f59e0b' },
   bfro: { label: 'BFRO Database', color: '#a855f7' },

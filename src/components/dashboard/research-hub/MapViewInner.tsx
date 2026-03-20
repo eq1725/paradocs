@@ -301,7 +301,7 @@ export function MapViewInner({
 
   const createClusterIcon = (count: number) => {
     const html =
-      '<div style="width:44px;min-width:44px;max-width:44px;height:44px;min-height:44px;max-height:44px;aspect-ratio:1/1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;background:#6366f1;border:2.5px solid #4f46e5;color:white;box-shadow:0 2px 12px rgba(99,102,241,0.4);line-height:1;flex-shrink:0;">' +
+      '<div style="width:44px;min-width:44px;max-width:44px;height:44px;min-height:44px;max-height:44px;aspect-ratio:1/1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;background:#6366f1;border:2.5px solid #7a00cc;color:white;box-shadow:0 2px 12px rgba(99,102,241,0.4);line-height:1;flex-shrink:0;">' +
       count +
       '</div>'
 

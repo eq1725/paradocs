@@ -404,14 +404,14 @@ export default function AnalyticsPage() {
                   />
                   <defs>
                     <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#5b63f1" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#5b63f1" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#9000f0" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#9000f0" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <Area
                     type="monotone"
                     dataKey="count"
-                    stroke="#5b63f1"
+                    stroke="#9000f0"
                     strokeWidth={2}
                     fill="url(#colorCount)"
                   />

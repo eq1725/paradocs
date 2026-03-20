@@ -119,7 +119,7 @@ export default function LogToConstellation({
       var resp = await fetch('/api/research-hub/case-files', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + userToken },
-        body: JSON.stringify({ title: newCaseFileName.trim(), cover_color: '#4f46e5', icon: 'folder' })
+        body: JSON.stringify({ title: newCaseFileName.trim(), cover_color: '#7a00cc', icon: 'folder' })
       })
       var data = await resp.json()
       var newCf = data.caseFile || data

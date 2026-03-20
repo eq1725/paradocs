@@ -159,8 +159,8 @@ body {
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(91, 99, 241, 0.3); }
-  50% { box-shadow: 0 0 40px rgba(91, 99, 241, 0.6); }
+  0%, 100% { box-shadow: 0 0 20px rgba(144, 0, 240, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(144, 0, 240, 0.6); }
 }
 
 .animate-fade-in {

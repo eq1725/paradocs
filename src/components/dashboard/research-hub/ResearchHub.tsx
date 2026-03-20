@@ -139,7 +139,7 @@ export function ResearchHub() {
 
     var result = await addCaseFile({
       title,
-      cover_color: '#4f46e5',
+      cover_color: '#7a00cc',
       icon: 'folder',
     })
 

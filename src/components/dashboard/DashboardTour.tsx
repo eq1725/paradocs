@@ -279,8 +279,8 @@ export default function DashboardTour({ onComplete }: DashboardTourProps) {
                 onClick={handleComplete}
                 className="flex items-center gap-1 px-4 py-1.5 rounded-lg text-sm font-medium text-white transition-all"
                 style={{
-                  background: 'linear-gradient(135deg, #5b63f1, #4f46e5)',
-                  boxShadow: '0 2px 10px rgba(91, 99, 241, 0.3)',
+                  background: 'linear-gradient(135deg, #9000f0, #7a00cc)',
+                  boxShadow: '0 2px 10px rgba(144, 0, 240, 0.3)',
                 }}
               >
                 <Rocket className="w-4 h-4" />

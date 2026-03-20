@@ -159,8 +159,8 @@ export default function WelcomeOnboarding({ onComplete, authToken }: WelcomeOnbo
         className="relative w-full max-w-lg rounded-2xl border overflow-hidden"
         style={{
           background: 'linear-gradient(180deg, rgba(20, 20, 40, 0.98) 0%, rgba(10, 10, 25, 0.98) 100%)',
-          borderColor: 'rgba(91, 99, 241, 0.2)',
-          boxShadow: '0 0 60px rgba(91, 99, 241, 0.15), 0 25px 80px rgba(0, 0, 0, 0.6)'
+          borderColor: 'rgba(144, 0, 240, 0.2)',
+          boxShadow: '0 0 60px rgba(144, 0, 240, 0.15), 0 25px 80px rgba(0, 0, 0, 0.6)'
         }}
       >
         <button onClick={finish} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors z-10">
@@ -176,7 +176,7 @@ export default function WelcomeOnboarding({ onComplete, authToken }: WelcomeOnbo
                   className="h-1 flex-1 rounded-full transition-all duration-500"
                   style={{
                     background: i <= step
-                      ? 'linear-gradient(90deg, #5b63f1, #8b5cf6)'
+                      ? 'linear-gradient(90deg, #9000f0, #8b5cf6)'
                       : 'rgba(255, 255, 255, 0.1)'
                   }}
                 />
@@ -217,10 +217,10 @@ export default function WelcomeOnboarding({ onComplete, authToken }: WelcomeOnbo
                 className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{
                   background: selectedCategories.length > 0
-                    ? 'linear-gradient(135deg, #5b63f1, #4f46e5)'
-                    : 'rgba(91, 99, 241, 0.3)',
+                    ? 'linear-gradient(135deg, #9000f0, #7a00cc)'
+                    : 'rgba(144, 0, 240, 0.3)',
                   boxShadow: selectedCategories.length > 0
-                    ? '0 2px 12px rgba(91, 99, 241, 0.3)'
+                    ? '0 2px 12px rgba(144, 0, 240, 0.3)'
                     : 'none'
                 }}
               >
@@ -267,8 +267,8 @@ export default function WelcomeOnboarding({ onComplete, authToken }: WelcomeOnbo
                   onClick={nextStep}
                   className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all"
                   style={{
-                    background: 'linear-gradient(135deg, #5b63f1, #4f46e5)',
-                    boxShadow: '0 2px 12px rgba(91, 99, 241, 0.3)'
+                    background: 'linear-gradient(135deg, #9000f0, #7a00cc)',
+                    boxShadow: '0 2px 12px rgba(144, 0, 240, 0.3)'
                   }}
                 >
                   Continue <ChevronRight className="w-4 h-4" />
@@ -323,8 +323,8 @@ export default function WelcomeOnboarding({ onComplete, authToken }: WelcomeOnbo
                 onClick={nextStep}
                 className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all"
                 style={{
-                  background: 'linear-gradient(135deg, #5b63f1, #4f46e5)',
-                  boxShadow: '0 2px 12px rgba(91, 99, 241, 0.3)'
+                  background: 'linear-gradient(135deg, #9000f0, #7a00cc)',
+                  boxShadow: '0 2px 12px rgba(144, 0, 240, 0.3)'
                 }}
               >
                 {"Show Me What's Out There"} <Sparkles className="w-4 h-4" />
@@ -389,8 +389,8 @@ export default function WelcomeOnboarding({ onComplete, authToken }: WelcomeOnbo
                   onClick={finish}
                   className="mt-6 px-8 py-3 rounded-xl text-sm font-medium text-white transition-all"
                   style={{
-                    background: 'linear-gradient(135deg, #5b63f1, #4f46e5)',
-                    boxShadow: '0 2px 16px rgba(91, 99, 241, 0.4)'
+                    background: 'linear-gradient(135deg, #9000f0, #7a00cc)',
+                    boxShadow: '0 2px 16px rgba(144, 0, 240, 0.4)'
                   }}
                 >
                   Start Exploring

@@ -429,7 +429,7 @@ export default function AcademicObservationPanel({ reportSlug, className }: Prop
                 <Link
                   href="/dashboard/subscription"
                   className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white rounded-lg transition-all hover:scale-105"
-                  style={{ background: 'linear-gradient(135deg, #5b63f1, #4f46e5)' }}
+                  style={{ background: 'linear-gradient(135deg, #9000f0, #7a00cc)' }}
                 >
                   Upgrade to Pro
                 </Link>

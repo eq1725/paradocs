@@ -338,8 +338,8 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
             style={{
               background: 'rgba(15, 15, 30, 0.95)',
               backdropFilter: 'blur(20px)',
-              borderColor: 'rgba(91, 99, 241, 0.3)',
-              boxShadow: '0 0 30px rgba(91, 99, 241, 0.15), 0 20px 60px rgba(0, 0, 0, 0.5)',
+              borderColor: 'rgba(144, 0, 240, 0.3)',
+              boxShadow: '0 0 30px rgba(144, 0, 240, 0.15), 0 20px 60px rgba(0, 0, 0, 0.5)',
             }}
           >
             {/* Header */}
@@ -348,8 +348,8 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
                 <div
                   className="flex items-center justify-center w-9 h-9 rounded-lg"
                   style={{
-                    background: 'rgba(91, 99, 241, 0.15)',
-                    color: '#5b63f1',
+                    background: 'rgba(144, 0, 240, 0.15)',
+                    color: '#9000f0',
                   }}
                 >
                   {step.icon}
@@ -393,9 +393,9 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
                       height: '6px',
                       borderRadius: '3px',
                       background: i === currentStep
-                        ? '#5b63f1'
+                        ? '#9000f0'
                         : i < currentStep
-                          ? 'rgba(91, 99, 241, 0.4)'
+                          ? 'rgba(144, 0, 240, 0.4)'
                           : 'rgba(255, 255, 255, 0.15)',
                     }}
                   />
@@ -425,8 +425,8 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
                   onClick={handleNext}
                   className="flex items-center gap-1 px-4 py-1.5 rounded-lg text-sm font-medium text-white transition-all"
                   style={{
-                    background: 'linear-gradient(135deg, #5b63f1, #4f46e5)',
-                    boxShadow: '0 2px 10px rgba(91, 99, 241, 0.3)',
+                    background: 'linear-gradient(135deg, #9000f0, #7a00cc)',
+                    boxShadow: '0 2px 10px rgba(144, 0, 240, 0.3)',
                   }}
                 >
                   {isLast ? 'Finish' : 'Next'}

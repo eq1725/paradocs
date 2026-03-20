@@ -547,7 +547,7 @@ export default function Home() {
                 </p>
               </div>
               <div className="text-center">
-                <p className="text-3xl md:text-4xl font-display font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-purple-400 tabular-nums">
+                <p className="text-3xl md:text-4xl font-display font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-pink-400 tabular-nums">
                   AI
                 </p>
                 <p className="text-sm text-gray-500 flex items-center justify-center gap-1">
@@ -563,8 +563,8 @@ export default function Home() {
                   href="/report/the-roswell-incident-july-1947-showcase?tour=true"
                   className="inline-flex items-center gap-3 px-6 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-105"
                   style={{
-                    background: 'rgba(91, 99, 241, 0.15)',
-                    border: '1px solid rgba(91, 99, 241, 0.3)',
+                    background: 'rgba(144, 0, 240, 0.15)',
+                    border: '1px solid rgba(144, 0, 240, 0.3)',
                   }}
                 >
                   <Sparkles className="w-4 h-4 text-primary-400" />
@@ -665,7 +665,7 @@ export default function Home() {
                     {/* Category badge */}
                     {(featuredInvestigations[0]?.category || spotlightStories[0]?.phenomenon) && (
                       <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-widest mb-4"
-                        style={{ background: 'rgba(91, 99, 241, 0.3)', border: '1px solid rgba(91, 99, 241, 0.4)', color: '#c4b5fd' }}>
+                        style={{ background: 'rgba(144, 0, 240, 0.3)', border: '1px solid rgba(144, 0, 240, 0.4)', color: '#d8b4fe' }}>
                         {featuredInvestigations[0]
                           ? (CATEGORY_CONFIG[featuredInvestigations[0].category as keyof typeof CATEGORY_CONFIG]?.label || 'Featured Case')
                           : spotlightStories[0]?.phenomenon}
