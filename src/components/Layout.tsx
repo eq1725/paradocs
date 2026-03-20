@@ -76,13 +76,13 @@ export default function Layout({ children }: LayoutProps) {
     }
   }
 
-  // Main navigation - core browse experience first, discovery/insights as bookends
+  // Main navigation - core browse + AI-first entry points
   const navigation = [
     { name: 'Explore', href: '/explore', icon: Compass },
     { name: 'Map', href: '/map', icon: Map },
     { name: 'Encyclopedia', href: '/phenomena', icon: BookOpen },
-    { name: 'Insights', href: '/insights', icon: Sparkles },
-    { name: 'Discover', href: '/discover', icon: Flame },
+    { name: 'Ask AI', href: '/search?mode=ai', icon: Sparkles },
+    { name: 'Stories', href: '/discover', icon: Flame },
   ]
 
   return (
@@ -124,8 +124,8 @@ export default function Layout({ children }: LayoutProps) {
               })}
             </nav>
 
-            {/* Search Bar */}
-            <form onSubmit={handleSearch} className="hidden md:block flex-1 max-w-md mx-8">
+            {/* Search Bar — hidden on /search page to avoid duplicate inputs */}
+            <form onSubmit={handleSearch} className={'flex-1 max-w-md mx-8 ' + (router.pathname === '/search' ? 'hidden' : 'hidden md:block')}>
               <div className="relative group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-focus-within:text-primary-400 transition-colors" />
                 <input

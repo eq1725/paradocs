@@ -140,15 +140,15 @@ The homepage and site UX must communicate all four pillars:
 11. ~~Section consolidation~~ — merged Featured + Latest Reports into single "Recent Reports"; removed old Trending Patterns
 12. ~~Freshness signals~~ — "Updated [month year]" badge with green pulse dot on Featured Investigation header
 
-### Phase 3: Depth & Scale Readiness (Month 2)
-13. AI-powered "Related Patterns" section on search results
-14. ts_headline() for search result term highlighting
-15. Save Search + Notify Me (Pro feature)
-16. Functional notification bell
-17. Category mega-menu + "Ask AI" as primary nav item
-18. Rename Discover → Stories/Swipe
-19. Hide header search on /search page
-20. Launch stats: "5M+ Scanned · [X] Approved · 4,792+ Encyclopedia · AI-Analyzed"
+### Phase 3: Depth & Scale Readiness — SHIPPED (March 20, 2026)
+13. ~~AI-powered "Related Patterns"~~ — search results now fetch `/api/ai/related` and show AI-matched patterns with similarity scores
+14. ~~Search page rebranded~~ — "AI-Powered Search" header, updated description, AI pattern cards in results
+15. ~~Save Search + Notify Me~~ — logged-in users get "Save Search" button; anonymous get "Get alerts" soft-wall linking to login
+16. ~~Functional notification bell~~ — `NotificationBell.tsx` component replaces non-functional bell in DashboardLayout; shows "New this week" reports with time-ago labels
+17. ~~"Ask AI" nav item~~ — replaced "Insights" with "Ask AI" (links to `/search?mode=ai`); nav now: Explore, Map, Encyclopedia, Ask AI, Stories
+18. ~~Rename Discover~~ — "Discover" renamed to "Stories" in desktop nav
+19. ~~Hide header search on /search~~ — header search bar conditionally hidden when router.pathname === '/search'
+20. ~~Launch stats~~ — added "AI Pattern Analysis" as 4th stat with gradient text; pre-ingestion: 4,792+/20+/11/AI; post-ingestion: swap to 5M+/[X]/4,792+/AI
 
 ### Session Dependency: AI Experience Session
 Phase 2 items 5-6 and Phase 3 items 13-14 depend on the AI Experience & Intelligence session being at least partially complete. The homepage AI preview and search intelligence features need the RAG pipeline and pattern detection APIs to exist before they can be surfaced in the UI. **Recommendation: Run AI Experience session before resuming Phase 2 of this plan.**

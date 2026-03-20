@@ -33,6 +33,7 @@ import { TierBadge } from './TierBadge'
 import { Avatar } from '@/components/AvatarSelector'
 import { supabase } from '@/lib/supabase'
 import { MobileBottomTabs } from '@/components/mobile/MobileBottomTabs'
+import NotificationBell from '@/components/NotificationBell'
 
 interface DashboardLayoutProps {
   children: ReactNode
@@ -201,10 +202,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
               <span className="font-sans font-black text-xl tracking-tight">Paradocs<span className="text-primary-500">.</span></span>
             </Link>
             <div className="flex items-center gap-2">
-              <button className="p-2 text-gray-400 hover:text-white transition-colors relative">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-purple-500 rounded-full"></span>
-              </button>
+              <NotificationBell />
             </div>
           </div>
         </header>

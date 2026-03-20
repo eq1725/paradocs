@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import Link from 'next/link'
-import { Search, X, Filter, TrendingUp, MapPin, Calendar, Shield, ArrowRight, Loader2 } from 'lucide-react'
+import { Search, X, Filter, TrendingUp, MapPin, Calendar, Shield, ArrowRight, Loader2, Sparkles, Bookmark, Bell, Brain } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonType, PhenomenonCategory } from '@/lib/database.types'
 import { CATEGORY_CONFIG } from '@/lib/constants'
@@ -66,6 +66,20 @@ export default function SearchPage() {
   var [autocompleteLoading, setAutocompleteLoading] = useState(false)
   var autocompleteTimeout = useRef<NodeJS.Timeout | null>(null)
   var inputRef = useRef<HTMLInputElement>(null)
+
+  // AI related patterns
+  var [relatedPatterns, setRelatedPatterns] = useState<any[]>([])
+  var [relatedLoading, setRelatedLoading] = useState(false)
+  // Save search
+  var [searchSaved, setSearchSaved] = useState(false)
+  var [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  // Check auth state for save search
+  useEffect(function() {
+    supabase.auth.getSession().then(function(res) {
+      if (res.data.session) setIsLoggedIn(true)
+    })
+  }, [])
 
   var [filters, setFilters] = useState<SearchFilters>({
     categories: [],
@@ -193,6 +207,19 @@ export default function SearchPage() {
     } catch (error) {
       console.error('Search error, falling back:', error)
       await performFallbackSearch(searchQuery)
+      // Fetch AI related patterns in parallel (non-blocking)
+      setRelatedLoading(true)
+      fetch('/api/ai/related?query=' + encodeURIComponent(searchQuery.trim()))
+        .then(function(r) { return r.ok ? r.json() : null })
+        .then(function(data) {
+          if (data) {
+            var patterns = (data.related_reports || []).concat(data.related_phenomena || []).slice(0, 4)
+            setRelatedPatterns(patterns)
+          }
+        })
+        .catch(function() { /* non-critical */ })
+        .finally(function() { setRelatedLoading(false) })
+
     } finally {
       setLoading(false)
     }
@@ -330,16 +357,17 @@ export default function SearchPage() {
     <>
       <Head>
         <title>{q ? 'Search: ' + q + ' - Paradocs' : 'Advanced Search - Paradocs'}</title>
-        <meta name="description" content={q ? 'Search results for "' + q + '" in the Paradocs paranormal database.' : 'Search across 258,000+ paranormal reports with advanced filtering.'} />
+        <meta name="description" content={q ? 'Search results for "' + q + '" in the Paradocs paranormal database.' : 'AI-powered search across the world\'s largest paranormal database with advanced filtering.'} />
         <meta name="robots" content="noindex" />
       </Head>
 
       <div className="max-w-7xl mx-auto px-4 py-5 sm:py-8 pb-20 sm:pb-8">
-        <h1 className="text-xl sm:text-3xl font-display font-bold text-white mb-1 sm:mb-2">
-          Search Paradocs
+        <h1 className="text-xl sm:text-3xl font-display font-bold text-white mb-1 sm:mb-2 flex items-center gap-2">
+          <Search className="w-6 h-6 sm:w-8 sm:h-8 text-primary-400" />
+          AI-Powered Search
         </h1>
         <p className="text-gray-400 text-sm sm:text-base mb-5 sm:mb-8">
-          Full-text search across all paranormal reports with ranked results
+          Search across the entire Paradocs database with AI-ranked results and pattern detection
         </p>
 
         {/* Search form with autocomplete */}
@@ -540,10 +568,68 @@ export default function SearchPage() {
                     <p className="text-gray-400">
                       {'Found ' + resultCount + ' result' + (resultCount !== 1 ? 's' : '') + ' for \u201C' + q + '\u201D'}
                     </p>
-                    {results.length > 0 && (
-                      <span className="text-xs text-gray-600 hidden sm:inline">Ranked by relevance</span>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {results.length > 0 && (
+                        <span className="text-xs text-gray-600 hidden sm:inline">Ranked by relevance</span>
+                      )}
+                      {/* Save Search (Phase 3 item 15) */}
+                      {isLoggedIn ? (
+                        <button
+                          type="button"
+                          onClick={function() { setSearchSaved(true) }}
+                          className={classNames(
+                            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                            searchSaved ? 'bg-primary-500/20 text-primary-400' : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                          )}
+                        >
+                          <Bookmark className="w-3.5 h-3.5" />
+                          {searchSaved ? 'Saved' : 'Save Search'}
+                        </button>
+                      ) : (
+                        <Link
+                          href={'/login?reason=save&redirect=' + encodeURIComponent('/search?q=' + encodeURIComponent(String(q || '')))}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                        >
+                          <Bell className="w-3.5 h-3.5" />
+                          Get alerts
+                        </Link>
+                      )}
+                    </div>
                   </div>
+
+                  {/* AI Related Patterns (Phase 3 item 13) */}
+                  {relatedPatterns.length > 0 && (
+                    <div className="mb-6 p-4 rounded-xl bg-primary-500/5 border border-primary-500/10">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Brain className="w-4 h-4 text-primary-400" />
+                        <span className="text-sm font-medium text-primary-300">AI Found Related Patterns</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {relatedPatterns.map(function(pattern, i) {
+                          return (
+                            <Link
+                              key={i}
+                              href={pattern.slug ? ('/report/' + pattern.slug) : (pattern.source_table === 'phenomenon' ? ('/phenomena/' + pattern.slug) : '/insights')}
+                              className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-primary-500/20 transition-all group"
+                            >
+                              <Sparkles className="w-3.5 h-3.5 text-primary-400 mt-0.5 shrink-0" />
+                              <div className="min-w-0">
+                                <div className="text-sm text-white font-medium truncate group-hover:text-primary-300 transition-colors">
+                                  {pattern.title || pattern.name || 'Related pattern'}
+                                </div>
+                                {pattern.snippet && (
+                                  <div className="text-xs text-gray-500 line-clamp-1 mt-0.5">{pattern.snippet}</div>
+                                )}
+                                {pattern.similarity && (
+                                  <span className="text-[10px] text-primary-400/70">{Math.round(pattern.similarity * 100) + '% match'}</span>
+                                )}
+                              </div>
+                            </Link>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Category facets */}
                   {Object.keys(categoryFacets).length > 1 && (

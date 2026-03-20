@@ -518,8 +518,10 @@ export default function Home() {
               </div>
             </form>
 
-            {/* Stats — real stable numbers (legacy 258K/953 removed, will update at launch with ingested counts) */}
-            <div ref={statsRef} className={"mt-12 flex flex-wrap justify-center gap-8 md:gap-16 transition-opacity duration-700 " + (statsVisible ? "opacity-100" : "opacity-0")}>
+            {/* Stats — pipeline story (Phase 3 item 20: launch-ready stats)
+                Pre-ingestion: show encyclopedia + investigations + categories + AI badge
+                Post-ingestion: swap first stat to "5M+ Sources Scanned" and add "[X] Reports Approved" */}
+            <div ref={statsRef} className={"mt-12 flex flex-wrap justify-center gap-6 md:gap-12 transition-opacity duration-700 " + (statsVisible ? "opacity-100" : "opacity-0")}>
               <div className="text-center">
                 <p className="text-3xl md:text-4xl font-display font-bold text-white tabular-nums">
                   4,792+
@@ -542,6 +544,14 @@ export default function Home() {
                 </p>
                 <p className="text-sm text-gray-500 flex items-center justify-center gap-1">
                   <Globe className="w-3.5 h-3.5" /> Phenomenon Categories
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-3xl md:text-4xl font-display font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-purple-400 tabular-nums">
+                  AI
+                </p>
+                <p className="text-sm text-gray-500 flex items-center justify-center gap-1">
+                  <BarChart3 className="w-3.5 h-3.5" /> Pattern Analysis
                 </p>
               </div>
             </div>
