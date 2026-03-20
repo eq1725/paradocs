@@ -419,7 +419,13 @@ Each major feature area has a dedicated Claude session with its own deep context
 - **Phase 2 (next 2 weeks, BLOCKED on AI Experience session):** Hero redesign around four pillars, AI intelligence preview, dashboard preview, four-pillar "What Is Paradocs?" section, Discover feed preview on homepage
 - **Phase 3 (month 2):** AI-powered search results ("Related Patterns"), search highlighting, Save Search, notification bell, nav scaling for 5M+ reports
 
-**Critical dependency:** Phase 2 items 5-6 and Phase 3 items 13-14 require the AI Experience & Intelligence session to deliver RAG pipeline + pattern detection APIs before homepage/search can surface AI capabilities. **Recommend: Run AI Experience session next, then resume Session 7 Phase 2.**
+**Phase 1 SHIPPED (March 19):** Mobile search icon in Layout.tsx, legacy stats replaced (4,792 encyclopedia / 20+ investigations / 11 categories), TrendingPatternsWidget hidden.
+
+**Approved session sequence (all buildable pre-mass-ingestion):**
+1. ~~Session 7 Phase 1~~ — SHIPPED
+2. **NEXT: AI Experience & Intelligence session** — RAG pipeline, vector embeddings, pattern detection APIs, conversational AI endpoint
+3. **Session 7 Phase 2** (after AI session) — Hero redesign around four pillars, AI preview, dashboard preview, Discover preview
+4. **Session 7 Phase 3** (after Phase 2) — AI search results, highlighting, Save Search, notification bell, nav for 5M+
 
 **Touches other sessions:** All sessions (navigation global), AI Experience (Phase 2-3 blocked on RAG/pattern APIs), Explore (onboarding import updated), Session 6a (editorial content), Session 13 (mobile search addition to Layout.tsx)
 

@@ -514,30 +514,30 @@ export default function Home() {
               </div>
             </form>
 
-            {/* Animated stats counter */}
+            {/* Stats — real stable numbers (legacy 258K/953 removed, will update at launch with ingested counts) */}
             <div ref={statsRef} className={"mt-12 flex flex-wrap justify-center gap-8 md:gap-16 transition-opacity duration-700 " + (statsVisible ? "opacity-100" : "opacity-0")}>
               <div className="text-center">
                 <p className="text-3xl md:text-4xl font-display font-bold text-white tabular-nums">
-                  {statsVisible ? animatedTotal.toLocaleString() : stats.total.toLocaleString()}
+                  4,792+
                 </p>
                 <p className="text-sm text-gray-500 flex items-center justify-center gap-1">
-                  <FileText className="w-3.5 h-3.5" /> Reports Analyzed
+                  <Sparkles className="w-3.5 h-3.5" /> Encyclopedia Entries
                 </p>
               </div>
               <div className="text-center">
                 <p className="text-3xl md:text-4xl font-display font-bold text-white tabular-nums">
-                  {statsVisible ? animatedLocations : stats.locations}
+                  20+
                 </p>
                 <p className="text-sm text-gray-500 flex items-center justify-center gap-1">
-                  <Globe className="w-3.5 h-3.5" /> Countries
+                  <FileText className="w-3.5 h-3.5" /> Curated Investigations
                 </p>
               </div>
               <div className="text-center">
                 <p className="text-3xl md:text-4xl font-display font-bold text-white tabular-nums">
-                  +{statsVisible ? animatedMonth.toLocaleString() : stats.thisMonth.toLocaleString()}
+                  11
                 </p>
                 <p className="text-sm text-gray-500 flex items-center justify-center gap-1">
-                  <TrendingUp className="w-3.5 h-3.5" /> This Month
+                  <Globe className="w-3.5 h-3.5" /> Phenomenon Categories
                 </p>
               </div>
             </div>
@@ -959,12 +959,9 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Trending Patterns */}
-      <section className="py-12 border-t border-white/5 bg-gradient-to-b from-purple-900/10 to-transparent">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <TrendingPatternsWidget limit={3} showHeader={true} variant="inline" />
-        </div>
-      </section>
+      {/* Trending Patterns — HIDDEN until real AI pattern data exists (shows batch-artifact placeholder cards)
+         Will be re-enabled in Phase 2 with actual AI-generated patterns from the RAG pipeline.
+         See Paradocs_UX_Audit_Plan.docx finding 1.2 */}
 
       {/* Reports Section */}
       <section className="py-12 border-t border-white/5">

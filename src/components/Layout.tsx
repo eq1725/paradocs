@@ -138,6 +138,15 @@ export default function Layout({ children }: LayoutProps) {
               </div>
             </form>
 
+            {/* Mobile search icon — persistent, always visible on mobile */}
+            <Link
+              href="/search"
+              className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors ml-auto"
+              aria-label="Search"
+            >
+              <Search className="w-5 h-5" />
+            </Link>
+
             {/* Right section */}
             <div className="flex items-center gap-3">
               {/* Submit button — desktop only, secondary styling (not a core CTA) */}
