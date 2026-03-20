@@ -75,7 +75,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
 | 6a | **Report Experience — Curated Content** | Handcrafted case files, editorial enrichment, Featured Investigations, curated media, book recommendations | `HANDOFF_REPORTS.md` | Active — 20 reports across 2 case clusters (Roswell 14 + Rendlesham 6), credibility rationales, badge redesign, homepage discovery row |
 | 6b | **Report Experience — Ingestion & Scale** | Reports from mass ingestion pipeline, quality templates, automated enrichment, connection generation at scale | `HANDOFF_REPORTS_INGESTION.md` | Not started — blocked by Phase C (mass ingestion) |
-| 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO | `HANDOFF_SEARCH_NAV.md` | Not started — Homepage has Featured Investigations hero + discovery row (added by 6a) |
+| 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO | `HANDOFF_SEARCH_NAV.md` | COMPLETE — All phases shipped (homepage redesign, fulltext search, A/B testing, SEO, onboarding consolidation, AI integration) |
 | 8 | **Subscription & Monetization** | Stripe checkout, paywall, tier system, billing portal, cancellation | `HANDOFF_SUBSCRIPTION.md` | Not started |
 | 9 | **Email & Engagement** | Weekly digests, drip campaigns, smart alerts, winback, notifications | `HANDOFF_EMAIL.md` | Not started |
 | 10 | **Data Ingestion & Pipeline** | Source adapters, quality filters, dedup, bulk import, media extraction | `HANDOFF_INGESTION.md` | Not started |
@@ -83,7 +83,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 12 | **Foundation & Infrastructure** | Shared components, auth/RLS, database schema, deployment, performance, SEO | `HANDOFF_FOUNDATION.md` | Not started |
 | 13 | **Mobile-First Design System** | Cross-cutting mobile UX: bottom tabs, bottom sheets, design tokens, screen-by-screen redesign | `HANDOFF_MOBILE.md` | Active — Phase 1-2 + 3a + Nav Unification deployed. Screen-by-screen redesign next. |
 | 14 | **Amazon Affiliate & Revenue Content** | Book recommendations, ASIN curation, affiliate strategy, FTC compliance, revenue optimization | `HANDOFF_AFFILIATE.md` | Active — Foundation deployed (report_books table, FurtherReading component, 16 Roswell books). Expansion needed. |
-| 15 | **AI Experience & Intelligence** | Ask the Unknown chat, AI report analysis, AI cross-referencing, AI search, AI voice/personality, provider management | `HANDOFF_AI.md` | Not started |
+| 15 | **AI Experience & Intelligence** | Ask the Unknown chat, AI report analysis, AI cross-referencing, AI search, AI voice/personality, provider management | `HANDOFF_AI_EXPERIENCE.md` | DEPLOYED — RAG pipeline, semantic search, pattern detection, chat with citations all live. ~3,600 phenomena embedding remaining. |
 
 ---
 
@@ -386,7 +386,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 - `src/pages/api/ai/chat.ts` — **REWRITTEN** with RAG pipeline + source citations
 
 **Key files (existing, unchanged):**
-- `src/components/AskTheUnknown.tsx` — Floating AI chat button (backward-compatible with new chat endpoint)
+- `src/components/AskTheUnknown.tsx` — Floating AI chat button (MODIFIED: citation parsing + Sources footer for RAG responses)
 - `src/components/reports/ReportAIInsight.tsx` — Per-report AI analysis section
 - `src/lib/services/report-insights.service.ts` — AI analysis generation (hash-based caching, DB-grounded)
 - `src/lib/services/ai-insights.service.ts` — Claude-powered pattern narratives
@@ -407,9 +407,9 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **What still needs work (future sessions):**
 - Incremental embedding hooks (auto-embed on report insert/update)
-- AskTheUnknown UI: parse `[slug:x]` citation format into clickable links
-- Session 7 homepage wiring: consume `/api/ai/featured-patterns`
-- Session 7 search wiring: consume `/api/ai/related`
+- ~~AskTheUnknown UI: parse `[slug:x]` citation format into clickable links~~ ✅ DONE (March 20) — `renderMarkdown()` parses citations, Sources footer for RAG responses
+- ~~Session 7 homepage wiring: consume `/api/ai/featured-patterns`~~ ✅ DONE (March 20) — `AIPreview.tsx` on homepage
+- ~~Session 7 search wiring: consume `/api/ai/related`~~ ✅ DONE (March 20) — Related Patterns in search results
 - Streaming chat responses for better UX
 - Conversation memory (multi-session)
 - Skeptic/believer mode toggle
@@ -451,9 +451,9 @@ Each major feature area has a dedicated Claude session with its own deep context
 3. ~~Session 7 Phase 2~~ — SHIPPED (March 20): Four new homepage components, A/B variants updated, section consolidation
 4. ~~Session 7 Phase 3~~ — SHIPPED (March 20): AI search results, Save Search, NotificationBell, Ask AI nav, Stories rename, launch stats
 
-**ALL PHASES COMPLETE.** Session 7 scope fully delivered.
+**ALL PHASES COMPLETE + COLOR OVERHAUL.** Session 7 scope fully delivered. Color system overhauled: entire primary palette shifted from indigo (#5B63F1) to brand purple (#9000F0) in tailwind.config.js + 37 hardcoded inline replacements across 13 files. Design brief v3 with full palette documentation at `Paradocs_Design_Brief.docx`.
 
-**Touches other sessions:** All sessions (navigation global), AI Experience (Phase 2-3 blocked on RAG/pattern APIs), Explore (onboarding import updated), Session 6a (editorial content), Session 13 (mobile search addition to Layout.tsx)
+**Touches other sessions:** ALL sessions (primary color changed globally — every Tailwind primary-* class now renders purple instead of indigo), Session 13 (mobile nav colors updated), Session 5 (DashboardLayout colors + NotificationBell), Session 6a (report page inline styles updated), AI Experience (all sessions share new palette)
 
 ---
 
@@ -642,6 +642,8 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 | Date | Source Session | Note | Affects |
 |------|--------------|------|---------|
+| 2026-03-20 | Search & Nav (7) | **FULL COLOR SYSTEM OVERHAUL.** Primary palette in tailwind.config.js shifted from indigo (#5B63F1, H:236°) to brand purple (#9000F0, H:271°). Full 50-950 scale replaced. 37 hardcoded inline color references updated across 13 source files (#5b63f1→#9000f0, #4f46e5→#7a00cc, rgba(91,99,241)→rgba(144,0,240)). Logo period set to #9000F0 on all 6 instances. Accent gradient: purple→pink (#9000f0→#f472b6). Design brief v3 documents full deployed palette. **Every Tailwind primary-\* class across the entire app now renders purple.** | ALL sessions (global color change — buttons, links, badges, focus rings, gradients all shifted from indigo to purple), Foundation (tailwind.config.js modified), Session 13 (mobile nav inherits new colors), Session 5 (dashboard inherits), Session 6a (report page inline styles updated) |
+| 2026-03-20 | Mobile Design (13) | **MobileBottomTabs FAB label renamed "Discover" → "Stories"** to match Session 7's desktop nav rename. Route unchanged (`/discover`). Component comment updated. | Explore (label change only, no functional change), All sessions (mobile nav label updated) |
 | 2026-03-20 | Dashboard (5) | Desktop header bell icon in DashboardLayout.tsx replaced with Session 7's functional `<NotificationBell />` component. Static `<button>` with hardcoded purple dot removed. | Search & Nav (Session 7 component now used on both mobile and desktop headers) |
 | 2026-03-20 | Search & Nav (7) | **Session 7 ALL PHASES COMPLETE.** Phase 1: mobile search icon, real stats, hidden placeholders. Phase 2: FourPillars, AIPreview, DashboardPreview, DiscoverPreview components on homepage; A/B variants updated for AI+scale messaging; section consolidation 9→6; inline email capture; freshness signals. Phase 3: AI Related Patterns in search results (fetches /api/ai/related); Save Search + Get Alerts soft-wall; NotificationBell component (replaces non-functional bell in DashboardLayout); "Ask AI" nav item replacing "Insights"; "Discover" renamed to "Stories"; header search hidden on /search; AI gradient stat badge. Desktop nav now: Explore, Map, Encyclopedia, Ask AI, Stories. | ALL sessions (nav changed globally), Session 13 (mobile nav — "Stories" label should be coordinated), Session 5 (Dashboard — NotificationBell replaces bell buttons), Session 15 (AI — /api/ai/related and /api/ai/featured-patterns now consumed by homepage+search) |
 | 2026-03-20 | AI Experience (15) | **AskTheUnknown citation parsing DEPLOYED.** `AskTheUnknown.tsx` modified: `renderMarkdown()` now parses `[slug:x]` citations from RAG chat into clickable report/phenomena links using `sources` metadata from API. RAG responses show a "Sources:" footer with deduplicated links. | Explore (AskTheUnknown.tsx modified), Reports (inline links to report pages from chat) |

@@ -150,6 +150,20 @@ The homepage and site UX must communicate all four pillars:
 19. ~~Hide header search on /search~~ — header search bar conditionally hidden when router.pathname === '/search'
 20. ~~Launch stats~~ — added "AI Pattern Analysis" as 4th stat with gradient text; pre-ingestion: 4,792+/20+/11/AI; post-ingestion: swap to 5M+/[X]/4,792+/AI
 
+### Color System Overhaul — SHIPPED (March 20, 2026)
+Complete primary palette redesign centered on brand purple #9000F0:
+- **Tailwind primary scale replaced:** Old indigo (#5B63F1 at H:236°) → new purple (#9000F0 at H:271°). Full 50-950 scale in tailwind.config.js. Every `primary-*` Tailwind class across the entire app now renders purple.
+- **Logo period:** #9000F0 on all instances (Layout.tsx header/footer, DashboardLayout, discover.tsx, researcher page)
+- **37 hardcoded inline color replacements** across 13 files: #5b63f1→#9000f0, #4f46e5→#7a00cc, rgba(91,99,241)→rgba(144,0,240)
+- **Accent gradient:** purple→pink (#9000f0→#f472b6) for hero stats — split-complementary, same technique as Stripe/Linear/Vercel
+- **Design brief v3** created with full deployed palette documentation (Paradocs_Design_Brief.docx)
+
+Key palette values (deployed):
+- primary-400: #c084fc (text on dark, links, nav)
+- primary-500: #9000f0 (buttons, brand mark, main accent)
+- primary-600: #7a00cc (hover/pressed states, gradient dark end)
+- brand.purple: #9000F0 (Tailwind utility: text-brand-purple)
+
 ### Session Dependency: AI Experience Session
 Phase 2 items 5-6 and Phase 3 items 13-14 depend on the AI Experience & Intelligence session being at least partially complete. The homepage AI preview and search intelligence features need the RAG pipeline and pattern detection APIs to exist before they can be surfaced in the UI. **Recommendation: Run AI Experience session before resuming Phase 2 of this plan.**
 
