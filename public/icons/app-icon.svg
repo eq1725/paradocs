@@ -5,9 +5,9 @@
       <stop offset="100%" stop-color="#0c0c1d"/>
     </linearGradient>
     <linearGradient id="pGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#c4b5fd"/>
-      <stop offset="50%" stop-color="#8b5cf6"/>
-      <stop offset="100%" stop-color="#5b21b6"/>
+      <stop offset="0%" stop-color="#c084fc"/>
+      <stop offset="50%" stop-color="#9000f0"/>
+      <stop offset="100%" stop-color="#6500a8"/>
     </linearGradient>
   </defs>
 

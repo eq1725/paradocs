@@ -1,6 +1,7 @@
 import '@/styles/globals.css'
 import type { AppProps } from 'next/app'
 import Head from 'next/head'
+import { useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import { ToastProvider } from '@/components/Toast'
@@ -15,6 +16,15 @@ export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter()
   const isStandalonePage = STANDALONE_PAGES.includes(router.pathname)
   const hasCustomLayout = CUSTOM_LAYOUT_PREFIXES.some(prefix => router.pathname.startsWith(prefix))
+
+  // Register service worker for PWA installability
+  useEffect(function() {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(function(err) {
+        console.warn('SW registration failed:', err)
+      })
+    }
+  }, [])
 
   return (
     <>

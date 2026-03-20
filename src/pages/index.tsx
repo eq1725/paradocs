@@ -7,6 +7,7 @@ import { Search, ArrowRight, LogIn } from 'lucide-react'
 import { useABTest } from '@/lib/ab-testing'
 import FourPillars from '@/components/homepage/FourPillars'
 import DiscoverPreview from '@/components/homepage/DiscoverPreview'
+import InstallPrompt from '@/components/InstallPrompt'
 
 // Hero headline variants — must match admin/ab-testing.tsx variant table
 var HERO_VARIANTS: Record<string, { headline: string; subheadline: string }> = {
@@ -155,6 +156,8 @@ export default function Home() {
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
+          {/* PWA install prompt — mobile only, below CTA buttons */}
+          <InstallPrompt />
         </div>
       </section>
     </>

@@ -196,12 +196,20 @@ Phase 2 items 5-6 and Phase 3 items 13-14 depend on the AI Experience & Intellig
 - **At launch:** Mass ingestion fills the database with 5M+ filtered reports. The same pipeline built today scales automatically — just re-embed the new data.
 - **Embedding strategy must support:** (a) initial bulk embed of current data, (b) incremental embed on insert/update, (c) manual re-embed endpoint for admin use, (d) full re-index for mass ingestion events.
 
+### PWA Install Prompt — SHIPPED (March 20, 2026)
+- **Service worker** (`public/sw.js`): minimal hand-rolled SW — cache-first for static assets, network-first for pages, skip API/auth. Satisfies Chrome PWA installability criteria.
+- **SW registration** in `_app.tsx`: registered in useEffect on mount.
+- **useInstallPrompt hook** (`src/lib/hooks/useInstallPrompt.ts`): detects Android (beforeinstallprompt), iOS Safari (UA check), standalone mode, desktop. Returns isInstallable, promptInstall, dismissPrompt. Respects localStorage dismiss flag.
+- **InstallPrompt component** (`src/components/InstallPrompt.tsx`): Android: "Add Paradocs to your home screen" button → native Chrome dialog. iOS: instructional UI with share icon. Desktop/installed/dismissed: hidden.
+- **Integrated** into homepage Section 4 (Get Started) as tertiary mobile-only prompt below CTA buttons.
+- **App icon updated**: SVG gradient updated from old purples (#c4b5fd/#8b5cf6/#5b21b6) to brand purple (#c084fc/#9000f0/#6500a8). All 8 PNG icons regenerated.
+
 ---
 
 ## What's Still Needed (Future Sessions)
 
 ### Homepage
-- Create `/og-home.png` (1200x630 OG image for social sharing)
+- Revise OG image placeholder (`/public/og-home.png`) with professional design
 - Continue monitoring A/B test variants
 - Lazy-loading for below-fold sections
 
