@@ -255,6 +255,7 @@ GET /api/ai/patterns?type=geographic_cluster
 | `src/pages/api/ai/related.ts` | **NEW** | Search enrichment (related patterns/context) |
 | `src/pages/api/ai/report-similar.ts` | **NEW** | Per-report vector similarity matching |
 | `src/pages/api/ai/chat.ts` | **REWRITTEN** | RAG-powered chat with source citations |
+| `src/components/AskTheUnknown.tsx` | **MODIFIED** | Citation parsing (`[slug:x]` → links), Sources footer for RAG responses |
 | `.env.example` | **MODIFIED** | Added ANTHROPIC_API_KEY, updated OPENAI_API_KEY docs |
 
 ---
@@ -337,12 +338,18 @@ Semantic search confirmed working:
 - [x] Deploy to Vercel (3 commits auto-deployed)
 - [x] Semantic search verified working ("Roswell crash debris" → 66.5% match)
 
-### Immediate — REMAINING IN THIS SESSION
+### Immediate — REMAINING
 - [ ] **Finish phenomena embedding:** Re-run with staggered batches to avoid OpenAI rate limits (~3,600 remaining)
+
+### AskTheUnknown Citation Parsing — DONE (March 20, 2026)
+- [x] `renderMarkdown()` now parses `[slug:some-slug]` citations into clickable `<a href="/report/some-slug">Report Title</a>` links
+- [x] Uses `sources` metadata from the RAG API response to resolve real report titles (falls back to slug-to-title formatting)
+- [x] RAG-powered responses display a "Sources:" footer below the message with deduplicated clickable links to cited reports/phenomena
+- [x] Phenomena sources link to `/phenomena/slug`, reports link to `/report/slug`
+- [x] File modified: `src/components/AskTheUnknown.tsx` — added `ChatSource` interface, `slugToTitle()`, updated `renderMarkdown()` signature, added `renderSourcesFooter()`
 
 ### Short-term
 - [ ] **Incremental embedding hooks:** Add Supabase database webhooks or post-insert triggers to auto-embed new reports and updated phenomena
-- [ ] **AskTheUnknown UI upgrade:** Parse `[slug:x]` references in chat replies into clickable links
 - [ ] **Session 7 homepage integration:** Wire `/api/ai/featured-patterns` into the homepage hero redesign
 - [ ] **Session 7 search integration:** Wire `/api/ai/related` into the search results page
 
