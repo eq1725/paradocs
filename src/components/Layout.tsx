@@ -96,7 +96,7 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex items-center justify-between h-14 sm:h-16">
             {/* Logo */}
             <Link href="/" className="flex items-center mr-8">
-              <span className="font-sans font-black text-xl sm:text-2xl text-white tracking-tight whitespace-nowrap">Paradocs<span className="text-primary-500">.</span></span>
+              <span className="font-sans font-black text-xl sm:text-2xl text-white tracking-tight whitespace-nowrap">Paradocs<span style={{color:'#9000F0'}}>.</span></span>
             </Link>
 
             {/* Desktop Navigation */}
@@ -241,7 +241,7 @@ export default function Layout({ children }: LayoutProps) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="col-span-2 md:col-span-1">
               <Link href="/" className="inline-block mb-4">
-                <span className="font-sans font-black text-2xl text-white tracking-tight">Paradocs<span className="text-primary-500">.</span></span>
+                <span className="font-sans font-black text-2xl text-white tracking-tight">Paradocs<span style={{color:'#9000F0'}}>.</span></span>
               </Link>
               <p className="text-sm text-gray-500">
                 The world's largest database of paranormal phenomena. Where mysteries meet discovery.
@@ -274,7 +274,7 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-white/5 text-center text-sm text-gray-500">
-            <p>{'\u00A9'} {new Date().getFullYear()} <span className="font-sans font-black text-white tracking-tight">Paradocs<span className="text-primary-500">.</span></span> All rights reserved.</p>
+            <p>{'\u00A9'} {new Date().getFullYear()} <span className="font-sans font-black text-white tracking-tight">Paradocs<span style={{color:'#9000F0'}}>.</span></span> All rights reserved.</p>
             <p className="mt-2 text-xs text-gray-600">As an Amazon Associate, Paradocs earns from qualifying purchases.</p>
           </div>
         </div>

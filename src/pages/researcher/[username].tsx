@@ -211,7 +211,7 @@ export default function ResearcherProfile() {
         {/* Header */}
         <div className="border-b border-gray-800 bg-gray-950/80 backdrop-blur-sm sticky top-0 z-20">
           <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-            <Link href="/" className="text-primary-400 font-bold text-lg">Paradocs.</Link>
+            <Link href="/" className="font-bold text-lg text-white">Paradocs<span style={{color:'#9000F0'}}>.</span></Link>
             <Link href="/explore" className="text-gray-400 hover:text-white text-sm flex items-center gap-1">
               <ArrowLeft className="w-4 h-4" /> Explore Reports
             </Link>

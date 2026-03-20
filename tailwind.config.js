@@ -21,6 +21,9 @@ module.exports = {
           900: '#2e2a81',
           950: '#1c194b',
         },
+        brand: {
+          purple: '#9000F0',
+        },
         paranormal: {
           ufo: '#22c55e',
           cryptid: '#f59e0b',

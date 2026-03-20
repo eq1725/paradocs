@@ -199,7 +199,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
           <div className="flex items-center justify-between h-14 px-4">
             <Link href="/" className="flex items-center gap-2 text-white">
               <ChevronLeft className="w-4 h-4" />
-              <span className="font-sans font-black text-xl tracking-tight">Paradocs<span className="text-primary-500">.</span></span>
+              <span className="font-sans font-black text-xl tracking-tight">Paradocs<span style={{color:'#9000F0'}}>.</span></span>
             </Link>
             <div className="flex items-center gap-2">
               <NotificationBell />
@@ -215,7 +215,7 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
             <div className="p-4 border-b border-gray-800">
               <Link href="/" className="flex items-center gap-2 text-white hover:text-purple-400 transition-colors">
                 <ChevronLeft className="w-4 h-4" />
-                <span className="font-sans font-black text-xl tracking-tight">Paradocs<span className="text-primary-500">.</span></span>
+                <span className="font-sans font-black text-xl tracking-tight">Paradocs<span style={{color:'#9000F0'}}>.</span></span>
               </Link>
             </div>
 

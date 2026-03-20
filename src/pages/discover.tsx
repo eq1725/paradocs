@@ -285,7 +285,7 @@ export default function DiscoverPage() {
       <div className="fixed top-0 left-0 right-0 z-50 px-3 sm:px-4 pt-[max(0.625rem,env(safe-area-inset-top))] sm:pt-3 pb-2 sm:pb-3 flex items-center justify-between bg-gradient-to-b from-gray-950 via-gray-950/80 to-transparent pointer-events-none">
         <div className="flex items-center gap-2.5 pointer-events-auto">
           <Link href="/">
-            <span className="text-lg sm:text-xl font-bold text-white tracking-tight">Paradocs<span className="text-purple-500">.</span></span>
+            <span className="text-lg sm:text-xl font-bold text-white tracking-tight">Paradocs<span style={{color:'#9000F0'}}>.</span></span>
           </Link>
           {/* Card counter — inline with logo on mobile */}
           <span className="text-[10px] sm:text-xs text-gray-500 bg-gray-900/50 backdrop-blur-sm px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">
