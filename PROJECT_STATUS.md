@@ -368,29 +368,53 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 ---
 
-### 15. AI Experience & Intelligence (NOT STARTED)
+### 15. AI Experience & Intelligence (ACTIVE — Architecture Complete)
 
-**Scope:** All user-facing AI interactions across the product. The AI "brain" that users interact with.
+**Scope:** RAG pipeline, vector embeddings, semantic search, pattern detection, conversational AI, all AI-powered features across the platform.
 
-**Key files (existing):**
-- `src/components/AskTheUnknown.tsx` — Floating AI chat button (on Explore + Report pages)
+**Key files (new — Session 15):**
+- `supabase/migrations/20260320_vector_embeddings.sql` — pgvector tables, HNSW index, search_vectors RPC
+- `src/lib/services/embedding.service.ts` — Core embedding pipeline (chunk, embed, store, search)
+- `src/lib/services/ai-pattern-detection.service.ts` — Geographic, temporal, similarity pattern detection
+- `src/pages/api/admin/ai/embed.ts` — Admin embedding trigger endpoint
+- `src/pages/api/ai/search.ts` — Semantic search API
+- `src/pages/api/ai/patterns.ts` — Pattern detection API
+- `src/pages/api/ai/featured-patterns.ts` — Homepage AI preview (Session 7 Phase 2)
+- `src/pages/api/ai/related.ts` — Search enrichment (Session 7 Phase 3)
+- `src/pages/api/ai/report-similar.ts` — Per-report vector similarity
+- `src/pages/api/ai/chat.ts` — **REWRITTEN** with RAG pipeline + source citations
+
+**Key files (existing, unchanged):**
+- `src/components/AskTheUnknown.tsx` — Floating AI chat button (backward-compatible with new chat endpoint)
 - `src/components/reports/ReportAIInsight.tsx` — Per-report AI analysis section
-- `src/lib/services/report-insights.service.ts` — AI analysis generation (hash-based caching, DB-grounded, anti-hallucination)
+- `src/lib/services/report-insights.service.ts` — AI analysis generation (hash-based caching, DB-grounded)
 - `src/lib/services/ai-insights.service.ts` — Claude-powered pattern narratives
-- `src/pages/api/reports/[slug]/insight.ts` — AI insight API
 
-**Key responsibilities:**
-- **Ask the Unknown** — Chat interface UX, prompt engineering, context injection (current report, user history), response quality, conversation memory
-- **AI Report Analysis** — Per-report insight generation, source grounding, similar case cross-referencing, skeptical/believer modes
-- **AI Search & Natural Language Query** — "Find me military UFO encounters near nuclear facilities" → structured query
-- **AI Cross-Referencing** — Surfacing connections and patterns to users in natural language
-- **AI Voice & Personality** — Consistent Paradocs editorial voice across all AI interactions (informed, balanced, evidence-first)
-- **Provider Management** — Claude primary, OpenAI fallback, cost optimization, rate limiting
-- **AI Intelligence Layer** — Research Hub AI insights (Session 5 Phase 4 overlap — coordinate), weekly deep scan, community pattern detection
+**Database tables (new):** `vector_chunks` (pgvector), `embedding_sync`, `ai_featured_patterns`
 
-**Depends on:** Foundation (API keys, provider config), Session 4 (pattern algorithms feed AI narratives), Session 5 (Research Hub AI integration)
+**Current state (March 20, 2026):**
+- **P0 COMPLETE:** Vector embedding pipeline built. pgvector migration ready. Admin endpoint for bulk/incremental embedding.
+- **P1 COMPLETE:** Semantic search API at `/api/ai/search`. Deduplicates by source, rate-limited by tier.
+- **P2 COMPLETE:** Pattern detection (geographic clusters, temporal spikes, phenomena similarity). API at `/api/ai/patterns`.
+- **P3 COMPLETE:** RAG-powered chat. Embeds query, retrieves top-8 chunks, injects into Claude context. Anti-hallucination rules. Source citations with `[slug:x]` format.
+- **P4 COMPLETE:** Integration endpoints for Session 7 (featured patterns, related search, report similarity).
 
-**Touches other sessions:** Reports (AI Analysis section), Explore (AI-powered recommendations), Dashboard (Research Hub AI insights), Insights (pattern narratives), Search (natural language query), Foundation (provider config, API costs)
+**BLOCKING DEPLOYMENT STEPS:**
+1. Run SQL migration `20260320_vector_embeddings.sql` in Supabase
+2. Set `OPENAI_API_KEY` in Vercel environment variables (needed for embeddings)
+3. Run initial embedding via admin endpoint
+4. Verify `ANTHROPIC_API_KEY` is set in Vercel (should already exist)
+
+**What still needs work:**
+- Incremental embedding hooks (auto-embed on report insert/update)
+- AskTheUnknown UI: parse `[slug:x]` citation format into clickable links
+- Session 7 homepage wiring: consume `/api/ai/featured-patterns`
+- Session 7 search wiring: consume `/api/ai/related`
+- Streaming chat responses for better UX
+- Conversation memory (multi-session)
+- Skeptic/believer mode toggle
+
+**Touches other sessions:** Session 7 (homepage AI preview, search enrichment, "Ask AI" nav), Session 5 (Research Hub AI), Session 4 (complements pattern detection), Session 6a/6b (report similarity), Session 10 (new reports must be embedded after ingestion), Foundation (OPENAI_API_KEY env var)
 
 ---
 
@@ -615,6 +639,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 | Date | Source Session | Note | Affects |
 |------|--------------|------|---------|
+| 2026-03-20 | AI Experience (15) | **RAG pipeline, semantic search, pattern detection, and integration endpoints BUILT.** New DB migration: `20260320_vector_embeddings.sql` (pgvector, vector_chunks, embedding_sync, ai_featured_patterns, search_vectors RPC). New service: `embedding.service.ts` (chunk, embed, search). New service: `ai-pattern-detection.service.ts` (geographic clusters, temporal spikes, phenomena similarity). New endpoints: `/api/ai/search` (semantic), `/api/ai/patterns`, `/api/ai/featured-patterns` (homepage), `/api/ai/related` (search enrichment), `/api/ai/report-similar`. `/api/ai/chat` REWRITTEN with RAG (embeds query, retrieves top-8 chunks, injects into Claude context, returns source citations). Admin endpoint: `/api/admin/ai/embed` for bulk/incremental embedding. **DEPLOYMENT STEPS:** (1) Run SQL migration, (2) Set OPENAI_API_KEY in Vercel, (3) Run initial embedding. Session 7 Phase 2 is now UNBLOCKED for AI features. | Session 7 (homepage AI preview at /api/ai/featured-patterns, search enrichment at /api/ai/related), Session 5 (Research Hub can use /api/ai/search), Session 4 (complements pattern detection), Session 6a/6b (report similarity at /api/ai/report-similar), Session 10 (must embed new reports after ingestion), Foundation (OPENAI_API_KEY env var needed, SQL migration) |
 | 2026-03-19 | Search & Nav (7) | **Phase 1 SHIPPED + AI Experience session QUEUED.** Mobile search icon in Layout.tsx header, legacy stats replaced (4,792/20+/11), TrendingPatternsWidget hidden. AI Experience & Intelligence session is NEXT in the approved sequence. Data context: ~900 approved reports are test data only (will be replaced by mass ingestion). Curated collections (Roswell, Rendlesham) are real. Encyclopedia still being enriched (only Cryptids mostly done). AI system must support incremental re-embedding for encyclopedia updates. Session 7 Phase 2 resumes after AI session delivers RAG pipeline + pattern APIs. | AI Experience (immediate next session), Session 7 (Phase 2 blocked), ALL sessions (four-pillar vision is approved product direction) |
 | 2026-03-19 | Search & Nav (7) | **UX Audit v4 APPROVED (four-pillar vision).** Three-lens audit (UX/Engagement/Vision) produced 20-item phased plan. Key findings: (1) homepage leads with editorial, not the four pillars (Database 5M+, AI Intelligence, Research Dashboard, Discover Feed); (2) mobile has no search; (3) AI layer completely invisible; (4) Discover feed hidden behind ambiguous nav link; (5) legacy 258K stats will be deleted. Phase 1 (trust/access) ready to ship. Phase 2 (hero redesign, AI preview, dashboard preview) BLOCKED on AI Experience session delivering RAG pipeline + pattern APIs. See `Paradocs_UX_Audit_Plan.docx`. | ALL sessions (vision alignment), AI Experience (critical dependency for Phase 2-3), Explore (Discover feed preview planned for homepage), Dashboard (preview card planned for homepage) |
 | 2026-03-19 | Search & Nav (7) | **Homepage + Search + Onboarding overhaul.** Homepage hero rewritten for cold-traffic comprehension, search bar enhanced with quick-search tags, redundant Quick Links removed. Search page rewritten to use `fulltext_search` RPC (was ILIKE), autocomplete added (phenomena table), search mode toggle. SEO meta tags + JSON-LD added. Onboarding consolidated: `UnifiedOnboarding.tsx` replaces WelcomeOnboarding + ThreeTapOnboarding. `explore.tsx` import updated. Layout.tsx minor search bar CSS. See `HANDOFF_SEARCH_NAV.md`. | Explore (explore.tsx onboarding import changed), Foundation (Layout.tsx minor CSS), All sessions (homepage structure changed, Quick Links section removed) |
@@ -646,7 +671,9 @@ Each major feature area has a dedicated Claude session with its own deep context
 | Issue | Blocks | Owner | Status |
 |-------|--------|-------|--------|
 | STRIPE_SECRET_KEY not provided | Subscription checkout flow | Chase | Waiting |
-| OpenAI API balance is $0 | AI chat fallback provider | Chase | Waiting |
+| OpenAI API balance is $0 | AI chat fallback, **vector embeddings** | Chase | **CRITICAL** — must fund for semantic search/RAG |
+| OPENAI_API_KEY not in Vercel env | Semantic search, RAG chat, pattern similarity | Chase | Set in Vercel dashboard |
+| pgvector migration not yet run | All vector-based features | Chase | Run `20260320_vector_embeddings.sql` in Supabase SQL editor |
 | 2 unpushed local commits | Possible code drift | Chase | Waiting |
 
 ---
