@@ -153,6 +153,13 @@ The homepage and site UX must communicate all four pillars:
 ### Session Dependency: AI Experience Session
 Phase 2 items 5-6 and Phase 3 items 13-14 depend on the AI Experience & Intelligence session being at least partially complete. The homepage AI preview and search intelligence features need the RAG pipeline and pattern detection APIs to exist before they can be surfaced in the UI. **Recommendation: Run AI Experience session before resuming Phase 2 of this plan.**
 
+### Data Context for AI Session
+- **~900 approved reports:** Legacy test data from earlier ingestion. Use for developing and testing the AI pipeline. Will be replaced by mass ingestion (5M+). Do NOT treat these as production-quality content.
+- **Curated collections (Roswell 14 reports, Rendlesham 6 reports):** Real editorial content. These persist through mass ingestion and represent the quality bar.
+- **Encyclopedia (4,792 entries):** Only Cryptids category copy is mostly finalized. Other categories are still being enriched. The AI system MUST support incremental re-embedding so encyclopedia updates are reflected in the vector store without full re-indexing.
+- **At launch:** Mass ingestion fills the database with 5M+ filtered reports. The same pipeline built today scales automatically — just re-embed the new data.
+- **Embedding strategy must support:** (a) initial bulk embed of current data, (b) incremental embed on insert/update, (c) manual re-embed endpoint for admin use, (d) full re-index for mass ingestion events.
+
 ---
 
 ## What's Still Needed (Future Sessions)
