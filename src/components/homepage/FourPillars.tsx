@@ -58,7 +58,7 @@ export default function FourPillars() {
     {
       icon: <Database className="w-6 h-6" />,
       title: 'The Database',
-      description: 'We scan millions of sources across the web. Our AI filter evaluates every report for credibility, detail, and corroboration.',
+      description: 'Millions of sources scanned. AI-filtered for credibility. The most comprehensive paranormal database ever built.',
       ctaText: 'Explore',
       ctaHref: '/explore',
       badge: undefined
@@ -66,7 +66,7 @@ export default function FourPillars() {
     {
       icon: <Sparkles className="w-6 h-6" />,
       title: 'AI Intelligence',
-      description: 'Patterns emerge when millions of reports are cross\u2013referenced. Geographic clusters, temporal correlations, phenomena connections no human could find.',
+      description: 'Cross-reference millions of reports to surface patterns no human could find. Geographic clusters, temporal spikes, phenomena connections.',
       ctaText: 'View Insights',
       ctaHref: '/insights',
       badge: undefined
@@ -74,7 +74,7 @@ export default function FourPillars() {
     {
       icon: <LayoutDashboard className="w-6 h-6" />,
       title: 'Research Workspace',
-      description: 'Build case files, collect evidence, map connections with the Constellation graph. Your command center for the unexplained.',
+      description: 'Case files, evidence collection, Constellation graph. Your command center for the unexplained.',
       ctaText: 'Access Dashboard',
       ctaHref: '/dashboard',
       badge: 'Pro'
@@ -82,7 +82,7 @@ export default function FourPillars() {
     {
       icon: <Flame className="w-6 h-6" />,
       title: 'Discover Feed',
-      description: 'Swipe through the unknown. Bigfoot to black triangles, ghost encounters to government files. Your paranormal TikTok.',
+      description: 'Swipe through the unknown. Bigfoot to black triangles, ghost encounters to government files.',
       ctaText: 'Start Swiping',
       ctaHref: '/discover',
       badge: undefined

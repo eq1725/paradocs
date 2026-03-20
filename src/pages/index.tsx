@@ -459,62 +459,24 @@ export default function Home() {
               {heroContent.subheadline}
             </p>
 
-            {/* Dual CTA buttons */}
-            <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link
-                href="/explore"
-                onClick={function() { heroTest.trackClick('start_exploring') }}
-                className="btn btn-primary px-8 py-4 text-lg font-semibold flex items-center gap-2 w-full sm:w-auto justify-center"
-              >
-                <Compass className="w-5 h-5" />
-                Start Exploring
-              </Link>
-              <Link
-                href="/submit"
-                onClick={function() { heroTest.trackClick('share_experience') }}
-                className="px-8 py-4 text-lg font-semibold flex items-center gap-2 rounded-xl border border-white/20 text-white hover:bg-white/5 transition-colors w-full sm:w-auto justify-center"
-              >
-                <MessageCircle className="w-5 h-5" />
-                Share Your Experience
-              </Link>
-            </div>
-
-            {/* Search bar */}
-            <form onSubmit={handleSearch} className="mt-8 max-w-xl mx-auto">
+            {/* Search bar — primary CTA */}
+            <form onSubmit={handleSearch} className="mt-10 max-w-xl mx-auto">
               <div className="relative group">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-primary-400 transition-colors" />
                 <input
                   type="text"
                   placeholder="Search reports, phenomena, locations..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-12 pr-24 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 text-base"
+                  onChange={function(e) { setSearchQuery(e.target.value) }}
+                  className="w-full pl-12 pr-28 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 text-base"
                 />
-                {searchQuery.trim() && (
-                  <button
-                    type="submit"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-primary-500 hover:bg-primary-400 text-white text-sm font-medium rounded-xl transition-colors"
-                  >
-                    Search
-                  </button>
-                )}
-              </div>
-              <div className="flex flex-wrap justify-center gap-2 mt-3">
-                {['Roswell', 'Bigfoot', 'strange lights', 'ghost apparition'].map(function(term) {
-                  return (
-                    <button
-                      key={term}
-                      type="button"
-                      onClick={function() {
-                        setSearchQuery(term)
-                        window.location.href = '/search?q=' + encodeURIComponent(term)
-                      }}
-                      className="px-3 py-1 text-xs text-gray-500 hover:text-gray-300 hover:bg-white/5 rounded-full transition-colors"
-                    >
-                      {term}
-                    </button>
-                  )
-                })}
+                <button
+                  type="submit"
+                  onClick={function() { heroTest.trackClick('search') }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 px-5 py-2.5 bg-primary-500 hover:bg-primary-400 text-white text-sm font-semibold rounded-xl transition-colors"
+                >
+                  Search
+                </button>
               </div>
             </form>
 
@@ -556,533 +518,18 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Tour CTA for new users */}
-            {showTourCTA && (
-              <div className="mt-8 animate-fade-in">
-                <Link
-                  href="/report/the-roswell-incident-july-1947-showcase?tour=true"
-                  className="inline-flex items-center gap-3 px-6 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-105"
-                  style={{
-                    background: 'rgba(144, 0, 240, 0.15)',
-                    border: '1px solid rgba(144, 0, 240, 0.3)',
-                  }}
-                >
-                  <Sparkles className="w-4 h-4 text-primary-400" />
-                  <span>New here? Take a guided tour of the Roswell Incident</span>
-                  <ArrowRight className="w-4 h-4 text-primary-400" />
-                </Link>
-              </div>
-            )}
+            {/* Tour CTA removed — Roswell-specific, bring back when editorial content is promoted properly */}
           </div>
         </div>
       </section>
 
-      {/* Four Pillars — "What Is Paradocs?" (Phase 2) */}
+      {/* === SECTION 2: Four Pillars — "What Is Paradocs?" === */}
       <FourPillars />
 
-      {/* AI Intelligence Preview — consumes /api/ai/featured-patterns (Phase 2) */}
-      <AIPreview />
-
-      {/* Inline email capture — lightweight version between pillars and content (Phase 2 item 10) */}
-      {!emailSuccess && (
-        <section className="py-8">
-          <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-            <form onSubmit={handleEmailSignup} className="flex flex-col sm:flex-row gap-2 items-center">
-              <div className="flex-1 w-full sm:w-auto">
-                <input
-                  type="email"
-                  placeholder="Get weekly paranormal insights \u2014 enter your email"
-                  value={emailInput}
-                  onChange={function(e) { setEmailInput(e.target.value) }}
-                  required
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 text-sm"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={emailSubmitting}
-                className="btn btn-primary px-6 py-3 text-sm whitespace-nowrap"
-              >
-                <Send className="w-4 h-4" />
-                {emailSubmitting ? '...' : 'Subscribe'}
-              </button>
-            </form>
-          </div>
-        </section>
-      )}
-
-      {/* Cinematic Story Spotlight — uses editorial curation when available */}
-      {(featuredInvestigations.length > 0 || spotlightStories.length > 0) ? (
-        <section className="py-6 -mt-2 relative z-10">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            {/* Section header with freshness signal (Phase 2 item 12) */}
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-1 h-6 rounded-full bg-primary-500" />
-              <h2 className="text-lg font-display font-semibold text-white tracking-wide uppercase">
-                Featured Investigation
-              </h2>
-              <span className="ml-auto text-xs text-gray-500 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                {'Updated ' + new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-              </span>
-            </div>
-
-            {/* Primary Featured Story - Full-width cinematic card */}
-            {/* Use editorial featured investigation if available, otherwise fall back to spotlight stories */}
-            <Link
-              href={featuredInvestigations.length > 0
-                ? `/report/${featuredInvestigations[0]?.showcase_slug}`
-                : `/report/${spotlightStories[0]?.slug}`}
-              className="block group"
-            >
-              <div className="relative rounded-2xl overflow-hidden" style={{ minHeight: '520px' }}>
-                {/* Background Image — editorial hero or spotlight fallback */}
-                {(featuredInvestigations[0]?.hero_image_url || spotlightStories[0]?.imageUrl) && (
-                  <img
-                    src={featuredInvestigations[0]?.hero_image_url || spotlightStories[0]?.imageUrl || ''}
-                    alt=""
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-[1.5s] group-hover:scale-[1.03]"
-                    onLoad={() => { setSpotlightImageLoaded(true); setFeaturedHeroLoaded(true) }}
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                  />
-                )}
-                {/* Fallback gradient when no image or loading */}
-                <div className={`absolute inset-0 transition-opacity duration-700 ${
-                  (featuredHeroLoaded || spotlightImageLoaded) && (featuredInvestigations[0]?.hero_image_url || spotlightStories[0]?.imageUrl) ? 'opacity-0' : 'opacity-100'
-                } bg-gradient-to-br from-primary-900 via-gray-900 to-purple-900`} />
-
-                {/* Cinematic gradient overlays - much stronger for readability */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/20" />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 h-2/3 bg-gradient-to-t from-black to-transparent" />
-                {/* Vignette */}
-                <div className="absolute inset-0" style={{ boxShadow: 'inset 0 0 150px 60px rgba(0,0,0,0.5)' }} />
-
-                {/* Content overlay */}
-                <div className="relative z-10 p-6 sm:p-10 md:p-14 lg:p-16 flex flex-col justify-end" style={{ minHeight: '520px' }}>
-                  {/* Bottom content */}
-                  <div className="max-w-2xl">
-                    {/* Category badge */}
-                    {(featuredInvestigations[0]?.category || spotlightStories[0]?.phenomenon) && (
-                      <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-widest mb-4"
-                        style={{ background: 'rgba(144, 0, 240, 0.3)', border: '1px solid rgba(144, 0, 240, 0.4)', color: '#d8b4fe' }}>
-                        {featuredInvestigations[0]
-                          ? (CATEGORY_CONFIG[featuredInvestigations[0].category as keyof typeof CATEGORY_CONFIG]?.label || 'Featured Case')
-                          : spotlightStories[0]?.phenomenon}
-                      </span>
-                    )}
-
-                    <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-display font-bold text-white leading-[1.1] tracking-tight">
-                      {featuredInvestigations[0]?.title || spotlightStories[0]?.title}
-                    </h2>
-
-                    {/* Subtitle (editorial only) */}
-                    {featuredInvestigations[0]?.subtitle && (
-                      <p className="mt-2 text-lg sm:text-xl text-primary-300/80 font-display font-medium">
-                        {featuredInvestigations[0].subtitle}
-                      </p>
-                    )}
-
-                    {/* Location & Date */}
-                    <div className="flex flex-wrap items-center gap-4 mt-4">
-                      {(featuredInvestigations[0]?.location_label || spotlightStories[0]?.location) && (
-                        <span className="flex items-center gap-2 text-sm text-gray-200">
-                          <MapPin className="w-4 h-4 text-primary-400" />
-                          {featuredInvestigations[0]?.location_label || spotlightStories[0]?.location}
-                        </span>
-                      )}
-                      {(featuredInvestigations[0]?.date_label || spotlightStories[0]?.eventDate) && (
-                        <span className="text-sm text-gray-400 before:content-['·'] before:mr-4 before:text-gray-600">
-                          {featuredInvestigations[0]?.date_label || spotlightStories[0]?.eventDate}
-                        </span>
-                      )}
-                      {featuredInvestigations[0]?.report_count && featuredInvestigations[0].report_count > 1 && (
-                        <span className="text-sm text-gray-400 before:content-['·'] before:mr-4 before:text-gray-600">
-                          {featuredInvestigations[0].report_count} witness accounts
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Teaser — editorial blurb or report summary */}
-                    <p className="mt-5 text-base sm:text-lg text-gray-300 line-clamp-3 leading-relaxed">
-                      {featuredInvestigations[0]?.editorial_blurb || spotlightStories[0]?.teaser}
-                    </p>
-
-                    {/* Evidence pills */}
-                    <div className="flex flex-wrap items-center gap-2.5 mt-6">
-                      {spotlightStories[0]?.witnessCount > 0 && (
-                        <span className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm text-white font-medium"
-                          style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)', border: '1px solid rgba(251,191,36,0.25)' }}>
-                          <Users className="w-4 h-4 text-amber-400" />
-                          {spotlightStories[0].witnessCount} Witnesses
-                        </span>
-                      )}
-                      {spotlightStories[0]?.hasEvidence && (
-                        <span className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm text-white font-medium"
-                          style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)', border: '1px solid rgba(74,222,128,0.25)' }}>
-                          <Shield className="w-4 h-4 text-green-400" />
-                          Physical Evidence
-                        </span>
-                      )}
-                      {spotlightStories[0]?.hasMedia && (
-                        <span className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm text-white font-medium"
-                          style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)', border: '1px solid rgba(96,165,250,0.25)' }}>
-                          <Eye className="w-4 h-4 text-blue-400" />
-                          Photos &amp; Video
-                        </span>
-                      )}
-                    </div>
-
-                    {/* CTA button */}
-                    <div className="mt-8">
-                      <span className="inline-flex items-center gap-2.5 px-7 py-3.5 rounded-xl bg-primary-500 text-white font-semibold text-base shadow-lg shadow-primary-500/25 group-hover:bg-primary-400 group-hover:shadow-primary-400/30 group-hover:translate-y-[-1px] transition-all duration-300">
-                        Read the Full Investigation
-                        <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Link>
-
-            {/* Secondary Stories Row — editorial sub-stories or spotlight fallback */}
-            {(() => {
-              const secondaryStories = featuredInvestigations[0]?.stories?.slice(0, 3) ||
-                spotlightStories.slice(1, 4).map(s => ({ id: s.id, title: s.title, slug: s.slug, teaser: s.teaser, imageUrl: s.imageUrl }));
-              return secondaryStories.length > 0;
-            })() && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 sm:gap-4">
-                {(featuredInvestigations[0]?.stories?.slice(0, 3) ||
-                  spotlightStories.slice(1, 4).map(s => ({ id: s.id, title: s.title, slug: s.slug, teaser: s.teaser, imageUrl: s.imageUrl }))
-                ).map((story: any, i: number) => (
-                  <Link
-                    key={story.id}
-                    href={`/report/${story.slug}`}
-                    className="group glass-card overflow-hidden flex flex-row sm:flex-col border border-white/5 hover:border-primary-500/30 hover:bg-white/[0.03] transition-all duration-300"
-                  >
-                    <div className="relative w-28 sm:w-full h-28 sm:h-44 shrink-0 overflow-hidden">
-                      {story.imageUrl ? (
-                        <img
-                          src={story.imageUrl}
-                          alt=""
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                        />
-                      ) : null}
-                      <div className={`absolute inset-0 flex items-center justify-center ${story.imageUrl ? 'hidden' : ''} ${
-                        ['bg-gradient-to-br from-emerald-900/60 to-gray-900',
-                         'bg-gradient-to-br from-purple-900/60 to-gray-900',
-                         'bg-gradient-to-br from-amber-900/60 to-gray-900'][i % 3]
-                      }`}>
-                        <span className="text-4xl opacity-40">
-                          {CATEGORY_CONFIG[story.category as keyof typeof CATEGORY_CONFIG]?.icon || '✨'}
-                        </span>
-                      </div>
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                    </div>
-                    <div className="p-3 sm:p-4 flex-1 min-w-0">
-                      <span className="text-[10px] sm:text-xs font-semibold text-primary-400 uppercase tracking-wider">
-                        {story.phenomenon}
-                      </span>
-                      <h3 className="mt-1.5 text-sm font-display font-semibold text-white line-clamp-2 group-hover:text-primary-300 transition-colors leading-snug">
-                        {story.title}
-                      </h3>
-                      <p className="mt-2 text-xs text-gray-400 line-clamp-3 hidden sm:block leading-relaxed">
-                        {story.teaser}
-                      </p>
-                      <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                        Read more <ArrowRight className="w-3 h-3" />
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-                {/* Fill remaining slots with CTA card to keep 3-column balance */}
-                {spotlightStories.slice(1, 4).length < 3 && (
-                  <Link
-                    href="/explore"
-                    className="group glass-card overflow-hidden flex flex-col border border-dashed border-white/10 hover:border-primary-500/30 hover:bg-white/[0.03] transition-all duration-300 items-center justify-center text-center"
-                    style={{ minHeight: '220px' }}
-                  >
-                    <div className="p-6 flex flex-col items-center gap-3">
-                      <div className="w-14 h-14 rounded-2xl bg-primary-500/10 border border-primary-500/20 flex items-center justify-center group-hover:bg-primary-500/20 group-hover:border-primary-500/40 transition-all">
-                        <Search className="w-6 h-6 text-primary-400" />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-display font-semibold text-white group-hover:text-primary-300 transition-colors">
-                          Explore All Reports
-                        </h3>
-                        <p className="mt-1 text-xs text-gray-500 leading-relaxed">
-                          Browse {stats.total.toLocaleString()}+ documented encounters with powerful filters
-                        </p>
-                      </div>
-                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary-400 mt-1">
-                        Start exploring <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
-                      </span>
-                    </div>
-                  </Link>
-                )}
-              </div>
-            )}
-
-            {/* More Featured Investigations — secondary discovery row for additional case files */}
-            {featuredInvestigations.length > 1 && (
-              <div className="mt-6 sm:mt-8">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-1 h-5 rounded-full bg-amber-500/60" />
-                  <h3 className="text-sm font-display font-semibold text-white/70 tracking-wide uppercase">
-                    More Investigations
-                  </h3>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                  {featuredInvestigations.slice(1).map((inv: any) => (
-                    <Link
-                      key={inv.case_group}
-                      href={'/report/' + inv.showcase_slug}
-                      className="group glass-card overflow-hidden flex flex-row border border-white/5 hover:border-primary-500/30 hover:bg-white/[0.03] transition-all duration-300"
-                    >
-                      <div className="relative w-28 sm:w-36 shrink-0 overflow-hidden">
-                        {inv.hero_image_url ? (
-                          <img
-                            src={inv.hero_image_url}
-                            alt=""
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                            onError={function(e: any) { e.target.style.display = 'none' }}
-                          />
-                        ) : null}
-                        <div className={'absolute inset-0 flex items-center justify-center ' + (inv.hero_image_url ? 'hidden' : 'bg-gradient-to-br from-primary-900/60 to-gray-900')}>
-                          <span className="text-4xl opacity-40">{CATEGORY_CONFIG[inv.category as keyof typeof CATEGORY_CONFIG]?.icon || '\u2728'}</span>
-                        </div>
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/30" />
-                      </div>
-                      <div className="p-3 sm:p-4 flex-1 min-w-0 flex flex-col justify-center">
-                        <span className="text-[10px] sm:text-xs font-semibold text-amber-400/80 uppercase tracking-wider">
-                          {inv.location_label} &middot; {inv.date_label}
-                        </span>
-                        <h4 className="mt-1 text-sm sm:text-base font-display font-semibold text-white line-clamp-2 group-hover:text-primary-300 transition-colors leading-snug">
-                          {inv.title}
-                        </h4>
-                        {inv.subtitle && (
-                          <p className="mt-1 text-xs text-gray-400 line-clamp-1">{inv.subtitle}</p>
-                        )}
-                        <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
-                          {inv.report_count > 1 && (
-                            <span className="flex items-center gap-1">
-                              <Users className="w-3 h-3" /> {inv.report_count} reports
-                            </span>
-                          )}
-                          <span className="inline-flex items-center gap-1 text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                            Investigate <ArrowRight className="w-3 h-3" />
-                          </span>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-      ) : previewCards.length > 0 ? (
-        /* Fallback: Ghost Card Preview Carousel (if no spotlight stories with images) */
-        <section className="py-8 -mt-8 relative z-10">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="relative h-48 sm:h-44">
-              {previewCards.map((card, i) => {
-                const isActive = i === activePreview
-                const isPrev = i === (activePreview - 1 + previewCards.length) % previewCards.length
-                const isNext = i === (activePreview + 1) % previewCards.length
-                if (!isActive && !isPrev && !isNext) return null
-                return (
-                  <Link
-                    key={i}
-                    href={`/report/${card.slug}`}
-                    className={`absolute inset-x-0 mx-auto max-w-2xl transition-all duration-700 ease-out ${
-                      isActive ? 'opacity-100 scale-100 translate-y-0 z-20'
-                        : isPrev ? 'opacity-40 scale-95 -translate-y-4 z-10'
-                        : 'opacity-40 scale-95 translate-y-4 z-10'
-                    }`}
-                  >
-                    <div className="glass-card p-5 sm:p-6 border border-white/10 hover:border-primary-500/30 transition-colors cursor-pointer">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="px-2 py-0.5 rounded-full bg-primary-500/20 text-primary-300 text-xs font-medium">{card.phenomenon}</span>
-                            <span className="text-xs text-gray-500 flex items-center gap-1"><MapPin className="w-3 h-3" /> {card.location}</span>
-                          </div>
-                          <h3 className="text-lg font-display font-semibold text-white truncate">{card.title}</h3>
-                          <p className="mt-2 text-sm text-gray-400 line-clamp-2">{card.teaser}</p>
-                        </div>
-                        <ChevronRight className="w-5 h-5 text-gray-500 shrink-0 mt-1" />
-                      </div>
-                    </div>
-                  </Link>
-                )
-              })}
-            </div>
-            <div className="flex justify-center gap-2 mt-2">
-              {previewCards.map((_, i) => (
-                <button key={i} onClick={() => setActivePreview(i)}
-                  className={`w-2 h-2 rounded-full transition-all ${i === activePreview ? 'bg-primary-400 w-6' : 'bg-white/20 hover:bg-white/40'}`}
-                />
-              ))}
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      {/* Continue Your Research — logged-in users with constellation entries */}
-      {isLoggedIn && researchItems.length > 0 && (
-        <section className="py-10 border-t border-white/5">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center">
-                  <Star className="w-4 h-4 text-purple-400" />
-                </div>
-                <h2 className="text-lg font-display font-bold text-white">Continue Your Research</h2>
-              </div>
-              <Link href="/dashboard/constellation" className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1">
-                Your constellation <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {researchItems.map(item => {
-                const config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
-                const verdictMap: Record<string, { icon: string; color: string }> = {
-                  compelling: { icon: '✦', color: 'text-amber-400' },
-                  inconclusive: { icon: '◐', color: 'text-blue-400' },
-                  skeptical: { icon: '⊘', color: 'text-gray-400' },
-                  needs_info: { icon: '?', color: 'text-purple-400' },
-                }
-                const v = verdictMap[item.verdict] || verdictMap.needs_info
-                return (
-                  <Link
-                    key={item.id}
-                    href={`/report/${item.slug}`}
-                    className="group flex items-center gap-3 p-3 bg-white/[0.02] border border-white/5 rounded-xl hover:border-purple-500/30 hover:bg-white/[0.04] transition-all"
-                  >
-                    <span className={`text-lg ${v.color} shrink-0`}>{v.icon}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm text-white font-medium truncate group-hover:text-purple-300 transition-colors">{item.name}</div>
-                      <div className="text-xs text-gray-500 truncate">
-                        {config?.label || item.category.replace(/_/g, ' ')}
-                        {item.note && ` · ${item.note.substring(0, 40)}${item.note.length > 40 ? '...' : ''}`}
-                      </div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-gray-600 group-hover:text-purple-400 shrink-0 transition-colors" />
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Categories Grid */}
-      <section className="py-12 border-t border-white/5">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-display font-bold text-white">
-              Explore by Category
-            </h2>
-            <Link href="/explore" className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1">
-              View all <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-            {categories.map(([key, config]) => (
-              <Link
-                key={key}
-                href={`/explore?category=${key}`}
-                className="glass-card p-4 text-center hover:scale-105 transition-transform group relative"
-              >
-                <span className="text-3xl block mb-2 group-hover:scale-110 transition-transform">
-                  {config.icon}
-                </span>
-                <h3 className="font-medium text-white text-xs sm:text-sm">{config.label}</h3>
-                {categoryCounts[key] > 0 && (
-                  <span className="text-[10px] text-gray-400 mt-1 block">
-                    {categoryCounts[key].toLocaleString()} reports
-                  </span>
-                )}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Discover Feed Preview (Phase 2) */}
+      {/* === SECTION 3: Product Taste — Discover/Stories Preview === */}
       <DiscoverPreview />
 
-      {/* Recent Reports — consolidated from Featured + Latest (Phase 2 item 11) */}
-      <section className="py-12 border-t border-white/5">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-display font-bold text-white">Recent Reports</h2>
-            <Link href="/explore" className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1">
-              Explore all <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-          {loading ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[...Array(6)].map(function(_, i) {
-                return <div key={i} className="glass-card p-5 h-32 skeleton" />
-              })}
-            </div>
-          ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {recentReports.map(function(report) {
-                return <ReportCard key={report.id} report={report} />
-              })}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Phenomena Encyclopedia */}
-      {featuredPhenomena.length > 0 && (
-        <section className="py-12 border-t border-white/5">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-xl font-display font-bold text-white">Phenomena Encyclopedia</h2>
-                <p className="text-gray-400 text-sm mt-1">Creatures, entities, and unexplained phenomena</p>
-              </div>
-              <Link href="/phenomena" className="text-sm text-amber-400 hover:text-amber-300 flex items-center gap-1">
-                Browse all <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-              {featuredPhenomena.map((phenomenon) => (
-                <Link
-                  key={phenomenon.id}
-                  href={`/phenomena/${phenomenon.slug}`}
-                  className="glass-card overflow-hidden group hover:scale-105 transition-transform"
-                >
-                  <div className="aspect-square relative">
-                    <ImageWithFallback
-                      src={phenomenon.primary_image_url}
-                      alt={phenomenon.name}
-                      category={phenomenon.category}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                  </div>
-                  <div className="p-2 sm:p-3">
-                    <h3 className="font-medium text-white text-xs sm:text-sm truncate">{phenomenon.name}</h3>
-                    <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">{phenomenon.report_count?.toLocaleString() || 0} reports</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Research Dashboard Preview (Phase 2) */}
-      <DashboardPreview />
-
-      {/* Email Capture + CTA Section */}
+      {/* === SECTION 4: Email Capture === */}
       <section className="py-16 border-t border-white/5 bg-gradient-to-b from-transparent to-primary-900/10">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl md:text-3xl font-display font-bold text-white">
@@ -1095,7 +542,7 @@ export default function Home() {
           {emailSuccess ? (
             <div className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-green-500/10 border border-green-500/30 text-green-300">
               <Shield className="w-5 h-5" />
-              <span>You're in! Check your inbox for a welcome message.</span>
+              <span>You{'\u2019'}re in! Check your inbox for a welcome message.</span>
             </div>
           ) : (
             <form onSubmit={handleEmailSignup} className="mt-6 max-w-md mx-auto flex gap-2">
@@ -1103,7 +550,7 @@ export default function Home() {
                 type="email"
                 placeholder="your@email.com"
                 value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
+                onChange={function(e) { setEmailInput(e.target.value) }}
                 required
                 className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
               />
@@ -1117,19 +564,23 @@ export default function Home() {
               </button>
             </form>
           )}
-
-          <div className="mt-10 pt-8 border-t border-white/5">
-            <h3 className="text-lg font-display font-semibold text-white">Have a Report to Share?</h3>
-            <p className="mt-2 text-gray-400 text-sm">
-              Witnessed something unexplainable? Your experience matters.
-            </p>
-            <Link href="/submit" className="mt-4 inline-flex btn btn-primary px-6 py-3">
-              <FileText className="w-5 h-5" />
-              Submit a Report
-            </Link>
-          </div>
         </div>
       </section>
+
+      {/* === REMOVED SECTIONS (components preserved, removed from render) ===
+          - AIPreview: bring back after mass ingestion populates real patterns
+          - Inline email capture: one at bottom is enough
+          - Featured Investigation (Roswell): bring back when 4+ investigations exist
+          - Secondary stories row: part of Featured Investigation
+          - Ghost card preview carousel: fallback, no longer needed
+          - More Investigations (Rendlesham): bring back when >= 3 investigations
+          - Continue Your Research: logged-in feature, belongs in dashboard
+          - Categories Grid: duplicates Explore page nav
+          - Recent Reports: duplicates Discover preview
+          - Phenomena Encyclopedia: duplicates Encyclopedia nav
+          - DashboardPreview: covered by Four Pillars Research Workspace card
+          - Submit a Report CTA: power-user action, belongs on report pages
+      */}
     </>
   )
 }

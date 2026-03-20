@@ -140,6 +140,28 @@ The homepage and site UX must communicate all four pillars:
 11. ~~Section consolidation~~ — merged Featured + Latest Reports into single "Recent Reports"; removed old Trending Patterns
 12. ~~Freshness signals~~ — "Updated [month year]" badge with green pulse dot on Featured Investigation header
 
+### Homepage Cleanup — Cut to 5 Sections (March 20, 2026)
+Cut homepage from 14 sections to 4 clean sections. Follows SaaS conversion research: What is this? → What can I do? → Let me try it → How do I stay connected?
+
+**Final page structure:**
+1. **Hero** — A/B headline, one subtext line, search bar (always-visible button), 4 stat pills. Removed: quick-search tags, dual CTAs (kept search as primary), tour CTA.
+2. **Four Pillars** — "What Is Paradocs?" 4 cards (Database, AI Intelligence, Research Workspace, Discover Feed). Copy tightened to punchy fragments.
+3. **Discover Preview** — 3-4 real report cards + "Start Swiping" CTA. Lowest friction product taste.
+4. **Email Capture** — "Stay Connected to the Unknown." Single input, one button. Removed: Submit a Report CTA (belongs on report pages).
+
+**Removed from render (components preserved):**
+- AIPreview — bring back after mass ingestion populates real AI patterns
+- Inline email capture (between pillars) — one at bottom is enough
+- Featured Investigation (Roswell cinematic) — bring back when 4+ investigations exist
+- Secondary stories row, ghost card carousel — part of Featured Investigation
+- More Investigations (Rendlesham) — bring back when >= 3 featured investigations
+- Continue Your Research — logged-in feature, better served by dashboard
+- Categories Grid — duplicates Explore page
+- Recent Reports — duplicates Discover preview
+- Phenomena Encyclopedia — duplicates Encyclopedia nav
+- DashboardPreview — covered by Four Pillars Research Workspace card
+- Submit a Report CTA — power-user action, doesn't belong on homepage
+
 ### Phase 3: Depth & Scale Readiness — SHIPPED (March 20, 2026)
 13. ~~AI-powered "Related Patterns"~~ — search results now fetch `/api/ai/related` and show AI-matched patterns with similarity scores
 14. ~~Search page rebranded~~ — "AI-Powered Search" header, updated description, AI pattern cards in results

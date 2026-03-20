@@ -24,19 +24,39 @@ Paradocs operates on three layers, each serving a distinct audience but sharing 
 
 ---
 
-## Critical Sequencing — DO NOT SKIP
+## Critical Sequencing
 
-Mass ingestion cannot happen until the foundation is right. The order matters:
+> **REVISED March 20, 2026.** The original A → B → C waterfall (encyclopedia complete → curated reports complete → mass ingestion) has been replaced. Encyclopedia enrichment and curated editorial content are valuable but are NOT blockers to launch. The four pillars — Database Scale, AI Intelligence, Research Dashboard, Stories Feed — are the product. Encyclopedia and editorial are parallel value-adds that improve continuously.
 
-**Phase A: Encyclopedia (the schema).** The 4,792 phenomena entries are the structural taxonomy that every report classifies against. All 11 categories need the full 7-field AI enrichment treatment completed to the same standard as the cryptid category (208/208 done). This defines what "good" looks like for phenomena content and ensures reports have a complete, high-quality taxonomy to classify into. Without this, mass ingestion produces unclassifiable or poorly organized data.
+### Launch Path (Critical — MVP)
 
-**Phase B: Perfect Reports (the quality bar).** The Roswell cluster and related curated witness entries are the gold standard — what a report should look like with the right balance of text content, rich media, and external links. These are still under development. They set the display standard, the data model expectations, and the UX patterns that every other report will follow. The current ~900 approved reports and ~2M hidden Reddit reports are essentially test data from pipeline development — most will need to be removed or re-ingested through the final pipeline.
+The critical path to launch is now:
 
-**Phase C: Mass Ingestion (the scale).** Only after the encyclopedia is complete and the perfect reports establish the quality bar do you open the floodgates — YouTube, Erowid, MUFON, forums, podcasts, everything. At that point the taxonomy is locked, the quality standard is defined, and the pipeline knows what "good" looks like. Every report ingested will classify cleanly against the encyclopedia and display to the standard set by the curated reports.
+1. **Data cleanup** — Delete ~2M hidden Reddit dev data. Re-ingest the ~900 existing approved reports through the final pipeline (or delete and replace with fresh ingestion). Start clean.
+2. **Mass ingestion at scale** — Open the floodgates: YouTube, Erowid, MUFON, Reddit (fresh), forums, podcasts, news, academic papers, government docs. Target: millions of reports. The 4,792 phenomena entries already provide a basic taxonomy for classification — entries don't need full AI enrichment to serve as classification targets.
+3. **Embedding pipeline at scale** — Embed all ingested reports into pgvector for semantic search and RAG. Pipeline exists and is tested (Session 15). Cost: ~$500-600 for 5M reports.
+4. **Subscription & payments** — Stripe integration, checkout flow, tier gating. Blocked on Stripe key.
+5. **Closed beta (~2 weeks)** — Alpha group + friends & family testing with real content at scale. Iterate on quality, performance, and UX.
+6. **Public launch** — Open to the world.
 
-**Current data status:** Existing site content is test data. The ~2M hidden Reddit reports are development data. Neither represents launch quality. The curated Roswell/witness cluster is the seed of what launch content will look like, but it's not finished yet.
+### Parallel Tracks (Ongoing — Not Blockers)
 
-**Design implications:** All feature sessions — especially Mobile-First Design and any UX work — must design for three content layers simultaneously: (1) the curated perfect reports and enriched encyclopedia content that will define launch quality, (2) the Research Hub and user-generated artifacts, where users add their own URLs, media, notes, case files, and connections across 16+ source types (YouTube, Reddit, Twitter/X, TikTok, podcasts, academia, government docs, etc.), and (3) the eventual scale of millions of aggregated reports. The dashboard is not a passive display — it's an active research workspace with multi-view architecture (Board/Timeline/Map/Constellation), artifact cards, detail drawers, quick-add flows, and external URL extraction. Mobile design must account for all of this interactive complexity, not just content browsing.
+These improve the product continuously but do not gate launch:
+
+- **Encyclopedia enrichment (Session 1)** — Enrich the 7 AI fields across all 11 categories. Each batch makes encyclopedia pages richer and improves semantic search. Cryptids (208/208) are the model. Work category by category, no deadline pressure.
+- **Curated editorial content (Session 6a)** — Build more Featured Investigation clusters (Skinwalker Ranch, Phoenix Lights, Ariel School, etc.). Each adds a premium showcase to the homepage. These are the "Netflix Originals" — they draw people in but the library is the product.
+- **Email & engagement (Session 9)** — Onboarding drips, weekly digests, smart alerts, winback. Retention infrastructure.
+
+### Data Status
+
+- **~900 approved reports:** Test data from pipeline development. Will be re-ingested through the final pipeline to ensure consistent quality.
+- **~2M hidden Reddit reports:** Development data from pipeline testing. Will be deleted entirely. Fresh ingestion through the expanded source list will replace these.
+- **20 curated reports (Roswell 14 + Rendlesham 6):** Real editorial content. These persist through all data operations — they are hand-crafted and not affected by pipeline changes.
+- **4,792 phenomena entries:** Basic taxonomy exists across all 11 categories. Only cryptids (208) have full AI enrichment. The basic entries are sufficient for report classification; enrichment improves the encyclopedia pages themselves.
+
+### Design Implications
+
+All feature sessions must design for two content realities simultaneously: (1) the mass-ingested database at scale (millions of reports with basic metadata, pipeline-generated quality), and (2) the curated premium layer (Featured Investigations, enriched encyclopedia, editorial content). The Research Hub and user-generated artifacts (16+ source types) represent a third layer where users add their own research. The dashboard is an active research workspace, not a passive display.
 
 ---
 
@@ -74,11 +94,11 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 4 | **Insights & Pattern Analysis** | Pattern detection algorithms, AI narratives, skeptic mode, trending, methodology | `HANDOFF_INSIGHTS.md` | Not started |
 | 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
 | 6a | **Report Experience — Curated Content** | Handcrafted case files, editorial enrichment, Featured Investigations, curated media, book recommendations | `HANDOFF_REPORTS.md` | Active — 20 reports across 2 case clusters (Roswell 14 + Rendlesham 6), credibility rationales, badge redesign, homepage discovery row |
-| 6b | **Report Experience — Ingestion & Scale** | Reports from mass ingestion pipeline, quality templates, automated enrichment, connection generation at scale | `HANDOFF_REPORTS_INGESTION.md` | Not started — blocked by Phase C (mass ingestion) |
-| 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO | `HANDOFF_SEARCH_NAV.md` | COMPLETE — All phases shipped (homepage redesign, fulltext search, A/B testing, SEO, onboarding consolidation, AI integration) |
+| 6b | **Report Experience — Ingestion & Scale** | Reports from mass ingestion pipeline, quality templates, automated enrichment, connection generation at scale | `HANDOFF_REPORTS_INGESTION.md` | Not started — NOW UNBLOCKED (March 20 strategic revision) |
+| 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO, color system | `HANDOFF_SEARCH_NAV.md` | COMPLETE — All phases shipped + color system overhaul (indigo→purple #9000F0 across 13 files) |
 | 8 | **Subscription & Monetization** | Stripe checkout, paywall, tier system, billing portal, cancellation | `HANDOFF_SUBSCRIPTION.md` | Not started |
 | 9 | **Email & Engagement** | Weekly digests, drip campaigns, smart alerts, winback, notifications | `HANDOFF_EMAIL.md` | Not started |
-| 10 | **Data Ingestion & Pipeline** | Source adapters, quality filters, dedup, bulk import, media extraction | `HANDOFF_INGESTION.md` | Not started |
+| 10 | **Data Ingestion & Pipeline** | Source adapters, quality filters, dedup, bulk import, media extraction | `HANDOFF_INGESTION.md` | Not started — NOW UNBLOCKED and ON CRITICAL LAUNCH PATH (March 20 strategic revision) |
 | 11 | **Admin & Operations** | Admin dashboard, batch operations, cron jobs, A/B testing, monitoring | `HANDOFF_ADMIN.md` | Not started |
 | 12 | **Foundation & Infrastructure** | Shared components, auth/RLS, database schema, deployment, performance, SEO | `HANDOFF_FOUNDATION.md` | Not started |
 | 13 | **Mobile-First Design System** | Cross-cutting mobile UX: bottom tabs, bottom sheets, design tokens, screen-by-screen redesign | `HANDOFF_MOBILE.md` | Active — Phase 1-2 + 3a + Nav Unification deployed. Screen-by-screen redesign next. |
@@ -101,13 +121,16 @@ Each major feature area has a dedicated Claude session with its own deep context
 - Total phenomena: 4,792 entries across 11 categories
 - Quality standard: 7 AI fields populated, character minimums, verified sources, no fabrication
 
-**What's next (PHASE A — blocks mass ingestion):**
+**What's next (parallel track — no longer blocks mass ingestion):**
+
+> **STATUS CHANGE (March 20):** Encyclopedia enrichment is now a parallel value-add, not a launch blocker. The 4,792 basic entries provide sufficient taxonomy for report classification. Enrichment improves encyclopedia pages and semantic search quality but is not required before mass ingestion proceeds.
+
 - Enrich remaining categories beyond cryptids (UFOs, ghosts, etc.) with the full 7-field treatment (ai_description, ai_characteristics, ai_theories, ai_paradocs_analysis, ai_quick_facts, ai_summary, primary_regions)
-- The encyclopedia serves as the structural taxonomy/schema — every ingested report classifies against it, so it must be complete and high-quality before mass ingestion begins
+- Each enriched batch should be re-embedded via Session 15's embedding pipeline (`/api/admin/ai/embed`) to improve semantic search
 - Media enrichment (images for phenomena entries)
 - Cross-link phenomena to reports more comprehensively
 
-**Touches other sessions:** Discover (ai_summary affects feed cards), Search (content affects search results), Reports (phenomena links on report pages)
+**Touches other sessions:** Discover (ai_summary affects feed cards), Search (content affects search results), Reports (phenomena links on report pages), AI Experience (enriched entries improve semantic search when re-embedded)
 
 ---
 
@@ -304,7 +327,10 @@ Each major feature area has a dedicated Claude session with its own deep context
 - **Corso media:** 2 YouTube videos added to Philip Corso report.
 - **Lesson learned:** Wikimedia hash paths from research agents are frequently wrong. Must verify via Wikimedia API (`action=query&prop=imageinfo&iiprop=url`). Vercel serverless functions cannot access repo root files — use local Node.js scripts for file uploads.
 
-**What still needs work (Session 6a — Curated Content):**
+**What still needs work (Session 6a — Curated Content, parallel track — not a launch blocker):**
+
+> **STATUS CHANGE (March 20):** Curated editorial content is a parallel value-add, not a launch prerequisite. The 20 existing reports (Roswell + Rendlesham) are premium showcases. More clusters add value but mass ingestion and launch do not depend on them.
+
 - **Next curated case files:** Skinwalker Ranch, Phoenix Lights, Ariel School, etc. — each follows the Roswell/Rendlesham pattern (showcase + witness cluster + editorial enrichment + book recommendations + credibility rationales + YouTube videos + witness portraits)
 - **Phenomenon type taxonomy cleanup (PM decision):** All 14 Roswell + 6 Rendlesham reports have `phenomenon_type` set to "Notable Case" — a placeholder. Need to add "Crash & Retrieval", "Military Encounter", etc. to `phenomenon_types` table. Badge display already filters "Notable Case" so this is data-quality only.
 - Did You Know? cross-phenomenon connections need cross-category report data (Stargate Project etc.)
@@ -317,11 +343,11 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 ---
 
-### 6b. Report Experience — Ingestion & Scale (NOT STARTED)
+### 6b. Report Experience — Ingestion & Scale (NOT STARTED — NOW UNBLOCKED)
 
 **Scope:** Reports generated from mass ingestion pipeline. Quality templates, automated enrichment, connection generation at scale, automated media sourcing.
 
-**Depends on:** Phase A (encyclopedia complete) and Phase B (curated quality bar set by Session 6a).
+**Depends on:** Session 10 (ingestion pipeline running). ~~Phase A (encyclopedia complete) and Phase B (curated quality bar set by Session 6a)~~ — dependency removed March 20. Encyclopedia and editorial are parallel tracks.
 
 **Key responsibilities:**
 - Define quality templates for ingested reports (minimum description length, required fields, credibility scoring)
@@ -451,7 +477,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 3. ~~Session 7 Phase 2~~ — SHIPPED (March 20): Four new homepage components, A/B variants updated, section consolidation
 4. ~~Session 7 Phase 3~~ — SHIPPED (March 20): AI search results, Save Search, NotificationBell, Ask AI nav, Stories rename, launch stats
 
-**ALL PHASES COMPLETE + COLOR OVERHAUL.** Session 7 scope fully delivered. Color system overhauled: entire primary palette shifted from indigo (#5B63F1) to brand purple (#9000F0) in tailwind.config.js + 37 hardcoded inline replacements across 13 files. Design brief v3 with full palette documentation at `Paradocs_Design_Brief.docx`.
+**ALL PHASES COMPLETE + COLOR OVERHAUL + HOMEPAGE CLEANUP.** Homepage cut from 14 sections to 4: Hero (search-forward), Four Pillars, Discover Preview, Email Capture. All removed sections preserved as components for future restoration. Color system overhauled: primary palette shifted from indigo (#5B63F1) to brand purple (#9000F0). Design brief v3 at `Paradocs_Design_Brief.docx`.
 
 **Touches other sessions:** ALL sessions (primary color changed globally — every Tailwind primary-* class now renders purple instead of indigo), Session 13 (mobile nav colors updated), Session 5 (DashboardLayout colors + NotificationBell), Session 6a (report page inline styles updated), AI Experience (all sessions share new palette)
 
@@ -525,27 +551,30 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Database tables:** `reports`, `ingestion_logs`
 
-**Current state:** Pipeline locked in and tested on ~2,500 reports. 8 source adapters (NUFORC, BFRO, Reddit, NDERF, IANDS, Ghosts of America, Shadowlands, Wikipedia). Quality filter, dedup, title improvement, location parsing. ~900 approved reports currently live (TEST DATA — not launch quality). ~2M Reddit reports ingested but hidden (development data — will be wiped or re-ingested). **Mass ingestion is blocked until Phase A (encyclopedia) and Phase B (perfect reports) are complete — see Critical Sequencing section.**
+**Current state:** Pipeline locked in and tested on ~2,500 reports. 8 source adapters (NUFORC, BFRO, Reddit, NDERF, IANDS, Ghosts of America, Shadowlands, Wikipedia). Quality filter, dedup, title improvement, location parsing. ~900 approved reports currently live (TEST DATA — will be re-ingested through final pipeline). ~2M Reddit reports ingested but hidden (development data — will be deleted entirely).
 
-**What needs work:**
-- Curate to 1,000 "perfect" reports for alpha (need ~100 more from diverse sources)
-- **Massive source expansion** (see Product Vision — aggregate everything legally available):
-  - YouTube: video metadata, transcripts, comments (paranormal channels, witness testimony, documentary clips)
-  - Erowid: trip reports (consciousness, DMT entities, altered states)
-  - MUFON: case files (if API/scraping access available)
-  - Podcast transcripts: major paranormal podcasts (Coast to Coast, Mysterious Universe, etc.)
-  - News articles: mainstream and alternative coverage of paranormal events
-  - Academic papers: parapsychology journals, consciousness studies
-  - Government documents: AARO, Project Blue Book, FOIA releases
-  - Forums: AboveTopSecret, Phantoms & Monsters, specialized communities
-  - Books: public domain and fair-use excerpts
-- Pipeline monitoring and error alerting
-- Automated scheduled ingestion (cron optimization)
-- Content viability checks at scale
-- De-archive or re-ingest Reddit data through final pipeline (Phase 4)
-- Scale target: tens of millions of reports, all consistent quality
+> **STATUS CHANGE (March 20):** Mass ingestion is now UNBLOCKED. Encyclopedia enrichment and curated editorial content are parallel tracks, not prerequisites. See revised Critical Sequencing section.
 
-**Touches other sessions:** Encyclopedia (phenomena linking after ingestion), Map (location quality), Reports (report quality), Search (searchable content), Insights (more data = better patterns)
+**What needs work (Priority Order):**
+1. **Data cleanup:** Delete ~2M hidden Reddit dev data. Re-ingest ~900 existing approved reports through final pipeline (or delete and replace).
+2. **Source adapter expansion** (aggregate everything legally available):
+   - YouTube: video metadata, transcripts, comments (paranormal channels, witness testimony, documentary clips)
+   - Erowid: trip reports (consciousness, DMT entities, altered states)
+   - MUFON: case files (if API/scraping access available)
+   - Podcast transcripts: major paranormal podcasts (Coast to Coast, Mysterious Universe, etc.)
+   - News articles: mainstream and alternative coverage of paranormal events
+   - Academic papers: parapsychology journals, consciousness studies
+   - Government documents: AARO, Project Blue Book, FOIA releases
+   - Forums: AboveTopSecret, Phantoms & Monsters, specialized communities
+   - Reddit: fresh ingestion through final pipeline (replace deleted dev data)
+   - Books: public domain and fair-use excerpts
+3. **Mass ingestion run** — target 1M+ for closed beta, 5M+ for public launch
+4. **Post-ingestion embedding** — embed all new reports into pgvector (Session 15 pipeline). ~$500-600 for 5M reports.
+5. Pipeline monitoring and error alerting
+6. Automated scheduled ingestion (cron optimization)
+7. Content viability checks at scale
+
+**Touches other sessions:** AI Experience (new reports must be embedded after ingestion), Map (location quality + geocoding at scale), Reports (report quality), Search (searchable content), Insights (more data = better patterns), Encyclopedia (phenomena linking after ingestion)
 
 ---
 
@@ -642,7 +671,11 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 | Date | Source Session | Note | Affects |
 |------|--------------|------|---------|
+| 2026-03-20 | Search & Nav (7) | **HOMEPAGE CLEANUP: 14 sections cut to 4.** Hero (search-forward, removed dual CTAs + quick-search tags + tour CTA), Four Pillars (tightened copy), Discover Preview (product taste), Email Capture (clean, no Submit CTA). Removed from render but components preserved: AIPreview, Featured Investigation (Roswell), secondary stories, More Investigations, Categories Grid, Recent Reports, Encyclopedia, DashboardPreview, Continue Your Research, inline email, Submit CTA. All removable sections can be restored by re-adding JSX in index.tsx. No component files deleted. | Session 6a (Featured Investigation hidden until 4+ investigations exist), Explore (categories section removed from homepage but /explore unchanged), Dashboard (DashboardPreview hidden, Four Pillars card covers it), ALL sessions (homepage structure dramatically simplified) |
+| 2026-03-20 | **PM Session** | **STRATEGIC SHIFT: Encyclopedia and curated editorial content are NO LONGER launch blockers.** The old A→B→C waterfall (encyclopedia complete → curated reports → mass ingestion) has been replaced. Mass ingestion is now UNBLOCKED. The four pillars (Database Scale, AI Intelligence, Research Dashboard, Stories Feed) are the MVP. Encyclopedia enrichment and curated editorial content continue as parallel value-adds. Data cleanup: ~2M Reddit dev data will be deleted entirely; ~900 test reports will be re-ingested through final pipeline. Launch path: data cleanup → mass ingestion → embedding → Stripe/subscription → closed beta (2 weeks) → public launch. | **ALL sessions** — especially Session 10 (now on critical path), Session 6b (now unblocked), Session 1 (no longer a blocker), Session 6a (no longer a blocker), Session 8 (Stripe key now on critical path) |
+|------|--------------|------|---------|
 | 2026-03-20 | Search & Nav (7) | **FULL COLOR SYSTEM OVERHAUL.** Primary palette in tailwind.config.js shifted from indigo (#5B63F1, H:236°) to brand purple (#9000F0, H:271°). Full 50-950 scale replaced. 37 hardcoded inline color references updated across 13 source files (#5b63f1→#9000f0, #4f46e5→#7a00cc, rgba(91,99,241)→rgba(144,0,240)). Logo period set to #9000F0 on all 6 instances. Accent gradient: purple→pink (#9000f0→#f472b6). Design brief v3 documents full deployed palette. **Every Tailwind primary-\* class across the entire app now renders purple.** | ALL sessions (global color change — buttons, links, badges, focus rings, gradients all shifted from indigo to purple), Foundation (tailwind.config.js modified), Session 13 (mobile nav inherits new colors), Session 5 (dashboard inherits), Session 6a (report page inline styles updated) |
+| 2026-03-20 | Search & Nav (7) | **COLOR SYSTEM OVERHAUL: Primary palette changed from indigo (#5B63F1) to brand purple (#9000F0).** Full Tailwind primary scale rewritten in tailwind.config.js (50-950). 37 hardcoded inline color replacements across 13 files (index.tsx, Layout.tsx, DashboardLayout.tsx, discover.tsx, search.tsx, explore.tsx, report/[slug].tsx, globals.css, etc.). `rgba(91,99,241)` → `rgba(144,0,240)`. `#4f46e5` → `#7a00cc`. Accent gradient: purple→pink (#9000f0→#f472b6). New `brand.purple` Tailwind utility. Design brief v3: `Paradocs_Design_Brief.docx`. **ALL sessions must use `primary-*` Tailwind classes (now purple) — do NOT introduce new hardcoded indigo/blue values.** | ALL sessions (every Tailwind primary-* class now renders purple), Foundation (tailwind.config.js + globals.css modified), Session 13 (mobile nav colors), Session 5 (DashboardLayout), Session 6a (report page) |
 | 2026-03-20 | Mobile Design (13) | **MobileBottomTabs FAB label renamed "Discover" → "Stories"** to match Session 7's desktop nav rename. Route unchanged (`/discover`). Component comment updated. | Explore (label change only, no functional change), All sessions (mobile nav label updated) |
 | 2026-03-20 | Dashboard (5) | Desktop header bell icon in DashboardLayout.tsx replaced with Session 7's functional `<NotificationBell />` component. Static `<button>` with hardcoded purple dot removed. | Search & Nav (Session 7 component now used on both mobile and desktop headers) |
 | 2026-03-20 | Search & Nav (7) | **Session 7 ALL PHASES COMPLETE.** Phase 1: mobile search icon, real stats, hidden placeholders. Phase 2: FourPillars, AIPreview, DashboardPreview, DiscoverPreview components on homepage; A/B variants updated for AI+scale messaging; section consolidation 9→6; inline email capture; freshness signals. Phase 3: AI Related Patterns in search results (fetches /api/ai/related); Save Search + Get Alerts soft-wall; NotificationBell component (replaces non-functional bell in DashboardLayout); "Ask AI" nav item replacing "Insights"; "Discover" renamed to "Stories"; header search hidden on /search; AI gradient stat badge. Desktop nav now: Explore, Map, Encyclopedia, Ask AI, Stories. | ALL sessions (nav changed globally), Session 13 (mobile nav — "Stories" label should be coordinated), Session 5 (Dashboard — NotificationBell replaces bell buttons), Session 15 (AI — /api/ai/related and /api/ai/featured-patterns now consumed by homepage+search) |
@@ -678,8 +711,10 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 | Issue | Blocks | Owner | Status |
 |-------|--------|-------|--------|
-| STRIPE_SECRET_KEY not provided | Subscription checkout flow | Chase | Waiting |
-| ~3,600 phenomena not yet embedded | Full semantic search coverage for encyclopedia | Chase | Re-run embed batches with staggered timing (see HANDOFF_AI_EXPERIENCE.md) |
+| STRIPE_SECRET_KEY not provided | Subscription checkout flow (Session 8) — **on critical launch path** | Chase | Waiting |
+| ~2M hidden Reddit dev data needs deletion | Clean database for mass ingestion | Session 10 | Pending — first task when Session 10 starts |
+| ~900 approved test reports need re-ingestion or deletion | Clean database for mass ingestion | Session 10 | Pending — re-ingest through final pipeline |
+| ~3,600 phenomena not yet embedded | Full semantic search coverage for encyclopedia | Chase | Re-run embed batches with staggered timing (see HANDOFF_AI_EXPERIENCE.md). NOT a launch blocker — improves search quality incrementally. |
 
 ---
 
@@ -704,15 +739,15 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 ## Content Targets
 
-| Metric | Current | Launch Target | Scale Target | Notes |
-|--------|---------|-------------|-------------|-------|
-| Curated "perfect" reports | In progress (Roswell cluster) | Enough to set the quality bar | — | **PHASE B** — must complete before mass ingestion |
-| Approved reports (test data) | ~900 | To be removed/replaced | — | Current content is test data, not launch quality |
-| Reddit reports (dev data) | ~2M (hidden) | To be wiped or re-ingested | — | Development data from pipeline testing |
-| Phenomena entries (encyclopedia) | 4,792 | All 11 categories fully enriched | 10,000+ | **PHASE A** — must complete before mass ingestion |
-| Cryptid entries enriched | 208/208 | 208/208 | — | 100% COMPLETE — model for other categories |
-| Other categories enriched | Partial | All 11 categories | — | Next encyclopedia session work |
-| Source adapters | 8 | 12+ | 20+ | YouTube, Erowid, MUFON, podcasts, news, academic, govt docs — **PHASE C** |
+| Metric | Current | Closed Beta Target | Public Launch Target | Notes |
+|--------|---------|-------------------|---------------------|-------|
+| Mass-ingested reports | 0 | 1M+ | 5M+ | **CRITICAL PATH** — Session 10 builds expanded source adapters, runs mass ingestion |
+| Curated editorial reports | 20 (Roswell 14 + Rendlesham 6) | 20+ | 40+ | Parallel track — not a launch blocker. Each new cluster (Skinwalker, Phoenix Lights, etc.) adds ~6-14 reports |
+| Existing test reports | ~900 approved | Re-ingested or deleted | — | Must be cleaned before beta — re-run through final pipeline |
+| Reddit dev data | ~2M (hidden) | Deleted | — | Delete entirely. Start fresh with expanded source list |
+| Phenomena entries (encyclopedia) | 4,792 (208 fully enriched) | 4,792+ (500+ enriched) | 10,000+ | Parallel track — not a launch blocker. Basic entries sufficient for classification. Enrichment improves encyclopedia pages + semantic search |
+| Source adapters | 8 | 12+ | 20+ | YouTube, Erowid, MUFON, podcasts, news, academic, govt docs |
+| Reports embedded (pgvector) | ~900 | All ingested reports | All ingested reports | Scales with ingestion — ~$500-600 for 5M reports |
 
 ---
 
