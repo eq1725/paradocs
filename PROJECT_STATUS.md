@@ -409,23 +409,19 @@ Each major feature area has a dedicated Claude session with its own deep context
 **Database:** `search_vector` column, full-text search indexes, `featured_investigations` (data owned by Session 6a, layout owned by Session 7)
 
 **Current state (March 19 Session 7 update):**
-- Homepage hero rewritten for 5-second cold-traffic comprehension, search bar enhanced with quick-search tags, redundant Quick Links section removed
-- Search page rewritten to use `fulltext_search` RPC with ts_rank ranking (was using ILIKE). Autocomplete added (searches phenomena table). Search mode toggle (keywords/exact phrase).
-- SEO meta tags + JSON-LD structured data added to homepage. OG tags for social sharing.
-- Onboarding consolidated: `UnifiedOnboarding.tsx` replaces overlapping WelcomeOnboarding + ThreeTapOnboarding. OnboardingTour (report page) unchanged.
-- Layout.tsx: minor search bar focus state improvements only.
+- Homepage hero A/B tested (5 variants), search bar enhanced with quick-search tags, Quick Links removed, SEO + JSON-LD added
+- Search page rewritten: fulltext API with ts_rank ranking (was ILIKE), autocomplete on phenomena, keyword/phrase toggle
+- Onboarding consolidated: `UnifiedOnboarding.tsx` replaces WelcomeOnboarding + ThreeTapOnboarding
+- **UX Audit completed (v4 approved):** Three-lens audit (UX, Engagement, Vision) produced 20-item phased plan. See `Paradocs_UX_Audit_Plan.docx` and `HANDOFF_SEARCH_NAV.md`.
 
-**What still needs work:**
-- OG image (`/og-home.png`) needs to be created
-- Per-page SEO for report/phenomenon pages, sitemap generation
-- Proximity search UI (API exists at `/api/search/proximity.ts`)
-- Search analytics (tracking queries, zero-result queries)
-- Mobile search UX (no search in mobile nav)
-- Desktop mega-menu for categories
-- 404 / error page experience
-- Delete legacy WelcomeOnboarding.tsx and ThreeTapOnboarding.tsx (left in place for safety)
+**Approved revision plan (four pillars: Database + AI + Dashboard + Discover):**
+- **Phase 1 (this week):** Mobile search icon, replace legacy stats, hide placeholder Trending Patterns
+- **Phase 2 (next 2 weeks, BLOCKED on AI Experience session):** Hero redesign around four pillars, AI intelligence preview, dashboard preview, four-pillar "What Is Paradocs?" section, Discover feed preview on homepage
+- **Phase 3 (month 2):** AI-powered search results ("Related Patterns"), search highlighting, Save Search, notification bell, nav scaling for 5M+ reports
 
-**Touches other sessions:** All sessions (navigation is global), Foundation (shared layout components), Explore (search integration with feed, onboarding import updated), Session 6a (Featured Investigation editorial content for homepage)
+**Critical dependency:** Phase 2 items 5-6 and Phase 3 items 13-14 require the AI Experience & Intelligence session to deliver RAG pipeline + pattern detection APIs before homepage/search can surface AI capabilities. **Recommend: Run AI Experience session next, then resume Session 7 Phase 2.**
+
+**Touches other sessions:** All sessions (navigation global), AI Experience (Phase 2-3 blocked on RAG/pattern APIs), Explore (onboarding import updated), Session 6a (editorial content), Session 13 (mobile search addition to Layout.tsx)
 
 ---
 
@@ -613,6 +609,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 | Date | Source Session | Note | Affects |
 |------|--------------|------|---------|
+| 2026-03-19 | Search & Nav (7) | **UX Audit v4 APPROVED (four-pillar vision).** Three-lens audit (UX/Engagement/Vision) produced 20-item phased plan. Key findings: (1) homepage leads with editorial, not the four pillars (Database 5M+, AI Intelligence, Research Dashboard, Discover Feed); (2) mobile has no search; (3) AI layer completely invisible; (4) Discover feed hidden behind ambiguous nav link; (5) legacy 258K stats will be deleted. Phase 1 (trust/access) ready to ship. Phase 2 (hero redesign, AI preview, dashboard preview) BLOCKED on AI Experience session delivering RAG pipeline + pattern APIs. See `Paradocs_UX_Audit_Plan.docx`. | ALL sessions (vision alignment), AI Experience (critical dependency for Phase 2-3), Explore (Discover feed preview planned for homepage), Dashboard (preview card planned for homepage) |
 | 2026-03-19 | Search & Nav (7) | **Homepage + Search + Onboarding overhaul.** Homepage hero rewritten for cold-traffic comprehension, search bar enhanced with quick-search tags, redundant Quick Links removed. Search page rewritten to use `fulltext_search` RPC (was ILIKE), autocomplete added (phenomena table), search mode toggle. SEO meta tags + JSON-LD added. Onboarding consolidated: `UnifiedOnboarding.tsx` replaces WelcomeOnboarding + ThreeTapOnboarding. `explore.tsx` import updated. Layout.tsx minor search bar CSS. See `HANDOFF_SEARCH_NAV.md`. | Explore (explore.tsx onboarding import changed), Foundation (Layout.tsx minor CSS), All sessions (homepage structure changed, Quick Links section removed) |
 | 2026-03-19 | Report Experience (6a) | **Rendlesham Forest cluster DEPLOYED + homepage "More Investigations" row + badge redesign + credibility rationale feature.** Rendlesham (6 reports, case_group rendlesham-1980) is second curated case cluster. Homepage `index.tsx` modified: added secondary discovery card grid below hero for additional Featured Investigations. Report `[slug].tsx` modified: badge system redesigned (category badge removed, "Featured Investigation" badge added, "Notable Case" filtered), credibility badge now tappable/expandable with rationale. `FormattedDescription.tsx` modified: pull quote extraction hardened. `MediaGallery.tsx` modified: audio wiki URL fix + new source labels. `ReadingProgress.tsx`: 2px→4px. New DB column: `reports.credibility_rationale`. | Explore/Homepage (index.tsx modified), Foundation (FormattedDescription, MediaGallery, ReadingProgress modified), Session 14 (8 new books across Rendlesham reports), All sessions (credibility rationale pattern for all future reports) |
 | 2026-03-18 | Report Experience (6a) | **Session split: 6a (Curated Content) + 6b (Ingestion & Scale) + 14 (Affiliate).** Session 6 split into three sessions. 6a owns handcrafted case files, editorial enrichment, Featured Investigations curation. 6b (not started) will own ingestion-generated reports, quality templates, automated enrichment. Session 14 owns Amazon affiliate book recommendations, ASIN curation, compliance, revenue optimization. | All sessions (session registry updated), Ingestion (6b dependency), Subscription (14 potential Pro book lists) |

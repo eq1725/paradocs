@@ -109,38 +109,80 @@ Components 2 and 3 were overlapping (both ask for interests + location after aut
 
 ---
 
+## Approved UX Audit & Revision Plan (v4 — March 19, 2026)
+
+Full plan document: `Paradocs_UX_Audit_Plan.docx` (in repo root)
+
+### Vision: Four Pillars (approved by Chase)
+
+The homepage and site UX must communicate all four pillars:
+
+1. **The Massive Database** — 5M+ reports aggregated from across the web, filtered by world-class AI pipeline. This is the core moat.
+2. **AI Analysis & Emergent Patterns** — RAG architecture embedding all reports into vector chunks. Semantic search + cross-referencing surfaces patterns no human could find across millions of reports. This is the highest-value differentiator.
+3. **The Research Dashboard** — Case files, Constellation graph, artifact management, AI analysis. The workspace for casual and professional researchers.
+4. **The Discover Feed** — TikTok-style casual browsing. The mass-market entry point.
+
+**Important:** Curated investigations (Roswell, Rendlesham) are a value-add, not the main attraction. The main attractions are the database scale, AI intelligence, research workspace, and casual discovery.
+
+### Phase 1: Trust & Access (Ship This Week)
+1. Add persistent mobile search icon in Layout.tsx header
+2. Replace legacy 258K/953 stats with stable real numbers (4,792 encyclopedia, 20+ investigations, 11 categories)
+3. Hide TrendingPatternsWidget on homepage (shows batch-artifact placeholder data)
+4. Monitor A/B Variant C downstream conversion
+
+### Phase 2: Tell the Real Story (Next 2 Weeks)
+5. Redesign hero to communicate four pillars (not just headline + search bar)
+6. Add AI Intelligence preview section on homepage
+7. Add Research Dashboard preview with Pro CTA
+8. Add four-pillar "What Is Paradocs?" section
+9. Add Discover feed preview on homepage (swipeable cards)
+10. Inline email capture between pillar section and categories
+11. Section consolidation (9 → 5-6)
+12. Freshness signals for return visitors
+
+### Phase 3: Depth & Scale Readiness (Month 2)
+13. AI-powered "Related Patterns" section on search results
+14. ts_headline() for search result term highlighting
+15. Save Search + Notify Me (Pro feature)
+16. Functional notification bell
+17. Category mega-menu + "Ask AI" as primary nav item
+18. Rename Discover → Stories/Swipe
+19. Hide header search on /search page
+20. Launch stats: "5M+ Scanned · [X] Approved · 4,792+ Encyclopedia · AI-Analyzed"
+
+### Session Dependency: AI Experience Session
+Phase 2 items 5-6 and Phase 3 items 13-14 depend on the AI Experience & Intelligence session being at least partially complete. The homepage AI preview and search intelligence features need the RAG pipeline and pattern detection APIs to exist before they can be surfaced in the UI. **Recommendation: Run AI Experience session before resuming Phase 2 of this plan.**
+
+---
+
 ## What's Still Needed (Future Sessions)
 
 ### Homepage
 - Create `/og-home.png` (1200x630 OG image for social sharing)
-- A/B test hero copy variants
-- Consider lazy-loading below-fold sections
-- Add "What's new" section for return visitors (beyond Continue Your Research)
+- Continue monitoring A/B test variants
+- Lazy-loading for below-fold sections
 
 ### Search
-- **Server-side search** instead of client-side — the fulltext API is called from the browser which means no SSR/ISR
-- **Search analytics** — track what people search for, zero-result queries
-- **Search result snippets** with highlighted matching terms
-- **Proximity search** — the `/api/search/proximity.ts` endpoint exists but isn't exposed in the UI
-- **Autocomplete for locations** — currently only searches phenomena names
-- **Pro tier gating** for advanced search (phrase mode, date filters, evidence filters)
+- **Server-side search** — fulltext API called from browser (no SSR/ISR)
+- **Search analytics** — track queries, zero-result queries
+- **Proximity search** — `/api/search/proximity.ts` exists but not in UI
+- **Autocomplete for locations** — currently only phenomena names
+- **Pro tier gating** for advanced search features
 
 ### Navigation
-- Desktop header nav could be improved with mega-menu for categories
-- Mobile search UX (currently no search in mobile nav — users need to navigate to /search)
-- Consider adding search to MobileBottomTabs "More" menu
+- Category mega-menu for desktop (post-ingestion)
+- "Ask AI" as primary nav item
+- Content-type tabs on Explore page (archives / recent / experiencer)
 
 ### Onboarding
-- Delete old `WelcomeOnboarding.tsx` and `ThreeTapOnboarding.tsx` once confirmed no imports reference them
+- Delete old `WelcomeOnboarding.tsx` and `ThreeTapOnboarding.tsx`
 - Add onboarding analytics (completion rate, drop-off step)
-- Consider showing onboarding to non-auth users too (currently auth-gated)
 
 ### SEO
-- Per-page meta tags for report pages, phenomenon pages, map page
-- JSON-LD for individual reports (`Article` schema with `datePublished`, `author`, `locationCreated`)
-- JSON-LD for phenomena (`Thing` schema)
+- Per-page meta tags for report/phenomenon pages
+- JSON-LD for individual reports and phenomena
 - Sitemap generation (`/sitemap.xml`)
-- 404 page with search and popular content suggestions
+- 404 page with search and popular content
 
 ---
 
@@ -153,3 +195,6 @@ Components 2 and 3 were overlapping (both ask for interests + location after aut
 | UnifiedOnboarding replaces WelcomeOnboarding | Session 5 (Dashboard) | If dashboard references WelcomeOnboarding, update import |
 | Layout.tsx search bar tweaked | Session 13 (Mobile) | No structural change, just CSS |
 | OG image needed | Design session | `/og-home.png` referenced but doesn't exist |
+| **Phase 2 hero + AI preview** | **AI Experience session** | **Needs RAG pipeline + pattern APIs before homepage can preview AI** |
+| **Phase 3 search intelligence** | **AI Experience session** | **"Related Patterns" on results needs pattern detection API** |
+| **"Ask AI" in nav** | **AI Experience session** | **Needs conversational AI endpoint before adding nav entry** |
