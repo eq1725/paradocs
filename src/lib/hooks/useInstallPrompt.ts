@@ -1,19 +1,23 @@
 /**
  * useInstallPrompt — PWA "Add to Home Screen" install prompt hook
  *
- * Returns:
- * - isInstallable: true if beforeinstallprompt fired (Android) or iOS Safari detected
- * - isIOS: true if iOS Safari (not Chrome on iOS)
- * - isInstalled: true if already in standalone mode
- * - isDesktop: true if not mobile
- * - promptInstall: calls prompt() (Android) or sets showIOSInstructions (iOS)
- * - dismissPrompt: sets localStorage flag and hides
- * - showIOSInstructions: true when iOS instructions should be shown
+ * IMPORTANT: The beforeinstallprompt event fires EARLY — often before React
+ * mounts. We capture it globally on window so it's never missed, then the
+ * hook reads from the global when it mounts.
  */
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 var DISMISS_KEY = 'paradocs_a2hs_dismissed'
+
+// Global capture — runs immediately on import, before any React mounts.
+// This ensures we never miss the beforeinstallprompt event.
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    (window as any).__pwaPromptEvent = e
+  })
+}
 
 interface InstallPromptResult {
   isInstallable: boolean
@@ -26,11 +30,11 @@ interface InstallPromptResult {
 }
 
 export function useInstallPrompt(): InstallPromptResult {
-  var [isInstallable, setIsInstallable] = useState(false)
+  var [installable, setInstallable] = useState(false)
   var [showIOSInstructions, setShowIOSInstructions] = useState(false)
-  var deferredPrompt = useRef<any>(null)
+  var [dismissed, setDismissed] = useState(false)
 
-  // Detect platform
+  // Detect platform (safe for SSR — all default to false)
   var isServer = typeof window === 'undefined'
   var ua = isServer ? '' : navigator.userAgent || ''
   var isIOS = !isServer && /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream
@@ -42,54 +46,66 @@ export function useInstallPrompt(): InstallPromptResult {
   )
   var isMobile = !isServer && /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua)
   var isDesktop = !isServer && !isMobile
-  var isDismissed = !isServer && localStorage.getItem(DISMISS_KEY) === 'true'
 
   useEffect(function() {
-    if (isServer || isStandalone || isDismissed || isDesktop) return
+    if (isServer || isStandalone || isDesktop) return
 
-    // Android/Chrome: listen for beforeinstallprompt
-    function handleBeforeInstall(e: Event) {
-      e.preventDefault()
-      deferredPrompt.current = e
-      setIsInstallable(true)
+    // Check if already dismissed
+    if (localStorage.getItem(DISMISS_KEY) === 'true') {
+      setDismissed(true)
+      return
     }
-    window.addEventListener('beforeinstallprompt', handleBeforeInstall)
 
-    // iOS Safari: show custom instructions
+    // Android: check if we already captured the event globally
+    if ((window as any).__pwaPromptEvent) {
+      setInstallable(true)
+    }
+
+    // Also listen for future events (e.g., if SW registers late)
+    function handlePrompt(e: Event) {
+      e.preventDefault();
+      (window as any).__pwaPromptEvent = e
+      setInstallable(true)
+    }
+    window.addEventListener('beforeinstallprompt', handlePrompt)
+
+    // iOS Safari: always show (no beforeinstallprompt on iOS)
     if (isIOSSafari) {
-      setIsInstallable(true)
+      setInstallable(true)
     }
 
     return function() {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstall)
+      window.removeEventListener('beforeinstallprompt', handlePrompt)
     }
   }, [])
 
-  function promptInstall() {
-    if (deferredPrompt.current) {
+  var promptInstall = useCallback(function() {
+    var evt = (window as any).__pwaPromptEvent
+    if (evt) {
       // Android: trigger native prompt
-      deferredPrompt.current.prompt()
-      deferredPrompt.current.userChoice.then(function(result: any) {
-        deferredPrompt.current = null
+      evt.prompt()
+      evt.userChoice.then(function(result: any) {
+        (window as any).__pwaPromptEvent = null
         if (result.outcome === 'accepted') {
-          setIsInstallable(false)
+          setInstallable(false)
         }
       })
     } else if (isIOSSafari) {
       setShowIOSInstructions(true)
     }
-  }
+  }, [isIOSSafari])
 
-  function dismissPrompt() {
-    setIsInstallable(false)
+  var dismissPrompt = useCallback(function() {
+    setInstallable(false)
     setShowIOSInstructions(false)
+    setDismissed(true)
     if (typeof window !== 'undefined') {
       localStorage.setItem(DISMISS_KEY, 'true')
     }
-  }
+  }, [])
 
   return {
-    isInstallable: isInstallable && !isStandalone && !isDismissed && !isDesktop,
+    isInstallable: installable && !isStandalone && !dismissed && !isDesktop,
     isIOS: isIOSSafari,
     isInstalled: isStandalone,
     isDesktop: isDesktop,
