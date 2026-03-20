@@ -1,9 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { MessageCircle, X, Send, Sparkles, Loader2, ChevronDown } from 'lucide-react'
 
+interface ChatSource {
+  slug: string
+  title: string
+  source_table: string
+}
+
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  sources?: ChatSource[]
+  rag_enabled?: boolean
 }
 
 interface ChatContext {
@@ -85,7 +93,12 @@ export default function AskTheUnknown({ context, suggestedQuestions }: AskTheUnk
 
       if (res.ok) {
         const data = await res.json()
-        setMessages(prev => [...prev, { role: 'assistant', content: data.reply }])
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: data.reply,
+          sources: data.sources || [],
+          rag_enabled: data.rag_enabled || false
+        }])
       } else {
         setMessages(prev => [...prev, { 
           role: 'assistant', 
@@ -107,7 +120,14 @@ export default function AskTheUnknown({ context, suggestedQuestions }: AskTheUnk
     sendMessage(input)
   }
 
-  function renderMarkdown(text) {
+  function slugToTitle(slug: string): string {
+    return slug.split('-').map(function(word) {
+      if (word.length === 0) return ''
+      return word.charAt(0).toUpperCase() + word.slice(1)
+    }).join(' ')
+  }
+
+  function renderMarkdown(text: string, sources?: ChatSource[]) {
     if (!text) return ""
     var html = text
     // Escape HTML
@@ -118,6 +138,18 @@ export default function AskTheUnknown({ context, suggestedQuestions }: AskTheUnk
     })
     // Inline code
     html = html.replace(/`(.+?)`/g, '<code class="bg-white/10 px-1 rounded text-xs">$1</code>')
+    // RAG source citations: [slug:some-slug-here] → clickable report link
+    html = html.replace(/\[slug:([a-z0-9-]+)\]/g, function(_match, slug) {
+      // Try to find title from sources metadata
+      var title = ''
+      if (sources && sources.length > 0) {
+        for (var s = 0; s < sources.length; s++) {
+          if (sources[s].slug === slug) { title = sources[s].title; break }
+        }
+      }
+      if (!title) title = slugToTitle(slug)
+      return '<a href="/report/' + slug + '" class="text-primary-400 underline hover:text-primary-300 inline-flex items-center gap-0.5">' + title + '</a>'
+    })
     // Bold
     html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     // Italic
@@ -133,19 +165,38 @@ export default function AskTheUnknown({ context, suggestedQuestions }: AskTheUnk
     // Bullet lists
     html = html.replace(/^- (.+)$/gm, '<div class="pl-3">\u2022 $1</div>')
     // Links — keep internal links in-app, only external links open new tab
-    html = html.replace(/\[(.+?)\]\((.+?)\)/g, function(_match, text, url) {
+    html = html.replace(/\[(.+?)\]\((.+?)\)/g, function(_match, linkText, url) {
       var isInternal = url.startsWith('/') || url.includes('discoverparadocs.com') || url.includes('paradocs.com');
       if (isInternal) {
         var cleanUrl = url.replace(/https?:\/\/(beta\.|www\.)?discoverparadocs\.com/, '').replace(/https?:\/\/(beta\.|www\.)?paradocs\.com/, '');
-        return '<a href="' + (cleanUrl || url) + '" class="text-primary-400 underline hover:text-primary-300">' + text + '</a>';
+        return '<a href="' + (cleanUrl || url) + '" class="text-primary-400 underline hover:text-primary-300">' + linkText + '</a>';
       }
-      return '<a href="' + url + '" target="_blank" rel="noopener" class="text-primary-400 underline hover:text-primary-300">' + text + ' <span class="inline-block w-3 h-3 opacity-60">↗</span></a>';
+      return '<a href="' + url + '" target="_blank" rel="noopener" class="text-primary-400 underline hover:text-primary-300">' + linkText + ' <span class="inline-block w-3 h-3 opacity-60">\u2197</span></a>';
     })
     // Paragraphs (double newline)
     html = html.replace(/\n\n/g, '</p><p class="mt-2">')
     // Single newlines
     html = html.replace(/\n/g, "<br />")
     return '<p>' + html + '</p>'
+  }
+
+  function renderSourcesFooter(sources?: ChatSource[], ragEnabled?: boolean): string {
+    if (!ragEnabled || !sources || sources.length === 0) return ''
+    var seen: Record<string, boolean> = {}
+    var links: string[] = []
+    for (var i = 0; i < sources.length; i++) {
+      var src = sources[i]
+      if (!src.slug || seen[src.slug]) continue
+      seen[src.slug] = true
+      var href = src.source_table === 'phenomenon' ? '/phenomena/' + src.slug : '/report/' + src.slug
+      var label = src.title || slugToTitle(src.slug)
+      links.push('<a href="' + href + '" class="text-primary-400/80 hover:text-primary-300 underline decoration-dotted">' + label + '</a>')
+    }
+    if (links.length === 0) return ''
+    return '<div class="mt-2 pt-2 border-t border-white/10 text-xs text-gray-500">'
+      + '<span class="mr-1">\ud83d\udcda Sources:</span> '
+      + links.join(' \u00b7 ')
+      + '</div>'
   }
   return (
     <>
@@ -219,17 +270,19 @@ export default function AskTheUnknown({ context, suggestedQuestions }: AskTheUnk
             )}
 
             {/* Chat messages */}
-            {messages.map((msg, i) => (
+            {messages.map(function(msg, i) {
+              return (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[85%] rounded-2xl p-3 ${
                   msg.role === 'user'
                     ? 'bg-primary-500/20 text-white rounded-br-sm'
                     : 'bg-white/5 text-gray-300 rounded-tl-sm'
                 }`}>
-                  <div className="text-sm" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+                  <div className="text-sm" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content, msg.sources) + renderSourcesFooter(msg.sources, msg.rag_enabled) }} />
                 </div>
               </div>
-            ))}
+              )
+            })}
 
             {/* Loading indicator */}
             {loading && (
