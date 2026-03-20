@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import Head from 'next/head'
-import { Search, Send, Shield } from 'lucide-react'
+import { Search, ArrowRight, LogIn } from 'lucide-react'
 import { useABTest } from '@/lib/ab-testing'
 import FourPillars from '@/components/homepage/FourPillars'
 import DiscoverPreview from '@/components/homepage/DiscoverPreview'
@@ -38,36 +38,12 @@ export default function Home() {
   var heroContent = HERO_VARIANTS[heroTest.variant] || HERO_VARIANTS.B
 
   var [searchQuery, setSearchQuery] = useState('')
-  var [emailInput, setEmailInput] = useState('')
-  var [emailSubmitting, setEmailSubmitting] = useState(false)
-  var [emailSuccess, setEmailSuccess] = useState(false)
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
     if (searchQuery.trim()) {
       heroTest.trackConversion('search')
       window.location.href = '/search?q=' + encodeURIComponent(searchQuery)
-    }
-  }
-
-  async function handleEmailSignup(e: React.FormEvent) {
-    e.preventDefault()
-    if (!emailInput.trim() || emailSubmitting) return
-    setEmailSubmitting(true)
-    try {
-      var res = await fetch('/api/beta-signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emailInput.trim(), source: 'homepage_digest' })
-      })
-      if (res.ok) {
-        setEmailSuccess(true)
-        setEmailInput('')
-      }
-    } catch (e) {
-      console.error('Email signup error:', e)
-    } finally {
-      setEmailSubmitting(false)
     }
   }
 
@@ -118,7 +94,7 @@ export default function Home() {
               {heroContent.subheadline}
             </p>
 
-            {/* Search bar — the primary CTA */}
+            {/* Search bar */}
             <form onSubmit={handleSearch} className="mt-10 max-w-xl mx-auto">
               <div className="relative group">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-primary-400 transition-colors" />
@@ -139,9 +115,7 @@ export default function Home() {
               </div>
             </form>
 
-            {/* Trust line — single line, Ancestry-style
-                Pre-ingestion: encyclopedia + categories + AI
-                Post-ingestion: swap to "5M+ reports scanned \u00b7 AI-filtered \u00b7 4,792+ phenomena catalogued" */}
+            {/* Trust line */}
             <p className="mt-8 text-sm text-gray-500">
               4,792+ phenomena catalogued across 11 categories {'\u00b7'} AI-powered pattern analysis
             </p>
@@ -156,41 +130,31 @@ export default function Home() {
       {/* === SECTION 3: Product Taste === */}
       <DiscoverPreview />
 
-      {/* === SECTION 4: Email Capture === */}
+      {/* === SECTION 4: Get Started === */}
       <section className="py-16 border-t border-white/5 bg-gradient-to-b from-transparent to-primary-900/10">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl md:text-3xl font-display font-bold text-white">
-            Stay Connected to the Unknown
+            Start exploring for free
           </h2>
           <p className="mt-3 text-gray-400">
-            Get weekly paranormal insights, trending sightings, and new discoveries delivered to your inbox.
+            Search the database, swipe through reports, and save what matters. No credit card required.
           </p>
-
-          {emailSuccess ? (
-            <div className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-green-500/10 border border-green-500/30 text-green-300">
-              <Shield className="w-5 h-5" />
-              <span>You{'\u2019'}re in! Check your inbox for a welcome message.</span>
-            </div>
-          ) : (
-            <form onSubmit={handleEmailSignup} className="mt-6 max-w-md mx-auto flex gap-2">
-              <input
-                type="email"
-                placeholder="your@email.com"
-                value={emailInput}
-                onChange={function(e) { setEmailInput(e.target.value) }}
-                required
-                className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
-              />
-              <button
-                type="submit"
-                disabled={emailSubmitting}
-                className="btn btn-primary px-6 py-3 flex items-center gap-2"
-              >
-                <Send className="w-4 h-4" />
-                {emailSubmitting ? '...' : 'Subscribe'}
-              </button>
-            </form>
-          )}
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-primary-500 hover:bg-primary-400 text-white font-semibold transition-colors text-base"
+            >
+              <LogIn className="w-5 h-5" />
+              Create free account
+            </Link>
+            <Link
+              href="/explore"
+              className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl border border-white/15 text-gray-300 hover:text-white hover:bg-white/5 transition-colors text-sm"
+            >
+              Browse without an account
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
         </div>
       </section>
     </>

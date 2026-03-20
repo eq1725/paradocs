@@ -95,6 +95,7 @@ export default function DiscoverPreview() {
   return (
     <section className="py-10 md:py-16 border-t border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <p className="text-sm text-gray-500 uppercase tracking-wider mb-6">From the database</p>
 
         {/* Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
