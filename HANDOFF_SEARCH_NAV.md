@@ -140,22 +140,22 @@ The homepage and site UX must communicate all four pillars:
 11. ~~Section consolidation~~ — merged Featured + Latest Reports into single "Recent Reports"; removed old Trending Patterns
 12. ~~Freshness signals~~ — "Updated [month year]" badge with green pulse dot on Featured Investigation header
 
-### Homepage Cleanup — Cut to 5 Sections (March 20, 2026)
-Cut homepage from 14 sections to 4 clean sections. Follows SaaS conversion research: What is this? → What can I do? → Let me try it → How do I stay connected?
+### Homepage Cleanup + Section-by-Section Optimization (March 20, 2026)
+Cut homepage from 14 sections to 4 clean sections, then optimized each section individually through UX/engagement SME review following AllTrails/Ancestry conversion patterns.
 
-**Final page structure:**
-1. **Hero** — A/B headline, one subtext line, search bar (always-visible button), 4 stat pills. Removed: quick-search tags, dual CTAs (kept search as primary), tour CTA.
-2. **Four Pillars** — "What Is Paradocs?" 4 cards (Database, AI Intelligence, Research Workspace, Discover Feed). Copy tightened to punchy fragments.
-3. **Discover Preview** — 3-4 real report cards + "Start Swiping" CTA. Lowest friction product taste.
-4. **Email Capture** — "Stay Connected to the Unknown." Single input, one button. Removed: Submit a Report CTA (belongs on report pages).
+**Final page structure (deployed):**
+1. **Hero** — A/B headline, one subtext line, search bar (always-visible Search button), single trust line ("4,792+ phenomena catalogued across 11 categories · AI-powered pattern analysis"). Removed: social proof badge (bring back at 1,000+ users), 4-stat animated grid, quick-search tags, dual CTAs, tour CTA, count-up animation hooks, intersection observer, all dead data fetches (7+ API calls removed), 12 unused state variables, 3 unused interfaces. File went from 1,135 lines to 168.
+2. **Four Pillars** — "Four ways to explore" bridge label + 4 cards. Title/subtitle removed (cards are self-explanatory). CTAs rewritten as action verbs: "Search the database" / "Uncover patterns" / "Build a case file" / "Start swiping". Pro badge softened to gray uppercase text. Padding tightened.
+3. **Discover Preview** — "From the database" bridge label + 4 text-forward report cards. Cards redesigned: removed aspect-square emoji thumbnails and Play icon hover (false video affordance). New card format: category badge + title (the hook) + first sentence (cinematic pull) + location. Content IS the visual. Component cut from 241 to 126 lines.
+4. **Get Started CTA** — "Start exploring for free" + "Create free account" primary button (→ /login) + "Browse without an account" secondary link (→ /explore). Replaced newsletter email capture — account creation is the conversion action that leads to paid tiers (AllTrails/Ancestry pattern). Newsletter was optimizing for the wrong funnel stage.
 
-**Removed from render (components preserved):**
+**Removed from render (components preserved, not deleted):**
 - AIPreview — bring back after mass ingestion populates real AI patterns
-- Inline email capture (between pillars) — one at bottom is enough
 - Featured Investigation (Roswell cinematic) — bring back when 4+ investigations exist
-- Secondary stories row, ghost card carousel — part of Featured Investigation
 - More Investigations (Rendlesham) — bring back when >= 3 featured investigations
-- Continue Your Research — logged-in feature, better served by dashboard
+- Categories Grid, Recent Reports, Encyclopedia, DashboardPreview — duplicated nav/pillars
+- Continue Your Research — logged-in feature, belongs in dashboard
+- Email capture form — replaced with account creation CTA
 - Categories Grid — duplicates Explore page
 - Recent Reports — duplicates Discover preview
 - Phenomena Encyclopedia — duplicates Encyclopedia nav
