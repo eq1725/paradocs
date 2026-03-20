@@ -13,28 +13,32 @@ import ImageWithFallback from '@/components/ImageWithFallback'
 import { TrendingPatternsWidget } from '@/components/patterns'
 import { hasCompletedOnboarding } from '@/components/OnboardingTour'
 import { useABTest } from '@/lib/ab-testing'
+import FourPillars from '@/components/homepage/FourPillars'
+import AIPreview from '@/components/homepage/AIPreview'
+import DashboardPreview from '@/components/homepage/DashboardPreview'
+import DiscoverPreview from '@/components/homepage/DiscoverPreview'
 
 // Hero headline variants — must match admin/ab-testing.tsx variant table
 var HERO_VARIANTS: Record<string, { headline: string; subheadline: string }> = {
   A: {
     headline: 'Have You Experienced Something You Can\u2019t Explain?',
-    subheadline: 'Join thousands of researchers documenting UFO sightings, cryptid encounters, ghost reports, and unexplained events worldwide.',
+    subheadline: 'The world\u2019s most comprehensive paranormal database. AI-powered search, pattern detection, and research tools across millions of reports.',
   },
   B: {
     headline: 'The World\u2019s Largest Paranormal Database',
-    subheadline: '258,000+ reports. UFO sightings, cryptid encounters, ghost reports, and unexplained events\u2014searchable, mapped, and AI-analyzed.',
+    subheadline: 'Millions of reports aggregated from across the web. AI-filtered, searchable, mapped, and cross-referenced for emergent patterns.',
   },
   C: {
-    headline: 'What If Everything You\u2019ve Been Told Is Wrong?',
-    subheadline: 'Explore 258,000+ documented encounters that challenge what we think we know. Search, map, and analyze the unknown.',
+    headline: 'Every Report. Every Pattern. Every Connection.',
+    subheadline: 'We aggregate millions of paranormal reports, filter them through world-class AI, and surface the patterns no one else can see.',
   },
   D: {
     headline: 'Join the Researchers Tracking What Can\u2019t Be Explained',
-    subheadline: 'A growing community documenting UFO sightings, cryptid encounters, and unexplained events\u2014with data, not just stories.',
+    subheadline: 'Build case files, cross-reference evidence, and discover patterns across the world\u2019s largest paranormal database\u2014with AI, not just intuition.',
   },
   E: {
     headline: 'Something Strange Is Happening \u2014 And We\u2019re Documenting It',
-    subheadline: '258,000+ paranormal reports and counting. Search, map, and cross-reference the world\u2019s unexplained encounters.',
+    subheadline: 'Millions of paranormal reports. AI-powered analysis. Research tools for everyone from casual browsers to professional investigators.',
   },
 }
 
@@ -563,16 +567,54 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Four Pillars — "What Is Paradocs?" (Phase 2) */}
+      <FourPillars />
+
+      {/* AI Intelligence Preview — consumes /api/ai/featured-patterns (Phase 2) */}
+      <AIPreview />
+
+      {/* Inline email capture — lightweight version between pillars and content (Phase 2 item 10) */}
+      {!emailSuccess && (
+        <section className="py-8">
+          <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+            <form onSubmit={handleEmailSignup} className="flex flex-col sm:flex-row gap-2 items-center">
+              <div className="flex-1 w-full sm:w-auto">
+                <input
+                  type="email"
+                  placeholder="Get weekly paranormal insights \u2014 enter your email"
+                  value={emailInput}
+                  onChange={function(e) { setEmailInput(e.target.value) }}
+                  required
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 text-sm"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={emailSubmitting}
+                className="btn btn-primary px-6 py-3 text-sm whitespace-nowrap"
+              >
+                <Send className="w-4 h-4" />
+                {emailSubmitting ? '...' : 'Subscribe'}
+              </button>
+            </form>
+          </div>
+        </section>
+      )}
+
       {/* Cinematic Story Spotlight — uses editorial curation when available */}
       {(featuredInvestigations.length > 0 || spotlightStories.length > 0) ? (
         <section className="py-6 -mt-2 relative z-10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            {/* Section header */}
+            {/* Section header with freshness signal (Phase 2 item 12) */}
             <div className="flex items-center gap-3 mb-5">
               <div className="w-1 h-6 rounded-full bg-primary-500" />
               <h2 className="text-lg font-display font-semibold text-white tracking-wide uppercase">
                 Featured Investigation
               </h2>
+              <span className="ml-auto text-xs text-gray-500 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                {'Updated ' + new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+              </span>
             </div>
 
             {/* Primary Featured Story - Full-width cinematic card */}
@@ -959,53 +1001,31 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Trending Patterns — HIDDEN until real AI pattern data exists (shows batch-artifact placeholder cards)
-         Will be re-enabled in Phase 2 with actual AI-generated patterns from the RAG pipeline.
-         See Paradocs_UX_Audit_Plan.docx finding 1.2 */}
+      {/* Discover Feed Preview (Phase 2) */}
+      <DiscoverPreview />
 
-      {/* Reports Section */}
+      {/* Recent Reports — consolidated from Featured + Latest (Phase 2 item 11) */}
       <section className="py-12 border-t border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {featuredReports.length > 0 && (
-            <div className="mb-10">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-amber-400" />
-                  <h2 className="text-xl font-display font-bold text-white">Featured Reports</h2>
-                </div>
-                <Link href="/explore?featured=true" className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1">
-                  View all <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {featuredReports.map((report) => (
-                  <ReportCard key={report.id} report={report} variant="featured" />
-                ))}
-              </div>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-display font-bold text-white">Recent Reports</h2>
+            <Link href="/explore" className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1">
+              Explore all <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+          {loading ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(6)].map(function(_, i) {
+                return <div key={i} className="glass-card p-5 h-32 skeleton" />
+              })}
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recentReports.map(function(report) {
+                return <ReportCard key={report.id} report={report} />
+              })}
             </div>
           )}
-
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-display font-bold text-white">Latest Reports</h2>
-              <Link href="/explore" className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1">
-                Explore all <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-            {loading ? (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className="glass-card p-5 h-32 skeleton" />
-                ))}
-              </div>
-            ) : (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {recentReports.map((report) => (
-                  <ReportCard key={report.id} report={report} />
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       </section>
 
@@ -1048,6 +1068,9 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      {/* Research Dashboard Preview (Phase 2) */}
+      <DashboardPreview />
 
       {/* Email Capture + CTA Section */}
       <section className="py-16 border-t border-white/5 bg-gradient-to-b from-transparent to-primary-900/10">

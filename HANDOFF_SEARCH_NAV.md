@@ -130,15 +130,15 @@ The homepage and site UX must communicate all four pillars:
 3. Hide TrendingPatternsWidget on homepage (shows batch-artifact placeholder data)
 4. Monitor A/B Variant C downstream conversion
 
-### Phase 2: Tell the Real Story (Next 2 Weeks)
-5. Redesign hero to communicate four pillars (not just headline + search bar)
-6. Add AI Intelligence preview section on homepage
-7. Add Research Dashboard preview with Pro CTA
-8. Add four-pillar "What Is Paradocs?" section
-9. Add Discover feed preview on homepage (swipeable cards)
-10. Inline email capture between pillar section and categories
-11. Section consolidation (9 → 5-6)
-12. Freshness signals for return visitors
+### Phase 2: Tell the Real Story — SHIPPED (March 20, 2026)
+5. ~~Redesign hero to communicate four pillars~~ — A/B variants updated to remove legacy 258K, all variants now reference AI + scale
+6. ~~Add AI Intelligence preview section~~ — `AIPreview.tsx` consumes `GET /api/ai/featured-patterns`
+7. ~~Add Research Dashboard preview with Pro CTA~~ — `DashboardPreview.tsx` with case files, constellation, AI analysis
+8. ~~Add four-pillar "What Is Paradocs?" section~~ — `FourPillars.tsx` (Database, AI, Workspace, Discover)
+9. ~~Add Discover feed preview~~ — `DiscoverPreview.tsx` with real report cards + "Start Swiping" CTA
+10. ~~Inline email capture~~ — lightweight form between AI Preview and Featured Investigation
+11. ~~Section consolidation~~ — merged Featured + Latest Reports into single "Recent Reports"; removed old Trending Patterns
+12. ~~Freshness signals~~ — "Updated [month year]" badge with green pulse dot on Featured Investigation header
 
 ### Phase 3: Depth & Scale Readiness (Month 2)
 13. AI-powered "Related Patterns" section on search results

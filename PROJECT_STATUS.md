@@ -445,11 +445,11 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Phase 1 SHIPPED (March 19):** Mobile search icon in Layout.tsx, legacy stats replaced (4,792 encyclopedia / 20+ investigations / 11 categories), TrendingPatternsWidget hidden.
 
-**Approved session sequence (all buildable pre-mass-ingestion):**
-1. ~~Session 7 Phase 1~~ — SHIPPED
-2. **NEXT: AI Experience & Intelligence session** — RAG pipeline, vector embeddings, pattern detection APIs, conversational AI endpoint
-3. **Session 7 Phase 2** (after AI session) — Hero redesign around four pillars, AI preview, dashboard preview, Discover preview
-4. **Session 7 Phase 3** (after Phase 2) — AI search results, highlighting, Save Search, notification bell, nav for 5M+
+**Session sequence:**
+1. ~~Session 7 Phase 1~~ — SHIPPED (March 19)
+2. ~~AI Experience & Intelligence (Session 15)~~ — SHIPPED (March 20): RAG pipeline, vector embeddings, pattern detection, conversational AI
+3. ~~Session 7 Phase 2~~ — SHIPPED (March 20): Four new homepage components (FourPillars, AIPreview, DashboardPreview, DiscoverPreview), A/B variants updated, section consolidation, freshness signals, inline email capture
+4. **NEXT: Session 7 Phase 3** — AI search results, highlighting, Save Search, notification bell, nav for 5M+
 
 **Touches other sessions:** All sessions (navigation global), AI Experience (Phase 2-3 blocked on RAG/pattern APIs), Explore (onboarding import updated), Session 6a (editorial content), Session 13 (mobile search addition to Layout.tsx)
 
