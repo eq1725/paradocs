@@ -28,7 +28,7 @@ function PillarCard({ icon, title, description, ctaText, ctaHref, badge }: Pilla
             {icon}
           </div>
           {badge && (
-            <span className="px-2 py-1 text-xs font-medium bg-primary-500/20 text-primary-400 rounded-full">
+            <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">
               {badge}
             </span>
           )}
@@ -59,7 +59,7 @@ export default function FourPillars() {
       icon: <Database className="w-6 h-6" />,
       title: 'The Database',
       description: 'Millions of sources scanned. AI-filtered for credibility. The most comprehensive paranormal database ever built.',
-      ctaText: 'Explore',
+      ctaText: 'Search the database',
       ctaHref: '/explore',
       badge: undefined
     },
@@ -67,7 +67,7 @@ export default function FourPillars() {
       icon: <Sparkles className="w-6 h-6" />,
       title: 'AI Intelligence',
       description: 'Cross-reference millions of reports to surface patterns no human could find. Geographic clusters, temporal spikes, phenomena connections.',
-      ctaText: 'View Insights',
+      ctaText: 'Uncover patterns',
       ctaHref: '/insights',
       badge: undefined
     },
@@ -75,7 +75,7 @@ export default function FourPillars() {
       icon: <LayoutDashboard className="w-6 h-6" />,
       title: 'Research Workspace',
       description: 'Case files, evidence collection, Constellation graph. Your command center for the unexplained.',
-      ctaText: 'Access Dashboard',
+      ctaText: 'Build a case file',
       ctaHref: '/dashboard',
       badge: 'Pro'
     },
@@ -83,24 +83,15 @@ export default function FourPillars() {
       icon: <Flame className="w-6 h-6" />,
       title: 'Discover Feed',
       description: 'Swipe through the unknown. Bigfoot to black triangles, ghost encounters to government files.',
-      ctaText: 'Start Swiping',
+      ctaText: 'Start swiping',
       ctaHref: '/discover',
       badge: undefined
     }
   ]
 
   return (
-    <section className="py-16 md:py-24">
+    <section className="py-10 md:py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-display font-bold text-white mb-4">
-            What Is Paradocs?
-          </h2>
-          <p className="text-lg text-gray-400 max-w-2xl mx-auto">
-            Four pillars of paranormal research and investigation, powered by AI and community intelligence.
-          </p>
-        </div>
-
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
           {pillars.map(function(pillar, index) {
             return (
