@@ -211,7 +211,7 @@ function buildPhenomenonText(phenomenon: any): string {
 
   if (phenomenon.name) parts.push('Name: ' + phenomenon.name)
   if (phenomenon.category) parts.push('Category: ' + phenomenon.category)
-  if (phenomenon.subcategory) parts.push('Subcategory: ' + phenomenon.subcategory)
+  if (phenomenon.phenomenon_type_id) parts.push('Type: ' + phenomenon.phenomenon_type_id)
   if (phenomenon.ai_summary) parts.push('Summary: ' + phenomenon.ai_summary)
   if (phenomenon.ai_description) parts.push('\n' + phenomenon.ai_description)
   if (phenomenon.ai_characteristics) parts.push('\nCharacteristics: ' + phenomenon.ai_characteristics)
@@ -338,7 +338,7 @@ export async function embedPhenomenon(phenomenonId: string, force?: boolean): Pr
 
   var { data: phenomenon, error: fetchError } = await supabase
     .from('phenomena')
-    .select('id, name, category, subcategory, ai_summary, ai_description, ai_characteristics, ai_theories, ai_history, primary_regions, slug')
+    .select('id, name, category, phenomenon_type_id, ai_summary, ai_description, ai_characteristics, ai_theories, ai_history, primary_regions, slug')
     .eq('id', phenomenonId)
     .single()
 
