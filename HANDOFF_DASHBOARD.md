@@ -111,7 +111,7 @@ All tables have RLS policies scoped to `auth.uid()`. Backward-compatible migrati
 
 ### Other Changes
 
-- `DashboardLayout.tsx` — Added `FlaskConical` icon + "Research Hub" nav link in Research group
+- `DashboardLayout.tsx` — Added `FlaskConical` icon + "Research Hub" nav link in Research group. Desktop header bell replaced with Session 7's `<NotificationBell />` component (March 20).
 - `database.types.ts` — Added 7 type enums + Row/Insert/Update types for all new tables
 - `src/pages/dashboard/research-hub.tsx` — Page wrapper with auth check + login redirect
 
