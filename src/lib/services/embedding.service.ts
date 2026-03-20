@@ -191,9 +191,11 @@ function buildReportText(report: any): string {
 
   if (report.title) parts.push('Title: ' + report.title)
   if (report.category) parts.push('Category: ' + report.category)
-  if (report.location) parts.push('Location: ' + report.location)
+  if (report.location_name) parts.push('Location: ' + report.location_name)
+  if (report.country) parts.push('Country: ' + report.country)
+  if (report.state_province) parts.push('State/Province: ' + report.state_province)
   if (report.event_date) parts.push('Date: ' + report.event_date)
-  if (report.phenomenon_type) parts.push('Phenomenon Type: ' + report.phenomenon_type)
+  if (report.phenomenon_type_id) parts.push('Phenomenon Type: ' + report.phenomenon_type_id)
   if (report.credibility) parts.push('Credibility: ' + report.credibility)
   if (report.summary) parts.push('Summary: ' + report.summary)
   if (report.description) parts.push('\n' + report.description)
@@ -233,7 +235,7 @@ export async function embedReport(reportId: string, force?: boolean): Promise<{ 
   // Fetch report
   var { data: report, error: fetchError } = await supabase
     .from('reports')
-    .select('id, title, description, summary, category, location, event_date, phenomenon_type, credibility, slug, case_group')
+    .select('id, title, description, summary, category, location_name, country, state_province, event_date, phenomenon_type_id, credibility, slug, case_group')
     .eq('id', reportId)
     .single()
 
@@ -275,12 +277,15 @@ export async function embedReport(reportId: string, force?: boolean): Promise<{ 
     title: report.title || undefined,
     category: report.category || undefined,
     date: report.event_date || undefined,
-    location: report.location || undefined,
+    location: report.location_name || undefined,
     credibility: report.credibility || undefined,
     slug: report.slug || undefined
   }
   if (report.case_group) {
     (metadata as any).case_group = report.case_group
+  }
+  if (report.country) {
+    (metadata as any).country = report.country
   }
 
   // Delete old chunks for this source
