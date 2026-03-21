@@ -235,6 +235,14 @@ Phase 2 items 5-6 and Phase 3 items 13-14 depend on the AI Experience & Intellig
 - Sitemap generation (`/sitemap.xml`)
 - 404 page with search and popular content
 
+### Native App Wrapper (Post-Mass-Ingestion, Pre-Closed-Beta)
+- **Approach:** Capacitor wrapper around the existing Next.js web app
+- **Why:** App Store/Play Store presence for discoverability + credibility. Single codebase. Zero commission on subscriptions in the US (Epic v. Apple ruling, May 2025 — apps can link to web checkout without Apple fee).
+- **What to build:** Capacitor project wrapping beta.discoverparadocs.com in native WebView shell. Subscription payments route to Stripe web checkout via in-app link (system browser, not WebView — Apple requires this). Push notifications via native APIs. App Store + Play Store submission.
+- **Sequence:** Mass ingestion complete → Capacitor wrapper built → Store submission → Closed beta (2 weeks) → Public launch
+- **Session needed:** Dedicated session for Capacitor setup, native project scaffolding, store asset creation (screenshots, descriptions, privacy policy), and submission. Estimate: 1-2 sessions.
+- **Key detail:** The in-app-to-web payment flow must open Stripe checkout in the system browser (not in-app WebView). After payment, user returns to app with subscription active (webhook-based sync via existing Stripe integration).
+
 ---
 
 ## Cross-Session Dependencies
