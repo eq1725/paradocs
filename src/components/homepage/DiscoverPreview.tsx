@@ -96,7 +96,7 @@ export default function DiscoverPreview() {
     <section className="py-10 md:py-16 border-t border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-2">From the database</h2>
-        <p className="text-sm sm:text-base text-gray-400 mb-8 max-w-2xl">Real reports, submitted by real people.</p>
+        <p className="text-sm sm:text-base text-gray-400 mb-8 max-w-2xl">Millions of reports from real people worldwide.</p>
 
         {/* Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
