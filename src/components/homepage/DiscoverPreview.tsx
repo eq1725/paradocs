@@ -264,17 +264,18 @@ function assignFormats(reports: PreviewReport[]): Array<{ report: PreviewReport;
 
   scoredReports.sort(function(a, b) { return b.score - a.score })
 
-  /* First card: Featured */
+  /* Featured spans 2 cols + pullquote 1 col + compact 1 col = 4 cols, one row */
+  /* First card: Featured (spans 2 grid columns) */
   assigned.push({ report: scoredReports[0].report, format: 'featured' })
 
-  /* Second card: Pull-Quote (pick one with vivid summary) */
+  /* Second card: Pull-Quote */
   if (scoredReports.length > 1) {
     assigned.push({ report: scoredReports[1].report, format: 'pullquote' })
   }
 
-  /* Remaining: Compact */
-  for (var i = 2; i < scoredReports.length && i < 4; i++) {
-    assigned.push({ report: scoredReports[i].report, format: 'compact' })
+  /* Third card: Compact — only one, to fill the 4th column */
+  if (scoredReports.length > 2) {
+    assigned.push({ report: scoredReports[2].report, format: 'compact' })
   }
 
   return assigned
@@ -283,7 +284,7 @@ function assignFormats(reports: PreviewReport[]): Array<{ report: PreviewReport;
 /* ── Smart report selection from fetched pool ─────────── */
 
 function selectBestReports(pool: PreviewReport[]): PreviewReport[] {
-  if (pool.length <= 4) return pool
+  if (pool.length <= 3) return pool
 
   var selected: PreviewReport[] = []
   var usedCategories: Record<string, boolean> = {}
@@ -302,17 +303,17 @@ function selectBestReports(pool: PreviewReport[]): PreviewReport[] {
   scored.sort(function(a, b) { return b.score - a.score })
 
   /* First pass: pick top-scoring with category diversity */
-  for (var i = 0; i < scored.length && selected.length < 4; i++) {
+  for (var i = 0; i < scored.length && selected.length < 3; i++) {
     var cat = scored[i].report.category
-    if (!usedCategories[cat] || selected.length >= 3) {
+    if (!usedCategories[cat] || selected.length >= 2) {
       selected.push(scored[i].report)
       usedCategories[cat] = true
     }
   }
 
   /* Backfill if we still need more */
-  if (selected.length < 4) {
-    for (var j = 0; j < scored.length && selected.length < 4; j++) {
+  if (selected.length < 3) {
+    for (var j = 0; j < scored.length && selected.length < 3; j++) {
       var alreadySelected = false
       for (var k = 0; k < selected.length; k++) {
         if (selected[k].id === scored[j].report.id) { alreadySelected = true; break }
@@ -373,7 +374,7 @@ export default function DiscoverPreview() {
         {/* Cards — asymmetric grid: featured spans 2 cols on desktop */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {loading ? (
-            [0, 1, 2, 3].map(function(i) {
+            [0, 1, 2].map(function(i) {
               return (
                 <div
                   key={i}
