@@ -21,7 +21,8 @@ function PillarCard({ icon, title, description, ctaText, ctaHref, badge }: Pilla
         'glass-card p-6 h-full flex flex-col rounded-xl',
         'border border-white/10',
         'hover:border-white/20 hover:bg-white/[0.08] transition-all duration-300',
-        'hover:shadow-lg hover:shadow-primary-500/10'
+        'hover:shadow-lg hover:shadow-primary-500/10',
+        'min-h-[280px] md:min-h-[320px]'
       )}>
         <div className="flex items-start justify-between mb-4">
           <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary-500/20 to-purple-500/20 flex items-center justify-center text-primary-400 group-hover:scale-110 transition-transform">
@@ -38,7 +39,7 @@ function PillarCard({ icon, title, description, ctaText, ctaHref, badge }: Pilla
           {title}
         </h3>
 
-        <p className="text-sm text-gray-400 flex-grow mb-4 line-clamp-2">
+        <p className="text-sm text-gray-400 flex-grow mb-4">
           {description}
         </p>
 
@@ -58,7 +59,7 @@ export default function FourPillars() {
     {
       icon: <Database className="w-6 h-6" />,
       title: 'The Database',
-      description: 'Millions of sources scanned. AI-filtered for credibility. The most comprehensive paranormal database ever built.',
+      description: 'Every UFO sighting, cryptid encounter, ghost report, and unexplained event\u2014aggregated from thousands of sources and filtered by AI for credibility. Search by location, date, phenomenon type, or keywords across the largest paranormal database ever assembled.',
       ctaText: 'Search the database',
       ctaHref: '/explore',
       badge: undefined
@@ -66,7 +67,7 @@ export default function FourPillars() {
     {
       icon: <Sparkles className="w-6 h-6" />,
       title: 'AI Intelligence',
-      description: 'Cross-reference millions of reports to surface patterns no human could find. Geographic clusters, temporal spikes, phenomena connections.',
+      description: 'Our AI reads every report so you don\u2019t have to. It cross-references sightings across time and geography to surface patterns invisible to any single researcher\u2014clustering hotspots, linking similar encounters, and flagging anomalies that deserve a closer look.',
       ctaText: 'Uncover patterns',
       ctaHref: '/insights',
       badge: undefined
@@ -74,7 +75,7 @@ export default function FourPillars() {
     {
       icon: <LayoutDashboard className="w-6 h-6" />,
       title: 'Research Workspace',
-      description: 'Case files, evidence collection, Constellation graph. Your command center for the unexplained.',
+      description: 'Build case files, collect evidence, and visualize connections with the Constellation graph. Whether you\u2019re tracking a local legend or mapping a nationwide wave, this is your command center for serious investigation.',
       ctaText: 'Build a case file',
       ctaHref: '/dashboard',
       badge: 'Pro'
@@ -82,7 +83,7 @@ export default function FourPillars() {
     {
       icon: <Flame className="w-6 h-6" />,
       title: 'Discover Feed',
-      description: 'Swipe through the unknown. Bigfoot to black triangles, ghost encounters to government files.',
+      description: 'Not sure where to start? Swipe through encounters handpicked from the database\u2014Bigfoot tracks in the Pacific Northwest, black triangles over military bases, apparitions in century-old homes. Every card is a rabbit hole waiting to happen.',
       ctaText: 'Start swiping',
       ctaHref: '/discover',
       badge: undefined
