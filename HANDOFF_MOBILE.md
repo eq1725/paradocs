@@ -22,10 +22,10 @@ Everything else                                                → Layout.tsx (p
 
 Both `Layout.tsx` and `DashboardLayout.tsx` now render the same `MobileBottomTabs` component. The tabs are identical on every page:
 
-**Tabs:** Explore (Compass) | Map (MapIcon) | **Discover FAB** (Flame, elevated center) | Library/Encyclopedia (auth-aware) | More (Menu)
+**Tabs:** Explore (Compass) | Map (MapIcon) | **Stories FAB** (Flame, elevated center) | Library/Encyclopedia (auth-aware) | More (Menu)
 
 - **4th tab is auth-aware:** Non-logged-in users see "Encyclopedia" (BookOpen → `/phenomena`). Logged-in users see "Library" (LayoutDashboard → `/dashboard`).
-- **Discover FAB:** Elevated circular center button with Flame icon — the TikTok-like casual user hook. Visually distinct from other tabs (larger, elevated, colored background).
+- **Stories FAB:** Elevated circular center button with Flame icon — the TikTok-like casual user hook. Visually distinct from other tabs (larger, elevated, colored background). Route remains `/discover`; renamed to "Stories" per Session 7 desktop nav update.
 - **More sheet** (MobileBottomSheet): Unified menu with sections:
   - Browse: Home, Encyclopedia (logged-in only, since their tab is Library), AI Insights, Submit Report
   - My Paradocs (logged-in only): Research Hub, Constellation, Saved Reports, My Reports, Journal, Weekly Digests
@@ -156,7 +156,7 @@ Incremental mobile fixes applied during Research Hub development:
 - REMOVED: `useSubscription` dependency (no longer needed for tab gating)
 - ADDED: Unified 5-tab bar used by both Layout.tsx and DashboardLayout
 - ADDED: Auth-aware 4th tab (Encyclopedia for guests, Library/Dashboard for logged-in)
-- ADDED: Discover FAB (elevated center button with Flame icon)
+- ADDED: Stories FAB (elevated center button with Flame icon, route `/discover`)
 - ADDED: Comprehensive More sheet with Browse + My Paradocs + Account sections
 - ADDED: Lightweight auth check via `supabase.auth.getSession()` (no API call)
 - ADDED: `MoreLink` helper component for DRY More sheet items

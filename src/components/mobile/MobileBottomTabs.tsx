@@ -8,7 +8,7 @@
  *
  * 1. Explore — discovery feed, the Netflix-scroll experience
  * 2. Map — interactive sighting map, high-value visual feature
- * 3. Discover (FAB) — TikTok-like immersive feed, the casual user hook
+ * 3. Stories (FAB) — TikTok-like immersive feed, the casual user hook
  * 4. Library/Encyclopedia — auth-aware: Encyclopedia for guests, Library for logged-in
  * 5. More — bottom sheet with everything else (auth-gated items)
  *
@@ -140,7 +140,7 @@ export function MobileBottomTabs() {
             )}
           </Link>
 
-          {/* Discover FAB — elevated center button, the hook for casual users
+          {/* Stories FAB — elevated center button, the hook for casual users
               64px (w-16 h-16) is upper bound for nav-embedded FAB,
               -mt-6 lifts it well above the nav plane */}
           <Link

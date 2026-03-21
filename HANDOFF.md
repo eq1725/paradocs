@@ -1,6 +1,6 @@
 # Paradocs Development Handoff
 
-**Last updated:** March 10, 2026 (Session 17 — Batch 8 content enrichment)
+**Last updated:** March 15, 2026 (Session 30 — Cryptid Enrichment COMPLETE + first_reported_date fix)
 
 ## Project Overview
 
@@ -21,7 +21,280 @@ The platform's thesis: emergent patterns across massive anecdotal reports of par
 
 ## Completed Work (All Sprints)
 
-### Most Recent (March 10, 2026) — Session 17: Batch 8
+### Most Recent (March 15, 2026) — Session 30 (continued): first_reported_date Bulk Fix
+
+#### first_reported_date Alignment Fix ✅
+- **Problem**: The `first_reported_date` column in the `phenomena` table was being populated by the ingestion pipeline based on the earliest *ingested report* date, NOT the actual historical first sighting date. Example: Mothman showed "First Reported: 4/27/2011" instead of 1966.
+- **Fix**: Extracted the year from `ai_quick_facts.first_documented` for all enriched cryptids and set `first_reported_date` to January 1 of that year.
+- **Scope**: 154 entries updated (26 with wrong dates + 128 with null dates). 52 entries with null dates had no parseable year in their quick_facts and were skipped.
+- **All 154 PATCHes returned 204.**
+- **Known frontend bug**: The UI renders `first_reported_date` with a timezone offset, so `1966-01-01` displays as `12/31/1965`. This is a **frontend code fix** needed in the date rendering logic (likely `new Date('1966-01-01')` interpreted as UTC midnight, displayed in local time). Should be addressed in a dedicated frontend session.
+
+#### CRITICAL RULE FOR FUTURE ENRICHMENT — `first_reported_date` alignment:
+- During enrichment, ALWAYS set `first_reported_date` to the historical first documented year (format: `YYYY-01-01`) based on research.
+- This is the "source of truth" date that the UI displays as "First Reported".
+- If the ingestion pipeline later links a report with an *earlier* date than the current `first_reported_date`, this should be flagged for review (not auto-overwritten), because it could indicate either: (a) a genuinely earlier report we didn't know about, or (b) a data quality issue in the ingested report.
+- **Admin panel feature needed**: An alert/flag in the **admin/operations panel** when an ingested report's date is earlier than the phenomenon's existing `first_reported_date`, prompting manual review. This is admin-side ops tooling — NOT the user-facing dashboard.
+
+### Previous (March 12, 2026) — Session 30 (continued): Skinwalker Correction
+
+#### Skinwalker Reclassification & Enrichment ✅
+- Reclassified Skinwalker from religion_mythology back to cryptids (per user review — modern cryptid profile via Skinwalker Ranch / AAWSAP justifies cryptid categorization)
+- Full 7-field enrichment written and pushed (P1 + P2, both 204)
+- QA/QC: PASS — all fields populated, character minimums met, summary within 150-350 chars
+- Visual spot-check confirmed clean rendering on beta site
+- **Updated running total: ~209 entries enriched**
+- ID: 1eb3bfd9-dce5-4a00-92dc-08c4a2654156
+
+### Previous (March 11, 2026) — Session 30: Batch 18 (FINAL)
+
+#### Batch 18 Content Enrichment ✅ — CRYPTID CATEGORY COMPLETE
+- Queried remaining 17 cryptid entries alphabetically after "Wampus Cat" needing ai_paradocs_analysis
+- **DELETED (5 entries)**:
+  - Waterduivel (no verifiable cryptid sources — database artifact)
+  - Wolpertinger (Bavarian novelty/joke creature, not a genuine cryptid tradition)
+  - Yali (indigenous people of Papua New Guinea, not a cryptid)
+  - Youl-Sooree (no verifiable sources found — database artifact)
+  - Zusimacoa (no verifiable sources found — database artifact)
+- **RECLASSIFIED to religion_mythology (5 entries)**:
+  - Wechuge (Athabaskan mythology), Wendigo (Algonquian mythology), Werehyena (African/Middle Eastern folklore), Yara-ma-yha-who (Aboriginal Australian mythology), Yawkyawk (Aboriginal Australian water spirit)
+- **ENRICHED (7 entries)**: Water Elephant, White River Monster, White Thang, Yacumama, Yeren, Yeti, Yowie
+- Fixed Yeti primary_regions error (Shennongjia incorrectly listed as Nepal; corrected to Khumbu region, Nepal)
+- All 7 entries passed QA/QC: 7 fields populated, character minimums met, correct quick_facts keys, proper danger_level prefix, plain string regions, summary within 150-350 chars
+- Visual spot-checks on Yowie and Yeti confirmed clean rendering
+- **FINAL RUNNING TOTAL: ~208 entries enriched across 18 batches**
+- **CRYPTID ENRICHMENT BACKLOG: 100% COMPLETE** — no remaining cryptid entries missing ai_paradocs_analysis
+
+### Previous (March 11, 2026) — Session 29: Batch 17
+
+#### Batch 17 Content Enrichment ✅
+- Fetched 20 cryptid entries alphabetically after "Thylacine" needing ai_paradocs_analysis
+- **DELETED (4 entries)**:
+  - Tut-tut (no verifiable sources found — database artifact)
+  - Uskumogul (no verifiable sources found — database artifact)
+  - Vozhd (no verifiable sources found — database artifact)
+  - Wampus Beast (duplicate of Wampus Cat)
+- **RECLASSIFIED to religion_mythology (7 entries)**:
+  - Tiyanak (Philippine mythology), Tokoloshe (South African Zulu mythology), Trauco (Chiloé mythology), Umm El Duwais (Arabian djinn tradition), Unktahe (Lakota mythology), Vodyanoy (Slavic mythology), Water Babies (Native American spiritual tradition)
+- **ENRICHED (9 entries)**: Tompandrano, Traverspine Gorilla, Trunko, Tsuchinoko, Tuttle Bottoms Monster, Ujit, Urayuli, Van Meter Visitor, Wampus Cat
+- All 9 entries passed QA/QC: 7 fields populated, character minimums met, correct quick_facts keys, proper danger_level prefix, plain string regions, summary within 150-350 chars
+- Visual spot-checks on Van Meter Visitor and Tsuchinoko confirmed clean rendering
+- **Running total: ~201 entries enriched, ~63 remaining (~76% through cryptid enrichment backlog)**
+- **Next batch starts after: "Wampus Cat" (alphabetically)**
+
+### Previous (March 11, 2026) — Session 28: Batch 16
+
+#### Batch 16 Content Enrichment ✅
+- Fetched 20 cryptid entries alphabetically after "Snallygaster" needing ai_paradocs_analysis
+- **DELETED (2 entries)**:
+  - Splinter Cat (lumberjack tall tale/fearsome critter from 1910 William T. Cox book, not a genuine cryptid)
+  - Tiyaga (no verifiable sources found anywhere — database artifact)
+- **RECLASSIFIED to religion_mythology (7 entries)**:
+  - Stikini, Strigoi, Taniwha, Teihiihan, Teju Jagua, Tepegöz, Tikbalang
+- **ENRICHED (11 entries)**: Specter Moose, Spring Heeled Jack, Storsjöodjuret, Tapire-iauara, Tatzelwurm, Tennessee Wildman, Teratorn, Tessie, Thetis Lake Monster, Thunderbird, Thylacine
+- All 11 entries passed QA/QC: 7 fields populated, character minimums met, correct quick_facts keys, proper danger_level prefix, plain string regions, summary within 150-350 chars
+- Visual spot-checks on Thylacine and Spring Heeled Jack confirmed clean rendering
+- **Running total: ~192 entries enriched, ~72 remaining (~73% through cryptid enrichment backlog)**
+- **Next batch starts after: "Thylacine" (alphabetically)**
+
+### Previous (March 11, 2026) — Session 27: Batch 15
+
+#### Batch 15 Content Enrichment ✅
+- Fetched 20 cryptid entries alphabetically after "Rougarou" needing ai_paradocs_analysis
+- **DELETED (5 entries)**:
+  - Sasquatch (duplicate of Bigfoot, already enriched)
+  - Selma (duplicate of Seljordsormen — same Lake Seljord serpent, Norway)
+  - Skvader (taxidermy hoax/joke creature from Sweden, not a real cryptid tradition)
+  - Slide-Rock Bolter (lumberjack tall tale, not a cryptid tradition)
+  - Sky Serpents (duplicate entry in combination category, blocked Sky Serpent PATCH via near-duplicate trigger)
+- **RECLASSIFIED to religion_mythology (5 entries)**:
+  - Samjogo, Scultone, Selkie, Shurala, Skinwalker
+- **ENRICHED (11 entries)**: Sasabonsam, Seljordsormen, Sheepsquatch, Sigbin, Sink Hole Sam, Sinomegaceros, Sisimito, Skunk Ape, Sky Serpent, Smoke Wolf, Snallygaster
+- All 11 entries passed QA/QC: 7 fields populated, character minimums met, correct quick_facts keys, proper danger_level prefix, plain string regions, summary within 150-350 chars
+- Visual spot-checks on Snallygaster and Skunk Ape confirmed clean rendering
+- **Running total: ~181 entries enriched, ~83 remaining (~69% through cryptid enrichment backlog)**
+- **Next batch starts after: "Snallygaster" (alphabetically)**
+
+### Previous (March 11, 2026) — Session 26: Batch 14
+
+#### Batch 14 Content Enrichment ✅
+- Fetched 20 cryptid entries alphabetically after "Orang-bati" needing ai_paradocs_analysis
+- **DELETED (2 entries)**:
+  - Owlman (duplicate of Owlman of Mawnan)
+  - Páloki (no real-world sources, database artifact)
+- **RECLASSIFIED to religion_mythology (5 entries)**:
+  - Penanggalan, Phi Am, Pishtaco, Púca, Qalupalik
+- **RE-RECLASSIFIED (1 entry)**:
+  - Osschaert (Batch 13 reclassification hadn't persisted — re-applied)
+- **ENRICHED (12 entries)**: Oude Rode Ogen, Owlman of Mawnan, Ozark Howler, Pascagoula River Aliens, Pé de Garrafa, Piasa Bird, Pongo, Pope Lick Monster, Popobawa, Pukwudgie, Ropen, Rougarou
+- All 12 entries passed QA/QC: 7 fields populated, character minimums met, correct quick_facts keys, proper danger_level prefix, plain string regions, summary within 150-350 chars
+- Visual spot-checks on Rougarou and Ropen confirmed clean rendering
+- **Running total: ~170 entries enriched, ~94 remaining (~64% through cryptid enrichment backlog)**
+- **Next batch starts after: "Rougarou" (alphabetically)**
+
+### Previous (March 11, 2026) — Session 25: Batch 13
+
+#### Batch 13 Content Enrichment ✅
+- Fetched 20 cryptid entries alphabetically after "Muldjewangk" needing ai_paradocs_analysis
+- **DELETED (1 database artifact)**:
+  - Ndambi-Kaikai (no verifiable sources found anywhere — appears to be a database artifact with no real-world references)
+- **RECLASSIFIED to `religion_mythology` (4 entries)**:
+  - Namazu (Japanese Shinto catfish deity responsible for earthquakes — organized religious tradition)
+  - Ningyo (Japanese yokai/fish-human hybrid from organized Buddhist-Shinto folklore tradition)
+  - Nue (Japanese yokai chimera from organized Shinto-Buddhist tradition, featured in The Tale of the Heike)
+  - Osschaert (Flemish folklore shape-shifting spirit from organized Belgian folk-religious tradition)
+- **ENRICHED as cryptids (15 entries)**: Nahuelito, Nandi Bear, Ngoubou, Nguma-monene, Nguoi Rung, Ningen, Ninki Nanka, Nuk-luk, Ochre Coloured Cat, Ogopogo, Old Yellow Top, Olitiau, Orang Minyak, Orang Pendek, Orang-bati
+- All 15 entries verified: 7/7 fields populated with all quality minimums met (desc 2000+, chars 2000+, theories 2000+, paradocs 2500+, summary 150-350, quick_facts 10 correct keys, regions 2+ plain strings)
+- Removal rate: 25% (5 of 20 removed/reclassified)
+- **Research-first mandate**: All 20 entries individually web-searched before any content was written
+- **Post-push QA issue**: Initial push via parallel subagents used incorrect UUIDs (fabricated suffixes) due to truncated ID display. Supabase PATCH with `Prefer: return=minimal` returns 204 even when 0 rows match, so failures were silent. Required complete re-push with correct IDs. Further QA revealed agents wrote wrong quick_facts key structures (custom keys like "Size", "Region" instead of required 10 standard keys), short paradocs (<2500), and JSON-object regions. All 14 failed entries were individually corrected.
+- **Lesson reinforced**: Never trust agent subagent content quality — always run independent QA verification and fix manually.
+- **Running total**: ~158 entries enriched across Batches 1-13; next batch starts after "Orang-bati" (alphabetically, also after "Osschaert" which was reclassified); ~106 cryptids remaining
+
+### Prior (March 11, 2026) — Session 22: Batch 12
+
+#### Batch 12 Content Enrichment ✅
+- Fetched 20 cryptid entries alphabetically after "Mirygdy" needing ai_paradocs_analysis
+- **DELETED (1 duplicate entry)**:
+  - Momo the Monster (duplicate of Momo — same Missouri Monster)
+- **RECLASSIFIED to `religion_mythology` (4 entries)**:
+  - Mokumokuren (Japanese yokai/household spirit from organized Shinto-Buddhist tradition)
+  - Moñai (Guaraní folklore legend — mythological serpent creature)
+  - Muki (Andean supernatural mining spirit from organized indigenous spiritual tradition)
+  - Naga (Hindu/Buddhist mythological serpent from organized South/Southeast Asian religious traditions)
+- **ENRICHED as cryptids (15 entries)**: Mngwa, Moehau, Mogollon Monster, Mokele-mbembe, Momo, Mongolian Death Worm, Mono Grande, Monster of Lake Fagua, Moosehead Lake Creature, Morag, Morgawr, Mothman, Muc-Sheilch, Muhuru, Muldjewangk
+- All 15 entries verified: 7/7 fields populated with all quality minimums met (desc 2000+, chars 2000+, theories 2000+, paradocs 2500+, summary 150+, quick_facts 10 keys, regions 2+)
+- Removal rate: 25% (5 of 20 removed/reclassified)
+- **Key note**: These entries already had short auto-generated content from a prior bulk process — this batch upgraded all fields to full quality standards and added the missing ai_paradocs_analysis field
+- **Running total**: ~143 entries enriched across Batches 1-12; next batch starts after "Muldjewangk"; 136 cryptids originally needed enrichment, ~121 remaining
+
+#### Batch 12 QA/QC (Session 23) ✅
+- **Quick Facts keys**: All 15 entries verified — correct 10 snake_case keys (origin, classification, first_documented, danger_level, typical_encounter, evidence_types, active_period, notable_feature, cultural_significance, also_known_as)
+- **also_known_as arrays**: All 15 entries confirmed storing proper JSON arrays
+- **Danger level color coding**: Found Mongolian Death Worm used "Extreme" which only renders on index page (not detail page). Fixed to "High — considered extremely dangerous by reputation..." for consistent red rendering on both pages
+- **Region geocoding**: Mothman had "Mason County" geocoding to Mason County, Texas instead of West Virginia. Fixed primary_regions to explicitly include state: `["Point Pleasant, West Virginia, USA", "Mason County, West Virginia", "West Virginia, USA", "Ohio River Valley"]`
+- **Visual spot-checks**:
+  - Mongolian Death Worm: map pins correct in Mongolia, all Quick Facts rendering, danger level now red ✅
+  - Mokele-mbembe: 5 known regions pinned correctly in Central Africa, all 10 Quick Facts fields rendering, danger level "High" in red, Paradocs Analysis with CROSS-FRAMEWORK CONVERGENCE badge ✅
+- **Key frontend discovery**: Also Known As section on detail page renders from `phenomenon.aliases` column, NOT from `ai_quick_facts.also_known_as` — the latter is supplementary data only
+- **Danger level rendering inconsistency documented**: Detail page (`[slug].tsx`) uses `.toLowerCase().includes('high')` etc.; Index page (`index.tsx`) uses `.split(' ')[0]` with DANGER_COLORS constant that supports Extreme/High/Moderate/Low/Unknown/Varies. Best practice: always start danger_level with "High", "Moderate", or "Low" to ensure consistent rendering on both pages
+
+#### Batch 12 Research Audit & Reprocessing (Session 24) ✅
+- **Context**: User identified that Batch 12 content was written from training knowledge without per-entry web research. Mandated a research audit to verify factual accuracy, followed by full reprocessing of entries with verified inaccuracies.
+- **Methodology**: Web searched all 15 entries, compared research findings against DB content for specific factual claims (dates, names, locations, measurements).
+- **Findings and corrections**:
+  - **CRITICAL — Monster of Lake Fagua (11dee785)**: FULL REWRITE of all 7 fields. Original content placed the creature in Colombia (Laguna de Fúquene, Muisca traditions) — research revealed it's actually from Chile (Laguna de Tagua Tagua, near Santa Fe under Peruvian administration). Key source: José Celestino Mutis's 1784 notes published in Journal de Paris. Corrected to Chilean origin with Mapuche traditions.
+  - **MODERATE — Mngwa (d360e3f6)**: FULL REWRITE of all 7 fields. Original omitted Captain William Hichens (1922 magistrate in Lindi), Patrick Bowen (hunter), the specific 1922 date, Sultan Majnun folklore, and brindled fur evidence. Fixed Wester Ross/Tanzania region error.
+  - **MODERATE — Muhuru (8630a251)**: FULL REWRITE of all 7 fields. Original said "Tana River region" with "15-30 feet" — research shows key sighting was by Cal Bombay in 1963 in the Great Rift Valley, creature was 9-12 feet. Corrected location and size.
+  - **MODERATE — Moosehead Lake Creature (07cd1ebd)**: Description rewrite + new quick facts. Added 1881 lumberjack sighting, 2024 photo sighting from Lazy Tom Bog area.
+  - **MINOR — Moehau (5c603901)**: Quick facts update. Added 1882 prospector death, maeroero term, 1903 Karangahake Gorge footprints, 1971 park ranger tracks.
+  - **MINOR — Morgawr (2a145196)**: Quick facts update. Added Tony "Doc" Shiels, Mary F photos, 2022 academic hoax study.
+  - **MINOR — Muc-Sheilch (0c12f445)**: Quick facts update. Added Mr Banks of Letterewe, 1850s draining attempt, Loch-na-Beiste.
+  - **MINOR — Morag (4bc125d6)**: Quick facts update. Added 1887 earliest sighting, Alexander Carmichael, 34 incidents by 1981.
+  - **MINOR — Mongolian Death Worm (c9498b2e)**: Description update. Added Roy Chapman Andrews by name, his 1926 book "On the Trail of Ancient Man", and the 1983 Tartar sand boa (Eryx tataricus) identification by Gobi locals.
+  - **MINOR — Muldjewangk (c14c7064)**: Description + quick facts update. Added bunyip connection (bunyip appears in Ngarrindjeri dreaming as the Muldjewangk), alternate name Mulyawonk, fish-greed warning tradition.
+  - **VERIFIED OK (5 entries)**: Mothman, Mogollon Monster, Mokele-mbembe, Momo, Mono Grande — all contained accurate verifiable facts (named witnesses, dates, locations). No corrections needed.
+- **Lesson learned**: Every entry MUST be individually web-searched before content is written. Training knowledge alone produces plausible but sometimes inaccurate details, especially for obscure cryptids. The Research-First Mandate is now embedded in the continuation prompt and Content Quality Standards.
+
+### Prior (March 10, 2026) — Session 21: Batch 11
+
+#### Batch 11 Content Enrichment ✅
+- Fetched 20 entries alphabetically after "Mapinguari"
+- **DELETED (3 duplicate entries)**:
+  - Memphré (duplicate of Memphre — accent variant)
+  - Menhune (duplicate of Menehune — spelling variant)
+  - Minhocão (duplicate of Minhocao — accent variant)
+- **RECLASSIFIED to `religion_mythology` (3 entries)**:
+  - Mbói Tu'i (Guaraní serpent deity from organized Tupi-Guaraní mythological tradition)
+  - Menehune (Hawaiian small people from organized Polynesian cultural tradition)
+  - Mishipeshu (Ojibwe underwater panther from organized Anishinaabe spiritual tradition)
+- **ENRICHED as cryptids (14 entries)**: Maricoxi, Maroochy River Monster, Marozi, Mbielu-Mbielu-Mbielu, Mecheny, Megaconda, Megalodon, Melon Heads, Memphre, Mermaid, Metoh-kangmi, Mimic Tiger, Minhocao, Mirygdy
+- All 14 entries verified: 7/7 fields populated (ai_description, ai_characteristics, ai_theories, ai_paradocs_analysis, ai_summary, ai_quick_facts, primary_regions)
+- Removal rate: 30% (6 of 20 removed/reclassified) — lowest rate yet, reflecting strong cryptid representation in the Ma-Mi range
+- **Push method**: Direct JS string pushes with `\n\n` paragraph breaks for text fields; ai_quick_facts as native JSONB; combined field pushes where possible for efficiency
+- **Running total**: ~128 entries enriched across Batches 1-11; next batch starts after "Mirygdy"
+
+### Prior (March 10, 2026) — Session 20: Batch 10 + Report Count Fix
+
+#### Report Count Consistency Fix ✅
+- **Problem**: `report_count` column on `phenomena` table contained fake seed data (random numbers like 220, 150, 280) not reflecting actual linked reports
+- **Root cause**: The `report_phenomena` join table (280K+ rows) links reports to phenomena, but `report_count` was never synced with it
+- **Fix**: Ran SQL UPDATE across all phenomena to set `report_count = COUNT of approved linked reports` (via INNER JOIN on `reports.status = 'approved'`). Required temporarily disabling the `check_phenomena_duplicates` trigger.
+- **Result**: Only ~15 phenomena now have non-zero report_count (e.g., CE-1: 324, Orbs: 101, Black Triangle UFO: 33, Bigfoot: 23). Jersey Devil went from fake 321 → 0 (all its linked reports are archived, not approved).
+- **Key finding**: The `report_phenomena` table has 280K+ links but most linked reports have `status: 'archived'`. The `getPhenomenonReports` API correctly filters by `status = 'approved'`, so `report_count` now matches what users actually see in the Reports tab.
+- **Architecture note**: `report_count` is a static column — no auto-sync trigger exists yet. Future enhancement could add a Postgres trigger on `report_phenomena` INSERT/DELETE to keep it current.
+
+#### Batch 10 Content Enrichment ✅
+- Fetched 20 entries alphabetically after "Lake Tianchi Monster"
+- **DELETED (2 entries)**:
+  - Maam (no verifiable cryptid tradition; appears to be a database artifact with no documented sightings or folklore)
+  - Man-Eating Tree (19th-century literary hoax; originated from fabricated 1874 newspaper account by Karl Leche, no genuine cryptid tradition)
+- **RECLASSIFIED to `religion_mythology` (8 entries)**:
+  - Lange Wapper (Flemish shapeshifting giant from organized Antwerp folklore tradition)
+  - Lindworm (European wingless dragon from organized Norse/Germanic mythological tradition)
+  - Lobizón (Argentine werewolf from organized seventh-son folk-Catholic tradition)
+  - Luison (Guaraní god of death from organized Tupi-Guaraní mythological tradition)
+  - Lupo Mannaro (Italian werewolf from organized Mediterranean lycanthropy tradition)
+  - Mami Wata (Pan-African water spirit from organized syncretic religious tradition)
+  - Manananggal (Filipino self-segmenting viscera sucker from organized aswang folk-Catholic tradition)
+  - Mannegishi (Cree/Ojibwe trickster water spirit from organized Algonquian spiritual tradition)
+- **ENRICHED as cryptids (10 entries)**: Lake Worth Monster, Lechuza, Lizard Man of Scape Ore Swamp, Loch Ness Monster, Loveland Frog, Lusca, Mamlambo, Mande Barung, Manipogo, Mapinguari
+- All 10 entries verified: character minimums met (desc 2000+, chars 2000+, theo 2000+, anal 2500+), 10 ai_quick_facts keys each, primary_regions populated, paragraph breaks confirmed
+- Removal rate: 50% (10 of 20 removed/reclassified) — lower rate than recent batches, reflecting stronger cryptid representation in the L-M range
+- **Push method**: Base64 encoding via `atob()` for all text fields to preserve `\n\n` paragraph breaks; ai_quick_facts passed as native JSONB object; individual field pushes (one PATCH per field) for reliability
+- **Session note**: Text field pushes via agent subprocesses caused data truncation; all text fields must be pushed directly from main context to avoid base64 string truncation
+
+### Prior (March 10, 2026) — Session 19: Batch 9
+
+#### Batch 9 Content Enrichment ✅
+- Fetched 20 entries alphabetically after "J'ba Fofi"
+- **DELETED (3 entries)**:
+  - Jenglot (Indonesian novelty hoax; manufactured figurines sold as curiosities, not a genuine cryptid tradition)
+  - Kasai Rex (fabricated entry; single dubious 1932 account with no corroboration, widely considered a hoax)
+  - Kraken (generic category term for giant sea creatures, not a specific cryptid; now understood as giant squid)
+- **RECLASSIFIED to `religion_mythology` (13 entries)**:
+  - Kaiaimunu (Papua New Guinean spirit being from organized animist tradition)
+  - Kappa (Japanese water spirit from organized Shinto/Buddhist mythological tradition)
+  - Kee-Wakw (Abenaki cannibal ice giant from organized northeastern Algonquian mythology)
+  - Keelut (Inuit supernatural hairless dog from organized shamanic cosmological tradition)
+  - Kelpie (Scottish shapeshifting water spirit from organized Celtic mythological tradition)
+  - Kinnara (South/Southeast Asian divine half-human, half-bird from Hindu-Buddhist mythology)
+  - Kishi (Angolan two-faced demon from organized Kimbundu spiritual tradition)
+  - Kitsune (Japanese shapeshifting fox spirit from organized Shinto/Buddhist mythological tradition)
+  - Kodama (Japanese tree spirit from organized Shinto animist tradition)
+  - Kting Voar (Cambodian spiral-horned bovid from Vietnamese/Cambodian folk tradition)
+  - Kushtaka (Tlingit shapeshifting otter spirit from organized Northwest Coast spiritual tradition)
+  - La Llorona (Latin American weeping ghost woman from organized Catholic-syncretic folk tradition)
+  - Lamassu (Mesopotamian winged bull-human deity from organized Assyrian/Babylonian religion)
+- **ENRICHED as cryptids (4 entries)**: Jersey Devil, Kongamato, Lagarfljót Worm, Lake Tianchi Monster
+- All 4 entries verified: character minimums met (desc 2000+, chars 2000+, theo 2000+, anal 2500+), 10 ai_quick_facts keys each, primary_regions populated, paragraph breaks confirmed
+- Removal rate: 80% (16 of 20 removed/reclassified) — highest rate yet, reflecting heavy mythological/religious content in the J-L alphabetical range
+- **Push method**: Base64 encoding for all text fields to preserve `\n\n` paragraph breaks; ai_quick_facts passed as native JSONB object
+
+### Prior (March 10, 2026) — Session 18: QA/QC + Code Fixes
+
+#### Sitewide "ParaDocs" → "Paradocs" Rename ✅
+- Renamed all instances of "ParaDocs" to "Paradocs" across 45 codebase files (components, pages, API routes, scripts, docs)
+- SQL UPDATE fixed 52 phenomena rows with "ParaDocs" in AI-generated text fields (ai_paradocs_analysis, ai_history, ai_description, etc.)
+- **Commits**: `c07832be` (codebase rename + scroll fix), `9473c322` (scroll restoration fix)
+
+#### Encyclopedia Scroll Position Restoration Fix ✅
+- **Problem**: Previous scroll fix (Session 16) was incomplete — `sessionStorage paradocs_nav_ctx` was never SET when navigating from index to detail page, so `router.back()` never triggered
+- **Fix**: Added `routeChangeStart` event listener in index.tsx that saves `window.scrollY` to module-level `_scrollY` variable and sets `paradocs_nav_ctx` in sessionStorage when navigating to `/phenomena/*`. On remount, restores scroll position via `requestAnimationFrame`.
+- **Commit**: `9473c322`
+
+#### Ask the Unknown Button Z-Index Fix ✅
+- **Problem**: Leaflet map tiles use internal z-indices of 200-400 which leaked into the page stacking context and covered the fixed `z-50` chat button
+- **Fix**: Added CSS `isolate` class to PhenomenonMiniMap.tsx outer container to create an isolated stacking context
+- User committed and pushed directly
+
+#### Batch 4 Paragraph Break Reformat ✅
+- **Problem**: Batch 4 content (Black Demon through Chupacabra, 14 entries) was stored as wall-of-text with zero `\n\n` paragraph breaks across all AI text fields
+- **Fix**: Created `add_paragraph_breaks()` PL/pgSQL function that splits text at sentence boundaries (`. [A-Z]`) and groups every 4 sentences into paragraphs. Applied to all 7 AI text fields for all 14 Batch 4 slugs.
+- **Affected slugs**: black-demon, black-shuck, bukit-timah-monkey-man, bunyip, burrunjor, buru, cadborosaurus, champ, cheonji-monster, chessie, chipekwe, chipfalamfula, chuchunya, chupacabra
+- **Note for future batches**: Ensure AI content includes `\n\n` paragraph breaks during generation. Batch 4's issue was caused by paragraph breaks being stripped during push. Use per-field base64 encoding to preserve formatting.
+
+### Prior (March 10, 2026) — Session 17: Batch 8
 
 #### Batch 8 Content Enrichment ✅
 - Fetched 20 entries alphabetically after "Great Lakes Sea Monster"
@@ -321,14 +594,14 @@ Each entry received: `ai_description`, `ai_characteristics`, `ai_theories`, `ai_
 - **Phase 1 (current)**: Content enrichment only — `ai_description`, `ai_characteristics`, `ai_theories`, `ai_paradocs_analysis`, `ai_quick_facts`, `primary_regions` for all cryptid entries, 20 at a time
 - **Phase 2 (later)**: Profile images and media (YouTube videos) for all entries — Chase will provide custom profile images and YouTube URLs
 
-### Progress: ~90/~353 cryptids done (Adjule + Batch 1 (18) + Batch 2 (16) + Batch 3 (13) + Batch 4 (14) + Batch 5 (9) + Batch 6 (8) + Batch 7 (11) — 51 total deleted/reclassified across all batches)
+### Progress: ~114/~353 cryptids done (Adjule + Batch 1 (18) + Batch 2 (16) + Batch 3 (13) + Batch 4 (14) + Batch 5 (9) + Batch 6 (8) + Batch 7 (11) + Batch 8 (11) + Batch 9 (4) + Batch 10 (10) — 86 total deleted/reclassified across all batches)
 
 ---
 
 ## Planned / Next Work
 
 ### IMMEDIATE: Continue Batch Content Enrichment
-- Process next 20 cryptid entries starting alphabetically after "J'ba Fofi" (Batch 9)
+- Process next 20 cryptid entries starting alphabetically after "Mapinguari" (Batch 11)
 - Each entry needs: `ai_description`, `ai_characteristics`, `ai_theories`, `ai_paradocs_analysis`, `ai_quick_facts` (JSON), `primary_regions` (text[])
 - Use Supabase REST API with service role key (browser JS) to update entries
 - Target: 20 entries per session
@@ -449,6 +722,8 @@ Before writing content for ANY entry, you MUST:
 
 | SHA | Description |
 |-----|-------------|
+| `9473c322` | Fix encyclopedia scroll restoration: save/restore scroll position and set nav context |
+| `c07832be` | Rename ParaDocs to Paradocs sitewide + fix encyclopedia back-navigation scroll |
 | `3690a9ec` | Cache phenomena data in module-level variable for instant back-navigation rendering |
 | `ef72a5f6` | Make minimap scroll away so Quick Facts sticks to top |
 | `891443e8` | Move minimap above Quick Facts in sidebar |

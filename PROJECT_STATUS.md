@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** March 18, 2026
+**Last updated:** March 21, 2026
 **Project:** beta.discoverparadocs.com
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -90,13 +90,13 @@ Each major feature area has a dedicated Claude session with its own deep context
 | # | Session Name | Scope | HANDOFF File | Status |
 |---|-------------|-------|-------------|--------|
 | 1 | **Encyclopedia Enrichment** | Phenomena content, AI fields, QA/QC, triage | `HANDOFF.md` (existing) | Active — Cryptid category 100% complete |
-| 2 | **Explore & Discovery** | Personalized feed, category filters, content surfacing, recommendations | `HANDOFF_EXPLORE.md` | Active — Anonymous feed, soft-wall prompts, mobile UX optimized, Discover feed randomization |
+| 2 | **Explore & Discovery** | Personalized feed, category filters, content surfacing, recommendations | `HANDOFF_EXPLORE.md` | Active — Phase 2 mixed content feed deployed (March 21): feed-v2 API serves phenomena + reports, three card templates (PhenomenonCard/TextReportCard/MediaReportCard), Framer Motion related tray, completion signals |
 | 3 | **Map & Geospatial** | MapLibre GL map, PostGIS queries, Supercluster, heatmap, bottom sheet | `HANDOFF_MAP.md` | Active — Phase 1 & 2 COMPLETE, Phase 3 partial. Deep-link URL params added (lat/lng/zoom) |
 | 4 | **Insights & Pattern Analysis** | Pattern detection algorithms, AI narratives, skeptic mode, trending, methodology | `HANDOFF_INSIGHTS.md` | Not started |
 | 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
 | 6a | **Report Experience — Curated Content** | Handcrafted case files, editorial enrichment, Featured Investigations, curated media, book recommendations | `HANDOFF_REPORTS.md` | Active — 20 reports across 2 case clusters (Roswell 14 + Rendlesham 6), credibility rationales, badge redesign, homepage discovery row |
 | 6b | **Report Experience — Ingestion & Scale** | Reports from mass ingestion pipeline, quality templates, automated enrichment, connection generation at scale | `HANDOFF_REPORTS_INGESTION.md` | Not started — NOW UNBLOCKED (March 20 strategic revision) |
-| 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO, color system | `HANDOFF_SEARCH_NAV.md` | COMPLETE — All phases shipped. Homepage: 4 sections (was 14), 168 lines (was 1,135). Color: #9000F0 purple. Search: fulltext + AI. |
+| 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO, color system, PWA | `HANDOFF_SEARCH_NAV.md` | COMPLETE — Homepage: 4 sections / 168 lines. PWA: service worker + install prompt + icon refresh. Color: #9000F0. Search: fulltext + AI. Native app wrapper plan documented. |
 | 8 | **Subscription & Monetization** | Stripe checkout, paywall, tier system, billing portal, cancellation | `HANDOFF_SUBSCRIPTION.md` | Not started |
 | 9 | **Email & Engagement** | Weekly digests, drip campaigns, smart alerts, winback, notifications | `HANDOFF_EMAIL.md` | Not started |
 | 10 | **Data Ingestion & Pipeline** | Source adapters, quality filters, dedup, bulk import, media extraction | `HANDOFF_INGESTION.md` | Not started — NOW UNBLOCKED and ON CRITICAL LAUNCH PATH (March 20 strategic revision) |
@@ -139,8 +139,10 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Key files:**
 - `src/pages/explore.tsx` — Main discovery feed page (Discover + Browse tabs)
-- `src/pages/discover.tsx` — TikTok-style fullscreen swipe feed (standalone, no nav chrome)
-- `src/pages/api/discover/feed.ts` — Discover swipe feed API (seeded shuffle, quality tiering, category diversity)
+- `src/pages/discover.tsx` — TikTok-style fullscreen swipe feed (standalone, no nav chrome) — Phase 2: mixed content
+- `src/pages/api/discover/feed-v2.ts` — **NEW** Mixed content feed API (phenomena + reports, seeded shuffle, quality tiering, content-type diversity)
+- `src/pages/api/discover/feed.ts` — Legacy phenomena-only feed API (preserved for backward compat)
+- `src/components/discover/DiscoverCards.tsx` — **NEW** Three card templates: PhenomenonCard, TextReportCard, MediaReportCard + RelatedTray
 - `src/pages/api/feed/personalized.ts` — Explore feed API (encyclopedia spotlight, trending, category highlights)
 - `src/lib/services/personalization.service.ts` — User preference engine
 - `src/components/CategoryFilter.tsx`, `SubcategoryFilter.tsx`, `PhenomenaFilter.tsx`
@@ -149,11 +151,12 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Database tables:** `reports`, `phenomena`, `saved_reports`, `user_preferences`
 
-**Current state (March 16, 2026):**
+**Current state (March 21, 2026):**
 - **Anonymous feed COMPLETE:** Rich 5-7 section editorial feed for all users (Encyclopedia Spotlight, Trending, Category Highlights, Recently Added). No empty states for logged-out users.
 - **Soft-wall signup COMPLETE:** 3 contextual touchpoints (bookmark, in-feed card, bottom CTA). Research-backed: gate depth not breadth.
 - **Mobile UX optimized (March 16):** Layout.tsx header fixed (logo nowrap, Submit demoted, Sign In pill button). Explore page compacted (inline title+toggle, larger encyclopedia cards at 75vw, compressed Pattern Insights banner). Ask the Unknown FAB repositioned above bottom nav with AI presence animations (rotating aurora border, breathing glow, sparkle micro-animation). MobileBottomTabs enlarged (Stories FAB 64px, nav icons 24px).
-- **Discover feed randomization (March 16):** Seed moved from module scope to component useRef (fresh order every visit). API tier interleaving (3:1:1 explore-exploit pattern) replaces concatenated tiers. Users now see genuinely different content on each visit.
+- **Discover feed randomization (March 16):** Seed moved from module scope to component useRef (fresh order every visit). API tier interleaving (3:1:1 explore-exploit pattern) replaces concatenated tiers.
+- **Phase 2 mixed content feed (March 21):** Stories feed now serves both phenomena AND reports via `/api/discover/feed-v2`. Three card templates: PhenomenonCard (encyclopedia entries), TextReportCard (first-person accounts), MediaReportCard (reports with photo/video evidence). Framer Motion horizontal swipe tray for related content on each card (uses Session 15 RAG APIs). Completion milestone toasts at 25/50/75%. Content type pill indicator in header. Old feed API preserved for backward compat.
 
 **What needs work:**
 - Free tier content limits (e.g., 50 full reports/month)
@@ -162,7 +165,9 @@ Each major feature area has a dedicated Claude session with its own deep context
 - Feed personalization quality (A/B test section ordering, track engagement)
 - "Connection cards" / "Did You Know?" cross-report relationships (Sprint 2, not built)
 - Smart match alerts (Sprint 2, not built)
-- Image fallback (onError handling for phenomena images that 404)
+- Report media display — MediaReportCard uses gradient bg; when report images are available, switch to image-backed
+- Tune report/phenomena ratio in mixed feed
+- Complete remaining phenomena embeddings (~3,600) for Related tray coverage
 
 **Touches other sessions:** Encyclopedia (content quality affects feed + spotlight), Insights (trending patterns surface in feed), Dashboard (personalization preferences), Search (shared filter components), Foundation (Layout.tsx + globals.css modified), Mobile Design (MobileBottomTabs modified)
 
@@ -678,6 +683,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 2026-03-20 | Search & Nav (7) | **HOMEPAGE CLEANUP: 14 sections cut to 4.** Hero (search-forward, removed dual CTAs + quick-search tags + tour CTA), Four Pillars (tightened copy), Discover Preview (product taste), Email Capture (clean, no Submit CTA). Removed from render but components preserved: AIPreview, Featured Investigation (Roswell), secondary stories, More Investigations, Categories Grid, Recent Reports, Encyclopedia, DashboardPreview, Continue Your Research, inline email, Submit CTA. All removable sections can be restored by re-adding JSX in index.tsx. No component files deleted. | Session 6a (Featured Investigation hidden until 4+ investigations exist), Explore (categories section removed from homepage but /explore unchanged), Dashboard (DashboardPreview hidden, Four Pillars card covers it), ALL sessions (homepage structure dramatically simplified) |
 | 2026-03-20 | **PM Session** | **STRATEGIC SHIFT: Encyclopedia and curated editorial content are NO LONGER launch blockers.** The old A→B→C waterfall (encyclopedia complete → curated reports → mass ingestion) has been replaced. Mass ingestion is now UNBLOCKED. The four pillars (Database Scale, AI Intelligence, Research Dashboard, Stories Feed) are the MVP. Encyclopedia enrichment and curated editorial content continue as parallel value-adds. Data cleanup: ~2M Reddit dev data will be deleted entirely; ~900 test reports will be re-ingested through final pipeline. Launch path: data cleanup → mass ingestion → embedding → Stripe/subscription → closed beta (2 weeks) → public launch. | **ALL sessions** — especially Session 10 (now on critical path), Session 6b (now unblocked), Session 1 (no longer a blocker), Session 6a (no longer a blocker), Session 8 (Stripe key now on critical path) |
 | 2026-03-20 | Search & Nav (7) | **FULL COLOR SYSTEM OVERHAUL.** Primary palette in tailwind.config.js shifted from indigo (#5B63F1, H:236°) to brand purple (#9000F0, H:271°). Full 50-950 scale replaced. 37 hardcoded inline color references updated across 13 source files (#5b63f1→#9000f0, #4f46e5→#7a00cc, rgba(91,99,241)→rgba(144,0,240)). Logo period set to #9000F0 on all 6 instances. Accent gradient: purple→pink (#9000f0→#f472b6). Design brief v3 documents full deployed palette. **Every Tailwind primary-\* class across the entire app now renders purple.** | ALL sessions (global color change — buttons, links, badges, focus rings, gradients all shifted from indigo to purple), Foundation (tailwind.config.js modified), Session 13 (mobile nav inherits new colors), Session 5 (dashboard inherits), Session 6a (report page inline styles updated) |
+| 2026-03-21 | Explore & Discovery (2) | **Phase 2: Mixed content Stories feed DEPLOYED.** `/api/discover/feed-v2` now serves phenomena + reports (was phenomena-only). Three card templates in `DiscoverCards.tsx` (PhenomenonCard, TextReportCard, MediaReportCard). Framer Motion horizontal swipe for related content (consumes Session 15 RAG APIs: `/api/ai/report-similar`, `/api/ai/related`). Completion milestone toasts at 25/50/75%. Old feed API preserved. `discover.tsx` fully rewritten. | Session 15 (RAG APIs now consumed by Stories feed), Foundation (first Framer Motion usage), All sessions (Stories feed now shows reports, not just phenomena) |
 | 2026-03-20 | Mobile Design (13) | **MobileBottomTabs FAB label renamed "Discover" → "Stories"** to match Session 7's desktop nav rename. Route unchanged (`/discover`). Component comment updated. | Explore (label change only, no functional change), All sessions (mobile nav label updated) |
 | 2026-03-20 | Dashboard (5) | Desktop header bell icon in DashboardLayout.tsx replaced with Session 7's functional `<NotificationBell />` component. Static `<button>` with hardcoded purple dot removed. | Search & Nav (Session 7 component now used on both mobile and desktop headers) |
 | 2026-03-20 | Search & Nav (7) | **Session 7 ALL PHASES COMPLETE.** Phase 1: mobile search icon, real stats, hidden placeholders. Phase 2: FourPillars, AIPreview, DashboardPreview, DiscoverPreview components on homepage; A/B variants updated for AI+scale messaging; section consolidation 9→6; inline email capture; freshness signals. Phase 3: AI Related Patterns in search results (fetches /api/ai/related); Save Search + Get Alerts soft-wall; NotificationBell component (replaces non-functional bell in DashboardLayout); "Ask AI" nav item replacing "Insights"; "Discover" renamed to "Stories"; header search hidden on /search; AI gradient stat badge. Desktop nav now: Explore, Map, Encyclopedia, Ask AI, Stories. | ALL sessions (nav changed globally), Session 13 (mobile nav — "Stories" label should be coordinated), Session 5 (Dashboard — NotificationBell replaces bell buttons), Session 15 (AI — /api/ai/related and /api/ai/featured-patterns now consumed by homepage+search) |
@@ -756,12 +762,13 @@ Each major feature area has a dedicated Claude session with its own deep context
 ## Tech Debt & Known Issues
 
 - `report/[slug].tsx` is 40K+ lines — needs componentization
-- Three separate onboarding components — consolidate
+- ~~Three separate onboarding components — consolidate~~ ✅ `UnifiedOnboarding.tsx` created (Session 7). Old `WelcomeOnboarding.tsx` and `ThreeTapOnboarding.tsx` still in codebase — safe to delete.
 - SWC compatibility requires `var` + string concat (no template literals in JSX)
 - Code pushes via GitHub API (no git CLI) — documented in SESSION_NOTES.md
 - No CI/CD pipeline (no tests, no linting on push)
 - No error monitoring service
 - Mobile responsiveness gaps → **Session 13 created to address comprehensively**
+- `/og-home.png` referenced in meta tags but doesn't exist yet — needs design (1200×630)
 
 ---
 

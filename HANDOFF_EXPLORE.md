@@ -146,6 +146,59 @@ Current site has ~928 test reports and ~4,792 encyclopedia phenomena. The feed i
 | `src/pages/discover.tsx` | Seed moved from module scope to useRef — fresh order on every visit (March 16) |
 | `src/pages/api/discover/feed.ts` | Interleaved explore-exploit quality tiering instead of concatenated tiers (March 16) |
 
+### Phase 2: Discover Feed Architecture Redesign (March 21, 2026)
+
+**Problem:** The Stories (/discover) feed showed only encyclopedia phenomena. Reports — the heart of the platform (firsthand experiencer accounts) — were absent. This meant the casual-user hook (TikTok-style swipe) didn't showcase the content most likely to create emotional connection and conversion.
+
+**Solution:** Mixed content feed with three card templates and related content discovery.
+
+#### New API: `/api/discover/feed-v2`
+
+Replaces the phenomena-only `/api/discover/feed` as the data source for /discover. Fetches both phenomena (up to 800) and approved reports (up to 400), scores them on a unified 0-8 scale, and interleaves using the same 3:1:1 explore-exploit pattern. Added content-type variety constraint (no more than 3 same `item_type` in a row) on top of the existing category variety constraint (no more than 2 same category in a row).
+
+**Report scoring factors:** has_photo_video (+3), has_physical_evidence (+1), credibility high (+2) / medium (+1), upvotes > 3 (+1), historical_case content_type (+1).
+
+Each item in the response includes an `item_type` field ('phenomenon' or 'report') so the client can select the right card template. Reports also include resolved `phenomenon_type` with name/slug/category for linking to encyclopedia entries.
+
+#### Three Card Templates (`src/components/discover/DiscoverCards.tsx`)
+
+1. **PhenomenonCard** — Upgraded from the original DiscoverCard. Image-backed or gradient background, name, AI summary, quick facts pills, aliases. Links to `/phenomena/[slug]`.
+
+2. **TextReportCard** — For experiencer reports without photo/video evidence. Quote-styled layout with decorative quotation mark watermark, border-left excerpt styling, credibility badge, location + date metadata, evidence pills, phenomenon type link. Links to `/report/[slug]`.
+
+3. **MediaReportCard** — For reports with photo/video evidence. Camera-themed styling with evidence badge prominently displayed, amber accent color for visual distinction. Links to `/report/[slug]` with "View Evidence" CTA.
+
+All cards share: TikTok-style right sidebar actions (Save, Share, More), Framer Motion horizontal related content tray, staggered entrance animations.
+
+#### Related Content Tray (Framer Motion)
+
+Each card fetches related content when it becomes the active (visible) card. Uses:
+- `/api/ai/report-similar?slug=X` for report cards (vector similarity from Session 15 RAG pipeline)
+- `/api/ai/related?query=X` for phenomenon cards (semantic search from Session 15)
+
+Results are cached per item ID to avoid re-fetching on scroll-back. Displayed as a horizontal swipe tray at the bottom of each card using `framer-motion` drag gestures. Each related item links directly to the full entry.
+
+#### Completion Signals
+
+- Progress bar (existing, unchanged) shows current position in feed
+- **Completion milestone toasts** at 25%, 50%, 75% — auto-dismiss after 3 seconds
+- **Max-seen tracking** — tracks the furthest card reached (not just current position)
+- **End-of-feed card** updated to show combined story count and suggest both Encyclopedia and Explore as next steps
+
+#### Preserved Behaviors
+
+- Signup gate at card 6 for anonymous users (unchanged)
+- Seeded PRNG shuffle with per-mount seed (unchanged)
+- Keyboard navigation (arrow keys, space) (unchanged)
+- IntersectionObserver for scroll tracking (unchanged)
+- Prefetch next batch at items.length - 5 (unchanged)
+
+| File | Change |
+|------|--------|
+| `src/pages/api/discover/feed-v2.ts` | **NEW** — Mixed content feed API (phenomena + reports) |
+| `src/components/discover/DiscoverCards.tsx` | **NEW** — PhenomenonCard, TextReportCard, MediaReportCard + RelatedTray |
+| `src/pages/discover.tsx` | **REWRITTEN** — Consumes feed-v2, renders mixed cards, related content, completion signals |
+
 ## Files NOT Modified (intentionally)
 
 | File | Reason |
@@ -159,27 +212,33 @@ Current site has ~928 test reports and ~4,792 encyclopedia phenomena. The feed i
 
 ### Immediate (same sprint)
 - ~~Test on live site~~ ✅ (deployed and tested on iPhone 16 Pro Max, March 16)
-- **Image fallback** — Some phenomena images may 404; add onError handling to spotlight cards
+- ~~Image fallback~~ ✅ (PhenomenonCard uses onError + fallback gradient, March 21)
 - ~~Mobile scroll snap~~ ✅ (tested, working on iOS Safari with snap-x + 75vw cards)
 - ~~Mobile header issues~~ ✅ (logo wrapping, Submit Report, Sign In — all fixed March 16)
 - ~~Discover feed always same order~~ ✅ (seed moved to useRef + interleaved tiering, March 16)
+- ~~Phase 2: Mixed content feed~~ ✅ (feed-v2 API, three card templates, Framer Motion related tray, March 21)
+- **Test mixed feed on live site** — Deploy and verify on iPhone 16 Pro Max
+- **Tune report/phenomena ratio** — Monitor whether the 3:1:1 tiering produces good variety with ~928 reports vs ~4,792 phenomena
 
 ### Short-term
 - **Free tier content limits** — Implement the soft usage cap (e.g., 50 full reports/month for free)
 - **Core upgrade prompts** — When free users hit the limit, show contextual "Unlock full access" prompt
 - **Save functionality for logged-in users** — The bookmark button currently only redirects anonymous users; needs actual save/unsave for authenticated users
 - **Feed personalization quality** — Track which sections get the most engagement, A/B test section ordering
+- **Report media display** — MediaReportCard currently uses gradient bg; when report images are available, switch to image-backed layout
 
 ### Medium-term
 - **Connection cards** — "Did You Know?" cross-report relationship cards in the feed (Sprint 2 feature)
 - **Smart match alerts** — "New Bigfoot sighting near you" notifications for Core+ users
 - **Weekly digest optimization** — Use feed engagement data to personalize digest content
 - **Category-specific landing pages** — /explore?category=cryptids could show a category-themed feed
+- **Completion achievements** — Persist completion milestones per user, gate behind account creation
 
 ### Content dependencies
 - Encyclopedia enrichment (Phase A) directly improves the Spotlight section
 - Curated "perfect" reports (Phase B) dramatically improve report card quality
 - Mass ingestion (Phase C) fills category sections with much more content
+- **Remaining phenomena embeddings** (~3,600) needed for Related tray to populate on phenomenon cards
 
 ---
 
@@ -210,3 +269,7 @@ Current site has ~928 test reports and ~4,792 encyclopedia phenomena. The feed i
 | 2026-03-15 | Feed API now returns `type` field ('reports' or 'phenomena') on each section. Any consumer of `/api/feed/personalized` must handle both types. | Dashboard (if it ever consumes this API), Email (digest could use feed sections) |
 | 2026-03-15 | Explore page now imports and uses auth state (supabase.auth). Soft-wall redirects go to `/login?reason=save&redirect=/explore`. Login page should handle the `reason` query param for contextual messaging. | Search & Nav (login page), Foundation (auth flow) |
 | 2026-03-15 | Encyclopedia Spotlight section queries phenomena with non-placeholder images. Image quality directly affects Explore feed quality. | Encyclopedia Enrichment (image quality matters for feed) |
+| 2026-03-21 | **Stories feed now mixed content (feed-v2):** `/api/discover/feed-v2` serves both phenomena and reports. Old `/api/discover/feed` still exists for backward compat but is no longer consumed by `/discover`. | All sessions touching /discover, Admin (analytics) |
+| 2026-03-21 | **Three card templates in DiscoverCards.tsx:** PhenomenonCard, TextReportCard, MediaReportCard. Any session modifying the Stories experience should use these components. | Mobile Design, Foundation |
+| 2026-03-21 | **Related tray consumes Session 15 RAG APIs:** `/api/ai/report-similar` and `/api/ai/related` are called lazily per card. Depends on vector embeddings being populated. | Session 15 (AI Experience), Admin (embedding status) |
+| 2026-03-21 | **Framer Motion used in DiscoverCards.tsx:** `motion.div` with drag="x" for horizontal swipe. First production use of framer-motion in the project. Other sessions can reference this pattern. | Foundation (new dependency usage) |
