@@ -93,7 +93,8 @@ export default function FourPillars() {
   return (
     <section className="py-10 md:py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <p className="text-sm text-gray-500 uppercase tracking-wider mb-6">Four ways to explore</p>
+        <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-2">Four ways to explore</h2>
+        <p className="text-sm sm:text-base text-gray-400 mb-8 max-w-2xl">Each built for a different kind of curiosity.</p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
           {pillars.map(function(pillar, index) {
             return (
