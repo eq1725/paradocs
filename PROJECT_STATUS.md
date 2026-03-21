@@ -448,7 +448,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 ### 7. Search, Navigation & Homepage
 
 **Key files:**
-- `src/pages/index.tsx` — Homepage (hero, Featured Investigations, "More Investigations" discovery row, stats, category cards)
+- `src/pages/index.tsx` — Homepage (4 sections: Hero, Four Pillars, Discover Preview, Get Started CTA + PWA install)
 - `src/pages/search.tsx` — Full-text search page
 - `src/pages/api/search/fulltext.ts` — Full-text search API
 - `src/components/Layout.tsx` — Global navigation
