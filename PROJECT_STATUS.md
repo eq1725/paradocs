@@ -96,10 +96,10 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
 | 6a | **Report Experience — Curated Content** | Handcrafted case files, editorial enrichment, Featured Investigations, curated media, book recommendations | `HANDOFF_REPORTS.md` | Active — 20 reports across 2 case clusters (Roswell 14 + Rendlesham 6), credibility rationales, badge redesign, homepage discovery row |
 | 6b | **Report Experience — Ingestion & Scale** | Reports from mass ingestion pipeline, quality templates, automated enrichment, connection generation at scale | `HANDOFF_REPORTS_INGESTION.md` | Not started — NOW UNBLOCKED (March 20 strategic revision) |
-| 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO, color system, PWA | `HANDOFF_SEARCH_NAV.md` | COMPLETE — Homepage: 4 sections / 168 lines. PWA: service worker + install prompt + icon refresh. Color: #9000F0. Search: fulltext + AI. Native app wrapper plan documented. |
+| 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO, color system, PWA | `HANDOFF_SEARCH_NAV.md` | ACTIVE — Homepage: 4 sections optimized. Four Pillars: taller cards, benefit-driven descriptions. DiscoverPreview: multi-format cards (featured/pull-quote/compact), smart selection, vivid hook extraction. Section headers upgraded to white h2 with sublines. PWA + color + search all shipped. |
 | 8 | **Subscription & Monetization** | Stripe checkout, paywall, tier system, billing portal, cancellation | `HANDOFF_SUBSCRIPTION.md` | Not started |
 | 9 | **Email & Engagement** | Weekly digests, drip campaigns, smart alerts, winback, notifications | `HANDOFF_EMAIL.md` | Not started |
-| 10 | **Data Ingestion & Pipeline** | Source adapters, quality filters, dedup, bulk import, media extraction | `HANDOFF_INGESTION.md` | Not started — NOW UNBLOCKED and ON CRITICAL LAUNCH PATH (March 20 strategic revision) |
+| 10 | **Data Ingestion & Pipeline** | Source adapters, quality filters, dedup, bulk import, feed hooks, embedding integration | `HANDOFF_INGESTION.md` | Active — Feed hook service deployed, 4 new adapters (Reddit v2, YouTube, News, Erowid), engine integrates hooks + embeddings. Ready for mass ingestion. |
 | 11 | **Admin & Operations** | Admin dashboard, batch operations, cron jobs, A/B testing, monitoring | `HANDOFF_ADMIN.md` | Not started |
 | 12 | **Foundation & Infrastructure** | Shared components, auth/RLS, database schema, deployment, performance, SEO | `HANDOFF_FOUNDATION.md` | Not started |
 | 13 | **Mobile-First Design System** | Cross-cutting mobile UX: bottom tabs, bottom sheets, design tokens, screen-by-screen redesign | `HANDOFF_MOBILE.md` | Active — Phase 1-2 + 3a + Nav Unification deployed. Screen-by-screen redesign next. |
@@ -464,11 +464,13 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Database:** `search_vector` column, full-text search indexes, `featured_investigations` (data owned by Session 6a, layout owned by Session 7)
 
-**Current state (March 19 Session 7 update):**
+**Current state (March 21 Session 7 update):**
 - Homepage hero A/B tested (5 variants), search bar enhanced with quick-search tags, Quick Links removed, SEO + JSON-LD added
 - Search page rewritten: fulltext API with ts_rank ranking (was ILIKE), autocomplete on phenomena, keyword/phrase toggle
 - Onboarding consolidated: `UnifiedOnboarding.tsx` replaces WelcomeOnboarding + ThreeTapOnboarding
 - **UX Audit completed (v4 approved):** Three-lens audit (UX, Engagement, Vision) produced 20-item phased plan. See `Paradocs_UX_Audit_Plan.docx` and `HANDOFF_SEARCH_NAV.md`.
+- **Four Pillars redesign (March 21):** Cards made taller (min-h-[280px]/[320px]), line-clamp removed, descriptions fully rewritten with benefit-driven engagement copy. Section header promoted from gray bridge label to white h2 + "Each built for a different kind of curiosity." subline.
+- **DiscoverPreview redesign (March 21):** Complete rewrite from 4 identical cards to multi-format magazine layout. 3 card formats: Featured (2-col span, dramatic), Pull-Quote (italic hook with quote mark), Compact (metadata-rich). Smart selection fetches 10, picks best 3 with category diversity scoring. Hook extraction scores sentences for vivid language instead of always using first sentence. Category color accents (left border + hover glow). Header changed to "Stories from the unknown", CTA to "Explore stories".
 
 **Approved revision plan (four pillars: Database + AI + Dashboard + Discover):**
 - **Phase 1 (this week):** Mobile search icon, replace legacy stats, hide placeholder Trending Patterns
@@ -483,9 +485,17 @@ Each major feature area has a dedicated Claude session with its own deep context
 3. ~~Session 7 Phase 2~~ — SHIPPED (March 20): Four new homepage components, A/B variants updated, section consolidation
 4. ~~Session 7 Phase 3~~ — SHIPPED (March 20): AI search results, Save Search, NotificationBell, Ask AI nav, Stories rename, launch stats
 
-**ALL PHASES COMPLETE + PWA INSTALL PROMPT.** Homepage: 4 clean sections with PWA install prompt in Get Started CTA. Service worker deployed (public/sw.js) — satisfies Chrome installability. useInstallPrompt hook handles Android/iOS/desktop detection. App icon P gradient updated to #9000F0 brand purple, all 8 PNG sizes regenerated.
+**ALL PHASES COMPLETE + PWA INSTALL PROMPT + HOMEPAGE POLISH (March 21).** Homepage: 4 clean sections with PWA install prompt in Get Started CTA. Service worker deployed (public/sw.js) — satisfies Chrome installability. useInstallPrompt hook handles Android/iOS/desktop detection. App icon P gradient updated to #9000F0 brand purple, all 8 PNG sizes regenerated.
 
-**Touches other sessions:** ALL sessions (service worker is Foundation-level — all pages now cached by SW), Session 13 (mobile install prompt), Foundation (sw.js + _app.tsx SW registration)
+**March 21 session — homepage card redesign:**
+- `FourPillars.tsx`: taller cards, full descriptions, white h2 section header
+- `DiscoverPreview.tsx`: 3-format card system (featured/pull-quote/compact), smart report selection (10 fetched, best 3 chosen), vivid hook extraction, category color accents, "Stories from the unknown" header, "Explore stories" CTA
+
+**Key files added/modified (March 21):**
+- `src/components/homepage/FourPillars.tsx` — Taller cards, richer descriptions, h2 header
+- `src/components/homepage/DiscoverPreview.tsx` — Complete rewrite: multi-format cards, smart selection, hook extraction (129 → 415 lines)
+
+**Touches other sessions:** ALL sessions (service worker is Foundation-level — all pages now cached by SW), Session 13 (mobile install prompt), Foundation (sw.js + _app.tsx SW registration), Session 10 (feed_hook column used when available — graceful fallback)
 
 ---
 
@@ -546,41 +556,40 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 ---
 
-### 10. Data Ingestion & Pipeline
+### 10. Data Ingestion & Pipeline (ACTIVE — Session March 21)
 
 **Key files:**
-- `src/lib/ingestion/` — engine.ts, types.ts, dedup.ts, adapters/ (8 sources), filters/, utils/
+- `src/lib/ingestion/` — engine.ts (now with feed_hook + embedding integration), types.ts, dedup.ts, adapters/ (12 sources), filters/, utils/
+- `src/lib/services/feed-hook.service.ts` — NEW: Claude Haiku feed hook generation
+- `src/pages/api/admin/ai/generate-hooks.ts` — NEW: Batch hook generation endpoint
 - `src/pages/api/admin/ingest.ts`, `batch-import.ts`
 - `src/pages/api/cron/ingest.ts`
+- `supabase/migrations/20260321_feed_hook.sql` — NEW: feed_hook + needs_reingestion columns
 - `scripts/` — 41+ CLI tools for import, backfill, cleanup
-- `docs/DEVELOPMENT_STRATEGY.md` — Pipeline architecture
 
-**Database tables:** `reports`, `ingestion_logs`
+**Database tables:** `reports` (with new feed_hook, feed_hook_generated_at, needs_reingestion columns), `ingestion_logs`, `ingestion_jobs`, `data_sources`
 
-**Current state:** Pipeline locked in and tested on ~2,500 reports. 8 source adapters (NUFORC, BFRO, Reddit, NDERF, IANDS, Ghosts of America, Shadowlands, Wikipedia). Quality filter, dedup, title improvement, location parsing. ~900 approved reports currently live (TEST DATA — will be re-ingested through final pipeline). ~2M Reddit reports ingested but hidden (development data — will be deleted entirely).
-
-> **STATUS CHANGE (March 20):** Mass ingestion is now UNBLOCKED. Encyclopedia enrichment and curated editorial content are parallel tracks, not prerequisites. See revised Critical Sequencing section.
+**Current state (March 21, 2026):**
+- **Feed hook service DEPLOYED:** Claude Haiku generates 2-3 sentence curiosity hooks per report. Batch endpoint supports single/all_missing/all/stats actions. Rate-limited with model fallback chain.
+- **Ingestion engine UPGRADED:** Post-insert pipeline now runs: quality filter → dedup → title improvement → slug → phenomena linking → **feed_hook generation** → **vector embedding**. Non-blocking — failures log and continue.
+- **12 source adapters:** Original 8 (NUFORC, BFRO, Reddit, NDERF, IANDS, Ghosts of America, Shadowlands, Wikipedia) + 4 new:
+  - `reddit-v2`: Expanded Arctic Shift adapter covering 13 paranormal subreddits
+  - `youtube`: YouTube Data API v3 for paranormal channel videos (Nukes Top 5, MrBallen, Bedtime Stories, The Why Files)
+  - `news`: NewsAPI.org paranormal news aggregation
+  - `erowid`: Erowid Experience Vaults (consciousness/psychedelic reports)
+- **Quality scorer EXPANDED:** New source tiers for YouTube (engagement boost by views), News (mainstream outlet boost), Erowid, Government, Podcast sources
+- ~900 approved reports still live (flagged for re-ingestion). ~2M Reddit dev data still needs deletion (SQL provided, requires manual execution).
 
 **What needs work (Priority Order):**
-1. **Data cleanup:** Delete ~2M hidden Reddit dev data. Re-ingest ~900 existing approved reports through final pipeline (or delete and replace).
-2. **Source adapter expansion** (aggregate everything legally available):
-   - YouTube: video metadata, transcripts, comments (paranormal channels, witness testimony, documentary clips)
-   - Erowid: trip reports (consciousness, DMT entities, altered states)
-   - MUFON: case files (if API/scraping access available)
-   - Podcast transcripts: major paranormal podcasts (Coast to Coast, Mysterious Universe, etc.)
-   - News articles: mainstream and alternative coverage of paranormal events
-   - Academic papers: parapsychology journals, consciousness studies
-   - Government documents: AARO, Project Blue Book, FOIA releases
-   - Forums: AboveTopSecret, Phantoms & Monsters, specialized communities
-   - Reddit: fresh ingestion through final pipeline (replace deleted dev data)
-   - Books: public domain and fair-use excerpts
-3. **Mass ingestion run** — target 1M+ for closed beta, 5M+ for public launch
-4. **Post-ingestion embedding** — embed all new reports into pgvector (Session 15 pipeline). ~$500-600 for 5M reports.
-5. Pipeline monitoring and error alerting
-6. Automated scheduled ingestion (cron optimization)
-7. Content viability checks at scale
+1. **Execute data cleanup:** Run the SQL to delete ~2M hidden Reddit dev data (SQL in session prompt, requires manual Supabase execution). Flag ~900 existing reports with `needs_reingestion = true`.
+2. **Mass ingestion run:** Execute adapter-by-adapter ingestion: limit 100 → limit 1000 → full run. Monitor ingestion_logs.
+3. **Backfill feed hooks:** Run `/api/admin/ai/generate-hooks` with `action: 'all_missing'` for existing approved reports.
+4. **Post-ingestion embedding:** Batch embed new reports via `/api/admin/ai/embed` with `action: 'all_reports'`.
+5. **Additional adapters:** Podcast transcripts, MUFON (if public API), government docs, forums
+6. Pipeline monitoring and error alerting
+7. Automated scheduled ingestion (cron optimization)
 
-**Touches other sessions:** AI Experience (new reports must be embedded after ingestion), Map (location quality + geocoding at scale), Reports (report quality), Search (searchable content), Insights (more data = better patterns), Encyclopedia (phenomena linking after ingestion)
+**Touches other sessions:** AI Experience (new reports auto-embedded after ingestion), Discover (feed_hook consumed by feed-v2 API for card copy), Map (more geolocated reports), Reports (quality templates at scale), Search (more searchable content), Insights (more data = better patterns), Encyclopedia (phenomena linking after ingestion)
 
 ---
 

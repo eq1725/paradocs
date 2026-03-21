@@ -150,7 +150,7 @@ Cut homepage from 14 sections to 4 clean sections, then optimized each section i
    - **Featured Card** (Format A): spans 2 columns on sm+, larger text, full hook paragraph, "Read report" link with divider. Assigned to highest-scoring report.
    - **Pull-Quote Card** (Format B): italic quote-style hook with large curly quote mark, title small at bottom. Dramatic, text-forward.
    - **Compact Card** (Format C): clean, metadata-rich, title + category + location.
-   - **Smart selection**: fetches 10 reports, scores by content richness (summary length, location, date, feed_hook), selects best 4 with category diversity.
+   - **Smart selection**: fetches 10 reports, scores by content richness (summary length, location, date, feed_hook), selects best 3 with category diversity. Featured spans 2 cols + pull-quote 1 col + compact 1 col = 4 grid columns, one row.
    - **Hook extraction**: scores first 5 sentences for vivid language, penalizes generic openers, prefers sentences 2-3. Falls back to feed_hook when available.
    - **Category accents**: left border color + hover glow per category (green=UFO, amber=cryptid, purple=ghost, etc.)
    - CTA: "Explore stories" with ArrowRight icon (→ /discover). Component grew from 129 to 415 lines.
