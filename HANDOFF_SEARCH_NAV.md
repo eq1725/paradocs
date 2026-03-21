@@ -145,8 +145,15 @@ Cut homepage from 14 sections to 4 clean sections, then optimized each section i
 
 **Final page structure (deployed):**
 1. **Hero** — A/B headline, one subtext line, search bar (always-visible Search button), single trust line ("4,792+ phenomena catalogued across 11 categories · AI-powered pattern analysis"). Removed: social proof badge (bring back at 1,000+ users), 4-stat animated grid, quick-search tags, dual CTAs, tour CTA, count-up animation hooks, intersection observer, all dead data fetches (7+ API calls removed), 12 unused state variables, 3 unused interfaces. File went from 1,135 lines to 168.
-2. **Four Pillars** — "Four ways to explore" bridge label + 4 cards. Title/subtitle removed (cards are self-explanatory). CTAs rewritten as action verbs: "Search the database" / "Uncover patterns" / "Build a case file" / "Start swiping". Pro badge softened to gray uppercase text. Padding tightened.
-3. **Discover Preview** — "From the database" bridge label + 4 text-forward report cards. Cards redesigned: removed aspect-square emoji thumbnails and Play icon hover (false video affordance). New card format: category badge + title (the hook) + first sentence (cinematic pull) + location. Content IS the visual. Component cut from 241 to 126 lines.
+2. **Four Pillars** — "Four ways to explore" white h2 heading + "Each built for a different kind of curiosity." subline + 4 cards. Taller card layout (min-h-[280px] md:min-h-[320px]) with full-length descriptions (no line-clamp). Descriptions rewritten: benefit-driven, specific, curiosity-building. CTAs: "Search the database" / "Uncover patterns" / "Build a case file" / "Start swiping". Pro badge softened to gray uppercase text.
+3. **Discover Preview** — "Stories from the unknown" white h2 heading + "Millions of reports from real people worldwide." subline. **Multi-format card system** (3 formats):
+   - **Featured Card** (Format A): spans 2 columns on sm+, larger text, full hook paragraph, "Read report" link with divider. Assigned to highest-scoring report.
+   - **Pull-Quote Card** (Format B): italic quote-style hook with large curly quote mark, title small at bottom. Dramatic, text-forward.
+   - **Compact Card** (Format C): clean, metadata-rich, title + category + location.
+   - **Smart selection**: fetches 10 reports, scores by content richness (summary length, location, date, feed_hook), selects best 4 with category diversity.
+   - **Hook extraction**: scores first 5 sentences for vivid language, penalizes generic openers, prefers sentences 2-3. Falls back to feed_hook when available.
+   - **Category accents**: left border color + hover glow per category (green=UFO, amber=cryptid, purple=ghost, etc.)
+   - CTA: "Explore stories" with ArrowRight icon (→ /discover). Component grew from 129 to 415 lines.
 4. **Get Started CTA** — "Start exploring for free" + "Create free account" primary button (→ /login) + "Browse without an account" secondary link (→ /explore) + PWA install prompt (mobile only, tertiary). Replaced newsletter email capture — account creation is the conversion action that leads to paid tiers (AllTrails/Ancestry pattern). Newsletter was optimizing for the wrong funnel stage.
 
 **Removed from render (components preserved, not deleted):**
