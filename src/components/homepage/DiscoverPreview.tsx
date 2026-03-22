@@ -52,7 +52,18 @@ var GENERIC_STARTS = [
 var FILLER_PHRASES = [
   'here and there', 'this and that', 'and stuff', 'you know',
   'kind of', 'sort of', 'a lot of', 'all my life', 'my whole life',
-  'long story short', 'to make a long', 'the thing is', 'i mean'
+  'long story short', 'to make a long', 'the thing is', 'i mean',
+  'i just got', 'just got back', 'went to', 'i was at', 'i went to'
+]
+
+/** Dry/academic language that makes for boring hooks */
+var DRY_ACADEMIC = [
+  'presentation', 'explained that', 'discussed', 'described',
+  'mentioned', 'stated that', 'noted that', 'according to',
+  'presented by', 'during his', 'during her', 'during the',
+  'in his book', 'in her book', 'in the book', 'published',
+  'conference', 'symposium', 'lecture', 'seminar', 'documentary',
+  'interview with', 'in an interview'
 ]
 
 /** Minimum score a sentence needs to be considered a worthy hook.
@@ -77,6 +88,11 @@ function scoreSentence(sentence: string, index: number): number {
   /* Penalize filler/rambling phrases */
   for (var f = 0; f < FILLER_PHRASES.length; f++) {
     if (lower.indexOf(FILLER_PHRASES[f]) !== -1) score = score - 2
+  }
+
+  /* Penalize dry/academic language that reads like a book report */
+  for (var d = 0; d < DRY_ACADEMIC.length; d++) {
+    if (lower.indexOf(DRY_ACADEMIC[d]) !== -1) score = score - 3
   }
 
   /* Slight preference for sentences 2-3 (often more vivid than the opener) */
