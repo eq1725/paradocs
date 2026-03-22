@@ -212,6 +212,7 @@ Report live in database with hook + embedding
 | Session 2 (Discover) | `feed_hook` consumed by feed-v2 API for card copy | Ready — feed-v2 already has graceful fallback for missing hooks |
 | Session 2 (Discover) | `report_media` consumed by feed-v2 API for MediaReportCard image backgrounds | Ready — primary_media fetched from report_media table, used as full-screen card backdrop |
 | Session 2 (Discover) | Media is **critical for visual quality** in the Stories feed. Reports with images get MediaReportCard (full-screen photo bg); reports without get TextReportCard (generative gradient). More media = more visually compelling feed. | **HIGH PRIORITY**: Ensure all adapters extract media aggressively. YouTube thumbnails, Reddit image posts, news article hero images. Every report_media row makes the feed better. |
+| Session 2 (Discover) | `report_media` also consumed by `/api/discover/related-cards` for horizontal swipe-through cards | Ready — related-cards API resolves primary_media for reports with `has_photo_video`, used in full-screen related card display |
 | Session 7 (Homepage) | DiscoverPreview uses `feed_hook` | Ready — already wired with fallback |
 | Session 15 (AI/Embedding) | `embedReport()` called post-insert | Integrated — uses existing embedding.service.ts |
 | Session 3 (Map) | More geolocated reports = richer map | Depends on ingestion volume |

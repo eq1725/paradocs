@@ -1,8 +1,8 @@
 # HANDOFF_EXPLORE.md — Explore & Discovery Session
 
-**Last updated:** March 16, 2026
+**Last updated:** March 22, 2026
 **Session:** Explore & Discovery (Session 2)
-**Status:** Active — Anonymous feed + soft-wall prompts deployed, mobile UX optimized, Discover feed randomization live
+**Status:** Active — Phase 2.5: 2D horizontal swipe-through for related content deployed, bug fixes (prefetch cascade, similarity display), engagement-optimized swipe hint
 
 ---
 
@@ -174,19 +174,58 @@ Each item in the response includes an `item_type` field ('phenomenon' or 'report
 
 3. **MediaReportCard** — For reports with photo/video evidence. Uses **actual report media** from `report_media` table as full-screen image background (with cinematic overlay + amber tint). Shows media caption when available. Falls back to gradient when media fails to load. Prefers `feed_hook` for preview text. Amber accent throughout (evidence badge, camera icon). Links to `/report/[slug]` with "View Evidence" CTA.
 
-All cards share: TikTok-style right sidebar actions (Save, Share, More), Framer Motion horizontal related content tray, staggered entrance animations.
+All cards share: TikTok-style right sidebar actions (Save, Share, More), staggered entrance animations.
 
 #### Visual Variety at Scale (Design Decision)
 
 At 10-20M text-based reports mapping to ~5K phenomena, naively using the linked phenomenon image as backdrop would mean the same image appearing thousands of times. Instead, the TextReportCard uses a **generative variety system**: `hashString(report.id)` deterministically selects from 4 moods × 4 gradient angles × 4+ accent variations × 4 watermark characters = 256+ unique visual combinations per category. Phenomenon images are reserved for ~12.5% of cards (hash % 8 === 0) to add occasional richness without repetition.
 
-#### Related Content Tray (Framer Motion)
+#### Phase 2.5: 2D Horizontal Swipe-Through for Related Content (March 22, 2026)
 
-Each card fetches related content when it becomes the active (visible) card. Uses:
-- `/api/ai/report-similar?slug=X` for report cards (vector similarity from Session 15 RAG pipeline)
-- `/api/ai/related?query=X` for phenomenon cards (semantic search from Session 15)
+**Problem:** The original Phase 2 "Related Tray" was a small horizontal bar at the bottom of each card with mini-preview tiles. This was uninspiring and didn't match the immersive TikTok-like experience of the vertical feed. The intent was always for users to be able to "go deeper" on interesting topics — e.g., find "Black Triangle UFOs," swipe left, and discover experiencer reports, related phenomena like Pyramid UFOs, and associated media.
 
-Results are cached per item ID to avoid re-fetching on scroll-back. Displayed as a horizontal swipe tray at the bottom of each card using `framer-motion` drag gestures. Each related item links directly to the full entry.
+**Solution:** Full 2D snap grid navigation. The vertical feed is unchanged, but each row is now a horizontal scroll container. Swiping left on any card reveals full-screen related cards using the same card templates (PhenomenonCard, TextReportCard, MediaReportCard). Swiping up/down from any horizontal position returns to the main vertical feed.
+
+**CSS Architecture:**
+- Outer container: `snap-y snap-mandatory overflow-y-auto` (vertical feed)
+- Each FeedRow: `snap-start snap-always flex overflow-x-auto snap-x snap-mandatory` (horizontal row)
+- Each card: `h-screen w-screen flex-shrink-0 snap-start snap-always` (full-screen snap cell)
+
+**New API: `/api/discover/related-cards`**
+
+Returns full `FeedItemV2`-shaped cards for related content (not lightweight slugs like the RAG APIs). Uses direct Supabase queries for speed and reliability:
+- **For phenomena:** Reports tagged with that `phenomenon_type_id` + sibling phenomena in the same category
+- **For reports:** Associated phenomenon entry + same-phenomenon reports + same-category reports
+
+Each card includes full metadata, resolved `phenomenon_type`, `primary_media`, etc. — identical shape to feed-v2 items. Up to 8 related cards per item. Cached for 5 minutes.
+
+**FeedRow Component:**
+- Wraps each main feed item + its related cards in a horizontal scroll container
+- Tracks horizontal scroll position via scroll event listener
+- Reports horizontal index back to parent for UI updates (header indicator, back button)
+
+**SwipeHint — Engagement-Optimized Edge-Peek Affordance:**
+
+Based on NNGroup gesture discoverability research, Material Design gesture education patterns, and TikTok/Instagram edge-bleed preview design:
+- **Three-phase lifecycle:** slide-in entrance (500ms spring curve) → hold with breathing animation (2.5s glow pulse) → graceful fade-out
+- **Content preview:** Shows first related item's title (truncated at 24 chars) + "+N more" count — creates curiosity gap
+- **Right-edge gradient:** Subtle brand-purple (#9000F0) gradient on right edge suggesting hidden content
+- **Triple-staggered chevrons:** Three left arrows at decreasing opacity for directional affordance
+- **Glass-morphism pill:** Frosted glass backdrop with breathing shadow cycle (brand purple glow)
+- **5-second visibility window** for better discovery rates (vs. typical 2-3s)
+- Custom `@keyframes swipe-breathe` animation in globals.css
+
+**UI Indicators:**
+- Header shows "Related X / Y" pill when user is in horizontal position
+- "Related X of Y" badge on each related card (top-left)
+- Back-to-main chevron button (fixed left edge) when in horizontal position
+- Arrow keys: left/right for horizontal, up/down for vertical (desktop)
+
+**Bug Fixes (March 22):**
+- **Runaway prefetch cascade:** IntersectionObserver was firing on multiple cards during initial render (before CSS snap settled), setting `currentIndex` to high values, triggering 37+ cascading API calls. Fixed with `initialSettled` ref (1.2s grace period). Observer only allows index 0 during settle; prefetch blocked entirely until settled.
+- **"4700% match" similarity display:** RAG APIs (`/api/ai/related`, `/api/ai/report-similar`) already return `Math.round(similarity * 100)` (integer percentages). DiscoverCards was multiplying by 100 again. Fixed to display raw value, capped at 99%.
+
+**Removed:** `RelatedTray` component, `framer-motion` drag gestures (no longer needed — native CSS snap handles horizontal scroll), `RelatedItem` type, `onRef`/`related` props from all card components.
 
 #### Completion Signals
 
@@ -206,8 +245,10 @@ Results are cached per item ID to avoid re-fetching on scroll-back. Displayed as
 | File | Change |
 |------|--------|
 | `src/pages/api/discover/feed-v2.ts` | **NEW** — Mixed content feed API (phenomena + reports) |
-| `src/components/discover/DiscoverCards.tsx` | **NEW** — PhenomenonCard, TextReportCard, MediaReportCard + RelatedTray |
-| `src/pages/discover.tsx` | **REWRITTEN** — Consumes feed-v2, renders mixed cards, related content, completion signals |
+| `src/pages/api/discover/related-cards.ts` | **NEW** (Phase 2.5) — Full FeedItemV2-shaped related cards API |
+| `src/components/discover/DiscoverCards.tsx` | **NEW** — PhenomenonCard, TextReportCard, MediaReportCard (RelatedTray removed in Phase 2.5) |
+| `src/pages/discover.tsx` | **REWRITTEN** — 2D snap grid (Phase 2.5): FeedRow with horizontal swipe, SwipeHint, prefetch guard |
+| `src/styles/globals.css` | **MODIFIED** — Added `@keyframes swipe-breathe` for SwipeHint breathing animation |
 
 ## Files NOT Modified (intentionally)
 
@@ -226,16 +267,20 @@ Results are cached per item ID to avoid re-fetching on scroll-back. Displayed as
 - ~~Mobile scroll snap~~ ✅ (tested, working on iOS Safari with snap-x + 75vw cards)
 - ~~Mobile header issues~~ ✅ (logo wrapping, Submit Report, Sign In — all fixed March 16)
 - ~~Discover feed always same order~~ ✅ (seed moved to useRef + interleaved tiering, March 16)
-- ~~Phase 2: Mixed content feed~~ ✅ (feed-v2 API, three card templates, Framer Motion related tray, March 21)
-- **Test mixed feed on live site** — Deploy and verify on iPhone 16 Pro Max
+- ~~Phase 2: Mixed content feed~~ ✅ (feed-v2 API, three card templates, March 21)
+- ~~Phase 2.5: 2D horizontal swipe-through~~ ✅ (related-cards API, FeedRow, SwipeHint, March 22)
+- ~~Runaway prefetch bug~~ ✅ (initialSettled guard, March 22)
+- ~~Similarity display "4700% match"~~ ✅ (double-multiplication fix, March 22)
+- **Test 2D swipe on live site** — Deploy and verify horizontal swipe on iPhone 16 Pro Max
 - **Tune report/phenomena ratio** — Monitor whether the 3:1:1 tiering produces good variety with ~928 reports vs ~4,792 phenomena
+- **Homepage "Stories from the unknown" cards** — Session 7's `DiscoverPreview` component also needs compelling visual treatment (separate session's code)
 
 ### Short-term
 - **Free tier content limits** — Implement the soft usage cap (e.g., 50 full reports/month for free)
 - **Core upgrade prompts** — When free users hit the limit, show contextual "Unlock full access" prompt
 - **Save functionality for logged-in users** — The bookmark button currently only redirects anonymous users; needs actual save/unsave for authenticated users
 - **Feed personalization quality** — Track which sections get the most engagement, A/B test section ordering
-- **Report media display** — MediaReportCard currently uses gradient bg; when report images are available, switch to image-backed layout
+- ~~Report media display~~ ✅ MediaReportCard now uses actual report media from `report_media` table as full-screen background (March 21)
 
 ### Medium-term
 - **Connection cards** — "Did You Know?" cross-report relationship cards in the feed (Sprint 2 feature)
@@ -281,5 +326,4 @@ Results are cached per item ID to avoid re-fetching on scroll-back. Displayed as
 | 2026-03-15 | Encyclopedia Spotlight section queries phenomena with non-placeholder images. Image quality directly affects Explore feed quality. | Encyclopedia Enrichment (image quality matters for feed) |
 | 2026-03-21 | **Stories feed now mixed content (feed-v2):** `/api/discover/feed-v2` serves both phenomena and reports. Old `/api/discover/feed` still exists for backward compat but is no longer consumed by `/discover`. | All sessions touching /discover, Admin (analytics) |
 | 2026-03-21 | **Three card templates in DiscoverCards.tsx:** PhenomenonCard, TextReportCard, MediaReportCard. Any session modifying the Stories experience should use these components. | Mobile Design, Foundation |
-| 2026-03-21 | **Related tray consumes Session 15 RAG APIs:** `/api/ai/report-similar` and `/api/ai/related` are called lazily per card. Depends on vector embeddings being populated. | Session 15 (AI Experience), Admin (embedding status) |
-| 2026-03-21 | **Framer Motion used in DiscoverCards.tsx:** `motion.div` with drag="x" for horizontal swipe. First production use of framer-motion in the project. Other sessions can reference this pattern. | Foundation (new dependency usage) |
+| 2026-03-22 | **Phase 2.5: 2D horizontal swipe-through replaces Related Tray.** Framer Motion `RelatedTray` removed. New `/api/discover/related-cards` endpoint returns full FeedItemV2-shaped cards (category + phenomenon_type matching, not RAG). `DiscoverCards.tsx` no longer imports framer-motion. `discover.tsx` uses native CSS snap-x for horizontal navigation. SwipeHint animation uses custom keyframe in globals.css. | Foundation (globals.css modified, framer-motion removed from DiscoverCards), All sessions (Stories feed now has 2D navigation) |
