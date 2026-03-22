@@ -163,6 +163,18 @@ body {
   50% { box-shadow: 0 0 40px rgba(144, 0, 240, 0.6); }
 }
 
+/* Swipe hint breathing animation — subtle scale + glow pulse */
+@keyframes swipe-breathe {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 12px rgba(144, 0, 240, 0.08), 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 0 20px rgba(144, 0, 240, 0.15), 0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.5s ease-out forwards;
 }

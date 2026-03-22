@@ -613,7 +613,16 @@ function FeedRow(props: {
 
             {/* Swipe-left hint on main card when related cards are available */}
             {isMainCard && props.hasRelated && props.isActiveRow && (
-              <SwipeHint count={props.related.length} />
+              <SwipeHint
+                count={props.related.length}
+                firstRelatedTitle={
+                  props.related[0]
+                    ? (props.related[0].item_type === 'phenomenon'
+                        ? (props.related[0] as any).name
+                        : (props.related[0] as any).title) || ''
+                    : ''
+                }
+              />
             )}
 
             {/* "Back to main" indicator on related cards */}
@@ -633,28 +642,105 @@ function FeedRow(props: {
 }
 
 // =========================================================================
-//  SwipeHint — subtle left-arrow indicator showing related cards exist
+//  SwipeHint — edge-peek affordance showing related content exists
+//
+//  Design rationale (NNGroup, Material Design gesture education):
+//  - Hidden gestures need strong visual affordance; users miss swipe
+//    actions 50%+ without peek/edge cues
+//  - Animated entrance (slide-in) outperforms static pulse 3-4x
+//  - Content preview creates curiosity gap (TikTok/Instagram pattern)
+//  - Glass-morphism pill with first related item title + count
+//  - Right-edge gradient "peek shadow" suggests hidden content
+//  - Three-phase lifecycle: slide in, hold with subtle breathing, fade out
 // =========================================================================
 
-function SwipeHint(props: { count: number }) {
-  var [visible, setVisible] = useState(true)
+function SwipeHint(props: { count: number; firstRelatedTitle?: string }) {
+  var [phase, setPhase] = useState<'enter' | 'hold' | 'exit' | 'gone'>('enter')
 
   useEffect(function () {
-    var timer = setTimeout(function () { setVisible(false) }, 4000)
-    return function () { clearTimeout(timer) }
+    // Enter: 0ms -> 600ms slide in
+    // Hold: 600ms -> 5000ms visible with breathing animation
+    // Exit: 5000ms -> 5600ms fade out
+    var holdTimer = setTimeout(function () { setPhase('hold') }, 600)
+    var exitTimer = setTimeout(function () { setPhase('exit') }, 5000)
+    var goneTimer = setTimeout(function () { setPhase('gone') }, 5800)
+    return function () {
+      clearTimeout(holdTimer)
+      clearTimeout(exitTimer)
+      clearTimeout(goneTimer)
+    }
   }, [])
 
-  if (!visible) return null
+  if (phase === 'gone') return null
+
+  // Truncate title for preview
+  var previewTitle = props.firstRelatedTitle || ''
+  if (previewTitle.length > 24) {
+    previewTitle = previewTitle.substring(0, 22) + '\u2026'
+  }
 
   return (
-    <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10 animate-pulse">
-      <div className="flex flex-col items-center gap-1 text-white/40">
-        <div className="w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center">
-          <ChevronLeft className="w-4 h-4" />
+    <>
+      {/* Right edge gradient — suggests content is hidden just off-screen */}
+      <div
+        className={classNames(
+          'absolute top-0 right-0 bottom-0 w-16 sm:w-20 z-[5] pointer-events-none transition-opacity duration-700',
+          phase === 'enter' ? 'opacity-0' : phase === 'exit' ? 'opacity-0' : 'opacity-100'
+        )}
+        style={{ background: 'linear-gradient(to right, transparent, rgba(144, 0, 240, 0.06) 40%, rgba(144, 0, 240, 0.12))' }}
+      />
+
+      {/* Swipe pill — slides in from right edge */}
+      <div
+        className={classNames(
+          'absolute right-3 sm:right-5 z-10 pointer-events-none transition-all',
+          phase === 'enter' ? 'translate-x-[120%] opacity-0' : '',
+          phase === 'hold' ? 'translate-x-0 opacity-100' : '',
+          phase === 'exit' ? 'translate-x-4 opacity-0' : ''
+        )}
+        style={{
+          top: '50%',
+          transform: phase === 'hold'
+            ? 'translateY(-50%) translateX(0)'
+            : phase === 'enter'
+              ? 'translateY(-50%) translateX(120%)'
+              : 'translateY(-50%) translateX(16px)',
+          transitionDuration: phase === 'enter' ? '0ms' : phase === 'hold' ? '500ms' : '600ms',
+          transitionTimingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+        }}
+      >
+        <div className="flex flex-col items-center gap-2">
+          {/* Main pill */}
+          <div
+            className={classNames(
+              'flex items-center gap-2 px-3 py-2 rounded-xl border backdrop-blur-md shadow-lg',
+              'bg-white/[0.07] border-white/[0.12]',
+              'shadow-purple-500/10',
+              phase === 'hold' ? 'animate-[swipe-breathe_2.5s_ease-in-out_infinite]' : ''
+            )}
+          >
+            {/* Animated chevrons — three staggered arrows suggesting swipe direction */}
+            <div className="flex items-center -space-x-1.5">
+              <ChevronLeft className="w-3 h-3 text-purple-400/40" style={{ animationDelay: '0.4s' }} />
+              <ChevronLeft className="w-3 h-3 text-purple-400/70" style={{ animationDelay: '0.2s' }} />
+              <ChevronLeft className="w-3.5 h-3.5 text-purple-400" />
+            </div>
+
+            <div className="flex flex-col">
+              {/* Preview of first related item title — curiosity gap */}
+              {previewTitle && (
+                <span className="text-[10px] sm:text-[11px] text-white/80 font-medium leading-tight max-w-[100px] sm:max-w-[120px] truncate">
+                  {previewTitle}
+                </span>
+              )}
+              <span className="text-[9px] sm:text-[10px] text-gray-400 leading-tight">
+                {'+' + (props.count - (previewTitle ? 1 : 0)) + ' more'}
+              </span>
+            </div>
+          </div>
         </div>
-        <span className="text-[10px]">{props.count + ' related'}</span>
       </div>
-    </div>
+    </>
   )
 }
 
