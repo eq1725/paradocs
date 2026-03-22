@@ -160,15 +160,25 @@ Replaces the phenomena-only `/api/discover/feed` as the data source for /discove
 
 Each item in the response includes an `item_type` field ('phenomenon' or 'report') so the client can select the right card template. Reports also include resolved `phenomenon_type` with name/slug/category for linking to encyclopedia entries.
 
+#### Feed-V2 API Enhancements (March 22)
+
+- **`feed_hook`** — Engagement-optimized copy from Session 10's Claude Haiku-powered hook generation service. Served alongside `summary`; cards prefer `feed_hook` when available.
+- **`primary_media`** — Actual report media from `report_media` table (type, url, thumbnail_url, caption). Fetched for reports with `has_photo_video=true`, used as full-screen image background on MediaReportCards.
+- **`associated_image_url`** — Phenomenon image for reports without their own media. Used sparingly (~1 in 8 text cards) to avoid repetition at scale (10M+ text reports mapping to ~5K phenomena).
+
 #### Three Card Templates (`src/components/discover/DiscoverCards.tsx`)
 
 1. **PhenomenonCard** — Upgraded from the original DiscoverCard. Image-backed or gradient background, name, AI summary, quick facts pills, aliases. Links to `/phenomena/[slug]`.
 
-2. **TextReportCard** — For experiencer reports without photo/video evidence. Quote-styled layout with decorative quotation mark watermark, border-left excerpt styling, credibility badge, location + date metadata, evidence pills, phenomenon type link. Links to `/report/[slug]`.
+2. **TextReportCard** — For experiencer reports without photo/video evidence. **Generative visual variety system** (March 22): each card gets a deterministically unique visual treatment derived from hashing the report ID. Four "moods" (quote, cinematic, minimal, atmospheric), multiple gradient angles, per-category accent glow variations, and mood-specific decorative elements (quotation marks, film grain, category icon watermarks, vignette). Phenomenon images used as backdrop on only ~1/8 of cards to avoid repetition at scale. Prefers `feed_hook` (displayed prominently as engagement text) over raw `summary` (displayed as italic quote). Links to `/report/[slug]`.
 
-3. **MediaReportCard** — For reports with photo/video evidence. Camera-themed styling with evidence badge prominently displayed, amber accent color for visual distinction. Links to `/report/[slug]` with "View Evidence" CTA.
+3. **MediaReportCard** — For reports with photo/video evidence. Uses **actual report media** from `report_media` table as full-screen image background (with cinematic overlay + amber tint). Shows media caption when available. Falls back to gradient when media fails to load. Prefers `feed_hook` for preview text. Amber accent throughout (evidence badge, camera icon). Links to `/report/[slug]` with "View Evidence" CTA.
 
 All cards share: TikTok-style right sidebar actions (Save, Share, More), Framer Motion horizontal related content tray, staggered entrance animations.
+
+#### Visual Variety at Scale (Design Decision)
+
+At 10-20M text-based reports mapping to ~5K phenomena, naively using the linked phenomenon image as backdrop would mean the same image appearing thousands of times. Instead, the TextReportCard uses a **generative variety system**: `hashString(report.id)` deterministically selects from 4 moods × 4 gradient angles × 4+ accent variations × 4 watermark characters = 256+ unique visual combinations per category. Phenomenon images are reserved for ~12.5% of cards (hash % 8 === 0) to add occasional richness without repetition.
 
 #### Related Content Tray (Framer Motion)
 

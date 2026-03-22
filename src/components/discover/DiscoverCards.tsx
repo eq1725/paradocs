@@ -66,12 +66,20 @@ export interface PhenomenonItem {
   aliases: string[] | null
 }
 
+export interface ReportMedia {
+  type: string
+  url: string
+  thumbnail_url: string | null
+  caption: string | null
+}
+
 export interface ReportItem {
   item_type: 'report'
   id: string
   title: string
   slug: string
   summary: string | null
+  feed_hook: string | null
   category: string
   country: string | null
   city: string | null
@@ -89,6 +97,9 @@ export interface ReportItem {
   source_label: string | null
   created_at: string
   phenomenon_type: { name: string; slug: string; category: string } | null
+  primary_media: ReportMedia | null
+  associated_image_url: string | null
+  associated_image_source: string | null
 }
 
 export type FeedItemV2 = PhenomenonItem | ReportItem
@@ -135,6 +146,91 @@ var CREDIBILITY_STYLES: Record<string, { bg: string; text: string; icon: string 
 }
 
 var placeholderUrl = 'https://bhkbctdmwnowfmqpksed.supabase.co/storage/v1/object/public/phenomena-images/default-cryptid.jpg'
+
+// =========================================================================
+//  Generative visual variety system for text-based report cards
+//  Ensures every card feels unique even without media.
+//  Uses a simple hash of report ID to deterministically pick visual treatments.
+// =========================================================================
+
+/** Simple string hash → number (deterministic) */
+function hashString(str: string): number {
+  var hash = 0
+  for (var i = 0; i < str.length; i++) {
+    var char = str.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash |= 0 // Convert to 32-bit int
+  }
+  return Math.abs(hash)
+}
+
+/** Visual treatment moods for text report cards */
+var CARD_MOODS = ['quote', 'cinematic', 'minimal', 'atmospheric'] as const
+type CardMood = typeof CARD_MOODS[number]
+
+/** Gradient angle variations — each has a different visual feel */
+var GRADIENT_ANGLES = [
+  'bg-gradient-to-t',    // bottom-up (standard)
+  'bg-gradient-to-tr',   // diagonal
+  'bg-gradient-to-tl',   // opposite diagonal
+  'bg-gradient-to-br',   // top-down diagonal
+]
+
+/** Accent color variations within categories (subtle shifts) */
+var ACCENT_VARIATIONS: Record<string, string[]> = {
+  cryptids: [
+    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(16,185,129,0.08),transparent_60%)]',
+    'bg-[radial-gradient(ellipse_at_70%_30%,rgba(52,211,153,0.06),transparent_50%)]',
+    'bg-[radial-gradient(circle_at_20%_80%,rgba(6,95,70,0.12),transparent_55%)]',
+    'bg-[radial-gradient(ellipse_at_80%_60%,rgba(16,185,129,0.05),transparent_65%)]',
+  ],
+  ufos_aliens: [
+    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(99,102,241,0.08),transparent_60%)]',
+    'bg-[radial-gradient(ellipse_at_70%_20%,rgba(129,140,248,0.06),transparent_50%)]',
+    'bg-[radial-gradient(circle_at_50%_50%,rgba(55,48,163,0.12),transparent_55%)]',
+    'bg-[radial-gradient(ellipse_at_20%_40%,rgba(99,102,241,0.07),transparent_65%)]',
+  ],
+  ghosts_hauntings: [
+    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(168,85,247,0.08),transparent_60%)]',
+    'bg-[radial-gradient(ellipse_at_70%_80%,rgba(192,132,252,0.06),transparent_50%)]',
+    'bg-[radial-gradient(circle_at_40%_20%,rgba(107,33,168,0.10),transparent_55%)]',
+    'bg-[radial-gradient(ellipse_at_60%_90%,rgba(168,85,247,0.05),transparent_65%)]',
+  ],
+  psychic_phenomena: [
+    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(139,92,246,0.08),transparent_60%)]',
+    'bg-[radial-gradient(ellipse_at_80%_30%,rgba(167,139,250,0.06),transparent_50%)]',
+    'bg-[radial-gradient(circle_at_50%_80%,rgba(109,40,217,0.10),transparent_55%)]',
+    'bg-[radial-gradient(ellipse_at_20%_50%,rgba(139,92,246,0.07),transparent_65%)]',
+  ],
+  consciousness_practices: [
+    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(217,119,6,0.08),transparent_60%)]',
+    'bg-[radial-gradient(ellipse_at_70%_40%,rgba(245,158,11,0.06),transparent_50%)]',
+    'bg-[radial-gradient(circle_at_40%_60%,rgba(180,83,9,0.10),transparent_55%)]',
+    'bg-[radial-gradient(ellipse_at_60%_20%,rgba(217,119,6,0.05),transparent_65%)]',
+  ],
+}
+
+var DEFAULT_ACCENTS = [
+  'bg-[radial-gradient(ellipse_at_30%_70%,rgba(139,92,246,0.06),transparent_60%)]',
+  'bg-[radial-gradient(ellipse_at_70%_30%,rgba(99,102,241,0.06),transparent_50%)]',
+  'bg-[radial-gradient(circle_at_50%_50%,rgba(168,85,247,0.08),transparent_55%)]',
+  'bg-[radial-gradient(ellipse_at_20%_80%,rgba(79,70,229,0.06),transparent_65%)]',
+]
+
+/** Decorative watermark elements for different moods */
+var WATERMARK_CHARS = ['\u201C', '\u2022', '\u25C6', '\u2605'] // ", •, ◆, ★
+
+function getCardVariation(reportId: string, category: string) {
+  var hash = hashString(reportId)
+  var mood = CARD_MOODS[hash % CARD_MOODS.length]
+  var gradientDir = GRADIENT_ANGLES[hash % GRADIENT_ANGLES.length]
+  var accents = ACCENT_VARIATIONS[category] || DEFAULT_ACCENTS
+  var accent = accents[(hash >> 4) % accents.length]
+  var watermark = WATERMARK_CHARS[(hash >> 8) % WATERMARK_CHARS.length]
+  // Use phenomenon image rarely (1 in 8 cards)
+  var usePhenomenonImage = (hash % 8) === 0
+  return { mood: mood, gradientDir: gradientDir, accent: accent, watermark: watermark, usePhenomenonImage: usePhenomenonImage }
+}
 
 // =========================================================================
 //  Shared sidebar actions (TikTok-style right rail)
@@ -423,7 +519,11 @@ export function PhenomenonCard(props: {
 }
 
 // =========================================================================
-//  2. TextReportCard — first-person experiencer report, no media
+//  2. TextReportCard — first-person experiencer report
+//     Generative visual variety: each card gets a unique-feeling treatment
+//     derived from the report ID hash. Phenomenon images used sparingly
+//     (~1 in 8 cards) to avoid repetition at scale (10M+ text reports).
+//     Prefers feed_hook over summary for preview text.
 // =========================================================================
 
 export function TextReportCard(props: {
@@ -439,6 +539,13 @@ export function TextReportCard(props: {
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
   var gradient = CARD_GRADIENTS[item.category] || 'from-gray-950/90 to-gray-950'
   var credStyle = CREDIBILITY_STYLES[item.credibility || ''] || null
+  var [imgError, setImgError] = useState(false)
+
+  // Generative visual variety based on report ID
+  var variation = getCardVariation(item.id, item.category)
+
+  // Only use phenomenon image on ~1/8 of cards to avoid repetition at scale
+  var useBgImage = variation.usePhenomenonImage && !imgError && item.associated_image_url
 
   var locationParts: string[] = []
   if (item.city) locationParts.push(item.city)
@@ -456,20 +563,68 @@ export function TextReportCard(props: {
     }
   }
 
+  // Prefer feed_hook (engagement-optimized) over raw summary
+  var displayText = item.feed_hook || item.summary || ''
+  var isHook = !!item.feed_hook
+
   return (
     <div
       ref={props.onRef}
       data-index={props.index}
       className="h-screen w-full snap-start snap-always relative overflow-hidden bg-gray-950"
     >
-      {/* Gradient background with subtle texture */}
-      <div className={classNames('absolute inset-0 bg-gradient-to-br', gradient)}>
-        {/* Decorative quotation mark watermark */}
-        <div className="absolute top-16 left-6 sm:left-12 opacity-[0.04]">
-          <span className="text-[16rem] sm:text-[24rem] leading-none select-none font-serif">{'\u201C'}</span>
+      {/* Background: rare phenomenon image, or generative gradient */}
+      {useBgImage ? (
+        <>
+          <img
+            src={item.associated_image_url!}
+            alt=""
+            className={classNames(
+              'absolute inset-0 w-full h-full object-cover transition-transform duration-700 blur-[2px]',
+              props.isActive ? 'scale-100' : 'scale-110'
+            )}
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            onError={function () { setImgError(true) }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/85 to-gray-950/50" />
+          <div className="absolute inset-0 bg-gray-950/30" />
+        </>
+      ) : (
+        <div className={classNames('absolute inset-0', variation.gradientDir, gradient)}>
+          {/* Mood-specific decorative element */}
+          {variation.mood === 'quote' && (
+            <div className="absolute top-16 left-6 sm:left-12 opacity-[0.04]">
+              <span className="text-[16rem] sm:text-[24rem] leading-none select-none font-serif">{variation.watermark}</span>
+            </div>
+          )}
+          {variation.mood === 'cinematic' && (
+            <>
+              {/* Film-grain-like noise overlay */}
+              <div className="absolute inset-0 opacity-[0.015]" style={{backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")', backgroundSize: '200px 200px'}} />
+              {/* Cinematic letterbox bars */}
+              <div className="absolute top-0 left-0 right-0 h-12 sm:h-16 bg-black/40" />
+              <div className="absolute bottom-0 left-0 right-0 h-12 sm:h-16 bg-black/40" />
+            </>
+          )}
+          {variation.mood === 'minimal' && (
+            /* Clean, almost no decoration — let the text breathe */
+            <div className="absolute bottom-0 left-0 right-0 h-2/3 bg-gradient-to-t from-gray-950 to-transparent" />
+          )}
+          {variation.mood === 'atmospheric' && (
+            <>
+              {/* Subtle icon watermark from category */}
+              <div className="absolute top-1/4 right-8 sm:right-16 opacity-[0.03]">
+                <span className="text-[10rem] sm:text-[16rem] leading-none select-none">{config?.icon || '\ud83d\udd0d'}</span>
+              </div>
+              {/* Vignette effect */}
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,rgba(0,0,0,0.4)_100%)]" />
+            </>
+          )}
+          {/* Category-specific accent glow — varies per card */}
+          <div className={classNames('absolute inset-0', variation.accent)} />
         </div>
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_70%,rgba(139,92,246,0.06),transparent_60%)]" />
-      </div>
+      )}
 
       {/* Content */}
       <div className="absolute inset-0 flex flex-col justify-end p-5 pb-16 pr-16 sm:p-8 sm:pb-24 sm:pr-24 md:p-12 md:pb-16 md:pr-12">
@@ -534,31 +689,42 @@ export function TextReportCard(props: {
           )}
         </div>
 
-        {/* Summary / excerpt — styled like a quote */}
-        {item.summary && (
+        {/* Hook or excerpt — the draw */}
+        {displayText && (
           <div className={classNames(
             'max-w-2xl mb-4 sm:mb-6 transition-all duration-500 delay-150',
             props.isActive ? 'opacity-100 translate-y-0' : 'opacity-60 translate-y-2'
           )}>
-            <div className="border-l-2 border-white/20 pl-4">
-              <p className="text-sm sm:text-base md:text-lg text-gray-300 leading-relaxed line-clamp-4 italic">
-                {item.summary}
+            {isHook ? (
+              /* Feed hook: engagement-optimized, display prominently */
+              <p className="text-base sm:text-lg md:text-xl text-gray-200 leading-relaxed line-clamp-4 font-medium">
+                {displayText}
               </p>
-            </div>
+            ) : (
+              /* Raw summary: style as a first-person quote */
+              <div className={classNames(
+                'pl-4',
+                variation.mood === 'cinematic' ? 'border-l-2 border-amber-500/30' :
+                variation.mood === 'atmospheric' ? 'border-l-2 border-purple-500/30' :
+                'border-l-2 border-white/20'
+              )}>
+                <p className="text-sm sm:text-base md:text-lg text-gray-300 leading-relaxed line-clamp-4 italic">
+                  {displayText}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
         {/* Evidence pills */}
-        {(item.has_physical_evidence) && (
+        {item.has_physical_evidence && (
           <div className={classNames(
             'flex gap-2 mb-4 sm:mb-6 transition-all duration-500 delay-200',
             props.isActive ? 'opacity-100' : 'opacity-40'
           )}>
-            {item.has_physical_evidence && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-semibold bg-emerald-500/15 text-emerald-400 backdrop-blur-sm">
-                Physical Evidence
-              </span>
-            )}
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-semibold bg-emerald-500/15 text-emerald-400 backdrop-blur-sm">
+              Physical Evidence
+            </span>
           </div>
         )}
 
@@ -586,7 +752,7 @@ export function TextReportCard(props: {
       {/* Sidebar actions */}
       <SidebarActions
         shareTitle={item.title}
-        shareText={item.summary || item.title}
+        shareText={item.feed_hook || item.summary || item.title}
         shareUrl={typeof window !== 'undefined' ? window.location.origin + '/report/' + item.slug : '/report/' + item.slug}
         categoryHref={'/explore?category=' + item.category}
         user={props.user}
@@ -602,6 +768,9 @@ export function TextReportCard(props: {
 
 // =========================================================================
 //  3. MediaReportCard — report with photo/video evidence
+//     Uses actual report media (from report_media table) as full-screen
+//     background when available. Falls back to cinematic gradient.
+//     Prefers feed_hook for preview text.
 // =========================================================================
 
 export function MediaReportCard(props: {
@@ -616,6 +785,7 @@ export function MediaReportCard(props: {
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
   var credStyle = CREDIBILITY_STYLES[item.credibility || ''] || null
+  var [imgError, setImgError] = useState(false)
 
   var locationParts: string[] = []
   if (item.city) locationParts.push(item.city)
@@ -633,8 +803,16 @@ export function MediaReportCard(props: {
     }
   }
 
-  // MediaReportCard uses a cinematic gradient background with the "evidence" visual emphasis
+  // Determine the best image to show
+  var mediaUrl = !imgError && item.primary_media
+    ? (item.primary_media.thumbnail_url || item.primary_media.url)
+    : null
+  var hasImage = !!mediaUrl
   var gradient = CARD_GRADIENTS[item.category] || 'from-gray-950/90 to-gray-950'
+
+  // Prefer feed_hook for preview text
+  var displayText = item.feed_hook || item.summary || ''
+  var isHook = !!item.feed_hook
 
   return (
     <div
@@ -642,14 +820,45 @@ export function MediaReportCard(props: {
       data-index={props.index}
       className="h-screen w-full snap-start snap-always relative overflow-hidden bg-gray-950"
     >
-      {/* Dark gradient with evidence-themed accent */}
-      <div className={classNames('absolute inset-0 bg-gradient-to-br', gradient)}>
-        {/* Camera/evidence icon watermark */}
-        <div className="absolute top-1/4 right-8 sm:right-16 opacity-[0.04]">
-          <Camera className="w-48 h-48 sm:w-72 sm:h-72" />
+      {/* Background: actual report media image or cinematic gradient */}
+      {hasImage ? (
+        <>
+          <img
+            src={mediaUrl!}
+            alt=""
+            className={classNames(
+              'absolute inset-0 w-full h-full object-cover transition-transform duration-700',
+              props.isActive ? 'scale-100' : 'scale-105'
+            )}
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            onError={function () { setImgError(true) }}
+          />
+          {/* Cinematic overlay — strong enough for text readability */}
+          <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/70 to-gray-950/20" />
+          {/* Subtle amber tint to signal "evidence" */}
+          <div className="absolute inset-0 bg-amber-950/10" />
+        </>
+      ) : (
+        <div className={classNames('absolute inset-0 bg-gradient-to-br', gradient)}>
+          <div className="absolute top-1/4 right-8 sm:right-16 opacity-[0.04]">
+            <Camera className="w-48 h-48 sm:w-72 sm:h-72" />
+          </div>
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_30%,rgba(239,68,68,0.04),transparent_60%)]" />
         </div>
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_30%,rgba(239,68,68,0.04),transparent_60%)]" />
-      </div>
+      )}
+
+      {/* Media caption if available */}
+      {hasImage && item.primary_media?.caption && (
+        <div className={classNames(
+          'absolute top-16 sm:top-20 left-5 sm:left-8 right-20 transition-all duration-500',
+          props.isActive ? 'opacity-60' : 'opacity-0'
+        )}>
+          <p className="text-[10px] sm:text-xs text-gray-400 bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-lg inline-block max-w-sm">
+            {item.primary_media!.caption}
+          </p>
+        </div>
+      )}
 
       {/* Content */}
       <div className="absolute inset-0 flex flex-col justify-end p-5 pb-16 pr-16 sm:p-8 sm:pb-24 sm:pr-24 md:p-12 md:pb-16 md:pr-12">
@@ -680,6 +889,7 @@ export function MediaReportCard(props: {
         {/* Title */}
         <h1 className={classNames(
           'text-2xl sm:text-4xl md:text-5xl font-bold text-white mb-2 sm:mb-3 leading-tight transition-all duration-500',
+          hasImage ? 'drop-shadow-lg' : '',
           props.isActive ? 'opacity-100 translate-y-0' : 'opacity-80 translate-y-2'
         )}>
           {item.title}
@@ -714,14 +924,28 @@ export function MediaReportCard(props: {
           )}
         </div>
 
-        {/* Summary */}
-        {item.summary && (
-          <p className={classNames(
-            'text-sm sm:text-base md:text-lg text-gray-300 max-w-2xl leading-relaxed mb-4 sm:mb-6 line-clamp-3 transition-all duration-500 delay-150',
+        {/* Hook or summary */}
+        {displayText && (
+          <div className={classNames(
+            'max-w-2xl mb-4 sm:mb-6 transition-all duration-500 delay-150',
             props.isActive ? 'opacity-100 translate-y-0' : 'opacity-60 translate-y-2'
           )}>
-            {item.summary}
-          </p>
+            {isHook ? (
+              <p className={classNames(
+                'text-base sm:text-lg md:text-xl text-gray-200 leading-relaxed line-clamp-3 font-medium',
+                hasImage ? 'drop-shadow-md' : ''
+              )}>
+                {displayText}
+              </p>
+            ) : (
+              <p className={classNames(
+                'text-sm sm:text-base md:text-lg text-gray-300 leading-relaxed line-clamp-3',
+                hasImage ? 'drop-shadow-md' : ''
+              )}>
+                {displayText}
+              </p>
+            )}
+          </div>
         )}
 
         {/* Evidence pills */}
@@ -766,7 +990,7 @@ export function MediaReportCard(props: {
       {/* Sidebar actions */}
       <SidebarActions
         shareTitle={item.title}
-        shareText={item.summary || item.title}
+        shareText={item.feed_hook || item.summary || item.title}
         shareUrl={typeof window !== 'undefined' ? window.location.origin + '/report/' + item.slug : '/report/' + item.slug}
         categoryHref={'/explore?category=' + item.category}
         user={props.user}

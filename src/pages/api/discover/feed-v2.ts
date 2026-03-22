@@ -234,19 +234,22 @@ export default async function handler(
     if (reportIds.length > 0) {
       var { data: fullReports } = await supabase
         .from('reports')
-        .select('id, title, slug, summary, category, country, city, state_province, event_date, credibility, upvotes, view_count, comment_count, has_photo_video, has_physical_evidence, content_type, location_name, source_type, source_label, created_at, phenomenon_type_id')
+        .select('id, title, slug, summary, category, country, city, state_province, event_date, credibility, upvotes, view_count, comment_count, has_photo_video, has_physical_evidence, content_type, location_name, source_type, source_label, created_at, phenomenon_type_id, feed_hook')
         .in('id', reportIds);
 
       if (fullReports) {
         fullReports.forEach(function (r) { reportMap[r.id] = r; });
       }
 
-      // Resolve phenomenon names for reports that have phenomenon_type_id
+      // Resolve phenomenon names + images for reports that have phenomenon_type_id
+      // This serves two purposes:
+      //   1. phenomenon_type name/slug for linking
+      //   2. phenomenon primary_image_url as visual backdrop for reports without their own media
       var ptIds = fullReports ? fullReports.filter(function (r) { return r.phenomenon_type_id; }).map(function (r) { return r.phenomenon_type_id; }) : [];
       if (ptIds.length > 0) {
         var { data: ptData } = await supabase
           .from('phenomena')
-          .select('id, name, slug, category')
+          .select('id, name, slug, category, primary_image_url')
           .in('id', ptIds);
 
         if (ptData) {
@@ -255,9 +258,64 @@ export default async function handler(
           Object.keys(reportMap).forEach(function (rid) {
             var r = reportMap[rid];
             if (r.phenomenon_type_id && ptMap[r.phenomenon_type_id]) {
-              r.phenomenon_type = ptMap[r.phenomenon_type_id];
+              var pt = ptMap[r.phenomenon_type_id];
+              r.phenomenon_type = { id: pt.id, name: pt.name, slug: pt.slug, category: pt.category };
+              // Associate phenomenon image for reports without their own media
+              if (!r.has_photo_video && pt.primary_image_url && pt.primary_image_url !== placeholderUrl) {
+                r.associated_image_url = pt.primary_image_url;
+                r.associated_image_source = pt.name;
+              }
             }
           });
+        }
+      }
+
+      // Fetch report_media for reports that have media
+      var mediaReportIds = fullReports ? fullReports.filter(function (r) { return r.has_photo_video; }).map(function (r) { return r.id; }) : [];
+      if (mediaReportIds.length > 0) {
+        var { data: mediaData } = await supabase
+          .from('report_media')
+          .select('report_id, media_type, url, thumbnail_url, caption, is_primary')
+          .in('report_id', mediaReportIds)
+          .eq('is_primary', true)
+          .limit(mediaReportIds.length);
+
+        if (mediaData) {
+          mediaData.forEach(function (m) {
+            if (reportMap[m.report_id]) {
+              reportMap[m.report_id].primary_media = {
+                type: m.media_type,
+                url: m.url,
+                thumbnail_url: m.thumbnail_url,
+                caption: m.caption,
+              };
+            }
+          });
+        }
+
+        // Fallback: for media reports that didn't have a primary, grab any media
+        var missingMedia = mediaReportIds.filter(function (rid) {
+          return reportMap[rid] && !reportMap[rid].primary_media;
+        });
+        if (missingMedia.length > 0) {
+          var { data: fallbackMedia } = await supabase
+            .from('report_media')
+            .select('report_id, media_type, url, thumbnail_url, caption')
+            .in('report_id', missingMedia)
+            .limit(missingMedia.length);
+
+          if (fallbackMedia) {
+            fallbackMedia.forEach(function (m) {
+              if (reportMap[m.report_id] && !reportMap[m.report_id].primary_media) {
+                reportMap[m.report_id].primary_media = {
+                  type: m.media_type,
+                  url: m.url,
+                  thumbnail_url: m.thumbnail_url,
+                  caption: m.caption,
+                };
+              }
+            });
+          }
         }
       }
     }
@@ -292,6 +350,7 @@ export default async function handler(
           title: r.title,
           slug: r.slug,
           summary: r.summary,
+          feed_hook: r.feed_hook || null,
           category: r.category,
           country: r.country,
           city: r.city,
@@ -309,6 +368,10 @@ export default async function handler(
           source_label: r.source_label,
           created_at: r.created_at,
           phenomenon_type: r.phenomenon_type || null,
+          // Media: actual report media or associated phenomenon image
+          primary_media: r.primary_media || null,
+          associated_image_url: r.associated_image_url || null,
+          associated_image_source: r.associated_image_source || null,
         };
       }
     }).filter(function (item) { return item !== null; });
