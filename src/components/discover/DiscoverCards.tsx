@@ -336,7 +336,7 @@ function RelatedTray(props: { items: RelatedItem[]; isActive: boolean }) {
               </div>
               <p className="text-xs sm:text-sm text-white font-medium line-clamp-2 leading-snug">{rel.title}</p>
               {rel.similarity && (
-                <p className="text-[10px] text-gray-500 mt-1">{Math.round(rel.similarity * 100) + '% match'}</p>
+                <p className="text-[10px] text-gray-500 mt-1">{Math.min(Math.round(rel.similarity), 99) + '% match'}</p>
               )}
             </Link>
           )

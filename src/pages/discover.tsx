@@ -60,6 +60,7 @@ export default function DiscoverPage() {
   var containerRef = useRef<HTMLDivElement>(null)
   var cardRefs = useRef<Map<number, HTMLDivElement>>(new Map())
   var loadingRef = useRef(false)
+  var initialSettled = useRef(false)
 
   // Track items seen for completion signal
   var [maxSeen, setMaxSeen] = useState(0)
@@ -78,6 +79,9 @@ export default function DiscoverPage() {
   // --- Load initial feed ---
   useEffect(function () {
     loadFeed(0)
+    // Allow prefetching only after initial render + snap settle
+    var timer = setTimeout(function () { initialSettled.current = true }, 1200)
+    return function () { clearTimeout(timer) }
   }, [])
 
   // --- Signup gate at card 6 ---
@@ -209,10 +213,14 @@ export default function DiscoverPage() {
   useEffect(function () {
     var observer = new IntersectionObserver(
       function (entries) {
+        // During initial settle, only allow index 0 to prevent cascade
+        var settled = initialSettled.current
         entries.forEach(function (entry) {
           if (entry.isIntersecting) {
             var idx = parseInt(entry.target.getAttribute('data-index') || '0', 10)
-            setCurrentIndex(idx)
+            if (settled || idx === 0) {
+              setCurrentIndex(idx)
+            }
           }
         })
       },
@@ -226,8 +234,9 @@ export default function DiscoverPage() {
     return function () { observer.disconnect() }
   }, [items.length])
 
-  // --- Prefetch next batch ---
+  // --- Prefetch next batch (guarded to prevent runaway on initial render) ---
   useEffect(function () {
+    if (!initialSettled.current) return
     if (currentIndex >= items.length - 5 && hasMore && !loadingRef.current) {
       loadFeed(offset)
     }
