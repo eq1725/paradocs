@@ -9,7 +9,7 @@
  *  3. MediaReportCard — Report with photo/video evidence, image-backed
  *
  * All cards are full-viewport-height snap items for the TikTok-style scroll.
- * Each card has a horizontal "Related" swipe tray at the bottom (Framer Motion).
+ * Related content is handled by horizontal swipe in discover.tsx (2D snap grid).
  */
 
 import React, { useState, useEffect } from 'react'
@@ -27,9 +27,7 @@ import {
   Shield,
   FileText,
   Camera,
-  ChevronRight,
 } from 'lucide-react'
-import { motion } from 'framer-motion'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
 
@@ -104,13 +102,8 @@ export interface ReportItem {
 
 export type FeedItemV2 = PhenomenonItem | ReportItem
 
-export interface RelatedItem {
-  slug: string
-  title: string
-  category: string
-  similarity?: number
-  item_type: 'phenomenon' | 'report'
-}
+// RelatedItem interface removed — related content is now handled as
+// full FeedItemV2 cards in the 2D horizontal swipe grid (discover.tsx)
 
 // =========================================================================
 //  Color maps
@@ -298,59 +291,7 @@ function SidebarActions(props: {
   )
 }
 
-// =========================================================================
-//  Related content horizontal swipe tray
-// =========================================================================
-
-function RelatedTray(props: { items: RelatedItem[]; isActive: boolean }) {
-  if (!props.items || props.items.length === 0) return null
-
-  return (
-    <div className={classNames(
-      'absolute bottom-2 sm:bottom-6 left-0 right-14 sm:right-20 transition-all duration-500 delay-300',
-      props.isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-    )}>
-      <p className="text-[10px] sm:text-xs text-gray-500 font-medium uppercase tracking-wider px-5 sm:px-8 mb-1.5">Related</p>
-      <motion.div
-        className="flex gap-2 sm:gap-3 px-5 sm:px-8 overflow-x-auto scrollbar-hide"
-        drag="x"
-        dragConstraints={{ left: -((props.items.length - 2) * 160), right: 0 }}
-        dragElastic={0.1}
-        style={{ cursor: 'grab' }}
-      >
-        {props.items.map(function (rel, i) {
-          var config = CATEGORY_CONFIG[rel.category as keyof typeof CATEGORY_CONFIG]
-          var href = rel.item_type === 'phenomenon' ? '/phenomena/' + rel.slug : '/report/' + rel.slug
-          return (
-            <Link
-              key={rel.slug + '-' + i}
-              href={href}
-              className="flex-shrink-0 w-36 sm:w-40 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-2.5 sm:p-3 hover:bg-white/10 transition-colors"
-              onClick={function (e) { e.stopPropagation() }}
-            >
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="text-[10px]">{config?.icon || '\ud83d\udd0d'}</span>
-                <span className={classNames('text-[10px] font-semibold', config?.color || 'text-gray-400')}>
-                  {rel.item_type === 'phenomenon' ? 'Encyclopedia' : 'Report'}
-                </span>
-              </div>
-              <p className="text-xs sm:text-sm text-white font-medium line-clamp-2 leading-snug">{rel.title}</p>
-              {rel.similarity && (
-                <p className="text-[10px] text-gray-500 mt-1">{Math.min(Math.round(rel.similarity), 99) + '% match'}</p>
-              )}
-            </Link>
-          )
-        })}
-        {/* "See more" card */}
-        <div className="flex-shrink-0 w-28 sm:w-32 bg-white/5 border border-white/10 rounded-xl p-2.5 sm:p-3 flex items-center justify-center">
-          <span className="text-xs text-gray-400 flex items-center gap-1">
-            See all <ChevronRight className="w-3 h-3" />
-          </span>
-        </div>
-      </motion.div>
-    </div>
-  )
-}
+// RelatedTray removed — replaced by 2D horizontal swipe grid in discover.tsx
 
 // =========================================================================
 //  1. PhenomenonCard — encyclopedia entry (existing DiscoverCard, upgraded)
@@ -361,8 +302,6 @@ export function PhenomenonCard(props: {
   index: number
   isActive: boolean
   user: any
-  related: RelatedItem[]
-  onRef: (node: HTMLDivElement | null) => void
   onShowSignup: (show: boolean) => void
 }) {
   var item = props.item
@@ -377,9 +316,7 @@ export function PhenomenonCard(props: {
 
   return (
     <div
-      ref={props.onRef}
-      data-index={props.index}
-      className="h-screen w-full snap-start snap-always relative overflow-hidden bg-gray-950"
+      className="h-screen w-full relative overflow-hidden bg-gray-950"
     >
       {/* Background */}
       {hasImage ? (
@@ -511,9 +448,6 @@ export function PhenomenonCard(props: {
         onShowSignup={props.onShowSignup}
         isActive={props.isActive}
       />
-
-      {/* Related tray */}
-      <RelatedTray items={props.related} isActive={props.isActive} />
     </div>
   )
 }
@@ -531,8 +465,6 @@ export function TextReportCard(props: {
   index: number
   isActive: boolean
   user: any
-  related: RelatedItem[]
-  onRef: (node: HTMLDivElement | null) => void
   onShowSignup: (show: boolean) => void
 }) {
   var item = props.item
@@ -569,9 +501,7 @@ export function TextReportCard(props: {
 
   return (
     <div
-      ref={props.onRef}
-      data-index={props.index}
-      className="h-screen w-full snap-start snap-always relative overflow-hidden bg-gray-950"
+      className="h-screen w-full relative overflow-hidden bg-gray-950"
     >
       {/* Background: rare phenomenon image, or generative gradient */}
       {useBgImage ? (
@@ -759,9 +689,6 @@ export function TextReportCard(props: {
         onShowSignup={props.onShowSignup}
         isActive={props.isActive}
       />
-
-      {/* Related tray */}
-      <RelatedTray items={props.related} isActive={props.isActive} />
     </div>
   )
 }
@@ -778,8 +705,6 @@ export function MediaReportCard(props: {
   index: number
   isActive: boolean
   user: any
-  related: RelatedItem[]
-  onRef: (node: HTMLDivElement | null) => void
   onShowSignup: (show: boolean) => void
 }) {
   var item = props.item
@@ -816,9 +741,7 @@ export function MediaReportCard(props: {
 
   return (
     <div
-      ref={props.onRef}
-      data-index={props.index}
-      className="h-screen w-full snap-start snap-always relative overflow-hidden bg-gray-950"
+      className="h-screen w-full relative overflow-hidden bg-gray-950"
     >
       {/* Background: actual report media image or cinematic gradient */}
       {hasImage ? (
@@ -997,9 +920,6 @@ export function MediaReportCard(props: {
         onShowSignup={props.onShowSignup}
         isActive={props.isActive}
       />
-
-      {/* Related tray */}
-      <RelatedTray items={props.related} isActive={props.isActive} />
     </div>
   )
 }
