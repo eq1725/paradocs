@@ -15,7 +15,7 @@ import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import {
-  Search, Home, Compass, Map, PlusCircle,
+  Search, Home, Compass, Map,
   BookOpen, Sparkles, Flame,
   User, LogOut, LogIn, Settings, LayoutDashboard
 } from 'lucide-react'
@@ -124,8 +124,8 @@ export default function Layout({ children }: LayoutProps) {
               })}
             </nav>
 
-            {/* Search Bar — hidden on /search page to avoid duplicate inputs */}
-            <form onSubmit={handleSearch} className={'flex-1 max-w-md mx-8 ' + (router.pathname === '/search' ? 'hidden' : 'hidden md:block')}>
+            {/* Search Bar — invisible on /search page (keeps layout space, prevents shift) */}
+            <form onSubmit={handleSearch} className={'flex-1 max-w-md mx-8 hidden md:block' + (router.pathname === '/search' ? ' invisible' : '')}>
               <div className="relative group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-focus-within:text-primary-400 transition-colors" />
                 <input
@@ -149,15 +149,6 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Right section */}
             <div className="flex items-center gap-3">
-              {/* Submit button — desktop only, secondary styling (not a core CTA) */}
-              <Link
-                href="/submit"
-                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <PlusCircle className="w-4 h-4" />
-                Submit
-              </Link>
-
               {/* User menu */}
               {!loading && (
                 user ? (
