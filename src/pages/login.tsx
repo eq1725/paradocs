@@ -4,16 +4,16 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import Link from 'next/link'
-import { Mail, Lock, ArrowLeft, Github, Chrome } from 'lucide-react'
+import { Mail, Lock, ArrowLeft, Chrome, Sparkles } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
-type Mode = 'login' | 'signup' | 'forgot'
+type Mode = 'magic' | 'password' | 'signup' | 'forgot'
 
 export default function LoginPage() {
   const router = useRouter()
   const { redirect } = router.query
 
-  const [mode, setMode] = useState<Mode>('login')
+  const [mode, setMode] = useState<Mode>('magic')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [username, setUsername] = useState('')
@@ -29,6 +29,31 @@ export default function LoginPage() {
       }
     })
   }, [redirect, router])
+
+  async function handleMagicLink(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    setMessage('')
+    setLoading(true)
+
+    try {
+      const finalRedirect = typeof redirect === 'string' ? redirect : '/'
+      const callbackUrl = `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(finalRedirect)}`
+
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: callbackUrl,
+        },
+      })
+      if (error) throw error
+      setMessage('Check your email for the login link!')
+    } catch (err: any) {
+      setError(err.message || 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   async function handleEmailAuth(e: React.FormEvent) {
     e.preventDefault()
@@ -49,7 +74,7 @@ export default function LoginPage() {
         })
         if (error) throw error
         setMessage('Check your email for the confirmation link!')
-      } else if (mode === 'login') {
+      } else if (mode === 'password') {
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -70,10 +95,9 @@ export default function LoginPage() {
     }
   }
 
-  async function handleOAuthLogin(provider: 'google' | 'github') {
+  async function handleOAuthLogin(provider: 'google' | 'apple') {
     setError('')
     try {
-      // Build the callback URL with the final redirect destination
       const finalRedirect = typeof redirect === 'string' ? redirect : '/'
       const callbackUrl = `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(finalRedirect)}`
 
@@ -88,6 +112,18 @@ export default function LoginPage() {
       setError(err.message || 'An error occurred')
     }
   }
+
+  const pageTitle = mode === 'signup'
+    ? 'Create Account'
+    : mode === 'forgot'
+      ? 'Reset Password'
+      : 'Welcome Back'
+
+  const pageSubtitle = mode === 'signup'
+    ? 'Join the paranormal research community'
+    : mode === 'forgot'
+      ? 'Enter your email to reset your password'
+      : 'Sign in to continue your exploration'
 
   return (
     <>
@@ -107,16 +143,12 @@ export default function LoginPage() {
 
           <div className="glass-card p-8">
             <div className="text-center mb-8">
-              <span className="text-4xl mb-4 block">🌌</span>
+              <span className="text-4xl mb-4 block">{'\uD83C\uDF0C'}</span>
               <h1 className="text-2xl font-display font-bold text-white">
-                {mode === 'signup' ? 'Create Account' : mode === 'forgot' ? 'Reset Password' : 'Welcome Back'}
+                {pageTitle}
               </h1>
               <p className="text-gray-400 mt-2">
-                {mode === 'signup'
-                  ? 'Join the paranormal research community'
-                  : mode === 'forgot'
-                    ? 'Enter your email to reset your password'
-                    : 'Sign in to continue your exploration'}
+                {pageSubtitle}
               </p>
             </div>
 
@@ -132,7 +164,8 @@ export default function LoginPage() {
               </div>
             )}
 
-            {mode !== 'forgot' && (
+            {/* OAuth + Magic Link — shown on main login and signup modes */}
+            {(mode === 'magic' || mode === 'signup') && (
               <>
                 {/* OAuth buttons */}
                 <div className="space-y-3 mb-6">
@@ -144,11 +177,13 @@ export default function LoginPage() {
                     Continue with Google
                   </button>
                   <button
-                    onClick={() => handleOAuthLogin('github')}
+                    onClick={() => handleOAuthLogin('apple')}
                     className="w-full btn btn-secondary"
                   >
-                    <Github className="w-5 h-5" />
-                    Continue with GitHub
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                    </svg>
+                    Continue with Apple
                   </button>
                 </div>
 
@@ -163,109 +198,247 @@ export default function LoginPage() {
               </>
             )}
 
-            <form onSubmit={handleEmailAuth} className="space-y-4">
-              {mode === 'signup' && (
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">
-                    Username
-                  </label>
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Choose a username"
-                    className="w-full"
-                  />
-                </div>
-              )}
+            {/* Magic link form — primary email flow */}
+            {mode === 'magic' && (
+              <>
+                <form onSubmit={handleMagicLink} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Email
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        className="w-full pl-10"
+                        required
+                      />
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">
-                  Email
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    className="w-full pl-10"
-                    required
-                  />
-                </div>
-              </div>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full btn btn-primary disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    {loading ? 'Sending...' : 'Send me a login link'}
+                  </button>
+                </form>
 
-              {mode !== 'forgot' && (
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <div className="mt-4 text-center">
+                  <button
+                    onClick={() => setMode('password')}
+                    className="text-xs text-gray-500 hover:text-gray-400"
+                  >
+                    Sign in with password instead
+                  </button>
+                </div>
+
+                <div className="mt-6 text-center text-sm">
+                  <p className="text-gray-400">
+                    {"Don't have an account? "}
+                    <button
+                      onClick={() => setMode('signup')}
+                      className="text-primary-400 hover:text-primary-300"
+                    >
+                      Sign up
+                    </button>
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* Password login — secondary flow for existing users */}
+            {mode === 'password' && (
+              <>
+                <form onSubmit={handleEmailAuth} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Email
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        className="w-full pl-10"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder={'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'}
+                        className="w-full pl-10"
+                        required
+                        minLength={6}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <button
+                      type="button"
+                      onClick={() => setMode('forgot')}
+                      className="text-sm text-primary-400 hover:text-primary-300"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full btn btn-primary disabled:opacity-50"
+                  >
+                    {loading ? 'Loading...' : 'Sign In'}
+                  </button>
+                </form>
+
+                <div className="mt-4 text-center">
+                  <button
+                    onClick={() => setMode('magic')}
+                    className="text-xs text-gray-500 hover:text-gray-400"
+                  >
+                    {'\u2190'} Back to passwordless login
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Signup with password */}
+            {mode === 'signup' && (
+              <>
+                <form onSubmit={handleEmailAuth} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Username
+                    </label>
                     <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full pl-10"
-                      required
-                      minLength={6}
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Choose a username"
+                      className="w-full"
                     />
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Email
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        className="w-full pl-10"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder={'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'}
+                        className="w-full pl-10"
+                        required
+                        minLength={6}
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full btn btn-primary disabled:opacity-50"
+                  >
+                    {loading ? 'Loading...' : 'Create Account'}
+                  </button>
+                </form>
+
+                <div className="mt-6 text-center text-sm">
+                  <p className="text-gray-400">
+                    Already have an account?{' '}
+                    <button
+                      onClick={() => setMode('magic')}
+                      className="text-primary-400 hover:text-primary-300"
+                    >
+                      Sign in
+                    </button>
+                  </p>
                 </div>
-              )}
+              </>
+            )}
 
-              {mode === 'login' && (
-                <div className="text-right">
+            {/* Forgot password */}
+            {mode === 'forgot' && (
+              <>
+                <form onSubmit={handleEmailAuth} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Email
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        className="w-full pl-10"
+                        required
+                      />
+                    </div>
+                  </div>
+
                   <button
-                    type="button"
-                    onClick={() => setMode('forgot')}
-                    className="text-sm text-primary-400 hover:text-primary-300"
+                    type="submit"
+                    disabled={loading}
+                    className="w-full btn btn-primary disabled:opacity-50"
                   >
-                    Forgot password?
+                    {loading ? 'Loading...' : 'Send Reset Link'}
                   </button>
+                </form>
+
+                <div className="mt-6 text-center text-sm">
+                  <p className="text-gray-400">
+                    Remember your password?{' '}
+                    <button
+                      onClick={() => setMode('magic')}
+                      className="text-primary-400 hover:text-primary-300"
+                    >
+                      Sign in
+                    </button>
+                  </p>
                 </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full btn btn-primary disabled:opacity-50"
-              >
-                {loading
-                  ? 'Loading...'
-                  : mode === 'signup'
-                    ? 'Create Account'
-                    : mode === 'forgot'
-                      ? 'Send Reset Link'
-                      : 'Sign In'}
-              </button>
-            </form>
-
-            <div className="mt-6 text-center text-sm">
-              {mode === 'login' ? (
-                <p className="text-gray-400">
-                  Don't have an account?{' '}
-                  <button
-                    onClick={() => setMode('signup')}
-                    className="text-primary-400 hover:text-primary-300"
-                  >
-                    Sign up
-                  </button>
-                </p>
-              ) : (
-                <p className="text-gray-400">
-                  Already have an account?{' '}
-                  <button
-                    onClick={() => setMode('login')}
-                    className="text-primary-400 hover:text-primary-300"
-                  >
-                    Sign in
-                  </button>
-                </p>
-              )}
-            </div>
+              </>
+            )}
           </div>
         </div>
       </div>
