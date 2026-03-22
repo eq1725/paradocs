@@ -96,7 +96,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
 | 6a | **Report Experience — Curated Content** | Handcrafted case files, editorial enrichment, Featured Investigations, curated media, book recommendations | `HANDOFF_REPORTS.md` | Active — 20 reports across 2 case clusters (Roswell 14 + Rendlesham 6), credibility rationales, badge redesign, homepage discovery row |
 | 6b | **Report Experience — Ingestion & Scale** | Reports from mass ingestion pipeline, quality templates, automated enrichment, connection generation at scale | `HANDOFF_REPORTS_INGESTION.md` | Not started — NOW UNBLOCKED (March 20 strategic revision) |
-| 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO, color system, PWA | `HANDOFF_SEARCH_NAV.md` | ACTIVE — Homepage: 4 sections optimized. Four Pillars: taller cards, benefit-driven descriptions. DiscoverPreview: multi-format cards (featured/pull-quote/compact), smart selection, vivid hook extraction. Section headers upgraded to white h2 with sublines. PWA + color + search all shipped. |
+| 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO, color system, PWA | `HANDOFF_SEARCH_NAV.md` | COMPLETE — Homepage: 4 optimized sections (Hero, Four Pillars, Discover Preview, Get Started CTA). DiscoverPreview: 3 card formats (featured/pull-quote/compact), smart selection from pool of 10, vivid hook extraction with feed_hook integration, category color accents. PWA + color (#9000F0) + fulltext search + A/B testing all shipped. |
 | 8 | **Subscription & Monetization** | Stripe checkout, paywall, tier system, billing portal, cancellation | `HANDOFF_SUBSCRIPTION.md` | Not started |
 | 9 | **Email & Engagement** | Weekly digests, drip campaigns, smart alerts, winback, notifications | `HANDOFF_EMAIL.md` | Not started |
 | 10 | **Data Ingestion & Pipeline** | Source adapters, quality filters, dedup, bulk import, feed hooks, embedding integration | `HANDOFF_INGESTION.md` | Active — Feed hook service deployed, 4 new adapters (Reddit v2, YouTube, News, Erowid), engine integrates hooks + embeddings. Ready for mass ingestion. |
@@ -169,7 +169,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 - Smart match alerts (Sprint 2, not built)
 - ~~Report media display~~ ✅ MediaReportCard now uses actual report media from `report_media` table
 - Tune report/phenomena ratio in mixed feed
-- Homepage "Stories from the unknown" cards (Session 7's `DiscoverPreview`) need same compelling visual treatment
+- ~~Homepage "Stories from the unknown" cards~~ ✅ DiscoverPreview rewritten: 3 card formats, smart selection, vivid hook extraction, feed_hook integration, category accents (March 22)
 - Complete remaining phenomena embeddings (~3,600) for improved semantic search coverage
 
 **Touches other sessions:** Encyclopedia (content quality affects feed + spotlight), Insights (trending patterns surface in feed), Dashboard (personalization preferences), Search (shared filter components), Foundation (Layout.tsx + globals.css modified), Mobile Design (MobileBottomTabs modified)
@@ -467,13 +467,13 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Database:** `search_vector` column, full-text search indexes, `featured_investigations` (data owned by Session 6a, layout owned by Session 7)
 
-**Current state (March 21 Session 7 update):**
+**Current state (March 22, 2026):**
 - Homepage hero A/B tested (5 variants), search bar enhanced with quick-search tags, Quick Links removed, SEO + JSON-LD added
 - Search page rewritten: fulltext API with ts_rank ranking (was ILIKE), autocomplete on phenomena, keyword/phrase toggle
 - Onboarding consolidated: `UnifiedOnboarding.tsx` replaces WelcomeOnboarding + ThreeTapOnboarding
 - **UX Audit completed (v4 approved):** Three-lens audit (UX, Engagement, Vision) produced 20-item phased plan. See `Paradocs_UX_Audit_Plan.docx` and `HANDOFF_SEARCH_NAV.md`.
 - **Four Pillars redesign (March 21):** Cards made taller (min-h-[280px]/[320px]), line-clamp removed, descriptions fully rewritten with benefit-driven engagement copy. Section header promoted from gray bridge label to white h2 + "Each built for a different kind of curiosity." subline.
-- **DiscoverPreview redesign (March 21):** Complete rewrite from 4 identical cards to multi-format magazine layout. 3 card formats: Featured (2-col span, dramatic), Pull-Quote (italic hook with quote mark), Compact (metadata-rich). Smart selection fetches 10, picks best 3 with category diversity scoring. Hook extraction scores sentences for vivid language instead of always using first sentence. Category color accents (left border + hover glow). Header changed to "Stories from the unknown", CTA to "Explore stories".
+- **DiscoverPreview redesign (March 22):** Complete rewrite from 4 identical cards to multi-format magazine layout. 3 card formats: Featured (2-col span, dramatic), Pull-Quote (italic hook with quote mark), Compact (metadata-rich). Smart selection fetches 10, picks best 3 with category diversity scoring. Hook extraction scores sentences for vivid language instead of always using first sentence. `feed_hook` field consumed when available (graceful fallback to sentence scoring). Category color accents (left border + hover glow per category). Header changed to "Stories from the unknown", CTA to "Explore stories". Component grew from 129 to 415 lines.
 
 **Approved revision plan (four pillars: Database + AI + Dashboard + Discover):**
 - **Phase 1 (this week):** Mobile search icon, replace legacy stats, hide placeholder Trending Patterns
@@ -498,7 +498,12 @@ Each major feature area has a dedicated Claude session with its own deep context
 - `src/components/homepage/FourPillars.tsx` — Taller cards, richer descriptions, h2 header
 - `src/components/homepage/DiscoverPreview.tsx` — Complete rewrite: multi-format cards, smart selection, hook extraction (129 → 415 lines)
 
-**Touches other sessions:** ALL sessions (service worker is Foundation-level — all pages now cached by SW), Session 13 (mobile install prompt), Foundation (sw.js + _app.tsx SW registration), Session 10 (feed_hook column used when available — graceful fallback)
+**March 22 session — card visual upgrades & scaling:**
+- `DiscoverPreview.tsx`: Category-tinted gradient backgrounds on all 3 card formats, atmospheric pull-quote card with oversized watermark + category-colored quote marks, hook quality threshold with title fallback, compact card now shows hook text, expanded vivid word list (40+ words)
+- `DiscoverCards.tsx`: Complete ACCENT_VARIATIONS coverage (all 11 categories, was only 5), category-specific quote borders replacing mood-based borders
+- Scaling strategy documented: feed_hook pipeline for mass ingestion, generative variety system provides 2,816 unique visual combinations across all categories
+
+**Touches other sessions:** ALL sessions (service worker is Foundation-level — all pages now cached by SW), Session 13 (mobile install prompt), Foundation (sw.js + _app.tsx SW registration), Session 10 (feed_hook column used when available — graceful fallback, feed_hook pipeline strategy documented for mass ingestion)
 
 ---
 
@@ -697,6 +702,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 2026-03-20 | Search & Nav (7) | **FULL COLOR SYSTEM OVERHAUL.** Primary palette in tailwind.config.js shifted from indigo (#5B63F1, H:236°) to brand purple (#9000F0, H:271°). Full 50-950 scale replaced. 37 hardcoded inline color references updated across 13 source files (#5b63f1→#9000f0, #4f46e5→#7a00cc, rgba(91,99,241)→rgba(144,0,240)). Logo period set to #9000F0 on all 6 instances. Accent gradient: purple→pink (#9000f0→#f472b6). Design brief v3 documents full deployed palette. **Every Tailwind primary-\* class across the entire app now renders purple.** | ALL sessions (global color change — buttons, links, badges, focus rings, gradients all shifted from indigo to purple), Foundation (tailwind.config.js modified), Session 13 (mobile nav inherits new colors), Session 5 (dashboard inherits), Session 6a (report page inline styles updated) |
 | 2026-03-21 | Data Ingestion (10) | **Feed hook service + 4 new adapters + engine integration DEPLOYED.** New `feed-hook.service.ts` generates Claude Haiku 2-3 sentence hooks per report. `engine.ts` now auto-generates feed hooks + vector embeddings post-insert (non-blocking). 4 new adapters: reddit-v2 (13 subreddits via Arctic Shift), youtube (Data API v3, 4 paranormal channels), news (NewsAPI.org, 7 search queries), erowid (Experience Vaults, 5 substance categories). Quality scorer updated with new source tiers + YouTube view count boost + news outlet boost. DB migration ready: `feed_hook`, `feed_hook_generated_at`, `needs_reingestion` columns. Batch admin endpoint at `/api/admin/ai/generate-hooks`. Total adapters: 12. **NEXT STEPS:** Run migration, add YOUTUBE_API_KEY + NEWS_API_KEY env vars, execute data cleanup SQL, run mass ingestion. | Session 2/Explore (feed_hook consumed by feed-v2 cards), Session 7/Homepage (DiscoverPreview uses feed_hook), Session 15/AI (embedReport called post-insert), Session 3/Map (more geolocated reports), Session 4/Insights (more data for patterns), Foundation (new DB columns + migration, 2 new env vars needed) |
 | 2026-03-21 | Explore & Discovery (2) | **Phase 2: Mixed content Stories feed DEPLOYED.** `/api/discover/feed-v2` now serves phenomena + reports (was phenomena-only). Three card templates in `DiscoverCards.tsx` (PhenomenonCard, TextReportCard, MediaReportCard). Completion milestone toasts at 25/50/75%. Old feed API preserved. `discover.tsx` fully rewritten. | All sessions (Stories feed now shows reports, not just phenomena) |
+| 2026-03-22 | Search & Nav (7) | **DiscoverPreview multi-format cards DEPLOYED.** Homepage "Stories from the unknown" section rewritten: 3 card formats (Featured 2-col span, Pull-Quote italic with large quote mark, Compact metadata-rich). Smart selection: fetches 10 reports, scores by content richness (summary length, location, date, feed_hook presence), selects best 3 with category diversity. Vivid sentence extraction replaces first-sentence truncation. `feed_hook` field consumed when available (graceful fallback if column doesn't exist). Category color accents (left border + hover glow). CTA: "Explore stories" → /discover. Component: 129 → 415 lines. | Session 2 (homepage links to /discover), Session 10 (feed_hook consumed by cards), Foundation (DiscoverPreview.tsx rewritten) |
 | 2026-03-22 | Explore & Discovery (2) | **Phase 2.5: 2D horizontal swipe-through DEPLOYED.** Swiping left on any Stories card reveals full-screen related cards (same card templates). New `/api/discover/related-cards` endpoint (category + phenomenon_type matching, not RAG). Framer Motion `RelatedTray` removed from DiscoverCards.tsx — replaced by native CSS snap-x in FeedRow. Custom `@keyframes swipe-breathe` added to globals.css. Prefetch cascade bug fixed. Similarity "4700% match" double-multiplication fixed. | Foundation (globals.css modified, framer-motion no longer imported by DiscoverCards), All sessions (Stories feed now has 2D navigation — vertical feed + horizontal related content) |
 | 2026-03-20 | Mobile Design (13) | **MobileBottomTabs FAB label renamed "Discover" → "Stories"** to match Session 7's desktop nav rename. Route unchanged (`/discover`). Component comment updated. | Explore (label change only, no functional change), All sessions (mobile nav label updated) |
 | 2026-03-20 | Dashboard (5) | Desktop header bell icon in DashboardLayout.tsx replaced with Session 7's functional `<NotificationBell />` component. Static `<button>` with hardcoded purple dot removed. | Search & Nav (Session 7 component now used on both mobile and desktop headers) |
@@ -734,8 +740,11 @@ Each major feature area has a dedicated Claude session with its own deep context
 | Issue | Blocks | Owner | Status |
 |-------|--------|-------|--------|
 | STRIPE_SECRET_KEY not provided | Subscription checkout flow (Session 8) — **on critical launch path** | Chase | Waiting |
-| ~2M hidden Reddit dev data needs deletion | Clean database for mass ingestion | Session 10 | Pending — first task when Session 10 starts |
-| ~900 approved test reports need re-ingestion or deletion | Clean database for mass ingestion | Session 10 | Pending — re-ingest through final pipeline |
+| ~2M hidden Reddit dev data needs deletion | Clean database for mass ingestion | Chase / Session 10 | Ready to execute — Session 10 built infrastructure, SQL prepared in HANDOFF_INGESTION.md. Needs manual execution in Supabase SQL editor. |
+| ~900 approved test reports need re-ingestion or deletion | Clean database for mass ingestion | Chase / Session 10 | Ready to execute — `needs_reingestion` column added, SQL prepared. Flag existing reports, then mass ingestion replaces via dedup. |
+| DB migration not yet run (feed_hook columns) | Feed hook generation, Discover feed card quality | Chase | Run `supabase/migrations/20260321_feed_hook.sql` in Supabase dashboard. Required before hook backfill or mass ingestion. |
+| YOUTUBE_API_KEY not provided | YouTube adapter (Session 10) | Chase | Needed for YouTube Data API v3. Free tier: 10K units/day. |
+| NEWS_API_KEY not provided | News adapter (Session 10) | Chase | Needed for NewsAPI.org. Free tier: 100 requests/day. |
 | ~3,600 phenomena not yet embedded | Full semantic search coverage for encyclopedia | Chase | Re-run embed batches with staggered timing (see HANDOFF_AI_EXPERIENCE.md). NOT a launch blocker — improves search quality incrementally. |
 
 ---
@@ -768,7 +777,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | Existing test reports | ~900 approved | Re-ingested or deleted | — | Must be cleaned before beta — re-run through final pipeline |
 | Reddit dev data | ~2M (hidden) | Deleted | — | Delete entirely. Start fresh with expanded source list |
 | Phenomena entries (encyclopedia) | 4,792 (208 fully enriched) | 4,792+ (500+ enriched) | 10,000+ | Parallel track — not a launch blocker. Basic entries sufficient for classification. Enrichment improves encyclopedia pages + semantic search |
-| Source adapters | 8 | 12+ | 20+ | YouTube, Erowid, MUFON, podcasts, news, academic, govt docs |
+| Source adapters | 12 (built) | 12+ (running) | 20+ | 4 new: Reddit v2 (Arctic Shift), YouTube, News, Erowid. Not yet running — need API keys + data cleanup first. |
 | Reports embedded (pgvector) | ~900 | All ingested reports | All ingested reports | Scales with ingestion — ~$500-600 for 5M reports |
 
 ---

@@ -169,7 +169,8 @@ var GRADIENT_ANGLES = [
   'bg-gradient-to-br',   // top-down diagonal
 ]
 
-/** Accent color variations within categories (subtle shifts) */
+/** Accent color variations within categories (subtle shifts).
+ *  All 11 categories covered so every card gets a category-specific glow. */
 var ACCENT_VARIATIONS: Record<string, string[]> = {
   cryptids: [
     'bg-[radial-gradient(ellipse_at_30%_70%,rgba(16,185,129,0.08),transparent_60%)]',
@@ -200,6 +201,42 @@ var ACCENT_VARIATIONS: Record<string, string[]> = {
     'bg-[radial-gradient(ellipse_at_70%_40%,rgba(245,158,11,0.06),transparent_50%)]',
     'bg-[radial-gradient(circle_at_40%_60%,rgba(180,83,9,0.10),transparent_55%)]',
     'bg-[radial-gradient(ellipse_at_60%_20%,rgba(217,119,6,0.05),transparent_65%)]',
+  ],
+  psychological_experiences: [
+    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(6,182,212,0.08),transparent_60%)]',
+    'bg-[radial-gradient(ellipse_at_70%_40%,rgba(34,211,238,0.06),transparent_50%)]',
+    'bg-[radial-gradient(circle_at_40%_80%,rgba(8,145,178,0.10),transparent_55%)]',
+    'bg-[radial-gradient(ellipse_at_60%_20%,rgba(6,182,212,0.05),transparent_65%)]',
+  ],
+  biological_factors: [
+    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(244,63,94,0.08),transparent_60%)]',
+    'bg-[radial-gradient(ellipse_at_70%_30%,rgba(251,113,133,0.06),transparent_50%)]',
+    'bg-[radial-gradient(circle_at_50%_80%,rgba(190,18,60,0.10),transparent_55%)]',
+    'bg-[radial-gradient(ellipse_at_20%_40%,rgba(244,63,94,0.05),transparent_65%)]',
+  ],
+  perception_sensory: [
+    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(249,115,22,0.08),transparent_60%)]',
+    'bg-[radial-gradient(ellipse_at_70%_40%,rgba(251,146,60,0.06),transparent_50%)]',
+    'bg-[radial-gradient(circle_at_20%_60%,rgba(194,65,12,0.10),transparent_55%)]',
+    'bg-[radial-gradient(ellipse_at_80%_30%,rgba(249,115,22,0.05),transparent_65%)]',
+  ],
+  religion_mythology: [
+    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(234,179,8,0.08),transparent_60%)]',
+    'bg-[radial-gradient(ellipse_at_70%_30%,rgba(250,204,21,0.06),transparent_50%)]',
+    'bg-[radial-gradient(circle_at_50%_80%,rgba(161,98,7,0.10),transparent_55%)]',
+    'bg-[radial-gradient(ellipse_at_20%_40%,rgba(234,179,8,0.05),transparent_65%)]',
+  ],
+  esoteric_practices: [
+    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(192,38,211,0.08),transparent_60%)]',
+    'bg-[radial-gradient(ellipse_at_70%_40%,rgba(217,70,239,0.06),transparent_50%)]',
+    'bg-[radial-gradient(circle_at_40%_20%,rgba(134,25,143,0.10),transparent_55%)]',
+    'bg-[radial-gradient(ellipse_at_60%_80%,rgba(192,38,211,0.05),transparent_65%)]',
+  ],
+  combination: [
+    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(20,184,166,0.08),transparent_60%)]',
+    'bg-[radial-gradient(ellipse_at_70%_30%,rgba(45,212,191,0.06),transparent_50%)]',
+    'bg-[radial-gradient(circle_at_50%_50%,rgba(13,148,136,0.10),transparent_55%)]',
+    'bg-[radial-gradient(ellipse_at_20%_80%,rgba(20,184,166,0.05),transparent_65%)]',
   ],
 }
 
@@ -631,12 +668,17 @@ export function TextReportCard(props: {
                 {displayText}
               </p>
             ) : (
-              /* Raw summary: style as a first-person quote */
+              /* Raw summary: style as a first-person quote with category-tinted border */
               <div className={classNames(
-                'pl-4',
-                variation.mood === 'cinematic' ? 'border-l-2 border-amber-500/30' :
-                variation.mood === 'atmospheric' ? 'border-l-2 border-purple-500/30' :
-                'border-l-2 border-white/20'
+                'pl-4 border-l-2',
+                item.category === 'cryptids' ? 'border-emerald-500/30' :
+                item.category === 'ufos_aliens' ? 'border-indigo-500/30' :
+                item.category === 'ghosts_hauntings' ? 'border-purple-500/30' :
+                item.category === 'psychic_phenomena' ? 'border-violet-500/30' :
+                item.category === 'consciousness_practices' ? 'border-amber-500/30' :
+                item.category === 'religion_mythology' ? 'border-yellow-500/30' :
+                item.category === 'esoteric_practices' ? 'border-fuchsia-500/30' :
+                'border-white/20'
               )}>
                 <p className="text-sm sm:text-base md:text-lg text-gray-300 leading-relaxed line-clamp-4 italic">
                   {displayText}

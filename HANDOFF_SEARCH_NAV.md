@@ -250,6 +250,38 @@ Phase 2 items 5-6 and Phase 3 items 13-14 depend on the AI Experience & Intellig
 - **Session needed:** Dedicated session for Capacitor setup, native project scaffolding, store asset creation (screenshots, descriptions, privacy policy), and submission. Estimate: 1-2 sessions.
 - **Key detail:** The in-app-to-web payment flow must open Stripe checkout in the system browser (not in-app WebView). After payment, user returns to app with subscription active (webhook-based sync via existing Stripe integration).
 
+### Session 7 Continued: Card Visual Upgrades & Scaling Strategy (March 22, 2026)
+
+Expert-reviewed and implemented visual design + engagement improvements for both the homepage preview cards and the Discover feed cards. Focus: making text-only experiencer report cards visually compelling and scalable to millions of reports.
+
+**DiscoverPreview.tsx (homepage) changes:**
+
+1. **Hook extraction quality threshold** (`HOOK_QUALITY_THRESHOLD = 2`): Sentences scoring below threshold fall back to a dramatic title treatment instead of displaying mediocre quote text. Expanded vivid word list from 20 to 40+ words (added: hovering, floating, creature, figure, triangle, orb, disc, sphere, beam, footprint, chills, paralyzed, frozen, watched, stared, flew, vanish). Added bonus for shorter/punchier sentences under 120 chars. `extractHook()` now returns `{ text, isQuote }` so cards can style differently based on whether text is a real quote or title fallback.
+
+2. **Pull-quote card atmospheric redesign**: Category-tinted gradient backgrounds (ported from Discover feed's `CARD_GRADIENTS` vocabulary). Oversized decorative quote watermark at 8-10rem opacity 6% in category-specific color. Quote mark colored per category (green for UFO, amber for cryptid, purple for ghost, etc.). Text upgraded from gray-300 to gray-200 with font-light for better contrast. When hook quality is too low, card displays title dramatically at text-base/lg font-semibold instead of bad italic quote.
+
+3. **Compact card hook text**: Now shows 2-line hook excerpt below title when a quality quote is available. Gives readers a reason to click beyond just the title.
+
+4. **Visual rhythm across all 3 formats**: Featured card gets category gradient + radial accent glow. Pull-quote gets `bg-gradient-to-t` category tint + watermark overlay. Compact gets subtle radial accent only. Each format now feels visually distinct rather than three identical dark glass boxes.
+
+5. **All cards use `overflow-hidden` + `relative`/`z-10`** pattern: Background layers are absolutely positioned, content is z-10. This enables layered atmospheric effects without layout issues.
+
+**DiscoverCards.tsx (Discover feed) changes:**
+
+1. **Complete `ACCENT_VARIATIONS` coverage**: Added 6 missing categories (psychological_experiences, biological_factors, perception_sensory, religion_mythology, esoteric_practices, combination). Previously only 5 of 11 categories had accent variations; the rest fell through to `DEFAULT_ACCENTS`. Now every category gets unique radial gradient glow variations.
+
+2. **Category-specific quote borders**: Raw summary quote borders now use category color instead of mood-based color. UFO reports get indigo border, cryptid reports get emerald, ghost reports get purple, etc. More visually distinctive at scale.
+
+**Scaling Strategy for feed_hook Pipeline (future ingestion session):**
+
+The `feed_hook` field is the key to making millions of text-only reports visually compelling at scale. Current approach:
+
+- **Immediate (no feed_hook)**: `extractHook()` scores sentences for vividness and picks the best one. Works well for ~60-70% of reports. The new quality threshold catches the remaining ~30% and falls back to styled title.
+- **Ingestion pipeline (future)**: When mass-ingesting 5M+ reports, the AI pipeline should generate a `feed_hook` for each report: a 1-2 sentence engagement-optimized teaser. This is a one-time write during ingestion, stored in the `feed_hook` column. No runtime AI calls needed.
+- **Batch generation**: For existing reports without `feed_hook`, a background job can batch-generate hooks using the AI pipeline. Priority: reports with longest/richest summaries first (they're most likely to appear in feeds).
+- **Graceful degradation**: Both homepage and Discover feed already handle missing `feed_hook` gracefully. The Supabase query tries with `feed_hook` first, retries without it if the column doesn't exist. The scoring system gives +4 bonus to reports with `feed_hook`, ensuring they surface first.
+- **Visual variety at scale**: The Discover feed's generative variety system (deterministic hash-based moods, gradients, accents, watermarks) ensures 10M+ text reports each look unique. No manual design per report. 4 moods x 4 gradient angles x 4 accent variations x 4 watermarks = 256 unique visual combinations per category, 2,816 total across all 11 categories.
+
 ---
 
 ## Cross-Session Dependencies

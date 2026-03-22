@@ -21,91 +21,156 @@ interface PreviewReport {
 
 /* ── Hook copy extraction ─────────────────────────────── */
 
-function extractHook(report: PreviewReport): string {
-  /* Prefer AI-generated feed_hook when available */
-  if (report.feed_hook) return report.feed_hook
+var VIVID_WORDS = ['saw', 'heard', 'felt', 'appeared', 'vanished', 'hovered', 'glowing',
+  'screamed', 'witness', 'silhouette', 'shadow', 'light', 'sound', 'moved',
+  'terrified', 'strange', 'unexplained', 'suddenly', 'impossible', 'enormous',
+  'hovering', 'floating', 'creature', 'figure', 'dark', 'bright', 'massive',
+  'shape', 'triangle', 'orb', 'disc', 'sphere', 'beam', 'footprint', 'scream',
+  'chills', 'paralyzed', 'frozen', 'watched', 'stared', 'flew', 'vanish']
 
-  if (!report.summary) return report.title
+var GENERIC_STARTS = ['i think', 'i believe', 'so i', 'here are', 'this is', 'i was wondering',
+  'i have a', 'i want to', 'does anyone', 'has anyone', 'i just wanted',
+  'i am not sure', 'i don\'t know', 'this happened', 'so basically']
+
+/** Minimum score a sentence needs to be considered a worthy hook.
+ *  Below this, we fall back to a styled title treatment instead. */
+var HOOK_QUALITY_THRESHOLD = 2
+
+function extractHook(report: PreviewReport): { text: string; isQuote: boolean } {
+  /* Prefer AI-generated feed_hook when available */
+  if (report.feed_hook) return { text: report.feed_hook, isQuote: true }
+
+  if (!report.summary) return { text: report.title, isQuote: false }
 
   /* Split into sentences and score for vividness */
   var sentences = report.summary
     .split(/(?<=[.!?])\s+/)
-    .filter(function(s) { return s.length > 20 })
+    .filter(function(s) { return s.length > 20 && s.length < 200 })
 
-  if (sentences.length === 0) return report.title
+  if (sentences.length === 0) return { text: report.title, isQuote: false }
 
-  /* Score each sentence — reward sensory/vivid language, penalize generic openings */
-  var vivid = ['saw', 'heard', 'felt', 'appeared', 'vanished', 'hovered', 'glowing',
-    'screamed', 'witness', 'silhouette', 'shadow', 'light', 'sound', 'moved',
-    'terrified', 'strange', 'unexplained', 'suddenly', 'impossible', 'enormous']
-  var generic = ['i think', 'i believe', 'so i', 'here are', 'this is', 'i was wondering',
-    'i have a', 'i want to', 'does anyone', 'has anyone']
-
+  /* Score each sentence \u2014 reward sensory/vivid language, penalize generic openings */
   var best = 0
   var bestScore = -1
-  for (var i = 0; i < sentences.length && i < 5; i++) {
+  for (var i = 0; i < sentences.length && i < 6; i++) {
     var lower = sentences[i].toLowerCase()
     var score = 0
-    for (var v = 0; v < vivid.length; v++) {
-      if (lower.indexOf(vivid[v]) !== -1) score = score + 2
+    for (var v = 0; v < VIVID_WORDS.length; v++) {
+      if (lower.indexOf(VIVID_WORDS[v]) !== -1) score = score + 2
     }
-    for (var g = 0; g < generic.length; g++) {
-      if (lower.indexOf(generic[g]) !== -1) score = score - 3
+    for (var g = 0; g < GENERIC_STARTS.length; g++) {
+      if (lower.indexOf(GENERIC_STARTS[g]) !== -1) score = score - 3
     }
     /* Slight preference for sentences 2-3 (often more vivid than the opener) */
     if (i === 1 || i === 2) score = score + 1
+    /* Bonus for shorter, punchier sentences (under 120 chars) */
+    if (sentences[i].length < 120) score = score + 1
     if (score > bestScore) {
       bestScore = score
       best = i
     }
   }
 
-  return sentences[best]
+  /* If best sentence doesn\u2019t meet quality threshold, fall back to title */
+  if (bestScore < HOOK_QUALITY_THRESHOLD) {
+    return { text: report.title, isQuote: false }
+  }
+
+  return { text: sentences[best], isQuote: true }
 }
 
-/* ── Category border color mapping ────────────────────── */
+/* ── Category color systems ──────────────────────────── */
+
+var CATEGORY_BORDER_COLORS: Record<string, string> = {
+  ufos_aliens: 'border-green-500',
+  cryptids: 'border-amber-500',
+  ghosts_hauntings: 'border-purple-500',
+  psychic_phenomena: 'border-blue-500',
+  consciousness_practices: 'border-indigo-500',
+  psychological_experiences: 'border-pink-500',
+  biological_factors: 'border-emerald-500',
+  perception_sensory: 'border-cyan-500',
+  religion_mythology: 'border-yellow-500',
+  esoteric_practices: 'border-violet-500',
+  combination: 'border-gray-500'
+}
+
+var CATEGORY_GLOW_COLORS: Record<string, string> = {
+  ufos_aliens: 'hover:shadow-green-500/10',
+  cryptids: 'hover:shadow-amber-500/10',
+  ghosts_hauntings: 'hover:shadow-purple-500/10',
+  psychic_phenomena: 'hover:shadow-blue-500/10',
+  consciousness_practices: 'hover:shadow-indigo-500/10',
+  psychological_experiences: 'hover:shadow-pink-500/10',
+  biological_factors: 'hover:shadow-emerald-500/10',
+  perception_sensory: 'hover:shadow-cyan-500/10',
+  religion_mythology: 'hover:shadow-yellow-500/10',
+  esoteric_practices: 'hover:shadow-violet-500/10',
+  combination: 'hover:shadow-gray-500/10'
+}
+
+/** Category-tinted background gradients (ported from Discover feed) */
+var CATEGORY_CARD_GRADIENTS: Record<string, string> = {
+  ufos_aliens: 'from-green-950/40 via-gray-950/30 to-transparent',
+  cryptids: 'from-amber-950/40 via-gray-950/30 to-transparent',
+  ghosts_hauntings: 'from-purple-950/40 via-gray-950/30 to-transparent',
+  psychic_phenomena: 'from-blue-950/40 via-gray-950/30 to-transparent',
+  consciousness_practices: 'from-indigo-950/40 via-gray-950/30 to-transparent',
+  psychological_experiences: 'from-pink-950/40 via-gray-950/30 to-transparent',
+  biological_factors: 'from-emerald-950/40 via-gray-950/30 to-transparent',
+  perception_sensory: 'from-cyan-950/40 via-gray-950/30 to-transparent',
+  religion_mythology: 'from-yellow-950/40 via-gray-950/30 to-transparent',
+  esoteric_practices: 'from-violet-950/40 via-gray-950/30 to-transparent',
+  combination: 'from-gray-900/40 via-gray-950/30 to-transparent'
+}
+
+/** Category-specific accent glow (radial gradient overlay) */
+var CATEGORY_ACCENTS: Record<string, string> = {
+  ufos_aliens: 'bg-[radial-gradient(ellipse_at_30%_70%,rgba(34,197,94,0.06),transparent_60%)]',
+  cryptids: 'bg-[radial-gradient(ellipse_at_30%_70%,rgba(245,158,11,0.06),transparent_60%)]',
+  ghosts_hauntings: 'bg-[radial-gradient(ellipse_at_30%_70%,rgba(168,85,247,0.08),transparent_60%)]',
+  psychic_phenomena: 'bg-[radial-gradient(ellipse_at_30%_70%,rgba(59,130,246,0.06),transparent_60%)]',
+  consciousness_practices: 'bg-[radial-gradient(ellipse_at_30%_70%,rgba(99,102,241,0.06),transparent_60%)]',
+  psychological_experiences: 'bg-[radial-gradient(ellipse_at_30%_70%,rgba(236,72,153,0.06),transparent_60%)]',
+  biological_factors: 'bg-[radial-gradient(ellipse_at_30%_70%,rgba(16,185,129,0.06),transparent_60%)]',
+  perception_sensory: 'bg-[radial-gradient(ellipse_at_30%_70%,rgba(6,182,212,0.06),transparent_60%)]',
+  religion_mythology: 'bg-[radial-gradient(ellipse_at_30%_70%,rgba(234,179,8,0.06),transparent_60%)]',
+  esoteric_practices: 'bg-[radial-gradient(ellipse_at_30%_70%,rgba(139,92,246,0.06),transparent_60%)]',
+  combination: 'bg-[radial-gradient(ellipse_at_30%_70%,rgba(107,114,128,0.06),transparent_60%)]'
+}
+
+/** Category-specific quote mark colors */
+var CATEGORY_QUOTE_COLORS: Record<string, string> = {
+  ufos_aliens: 'text-green-600',
+  cryptids: 'text-amber-600',
+  ghosts_hauntings: 'text-purple-600',
+  psychic_phenomena: 'text-blue-600',
+  consciousness_practices: 'text-indigo-600',
+  psychological_experiences: 'text-pink-600',
+  biological_factors: 'text-emerald-600',
+  perception_sensory: 'text-cyan-600',
+  religion_mythology: 'text-yellow-600',
+  esoteric_practices: 'text-violet-600',
+  combination: 'text-gray-600'
+}
 
 function getCategoryBorderColor(category: string): string {
-  var map: Record<string, string> = {
-    ufos_aliens: 'border-green-500',
-    cryptids: 'border-amber-500',
-    ghosts_hauntings: 'border-purple-500',
-    psychic_phenomena: 'border-blue-500',
-    consciousness_practices: 'border-indigo-500',
-    psychological_experiences: 'border-pink-500',
-    biological_factors: 'border-emerald-500',
-    perception_sensory: 'border-cyan-500',
-    religion_mythology: 'border-yellow-500',
-    esoteric_practices: 'border-violet-500',
-    combination: 'border-gray-500'
-  }
-  return map[category] || 'border-primary-500'
+  return CATEGORY_BORDER_COLORS[category] || 'border-primary-500'
 }
 
 function getCategoryGlowColor(category: string): string {
-  var map: Record<string, string> = {
-    ufos_aliens: 'hover:shadow-green-500/10',
-    cryptids: 'hover:shadow-amber-500/10',
-    ghosts_hauntings: 'hover:shadow-purple-500/10',
-    psychic_phenomena: 'hover:shadow-blue-500/10',
-    consciousness_practices: 'hover:shadow-indigo-500/10',
-    psychological_experiences: 'hover:shadow-pink-500/10',
-    biological_factors: 'hover:shadow-emerald-500/10',
-    perception_sensory: 'hover:shadow-cyan-500/10',
-    religion_mythology: 'hover:shadow-yellow-500/10',
-    esoteric_practices: 'hover:shadow-violet-500/10',
-    combination: 'hover:shadow-gray-500/10'
-  }
-  return map[category] || 'hover:shadow-primary-500/10'
+  return CATEGORY_GLOW_COLORS[category] || 'hover:shadow-primary-500/10'
 }
 
 /* ── Format A: Featured Card (large, dramatic) ────────── */
 
 function FeaturedCard({ report }: { report: PreviewReport }) {
   var config = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
-  var hook = extractHook(report)
+  var hookResult = extractHook(report)
   var borderColor = getCategoryBorderColor(report.category)
   var glowColor = getCategoryGlowColor(report.category)
+  var cardGradient = CATEGORY_CARD_GRADIENTS[report.category] || CATEGORY_CARD_GRADIENTS.combination
+  var accent = CATEGORY_ACCENTS[report.category] || ''
 
   var dateLabel = report.event_date
     ? new Date(report.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })
@@ -114,14 +179,18 @@ function FeaturedCard({ report }: { report: PreviewReport }) {
   return (
     <Link href={'/report/' + report.slug} className="block group sm:col-span-2">
       <div className={classNames(
-        'relative p-6 sm:p-8 rounded-xl h-full',
+        'relative p-6 sm:p-8 rounded-xl h-full overflow-hidden',
         'border border-white/10 border-l-4', borderColor,
-        'bg-gradient-to-br from-white/[0.05] to-white/[0.02]',
-        'hover:border-white/20 hover:bg-white/[0.07] transition-all duration-300',
+        'hover:border-white/20 transition-all duration-300',
         'hover:shadow-lg', glowColor,
         'min-h-[220px] sm:min-h-[260px] flex flex-col justify-between'
       )}>
-        <div>
+        {/* Category-tinted background */}
+        <div className={classNames('absolute inset-0 bg-gradient-to-br', cardGradient)} />
+        <div className={classNames('absolute inset-0', accent)} />
+
+        {/* Content */}
+        <div className="relative z-10">
           <div className="flex items-center gap-2 mb-4">
             <span className="text-lg">{config.icon}</span>
             <span className={classNames('text-xs font-medium px-2 py-0.5 rounded-full', config.bgColor, config.color)}>
@@ -137,11 +206,11 @@ function FeaturedCard({ report }: { report: PreviewReport }) {
           </h3>
 
           <p className="text-sm sm:text-base text-gray-400 leading-relaxed line-clamp-3">
-            {hook}
+            {hookResult.text}
           </p>
         </div>
 
-        <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/5">
+        <div className="relative z-10 flex items-center justify-between mt-4 pt-4 border-t border-white/5">
           {report.location_name ? (
             <div className="flex items-center gap-1.5 text-xs text-gray-500">
               <MapPin className="w-3 h-3" />
@@ -158,54 +227,84 @@ function FeaturedCard({ report }: { report: PreviewReport }) {
   )
 }
 
-/* ── Format B: Pull-Quote Card (text-forward, dramatic) ─ */
+/* ── Format B: Pull-Quote Card (atmospheric, text-forward) ─ */
 
 function PullQuoteCard({ report }: { report: PreviewReport }) {
   var config = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
-  var hook = extractHook(report)
+  var hookResult = extractHook(report)
   var borderColor = getCategoryBorderColor(report.category)
   var glowColor = getCategoryGlowColor(report.category)
+  var cardGradient = CATEGORY_CARD_GRADIENTS[report.category] || CATEGORY_CARD_GRADIENTS.combination
+  var accent = CATEGORY_ACCENTS[report.category] || ''
+  var quoteColor = CATEGORY_QUOTE_COLORS[report.category] || 'text-gray-600'
 
   return (
     <Link href={'/report/' + report.slug} className="block group">
       <div className={classNames(
-        'p-5 sm:p-6 rounded-xl h-full flex flex-col',
+        'relative p-5 sm:p-6 rounded-xl h-full flex flex-col overflow-hidden',
         'border border-white/10 border-l-4', borderColor,
-        'bg-gradient-to-br from-white/[0.04] to-transparent',
-        'hover:border-white/20 hover:bg-white/[0.06] transition-all duration-300',
+        'hover:border-white/20 transition-all duration-300',
         'hover:shadow-lg', glowColor
       )}>
+        {/* Atmospheric category-tinted background */}
+        <div className={classNames('absolute inset-0 bg-gradient-to-t', cardGradient)} />
+        <div className={classNames('absolute inset-0', accent)} />
+
+        {/* Decorative oversized quote watermark */}
+        <div className="absolute top-2 left-4 opacity-[0.06] pointer-events-none select-none">
+          <span className={classNames('text-[8rem] sm:text-[10rem] leading-none font-serif', quoteColor)}>{'\u201C'}</span>
+        </div>
+
         {/* Large quote-style hook */}
-        <div className="flex-grow">
-          <span className="text-2xl text-gray-600 font-serif leading-none block mb-2">{'\u201C'}</span>
-          <p className="text-sm sm:text-base text-gray-300 leading-relaxed line-clamp-4 italic">
-            {hook}
-          </p>
+        <div className="relative z-10 flex-grow">
+          {hookResult.isQuote ? (
+            <>
+              <span className={classNames('text-3xl font-serif leading-none block mb-2', quoteColor)}>{'\u201C'}</span>
+              <p className="text-sm sm:text-base text-gray-200 leading-relaxed line-clamp-4 italic font-light">
+                {hookResult.text}
+              </p>
+            </>
+          ) : (
+            /* Title-only fallback: display title dramatically instead of bad quote */
+            <p className="text-base sm:text-lg text-white leading-snug line-clamp-4 font-semibold mt-4">
+              {hookResult.text}
+            </p>
+          )}
         </div>
 
         {/* Title + meta at bottom */}
-        <div className="mt-4 pt-3 border-t border-white/5">
+        <div className="relative z-10 mt-4 pt-3 border-t border-white/5">
           <div className="flex items-center gap-2 mb-1.5">
             <span className="text-sm">{config.icon}</span>
             <span className={classNames('text-[10px] font-medium px-1.5 py-0.5 rounded-full', config.bgColor, config.color)}>
               {config.label}
             </span>
           </div>
-          <h3 className="text-sm font-semibold text-white group-hover:text-primary-400 transition-colors leading-snug line-clamp-2">
-            {report.title}
-          </h3>
+          {hookResult.isQuote && (
+            <h3 className="text-sm font-semibold text-white group-hover:text-primary-400 transition-colors leading-snug line-clamp-2">
+              {report.title}
+            </h3>
+          )}
+          {!hookResult.isQuote && report.location_name && (
+            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+              <MapPin className="w-3 h-3" />
+              <span>{report.location_name}</span>
+            </div>
+          )}
         </div>
       </div>
     </Link>
   )
 }
 
-/* ── Format C: Compact Card (clean, metadata-rich) ────── */
+/* ── Format C: Compact Card (clean, hook + metadata) ────── */
 
 function CompactCard({ report }: { report: PreviewReport }) {
   var config = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
+  var hookResult = extractHook(report)
   var borderColor = getCategoryBorderColor(report.category)
   var glowColor = getCategoryGlowColor(report.category)
+  var accent = CATEGORY_ACCENTS[report.category] || ''
 
   var dateLabel = report.event_date
     ? new Date(report.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })
@@ -214,28 +313,40 @@ function CompactCard({ report }: { report: PreviewReport }) {
   return (
     <Link href={'/report/' + report.slug} className="block group">
       <div className={classNames(
-        'p-5 rounded-xl h-full flex flex-col',
+        'relative p-5 rounded-xl h-full flex flex-col overflow-hidden',
         'border border-white/10 border-l-4', borderColor,
         'bg-gradient-to-br from-white/[0.03] to-transparent',
         'hover:border-white/20 hover:bg-white/[0.06] transition-all duration-300',
         'hover:shadow-lg', glowColor
       )}>
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-lg">{config.icon}</span>
-          <span className={classNames('text-xs font-medium px-2 py-0.5 rounded-full', config.bgColor, config.color)}>
-            {config.label}
-          </span>
-          {dateLabel && (
-            <span className="text-xs text-gray-600 ml-auto">{dateLabel}</span>
+        {/* Subtle accent glow */}
+        <div className={classNames('absolute inset-0', accent)} />
+
+        <div className="relative z-10">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-lg">{config.icon}</span>
+            <span className={classNames('text-xs font-medium px-2 py-0.5 rounded-full', config.bgColor, config.color)}>
+              {config.label}
+            </span>
+            {dateLabel && (
+              <span className="text-xs text-gray-600 ml-auto">{dateLabel}</span>
+            )}
+          </div>
+
+          <h3 className="text-base font-semibold text-white mb-2 group-hover:text-primary-400 transition-colors leading-snug line-clamp-2">
+            {report.title}
+          </h3>
+
+          {/* Hook text \u2014 gives readers a reason to click beyond just the title */}
+          {hookResult.isQuote && (
+            <p className="text-xs text-gray-400 leading-relaxed line-clamp-2 mb-2">
+              {hookResult.text}
+            </p>
           )}
         </div>
 
-        <h3 className="text-base font-semibold text-white mb-2 group-hover:text-primary-400 transition-colors leading-snug line-clamp-2">
-          {report.title}
-        </h3>
-
         {report.location_name && (
-          <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-auto pt-2">
+          <div className="relative z-10 flex items-center gap-1.5 text-xs text-gray-500 mt-auto pt-2">
             <MapPin className="w-3 h-3" />
             <span>{report.location_name}</span>
           </div>
@@ -252,7 +363,7 @@ function assignFormats(reports: PreviewReport[]): Array<{ report: PreviewReport;
 
   var assigned: Array<{ report: PreviewReport; format: string }> = []
 
-  /* Card 1: Featured (largest, most dramatic) — pick the one with the best summary */
+  /* Card 1: Featured (largest, most dramatic) \u2014 pick the one with the best summary */
   var scoredReports = reports.map(function(r, idx) {
     var score = 0
     if (r.summary && r.summary.length > 100) score = score + 3
@@ -265,15 +376,12 @@ function assignFormats(reports: PreviewReport[]): Array<{ report: PreviewReport;
   scoredReports.sort(function(a, b) { return b.score - a.score })
 
   /* Featured spans 2 cols + pullquote 1 col + compact 1 col = 4 cols, one row */
-  /* First card: Featured (spans 2 grid columns) */
   assigned.push({ report: scoredReports[0].report, format: 'featured' })
 
-  /* Second card: Pull-Quote */
   if (scoredReports.length > 1) {
     assigned.push({ report: scoredReports[1].report, format: 'pullquote' })
   }
 
-  /* Third card: Compact — only one, to fill the 4th column */
   if (scoredReports.length > 2) {
     assigned.push({ report: scoredReports[2].report, format: 'compact' })
   }
@@ -334,7 +442,7 @@ export default function DiscoverPreview() {
   useEffect(function() {
     async function fetchReports() {
       try {
-        /* Try with feed_hook first; fall back without it if column doesn't exist yet */
+        /* Try with feed_hook first; fall back without it if column doesn\u2019t exist yet */
         var result = await supabase
           .from('reports')
           .select('id, title, slug, summary, feed_hook, category, location_name, event_date, credibility')
@@ -344,7 +452,7 @@ export default function DiscoverPreview() {
           .limit(10)
 
         if (result.error) {
-          /* feed_hook column may not exist yet — retry without it */
+          /* feed_hook column may not exist yet \u2014 retry without it */
           result = await supabase
             .from('reports')
             .select('id, title, slug, summary, category, location_name, event_date, credibility')
@@ -358,7 +466,7 @@ export default function DiscoverPreview() {
         var best = selectBestReports(pool)
         setCards(assignFormats(best))
       } catch (e) {
-        /* non-critical — homepage still works without this section */
+        /* non-critical \u2014 homepage still works without this section */
       }
       setLoading(false)
     }
@@ -371,7 +479,7 @@ export default function DiscoverPreview() {
         <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-2">Stories from the unknown</h2>
         <p className="text-sm sm:text-base text-gray-400 mb-8 max-w-2xl">Millions of reports from real people worldwide.</p>
 
-        {/* Cards — asymmetric grid: featured spans 2 cols on desktop */}
+        {/* Cards \u2014 asymmetric grid: featured spans 2 cols on desktop */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {loading ? (
             [0, 1, 2].map(function(i) {
