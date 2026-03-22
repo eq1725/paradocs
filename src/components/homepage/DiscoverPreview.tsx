@@ -21,50 +21,94 @@ interface PreviewReport {
 
 /* ── Hook copy extraction ─────────────────────────────── */
 
-var VIVID_WORDS = ['saw', 'heard', 'felt', 'appeared', 'vanished', 'hovered', 'glowing',
-  'screamed', 'witness', 'silhouette', 'shadow', 'light', 'sound', 'moved',
-  'terrified', 'strange', 'unexplained', 'suddenly', 'impossible', 'enormous',
-  'hovering', 'floating', 'creature', 'figure', 'dark', 'bright', 'massive',
-  'shape', 'triangle', 'orb', 'disc', 'sphere', 'beam', 'footprint', 'scream',
-  'chills', 'paralyzed', 'frozen', 'watched', 'stared', 'flew', 'vanish']
+/** Words that signal vivid, sensory, compelling experiencer language */
+var VIVID_WORDS = [
+  /* Visual / sensory */
+  'saw', 'seen', 'heard', 'felt', 'appeared', 'vanished', 'hovered', 'glowing',
+  'screamed', 'witness', 'witnessed', 'silhouette', 'shadow', 'light', 'sound',
+  'moved', 'terrified', 'strange', 'unexplained', 'suddenly', 'impossible',
+  'enormous', 'hovering', 'floating', 'creature', 'figure', 'dark', 'bright',
+  'massive', 'shape', 'triangle', 'orb', 'disc', 'sphere', 'beam', 'footprint',
+  'scream', 'chills', 'paralyzed', 'frozen', 'watched', 'stared', 'flew', 'vanish',
+  /* Experiencer language */
+  'encounter', 'encountered', 'experienced', 'sighting', 'apparition', 'entity',
+  'presence', 'materialized', 'disappeared', 'pulsing', 'vibrating', 'humming',
+  'rushing', 'flash', 'bolt', 'streak', 'formation', 'craft', 'object',
+  /* Emotional / atmospheric */
+  'dread', 'terror', 'awe', 'speechless', 'shaking', 'trembling', 'shock',
+  'disbelief', 'nightmare', 'eerie', 'unearthly', 'otherworldly', 'bizarre',
+  'inexplicable', 'haunting', 'haunted', 'paranormal', 'supernatural'
+]
 
-var GENERIC_STARTS = ['i think', 'i believe', 'so i', 'here are', 'this is', 'i was wondering',
+/** Openings that signal generic, low-quality text */
+var GENERIC_STARTS = [
+  'i think', 'i believe', 'so i', 'here are', 'this is', 'i was wondering',
   'i have a', 'i want to', 'does anyone', 'has anyone', 'i just wanted',
-  'i am not sure', 'i don\'t know', 'this happened', 'so basically']
+  'i am not sure', 'i don\'t know', 'this happened', 'so basically',
+  'well i', 'okay so', 'um so', 'basically i', 'i guess'
+]
+
+/** Filler phrases that signal rambling, unfocused writing */
+var FILLER_PHRASES = [
+  'here and there', 'this and that', 'and stuff', 'you know',
+  'kind of', 'sort of', 'a lot of', 'all my life', 'my whole life',
+  'long story short', 'to make a long', 'the thing is', 'i mean'
+]
 
 /** Minimum score a sentence needs to be considered a worthy hook.
  *  Below this, we fall back to a styled title treatment instead. */
-var HOOK_QUALITY_THRESHOLD = 2
+var HOOK_QUALITY_THRESHOLD = 3
 
-function extractHook(report: PreviewReport): { text: string; isQuote: boolean } {
+/** Score a single sentence for hook-worthiness. Exported for use in selection. */
+function scoreSentence(sentence: string, index: number): number {
+  var lower = sentence.toLowerCase()
+  var score = 0
+
+  /* Reward vivid/sensory language */
+  for (var v = 0; v < VIVID_WORDS.length; v++) {
+    if (lower.indexOf(VIVID_WORDS[v]) !== -1) score = score + 2
+  }
+
+  /* Penalize generic openings */
+  for (var g = 0; g < GENERIC_STARTS.length; g++) {
+    if (lower.indexOf(GENERIC_STARTS[g]) !== -1) score = score - 3
+  }
+
+  /* Penalize filler/rambling phrases */
+  for (var f = 0; f < FILLER_PHRASES.length; f++) {
+    if (lower.indexOf(FILLER_PHRASES[f]) !== -1) score = score - 2
+  }
+
+  /* Slight preference for sentences 2-3 (often more vivid than the opener) */
+  if (index === 1 || index === 2) score = score + 1
+
+  /* Reward punchy sentences, penalize ramblers */
+  if (sentence.length < 100) score = score + 2
+  else if (sentence.length < 140) score = score + 1
+  else if (sentence.length > 170) score = score - 1
+
+  return score
+}
+
+/** Extract the best hook from a report.
+ *  Returns { text, isQuote, score } so selection can use the score. */
+function extractHook(report: PreviewReport): { text: string; isQuote: boolean; score: number } {
   /* Prefer AI-generated feed_hook when available */
-  if (report.feed_hook) return { text: report.feed_hook, isQuote: true }
+  if (report.feed_hook) return { text: report.feed_hook, isQuote: true, score: 20 }
 
-  if (!report.summary) return { text: report.title, isQuote: false }
+  if (!report.summary) return { text: report.title, isQuote: false, score: 0 }
 
   /* Split into sentences and score for vividness */
   var sentences = report.summary
     .split(/(?<=[.!?])\s+/)
     .filter(function(s) { return s.length > 20 && s.length < 200 })
 
-  if (sentences.length === 0) return { text: report.title, isQuote: false }
+  if (sentences.length === 0) return { text: report.title, isQuote: false, score: 0 }
 
-  /* Score each sentence \u2014 reward sensory/vivid language, penalize generic openings */
   var best = 0
-  var bestScore = -1
+  var bestScore = -999
   for (var i = 0; i < sentences.length && i < 6; i++) {
-    var lower = sentences[i].toLowerCase()
-    var score = 0
-    for (var v = 0; v < VIVID_WORDS.length; v++) {
-      if (lower.indexOf(VIVID_WORDS[v]) !== -1) score = score + 2
-    }
-    for (var g = 0; g < GENERIC_STARTS.length; g++) {
-      if (lower.indexOf(GENERIC_STARTS[g]) !== -1) score = score - 3
-    }
-    /* Slight preference for sentences 2-3 (often more vivid than the opener) */
-    if (i === 1 || i === 2) score = score + 1
-    /* Bonus for shorter, punchier sentences (under 120 chars) */
-    if (sentences[i].length < 120) score = score + 1
+    var score = scoreSentence(sentences[i], i)
     if (score > bestScore) {
       bestScore = score
       best = i
@@ -73,10 +117,10 @@ function extractHook(report: PreviewReport): { text: string; isQuote: boolean } 
 
   /* If best sentence doesn\u2019t meet quality threshold, fall back to title */
   if (bestScore < HOOK_QUALITY_THRESHOLD) {
-    return { text: report.title, isQuote: false }
+    return { text: report.title, isQuote: false, score: bestScore }
   }
 
-  return { text: sentences[best], isQuote: true }
+  return { text: sentences[best], isQuote: true, score: bestScore }
 }
 
 /* ── Category color systems ──────────────────────────── */
@@ -205,9 +249,12 @@ function FeaturedCard({ report }: { report: PreviewReport }) {
             {report.title}
           </h3>
 
-          <p className="text-sm sm:text-base text-gray-400 leading-relaxed line-clamp-3">
-            {hookResult.text}
-          </p>
+          {/* Only show hook text when it\u2019s a real quote \u2014 avoids duplicate title display */}
+          {hookResult.isQuote && (
+            <p className="text-sm sm:text-base text-gray-400 leading-relaxed line-clamp-3">
+              {hookResult.text}
+            </p>
+          )}
         </div>
 
         <div className="relative z-10 flex items-center justify-between mt-4 pt-4 border-t border-white/5">
@@ -357,39 +404,76 @@ function CompactCard({ report }: { report: PreviewReport }) {
 }
 
 /* ── Smart card format assignment ─────────────────────── */
+/* Now uses hook quality to decide which report gets which slot.
+ * Pull-quote slot REQUIRES a report with a real quote (isQuote=true).
+ * Featured gets the richest content. Compact gets good metadata. */
 
 function assignFormats(reports: PreviewReport[]): Array<{ report: PreviewReport; format: string }> {
   if (reports.length === 0) return []
 
-  var assigned: Array<{ report: PreviewReport; format: string }> = []
-
-  /* Card 1: Featured (largest, most dramatic) \u2014 pick the one with the best summary */
-  var scoredReports = reports.map(function(r, idx) {
-    var score = 0
-    if (r.summary && r.summary.length > 100) score = score + 3
-    if (r.location_name) score = score + 2
-    if (r.event_date) score = score + 1
-    if (r.credibility === 'high' || r.credibility === 'verified') score = score + 2
-    return { report: r, score: score, index: idx }
+  /* Pre-compute hooks for all reports */
+  var withHooks = reports.map(function(r) {
+    var hook = extractHook(r)
+    var metaScore = 0
+    if (r.summary && r.summary.length > 100) metaScore = metaScore + 3
+    if (r.location_name) metaScore = metaScore + 2
+    if (r.event_date) metaScore = metaScore + 1
+    if (r.credibility === 'high' || r.credibility === 'verified') metaScore = metaScore + 2
+    return { report: r, hook: hook, metaScore: metaScore }
   })
 
-  scoredReports.sort(function(a, b) { return b.score - a.score })
+  var assigned: Array<{ report: PreviewReport; format: string }> = []
+  var used: Record<string, boolean> = {}
 
-  /* Featured spans 2 cols + pullquote 1 col + compact 1 col = 4 cols, one row */
-  assigned.push({ report: scoredReports[0].report, format: 'featured' })
-
-  if (scoredReports.length > 1) {
-    assigned.push({ report: scoredReports[1].report, format: 'pullquote' })
+  /* FEATURED: best overall (hook quality + metadata richness) */
+  var featuredCandidates = withHooks.slice().sort(function(a, b) {
+    var aTotal = a.hook.score + a.metaScore
+    var bTotal = b.hook.score + b.metaScore
+    return bTotal - aTotal
+  })
+  if (featuredCandidates.length > 0) {
+    assigned.push({ report: featuredCandidates[0].report, format: 'featured' })
+    used[featuredCandidates[0].report.id] = true
   }
 
-  if (scoredReports.length > 2) {
-    assigned.push({ report: scoredReports[2].report, format: 'compact' })
+  /* PULL-QUOTE: must have a real quote (isQuote=true), highest hook score wins */
+  var quoteCandidates = withHooks
+    .filter(function(w) { return !used[w.report.id] && w.hook.isQuote })
+    .sort(function(a, b) { return b.hook.score - a.hook.score })
+
+  if (quoteCandidates.length > 0) {
+    assigned.push({ report: quoteCandidates[0].report, format: 'pullquote' })
+    used[quoteCandidates[0].report.id] = true
+  } else {
+    /* No report with a good quote \u2014 pick best remaining for title fallback */
+    var fallbackQuote = withHooks
+      .filter(function(w) { return !used[w.report.id] })
+      .sort(function(a, b) { return b.metaScore - a.metaScore })
+    if (fallbackQuote.length > 0) {
+      assigned.push({ report: fallbackQuote[0].report, format: 'pullquote' })
+      used[fallbackQuote[0].report.id] = true
+    }
+  }
+
+  /* COMPACT: best remaining by combined score */
+  var compactCandidates = withHooks
+    .filter(function(w) { return !used[w.report.id] })
+    .sort(function(a, b) {
+      var aTotal = a.hook.score + a.metaScore
+      var bTotal = b.hook.score + b.metaScore
+      return bTotal - aTotal
+    })
+
+  if (compactCandidates.length > 0) {
+    assigned.push({ report: compactCandidates[0].report, format: 'compact' })
   }
 
   return assigned
 }
 
 /* ── Smart report selection from fetched pool ─────────── */
+/* Hook quality is now the dominant selection factor.
+ * Reports that can produce vivid hooks get +6 bonus \u2014 more than metadata. */
 
 function selectBestReports(pool: PreviewReport[]): PreviewReport[] {
   if (pool.length <= 3) return pool
@@ -397,15 +481,22 @@ function selectBestReports(pool: PreviewReport[]): PreviewReport[] {
   var selected: PreviewReport[] = []
   var usedCategories: Record<string, boolean> = {}
 
-  /* Score all reports */
+  /* Score all reports with hook quality as primary signal */
   var scored = pool.map(function(r) {
+    var hook = extractHook(r)
     var score = 0
-    if (r.summary && r.summary.length > 100) score = score + 3
-    if (r.summary && r.summary.length > 200) score = score + 2
+
+    /* Hook quality is king \u2014 a great quote is worth more than any metadata */
+    if (hook.isQuote && hook.score >= HOOK_QUALITY_THRESHOLD) score = score + 6
+    if (r.feed_hook) score = score + 4
+
+    /* Metadata adds value but is secondary */
+    if (r.summary && r.summary.length > 100) score = score + 2
+    if (r.summary && r.summary.length > 200) score = score + 1
     if (r.location_name) score = score + 2
     if (r.event_date) score = score + 1
-    if (r.feed_hook) score = score + 4
-    return { report: r, score: score }
+
+    return { report: r, score: score, hookScore: hook.score }
   })
 
   scored.sort(function(a, b) { return b.score - a.score })
@@ -442,14 +533,14 @@ export default function DiscoverPreview() {
   useEffect(function() {
     async function fetchReports() {
       try {
-        /* Try with feed_hook first; fall back without it if column doesn\u2019t exist yet */
+        /* Fetch a larger pool (20) so hook-quality filtering has room to be selective */
         var result = await supabase
           .from('reports')
           .select('id, title, slug, summary, feed_hook, category, location_name, event_date, credibility')
           .eq('status', 'approved')
           .not('summary', 'is', null)
           .order('created_at', { ascending: false })
-          .limit(10)
+          .limit(20)
 
         if (result.error) {
           /* feed_hook column may not exist yet \u2014 retry without it */
@@ -459,7 +550,7 @@ export default function DiscoverPreview() {
             .eq('status', 'approved')
             .not('summary', 'is', null)
             .order('created_at', { ascending: false })
-            .limit(10)
+            .limit(20)
         }
 
         var pool = (result.data as PreviewReport[]) || []
@@ -476,8 +567,8 @@ export default function DiscoverPreview() {
   return (
     <section className="py-10 md:py-16 border-t border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-2">Stories from the unknown</h2>
-        <p className="text-sm sm:text-base text-gray-400 mb-8 max-w-2xl">Millions of reports from real people worldwide.</p>
+        <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-2">Eyewitness accounts</h2>
+        <p className="text-sm sm:text-base text-gray-400 mb-8 max-w-2xl">Millions of real reports from people worldwide.</p>
 
         {/* Cards \u2014 asymmetric grid: featured spans 2 cols on desktop */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
