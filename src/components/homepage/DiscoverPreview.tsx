@@ -109,8 +109,13 @@ function scoreSentence(sentence: string, index: number): number {
 /** Extract the best hook from a report.
  *  Returns { text, isQuote, score } so selection can use the score. */
 function extractHook(report: PreviewReport): { text: string; isQuote: boolean; score: number } {
-  /* Prefer AI-generated feed_hook when available */
-  if (report.feed_hook) return { text: report.feed_hook, isQuote: true, score: 20 }
+  /* Prefer AI-generated feed_hook — but score it for quality instead of flat bonus.
+   * This ensures vivid hooks ("A security patrol chases unexplained lights...")
+   * beat dry/academic ones ("Joe McMoneagle projects four photographs..."). */
+  if (report.feed_hook) {
+    var hookScore = scoreSentence(report.feed_hook, 0) + 10
+    return { text: report.feed_hook, isQuote: true, score: hookScore }
+  }
 
   if (!report.summary) return { text: report.title, isQuote: false, score: 0 }
 
@@ -497,14 +502,13 @@ function selectBestReports(pool: PreviewReport[]): PreviewReport[] {
   var selected: PreviewReport[] = []
   var usedCategories: Record<string, boolean> = {}
 
-  /* Score all reports with hook quality as primary signal */
+  /* Score all reports — hook quality from extractHook() is the primary signal */
   var scored = pool.map(function(r) {
     var hook = extractHook(r)
     var score = 0
 
-    /* Hook quality is king \u2014 a great quote is worth more than any metadata */
-    if (hook.isQuote && hook.score >= HOOK_QUALITY_THRESHOLD) score = score + 6
-    if (r.feed_hook) score = score + 4
+    /* Use the actual hook score — vivid feed_hooks score 15-25, dry ones 5-10 */
+    score = score + hook.score
 
     /* Metadata adds value but is secondary */
     if (r.summary && r.summary.length > 100) score = score + 2
@@ -517,12 +521,23 @@ function selectBestReports(pool: PreviewReport[]): PreviewReport[] {
 
   scored.sort(function(a, b) { return b.score - a.score })
 
-  /* First pass: pick top-scoring with category diversity */
-  for (var i = 0; i < scored.length && selected.length < 3; i++) {
+  /* First pass: pick top 2 with category diversity, then best remaining for 3rd */
+  for (var i = 0; i < scored.length && selected.length < 2; i++) {
     var cat = scored[i].report.category
-    if (!usedCategories[cat] || selected.length >= 2) {
+    if (!usedCategories[cat]) {
       selected.push(scored[i].report)
       usedCategories[cat] = true
+    }
+  }
+
+  /* Third card: quality wins over diversity — pick highest score regardless of category */
+  for (var q = 0; q < scored.length && selected.length < 3; q++) {
+    var alreadyPicked = false
+    for (var p = 0; p < selected.length; p++) {
+      if (selected[p].id === scored[q].report.id) { alreadyPicked = true; break }
+    }
+    if (!alreadyPicked) {
+      selected.push(scored[q].report)
     }
   }
 
