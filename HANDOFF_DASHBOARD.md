@@ -1,12 +1,45 @@
 # HANDOFF - User Dashboard & Constellation (Session 5)
 
-**Last updated:** March 14, 2026
-**Session focus:** Research Hub multi-view architecture, constellation integration, AI insights, mobile fixes
+**Last updated:** March 25, 2026
+**Session focus:** Research Hub multi-view architecture, constellation integration, AI insights, mobile fixes, dashboard home redesign
 **Design doc:** `CONSTELLATION_V2_DESIGN.md` (comprehensive — read this first)
 
 ---
 
 ## What Was Built
+
+### Dashboard Home Redesign — Part 1 (March 25, 2026)
+
+Restructured the dashboard home page (`src/pages/dashboard/index.tsx`) with a new page flow optimized for both new and active users. The old layout was a collection of features; the new one is a guided mission control experience.
+
+**New page flow (top to bottom):**
+1. Welcome Bar — Compact: name + tier badge + streak flame icon (replaces verbose hero with CTA buttons)
+2. Quick Actions — Horizontal scroll pills: Browse Cases, Search, Ask the Unknown, Research Hub, Saved
+3. Activity Summary — Consolidated 2x2 stats card: Artifacts, Reports Saved, Day Streak, Logged (replaces scattered metric pills + standalone ResearchStreak)
+4. Active Investigations — Case files (Netflix horizontal scroll on mobile, grid on desktop) + "New Investigation" card at end
+5. Recent Artifacts — Latest Research Hub additions (horizontal scroll on mobile, grid on desktop)
+6. AI Insights — Banner with active insight count, OR teaser for <5 artifacts ("Add N more to unlock")
+7. Constellation Preview — D3 mini-map if entries exist, OR onboarding prompt ("Log your first 5 items")
+8. Recent Activity — Compact feed (unchanged)
+9. Suggested Next Steps — Context-aware prompts based on user state (replaces generic Suggested Explorations)
+10. Account footer — Tier + usage + manage link + upgrade card for free tier
+
+**New components created:**
+
+| Component | Purpose |
+|-----------|---------|
+| `QuickActions.tsx` | Horizontal scroll action pills with icons, links to key destinations |
+| `ActivitySummary.tsx` | "Your Research Snapshot" — 2x2 grid of stats with icons |
+| `SuggestedNextSteps.tsx` | Context-aware prompts: no saved -> save first, no case files -> create one, etc. |
+| `RecentDiscoveries.tsx` | Recently saved reports/phenomena (MobileCardRow on mobile, grid on desktop) |
+| `EmptyState.tsx` | Reusable empty state with icon, title, description, primary + secondary CTAs |
+
+**What was removed/consolidated:**
+- ResearchStreak standalone widget -> stats folded into ActivitySummary
+- Metric pills (Artifacts, Stars, Connections, Journal, Saved) -> replaced by ActivitySummary
+- Suggested Explorations (category-based, generic) -> replaced by SuggestedNextSteps (context-aware)
+- Hero with verbose subtitle + two CTA buttons -> replaced by compact Welcome Bar + Quick Actions
+- usePersonalization, getSuggestedExplorations, CATEGORY_CONFIG imports removed (no longer needed)
 
 ### Research Hub — Phase 1 & 2 (DEPLOYED & LIVE)
 

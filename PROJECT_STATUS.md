@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** March 22, 2026
+**Last updated:** March 24, 2026
 **Project:** beta.discoverparadocs.com
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -26,38 +26,93 @@ Paradocs operates on three layers, each serving a distinct audience but sharing 
 
 ## Critical Sequencing
 
-> **REVISED March 20, 2026.** The original A → B → C waterfall (encyclopedia complete → curated reports complete → mass ingestion) has been replaced. Encyclopedia enrichment and curated editorial content are valuable but are NOT blockers to launch. The four pillars — Database Scale, AI Intelligence, Research Dashboard, Stories Feed — are the product. Encyclopedia and editorial are parallel value-adds that improve continuously.
+> **REVISED March 23, 2026.** The original A → B → C waterfall has been replaced. Encyclopedia and editorial are parallel value-adds. The four pillars — Database Scale, AI Intelligence, Research Dashboard, Stories Feed — are the product. **Content posture revised:** Paradocs operates as an index with attribution. External reports are metadata + AI-generated original analysis + source link. Raw scraped text is never displayed to users. See "Content & Legal Posture" section below.
+
+### Content & Legal Posture (March 23, 2026)
+
+Paradocs is an **index with attribution**, not a republisher. This mirrors Google News / Feedly.
+
+**What this means for every feature session:**
+- **Own encyclopedia entries** — full content, no restrictions. We own it entirely.
+- **Scraped external reports** — metadata + "Paradocs Analysis" (AI-generated original analysis) + source link. Never reproduce full source text to users.
+- **Where APIs exist** (NUFORC, Reddit), use them over raw scraping.
+- **Always show source attribution** with link to original. Source link is a citation footnote, not a primary CTA. In-app browser for mobile (Capacitor `Browser.open()` popover), not an app-ejecting redirect.
+- The raw `description` field stays in DB for AI processing (hook generation, analysis, embedding, pattern detection) but is NEVER rendered to end users.
+
+**"Paradocs Analysis" — the transformative content layer:**
+- Every report page shows a "Paradocs Analysis" box (matching encyclopedia page style: purple gradient, Lightbulb icon).
+- Contains: `paradocs_narrative` (2-4 paragraph original contextual analysis) + `paradocs_assessment` (credibility score, mundane explanations, content type).
+- Generated at ingestion time by Claude Haiku (not on-demand). Pre-computed for every report.
+- **AI labeling rules:** The narrative analysis is NOT labeled as AI-generated — it's Paradocs's editorial voice. The credibility assessment, mundane explanations, and pattern analysis sections ARE labeled "AI-Assisted Analysis" in small text.
+- Length proportionality: source under 50 words → 1 paragraph. 50-200 words → 2 paragraphs. 200+ words → 3-4 paragraphs. Never exceed source length.
+
+**Feed card content:**
+- Feed cards show: category badge, location, date, credibility indicator, `feed_hook` (AI-generated, not labeled), source attribution.
+- No raw source text on cards. The `feed_hook` is Paradocs's editorial voice.
+
+### Algorithmic Feed Strategy (March 24, 2026)
+
+> The feed must create paranormal enthusiasts, not just serve existing ones. An algorithmically ranked feed is the structural moat — manual curation is a community newsletter.
+
+**North star metric: Session Depth** — average cases viewed per session. Optimize every decision against: did this increase average session depth?
+
+**Must ship at launch (non-negotiable):**
+1. **Behavioral events table** — every impression, dwell, tap, save, share, scroll_depth written to `feed_events`. Anonymous + authenticated. Batched writes, sendBeacon on unload. Every week without this data is training data permanently lost.
+2. **V1 scored ranking** — replace seeded random shuffle with parameterized scoring: `base_engagement + recency_boost + user_affinity + diversity_penalty + random_explore`. Weights in `feed_config` table, tuneable without code changes. Not ML — just a scored SQL query.
+3. **Cold start onboarding** — "What draws you in?" pick 3+ category tiles on first visit. Seeds user_affinity until behavioral data overrides it.
+4. **Session context weighting** — track in-session category taps, blend 60% session affinity / 40% long-term affinity for feed pagination.
+5. **Depth gating** — 2-3 free case views/day, AI search gated, Ask the Unknown 1 free/week. Gate copy is dynamic and context-specific, references session depth.
+
+**Deferrable (post-launch):**
+- Emotional tone tagging at ingestion (60 days) — improves session continuity
+- Per-user ML model (90 days) — V1 scored query carries load
+- Real-time feed updates — batch hourly fine at <10K users
+
+**Session 2 owns all algorithmic feed work.** Session 6b fires behavioral events on report pages and renders gate components.
 
 ### Launch Path (Critical — MVP)
 
-The critical path to launch is now:
-
-1. **Data cleanup** — Delete ~2M hidden Reddit dev data. Re-ingest the ~900 existing approved reports through the final pipeline (or delete and replace with fresh ingestion). Start clean.
-2. **Mass ingestion at scale** — Open the floodgates: YouTube, Erowid, MUFON, Reddit (fresh), forums, podcasts, news, academic papers, government docs. Target: millions of reports. The 4,792 phenomena entries already provide a basic taxonomy for classification — entries don't need full AI enrichment to serve as classification targets.
-3. **Embedding pipeline at scale** — Embed all ingested reports into pgvector for semantic search and RAG. Pipeline exists and is tested (Session 15). Cost: ~$500-600 for 5M reports.
-4. **Subscription & payments** — Stripe integration, checkout flow, tier gating. Blocked on Stripe key.
-5. **Native app wrapper (Capacitor)** — Wrap Next.js web app in Capacitor native shell for iOS App Store + Google Play Store. Subscriptions route to Stripe web checkout (zero commission in US per Epic v. Apple ruling). Push notifications via native APIs. Gives store presence + credibility. Estimate: 1-2 dedicated sessions.
-6. **Closed beta (~2 weeks)** — Alpha group + friends & family testing with real content at scale. Native apps in TestFlight (iOS) + internal testing (Android). Iterate on quality, performance, and UX.
-7. **Public launch** — App Store + Play Store + web. Open to the world.
+1. **Data cleanup** — Delete ~2M hidden Reddit dev data AND ~900 test reports (excluding 20 curated). Run feed_hook + paradocs_narrative + paradocs_assessment migration. Start with clean DB: only curated Roswell (14) + Rendlesham (6) remain.
+2. **Finalize ingestion pipeline** — Pipeline outputs per report: metadata card (feed_hook + source attribution), Paradocs Analysis (narrative + assessment), vector embedding. Raw description stored but never displayed. Source URL required for every adapter.
+3. **Mass ingestion at scale** — YouTube, Erowid, Reddit (fresh via Arctic Shift), forums, news, etc. Target: 1M+ for closed beta. Cost: ~$750-1,000 per 1M for all AI generation (hooks + narrative + assessment).
+4. **Embedding pipeline at scale** — Embed all ingested reports into pgvector. Pipeline exists (Session 15). Cost: ~$500-600 for 5M reports.
+5. **Report detail page redesign (Session 6b)** — Index model: Paradocs Analysis box (narrative + assessment), metadata grid, linked phenomena, Research Hub preview (blurred for free), source attribution footnote. No raw description rendering. Fires behavioral events for algorithmic feed.
+6. **Algorithmic feed + depth gating (Session 2)** — Behavioral events table, V1 scored ranking (replace random shuffle), cold start onboarding ("pick 3 topics"), session context weighting, depth gating (2-3 free views/day, AI search gated, Ask the Unknown 1/week), new card types (Clustering, On This Date). North star: session depth.
+7. **Subscription & payments** — Stripe integration, checkout flow, tier gating. Blocked on Stripe key.
+8. **Native app wrapper (Capacitor)** — iOS App Store + Google Play Store. Subscriptions via Stripe web checkout. Push notifications. Estimate: 1-2 sessions.
+9. **Closed beta (~2 weeks)** → **Public launch**
 
 ### Parallel Tracks (Ongoing — Not Blockers)
 
-These improve the product continuously but do not gate launch:
-
-- **Encyclopedia enrichment (Session 1)** — Enrich the 7 AI fields across all 11 categories. Each batch makes encyclopedia pages richer and improves semantic search. Cryptids (208/208) are the model. Work category by category, no deadline pressure.
-- **Curated editorial content (Session 6a)** — Build more Featured Investigation clusters (Skinwalker Ranch, Phoenix Lights, Ariel School, etc.). Each adds a premium showcase to the homepage. These are the "Netflix Originals" — they draw people in but the library is the product.
-- **Email & engagement (Session 9)** — Onboarding drips, weekly digests, smart alerts, winback. Retention infrastructure.
+- **Encyclopedia enrichment (Session 1)** — Enrich 7 AI fields across all 11 categories. Work category by category.
+- **Curated editorial content (Session 6a)** — More Featured Investigation clusters (Skinwalker Ranch, Phoenix Lights, etc.).
+- **Email & engagement (Session 9)** — Onboarding drips, weekly digests, smart alerts, winback.
+- **Researcher Spotlight, Pattern Alert, Proximity cards** — v2 feed enhancements.
 
 ### Data Status
 
-- **~900 approved reports:** Test data from pipeline development. Will be re-ingested through the final pipeline to ensure consistent quality.
-- **~2M hidden Reddit reports:** Development data from pipeline testing. Will be deleted entirely. Fresh ingestion through the expanded source list will replace these.
-- **20 curated reports (Roswell 14 + Rendlesham 6):** Real editorial content. These persist through all data operations — they are hand-crafted and not affected by pipeline changes.
-- **4,792 phenomena entries:** Basic taxonomy exists across all 11 categories. Only cryptids (208) have full AI enrichment. The basic entries are sufficient for report classification; enrichment improves the encyclopedia pages themselves.
+- **~900 approved test reports:** Will be DELETED before mass ingestion (test data only). The 20 curated reports (Roswell + Rendlesham) are preserved.
+- **~2M hidden Reddit reports:** Will be deleted entirely.
+- **20 curated reports (Roswell 14 + Rendlesham 6):** Real editorial content. Hand-crafted, not affected by pipeline changes.
+- **4,792 phenomena entries:** Basic taxonomy across 11 categories. Only cryptids (208) fully enriched. Sufficient for report classification.
+
+### Conversion Strategy (Depth Gate)
+
+Free on Paradocs = standing outside a bookstore reading back covers. Core ($5.99) = the library card. The feed is the window display.
+
+**Gate triggers (action-based, not time-based):**
+- Full case/report view: 2-3 free per day, then contextual dynamic upgrade prompt showing what they're missing
+- Search: basic keyword search free, AI search + advanced filters gated at Core
+- Ask the Unknown: 1 free query per week, then subscription upsell pitch (not just "pay for AI" — pitch full subscription value)
+- Save/bookmark: free users save 5 items, Core unlocks unlimited
+- Research Hub: blurred/locked preview visible on every case page (conversion carrot)
+- Constellation: gated behind Pro tier
+
+**Gate copy must be dynamic and context-specific:** "This case on the 1967 Falcon Lake incident has 14 linked reports and connections to 8 similar events. $5.99/month unlocks unlimited access."
 
 ### Design Implications
 
-All feature sessions must design for two content realities simultaneously: (1) the mass-ingested database at scale (millions of reports with basic metadata, pipeline-generated quality), and (2) the curated premium layer (Featured Investigations, enriched encyclopedia, editorial content). The Research Hub and user-generated artifacts (16+ source types) represent a third layer where users add their own research. The dashboard is an active research workspace, not a passive display.
+All feature sessions must design for the index model: (1) mass-ingested reports show Paradocs Analysis + metadata + source link (never raw source text), (2) curated reports (Roswell, Rendlesham) show full editorial content (we own it), (3) encyclopedia entries show full AI-enriched content (we own it). The Research Hub is the depth product gated behind subscription.
 
 ---
 
@@ -90,16 +145,16 @@ Each major feature area has a dedicated Claude session with its own deep context
 | # | Session Name | Scope | HANDOFF File | Status |
 |---|-------------|-------|-------------|--------|
 | 1 | **Encyclopedia Enrichment** | Phenomena content, AI fields, QA/QC, triage | `HANDOFF.md` (existing) | Active — Cryptid category 100% complete |
-| 2 | **Explore & Discovery** | Personalized feed, category filters, content surfacing, recommendations | `HANDOFF_EXPLORE.md` | Active — Phase 2.5 deployed (March 22): 2D horizontal swipe-through for related content, engagement-optimized SwipeHint, prefetch bug fix, related-cards API. Phase 2 mixed feed (feed-v2, three card templates) shipped March 21. |
+| 2 | **Explore & Discovery** | Algorithmic feed (scored ranking, behavioral signals, cold start), depth gating, new card types, personalization | `HANDOFF_EXPLORE.md` | Active — **Phase 3 DEPLOYED (March 25):** Algorithmic feed with scored ranking (parameterized weights), behavioral signal collection (impression/dwell/tap/save/share), cold start onboarding ("pick 3 topics"), session context weighting (60/40 session vs long-term), new card types (ClusteringCard, OnThisDateCard, ResearchHubPromo, CaseViewGate), depth gating (3 free views/day), admin metrics dashboard. Phase 2.5 (2D swipe) deployed March 22. **Next: Run migration, tune weights, wire search/Ask gating.** |
 | 3 | **Map & Geospatial** | MapLibre GL map, PostGIS queries, Supercluster, heatmap, bottom sheet | `HANDOFF_MAP.md` | Active — Phase 1 & 2 COMPLETE, Phase 3 partial. Deep-link URL params added (lat/lng/zoom) |
 | 4 | **Insights & Pattern Analysis** | Pattern detection algorithms, AI narratives, skeptic mode, trending, methodology | `HANDOFF_INSIGHTS.md` | Not started |
 | 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
 | 6a | **Report Experience — Curated Content** | Handcrafted case files, editorial enrichment, Featured Investigations, curated media, book recommendations | `HANDOFF_REPORTS.md` | Active — 20 reports across 2 case clusters (Roswell 14 + Rendlesham 6), credibility rationales, badge redesign, homepage discovery row |
-| 6b | **Report Experience — Ingestion & Scale** | Reports from mass ingestion pipeline, quality templates, automated enrichment, connection generation at scale | `HANDOFF_REPORTS_INGESTION.md` | Not started — NOW UNBLOCKED (March 20 strategic revision) |
-| 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO, color system, PWA | `HANDOFF_SEARCH_NAV.md` | COMPLETE — Homepage: 4 optimized sections (Hero, Four Pillars, Discover Preview, Get Started CTA). DiscoverPreview: 3 card formats (featured/pull-quote/compact), smart selection from pool of 10, vivid hook extraction with feed_hook integration, category color accents. PWA + color (#9000F0) + fulltext search + A/B testing all shipped. |
+| 6b | **Report Experience — Ingestion & Scale** | Reports from mass ingestion pipeline, quality templates, automated enrichment, connection generation at scale | `HANDOFF_REPORTS_INGESTION.md` | Active — Report detail page redesign COMPLETE (March 25). Index model enforced: ParadocsAnalysisBox, SourceAttribution, ResearchHubPreview. Curated reports unaffected. Behavioral event stubs wired for Session 2. Awaiting Session 10 data to populate. |
+| 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO, color system, PWA | `HANDOFF_SEARCH_NAV.md` | COMPLETE — Homepage: 4 optimized sections (Hero, Four Pillars, Eyewitness Accounts, Get Started CTA). DiscoverPreview: 3 card formats (featured/pull-quote/compact), smart selection from pool of 20, quality-scored hook extraction with feed_hook integration + vivid language scoring, category color accents. 198 AI feed_hooks generated via `/api/admin/generate-hooks`. PWA + color (#9000F0) + fulltext search + A/B testing all shipped. |
 | 8 | **Subscription & Monetization** | Stripe checkout, paywall, tier system, billing portal, cancellation | `HANDOFF_SUBSCRIPTION.md` | Not started |
 | 9 | **Email & Engagement** | Weekly digests, drip campaigns, smart alerts, winback, notifications | `HANDOFF_EMAIL.md` | Not started |
-| 10 | **Data Ingestion & Pipeline** | Source adapters, quality filters, dedup, bulk import, feed hooks, embedding integration | `HANDOFF_INGESTION.md` | Active — Feed hook service deployed, 4 new adapters (Reddit v2, YouTube, News, Erowid), engine integrates hooks + embeddings. Ready for mass ingestion. |
+| 10 | **Data Ingestion & Pipeline** | Source adapters, quality filters, dedup, bulk import, feed hooks, Paradocs Analysis, embedding integration | `HANDOFF_INGESTION.md` | Active — **Revised March 25:** Paradocs Analysis service deployed (Claude Haiku narrative + assessment), all 12 adapters output `source_url` + `event_date_precision`, engine integrates hooks + analysis + embeddings. Data cleanup SQL ready. **Next:** Run cleanup → Apply migration → Staged ingestion (2-5K/source) → Quality review → Scale up. |
 | 11 | **Admin & Operations** | Admin dashboard, batch operations, cron jobs, A/B testing, monitoring | `HANDOFF_ADMIN.md` | Not started |
 | 12 | **Foundation & Infrastructure** | Shared components, auth/RLS, database schema, deployment, performance, SEO | `HANDOFF_FOUNDATION.md` | Not started |
 | 13 | **Mobile-First Design System** | Cross-cutting mobile UX: bottom tabs, bottom sheets, design tokens, screen-by-screen redesign | `HANDOFF_MOBILE.md` | Active — Phase 1-2 + 3a + Nav Unification deployed. Screen-by-screen redesign next. |
@@ -169,7 +224,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 - Smart match alerts (Sprint 2, not built)
 - ~~Report media display~~ ✅ MediaReportCard now uses actual report media from `report_media` table
 - Tune report/phenomena ratio in mixed feed
-- ~~Homepage "Stories from the unknown" cards~~ ✅ DiscoverPreview rewritten: 3 card formats, smart selection, vivid hook extraction, feed_hook integration, category accents (March 22)
+- ~~Homepage "Stories from the unknown" cards~~ ✅ DiscoverPreview rewritten: 3 card formats (featured/pull-quote/compact), quality-scored hook extraction, 198 AI feed_hooks generated, "Eyewitness accounts" section title, category color accents (March 22)
 - Complete remaining phenomena embeddings (~3,600) for improved semantic search coverage
 
 **Touches other sessions:** Encyclopedia (content quality affects feed + spotlight), Insights (trending patterns surface in feed), Dashboard (personalization preferences), Search (shared filter components), Foundation (Layout.tsx + globals.css modified), Mobile Design (MobileBottomTabs modified)
@@ -251,7 +306,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Key files:**
 - `src/pages/dashboard/` — All dashboard pages (index, saved, reports, insights, digests, constellation, research-hub, settings, subscription, journal/)
-- `src/components/dashboard/` — 15+ components (ConstellationMap, ConstellationMapV2, DashboardLayout, ResearchStreak, UsageMeter, FeatureGate, TierBadge, etc.)
+- `src/components/dashboard/` — 20+ components (ConstellationMap, ConstellationMapV2, DashboardLayout, ResearchStreak, UsageMeter, FeatureGate, TierBadge, QuickActions, ActivitySummary, SuggestedNextSteps, RecentDiscoveries, EmptyState, etc.)
 - `src/components/dashboard/research-hub/` — **13 components:** ResearchHub, BoardView, TimelineView, MapView, MapViewInner, ViewSwitcher, ArtifactCard, ArtifactDetailDrawer, ArtifactQuickAdd, ResearchHubSidebar, MobileSidebar, InsightCard, SourceLogos
 - `src/pages/api/research-hub/` — **7 endpoints:** artifacts, case-files, case-file-artifacts, connections, insights, hub-data, extract-url
 - `src/lib/hooks/useResearchHub.ts`, `useArtifactActions.ts` — **NEW**
@@ -265,14 +320,15 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Database tables:** `profiles`, `constellation_entries`, `saved_reports`, `saved_phenomena`, `constellation_artifacts` (NEW), `constellation_case_files` (NEW), `constellation_case_file_artifacts` (NEW), `constellation_connections` (REBUILT), `constellation_ai_insights` (NEW), `constellation_theories` (REBUILT), `constellation_external_url_signals` (NEW)
 
-**Current state (March 20, 2026):**
+**Current state (March 25, 2026):**
+- **Dashboard Home Redesigned (Part 1):** New page flow: Welcome Bar (compact name + tier + streak flame) -> Quick Actions (horizontal pill row) -> Activity Summary (consolidated 2x2 stats card) -> Active Investigations (case files with Netflix scroll + "New Investigation" card) -> Recent Artifacts -> AI Insights (with teaser for <5 artifacts) -> Constellation Preview (with onboarding prompt for 0 entries) -> Suggested Next Steps (context-aware) -> Account footer. Five new components: QuickActions.tsx, ActivitySummary.tsx, SuggestedNextSteps.tsx, RecentDiscoveries.tsx, EmptyState.tsx.
 - **Research Hub Phase 1 COMPLETE:** Multi-view architecture deployed. Board View (mobile-first default) with sidebar, case files, artifact cards, quick-add modal, detail drawer. Auth check with login redirect.
 - **Research Hub Phase 2 COMPLETE:** Timeline View (decade/year/month/week zoom with case file color coding) and Map View (Leaflet with clustering, spatial insights, mobile bottom sheet) built and deployed.
-- **Research Hub Phase 3 External URLs COMPLETE:** Full URL extraction pipeline with source auto-detection for 16+ source types (YouTube, Reddit, Twitter/X, TikTok, Instagram, podcast, news, Archive.org, academia, forum, government, blog, book, documentary, interview, and generic website). OG scraping, multi-source Reddit fallback chain, branded SVG logo fallbacks, manual thumbnail URL override, uniform card heights, action bar opacity toggle.
-- **PUT /api/research-hub/artifacts/[id] CREATED:** Artifact update endpoint (verdict, user_note, tags, title, description). Was previously missing — useResearchHub hook was calling it but getting 405.
-- **Mobile CSS fixes applied:** Replaced JS viewport detection with CSS-only Tailwind responsive classes (eliminates SSR hydration flash). Added overflow containment, truncation, responsive padding across dashboard and Research Hub.
-- **Database migration LIVE:** 7 new tables with RLS policies, indexes, and backward-compatible migration from old constellation_entries. 16+ source types in CHECK constraint.
-- **Desktop NotificationBell integrated:** Replaced static bell icon + hardcoded purple dot in desktop header with Session 7's functional `<NotificationBell />` component.
+- **Research Hub Phase 3 External URLs COMPLETE:** Full URL extraction pipeline with source auto-detection for 16+ source types. OG scraping, multi-source Reddit fallback chain, branded SVG logo fallbacks, manual thumbnail URL override, uniform card heights, action bar opacity toggle.
+- **PUT /api/research-hub/artifacts/[id] CREATED:** Artifact update endpoint (verdict, user_note, tags, title, description).
+- **Mobile CSS fixes applied:** CSS-only Tailwind responsive classes (eliminates SSR hydration flash). Overflow containment, truncation, responsive padding.
+- **Database migration LIVE:** 7 new tables with RLS policies, indexes, backward-compatible migration. 16+ source types in CHECK constraint.
+- **Desktop NotificationBell integrated:** Replaced static bell icon with Session 7's functional `<NotificationBell />` component.
 - Old constellation-first dashboard still exists alongside new Research Hub.
 
 **What needs work (Phases 3b-5):**
@@ -473,7 +529,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 - Onboarding consolidated: `UnifiedOnboarding.tsx` replaces WelcomeOnboarding + ThreeTapOnboarding
 - **UX Audit completed (v4 approved):** Three-lens audit (UX, Engagement, Vision) produced 20-item phased plan. See `Paradocs_UX_Audit_Plan.docx` and `HANDOFF_SEARCH_NAV.md`.
 - **Four Pillars redesign (March 21):** Cards made taller (min-h-[280px]/[320px]), line-clamp removed, descriptions fully rewritten with benefit-driven engagement copy. Section header promoted from gray bridge label to white h2 + "Each built for a different kind of curiosity." subline.
-- **DiscoverPreview redesign (March 22):** Complete rewrite from 4 identical cards to multi-format magazine layout. 3 card formats: Featured (2-col span, dramatic), Pull-Quote (italic hook with quote mark), Compact (metadata-rich). Smart selection fetches 10, picks best 3 with category diversity scoring. Hook extraction scores sentences for vivid language instead of always using first sentence. `feed_hook` field consumed when available (graceful fallback to sentence scoring). Category color accents (left border + hover glow per category). Header changed to "Stories from the unknown", CTA to "Explore stories". Component grew from 129 to 415 lines.
+- **DiscoverPreview redesign (March 22):** Complete rewrite from 4 identical cards to multi-format magazine layout. 3 card formats: Featured (2-col span, dramatic), Pull-Quote (italic hook with quote mark), Compact (metadata-rich). Smart selection fetches 20, picks best 3 with quality-scored hooks as dominant signal. Multi-layer hook scoring (vivid words, generic/filler/academic penalties). Feed_hooks scored via `scoreSentence() + 10` (not flat). Category diversity for first 2 cards, pure quality for 3rd. 198 AI feed_hooks generated via `/api/admin/generate-hooks`. Header: "Eyewitness accounts" + "Millions of real reports from people worldwide." CTA: "Explore stories". Component ~560 lines.
 
 **Approved revision plan (four pillars: Database + AI + Dashboard + Discover):**
 - **Phase 1 (this week):** Mobile search icon, replace legacy stats, hide placeholder Trending Patterns
@@ -498,12 +554,18 @@ Each major feature area has a dedicated Claude session with its own deep context
 - `src/components/homepage/FourPillars.tsx` — Taller cards, richer descriptions, h2 header
 - `src/components/homepage/DiscoverPreview.tsx` — Complete rewrite: multi-format cards, smart selection, hook extraction (129 → 415 lines)
 
-**March 22 session — card visual upgrades & scaling:**
-- `DiscoverPreview.tsx`: Category-tinted gradient backgrounds on all 3 card formats, atmospheric pull-quote card with oversized watermark + category-colored quote marks, hook quality threshold with title fallback, compact card now shows hook text, expanded vivid word list (40+ words)
+**March 22 session — card visual upgrades, scoring overhaul & feed_hook generation:**
+- `DiscoverPreview.tsx`: Category-tinted gradient backgrounds on all 3 card formats, atmospheric pull-quote card with oversized watermark + category-colored quote marks, hook quality threshold (raised to 3) with title fallback, compact card now shows hook text, expanded vivid word list (70+ words). Multi-layer scoring: vivid words (+2), generic starts (-3), filler phrases (-2), dry/academic language (-3). Feed_hooks now scored via `scoreSentence() + 10` instead of flat 20 — vivid AI hooks beat dry ones. Selection: category diversity for first 2 cards, pure quality for 3rd card. Fetch pool expanded to 20. Section title: "Eyewitness accounts" + "Millions of real reports from people worldwide."
 - `DiscoverCards.tsx`: Complete ACCENT_VARIATIONS coverage (all 11 categories, was only 5), category-specific quote borders replacing mood-based borders
+- **NEW** `src/pages/api/admin/generate-hooks.ts`: Admin endpoint for AI feed_hook generation using Claude Sonnet. Auth via `x-admin-api-key`. Batch processing with rate limiting. 198/200 reports processed in first run. ~700+ reports still pending.
 - Scaling strategy documented: feed_hook pipeline for mass ingestion, generative variety system provides 2,816 unique visual combinations across all categories
 
-**Touches other sessions:** ALL sessions (service worker is Foundation-level — all pages now cached by SW), Session 13 (mobile install prompt), Foundation (sw.js + _app.tsx SW registration), Session 10 (feed_hook column used when available — graceful fallback, feed_hook pipeline strategy documented for mass ingestion)
+**Key files added/modified (March 22):**
+- `src/components/homepage/DiscoverPreview.tsx` — Hook scoring overhaul, feed_hook quality scoring, selection algorithm rewrite, section title change (~560 lines)
+- `src/components/discover/DiscoverCards.tsx` — ACCENT_VARIATIONS coverage, category quote borders
+- `src/pages/api/admin/generate-hooks.ts` — NEW: AI feed_hook generation endpoint (~190 lines)
+
+**Touches other sessions:** ALL sessions (service worker is Foundation-level — all pages now cached by SW), Session 13 (mobile install prompt), Foundation (sw.js + _app.tsx SW registration), Session 10 (feed_hook column consumed + generation endpoint built, ~700 reports still need hooks, pipeline strategy documented for mass ingestion)
 
 ---
 
@@ -591,7 +653,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 **What needs work (Priority Order):**
 1. **Execute data cleanup:** Run the SQL to delete ~2M hidden Reddit dev data (SQL in session prompt, requires manual Supabase execution). Flag ~900 existing reports with `needs_reingestion = true`.
 2. **Mass ingestion run:** Execute adapter-by-adapter ingestion: limit 100 → limit 1000 → full run. Monitor ingestion_logs.
-3. **Backfill feed hooks:** Run `/api/admin/ai/generate-hooks` with `action: 'all_missing'` for existing approved reports.
+3. **Backfill feed hooks:** Session 10 endpoint at `/api/admin/ai/generate-hooks` returns 404 on production (build/import issue). Working alternative: Session 7's `/api/admin/generate-hooks` (auth via `x-admin-api-key` header). Already processed 198/200 reports; ~700+ remaining. Run: `curl -X POST "https://beta.discoverparadocs.com/api/admin/generate-hooks?limit=800" -H "x-admin-api-key: [key]"`
 4. **Post-ingestion embedding:** Batch embed new reports via `/api/admin/ai/embed` with `action: 'all_reports'`.
 5. **Additional adapters:** Podcast transcripts, MUFON (if public API), government docs, forums
 6. Pipeline monitoring and error alerting
@@ -694,6 +756,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 | Date | Source Session | Note | Affects |
 |------|--------------|------|---------|
+| 2026-03-25 | Dashboard (5) | **Dashboard home page redesigned (Part 1).** New page flow with 5 new components: QuickActions.tsx (horizontal action pills), ActivitySummary.tsx (consolidated 2x2 stats card), SuggestedNextSteps.tsx (context-aware prompts), RecentDiscoveries.tsx (saved items horizontal scroll), EmptyState.tsx (reusable). Old ResearchStreak standalone widget replaced by ActivitySummary. Old metric pills replaced. Old Suggested Explorations replaced by SuggestedNextSteps. AI Insights teaser shown for users with <5 artifacts. Constellation onboarding prompt for 0 entries. "New Investigation" card added to case file rows. | Mobile Design (dashboard page flow changed), Search & Nav (QuickActions links to /search and /ask) |
 | 2026-03-20 | Search & Nav (7) | **PWA INSTALL PROMPT + SERVICE WORKER + APP ICON UPDATE.** Service worker deployed at `public/sw.js` (cache-first static, network-first pages, skip API/auth). Registered in `_app.tsx`. `useInstallPrompt` hook detects Android beforeinstallprompt, iOS Safari, standalone mode, desktop. `InstallPrompt` component shows mobile-only "Add to home screen" in homepage Get Started section. App icon SVG gradient updated from old purples to brand #9000F0 scale (#c084fc/#9000f0/#6500a8), all 8 PNG icons regenerated. | **ALL sessions (FOUNDATION-LEVEL: service worker now exists — all pages cached by SW)**, Session 13 (mobile PWA install experience), Foundation (_app.tsx modified, public/sw.js added, all icons regenerated) |
 | 2026-03-20 | Search & Nav (7) | **NATIVE APP WRAPPER ADDED TO LAUNCH PATH.** Capacitor wrapper for iOS App Store + Google Play Store added as step 5 in critical launch path (after Stripe, before closed beta). Wraps existing Next.js web app in native shell. Subscriptions route to Stripe web checkout via system browser — zero Apple/Google commission in US (Epic v. Apple ruling, May 2025). Push notifications via native APIs. Closed beta will use TestFlight (iOS) + internal testing track (Android). Estimate: 1-2 dedicated sessions. Full spec in HANDOFF_SEARCH_NAV.md "Native App Wrapper" section. | Session 8/Subscription (Stripe web checkout must work for in-app-to-web payment flow), ALL sessions (native app wrapper touches every page via WebView), Foundation (Capacitor project scaffolding) |
 | 2026-03-20 | Search & Nav (7) | **SECTION-BY-SECTION OPTIMIZATION.** Each homepage section individually audited through AllTrails/Ancestry lens. Hero: social proof badge removed (restore at 1K+ users), 4-stat grid collapsed to single trust line, 7+ dead API calls removed, file 1135→168 lines. Four Pillars: title/subtitle removed, CTAs rewritten as action verbs ("Search the database"/"Uncover patterns"/"Build a case file"/"Start swiping"), Pro badge softened, bridge label "Four ways to explore" added. Discover Preview: emoji thumbnails removed, cards redesigned as text-forward (category + title + first sentence + location), Play hover removed, bridge label "From the database" added, 241→126 lines. Bottom CTA: newsletter email capture replaced with account creation ("Create free account" → /login + "Browse without an account" → /explore). | ALL sessions (homepage completely rewritten, newsletter form removed), Session 8/Subscription (account creation is now the homepage conversion action) |
@@ -703,6 +766,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 2026-03-21 | Data Ingestion (10) | **Feed hook service + 4 new adapters + engine integration DEPLOYED.** New `feed-hook.service.ts` generates Claude Haiku 2-3 sentence hooks per report. `engine.ts` now auto-generates feed hooks + vector embeddings post-insert (non-blocking). 4 new adapters: reddit-v2 (13 subreddits via Arctic Shift), youtube (Data API v3, 4 paranormal channels), news (NewsAPI.org, 7 search queries), erowid (Experience Vaults, 5 substance categories). Quality scorer updated with new source tiers + YouTube view count boost + news outlet boost. DB migration ready: `feed_hook`, `feed_hook_generated_at`, `needs_reingestion` columns. Batch admin endpoint at `/api/admin/ai/generate-hooks`. Total adapters: 12. **NEXT STEPS:** Run migration, add YOUTUBE_API_KEY + NEWS_API_KEY env vars, execute data cleanup SQL, run mass ingestion. | Session 2/Explore (feed_hook consumed by feed-v2 cards), Session 7/Homepage (DiscoverPreview uses feed_hook), Session 15/AI (embedReport called post-insert), Session 3/Map (more geolocated reports), Session 4/Insights (more data for patterns), Foundation (new DB columns + migration, 2 new env vars needed) |
 | 2026-03-21 | Explore & Discovery (2) | **Phase 2: Mixed content Stories feed DEPLOYED.** `/api/discover/feed-v2` now serves phenomena + reports (was phenomena-only). Three card templates in `DiscoverCards.tsx` (PhenomenonCard, TextReportCard, MediaReportCard). Completion milestone toasts at 25/50/75%. Old feed API preserved. `discover.tsx` fully rewritten. | All sessions (Stories feed now shows reports, not just phenomena) |
 | 2026-03-22 | Search & Nav (7) | **DiscoverPreview multi-format cards DEPLOYED.** Homepage "Stories from the unknown" section rewritten: 3 card formats (Featured 2-col span, Pull-Quote italic with large quote mark, Compact metadata-rich). Smart selection: fetches 10 reports, scores by content richness (summary length, location, date, feed_hook presence), selects best 3 with category diversity. Vivid sentence extraction replaces first-sentence truncation. `feed_hook` field consumed when available (graceful fallback if column doesn't exist). Category color accents (left border + hover glow). CTA: "Explore stories" → /discover. Component: 129 → 415 lines. | Session 2 (homepage links to /discover), Session 10 (feed_hook consumed by cards), Foundation (DiscoverPreview.tsx rewritten) |
+| 2026-03-25 | Explore & Discovery (2) | **Phase 3: Algorithmic feed DEPLOYED.** `feed-v2.ts` rewritten with parameterized scored ranking (base_engagement from `category_engagement` materialized view + recency + user_affinity + random_explore, weights tuneable via `feed_config` table). New `feed_events` table collects all behavioral signals. `useFeedEvents` hook (batch buffered, sendBeacon on unload). Cold start `TopicOnboarding` ("pick 3 topics"). Session context weights feed 60/40. New card types: ClusteringCard (geographic clusters + temporal bursts), OnThisDateCard (phenomena matching today), ResearchHubPromo, CaseViewGate (3 free views/day). Admin metrics at `/api/admin/feed-metrics`. Migration: `20260324_feed_events.sql`. Build verified clean (18.3kB /discover). | Session 6b (report page scroll_depth + "You might also find" integration), Session 8 (gate CTAs link to /pricing), Session 10 (clustering cards need ingestion volume), Session 15 (Ask the Unknown weekly limit), Foundation (new DB tables: feed_events, feed_config, user_usage; new materialized view: category_engagement) |
 | 2026-03-22 | Explore & Discovery (2) | **Phase 2.5: 2D horizontal swipe-through DEPLOYED.** Swiping left on any Stories card reveals full-screen related cards (same card templates). New `/api/discover/related-cards` endpoint (category + phenomenon_type matching, not RAG). Framer Motion `RelatedTray` removed from DiscoverCards.tsx — replaced by native CSS snap-x in FeedRow. Custom `@keyframes swipe-breathe` added to globals.css. Prefetch cascade bug fixed. Similarity "4700% match" double-multiplication fixed. | Foundation (globals.css modified, framer-motion no longer imported by DiscoverCards), All sessions (Stories feed now has 2D navigation — vertical feed + horizontal related content) |
 | 2026-03-20 | Mobile Design (13) | **MobileBottomTabs FAB label renamed "Discover" → "Stories"** to match Session 7's desktop nav rename. Route unchanged (`/discover`). Component comment updated. | Explore (label change only, no functional change), All sessions (mobile nav label updated) |
 | 2026-03-20 | Dashboard (5) | Desktop header bell icon in DashboardLayout.tsx replaced with Session 7's functional `<NotificationBell />` component. Static `<button>` with hardcoded purple dot removed. | Search & Nav (Session 7 component now used on both mobile and desktop headers) |

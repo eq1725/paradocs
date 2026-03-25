@@ -1,17 +1,20 @@
 /**
  * Dashboard Overview Page — Research Hub Mission Control
  *
- * Mobile-first redesign (Session 13 Phase 3):
- * - Welcome hero with single prominent CTA on mobile
- * - Netflix-style horizontal card rows for case files (MobileCardRow)
- * - Horizontal scroll metric pills (not wrapping grid) on mobile
- * - Compact activity feed
- * - Constellation preview with "View Map" overlay
- * - <style jsx global> migrated to globals.css
+ * Session 5 Redesign (March 25, 2026):
+ * New page flow optimized for both new and active users:
  *
- * Layout: Hero + CTAs → Research Hub Summary (case files + recent artifacts) →
- *         AI Insights banner → Constellation Mini-Map → Activity Feed →
- *         Metric Pills → Suggested Explorations → Usage Footer
+ * 1. Welcome Bar — Compact name + tier badge + streak flame
+ * 2. Quick Actions — Horizontal scroll action pills
+ * 3. Activity Summary — Consolidated "Your Research Snapshot" card
+ * 4. Active Investigations — Case files (Netflix horizontal scroll on mobile)
+ * 5. Recent Artifacts — Latest Research Hub additions
+ * 6. AI Insights — Banner linking to insights in Research Hub
+ * 7. Constellation Preview — D3 mini-map with progression messaging
+ * 8. Suggested Next Steps — Context-aware prompts based on user state
+ * 9. Account footer — Tier + usage + manage link
+ *
+ * Empty state: New users see Welcome + Quick Actions + EmptyState + Next Steps
  */
 
 import React, { useEffect, useState, useCallback } from 'react'
@@ -20,38 +23,34 @@ import { useRouter } from 'next/router'
 import dynamic from 'next/dynamic'
 import {
   FileText,
-  Bookmark,
   AlertCircle,
   ArrowRight,
   Sparkles,
-  Stars,
-  Compass,
-  BookOpen,
-  Link2,
-  Lightbulb,
   Star,
   PenTool,
   FolderOpen,
   Plus,
   Globe,
   Zap,
+  Link2,
+  Lightbulb,
+  Flame,
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { UpgradeCard } from '@/components/dashboard/UpgradeCard'
 import { TierBadge } from '@/components/dashboard/TierBadge'
-import ResearchStreak from '@/components/dashboard/ResearchStreak'
 import DashboardTour, { hasDashboardTourCompleted } from '@/components/dashboard/DashboardTour'
 import { MobileCardRow, MobileCardRowItem } from '@/components/mobile/MobileCardRow'
+import QuickActions from '@/components/dashboard/QuickActions'
+import ActivitySummary from '@/components/dashboard/ActivitySummary'
+import SuggestedNextSteps from '@/components/dashboard/SuggestedNextSteps'
+import EmptyState from '@/components/dashboard/EmptyState'
 var ConstellationMapV2 = dynamic(
   function() { return import('@/components/dashboard/ConstellationMapV2') },
   { ssr: false }
 )
 import { useSubscription } from '@/lib/hooks/useSubscription'
-import { usePersonalization } from '@/lib/hooks/usePersonalization'
 import { supabase } from '@/lib/supabase'
-import { getSuggestedExplorations } from '@/lib/constellation-data'
-import { CATEGORY_CONFIG } from '@/lib/constants'
-import { PhenomenonCategory } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
 import type { TierName } from '@/lib/subscription'
 import type { UserMapData, EntryNode } from './constellation'
@@ -152,12 +151,12 @@ function formatRelativeTime(dateString: string) {
 export default function DashboardPage() {
   var router = useRouter()
   var { tierName, loading: subscriptionLoading } = useSubscription()
-  var { data: personalization } = usePersonalization()
   var [stats, setStats] = useState<DashboardStats | null>(null)
   var [userMapData, setUserMapData] = useState<UserMapData | null>(null)
   var [loading, setLoading] = useState(true)
   var [error, setError] = useState<string | null>(null)
   var [showDashboardTour, setShowDashboardTour] = useState(false)
+  var [streakDays, setStreakDays] = useState(0)
 
   useEffect(function() {
     if (!loading && stats && !hasDashboardTourCompleted()) {
@@ -174,9 +173,10 @@ export default function DashboardPage() {
         if (!session) { router.push('/login'); return }
 
         var headers = { 'Authorization': 'Bearer ' + session.access_token }
-        var [statsResp, mapResp] = await Promise.all([
+        var [statsResp, mapResp, streakResp] = await Promise.all([
           fetch('/api/user/stats', { headers: headers }),
           fetch('/api/constellation/user-map', { headers: headers }).catch(function() { return null }),
+          fetch('/api/user/streak', { headers: headers }).catch(function() { return null }),
         ])
 
         if (!statsResp.ok) throw new Error('Failed to fetch stats')
@@ -186,6 +186,11 @@ export default function DashboardPage() {
         if (mapResp && mapResp.ok) {
           var mapData = await mapResp.json()
           setUserMapData(mapData)
+        }
+
+        if (streakResp && streakResp.ok) {
+          var streakData = await streakResp.json()
+          setStreakDays(streakData.current_streak || 0)
         }
       } catch (err) {
         console.error('Error fetching dashboard data:', err)
@@ -203,23 +208,22 @@ export default function DashboardPage() {
     }
   }, [router])
 
+  // ── Loading state ──
   if (loading || subscriptionLoading) {
     return (
       <DashboardLayout title="Dashboard">
         <div className="space-y-4">
-          <div className="h-16 bg-gray-900 rounded-xl animate-pulse" />
-          <div className="h-10 bg-gray-900 rounded-xl animate-pulse w-48" />
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="h-32 bg-gray-900 rounded-xl animate-pulse" />
-            <div className="h-32 bg-gray-900 rounded-xl animate-pulse" />
-            <div className="h-32 bg-gray-900 rounded-xl animate-pulse" />
-          </div>
+          <div className="h-10 bg-gray-900 rounded-xl animate-pulse" />
+          <div className="h-8 bg-gray-900 rounded-full animate-pulse w-64" />
+          <div className="h-24 bg-gray-900 rounded-xl animate-pulse" />
+          <div className="h-32 bg-gray-900 rounded-xl animate-pulse" />
           <div className="h-48 bg-gray-900 rounded-xl animate-pulse" />
         </div>
       </DashboardLayout>
     )
   }
 
+  // ── Error state ──
   if (error) {
     return (
       <DashboardLayout title="Dashboard">
@@ -240,131 +244,157 @@ export default function DashboardPage() {
 
   var hasEntries = (stats && stats.constellation ? stats.constellation.totalEntries : 0) > 0
   var hasArtifacts = (stats && stats.researchHub ? stats.researchHub.totalArtifacts : 0) > 0
-  var userInterests = personalization?.interested_categories || []
-  var suggestions = hasEntries ? getSuggestedExplorations(userInterests as PhenomenonCategory[], 3) : []
   var hub = stats?.researchHub || { totalArtifacts: 0, totalCaseFiles: 0, activeInsights: 0, recentArtifacts: [], caseFiles: [] }
+
+  // Find smallest case file for SuggestedNextSteps
+  var smallestCaseFile = null as { id: string; title: string; artifact_count: number } | null
+  if (hub.caseFiles.length > 0) {
+    var sorted = hub.caseFiles.slice().sort(function(a, b) { return a.artifact_count - b.artifact_count })
+    if (sorted[0] && sorted[0].artifact_count < 3) {
+      smallestCaseFile = sorted[0]
+    }
+  }
 
   return (
     <DashboardLayout title="Dashboard">
-      {/* ── A. Hero: Welcome + Smart CTAs ── */}
-      {/* Mobile: stacked with single prominent CTA. Desktop: side-by-side */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
-        <div className="min-w-0">
-          <h2 className="text-lg sm:text-2xl font-bold text-white truncate">
+
+      {/* ── 1. Welcome Bar — Compact: name + tier + streak ── */}
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <h2 className="text-base sm:text-xl font-bold text-white truncate">
             {'Welcome back' + (stats?.profile.display_name ? ', ' + stats.profile.display_name : '')}
           </h2>
-          <p className="text-gray-500 text-xs sm:text-sm mt-0.5 truncate">
-            {hasArtifacts
-              ? hub.totalArtifacts + ' artifact' + (hub.totalArtifacts !== 1 ? 's' : '') + ' across ' + hub.totalCaseFiles + ' case file' + (hub.totalCaseFiles !== 1 ? 's' : '')
-              : 'Start building your research hub'}
-          </p>
+          {tierName && <TierBadge tier={tierName} size="sm" />}
         </div>
-        {/* Mobile: single full-width CTA. Desktop: two buttons inline */}
-        <div className="flex items-center gap-2.5 flex-shrink-0">
-          <Link
-            href="/dashboard/research-hub"
-            className="flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium text-sm transition-colors w-full sm:w-auto"
-          >
-            <Sparkles className="w-4 h-4" />
-            Research Hub
-          </Link>
-          <Link
-            href="/explore"
-            className="hidden sm:flex items-center gap-2 px-4 py-2 border border-gray-700 hover:border-gray-600 text-gray-300 hover:text-white rounded-lg text-sm transition-colors"
-          >
-            <Compass className="w-4 h-4" />
-            Explore
-          </Link>
-        </div>
+        {streakDays > 0 && (
+          <div className="flex items-center gap-1 text-orange-400 flex-shrink-0">
+            <Flame className="w-4 h-4" />
+            <span className="text-sm font-semibold">{streakDays}</span>
+          </div>
+        )}
       </div>
 
-      {/* ── B. Research Streak ── */}
+      {/* ── 2. Quick Actions — Horizontal scroll pills ── */}
       <div className="mb-5">
-        <ResearchStreak compact />
+        <QuickActions />
       </div>
 
-      {/* ── C. Research Hub Summary (THE CENTERPIECE) ── */}
-      {hasArtifacts ? (
-        <div className="mb-5 overflow-hidden">
-          {/* Case Files — Mobile: horizontal scroll cards. Desktop: grid */}
-          {hub.caseFiles.length > 0 && (
-            <div className="mb-4">
-              {/* Mobile: Netflix-style horizontal row */}
-              <div className="sm:hidden">
-                <MobileCardRow
-                  title="Active Investigations"
-                  icon={<FolderOpen className="w-4 h-4 text-indigo-400" />}
-                  seeAllHref="/dashboard/research-hub"
-                  cardWidthPercent={75}
-                  minCardWidth={220}
-                  maxCardWidth={280}
-                  showDots={hub.caseFiles.length > 1}
-                  itemCount={hub.caseFiles.length}
-                >
-                  {hub.caseFiles.map(function(cf) {
-                    return (
-                      <MobileCardRowItem
-                        key={cf.id}
-                        widthPercent={75}
-                        minWidth={220}
-                        maxWidth={280}
-                      >
-                        <Link
-                          href="/dashboard/research-hub"
-                          className="block p-3 bg-gray-900 border border-gray-800 rounded-xl hover:border-indigo-500/30 transition-all h-full"
-                          style={{ borderLeftWidth: '3px', borderLeftColor: cf.cover_color || '#6366f1' }}
-                        >
-                          <p className="text-sm font-medium text-white truncate">
-                            {cf.title}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {cf.artifact_count + ' artifact' + (cf.artifact_count !== 1 ? 's' : '')}
-                          </p>
-                        </Link>
-                      </MobileCardRowItem>
-                    )
-                  })}
-                </MobileCardRow>
-              </div>
+      {/* ── 3. Activity Summary — Consolidated stats card ── */}
+      <div className="mb-5">
+        <ActivitySummary
+          artifactsCount={hub.totalArtifacts}
+          reportsSaved={stats?.saved.total || 0}
+          streakDays={streakDays}
+          constellationEntries={stats?.constellation.totalEntries || 0}
+        />
+      </div>
 
-              {/* Desktop: grid layout (unchanged from original) */}
-              <div className="hidden sm:block">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                    <FolderOpen className="w-4 h-4 text-indigo-400" />
-                    Active Investigations
-                  </h3>
-                  <Link
-                    href="/dashboard/research-hub"
-                    className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+      {/* ── 4. Active Investigations (case files) ── */}
+      {hasArtifacts && hub.caseFiles.length > 0 && (
+        <div className="mb-5">
+          {/* Mobile: Netflix-style horizontal row */}
+          <div className="sm:hidden">
+            <MobileCardRow
+              title="Active Investigations"
+              icon={<FolderOpen className="w-4 h-4 text-indigo-400" />}
+              seeAllHref="/dashboard/research-hub"
+              cardWidthPercent={75}
+              minCardWidth={220}
+              maxCardWidth={280}
+              showDots={hub.caseFiles.length > 1}
+              itemCount={hub.caseFiles.length}
+            >
+              {hub.caseFiles.map(function(cf) {
+                return (
+                  <MobileCardRowItem
+                    key={cf.id}
+                    widthPercent={75}
+                    minWidth={220}
+                    maxWidth={280}
                   >
-                    View All <ArrowRight className="w-3 h-3" />
-                  </Link>
-                </div>
-                <div className="grid grid-cols-3 lg:grid-cols-5 gap-2.5">
-                  {hub.caseFiles.map(function(cf) {
-                    return (
-                      <Link
-                        key={cf.id}
-                        href="/dashboard/research-hub"
-                        className="group p-3.5 bg-gray-900 border border-gray-800 rounded-xl hover:border-indigo-500/30 transition-all overflow-hidden"
-                        style={{ borderLeftWidth: '3px', borderLeftColor: cf.cover_color || '#6366f1' }}
-                      >
-                        <p className="text-sm font-medium text-white group-hover:text-indigo-300 truncate transition-colors">
-                          {cf.title}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {cf.artifact_count + ' artifact' + (cf.artifact_count !== 1 ? 's' : '')}
-                        </p>
-                      </Link>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
+                    <Link
+                      href="/dashboard/research-hub"
+                      className="block p-3 bg-gray-900 border border-gray-800 rounded-xl hover:border-indigo-500/30 transition-all h-full"
+                      style={{ borderLeftWidth: '3px', borderLeftColor: cf.cover_color || '#6366f1' }}
+                    >
+                      <p className="text-sm font-medium text-white truncate">{cf.title}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {cf.artifact_count + ' artifact' + (cf.artifact_count !== 1 ? 's' : '')}
+                      </p>
+                      <p className="text-[10px] text-gray-600 mt-0.5">
+                        {formatRelativeTime(cf.created_at)}
+                      </p>
+                    </Link>
+                  </MobileCardRowItem>
+                )
+              })}
+              {/* "New investigation" card at the end */}
+              <MobileCardRowItem
+                key="new-investigation"
+                widthPercent={75}
+                minWidth={220}
+                maxWidth={280}
+              >
+                <Link
+                  href="/dashboard/research-hub"
+                  className="flex flex-col items-center justify-center p-3 bg-gray-900/50 border border-dashed border-gray-700 rounded-xl hover:border-indigo-500/40 transition-all h-full min-h-[76px]"
+                >
+                  <Plus className="w-5 h-5 text-gray-500 mb-1" />
+                  <span className="text-xs text-gray-500">New Investigation</span>
+                </Link>
+              </MobileCardRowItem>
+            </MobileCardRow>
+          </div>
 
-          {/* Recent Artifacts — Mobile: horizontal scroll. Desktop: grid */}
+          {/* Desktop: grid */}
+          <div className="hidden sm:block">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                <FolderOpen className="w-4 h-4 text-indigo-400" />
+                Active Investigations
+              </h3>
+              <Link
+                href="/dashboard/research-hub"
+                className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+              >
+                View All <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+            <div className="grid grid-cols-3 lg:grid-cols-5 gap-2.5">
+              {hub.caseFiles.map(function(cf) {
+                return (
+                  <Link
+                    key={cf.id}
+                    href="/dashboard/research-hub"
+                    className="group p-3.5 bg-gray-900 border border-gray-800 rounded-xl hover:border-indigo-500/30 transition-all overflow-hidden"
+                    style={{ borderLeftWidth: '3px', borderLeftColor: cf.cover_color || '#6366f1' }}
+                  >
+                    <p className="text-sm font-medium text-white group-hover:text-indigo-300 truncate transition-colors">
+                      {cf.title}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {cf.artifact_count + ' artifact' + (cf.artifact_count !== 1 ? 's' : '')}
+                    </p>
+                  </Link>
+                )
+              })}
+              {/* New investigation card */}
+              <Link
+                href="/dashboard/research-hub"
+                className="group flex flex-col items-center justify-center p-3.5 bg-gray-900/50 border border-dashed border-gray-700 rounded-xl hover:border-indigo-500/40 transition-all"
+              >
+                <Plus className="w-5 h-5 text-gray-500 group-hover:text-indigo-400 mb-1 transition-colors" />
+                <span className="text-xs text-gray-500 group-hover:text-gray-400 transition-colors">New</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 5. Recent Artifacts ── */}
+      {hasArtifacts && hub.recentArtifacts.length > 0 && (
+        <div className="mb-5">
+          {/* Mobile */}
           <div className="sm:hidden">
             <MobileCardRow
               title="Recent Artifacts"
@@ -393,16 +423,12 @@ export default function DashboardPage() {
                           <SourceIcon className={classNames('w-4 h-4', sourceConfig.color)} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-white truncate">
-                            {artifact.title}
-                          </p>
+                          <p className="text-sm font-medium text-white truncate">{artifact.title}</p>
                           <div className="flex items-center gap-2 mt-1">
                             {verdictDot && (
                               <span className={classNames('w-1.5 h-1.5 rounded-full flex-shrink-0', verdictDot)} />
                             )}
-                            <span className="text-xs text-gray-500">
-                              {formatRelativeTime(artifact.created_at)}
-                            </span>
+                            <span className="text-xs text-gray-500">{formatRelativeTime(artifact.created_at)}</span>
                           </div>
                         </div>
                       </div>
@@ -413,7 +439,7 @@ export default function DashboardPage() {
             </MobileCardRow>
           </div>
 
-          {/* Desktop: grid layout for artifacts */}
+          {/* Desktop */}
           <div className="hidden sm:block">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-white">Recent Artifacts</h3>
@@ -440,16 +466,12 @@ export default function DashboardPage() {
                         <SourceIcon className={classNames('w-4 h-4', sourceConfig.color)} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white group-hover:text-cyan-300 truncate transition-colors">
-                          {artifact.title}
-                        </p>
+                        <p className="text-sm font-medium text-white group-hover:text-cyan-300 truncate transition-colors">{artifact.title}</p>
                         <div className="flex items-center gap-2 mt-1">
                           {verdictDot && (
                             <span className={classNames('w-1.5 h-1.5 rounded-full flex-shrink-0', verdictDot)} />
                           )}
-                          <span className="text-xs text-gray-500">
-                            {formatRelativeTime(artifact.created_at)}
-                          </span>
+                          <span className="text-xs text-gray-500">{formatRelativeTime(artifact.created_at)}</span>
                         </div>
                       </div>
                     </div>
@@ -459,59 +481,64 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-      ) : (
-        /* Empty state — first time user */
-        <div className="mb-5 p-6 sm:p-8 bg-gray-900 border border-gray-800 rounded-xl text-center">
-          <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-4 rounded-full bg-indigo-500/10 flex items-center justify-center">
-            <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-indigo-400" />
-          </div>
-          <h3 className="text-base sm:text-lg font-semibold text-white mb-2">Your Research Hub is ready</h3>
-          <p className="text-gray-400 text-sm max-w-md mx-auto mb-5">
-            Save URLs from YouTube, Reddit, news sites, or log Paradocs reports. Organize evidence into case files, draw connections, and build theories.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-3">
-            <Link
-              href="/dashboard/research-hub"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors w-full sm:w-auto justify-center"
-            >
-              <Plus className="w-4 h-4" />
-              Add Your First Artifact
-            </Link>
-            <Link
-              href="/explore"
-              className="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-700 hover:border-gray-600 text-gray-300 hover:text-white rounded-lg text-sm transition-colors w-full sm:w-auto justify-center"
-            >
-              <Compass className="w-4 h-4" />
-              Browse Reports
-            </Link>
-          </div>
+      )}
+
+      {/* ── Empty state for new users (no artifacts) ── */}
+      {!hasArtifacts && (
+        <div className="mb-5">
+          <EmptyState
+            icon={Sparkles}
+            iconColor="text-indigo-400"
+            iconBg="bg-indigo-500/10"
+            title="Your Research Hub is ready"
+            description="Save URLs from YouTube, Reddit, news sites, or log Paradocs reports. Organize evidence into case files, draw connections, and build theories."
+            ctaLabel="Add Your First Artifact"
+            ctaHref="/dashboard/research-hub"
+            secondaryLabel="Browse Reports"
+            secondaryHref="/explore"
+          />
         </div>
       )}
 
-      {/* ── D. AI Insights Banner ── */}
-      {hub.activeInsights > 0 && (
+      {/* ── 6. AI Insights Banner ── */}
+      {hub.activeInsights > 0 ? (
         <Link
           href="/dashboard/research-hub"
-          className="mb-5 flex items-center gap-3 p-3 sm:p-4 bg-cyan-950/30 border border-cyan-800/50 rounded-xl hover:border-cyan-700/60 transition-colors group overflow-hidden"
+          className="block mb-5 p-3 sm:p-4 bg-cyan-950/30 border border-cyan-800/50 rounded-xl hover:border-cyan-700/60 transition-colors group overflow-hidden"
         >
-          <div className="p-2 bg-cyan-500/15 rounded-lg flex-shrink-0">
-            <Zap className="w-5 h-5 text-cyan-400" />
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-cyan-500/15 rounded-lg flex-shrink-0">
+              <Zap className="w-5 h-5 text-cyan-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-cyan-200 truncate">
+                {hub.activeInsights + ' AI Insight' + (hub.activeInsights !== 1 ? 's' : '') + ' available'}
+              </p>
+              <p className="text-xs text-cyan-400/60 truncate">
+                Patterns and connections detected across your research
+              </p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-cyan-400 group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-cyan-200 truncate">
-              {hub.activeInsights + ' AI Insight' + (hub.activeInsights !== 1 ? 's' : '') + ' available'}
-            </p>
-            <p className="text-xs text-cyan-400/60 truncate">
-              Patterns and connections detected across your research
-            </p>
-          </div>
-          <ArrowRight className="w-4 h-4 text-cyan-400 group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
         </Link>
-      )}
+      ) : hasArtifacts && hub.totalArtifacts < 5 ? (
+        <div className="mb-5 p-3 sm:p-4 bg-gray-900 border border-gray-800 rounded-xl">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-cyan-500/10 rounded-lg flex-shrink-0">
+              <Zap className="w-5 h-5 text-cyan-500/50" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-400 truncate">AI Pattern Detection</p>
+              <p className="text-xs text-gray-500 truncate">
+                {'Add ' + (5 - hub.totalArtifacts) + ' more artifact' + ((5 - hub.totalArtifacts) !== 1 ? 's' : '') + ' to unlock AI insights'}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
-      {/* ── E. Constellation Mini-Map ── */}
-      {/* Mobile: slightly shorter (200px via globals.css). Overlay always right-aligned */}
-      {hasEntries && userMapData && (
+      {/* ── 7. Constellation Preview ── */}
+      {hasEntries && userMapData ? (
         <div className="mb-5 rounded-xl overflow-hidden border border-gray-800 relative">
           <div className="dashboard-constellation-wrap">
             <ConstellationMapV2
@@ -537,13 +564,33 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-      )}
+      ) : !hasEntries ? (
+        <div className="mb-5 p-4 bg-gray-900 border border-gray-800 rounded-xl">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-500/10 rounded-lg flex-shrink-0">
+              <Star className="w-5 h-5 text-purple-500/50" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-400">Your Constellation</p>
+              <p className="text-xs text-gray-500">
+                Log your first 5 items to build your research constellation map
+              </p>
+            </div>
+            <Link
+              href="/dashboard/constellation"
+              className="text-xs text-purple-400 hover:text-purple-300 flex-shrink-0 transition-colors"
+            >
+              Learn More
+            </Link>
+          </div>
+        </div>
+      ) : null}
 
-      {/* ── F. Research Activity (compact on mobile) ── */}
+      {/* ── 8. Research Activity (compact feed) ── */}
       {stats?.research_activity && stats.research_activity.length > 0 && (
         <div className="mb-5 p-3 sm:p-4 bg-gray-900 rounded-xl border border-gray-800">
           <div className="flex items-center justify-between mb-2 sm:mb-3">
-            <h3 className="text-sm font-semibold text-white">Research Activity</h3>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Recent Activity</h3>
             <Link
               href="/dashboard/research-hub"
               className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
@@ -572,114 +619,19 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── G. Research Snapshot (metric pills) ── */}
-      {/* Mobile: horizontal scroll (no wrapping). Desktop: flex-wrap */}
+      {/* ── 9. Suggested Next Steps ── */}
       <div className="mb-5">
-        <div className="flex gap-1.5 sm:gap-2 overflow-x-auto sm:overflow-x-visible sm:flex-wrap scrollbar-hide touch-pan-x pb-1 sm:pb-0">
-          <Link
-            href="/dashboard/research-hub"
-            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gray-900 border border-gray-800 hover:border-indigo-500/30 rounded-full text-xs sm:text-sm transition-colors group flex-shrink-0"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="text-white font-medium">{hub.totalArtifacts}</span>
-            <span className="text-gray-500 group-hover:text-gray-400">Artifacts</span>
-          </Link>
-          <Link
-            href="/dashboard/constellation"
-            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-xs sm:text-sm transition-colors group flex-shrink-0"
-          >
-            <Star className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-white font-medium">{stats?.constellation.totalEntries || 0}</span>
-            <span className="text-gray-500 group-hover:text-gray-400">Stars</span>
-          </Link>
-          <Link
-            href="/dashboard/constellation"
-            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-xs sm:text-sm transition-colors group flex-shrink-0"
-          >
-            <Link2 className="w-3.5 h-3.5 text-green-400" />
-            <span className="text-white font-medium">{stats?.constellation.totalConnections || 0}</span>
-            <span className="text-gray-500 group-hover:text-gray-400">Connections</span>
-          </Link>
-          <Link
-            href="/dashboard/journal"
-            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-xs sm:text-sm transition-colors group flex-shrink-0"
-          >
-            <BookOpen className="w-3.5 h-3.5 text-blue-400" />
-            <span className="text-white font-medium">{stats?.journal.totalEntries || 0}</span>
-            <span className="text-gray-500 group-hover:text-gray-400">Journal</span>
-          </Link>
-          <Link
-            href="/dashboard/saved"
-            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gray-900 border border-gray-800 hover:border-purple-500/30 rounded-full text-xs sm:text-sm transition-colors group flex-shrink-0"
-          >
-            <Bookmark className="w-3.5 h-3.5 text-purple-400" />
-            <span className="text-white font-medium">{stats?.saved.total || 0}</span>
-            <span className="text-gray-500 group-hover:text-gray-400">Saved</span>
-          </Link>
-        </div>
+        <SuggestedNextSteps
+          savedCount={stats?.saved.total || 0}
+          caseFileCount={hub.totalCaseFiles}
+          artifactCount={hub.totalArtifacts}
+          constellationEntries={stats?.constellation.totalEntries || 0}
+          tierName={tierName}
+          smallestCaseFile={smallestCaseFile}
+        />
       </div>
 
-      {/* ── H. Suggested Explorations ── */}
-      {suggestions.length > 0 && (
-        <div className="mb-5">
-          <h3 className="text-sm font-semibold text-white mb-3">Suggested Explorations</h3>
-          {/* Mobile: horizontal scroll. Desktop: grid */}
-          <div className="sm:hidden">
-            <MobileCardRow
-              cardWidthPercent={80}
-              minCardWidth={240}
-              maxCardWidth={300}
-            >
-              {suggestions.map(function(suggestion) {
-                var config = CATEGORY_CONFIG[suggestion.category as keyof typeof CATEGORY_CONFIG]
-                return (
-                  <MobileCardRowItem
-                    key={suggestion.category}
-                    widthPercent={80}
-                    minWidth={240}
-                    maxWidth={300}
-                  >
-                    <Link
-                      href={'/explore?category=' + suggestion.category}
-                      className="block p-3.5 bg-gray-900 border border-gray-800 rounded-xl hover:border-purple-500/30 transition-all h-full"
-                    >
-                      <div className="flex items-center gap-2.5 mb-1.5">
-                        <span className="text-lg">{config?.icon || '\u2728'}</span>
-                        <span className="text-sm font-medium text-white">
-                          {config?.label || suggestion.category}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500 line-clamp-2">{suggestion.reason}</p>
-                    </Link>
-                  </MobileCardRowItem>
-                )
-              })}
-            </MobileCardRow>
-          </div>
-          <div className="hidden sm:grid grid-cols-3 gap-2.5">
-            {suggestions.map(function(suggestion) {
-              var config = CATEGORY_CONFIG[suggestion.category as keyof typeof CATEGORY_CONFIG]
-              return (
-                <Link
-                  key={suggestion.category}
-                  href={'/explore?category=' + suggestion.category}
-                  className="group p-3.5 bg-gray-900 border border-gray-800 rounded-xl hover:border-purple-500/30 transition-all"
-                >
-                  <div className="flex items-center gap-2.5 mb-1.5">
-                    <span className="text-lg">{config?.icon || '\u2728'}</span>
-                    <span className="text-sm font-medium text-white group-hover:text-purple-300 transition-colors">
-                      {config?.label || suggestion.category}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500 line-clamp-2">{suggestion.reason}</p>
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── I. Account & Usage (compact footer) ── */}
+      {/* ── 10. Account Footer ── */}
       <div className="pt-4 border-t border-gray-800/50">
         <div className="flex items-center gap-2 sm:gap-3 text-xs text-gray-500 flex-wrap">
           {tierName && <TierBadge tier={tierName} size="sm" />}
