@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** March 24, 2026
+**Last updated:** March 25, 2026
 **Project:** beta.discoverparadocs.com
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -195,8 +195,23 @@ Each major feature area has a dedicated Claude session with its own deep context
 **Key files:**
 - `src/pages/explore.tsx` — Main discovery feed page (Discover + Browse tabs)
 - `src/pages/discover.tsx` — TikTok-style fullscreen swipe feed (standalone, no nav chrome) — Phase 2: mixed content
-- `src/pages/api/discover/feed-v2.ts` — **NEW** Mixed content feed API (phenomena + reports, seeded shuffle, quality tiering, content-type diversity)
+- `src/pages/api/discover/feed-v2.ts` — **REWRITTEN Phase 3** Scored ranking feed API (parameterized weights from feed_config, engagement + recency + affinity + explore scoring, diversity constraint, cold start support)
 - `src/pages/api/discover/related-cards.ts` — **NEW** Full FeedItemV2-shaped related cards API (category + phenomenon_type matching)
+- `src/lib/hooks/useFeedEvents.ts` — **NEW Phase 3** Behavioral signal collection (batch buffer, sendBeacon, impression dedup, dwell threshold)
+- `src/lib/hooks/useSessionContext.ts` — **NEW Phase 3** In-session category affinity tracking (60/40 session/long-term blend)
+- `src/lib/hooks/useGateStatus.ts` — **NEW Phase 3** Depth gating status (anonymous localStorage / auth server-side)
+- `src/components/discover/TopicOnboarding.tsx` — **NEW Phase 3** Cold start "pick 3 topics" overlay
+- `src/components/discover/ClusteringCard.tsx` — **NEW Phase 3** Geographic/temporal cluster card
+- `src/components/discover/OnThisDateCard.tsx` — **NEW Phase 3** Historical date-match card
+- `src/components/discover/CaseViewGate.tsx` — **NEW Phase 3** Depth gate with contextual CTA
+- `src/components/discover/ResearchHubPromo.tsx` — **NEW Phase 3** Blurred Research Hub preview + CTA
+- `src/pages/api/discover/clusters.ts` — **NEW Phase 3** Geographic cluster + temporal burst detection
+- `src/pages/api/discover/on-this-date.ts` — **NEW Phase 3** Historical date matching
+- `src/pages/api/events/feed.ts` — **NEW Phase 3** Batch event ingestion endpoint
+- `src/pages/api/user/usage.ts` — **NEW Phase 3** Daily usage tracking (case views, AI searches)
+- `src/pages/api/cron/refresh-engagement.ts` — **NEW Phase 3** Hourly materialized view refresh
+- `src/pages/api/admin/feed-metrics.ts` — **NEW Phase 3** Admin metrics dashboard
+- `supabase/migrations/20260324_feed_events.sql` — **NEW Phase 3** Migration: feed_events, feed_config, category_engagement, user_usage
 - `src/pages/api/discover/feed.ts` — Legacy phenomena-only feed API (preserved for backward compat)
 - `src/components/discover/DiscoverCards.tsx` — **NEW** Three card templates: PhenomenonCard, TextReportCard, MediaReportCard
 - `src/pages/api/feed/personalized.ts` — Explore feed API (encyclopedia spotlight, trending, category highlights)
@@ -205,27 +220,27 @@ Each major feature area has a dedicated Claude session with its own deep context
 - `src/lib/hooks/usePersonalization.ts`
 - `src/components/AskTheUnknown.tsx` — AI chat FAB (on explore + report pages)
 
-**Database tables:** `reports`, `phenomena`, `saved_reports`, `user_preferences`
+**Database tables:** `reports`, `phenomena`, `saved_reports`, `user_preferences`, `feed_events` (Phase 3), `feed_config` (Phase 3), `user_usage` (Phase 3), `category_engagement` materialized view (Phase 3)
 
-**Current state (March 22, 2026):**
+**Current state (March 25, 2026):**
 - **Anonymous feed COMPLETE:** Rich 5-7 section editorial feed for all users (Encyclopedia Spotlight, Trending, Category Highlights, Recently Added). No empty states for logged-out users.
 - **Soft-wall signup COMPLETE:** 3 contextual touchpoints (bookmark, in-feed card, bottom CTA). Research-backed: gate depth not breadth.
 - **Mobile UX optimized (March 16):** Layout.tsx header fixed (logo nowrap, Submit demoted, Sign In pill button). Explore page compacted (inline title+toggle, larger encyclopedia cards at 75vw, compressed Pattern Insights banner). Ask the Unknown FAB repositioned above bottom nav with AI presence animations (rotating aurora border, breathing glow, sparkle micro-animation). MobileBottomTabs enlarged (Stories FAB 64px, nav icons 24px).
-- **Discover feed randomization (March 16):** Seed moved from module scope to component useRef (fresh order every visit). API tier interleaving (3:1:1 explore-exploit pattern) replaces concatenated tiers.
 - **Phase 2 mixed content feed (March 21):** Stories feed now serves both phenomena AND reports via `/api/discover/feed-v2`. Three card templates: PhenomenonCard (encyclopedia entries), TextReportCard (first-person accounts with generative visual variety), MediaReportCard (reports with photo/video evidence from `report_media` table). Completion milestone toasts at 25/50/75%. Content type pill indicator in header.
 - **Phase 2.5: 2D horizontal swipe-through (March 22):** Swiping left on any Stories card reveals full-screen related cards using the same card templates. New `/api/discover/related-cards` returns full FeedItemV2-shaped data via category + phenomenon_type matching. `FeedRow` component wraps each main card + related cards in CSS snap-x container. Engagement-optimized SwipeHint (three-phase slide-in, content preview, breathing glow). Prefetch cascade bug fixed (initialSettled guard). Similarity display "4700% match" double-multiplication fixed.
+- **Phase 3: Algorithmic feed architecture (March 25):** Full behavioral signal collection (`feed_events` table + `useFeedEvents` hook with batch buffering + sendBeacon on unload). V1 scored ranking in `feed-v2.ts` (`base_engagement * W_engagement + recency * W_recency + affinity * W_affinity + explore * W_explore`, weights tuneable via `feed_config` table). Cold start onboarding ("What draws you in?" — pick 3+ topics from 7 categories). Session context weighting (60% session / 40% long-term affinity via `useSessionContext`). Depth gating (3 free case views/day, anonymous via localStorage, auth via `user_usage` table). New card types: ClusteringCard (geographic clusters + temporal bursts, purple gradient), OnThisDateCard (historical matches, amber gradient), ResearchHubPromo (blurred preview + CTA), CaseViewGate (blurred Paradocs Analysis + contextual copy). Admin metrics dashboard at `/api/admin/feed-metrics`. `category_engagement` materialized view for 30-day rolling engagement rates. Build verified clean (18.3kB /discover).
 
 **What needs work:**
-- Free tier content limits (e.g., 50 full reports/month)
-- Core upgrade prompts when free users hit limit
+- **Immediate:** Run `20260324_feed_events.sql` migration, create `refresh_category_engagement` RPC, set up Vercel cron for hourly engagement refresh
+- **Short-term:** Tune ranking weights via admin metrics dashboard, wire search gating (basic keyword free / AI search at Core), wire Ask the Unknown weekly limit (coordinate with Session 15)
+- **Medium-term:** Per-user ML model (V1 scored query carries load for now), A/B testing framework for feed composition, emotional tone tagging at ingestion
 - Save functionality for logged-in users (bookmark currently only gates anonymous)
-- Feed personalization quality (A/B test section ordering, track engagement)
 - "Connection cards" / "Did You Know?" cross-report relationships (Sprint 2, not built)
 - Smart match alerts (Sprint 2, not built)
 - ~~Report media display~~ ✅ MediaReportCard now uses actual report media from `report_media` table
-- Tune report/phenomena ratio in mixed feed
-- ~~Homepage "Stories from the unknown" cards~~ ✅ DiscoverPreview rewritten: 3 card formats (featured/pull-quote/compact), quality-scored hook extraction, 198 AI feed_hooks generated, "Eyewitness accounts" section title, category color accents (March 22)
-- Complete remaining phenomena embeddings (~3,600) for improved semantic search coverage
+- ~~Homepage "Stories from the unknown" cards~~ ✅ DiscoverPreview rewritten (March 22)
+- ~~Feed personalization~~ ✅ Scored ranking with behavioral signals + cold start onboarding (March 25)
+- ~~Free tier content limits~~ ✅ Depth gating: 3 free case views/day with contextual CaseViewGate (March 25)
 
 **Touches other sessions:** Encyclopedia (content quality affects feed + spotlight), Insights (trending patterns surface in feed), Dashboard (personalization preferences), Search (shared filter components), Foundation (Layout.tsx + globals.css modified), Mobile Design (MobileBottomTabs modified)
 

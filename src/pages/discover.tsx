@@ -3,8 +3,9 @@
 /**
  * /discover — Stories (TikTok-style fullscreen swipe feed)
  *
- * Phase 2.5: 2D snap grid — vertical scroll through main feed,
- * horizontal swipe-left on any card to explore related content.
+ * Phase 3: Algorithmic feed with behavioral signal collection,
+ * scored ranking, cold start onboarding, session context weighting,
+ * new card types, and depth gating.
  *
  * Layout:
  *   Outer div: snap-y snap-mandatory (vertical feed)
@@ -35,6 +36,20 @@ import {
   MediaReportCard,
 } from '@/components/discover/DiscoverCards'
 import type { FeedItemV2, PhenomenonItem, ReportItem } from '@/components/discover/DiscoverCards'
+import { ClusteringCard } from '@/components/discover/ClusteringCard'
+import type { ClusterCardData } from '@/components/discover/ClusteringCard'
+import { OnThisDateCard } from '@/components/discover/OnThisDateCard'
+import type { OnThisDateData } from '@/components/discover/OnThisDateCard'
+import { ResearchHubPromo } from '@/components/discover/ResearchHubPromo'
+import type { PromoCardData } from '@/components/discover/ResearchHubPromo'
+import { CaseViewGate } from '@/components/discover/CaseViewGate'
+import { TopicOnboarding, isOnboardingComplete, getOnboardingTopics } from '@/components/discover/TopicOnboarding'
+import { useFeedEvents } from '@/lib/hooks/useFeedEvents'
+import { useSessionContext } from '@/lib/hooks/useSessionContext'
+import { useGateStatus } from '@/lib/hooks/useGateStatus'
+
+// Extended feed item type that includes new card types
+type ExtendedFeedItem = FeedItemV2 | ClusterCardData | OnThisDateData | PromoCardData
 
 var supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -43,7 +58,7 @@ var supabase = createClient(
 
 export default function DiscoverPage() {
   var router = useRouter()
-  var [items, setItems] = useState<FeedItemV2[]>([])
+  var [items, setItems] = useState<ExtendedFeedItem[]>([])
   var [loading, setLoading] = useState(true)
 
   // Fresh seed on every mount
@@ -57,11 +72,15 @@ export default function DiscoverPage() {
   var [showSignupPrompt, setShowSignupPrompt] = useState(false)
   var [signupDismissed, setSignupDismissed] = useState(false)
 
-  // Related cards cache: keyed by item id, stores full FeedItemV2[] arrays
+  // Onboarding state
+  var [showOnboarding, setShowOnboarding] = useState(false)
+  var [onboardingTopics, setOnboardingTopics] = useState<string[]>([])
+
+  // Related cards cache
   var [relatedCache, setRelatedCache] = useState<Record<string, FeedItemV2[]>>({})
   var relatedLoadingRef = useRef<Record<string, boolean>>({})
 
-  // Track which row the user is in horizontally (0 = main card)
+  // Horizontal swipe tracking
   var [horizontalIndex, setHorizontalIndex] = useState(0)
 
   var containerRef = useRef<HTMLDivElement>(null)
@@ -69,8 +88,15 @@ export default function DiscoverPage() {
   var loadingRef = useRef(false)
   var initialSettled = useRef(false)
 
-  // Track items seen for completion signal
   var [maxSeen, setMaxSeen] = useState(0)
+
+  // --- Behavioral hooks ---
+  var feedEvents = useFeedEvents(user?.id || null)
+  var sessionCtx = useSessionContext()
+  var gateStatus = useGateStatus(user?.id || null)
+
+  // Dwell tracking refs
+  var dwellStartRef = useRef<Record<number, number>>({})
 
   // --- Auth ---
   useEffect(function () {
@@ -83,12 +109,22 @@ export default function DiscoverPage() {
     return function () { sub.data.subscription.unsubscribe() }
   }, [])
 
+  // --- Check onboarding on mount ---
+  useEffect(function () {
+    if (!isOnboardingComplete()) {
+      setShowOnboarding(true)
+    } else {
+      setOnboardingTopics(getOnboardingTopics())
+    }
+  }, [])
+
   // --- Load initial feed ---
   useEffect(function () {
+    if (showOnboarding) return // Wait for onboarding
     loadFeed(0)
     var timer = setTimeout(function () { initialSettled.current = true }, 1200)
     return function () { clearTimeout(timer) }
-  }, [])
+  }, [showOnboarding])
 
   // --- Signup gate at card 6 ---
   useEffect(function () {
@@ -101,6 +137,11 @@ export default function DiscoverPage() {
   useEffect(function () {
     if (currentIndex > maxSeen) setMaxSeen(currentIndex)
   }, [currentIndex])
+
+  // --- Update gate status with session depth ---
+  useEffect(function () {
+    gateStatus.updateSessionDepth(sessionCtx.sessionDepth)
+  }, [sessionCtx.sessionDepth])
 
   function loadFeed(feedOffset: number) {
     if (loadingRef.current) return
@@ -115,20 +156,36 @@ export default function DiscoverPage() {
       seed: String(sessionSeed.current),
     })
 
+    // Pass onboarding topics for affinity
+    if (onboardingTopics.length > 0) {
+      params.set('onboarding_topics', onboardingTopics.join(','))
+    }
+
+    // Pass session affinity
+    var sessionAff = sessionCtx.getSessionAffinityParam()
+    if (sessionAff) {
+      params.set('session_affinity', sessionAff)
+    }
+
     fetch('/api/discover/feed-v2?' + params.toString())
       .then(function (res) { return res.json() })
       .then(function (data) {
         if (data.items && data.items.length > 0) {
           setItems(function (prev) {
             var existingIds = new Set(prev.map(function (p) { return p.id }))
-            var newItems = data.items.filter(function (item: FeedItemV2) {
+            var newItems = data.items.filter(function (item: ExtendedFeedItem) {
               return !existingIds.has(item.id)
             })
-            return feedOffset > 0 ? prev.concat(newItems) : data.items
+            return feedOffset > 0 ? (prev as ExtendedFeedItem[]).concat(newItems) : data.items
           })
           setOffset(data.nextOffset || feedOffset + data.items.length)
           setHasMore(data.hasMore)
           setTotalAvailable(data.totalAvailable || 0)
+
+          // On first load, also fetch special card types
+          if (feedOffset === 0) {
+            fetchSpecialCards()
+          }
         } else {
           setHasMore(false)
         }
@@ -143,11 +200,68 @@ export default function DiscoverPage() {
       })
   }
 
+  // --- Fetch and interleave special card types ---
+  function fetchSpecialCards() {
+    // Fetch On This Date cards
+    fetch('/api/discover/on-this-date')
+      .then(function (res) { return res.ok ? res.json() : null })
+      .then(function (data) {
+        if (data && data.items && data.items.length > 0) {
+          // Insert first On This Date card at position 2-3
+          var otdCard = data.items[0] as OnThisDateData
+          setItems(function (prev) {
+            var arr = prev.slice()
+            var insertAt = Math.min(2, arr.length)
+            arr.splice(insertAt, 0, otdCard)
+            return arr
+          })
+        }
+      })
+      .catch(function () {})
+
+    // Fetch Clustering cards
+    fetch('/api/discover/clusters')
+      .then(function (res) { return res.ok ? res.json() : null })
+      .then(function (data) {
+        if (data && data.clusters && data.clusters.length > 0) {
+          // Inject first cluster card around position 8-10
+          var clusterCard: ClusterCardData = Object.assign({}, data.clusters[0], { item_type: 'cluster' as const })
+          setItems(function (prev) {
+            var arr = prev.slice()
+            var insertAt = Math.min(8, arr.length)
+            arr.splice(insertAt, 0, clusterCard)
+            return arr
+          })
+        }
+      })
+      .catch(function () {})
+
+    // Insert Research Hub promo at position ~15
+    var promoCard: PromoCardData = {
+      item_type: 'promo',
+      id: 'promo-research-hub-1',
+      promo_type: 'research_hub',
+    }
+    setTimeout(function () {
+      setItems(function (prev) {
+        if (prev.length >= 12) {
+          var arr = prev.slice()
+          var insertAt = Math.min(14, arr.length)
+          arr.splice(insertAt, 0, promoCard)
+          return arr
+        }
+        return prev
+      })
+    }, 2000) // Slight delay to not interfere with initial load
+  }
+
   // --- Fetch related cards for active item ---
   useEffect(function () {
     if (items.length === 0) return
     var activeItem = items[currentIndex]
     if (!activeItem) return
+    // Only fetch related for phenomena and reports (not special cards)
+    if (activeItem.item_type !== 'phenomenon' && activeItem.item_type !== 'report') return
     if (relatedCache[activeItem.id] || relatedLoadingRef.current[activeItem.id]) return
 
     relatedLoadingRef.current[activeItem.id] = true
@@ -172,23 +286,50 @@ export default function DiscoverPage() {
       })
   }, [currentIndex, items.length])
 
-  // --- IntersectionObserver for vertical scroll tracking ---
+  // --- IntersectionObserver for vertical scroll tracking + impression/dwell ---
   useEffect(function () {
     var observer = new IntersectionObserver(
       function (entries) {
         var settled = initialSettled.current
         entries.forEach(function (entry) {
+          var idx = parseInt(entry.target.getAttribute('data-row-index') || '0', 10)
+
           if (entry.isIntersecting) {
-            var idx = parseInt(entry.target.getAttribute('data-row-index') || '0', 10)
             if (settled || idx === 0) {
               setCurrentIndex(idx)
-              // Reset horizontal position when changing vertical rows
               setHorizontalIndex(0)
-              // Scroll the new row back to its first card
               var rowEl = entry.target as HTMLDivElement
               if (rowEl.scrollLeft > 0) {
                 rowEl.scrollTo({ left: 0, behavior: 'auto' })
               }
+
+              // Track impression
+              var item = items[idx]
+              if (item) {
+                feedEvents.trackImpression(
+                  item.id,
+                  item.item_type,
+                  (item as any).category || ''
+                )
+                // Start dwell timer
+                dwellStartRef.current[idx] = Date.now()
+              }
+            }
+          } else {
+            // Card left viewport — track dwell
+            var startTime = dwellStartRef.current[idx]
+            if (startTime) {
+              var duration = Date.now() - startTime
+              var dwellItem = items[idx]
+              if (dwellItem) {
+                feedEvents.trackDwell(
+                  dwellItem.id,
+                  dwellItem.item_type,
+                  (dwellItem as any).category || '',
+                  duration
+                )
+              }
+              delete dwellStartRef.current[idx]
             }
           }
         })
@@ -262,13 +403,73 @@ export default function DiscoverPage() {
     setShowSignupPrompt(show)
   }, [])
 
+  // --- Onboarding complete handler ---
+  function handleOnboardingComplete(topics: string[]) {
+    setOnboardingTopics(topics)
+    setShowOnboarding(false)
+  }
+
+  // --- Card tap handler (tracks tap + session context) ---
+  function handleCardTap(item: ExtendedFeedItem) {
+    feedEvents.trackTap(item.id, item.item_type, (item as any).category || '')
+    if ((item as any).category) {
+      sessionCtx.recordTap((item as any).category)
+    }
+  }
+
   // --- Completion percentage ---
   var completionPct = totalAvailable > 0
     ? Math.round(((maxSeen + 1) / totalAvailable) * 100)
     : 0
 
-  // --- Render a single card by FeedItemV2 data ---
-  function renderCard(item: FeedItemV2, index: number, isActive: boolean, cardKey: string) {
+  // --- Render a single card by type ---
+  function renderCard(item: ExtendedFeedItem, index: number, isActive: boolean, cardKey: string) {
+    // New card types
+    if (item.item_type === 'cluster') {
+      return (
+        <ClusteringCard
+          key={cardKey}
+          item={item as ClusterCardData}
+          isActive={isActive}
+        />
+      )
+    }
+
+    if (item.item_type === 'on_this_date') {
+      return (
+        <OnThisDateCard
+          key={cardKey}
+          item={item as OnThisDateData}
+          isActive={isActive}
+        />
+      )
+    }
+
+    if (item.item_type === 'promo') {
+      return (
+        <ResearchHubPromo
+          key={cardKey}
+          isActive={isActive}
+        />
+      )
+    }
+
+    // Check gate for report cards
+    if (item.item_type === 'report' && gateStatus.status.isViewGated) {
+      var reportItem = item as ReportItem
+      return (
+        <CaseViewGate
+          key={cardKey}
+          category={reportItem.category}
+          locationName={reportItem.location_name}
+          linkedCount={reportItem.phenomenon_type ? 1 : 0}
+          connectionCount={0}
+          sessionDepth={sessionCtx.sessionDepth}
+        />
+      )
+    }
+
+    // Standard card types
     if (item.item_type === 'phenomenon') {
       return (
         <PhenomenonCard
@@ -309,7 +510,7 @@ export default function DiscoverPage() {
   }
 
   // --- Loading state ---
-  if (loading) {
+  if (loading && !showOnboarding) {
     return (
       <>
         <Head>
@@ -333,6 +534,14 @@ export default function DiscoverPage() {
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </Head>
 
+      {/* Onboarding overlay */}
+      {showOnboarding && (
+        <TopicOnboarding
+          onComplete={handleOnboardingComplete}
+          userId={user?.id}
+        />
+      )}
+
       {/* Fixed header */}
       <div className="fixed top-0 left-0 right-0 z-50 px-3 sm:px-4 pt-[max(0.625rem,env(safe-area-inset-top))] sm:pt-3 pb-2 sm:pb-3 flex items-center justify-between bg-gradient-to-b from-gray-950 via-gray-950/80 to-transparent pointer-events-none">
         <div className="flex items-center gap-2.5 pointer-events-auto">
@@ -347,13 +556,23 @@ export default function DiscoverPage() {
               'text-[10px] px-2 py-0.5 rounded-full font-medium backdrop-blur-sm',
               items[currentIndex].item_type === 'phenomenon'
                 ? 'bg-purple-500/20 text-purple-400'
+                : items[currentIndex].item_type === 'cluster'
+                ? 'bg-purple-500/20 text-purple-300'
+                : items[currentIndex].item_type === 'on_this_date'
+                ? 'bg-amber-500/20 text-amber-400'
+                : items[currentIndex].item_type === 'promo'
+                ? 'bg-indigo-500/20 text-indigo-400'
                 : 'bg-blue-500/20 text-blue-400'
             )}>
-              {items[currentIndex].item_type === 'phenomenon' ? 'Encyclopedia' : 'Report'}
+              {items[currentIndex].item_type === 'phenomenon' ? 'Encyclopedia'
+                : items[currentIndex].item_type === 'cluster' ? 'Trending'
+                : items[currentIndex].item_type === 'on_this_date' ? 'On This Date'
+                : items[currentIndex].item_type === 'promo' ? 'Featured'
+                : 'Report'}
             </span>
           )}
-          {/* Horizontal depth indicator — shows when swiped into related */}
-          {horizontalIndex > 0 && (
+          {/* Horizontal depth indicator */}
+          {horizontalIndex > 0 && items[currentIndex] && (
             <span className="text-[10px] px-2 py-0.5 rounded-full font-medium backdrop-blur-sm bg-white/10 text-gray-400">
               {'Related ' + horizontalIndex + ' / ' + ((relatedCache[items[currentIndex]?.id] || []).length)}
             </span>
@@ -407,20 +626,32 @@ export default function DiscoverPage() {
           var related = relatedCache[item.id] || []
           var isActiveRow = index === currentIndex
           var hasRelated = related.length > 0
+          // Only show related for standard content cards
+          var showRelated = (item.item_type === 'phenomenon' || item.item_type === 'report') && hasRelated
 
           return (
             <FeedRow
               key={item.id}
               item={item}
-              related={related}
+              related={showRelated ? related : []}
               index={index}
               isActiveRow={isActiveRow}
-              hasRelated={hasRelated}
+              hasRelated={showRelated}
               user={user}
               onRef={function (node) { registerRow(node, index) }}
               onShowSignup={setShowSignupPromptCb}
               onHorizontalChange={function (hIdx) {
-                if (isActiveRow) setHorizontalIndex(hIdx)
+                if (isActiveRow) {
+                  setHorizontalIndex(hIdx)
+                  // Track swipe_related event when swiping to related content
+                  if (hIdx > 0 && item) {
+                    feedEvents.trackSwipeRelated(
+                      item.id,
+                      item.item_type,
+                      (item as any).category || ''
+                    )
+                  }
+                }
               }}
               renderCard={renderCard}
             />
@@ -557,7 +788,7 @@ export default function DiscoverPage() {
 // =========================================================================
 
 function FeedRow(props: {
-  item: FeedItemV2
+  item: ExtendedFeedItem
   related: FeedItemV2[]
   index: number
   isActiveRow: boolean
@@ -566,11 +797,10 @@ function FeedRow(props: {
   onRef: (node: HTMLDivElement | null) => void
   onShowSignup: (show: boolean) => void
   onHorizontalChange: (hIdx: number) => void
-  renderCard: (item: FeedItemV2, index: number, isActive: boolean, key: string) => React.ReactNode
+  renderCard: (item: ExtendedFeedItem, index: number, isActive: boolean, key: string) => React.ReactNode
 }) {
   var rowRef = useRef<HTMLDivElement | null>(null)
 
-  // Track horizontal scroll position within this row
   useEffect(function () {
     var el = rowRef.current
     if (!el) return
@@ -591,7 +821,7 @@ function FeedRow(props: {
     props.onRef(node)
   }
 
-  var allCards: FeedItemV2[] = [props.item].concat(props.related)
+  var allCards: ExtendedFeedItem[] = [props.item].concat(props.related as ExtendedFeedItem[])
 
   return (
     <div
@@ -643,24 +873,12 @@ function FeedRow(props: {
 
 // =========================================================================
 //  SwipeHint — edge-peek affordance showing related content exists
-//
-//  Design rationale (NNGroup, Material Design gesture education):
-//  - Hidden gestures need strong visual affordance; users miss swipe
-//    actions 50%+ without peek/edge cues
-//  - Animated entrance (slide-in) outperforms static pulse 3-4x
-//  - Content preview creates curiosity gap (TikTok/Instagram pattern)
-//  - Glass-morphism pill with first related item title + count
-//  - Right-edge gradient "peek shadow" suggests hidden content
-//  - Three-phase lifecycle: slide in, hold with subtle breathing, fade out
 // =========================================================================
 
 function SwipeHint(props: { count: number; firstRelatedTitle?: string }) {
   var [phase, setPhase] = useState<'enter' | 'hold' | 'exit' | 'gone'>('enter')
 
   useEffect(function () {
-    // Enter: 0ms -> 600ms slide in
-    // Hold: 600ms -> 5000ms visible with breathing animation
-    // Exit: 5000ms -> 5600ms fade out
     var holdTimer = setTimeout(function () { setPhase('hold') }, 600)
     var exitTimer = setTimeout(function () { setPhase('exit') }, 5000)
     var goneTimer = setTimeout(function () { setPhase('gone') }, 5800)
@@ -673,71 +891,58 @@ function SwipeHint(props: { count: number; firstRelatedTitle?: string }) {
 
   if (phase === 'gone') return null
 
-  // Truncate title for preview
-  var previewTitle = props.firstRelatedTitle || ''
-  if (previewTitle.length > 24) {
-    previewTitle = previewTitle.substring(0, 22) + '\u2026'
-  }
+  var previewText = props.firstRelatedTitle || ''
+  if (previewText.length > 24) previewText = previewText.slice(0, 24) + '\u2026'
+
+  var opacity = phase === 'enter' ? 'opacity-0' : phase === 'exit' ? 'opacity-0' : 'opacity-100'
+  var translate = phase === 'enter' ? 'translate-x-full' : phase === 'exit' ? 'translate-x-8 opacity-0' : 'translate-x-0'
 
   return (
     <>
-      {/* Right edge gradient — suggests content is hidden just off-screen */}
+      {/* Right-edge gradient */}
       <div
         className={classNames(
-          'absolute top-0 right-0 bottom-0 w-16 sm:w-20 z-[5] pointer-events-none transition-opacity duration-700',
-          phase === 'enter' ? 'opacity-0' : phase === 'exit' ? 'opacity-0' : 'opacity-100'
+          'absolute top-0 right-0 bottom-0 w-16 bg-gradient-to-l from-[#9000F0]/15 to-transparent pointer-events-none z-10 transition-opacity duration-500',
+          phase === 'exit' ? 'opacity-0' : 'opacity-100'
         )}
-        style={{ background: 'linear-gradient(to right, transparent, rgba(144, 0, 240, 0.06) 40%, rgba(144, 0, 240, 0.12))' }}
       />
 
-      {/* Swipe pill — slides in from right edge */}
+      {/* Hint pill */}
       <div
         className={classNames(
-          'absolute right-3 sm:right-5 z-10 pointer-events-none transition-all',
-          phase === 'enter' ? 'translate-x-[120%] opacity-0' : '',
-          phase === 'hold' ? 'translate-x-0 opacity-100' : '',
-          phase === 'exit' ? 'translate-x-4 opacity-0' : ''
+          'absolute right-3 top-1/2 -translate-y-1/2 z-20 pointer-events-none transition-all',
+          translate,
+          opacity
         )}
         style={{
-          top: '50%',
-          transform: phase === 'hold'
-            ? 'translateY(-50%) translateX(0)'
-            : phase === 'enter'
-              ? 'translateY(-50%) translateX(120%)'
-              : 'translateY(-50%) translateX(16px)',
-          transitionDuration: phase === 'enter' ? '0ms' : phase === 'hold' ? '500ms' : '600ms',
-          transitionTimingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+          transitionDuration: phase === 'enter' ? '600ms' : '800ms',
+          transitionTimingFunction: phase === 'enter' ? 'cubic-bezier(0.34, 1.56, 0.64, 1)' : 'ease-out',
         }}
       >
-        <div className="flex flex-col items-center gap-2">
-          {/* Main pill */}
-          <div
-            className={classNames(
-              'flex items-center gap-2 px-3 py-2 rounded-xl border backdrop-blur-md shadow-lg',
-              'bg-white/[0.07] border-white/[0.12]',
-              'shadow-purple-500/10',
-              phase === 'hold' ? 'animate-[swipe-breathe_2.5s_ease-in-out_infinite]' : ''
-            )}
-          >
-            {/* Animated chevrons — three staggered arrows suggesting swipe direction */}
-            <div className="flex items-center -space-x-1.5">
-              <ChevronLeft className="w-3 h-3 text-purple-400/40" style={{ animationDelay: '0.4s' }} />
-              <ChevronLeft className="w-3 h-3 text-purple-400/70" style={{ animationDelay: '0.2s' }} />
-              <ChevronLeft className="w-3.5 h-3.5 text-purple-400" />
-            </div>
+        <div className={classNames(
+          'flex items-center gap-2 px-3 py-2.5 rounded-xl',
+          'bg-white/[0.07] border border-white/[0.12] backdrop-blur-md',
+          'shadow-lg shadow-black/30',
+          phase === 'hold' ? 'animate-[swipe-breathe_2.5s_ease-in-out_infinite]' : ''
+        )}>
+          {/* Content preview */}
+          {previewText && (
+            <span className="text-[11px] text-gray-300 font-medium max-w-[120px] truncate">
+              {previewText}
+            </span>
+          )}
 
-            <div className="flex flex-col">
-              {/* Preview of first related item title — curiosity gap */}
-              {previewTitle && (
-                <span className="text-[10px] sm:text-[11px] text-white/80 font-medium leading-tight max-w-[100px] sm:max-w-[120px] truncate">
-                  {previewTitle}
-                </span>
-              )}
-              <span className="text-[9px] sm:text-[10px] text-gray-400 leading-tight">
-                {'+' + (props.count - (previewTitle ? 1 : 0)) + ' more'}
-              </span>
-            </div>
+          {/* Chevrons */}
+          <div className="flex items-center -space-x-1.5">
+            <ChevronLeft className="w-3.5 h-3.5 text-purple-400/50" />
+            <ChevronLeft className="w-3.5 h-3.5 text-purple-400/70" />
+            <ChevronLeft className="w-3.5 h-3.5 text-purple-400" />
           </div>
+
+          {/* Count badge */}
+          <span className="text-[10px] text-purple-300 font-semibold ml-0.5">
+            {props.count}
+          </span>
         </div>
       </div>
     </>
@@ -745,30 +950,29 @@ function SwipeHint(props: { count: number; firstRelatedTitle?: string }) {
 }
 
 // =========================================================================
-//  Completion milestone toast
+//  CompletionToast
 // =========================================================================
 
 function CompletionToast(props: { pct: number; total: number }) {
   var [visible, setVisible] = useState(true)
 
   useEffect(function () {
-    var timer = setTimeout(function () { setVisible(false) }, 3000)
+    var timer = setTimeout(function () { setVisible(false) }, 4000)
     return function () { clearTimeout(timer) }
   }, [])
 
   if (!visible) return null
 
-  var messages: Record<number, string> = {
-    25: 'You\u2019ve explored 25% of our database!',
-    50: 'Halfway through! You\u2019re a true investigator.',
-    75: 'Almost there \u2014 75% explored!',
-  }
-
   return (
-    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
-      <div className="bg-gray-900/95 backdrop-blur-sm border border-purple-500/30 rounded-full px-4 py-2 flex items-center gap-2 shadow-lg shadow-purple-500/10">
+    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-slide-down">
+      <div className="bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-full px-4 py-2 flex items-center gap-2 shadow-xl">
         <Sparkles className="w-4 h-4 text-purple-400" />
-        <span className="text-sm text-gray-300">{messages[props.pct] || ''}</span>
+        <span className="text-sm text-white font-medium">
+          {props.pct + '% explored'}
+        </span>
+        <span className="text-xs text-gray-500">
+          {'of ' + props.total}
+        </span>
       </div>
     </div>
   )

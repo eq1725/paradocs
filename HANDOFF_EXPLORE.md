@@ -1,8 +1,8 @@
 # HANDOFF_EXPLORE.md — Explore & Discovery Session
 
-**Last updated:** March 22, 2026
+**Last updated:** March 25, 2026
 **Session:** Explore & Discovery (Session 2)
-**Status:** Active — Phase 2.5: 2D horizontal swipe-through for related content deployed, bug fixes (prefetch cascade, similarity display), engagement-optimized swipe hint
+**Status:** Active — Phase 3: Algorithmic feed with behavioral signals, scored ranking, cold start onboarding, session context, new card types (Clustering, On This Date, Promo), depth gating, admin metrics
 
 ---
 
@@ -227,6 +227,69 @@ Based on NNGroup gesture discoverability research, Material Design gesture educa
 
 **Removed:** `RelatedTray` component, `framer-motion` drag gestures (no longer needed — native CSS snap handles horizontal scroll), `RelatedItem` type, `onRef`/`related` props from all card components.
 
+#### Phase 3: Algorithmic Feed Architecture (March 25, 2026)
+
+The feed is now fully algorithmic with behavioral signal collection, parameterized scored ranking, cold start onboarding, session context weighting, new card types, and depth gating. This is the growth engine for converting visitors into subscribers.
+
+**North Star Metric:** Session Depth — average number of cases viewed in a single session.
+
+**Part 1: Behavioral Signal Collection**
+
+Migration `20260324_feed_events.sql` creates:
+- `feed_events` table with indexes for analytics (user+session, card, category, timestamp)
+- `feed_config` table for tuneable ranking weights and feature flags
+- `category_engagement` materialized view (30-day rolling engagement rates)
+- `user_usage` table for depth gating (daily case views, AI searches, Ask the Unknown)
+
+`useFeedEvents` hook: Tracks impression (deduplicated), dwell (IntersectionObserver enter/exit, >500ms threshold), tap, save, share, scroll_depth, swipe_related. Events batched in memory, flushed every 5s or on page unload via `navigator.sendBeacon()`. Anonymous users tracked with session_id.
+
+`/api/events/feed` batch endpoint: Accepts up to 100 events per request, rate-limited per session_id (1 req/3s). Supports both authenticated and anonymous users.
+
+**Part 2: V1 Scored Ranking**
+
+Replaced seeded random shuffle with parameterized scoring formula:
+```
+score = (base_engagement * W_engagement) + (recency_boost * W_recency) + (user_affinity * W_affinity) + (random_explore * W_explore)
+```
+
+Components:
+- `base_engagement`: From `category_engagement` materialized view, blended 60/40 with content quality score (0-8 scale). Cold start: all categories default to 50.
+- `recency_boost`: `50 * exp(-0.1 * days)` for fresh content. 7-day window configurable via `feed_config`.
+- `user_affinity`: From onboarding topic picks (selected=80, unselected=20) + session affinity. Blended `(long_term * 0.4) + (session * 0.6)`.
+- `random_explore`: 0-30 random factor for exploration (prevents filter bubble).
+- Weights stored in `feed_config` table (tuneable without code changes).
+
+Diversity constraint: No more than N consecutive same-category cards (default 3, configurable).
+
+**Part 3: Cold Start Onboarding**
+
+`TopicOnboarding` component: Full-screen "What draws you in?" overlay shown on first visit. 7 main category tiles in 2-column grid, minimum 3 selections required. Purple accent on selected tiles, animated transitions. Stores selections in localStorage + server-side (if authenticated). Selections feed directly into `user_affinity` for the ranked feed.
+
+**Part 4: Session Context**
+
+`useSessionContext` hook: Tracks in-session category affinity (tap counts per category) and session depth. Stored in sessionStorage (resets per visit). The feed API accepts `session_affinity` parameter — blended with long-term affinity at 60/40 weighting (session > long-term, because current interest is more predictive than historical).
+
+**Part 5: New Card Types**
+
+- `ClusteringCard`: Purple gradient, TrendingUp icon. Shows geographic clusters (3+ reports/state/week) and temporal bursts (50%+ above monthly average). API: `/api/discover/clusters`.
+- `OnThisDateCard`: Amber/orange gradient, Calendar icon. Shows phenomena with dates matching today's month/day, large year callout. API: `/api/discover/on-this-date`.
+- `ResearchHubPromo`: Blurred Research Hub preview with subscription CTA. Static promo injected every ~15 cards.
+- `CaseViewGate`: Full-page gate screen after free case view limit. Context-specific copy referencing the report's category and location, session depth in messaging, blurred "Paradocs Analysis" preview.
+
+Feed composition: On This Date near position 2-3, Cluster card around position 8-10, Research Hub promo around position 15.
+
+**Part 6: Depth Gating**
+
+`useGateStatus` hook: Tracks daily case views (3 free/day), AI search gating, Ask the Unknown (1 free/week). Anonymous users use localStorage, authenticated users use server-side `user_usage` table via `/api/user/usage` API.
+
+Gate copy rules: Always reference specific report (category, location), include specific numbers, pitch full subscription value, use session depth in messaging.
+
+**Part 8: Admin Metrics**
+
+`/api/admin/feed-metrics` endpoint returns: avg_session_depth, total sessions, tap-through rate by category and card type, avg dwell by category, save/share rates. Admin-only (bearer token + role check).
+
+`/api/cron/refresh-engagement` endpoint: Refreshes `category_engagement` materialized view hourly.
+
 #### Completion Signals
 
 - Progress bar (existing, unchanged) shows current position in feed
@@ -237,17 +300,32 @@ Based on NNGroup gesture discoverability research, Material Design gesture educa
 #### Preserved Behaviors
 
 - Signup gate at card 6 for anonymous users (unchanged)
-- Seeded PRNG shuffle with per-mount seed (unchanged)
+- ~~Seeded PRNG shuffle with per-mount seed~~ **Replaced** with scored ranking (Phase 3)
 - Keyboard navigation (arrow keys, space) (unchanged)
-- IntersectionObserver for scroll tracking (unchanged)
+- IntersectionObserver for scroll tracking (now also tracks impressions + dwell)
 - Prefetch next batch at items.length - 5 (unchanged)
 
 | File | Change |
 |------|--------|
-| `src/pages/api/discover/feed-v2.ts` | **NEW** — Mixed content feed API (phenomena + reports) |
+| `src/pages/api/discover/feed-v2.ts` | **REWRITTEN** (Phase 3) — Scored ranking with parameterized weights, engagement rates, user affinity, session context |
 | `src/pages/api/discover/related-cards.ts` | **NEW** (Phase 2.5) — Full FeedItemV2-shaped related cards API |
-| `src/components/discover/DiscoverCards.tsx` | **NEW** — PhenomenonCard, TextReportCard, MediaReportCard (RelatedTray removed in Phase 2.5) |
-| `src/pages/discover.tsx` | **REWRITTEN** — 2D snap grid (Phase 2.5): FeedRow with horizontal swipe, SwipeHint, prefetch guard |
+| `src/pages/api/discover/clusters.ts` | **NEW** (Phase 3) — Clustering cards (geographic, temporal burst) |
+| `src/pages/api/discover/on-this-date.ts` | **NEW** (Phase 3) — Historical events matching today's date |
+| `src/pages/api/events/feed.ts` | **NEW** (Phase 3) — Batch event ingestion API |
+| `src/pages/api/user/usage.ts` | **NEW** (Phase 3) — Usage tracking for depth gating |
+| `src/pages/api/cron/refresh-engagement.ts` | **NEW** (Phase 3) — Hourly engagement materialized view refresh |
+| `src/pages/api/admin/feed-metrics.ts` | **NEW** (Phase 3) — Admin metrics dashboard |
+| `supabase/migrations/20260324_feed_events.sql` | **NEW** (Phase 3) — feed_events, feed_config, category_engagement, user_usage |
+| `src/lib/hooks/useFeedEvents.ts` | **NEW** (Phase 3) — Behavioral event collection |
+| `src/lib/hooks/useSessionContext.ts` | **NEW** (Phase 3) — Session context tracking |
+| `src/lib/hooks/useGateStatus.ts` | **NEW** (Phase 3) — Depth gating status |
+| `src/components/discover/TopicOnboarding.tsx` | **NEW** (Phase 3) — Cold start topic selector |
+| `src/components/discover/ClusteringCard.tsx` | **NEW** (Phase 3) — Clustering card component |
+| `src/components/discover/OnThisDateCard.tsx` | **NEW** (Phase 3) — On This Date card component |
+| `src/components/discover/CaseViewGate.tsx` | **NEW** (Phase 3) — Full-page gate screen |
+| `src/components/discover/ResearchHubPromo.tsx` | **NEW** (Phase 3) — Research Hub promo card |
+| `src/components/discover/DiscoverCards.tsx` | **UNCHANGED** (Phase 3) — PhenomenonCard, TextReportCard, MediaReportCard |
+| `src/pages/discover.tsx` | **REWRITTEN** (Phase 3) — Adds event tracking, onboarding, session context, new card types, gating |
 | `src/styles/globals.css` | **MODIFIED** — Added `@keyframes swipe-breathe` for SwipeHint breathing animation |
 
 ## Files NOT Modified (intentionally)
@@ -262,42 +340,39 @@ Based on NNGroup gesture discoverability research, Material Design gesture educa
 ## What Needs Work Next
 
 ### Immediate (same sprint)
-- ~~Test on live site~~ ✅ (deployed and tested on iPhone 16 Pro Max, March 16)
-- ~~Image fallback~~ ✅ (PhenomenonCard uses onError + fallback gradient, March 21)
-- ~~Mobile scroll snap~~ ✅ (tested, working on iOS Safari with snap-x + 75vw cards)
-- ~~Mobile header issues~~ ✅ (logo wrapping, Submit Report, Sign In — all fixed March 16)
-- ~~Discover feed always same order~~ ✅ (seed moved to useRef + interleaved tiering, March 16)
-- ~~Phase 2: Mixed content feed~~ ✅ (feed-v2 API, three card templates, March 21)
-- ~~Phase 2.5: 2D horizontal swipe-through~~ ✅ (related-cards API, FeedRow, SwipeHint, March 22)
-- ~~Runaway prefetch bug~~ ✅ (initialSettled guard, March 22)
-- ~~Similarity display "4700% match"~~ ✅ (double-multiplication fix, March 22)
-- **Test 2D swipe on live site** — Deploy and verify horizontal swipe on iPhone 16 Pro Max
-- **Tune report/phenomena ratio** — Monitor whether the 3:1:1 tiering produces good variety with ~928 reports vs ~4,792 phenomena
-- **Homepage "Stories from the unknown" cards** — Session 7's `DiscoverPreview` component also needs compelling visual treatment (separate session's code)
+- ~~Phase 2: Mixed content feed~~ ✅ (March 21)
+- ~~Phase 2.5: 2D horizontal swipe-through~~ ✅ (March 22)
+- ~~Phase 3: Algorithmic feed~~ ✅ (March 25) — scored ranking, behavioral signals, onboarding, new card types, gating
+- **Run migration `20260324_feed_events.sql`** in Supabase dashboard — creates feed_events, feed_config, category_engagement, user_usage tables
+- **Run migration `20260321_feed_hook.sql`** — feed_hook column on reports (from Session 10, may not have been run yet)
+- **Create `refresh_category_engagement` RPC** in Supabase — function that does `REFRESH MATERIALIZED VIEW CONCURRENTLY category_engagement`
+- **Set up Vercel cron** for `/api/cron/refresh-engagement` (hourly)
+- **Test full flow on live site** — onboarding → feed → horizontal swipe → gating → promo cards
+- **Homepage "Stories from the unknown" cards** — Session 7's `DiscoverPreview` component also needs compelling visual treatment
 
 ### Short-term
-- **Free tier content limits** — Implement the soft usage cap (e.g., 50 full reports/month for free)
-- **Core upgrade prompts** — When free users hit the limit, show contextual "Unlock full access" prompt
-- **Save functionality for logged-in users** — The bookmark button currently only redirects anonymous users; needs actual save/unsave for authenticated users
-- **Feed personalization quality** — Track which sections get the most engagement, A/B test section ordering
-- ~~Report media display~~ ✅ MediaReportCard now uses actual report media from `report_media` table as full-screen background (March 21)
+- **Tune ranking weights** — Monitor admin metrics dashboard, adjust engagement/recency/affinity/explore weights in feed_config
+- **Save functionality for logged-in users** — Bookmark button currently only redirects anonymous users; needs actual save/unsave for authenticated
+- **"You might also find..." prompt** — After 80%+ scroll depth on report page, surface related content prompt (coordinate with Session 6b)
+- **Search gating** — Wire gate status into search page: basic keyword free, AI-powered semantic search gated at Core
+- **Ask the Unknown gating** — Wire weekly limit into AskTheUnknown component (coordinate with Session 15)
+- **Clustering cards need mass ingestion volume** — Geographic clusters only meaningful with enough reports per state per week
 
 ### Medium-term
-- **Connection cards** — "Did You Know?" cross-report relationship cards in the feed (Sprint 2 feature)
+- **Per-user ML model** (V2, 90 days post-launch) — Replace scored query with learned embeddings
+- **Real-time feed updates** (V2) — WebSocket push for new content (batch hourly fine for first 10K users)
+- **A/B test ranking weights** — Serve different weight configs to different sessions, measure session depth delta
+- **Connection cards** — "Did You Know?" cross-report relationship cards
 - **Smart match alerts** — "New Bigfoot sighting near you" notifications for Core+ users
-- **Weekly digest optimization** — Use feed engagement data to personalize digest content
-- **Category-specific landing pages** — /explore?category=cryptids could show a category-themed feed
-- **Completion achievements** — Persist completion milestones per user, gate behind account creation
 
 ### Content dependencies
-- Encyclopedia enrichment (Phase A) directly improves the Spotlight section
-- Curated "perfect" reports (Phase B) dramatically improve report card quality
-- Mass ingestion (Phase C) fills category sections with much more content
-- **Remaining phenomena embeddings** (~3,600) needed for Related tray to populate on phenomenon cards
+- Mass ingestion (Session 10) provides volume for clustering cards and engagement data
+- `event_date_precision` quality needed before On This Date can include reports (currently phenomena only)
+- Feed hooks (Claude Haiku) need to be generated for all reports — run `generate-hooks` API after ingestion
 
 ---
 
-## Subscription Tier Gating Plan (not yet implemented)
+## Subscription Tier Gating Plan (Phase 3 — partially implemented)
 
 | Feature | Anonymous | Free | Core ($5.99) | Pro ($14.99) |
 |---------|-----------|------|-------------|-------------|
@@ -327,3 +402,4 @@ Based on NNGroup gesture discoverability research, Material Design gesture educa
 | 2026-03-21 | **Stories feed now mixed content (feed-v2):** `/api/discover/feed-v2` serves both phenomena and reports. Old `/api/discover/feed` still exists for backward compat but is no longer consumed by `/discover`. | All sessions touching /discover, Admin (analytics) |
 | 2026-03-21 | **Three card templates in DiscoverCards.tsx:** PhenomenonCard, TextReportCard, MediaReportCard. Any session modifying the Stories experience should use these components. | Mobile Design, Foundation |
 | 2026-03-22 | **Phase 2.5: 2D horizontal swipe-through replaces Related Tray.** Framer Motion `RelatedTray` removed. New `/api/discover/related-cards` endpoint returns full FeedItemV2-shaped cards (category + phenomenon_type matching, not RAG). `DiscoverCards.tsx` no longer imports framer-motion. `discover.tsx` uses native CSS snap-x for horizontal navigation. SwipeHint animation uses custom keyframe in globals.css. | Foundation (globals.css modified, framer-motion removed from DiscoverCards), All sessions (Stories feed now has 2D navigation) |
+| 2026-03-25 | **Phase 3: Algorithmic feed fully deployed.** `feed-v2.ts` rewritten with scored ranking (parameterized weights in `feed_config` table). New `feed_events` table collects all behavioral signals. `useFeedEvents` hook tracks impression/dwell/tap/save/share/scroll_depth/swipe_related. `TopicOnboarding` shown on first visit. New card types: ClusteringCard, OnThisDateCard, ResearchHubPromo, CaseViewGate. Session context weights feed 60/40 with long-term affinity. Depth gating: 3 free views/day, gate shows contextual CTA. Admin metrics at `/api/admin/feed-metrics`. | All sessions (feed structure changed), Session 6b (report page scroll_depth + "You might also find" integration), Session 8 (gate CTAs link to pricing), Session 10 (clustering cards need ingestion volume), Session 15 (Ask the Unknown weekly limit) |

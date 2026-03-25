@@ -1,21 +1,28 @@
 /**
  * API: GET /api/discover/feed-v2
- * Phase 2 — Mixed content feed for the Stories experience.
+ * Phase 3 — Scored ranking feed for the Stories experience.
  *
- * Returns a deterministically shuffled feed of BOTH phenomena AND reports,
- * interleaved for variety. Each item has an `item_type` field so the client
- * can pick the right card template.
+ * Replaces seeded random shuffle with parameterized scored ranking.
+ * Each card gets a score based on: base_engagement, recency, user_affinity,
+ * diversity penalty, and random exploration factor.
+ *
+ * Also interleaves new card types: cluster, on_this_date, promo.
  *
  * Query params:
- *   - seed: numeric seed for deterministic shuffle (generated per session on client)
+ *   - seed: numeric seed for exploration randomness
  *   - offset: items to skip (pagination)
  *   - limit: items to return (default 15, max 30)
  *   - category: optional category filter
+ *   - onboarding_topics: comma-separated category IDs from onboarding
+ *   - session_affinity: comma-separated cat:score pairs (e.g. "ufos_aliens:60,ndes:30")
  *
- * Card template mapping (done client-side based on returned data):
+ * Card template mapping (client-side):
  *   - item_type === 'phenomenon' => PhenomenonCard
  *   - item_type === 'report' && has_photo_video => MediaReportCard
  *   - item_type === 'report' && !has_photo_video => TextReportCard
+ *   - item_type === 'cluster' => ClusteringCard
+ *   - item_type === 'on_this_date' => OnThisDateCard
+ *   - item_type === 'promo' => ResearchHubPromo
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -39,24 +46,77 @@ function seededRandom(seed: number): () => number {
   };
 }
 
-/** Fisher-Yates shuffle with seeded PRNG */
-function seededShuffle<T>(arr: T[], seed: number): T[] {
-  var shuffled = arr.slice();
-  var rand = seededRandom(seed);
-  for (var i = shuffled.length - 1; i > 0; i--) {
-    var j = Math.floor(rand() * (i + 1));
-    var temp = shuffled[i];
-    shuffled[i] = shuffled[j];
-    shuffled[j] = temp;
-  }
-  return shuffled;
-}
-
 interface ScoredItem {
   id: string
   item_type: 'phenomenon' | 'report'
   category: string
   score: number
+  created_at?: string
+}
+
+interface RankingWeights {
+  engagement: number
+  recency: number
+  affinity: number
+  diversity: number
+  explore: number
+}
+
+var DEFAULT_WEIGHTS: RankingWeights = {
+  engagement: 1.0,
+  recency: 0.8,
+  affinity: 1.2,
+  diversity: 1.0,
+  explore: 0.3,
+};
+
+/** Parse onboarding topics into affinity map (selected=80, unselected=20) */
+function parseOnboardingTopics(raw: string): Record<string, number> {
+  if (!raw) return {};
+  var affinity: Record<string, number> = {};
+  raw.split(',').forEach(function (topic) {
+    var t = topic.trim();
+    if (t) affinity[t] = 80;
+  });
+  return affinity;
+}
+
+/** Parse session affinity param (e.g. "ufos_aliens:60,ndes:30") */
+function parseSessionAffinity(raw: string): Record<string, number> {
+  if (!raw) return {};
+  var affinity: Record<string, number> = {};
+  raw.split(',').forEach(function (pair) {
+    var parts = pair.split(':');
+    if (parts.length === 2) {
+      var cat = parts[0].trim();
+      var score = parseInt(parts[1], 10);
+      if (cat && !isNaN(score)) affinity[cat] = score;
+    }
+  });
+  return affinity;
+}
+
+/** Compute effective affinity: blend long-term (0.4) with session (0.6) */
+function computeEffectiveAffinity(
+  longTerm: Record<string, number>,
+  session: Record<string, number>,
+  category: string
+): number {
+  var lt = longTerm[category] || 20; // Default: unselected = 20
+  var sess = session[category] || 0;
+
+  // If no session data, use long-term only
+  if (Object.keys(session).length === 0) return lt;
+
+  return (lt * 0.4) + (sess * 0.6);
+}
+
+/** Recency boost: 50 * exp(-0.1 * days_since_created), capped at 50 */
+function computeRecencyBoost(createdAt: string | undefined, boostDays: number): number {
+  if (!createdAt) return 0;
+  var age = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
+  if (age > boostDays * 2) return 0;
+  return 50 * Math.exp(-0.1 * age);
 }
 
 export default async function handler(
@@ -73,13 +133,63 @@ export default async function handler(
     var offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
     var seed = parseInt(req.query.seed as string) || 12345;
     var category = (req.query.category as string) || '';
+    var onboardingTopicsRaw = (req.query.onboarding_topics as string) || '';
+    var sessionAffinityRaw = (req.query.session_affinity as string) || '';
 
     var placeholderUrl = 'https://bhkbctdmwnowfmqpksed.supabase.co/storage/v1/object/public/phenomena-images/default-cryptid.jpg';
+
+    // ---- Load ranking config ----
+    var weights = DEFAULT_WEIGHTS;
+    var recencyBoostDays = 7;
+    var coldStartBase = 50;
+    var maxConsecutiveCat = 3;
+
+    var { data: configData } = await supabase.from('feed_config').select('key, value');
+    if (configData) {
+      configData.forEach(function (row) {
+        if (row.key === 'ranking_weights' && typeof row.value === 'object') {
+          weights = Object.assign({}, DEFAULT_WEIGHTS, row.value as any);
+        } else if (row.key === 'recency_boost_days') {
+          recencyBoostDays = parseInt(String(row.value), 10) || 7;
+        } else if (row.key === 'cold_start_base_score') {
+          coldStartBase = parseInt(String(row.value), 10) || 50;
+        } else if (row.key === 'max_consecutive_same_category') {
+          maxConsecutiveCat = parseInt(String(row.value), 10) || 3;
+        }
+      });
+    }
+
+    // ---- Load category engagement rates ----
+    var engagementRates: Record<string, number> = {};
+    try {
+      var { data: engData } = await supabase
+        .from('category_engagement')
+        .select('phenomenon_category, tap_rate, avg_dwell_ms');
+
+      if (engData) {
+        engData.forEach(function (e) {
+          // Normalize tap_rate (0-1) to 0-100 scale
+          var tapScore = (e.tap_rate || 0) * 100;
+          // Add dwell bonus: every 1000ms of avg dwell adds 5 points
+          var dwellBonus = e.avg_dwell_ms ? Math.min((e.avg_dwell_ms / 1000) * 5, 25) : 0;
+          engagementRates[e.phenomenon_category] = Math.min(tapScore + dwellBonus, 100);
+        });
+      }
+    } catch (e) {
+      // Materialized view may not exist yet — use cold start defaults
+    }
+
+    // ---- Parse user affinity ----
+    var onboardingAffinity = parseOnboardingTopics(onboardingTopicsRaw);
+    var sessionAffinity = parseSessionAffinity(sessionAffinityRaw);
+    var isColdStart = Object.keys(onboardingAffinity).length === 0 && Object.keys(sessionAffinity).length === 0;
+
+    var rand = seededRandom(seed + offset);
 
     // ---- Fetch phenomena candidates ----
     var phenQuery = supabase
       .from('phenomena')
-      .select('id, category, report_count, primary_image_url, ai_description, ai_quick_facts')
+      .select('id, category, report_count, primary_image_url, ai_description, ai_quick_facts, created_at')
       .eq('status', 'active')
       .not('ai_summary', 'is', null);
 
@@ -96,7 +206,7 @@ export default async function handler(
     // ---- Fetch report candidates ----
     var reportQuery = supabase
       .from('reports')
-      .select('id, category, credibility, upvotes, view_count, has_photo_video, has_physical_evidence, content_type')
+      .select('id, category, credibility, upvotes, view_count, has_photo_video, has_physical_evidence, content_type, created_at')
       .eq('status', 'approved')
       .not('summary', 'is', null);
 
@@ -117,58 +227,80 @@ export default async function handler(
       return res.status(200).json({ items: [], hasMore: false, totalAvailable: 0 });
     }
 
-    // ---- Score phenomena (0-8 scale) ----
-    var scoredPhen: ScoredItem[] = allPhen.map(function (item) {
-      var score = 1;
-      if (item.primary_image_url && item.primary_image_url !== placeholderUrl) score += 3;
-      if (item.ai_description) score += 1;
-      if (item.ai_quick_facts) score += 1;
-      if (item.report_count > 0) score += 1;
-      if (item.report_count >= 5) score += 1;
-      return { id: item.id, item_type: 'phenomenon' as const, category: item.category, score: score };
+    // ---- Score each candidate using the ranking formula ----
+    // score = (base_engagement * W_engagement)
+    //       + (recency_boost * W_recency)
+    //       + (user_affinity * W_affinity)
+    //       + (random_explore * W_explore)
+
+    var scoreItem = function (
+      id: string,
+      itemType: 'phenomenon' | 'report',
+      itemCategory: string,
+      qualityScore: number,
+      createdAt: string | undefined
+    ): ScoredItem {
+      // base_engagement: from materialized view or cold start default
+      var baseEngagement = engagementRates[itemCategory] || coldStartBase;
+      // Blend with quality score (0-8 scaled to 0-100)
+      baseEngagement = (baseEngagement * 0.6) + ((qualityScore / 8) * 100 * 0.4);
+
+      // recency_boost
+      var recency = computeRecencyBoost(createdAt, recencyBoostDays);
+
+      // user_affinity
+      var affinity = computeEffectiveAffinity(onboardingAffinity, sessionAffinity, itemCategory);
+
+      // random_explore (0-30)
+      var explore = rand() * 30;
+
+      var totalScore = (baseEngagement * weights.engagement)
+                     + (recency * weights.recency)
+                     + (affinity * weights.affinity)
+                     + (explore * weights.explore);
+
+      return {
+        id: id,
+        item_type: itemType,
+        category: itemCategory,
+        score: totalScore,
+        created_at: createdAt,
+      };
+    };
+
+    // Score phenomena
+    var scoredAll: ScoredItem[] = allPhen.map(function (item) {
+      var quality = 1;
+      if (item.primary_image_url && item.primary_image_url !== placeholderUrl) quality += 3;
+      if (item.ai_description) quality += 1;
+      if (item.ai_quick_facts) quality += 1;
+      if (item.report_count > 0) quality += 1;
+      if (item.report_count >= 5) quality += 1;
+      return scoreItem(item.id, 'phenomenon', item.category, Math.min(quality, 8), item.created_at);
     });
 
-    // ---- Score reports (0-8 scale) ----
+    // Score reports
     var scoredReports: ScoredItem[] = allReports.map(function (item) {
-      var score = 1;
-      if (item.has_photo_video) score += 3;
-      if (item.has_physical_evidence) score += 1;
-      if (item.credibility === 'high') score += 2;
-      else if (item.credibility === 'medium') score += 1;
-      if (item.upvotes > 3) score += 1;
-      if (item.content_type === 'historical_case') score += 1;
-      return { id: item.id, item_type: 'report' as const, category: item.category, score: Math.min(score, 8) };
+      var quality = 1;
+      if (item.has_photo_video) quality += 3;
+      if (item.has_physical_evidence) quality += 1;
+      if (item.credibility === 'high') quality += 2;
+      else if (item.credibility === 'medium') quality += 1;
+      if (item.upvotes > 3) quality += 1;
+      if (item.content_type === 'historical_case') quality += 1;
+      return scoreItem(item.id, 'report', item.category, Math.min(quality, 8), item.created_at);
     });
 
-    // ---- Merge and tier ----
-    var allScored = scoredPhen.concat(scoredReports);
-    allScored.sort(function (a, b) { return b.score - a.score; });
+    scoredAll = scoredAll.concat(scoredReports);
 
-    var highTier = seededShuffle(
-      allScored.filter(function (s) { return s.score >= 6; }), seed
-    );
-    var midTier = seededShuffle(
-      allScored.filter(function (s) { return s.score >= 3 && s.score < 6; }), seed + 1
-    );
-    var lowTier = seededShuffle(
-      allScored.filter(function (s) { return s.score < 3; }), seed + 2
-    );
+    // Sort by score descending
+    scoredAll.sort(function (a, b) { return b.score - a.score; });
 
-    // Interleave 3:1:1 (explore-exploit)
-    var interleaved: ScoredItem[] = [];
-    var hi = 0, mi = 0, lo = 0;
-    while (hi < highTier.length || mi < midTier.length || lo < lowTier.length) {
-      for (var k = 0; k < 3 && hi < highTier.length; k++) {
-        interleaved.push(highTier[hi++]);
-      }
-      if (mi < midTier.length) interleaved.push(midTier[mi++]);
-      if (lo < lowTier.length) interleaved.push(lowTier[lo++]);
-    }
-
-    // ---- Content-type variety: no more than 3 same item_type in a row,
-    //      and no more than 2 same category in a row ----
+    // ---- Apply diversity constraint ----
+    // No more than maxConsecutiveCat same category in a row
+    // No more than 3 same item_type in a row
     var diversified: ScoredItem[] = [];
-    var pool = interleaved.slice();
+    var pool = scoredAll.slice();
     var lastCat = '';
     var catStreak = 0;
     var lastType = '';
@@ -177,22 +309,19 @@ export default async function handler(
     while (pool.length > 0) {
       var pickIdx = -1;
 
-      // Try to find an item that satisfies both constraints
-      for (var ci = 0; ci < pool.length; ci++) {
+      for (var ci = 0; ci < Math.min(pool.length, 20); ci++) {
         var candidate = pool[ci];
-        var catOk = catStreak < 2 || candidate.category !== lastCat;
+        var catOk = catStreak < maxConsecutiveCat || candidate.category !== lastCat;
         var typeOk = typeStreak < 3 || candidate.item_type !== lastType;
         if (catOk && typeOk) { pickIdx = ci; break; }
       }
 
-      // Fallback: relax type constraint
       if (pickIdx < 0) {
-        for (var ci2 = 0; ci2 < pool.length; ci2++) {
-          if (catStreak < 2 || pool[ci2].category !== lastCat) { pickIdx = ci2; break; }
+        for (var ci2 = 0; ci2 < Math.min(pool.length, 20); ci2++) {
+          if (catStreak < maxConsecutiveCat || pool[ci2].category !== lastCat) { pickIdx = ci2; break; }
         }
       }
 
-      // Final fallback: take whatever is next
       if (pickIdx < 0) pickIdx = 0;
 
       var pick = pool.splice(pickIdx, 1)[0];
@@ -241,10 +370,7 @@ export default async function handler(
         fullReports.forEach(function (r) { reportMap[r.id] = r; });
       }
 
-      // Resolve phenomenon names + images for reports that have phenomenon_type_id
-      // This serves two purposes:
-      //   1. phenomenon_type name/slug for linking
-      //   2. phenomenon primary_image_url as visual backdrop for reports without their own media
+      // Resolve phenomenon names + images
       var ptIds = fullReports ? fullReports.filter(function (r) { return r.phenomenon_type_id; }).map(function (r) { return r.phenomenon_type_id; }) : [];
       if (ptIds.length > 0) {
         var { data: ptData } = await supabase
@@ -260,7 +386,6 @@ export default async function handler(
             if (r.phenomenon_type_id && ptMap[r.phenomenon_type_id]) {
               var pt = ptMap[r.phenomenon_type_id];
               r.phenomenon_type = { id: pt.id, name: pt.name, slug: pt.slug, category: pt.category };
-              // Associate phenomenon image for reports without their own media
               if (!r.has_photo_video && pt.primary_image_url && pt.primary_image_url !== placeholderUrl) {
                 r.associated_image_url = pt.primary_image_url;
                 r.associated_image_source = pt.name;
@@ -270,7 +395,7 @@ export default async function handler(
         }
       }
 
-      // Fetch report_media for reports that have media
+      // Fetch report_media
       var mediaReportIds = fullReports ? fullReports.filter(function (r) { return r.has_photo_video; }).map(function (r) { return r.id; }) : [];
       if (mediaReportIds.length > 0) {
         var { data: mediaData } = await supabase
@@ -293,7 +418,6 @@ export default async function handler(
           });
         }
 
-        // Fallback: for media reports that didn't have a primary, grab any media
         var missingMedia = mediaReportIds.filter(function (rid) {
           return reportMap[rid] && !reportMap[rid].primary_media;
         });
@@ -320,7 +444,7 @@ export default async function handler(
       }
     }
 
-    // ---- Assemble in deterministic order ----
+    // ---- Assemble items in ranked order ----
     var items = pageSlice.map(function (slot) {
       if (slot.item_type === 'phenomenon') {
         var p = phenMap[slot.id];
@@ -368,7 +492,6 @@ export default async function handler(
           source_label: r.source_label,
           created_at: r.created_at,
           phenomenon_type: r.phenomenon_type || null,
-          // Media: actual report media or associated phenomenon image
           primary_media: r.primary_media || null,
           associated_image_url: r.associated_image_url || null,
           associated_image_source: r.associated_image_source || null,
@@ -387,6 +510,7 @@ export default async function handler(
       totalAvailable: totalAvailable,
       offset: offset,
       nextOffset: offset + items.length,
+      isColdStart: isColdStart,
     });
   } catch (error) {
     console.error('[Feed V2] Error:', error);
