@@ -41,6 +41,47 @@ Restructured the dashboard home page (`src/pages/dashboard/index.tsx`) with a ne
 - Hero with verbose subtitle + two CTA buttons -> replaced by compact Welcome Bar + Quick Actions
 - usePersonalization, getSuggestedExplorations, CATEGORY_CONFIG imports removed (no longer needed)
 
+### Dashboard Parts 2-6 (March 25, 2026)
+
+Continued the dashboard overhaul with constellation integration, saved items polish, settings integration, progressive disclosure, and mobile polish.
+
+**Part 2 — Constellation Progression System:**
+- New `ConstellationProgress.tsx` component with 5-tier milestone messaging (0-4, 5-9, 10-24, 25-49, 50+)
+- Each tier has unique icon, gradient styling, and contextual messaging
+- Integrated into `constellation.tsx` between Explorer Rank Banner and Guide section
+- CTA buttons link to /explore for new users
+
+**Part 3 — Saved Items & Collections Polish:**
+- Added category filter pills (All, UFOs, Cryptids, Ghosts, Psychic, Consciousness, Other) to `saved.tsx`
+- Added sort dropdown (Date Saved, Date Reported, Title A-Z) in page header
+- Replaced basic empty state with `EmptyState` component (contextual messaging per collection)
+- Collection tabs now horizontal-scroll on mobile with `touch-pan-x`
+
+**Part 4 — Settings & Subscription Integration:**
+- Added Subscription section to `settings.tsx` with CreditCard icon and "View Subscription" CTA to /dashboard/subscription
+- Added About section at bottom with version text ("Paradocs Beta") and links to /terms, /privacy
+
+**Part 5 — Progressive Disclosure:**
+- New `ProgressMilestones.tsx` with `useProgressMilestones()` hook
+- localStorage-based milestone tracking (firstSave, firstCaseFile, constellationUnlocked, aiInsightsUnlocked)
+- Dismissable celebration banner on dashboard home when milestones are achieved
+- Milestones persist across sessions, fire once per achievement
+
+**Part 6 — Mobile Polish:**
+- 44px minimum touch targets on QuickActions pills, saved page buttons/tabs/filters, ConstellationProgress CTAs
+- Collection tabs and category pills: horizontal-scroll on mobile, flex-wrap on desktop
+- Saved page header: stacks vertically on mobile, row layout on desktop
+- "New Collection" button: abbreviated label ("New") on mobile
+- Report grid actions overlay: always visible on mobile (no hover dependency)
+- Single-column report grid on mobile, 2-column on sm+ breakpoint
+
+**New components created (Parts 2-6):**
+
+| Component | Purpose |
+|-----------|---------|
+| `ConstellationProgress.tsx` | 5-tier progression milestones for constellation page |
+| `ProgressMilestones.tsx` | `useProgressMilestones()` hook — localStorage milestone tracking |
+
 ### Research Hub — Phase 1 & 2 (DEPLOYED & LIVE)
 
 Transformed the old constellation-only dashboard into a full multi-view Research Hub. The product vision is "Ancestry.com for paranormal research" — users collect evidence artifacts from across the internet, organize them into case files, draw connections, and get AI-powered insights.

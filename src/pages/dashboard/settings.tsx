@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
+import Link from 'next/link'
 import {
   User,
   Mail,
@@ -20,7 +21,9 @@ import {
   Sparkles,
   Navigation,
   X,
-  Info
+  Info,
+  CreditCard,
+  ArrowRight
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import AvatarSelector, { Avatar } from '@/components/AvatarSelector'
@@ -519,6 +522,26 @@ export default function SettingsPage() {
           </div>
         </SettingsSection>
 
+        {/* Subscription */}
+        <SettingsSection
+          title="Subscription"
+          description="Manage your plan, usage, and billing"
+          icon={CreditCard}
+        >
+          <div className="space-y-3">
+            <p className="text-sm text-gray-400">
+              View and manage your subscription plan, check usage limits, and update billing details.
+            </p>
+            <Link
+              href="/dashboard/subscription"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              View Subscription
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </SettingsSection>
+
         {/* Location Preferences */}
         <SettingsSection
           title="Location Preferences"
@@ -735,6 +758,39 @@ export default function SettingsPage() {
                 </>
               )}
             </button>
+          </div>
+        </SettingsSection>
+
+        {/* About */}
+        <SettingsSection
+          title="About"
+          description="App information and legal"
+          icon={Info}
+        >
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-gray-400 mb-3">
+                <strong className="text-white">Paradocs Beta</strong>
+              </p>
+              <p className="text-sm text-gray-400">
+                Paradocs is a collaborative platform for paranormal phenomenon documentation and analysis.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <a
+                href="/terms"
+                className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
+              >
+                Terms of Service
+              </a>
+              <span className="text-gray-600">•</span>
+              <a
+                href="/privacy"
+                className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
+              >
+                Privacy Policy
+              </a>
+            </div>
           </div>
         </SettingsSection>
 

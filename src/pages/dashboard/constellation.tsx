@@ -29,6 +29,7 @@ import NodeDetailPanel from '@/components/dashboard/NodeDetailPanel'
 import ConnectionDrawer, { ConnectionData } from '@/components/dashboard/ConnectionDrawer'
 import TheoryPanel, { TheoryData } from '@/components/dashboard/TheoryPanel'
 import ShareConstellation from '@/components/dashboard/ShareConstellation'
+import ConstellationProgress from '@/components/dashboard/ConstellationProgress'
 import { usePersonalization } from '@/lib/hooks/usePersonalization'
 import { supabase } from '@/lib/supabase'
 import { PhenomenonCategory } from '@/lib/database.types'
@@ -300,6 +301,16 @@ export default function ConstellationPage() {
             </div>
           </div>
         </div>
+
+        {/* Progression Milestones */}
+        <ConstellationProgress
+          totalEntries={mapStats?.totalEntries || 0}
+          categoriesExplored={mapStats?.categoriesExplored || 0}
+          uniqueTags={mapStats?.uniqueTags || 0}
+          connectionsFound={(mapStats?.connectionsFound || 0) + (mapStats?.drawnConnections || 0)}
+          rank={currentRank.name}
+          rankIcon={currentRank.icon}
+        />
 
         {/* How Your Constellation Works - Collapsible Guide */}
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden transition-all duration-300">

@@ -45,6 +45,7 @@ import QuickActions from '@/components/dashboard/QuickActions'
 import ActivitySummary from '@/components/dashboard/ActivitySummary'
 import SuggestedNextSteps from '@/components/dashboard/SuggestedNextSteps'
 import EmptyState from '@/components/dashboard/EmptyState'
+import { useProgressMilestones } from '@/components/dashboard/ProgressMilestones'
 var ConstellationMapV2 = dynamic(
   function() { return import('@/components/dashboard/ConstellationMapV2') },
   { ssr: false }
@@ -157,6 +158,7 @@ export default function DashboardPage() {
   var [error, setError] = useState<string | null>(null)
   var [showDashboardTour, setShowDashboardTour] = useState(false)
   var [streakDays, setStreakDays] = useState(0)
+  var milestones = useProgressMilestones()
 
   useEffect(function() {
     if (!loading && stats && !hasDashboardTourCompleted()) {
@@ -164,6 +166,17 @@ export default function DashboardPage() {
       return function() { clearTimeout(timer) }
     }
   }, [loading, stats])
+
+  useEffect(function() {
+    if (!loading && stats && milestones.isHydrated) {
+      milestones.checkAndUpdate({
+        savedCount: stats.saved.total || 0,
+        caseFileCount: stats.researchHub.totalCaseFiles || 0,
+        constellationEntries: stats.constellation.totalEntries || 0,
+        artifactCount: stats.researchHub.totalArtifacts || 0,
+      })
+    }
+  }, [loading, stats, milestones.isHydrated])
 
   useEffect(function() {
     var fetchData = async function() {
@@ -273,6 +286,27 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* ── Milestone Celebration Banner ── */}
+      {milestones.newMilestoneMessage && (
+        <div className="mb-4 p-3 sm:p-4 bg-gradient-to-r from-amber-950/40 to-amber-900/20 border border-amber-700/50 rounded-xl flex items-center justify-between gap-3 animate-in fade-in duration-300">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 bg-amber-500/15 rounded-lg flex-shrink-0">
+              <Sparkles className="w-5 h-5 text-amber-400" />
+            </div>
+            <p className="text-sm font-medium text-amber-200 truncate">
+              {milestones.newMilestoneMessage}
+            </p>
+          </div>
+          <button
+            onClick={function() { milestones.dismissMilestoneMessage() }}
+            className="flex-shrink-0 text-amber-400/60 hover:text-amber-300 transition-colors"
+            aria-label="Dismiss"
+          >
+            <span className="text-lg">{'×'}</span>
+          </button>
+        </div>
+      )}
 
       {/* ── 2. Quick Actions — Horizontal scroll pills ── */}
       <div className="mb-5">
