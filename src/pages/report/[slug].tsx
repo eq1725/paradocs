@@ -1,5 +1,6 @@
-// Report detail page - updated Jan 29, 2026
-import React, { useEffect, useRef, useState } from 'react'
+// Report detail page - updated March 25, 2026
+// Session 6b: Index model redesign (curated vs mass-ingested report modes)
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import Link from 'next/link'
@@ -20,6 +21,9 @@ import { useToast } from '@/components/Toast'
 import MediaGallery from '@/components/MediaGallery'
 import ReadingProgress from '@/components/ReadingProgress'
 import ArticleTableOfContents from '@/components/ArticleTableOfContents'
+import ParadocsAnalysisBox from '@/components/reports/ParadocsAnalysisBox'
+import type { ParadocsAssessment } from '@/components/reports/ParadocsAnalysisBox'
+import SourceAttribution from '@/components/reports/SourceAttribution'
 const LogToConstellation = dynamic(
   () => import('@/components/LogToConstellation'),
   { ssr: false }
@@ -28,6 +32,10 @@ const LogToConstellation = dynamic(
 const ReportAIInsight = dynamic(
   () => import('@/components/reports/ReportAIInsight'),
   { ssr: false, loading: () => <div className="h-32 bg-white/5 rounded-lg animate-pulse mb-8" /> }
+)
+const ResearchHubPreview = dynamic(
+  () => import('@/components/reports/ResearchHubPreview'),
+  { ssr: false }
 )
 const FurtherReading = dynamic(
   () => import('@/components/reports/FurtherReading'),
@@ -555,6 +563,64 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const reportContentType = (report as any).content_type as ContentType | undefined
   const isNonExperiencer = reportContentType && reportContentType !== 'experiencer_report' && reportContentType !== 'historical_case'
 
+  // Session 6b: Mode detection — curated editorial vs mass-ingested index model
+  var isCurated = (report as any).source_type === 'curated' || (report as any).source_type === 'editorial'
+  var isIndexReport = !isCurated
+
+  // Parse paradocs_assessment JSON if it's a string
+  var paradocsAssessment: ParadocsAssessment | null = null
+  if ((report as any).paradocs_assessment) {
+    try {
+      paradocsAssessment = typeof (report as any).paradocs_assessment === 'string'
+        ? JSON.parse((report as any).paradocs_assessment)
+        : (report as any).paradocs_assessment
+    } catch (e) {
+      paradocsAssessment = null
+    }
+  }
+
+  // Session 2 integration stubs — behavioral event firing
+  // TODO: Replace with useFeedEvents hook when Session 2 builds it
+  // Fire case_view on page load
+  useEffect(function() {
+    if (!report || !report.id) return
+    // Stub: fire case_view event for algorithmic feed ranking
+    // When Session 2's useFeedEvents hook exists, replace with:
+    // feedEvents.trackCaseView(report.id, report.category)
+    try {
+      // Check gate status for free users (stub for useGateStatus)
+      // When Session 2 builds CaseViewGate + useGateStatus, wire here:
+      // var gateStatus = useGateStatus()
+      // if (gateStatus.isGated) { show CaseViewGate component }
+    } catch (e) {
+      // Non-critical
+    }
+  }, [report?.id])
+
+  // Scroll depth tracking stub for Session 2
+  useEffect(function() {
+    if (!report || !report.id || isCurated) return
+    var milestones = [25, 50, 75, 100]
+    var firedMilestones: Record<number, boolean> = {}
+
+    function handleScroll() {
+      var scrollHeight = document.documentElement.scrollHeight - window.innerHeight
+      if (scrollHeight <= 0) return
+      var scrollPercent = Math.round((window.scrollY / scrollHeight) * 100)
+      milestones.forEach(function(milestone) {
+        if (scrollPercent >= milestone && !firedMilestones[milestone]) {
+          firedMilestones[milestone] = true
+          // Stub: fire scroll_depth event
+          // When Session 2's useFeedEvents hook exists, replace with:
+          // feedEvents.trackScrollDepth(report.id, milestone)
+        }
+      })
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return function() { window.removeEventListener('scroll', handleScroll) }
+  }, [report?.id, isCurated])
+
   return (
     <>
       <Head>
@@ -583,7 +649,8 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         ))}
       </Head>
 
-      <ReadingProgress />
+      {/* Reading progress bar — only for curated reports with full body text */}
+      {isCurated && <ReadingProgress />}
 
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <div className="lg:flex lg:gap-8">
@@ -722,6 +789,13 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             {report.title}
           </h1>
 
+          {/* Feed hook lede — Paradocs editorial voice for index reports */}
+          {isIndexReport && (report as any).feed_hook && (
+            <p className="text-base sm:text-lg text-gray-200 italic mb-4 leading-relaxed font-serif">
+              {(report as any).feed_hook}
+            </p>
+          )}
+
           {/* Only show summary if it adds value beyond the title AND description */}
           {(() => {
             if (!report.summary) return null;
@@ -787,7 +861,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                 {report.witness_count >= 10 ? '~' : ''}{report.witness_count} witnesses{report.witness_count >= 10 ? ' (est.)' : ''}
               </span>
             )}
-            {report.description && (
+            {isCurated && report.description && (
               <span className="flex items-center gap-1.5">
                 <Clock className="w-4 h-4" />
                 {estimateReadingTime(report.description)} min read
@@ -834,65 +908,98 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           </div>
         )}
 
-        {/* Table of Contents — shown for longer articles with multiple sections */}
-        {report.description && (
-          <ArticleTableOfContents description={report.description} />
+        {/* === CURATED EDITORIAL MODE: Full body text, TOC, reading experience === */}
+        {isCurated && (
+          <>
+            {/* Table of Contents — shown for longer articles with multiple sections */}
+            {report.description && (
+              <ArticleTableOfContents description={report.description} />
+            )}
+
+            {/* Main content — optimized reading typography on mobile */}
+            <div className="glass-card p-4 sm:p-6 md:p-8 mb-6 sm:mb-8 overflow-hidden" data-tour-step="description">
+              <div className="prose prose-invert max-w-prose mx-auto md:max-w-none md:mx-0">
+                <FormattedDescription
+                  text={report.description || ''}
+                  className="text-gray-300 leading-relaxed break-words text-[16px] md:text-base"
+                />
+              </div>
+
+              {/* Sources & Documents — external links and embedded videos shown after body text */}
+              {media.length > 0 && (
+                <div className="mt-8 pt-8 border-t border-white/10">
+                  <h3 className="font-medium text-white mb-4 flex items-center gap-2">
+                    <span>Sources & Documents</span>
+                    <span className="text-xs text-white/30 font-normal">Primary source material</span>
+                  </h3>
+                  <MediaGallery media={media} mode="sources" />
+                </div>
+              )}
+
+              {/* Evidence section — elevated visual treatment for credibility */}
+              {(report.has_physical_evidence || report.has_photo_video || report.has_official_report || report.evidence_summary) && (
+                <div className="mt-8 pt-8 border-t border-white/10">
+                  <h3 className="font-medium text-white mb-4 flex items-center gap-2">
+                    <Award className="w-4 h-4 text-amber-400" />
+                    Evidence & Documentation
+                  </h3>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {report.has_photo_video && (
+                      <span className="px-3 py-1.5 rounded-lg text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center gap-1.5">
+                        <Check className="w-3 h-3" />
+                        Photos/Video Available
+                      </span>
+                    )}
+                    {report.has_physical_evidence && (
+                      <span className="px-3 py-1.5 rounded-lg text-xs bg-green-500/10 text-green-400 border border-green-500/20 flex items-center gap-1.5">
+                        <Check className="w-3 h-3" />
+                        Physical Evidence
+                      </span>
+                    )}
+                    {report.has_official_report && (
+                      <span className="px-3 py-1.5 rounded-lg text-xs bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center gap-1.5">
+                        <Check className="w-3 h-3" />
+                        Official Report Filed
+                      </span>
+                    )}
+                  </div>
+                  {report.evidence_summary && (
+                    <p className="text-sm text-gray-300 leading-relaxed">{report.evidence_summary}</p>
+                  )}
+                </div>
+              )}
+
+            </div>
+          </>
         )}
 
-        {/* Main content — optimized reading typography on mobile */}
-        <div className="glass-card p-4 sm:p-6 md:p-8 mb-6 sm:mb-8 overflow-hidden" data-tour-step="description">
-          <div className="prose prose-invert max-w-prose mx-auto md:max-w-none md:mx-0">
-            <FormattedDescription
-              text={report.description || ''}
-              className="text-gray-300 leading-relaxed break-words text-[16px] md:text-base"
+        {/* === INDEX MODEL MODE: Paradocs Analysis + Source Attribution + Research Hub Preview === */}
+        {isIndexReport && (
+          <>
+            {/* Paradocs Analysis Box — THE MAIN CONTENT for index reports */}
+            <ParadocsAnalysisBox
+              narrative={(report as any).paradocs_narrative || null}
+              assessment={paradocsAssessment}
             />
-          </div>
 
-          {/* Sources & Documents — external links and embedded videos shown after body text */}
-          {media.length > 0 && (
-            <div className="mt-8 pt-8 border-t border-white/10">
-              <h3 className="font-medium text-white mb-4 flex items-center gap-2">
-                <span>Sources & Documents</span>
-                <span className="text-xs text-white/30 font-normal">Primary source material</span>
-              </h3>
-              <MediaGallery media={media} mode="sources" />
-            </div>
-          )}
+            {/* Source Attribution — legally required footnote */}
+            {(report as any).source_url && (
+              <SourceAttribution
+                label={(report as any).source_label || ''}
+                url={(report as any).source_url}
+              />
+            )}
 
-          {/* Evidence section — elevated visual treatment for credibility */}
-          {(report.has_physical_evidence || report.has_photo_video || report.has_official_report || report.evidence_summary) && (
-            <div className="mt-8 pt-8 border-t border-white/10">
-              <h3 className="font-medium text-white mb-4 flex items-center gap-2">
-                <Award className="w-4 h-4 text-amber-400" />
-                Evidence & Documentation
-              </h3>
-              <div className="flex flex-wrap gap-2 mb-4">
-                {report.has_photo_video && (
-                  <span className="px-3 py-1.5 rounded-lg text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center gap-1.5">
-                    <Check className="w-3 h-3" />
-                    Photos/Video Available
-                  </span>
-                )}
-                {report.has_physical_evidence && (
-                  <span className="px-3 py-1.5 rounded-lg text-xs bg-green-500/10 text-green-400 border border-green-500/20 flex items-center gap-1.5">
-                    <Check className="w-3 h-3" />
-                    Physical Evidence
-                  </span>
-                )}
-                {report.has_official_report && (
-                  <span className="px-3 py-1.5 rounded-lg text-xs bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center gap-1.5">
-                    <Check className="w-3 h-3" />
-                    Official Report Filed
-                  </span>
-                )}
-              </div>
-              {report.evidence_summary && (
-                <p className="text-sm text-gray-300 leading-relaxed">{report.evidence_summary}</p>
-              )}
-            </div>
-          )}
-
-        </div>
+            {/* Research Hub Preview — conversion carrot for free users */}
+            <ResearchHubPreview
+              reportId={report.id}
+              reportTitle={report.title}
+              reportCategory={report.category}
+              isSubscribed={false}
+              isAuthenticated={!!user}
+            />
+          </>
+        )}
 
         {/* Tags — compact, subtle discovery affordances */}
         {report.tags && report.tags.length > 0 && (
@@ -986,13 +1093,19 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           </div>
         )}
 
-        {/* Further Reading — Amazon affiliate book recommendations */}
-        <FurtherReading reportId={report.id} />
+        {/* Further Reading — Amazon affiliate book recommendations (curated reports only) */}
+        {isCurated && (
+          <FurtherReading reportId={report.id} />
+        )}
 
-        {/* AI Analysis Section */}
-        <div data-tour-step="ai-insight">
-          <ReportAIInsight reportSlug={slug as string} className="mb-8" />
-        </div>
+        {/* AI Analysis Section — curated reports use on-demand analysis;
+            index reports use pre-generated Paradocs Analysis (rendered above).
+            Fallback: if index report has no paradocs_narrative yet, show on-demand. */}
+        {(isCurated || (!isCurated && !(report as any).paradocs_narrative)) && (
+          <div data-tour-step="ai-insight">
+            <ReportAIInsight reportSlug={slug as string} className="mb-8" />
+          </div>
+        )}
 
         {/* Location Intelligence Map */}
         {report.latitude && report.longitude && (

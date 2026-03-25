@@ -810,6 +810,8 @@ Each major feature area has a dedicated Claude session with its own deep context
 | YOUTUBE_API_KEY not provided | YouTube adapter (Session 10) | Chase | Needed for YouTube Data API v3. Free tier: 10K units/day. |
 | NEWS_API_KEY not provided | News adapter (Session 10) | Chase | Needed for NewsAPI.org. Free tier: 100 requests/day. |
 | ~3,600 phenomena not yet embedded | Full semantic search coverage for encyclopedia | Chase | Re-run embed batches with staggered timing (see HANDOFF_AI_EXPERIENCE.md). NOT a launch blocker — improves search quality incrementally. |
+| DB migration not yet run (Phase 3 feed tables) | Algorithmic feed scoring, behavioral signals, depth gating, admin metrics | Chase | Run `supabase/migrations/20260324_feed_events.sql` in Supabase dashboard. Creates `feed_events`, `feed_config`, `category_engagement` materialized view, `user_usage` table. Also create `refresh_category_engagement` RPC function for materialized view refresh. Required before feed personalization or depth gating works. |
+| Vercel cron not configured for engagement refresh | Hourly materialized view refresh for feed ranking | Chase | Add cron job hitting `/api/cron/refresh-engagement` hourly with CRON_SECRET header. Without this, `category_engagement` view becomes stale and ranking degrades. |
 
 ---
 
