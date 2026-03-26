@@ -604,14 +604,45 @@ async function fetchReportDetails(id: string): Promise<{
     return '';
   };
 
-  // Extract description - it's in paragraph tags after the metadata
-  var descMatch = html.match(/<\/p>\s*<p[^>]*>([\s\S]*?)<p[^>]*><em>Posted/i) ||
-                  html.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
-                  html.match(/<div[^>]*class="[^"]*entry-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+  // Extract description — NUFORC uses <b>Label:</b> value<br> structure, NOT <p> tags
+  // The narrative text appears after the last metadata field, separated by <br><br>
+  var descMatch = null;
+
+  // Approach 1: Find text after Characteristics (last metadata field) followed by <br><br>
+  descMatch = html.match(/<b>Characteristics:<\/b>[^<]*<br>\s*<br>([\s\S]*?)(?:<p[^>]*><em>Posted|<footer|<\/div>\s*<\/div>\s*<\/div>|$)/i);
+
+  // Approach 2: Find the content-area div and extract the narrative after all <b> metadata
+  if (!descMatch || !descMatch[1] || cleanText(descMatch[1].replace(/<[^>]+>/g, ' ')).length < 50) {
+    // Get the primary content area and find text blocks NOT preceded by <b> tags
+    var contentMatch = html.match(/class="content-area[^"]*"[^>]*>([\s\S]*?)(?:<footer|<\/main|<div[^>]*class="[^"]*sidebar)/i);
+    if (contentMatch) {
+      // Split by <br><br> and find the narrative paragraphs (longer text without <b> tags)
+      var sections = contentMatch[1].split(/<br>\s*<br>/i);
+      var narrativeParts: string[] = [];
+      for (var si = 0; si < sections.length; si++) {
+        var sectionText = cleanText(sections[si].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '));
+        // Narrative sections are longer and don't start with a metadata label pattern
+        if (sectionText.length > 40 && !sectionText.match(/^(Occurred|Reported|Duration|Location|Shape|Color|Estimated|Viewed|Direction|Angle|Closest|Explanation|Characteristics|No of observers)/i)) {
+          narrativeParts.push(sectionText);
+        }
+      }
+      if (narrativeParts.length > 0) {
+        descMatch = [null, narrativeParts.join('\n\n')];
+      }
+    }
+  }
+
+  // Approach 3: Legacy patterns for older NUFORC page layouts
+  if (!descMatch) {
+    descMatch = html.match(/<\/p>\s*<p[^>]*>([\s\S]*?)<p[^>]*><em>Posted/i) ||
+                html.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
+                html.match(/<div[^>]*class="[^"]*entry-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+  }
 
   var description = '';
   if (descMatch) {
-    description = cleanText(descMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '));
+    var rawDesc = typeof descMatch[1] === 'string' ? descMatch[1] : '';
+    description = cleanText(rawDesc.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '));
   }
 
   // Extract structured metadata from the detail page
