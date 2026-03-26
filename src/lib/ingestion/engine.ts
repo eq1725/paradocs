@@ -15,6 +15,8 @@ import { generateAndSaveParadocsAnalysis } from '../services/paradocs-analysis.s
 import { embedReport } from '../services/embedding.service';
 import { enrichReport } from './enrichment/report-enricher';
 import { checkForDuplicate, DedupCandidate } from './dedup';
+import { processMediaItem } from './media-storage';
+import { getMediaPolicy } from './media-policy';
 
 // Phenomenon pattern matching for auto-identification during ingestion
 interface PhenomenonPattern {
@@ -422,12 +424,20 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                     continue;
                   }
 
+                  // Apply media policy: download+store or link-only
+                  var processed = await processMediaItem(
+                    mediaItem,
+                    report.source_type,
+                    existing.id,
+                    mediaAdded
+                  );
+
                   await supabase.from('report_media').insert({
                     report_id: existing.id,
                     media_type: mediaItem.type,
-                    url: mediaItem.url,
+                    url: processed.url,
                     thumbnail_url: mediaItem.thumbnailUrl || null,
-                    caption: mediaItem.caption || null,
+                    caption: processed.caption || mediaItem.caption || null,
                     is_primary: mediaItem.isPrimary || false
                   });
                   mediaAdded++;
@@ -595,12 +605,20 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                   continue;
                 }
 
+                // Apply media policy: download+store or link-only
+                var processed = await processMediaItem(
+                  mediaItem,
+                  report.source_type,
+                  slug,
+                  mediaInserted
+                );
+
                 const { error: mediaError } = await supabase.from('report_media').insert({
                   report_id: insertedReport.id,
                   media_type: mediaItem.type,
-                  url: mediaItem.url,
+                  url: processed.url,
                   thumbnail_url: mediaItem.thumbnailUrl || null,
-                  caption: mediaItem.caption || null,
+                  caption: processed.caption || mediaItem.caption || null,
                   is_primary: mediaItem.isPrimary || false
                 });
                 if (!mediaError) mediaInserted++;

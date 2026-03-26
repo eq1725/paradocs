@@ -2,9 +2,10 @@
 
 **Date:** March 25, 2026 (Session 10 Revised — continued)
 **Session:** Data Ingestion & Pipeline (Session 10 — Revised for index-with-attribution model)
-**Status:** PIPELINE TESTED + ENUM FIX + NUFORC FIX + SOURCE CATALOG EXPANDED + ENRICHMENT PIPELINE + SOURCE-SPECIFIC THRESHOLDS + CROSS-POST DEDUP. All code changes are LOCAL ONLY — not yet deployed to Vercel.
-**Next:** Deploy to Vercel → Add API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) → Clean up existing duplicates on live site → Re-run 20-report quality test with all fixes → Scale to 2-5K per source.
+**Status:** ✅ DEPLOYED + TESTED. NUFORC 20-report quality test: **18/20 inserted (90% pass rate)**. 8 approved, 10 pending_review. Descriptions 440-1,913 chars. Live on beta.discoverparadocs.com.
+**Next:** Add API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) to Vercel for AI features → Scale to 2-5K per source → Test other adapters (BFRO, Reddit, etc.).
 **Action Item (Chase — Report Experience-Curated session):** Re-seed Roswell witness cluster (13) and Rendlesham Forest cluster (6) from existing seed scripts (`seed-rendlesham-cluster.ts`, `admin-seed-roswell-witnesses.js`, `admin-roswell-cluster-upgrade.js`).
+**Action Item (Chase — Vercel env vars):** Add `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` to Vercel environment variables (Settings → Environment Variables) for feed hook generation, Paradocs analysis, and vector embeddings.
 
 ---
 
@@ -409,12 +410,78 @@ Wired into `engine.ts` between quick-reject and quality scoring so enriched data
 - **Possible match (>=0.45)**: Insert normally (no action)
 - Failure is non-fatal — dedup errors never block ingestion
 
-### 7. Outstanding Items
+### 7. Deployment & NUFORC Quality Test (March 26, 2026)
 
-- **Add API keys to Vercel**: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` needed for AI features (feed hooks, paradocs analysis, embeddings)
-- **Re-run 20-report test**: With NUFORC fix + enrichment + dedup all applied
-- **Clean up existing duplicates on live site**: The 21 current reports include at least one cross-post duplicate (Yowie encounter). Run the batch dedup scanner (`findDuplicates` from `dedup.ts`) against existing data, or manually remove.
-- **Test AI pipeline**: After API keys are set, verify feed hooks + paradocs analysis generation
-- **Deploy code changes**: All session work is local only — NUFORC fix, enrichment pipeline, source-specific thresholds, and cross-post dedup all need to be pushed/deployed
+**Deployment fixes pushed (3 commits):**
+
+1. **`f131ba5d` — fix: remove duplicate config export in ingest.ts**
+   - `src/pages/api/admin/ingest.ts` had two `export const config` blocks (line 5: maxDuration 120, line 187: maxDuration 300). Removed the duplicate at line 5.
+
+2. **`4d4885ad` — fix: raise NUFORC hasUsableDescriptions threshold to 150 chars**
+   - NUFORC table summaries are 50-130 chars, which passed the old 50-char `hasUsableDescriptions` check but failed the quality filter's 150-char `minDescLength`. Raised threshold to 150 to force full-page fetches.
+
+3. **`67a55c9d` — fix: NUFORC full-page description extraction for current HTML structure**
+   - Old regex patterns looked for `</p><p>`, `<article>`, `entry-content` — none of which exist in NUFORC's HTML. NUFORC uses `<b>Label:</b> value<br>` for metadata with narrative text after `<br><br>`.
+   - Rewrote `fetchReportDetails` description extraction with 3 approaches:
+     - Approach 1: Match text after `<b>Characteristics:</b>` followed by `<br><br>`
+     - Approach 2: Split content-area by `<br><br>`, filter for narrative paragraphs (>40 chars, no metadata label prefix)
+     - Approach 3: Legacy patterns for older page layouts
+
+**20-Report NUFORC Quality Test Results:**
+
+| Metric | Value |
+|--------|-------|
+| Records found | 20 |
+| Records inserted | 18 (90%) |
+| Records rejected | 2 (10% — descriptions too short) |
+| Approved | 8 |
+| Pending review | 10 |
+| Duration | ~2.5 minutes (full-page fetches) |
+| Description lengths | 442–1,913 chars |
+| Error messages | None |
+
+**Sample reports on live site (beta.discoverparadocs.com/explore):**
+- "Triangle Sighting in Guelph, ON (2026-03-05)" — 917 chars, approved, High Credibility
+- "Orb Sighting in Costa del Este, Buenos Aires Province (2026-03-01)" — 1,913 chars, approved, High Credibility
+- "Other Sighting in Ringwood, England (2026-03-04)" — 442 chars, pending_review
+- "Orb Sighting in Sint Jacobiparochie, Friesland (2026-03-05)" — 801 chars, approved
+
+**Database state after test:**
+- 1 curated/approved (Roswell)
+- 8 nuforc/approved
+- 10 nuforc/pending_review
+- Total: 19 reports (9 visible on site)
+
+### 8. Media Compliance & Policy (March 26, 2026)
+
+**Commits (pending push):**
+- Content Classification crash fix (`ce08d0a9`)
+- Admin report review page (`b6ad00db`)
+- Media policy + storage integration (this session)
+
+**Files created:**
+- `MEDIA_POLICY.md` — Full ToS review and source-by-source media policy matrix
+- `src/lib/ingestion/media-policy.ts` — Source media policy config (download / link_only / embed_only per source)
+- `src/lib/ingestion/media-storage.ts` — Reusable download+store utility for permitted sources (Supabase `report-media` bucket)
+
+**Files modified:**
+- `src/lib/ingestion/engine.ts` — Media insert now routes through `processMediaItem()` which checks source policy before deciding to download+store vs. hotlink
+
+**Policy summary:**
+- ✅ Download + store: Wikipedia/Wikimedia (CC BY-SA), Government/FOIA/BlackVault/GEIPAN (public domain), Kaggle imports (per license)
+- ⚠️ Link only: NUFORC, BFRO, Reddit, Erowid, NDERF, IANDS, Shadowlands, Ghosts of America, News, MUFON
+- 🎬 Embed only: YouTube (iframe embed player)
+- ❌ No AI-generated images on report detail pages (confirmed: not present in current code)
+
+**Admin Report Review page:**
+- `src/pages/admin/report-review.tsx` — Full review UI with status tabs, source filters, credibility score bars, expand-to-detail, bulk approve/reject
+- `src/pages/api/admin/report-review.ts` — API endpoint with auth, GET (paginated listing + stats), POST (approve/reject actions)
+
+### 9. Outstanding Items
+
+- **Git push** (Chase): Push pending commits: `ce08d0a9` (crash fix), `b6ad00db` (admin review page), + media policy commits
+- **Test AI pipeline**: After API keys are set, verify feed hooks + paradocs analysis generation on the 18 NUFORC reports
+- **Scale testing**: Run 50 → 500 → 2,000 per source for NUFORC, then test BFRO, Reddit, Wikipedia adapters
 - **Re-seed Roswell/Rendlesham clusters**: Chase action item from previous session
+- **Wikipedia media download test**: Run a small Wikipedia ingestion batch to verify download+store works with CC BY-SA attribution
 - **Pre-existing type error**: `LogToConstellation.tsx` lines 96, 127 — concat type mismatch (not related to ingestion)
