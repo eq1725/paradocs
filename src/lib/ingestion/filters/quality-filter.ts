@@ -675,69 +675,96 @@ export function smartReEvaluate(
   var boostPoints = 0;
   var reasons: string[] = [];
 
-  // 1. Length is the main penalty — check if lengthScore is disproportionately low
-  // Max lengthScore is 25. If it's below 15 but other scores are decent, length is the bottleneck.
+  // Sources where EVERY submission is inherently a first-hand witness report.
+  // These get a significant baseline boost because the source itself provides
+  // structural credibility that the scoring dimensions can't capture.
+  var witnessReportSources = ['nuforc', 'bfro', 'mufon', 'nderf', 'iands', 'oberf'];
+  var isWitnessSource = witnessReportSources.indexOf(report.source_type) !== -1;
+
+  // Broader set of trusted, moderated sources (includes witness + government/academic)
+  var trustedSources = ['nuforc', 'bfro', 'mufon', 'nderf', 'iands', 'oberf', 'government', 'blackvault', 'geipan', 'foia', 'bluebook'];
+  var isTrusted = trustedSources.indexOf(report.source_type) !== -1;
+
+  // 1. Witness-report source baseline boost
+  // NUFORC, BFRO, etc. are curated databases where every submission is a real
+  // witness report. A short NUFORC report still has editorial value — the witness
+  // took time to submit it through a structured form with location/date/shape fields.
+  if (isWitnessSource) {
+    boostPoints += 8;
+    reasons.push('Witness-report source (' + report.source_type.toUpperCase() + ')');
+  }
+
+  // 2. Length is the main penalty — check if lengthScore is disproportionately low
   var nonLengthScore = qualityScore.detailScore + qualityScore.coherenceScore + qualityScore.sourceScore;
   var nonLengthMax = 75; // 3 dimensions × 25 max each
   var nonLengthPct = nonLengthScore / nonLengthMax;
 
-  if (qualityScore.lengthScore < 15 && nonLengthPct >= 0.55) {
+  if (qualityScore.lengthScore < 15 && nonLengthPct >= 0.45) {
     boostPoints += 5;
     reasons.push('Short but other dimensions solid (' + Math.round(nonLengthPct * 100) + '%)');
   }
 
-  // 2. First-person account indicators — strong value even when brief
+  // 3. First-person account indicators — strong value even when brief
   var firstPersonPatterns = [
-    /\bI\s+(saw|seen|noticed|observed|watched|heard|felt|smelled)\b/i,
-    /\bmy\s+(friend|wife|husband|daughter|son|family|partner|dog|cat)\b/i,
-    /\bwe\s+(were|saw|noticed|heard|both)\b/i,
+    /\bI\s+(saw|seen|noticed|observed|watched|heard|felt|smelled|looked|was)\b/i,
+    /\bmy\s+(friend|wife|husband|daughter|son|family|partner|dog|cat|neighbor|brother|sister|mother|father|boyfriend|girlfriend|coworker)\b/i,
+    /\bwe\s+(were|saw|noticed|heard|both|all|drove|walked|looked|went)\b/i,
     /\bwoke\s+(up|me)\b/i,
-    /\blooking\s+(at|out|up|through)\b/i,
+    /\blooking\s+(at|out|up|through|down|around)\b/i,
+    /\b(I|we)\s+(couldn't|could not|can't|did not|didn't)\s+(believe|explain|understand|identify|sleep)\b/i,
+    /\b(scared|frightened|terrified|amazed|shocked|startled|confused|awestruck)\b/i,
   ];
   var firstPersonCount = firstPersonPatterns.filter(function(p) { return p.test(desc); }).length;
   if (firstPersonCount >= 2) {
     boostPoints += 5;
     reasons.push('First-hand account (' + firstPersonCount + ' indicators)');
   } else if (firstPersonCount === 1) {
-    boostPoints += 2;
+    boostPoints += 3;
     reasons.push('Likely first-hand account');
   }
 
-  // 3. Specific observational details — timestamps, distances, directions
+  // 4. Specific observational details — timestamps, distances, directions
   var specificityPatterns = [
     /\b\d{1,2}:\d{2}\s*(am|pm|a\.m\.|p\.m\.)?/i,               // Exact time
-    /\b(approximately|about|roughly|estimated)\s+\d+/i,          // Estimated measurements
+    /\b(approximately|about|roughly|estimated|around)\s+\d+/i,   // Estimated measurements
     /\b(north|south|east|west|northeast|northwest|southeast|southwest)\b/i, // Compass directions
     /\b(seconds?|minutes?|hours?)\b/i,                           // Duration mentions
-    /\b(altitude|height|elevation|distance|feet|meters?|miles?)\b/i, // Spatial measurements
+    /\b(altitude|height|elevation|distance|feet|foot|meters?|miles?|yards?|inches?|kilometers?)\b/i, // Spatial
+    /\b(triangle|triangular|sphere|spherical|disc|disk|cigar|oval|diamond|cylinder|orb|chevron|boomerang)\b/i, // Shape description
+    /\b(red|green|blue|white|orange|yellow|amber|silver|black)\s+(light|glow|color|object|craft)\b/i, // Color + object
   ];
   var specificityCount = specificityPatterns.filter(function(p) { return p.test(desc); }).length;
   if (specificityCount >= 3) {
     boostPoints += 5;
     reasons.push('High specificity (' + specificityCount + ' detail types)');
   } else if (specificityCount >= 1) {
-    boostPoints += 2;
-    reasons.push('Some specificity');
-  }
-
-  // 4. Structured metadata from a trusted source
-  var trustedSources = ['nuforc', 'bfro', 'mufon', 'nderf', 'iands', 'government', 'blackvault', 'geipan', 'foia'];
-  var isTrusted = trustedSources.indexOf(report.source_type) !== -1;
-  if (isTrusted && qualityScore.breakdown.hasLocation && qualityScore.breakdown.hasDate) {
     boostPoints += 3;
-    reasons.push('Trusted source with complete metadata');
+    reasons.push('Some specificity (' + specificityCount + ')');
   }
 
-  // 5. Sensory details — seeing, hearing, feeling — indicate real experience
+  // 5. Structured metadata from a trusted source
+  if (isTrusted && qualityScore.breakdown.hasLocation && qualityScore.breakdown.hasDate) {
+    boostPoints += 5;
+    reasons.push('Trusted source with complete metadata');
+  } else if (isTrusted && (qualityScore.breakdown.hasLocation || qualityScore.breakdown.hasDate)) {
+    boostPoints += 3;
+    reasons.push('Trusted source with partial metadata');
+  }
+
+  // 6. Sensory details — seeing, hearing, feeling — indicate real experience
   var sensoryPatterns = [
-    /\b(bright|dim|glowing|flashing|pulsing|shimmering|luminous)\b/i,
-    /\b(loud|quiet|humming|buzzing|silent|noise|sound)\b/i,
-    /\b(cold|warm|tingling|pressure|vibrat|numb|sick|dizzy)\b/i,
+    /\b(bright|dim|glowing|flashing|pulsing|shimmering|luminous|lit up|illuminat)\b/i,
+    /\b(loud|quiet|humming|buzzing|silent|noise|sound|rumbl|roar|whir|hiss)\b/i,
+    /\b(cold|warm|tingling|pressure|vibrat|numb|sick|dizzy|goosebumps|hair.*stood)\b/i,
+    /\b(smell|odor|stench|sulfur|ozone|burning|metallic)\b/i,
   ];
   var sensoryCount = sensoryPatterns.filter(function(p) { return p.test(desc); }).length;
   if (sensoryCount >= 2) {
     boostPoints += 3;
     reasons.push('Multiple sensory details');
+  } else if (sensoryCount === 1) {
+    boostPoints += 1;
+    reasons.push('Sensory detail present');
   }
 
   // Decision: promote if boost points exceed the shortfall
