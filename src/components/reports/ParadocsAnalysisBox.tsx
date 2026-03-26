@@ -31,7 +31,7 @@ export interface ParadocsAssessment {
   credibility_reasoning?: string
   credibility_factors?: CredibilityFactor[]
   mundane_explanations?: MundaneExplanation[]
-  content_type?: string
+  content_type?: string | { suggested_type?: string; is_first_hand_account?: boolean; confidence?: string }
   is_first_hand?: boolean
   confidence?: string
   similar_phenomena?: string[]
@@ -262,16 +262,20 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
                   <div className="mt-3 space-y-2">
                     <div className="flex flex-wrap gap-2">
                       <span className="px-3 py-1 rounded-full text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                        {assessment.content_type.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase() })}
+                        {(function() {
+                          var ct = assessment.content_type
+                          var typeStr = typeof ct === 'string' ? ct : (ct && typeof ct === 'object' ? (ct.suggested_type || 'unknown') : 'unknown')
+                          return typeStr.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase() })
+                        })()}
                       </span>
-                      {assessment.is_first_hand && (
+                      {(assessment.is_first_hand || (typeof assessment.content_type === 'object' && assessment.content_type && assessment.content_type.is_first_hand_account)) && (
                         <span className="px-3 py-1 rounded-full text-xs bg-green-500/20 text-green-400 border border-green-500/30">
                           First-hand Account
                         </span>
                       )}
-                      {assessment.confidence && (
+                      {(assessment.confidence || (typeof assessment.content_type === 'object' && assessment.content_type && assessment.content_type.confidence)) && (
                         <span className="px-3 py-1 rounded-full text-xs bg-white/10 text-gray-400">
-                          {assessment.confidence + ' confidence'}
+                          {(assessment.confidence || (typeof assessment.content_type === 'object' && assessment.content_type ? assessment.content_type.confidence : '')) + ' confidence'}
                         </span>
                       )}
                     </div>
