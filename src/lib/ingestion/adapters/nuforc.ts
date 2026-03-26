@@ -709,12 +709,12 @@ export const nuforcAdapter: SourceAdapter = {
         var monthReports = await parseMonthPage(monthHtml, monthUrl);
         console.log('[NUFORC] Found ' + monthReports.length + ' reports in month ' + month.monthId);
 
-        // Check if we got IDs without meaningful row data — auto-enable full details
-        // A summary must be >50 chars to count as real data (otherwise it's just a shape label like "Disk")
-        var hasRowData = monthReports.some(function(r) { return r.summary.length > 50 || r.city.length > 0; });
-        var needFullDetails = fetchFullDetails || !hasRowData;
-        if (!hasRowData && monthReports.length > 0) {
-          console.log('[NUFORC] No usable row data (summaries too short) — auto-enabling fetch_full_details for individual pages');
+        // Check if descriptions are long enough to pass quality filtering (min 50 chars)
+        // City/shape metadata from the table is useful but NOT a substitute for full descriptions
+        var hasUsableDescriptions = monthReports.some(function(r) { return r.summary.length > 50; });
+        var needFullDetails = fetchFullDetails || !hasUsableDescriptions;
+        if (!hasUsableDescriptions && monthReports.length > 0) {
+          console.log('[NUFORC] Descriptions too short (max: ' + Math.max.apply(null, monthReports.map(function(r) { return r.summary.length; })) + ' chars) — auto-enabling fetch_full_details');
         }
 
         for (var meta of monthReports) {
