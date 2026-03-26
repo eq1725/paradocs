@@ -4,6 +4,11 @@
   "outputDirectory": ".next",
   "installCommand": "npm install",
   "devCommand": "npm run dev",
+  "functions": {
+    "src/pages/api/admin/ingest.ts": { "maxDuration": 300 },
+    "src/pages/api/admin/reingest.ts": { "maxDuration": 300 },
+    "src/pages/api/cron/*.ts": { "maxDuration": 300 }
+  },
   "crons": [
     {
       "path": "/api/cron/ingest",
