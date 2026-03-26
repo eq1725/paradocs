@@ -45,8 +45,16 @@ export default async function handler(
     // Try to get user from cookie/session
     const authHeader = req.headers.authorization;
     let userId: string | null = null;
+    let isServiceKeyAuth = false;
 
-    if (authHeader?.startsWith('Bearer ')) {
+    // Allow service role key as admin auth (for programmatic/CI access)
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (serviceKey && authHeader === 'Bearer ' + serviceKey) {
+      userId = 'service-role';
+      isServiceKeyAuth = true;
+    }
+
+    if (!userId && authHeader?.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       const { data: { user }, error } = await supabaseUser.auth.getUser(token);
       if (!error && user) {
@@ -88,16 +96,18 @@ export default async function handler(
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    // Check if user is admin
+    // Check if user is admin (service key auth skips this check)
     const supabaseAdmin = getSupabaseAdmin();
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .single();
+    if (!isServiceKeyAuth) {
+      const { data: profile, error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
 
-    if (profileError || profile?.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
+      if (profileError || profile?.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
     }
 
     console.log('[Admin] Starting manual ingestion...');
