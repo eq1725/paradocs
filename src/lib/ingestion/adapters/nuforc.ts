@@ -709,9 +709,9 @@ export const nuforcAdapter: SourceAdapter = {
         var monthReports = await parseMonthPage(monthHtml, monthUrl);
         console.log('[NUFORC] Found ' + monthReports.length + ' reports in month ' + month.monthId);
 
-        // Check if descriptions are long enough to pass quality filtering (min 50 chars)
-        // City/shape metadata from the table is useful but NOT a substitute for full descriptions
-        var hasUsableDescriptions = monthReports.some(function(r) { return r.summary.length > 50; });
+        // Check if descriptions are long enough to pass quality filtering (min 150 chars to match quality-filter.ts threshold)
+        // NUFORC table summaries are typically 50-130 chars — NOT enough for the quality filter
+        var hasUsableDescriptions = monthReports.some(function(r) { return r.summary.length > 150; });
         var needFullDetails = fetchFullDetails || !hasUsableDescriptions;
         if (!hasUsableDescriptions && monthReports.length > 0) {
           console.log('[NUFORC] Descriptions too short (max: ' + Math.max.apply(null, monthReports.map(function(r) { return r.summary.length; })) + ' chars) — auto-enabling fetch_full_details');
