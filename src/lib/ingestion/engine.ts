@@ -9,6 +9,7 @@ import {
   improveTitleWithAI,
   getSourceLabel,
   isObviouslyLowQuality,
+  smartReEvaluate,
 } from './filters';
 import { generateAndSaveFeedHook } from '../services/feed-hook.service';
 import { generateAndSaveParadocsAnalysis } from '../services/paradocs-analysis.service';
@@ -318,7 +319,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
 
         // Get quality score and determine status (source-specific thresholds)
         const qualityScore = qualityResult.qualityScore!;
-        const status = getStatusFromScore(qualityScore.total, report.source_type);
+        var status = getStatusFromScore(qualityScore.total, report.source_type);
 
         // Reject very low quality
         if (status === 'rejected') {
@@ -327,9 +328,24 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           continue;
         }
 
-        // Track pending review
+        // Smart re-evaluation: if pending_review, check if content has real value
+        // despite a low score (e.g., short but substantive first-hand account)
         if (status === 'pending_review') {
-          pendingReview++;
+          var reeval = smartReEvaluate(qualityScore, {
+            title: report.title,
+            description: report.description,
+            source_type: report.source_type,
+            location_name: report.location_name,
+            event_date: report.event_date,
+            category: report.category,
+          });
+          if (reeval.promote) {
+            status = 'approved';
+            console.log('[Ingestion] Smart-promoted: "' + report.title.substring(0, 40) + '..." (' + reeval.reason + ')');
+          } else {
+            pendingReview++;
+            console.log('[Ingestion] Kept pending: "' + report.title.substring(0, 40) + '..." (' + reeval.reason + ')');
+          }
         }
 
         // Improve title if needed (using AI for unique elements)

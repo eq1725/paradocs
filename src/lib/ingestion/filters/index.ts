@@ -9,6 +9,7 @@ export {
   getStatusFromScore,
   getSourceThresholds,
   isObviouslyLowQuality,
+  smartReEvaluate,
   // Quality filter patterns (for adapters that need custom checks)
   META_POST_PATTERNS,
   NON_EXPERIENCE_PATTERNS,

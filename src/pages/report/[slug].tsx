@@ -24,6 +24,7 @@ import ArticleTableOfContents from '@/components/ArticleTableOfContents'
 import ParadocsAnalysisBox from '@/components/reports/ParadocsAnalysisBox'
 import type { ParadocsAssessment } from '@/components/reports/ParadocsAnalysisBox'
 import SourceAttribution from '@/components/reports/SourceAttribution'
+import FeaturedMediaCard from '@/components/reports/FeaturedMediaCard'
 const LogToConstellation = dynamic(
   () => import('@/components/LogToConstellation'),
   { ssr: false }
@@ -900,6 +901,11 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             </div>
           )}
         </header>
+
+        {/* Featured Media — prominent video/audio/document links */}
+        {media.length > 0 && (
+          <FeaturedMediaCard media={media} />
+        )}
 
         {/* Hero Media Gallery — images only, shown compactly above TOC */}
         {media.length > 0 && (

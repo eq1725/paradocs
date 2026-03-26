@@ -646,6 +646,115 @@ export function getStatusFromScore(score: number, sourceType?: string): 'approve
 }
 
 /**
+ * Smart re-evaluation for borderline reports.
+ *
+ * When a report lands in pending_review, this checks WHY the score is low.
+ * If the main penalty is short description length but the content has real
+ * substance (first-hand details, location specifics, coherent narrative),
+ * promote it to approved.
+ *
+ * This avoids overwhelming the admin review queue with legitimate short reports
+ * from trusted sources like NUFORC, BFRO, etc.
+ */
+export function smartReEvaluate(
+  qualityScore: QualityScore,
+  report: { title: string; description: string; source_type: string; location_name?: string | null; event_date?: string | null; category?: string | null }
+): { promote: boolean; reason: string } {
+  var thresholds = getSourceThresholds(report.source_type);
+  var shortfall = thresholds.approve - qualityScore.total;
+
+  // Only re-evaluate if score is within 20 points of approval
+  // (i.e., not a deeply low-quality report)
+  if (shortfall > 20 || shortfall <= 0) {
+    return { promote: false, reason: 'Score too far from threshold (shortfall: ' + shortfall + ')' };
+  }
+
+  var desc = report.description;
+  var lowerDesc = desc.toLowerCase();
+  var wordCount = qualityScore.breakdown.wordCount;
+  var boostPoints = 0;
+  var reasons: string[] = [];
+
+  // 1. Length is the main penalty — check if lengthScore is disproportionately low
+  // Max lengthScore is 25. If it's below 15 but other scores are decent, length is the bottleneck.
+  var nonLengthScore = qualityScore.detailScore + qualityScore.coherenceScore + qualityScore.sourceScore;
+  var nonLengthMax = 75; // 3 dimensions × 25 max each
+  var nonLengthPct = nonLengthScore / nonLengthMax;
+
+  if (qualityScore.lengthScore < 15 && nonLengthPct >= 0.55) {
+    boostPoints += 5;
+    reasons.push('Short but other dimensions solid (' + Math.round(nonLengthPct * 100) + '%)');
+  }
+
+  // 2. First-person account indicators — strong value even when brief
+  var firstPersonPatterns = [
+    /\bI\s+(saw|seen|noticed|observed|watched|heard|felt|smelled)\b/i,
+    /\bmy\s+(friend|wife|husband|daughter|son|family|partner|dog|cat)\b/i,
+    /\bwe\s+(were|saw|noticed|heard|both)\b/i,
+    /\bwoke\s+(up|me)\b/i,
+    /\blooking\s+(at|out|up|through)\b/i,
+  ];
+  var firstPersonCount = firstPersonPatterns.filter(function(p) { return p.test(desc); }).length;
+  if (firstPersonCount >= 2) {
+    boostPoints += 5;
+    reasons.push('First-hand account (' + firstPersonCount + ' indicators)');
+  } else if (firstPersonCount === 1) {
+    boostPoints += 2;
+    reasons.push('Likely first-hand account');
+  }
+
+  // 3. Specific observational details — timestamps, distances, directions
+  var specificityPatterns = [
+    /\b\d{1,2}:\d{2}\s*(am|pm|a\.m\.|p\.m\.)?/i,               // Exact time
+    /\b(approximately|about|roughly|estimated)\s+\d+/i,          // Estimated measurements
+    /\b(north|south|east|west|northeast|northwest|southeast|southwest)\b/i, // Compass directions
+    /\b(seconds?|minutes?|hours?)\b/i,                           // Duration mentions
+    /\b(altitude|height|elevation|distance|feet|meters?|miles?)\b/i, // Spatial measurements
+  ];
+  var specificityCount = specificityPatterns.filter(function(p) { return p.test(desc); }).length;
+  if (specificityCount >= 3) {
+    boostPoints += 5;
+    reasons.push('High specificity (' + specificityCount + ' detail types)');
+  } else if (specificityCount >= 1) {
+    boostPoints += 2;
+    reasons.push('Some specificity');
+  }
+
+  // 4. Structured metadata from a trusted source
+  var trustedSources = ['nuforc', 'bfro', 'mufon', 'nderf', 'iands', 'government', 'blackvault', 'geipan', 'foia'];
+  var isTrusted = trustedSources.indexOf(report.source_type) !== -1;
+  if (isTrusted && qualityScore.breakdown.hasLocation && qualityScore.breakdown.hasDate) {
+    boostPoints += 3;
+    reasons.push('Trusted source with complete metadata');
+  }
+
+  // 5. Sensory details — seeing, hearing, feeling — indicate real experience
+  var sensoryPatterns = [
+    /\b(bright|dim|glowing|flashing|pulsing|shimmering|luminous)\b/i,
+    /\b(loud|quiet|humming|buzzing|silent|noise|sound)\b/i,
+    /\b(cold|warm|tingling|pressure|vibrat|numb|sick|dizzy)\b/i,
+  ];
+  var sensoryCount = sensoryPatterns.filter(function(p) { return p.test(desc); }).length;
+  if (sensoryCount >= 2) {
+    boostPoints += 3;
+    reasons.push('Multiple sensory details');
+  }
+
+  // Decision: promote if boost points exceed the shortfall
+  if (boostPoints >= shortfall) {
+    return {
+      promote: true,
+      reason: 'Auto-promoted: ' + reasons.join(', ') + ' (boost: +' + boostPoints + ', needed: ' + shortfall + ')'
+    };
+  }
+
+  return {
+    promote: false,
+    reason: 'Insufficient content signals (boost: +' + boostPoints + ', needed: ' + shortfall + '): ' + (reasons.length > 0 ? reasons.join(', ') : 'no strong indicators')
+  };
+}
+
+/**
  * Quick check if content is obviously low quality (for early rejection)
  */
 export function isObviouslyLowQuality(title: string, description: string): boolean {
