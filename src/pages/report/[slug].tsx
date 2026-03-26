@@ -1098,10 +1098,11 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           <FurtherReading reportId={report.id} />
         )}
 
-        {/* AI Analysis Section — curated reports use on-demand analysis;
-            index reports use pre-generated Paradocs Analysis (rendered above).
-            Fallback: if index report has no paradocs_narrative yet, show on-demand. */}
-        {(isCurated || (!isCurated && !(report as any).paradocs_narrative)) && (
+        {/* AI Analysis Section — curated reports only.
+            Index reports use pre-generated Paradocs Analysis (rendered above).
+            Never show on-demand ReportAIInsight for index reports — it could
+            expose raw description content, violating the index model. */}
+        {isCurated && (
           <div data-tour-step="ai-insight">
             <ReportAIInsight reportSlug={slug as string} className="mb-8" />
           </div>
