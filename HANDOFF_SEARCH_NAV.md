@@ -256,31 +256,47 @@ Expert-reviewed and implemented visual design + engagement improvements for both
 
 **DiscoverPreview.tsx (homepage) changes:**
 
-1. **Hook extraction quality threshold** (`HOOK_QUALITY_THRESHOLD = 2`): Sentences scoring below threshold fall back to a dramatic title treatment instead of displaying mediocre quote text. Expanded vivid word list from 20 to 40+ words (added: hovering, floating, creature, figure, triangle, orb, disc, sphere, beam, footprint, chills, paralyzed, frozen, watched, stared, flew, vanish). Added bonus for shorter/punchier sentences under 120 chars. `extractHook()` now returns `{ text, isQuote }` so cards can style differently based on whether text is a real quote or title fallback.
+1. **Hook extraction quality threshold** (`HOOK_QUALITY_THRESHOLD = 3`, raised from 2): Sentences scoring below threshold fall back to a dramatic title treatment instead of displaying mediocre quote text. Expanded vivid word list to 70+ words covering visual/sensory, experiencer language, and emotional/atmospheric terms. Added bonus for shorter/punchier sentences under 100 chars. `extractHook()` now returns `{ text, isQuote, score }` so selection and cards can use the score.
 
-2. **Pull-quote card atmospheric redesign**: Category-tinted gradient backgrounds (ported from Discover feed's `CARD_GRADIENTS` vocabulary). Oversized decorative quote watermark at 8-10rem opacity 6% in category-specific color. Quote mark colored per category (green for UFO, amber for cryptid, purple for ghost, etc.). Text upgraded from gray-300 to gray-200 with font-light for better contrast. When hook quality is too low, card displays title dramatically at text-base/lg font-semibold instead of bad italic quote.
+2. **Multi-layer sentence scoring** (`scoreSentence()`): Vivid words (+2 each), generic starts penalty (-3), filler phrase penalty (-2), dry/academic language penalty (-3). DRY_ACADEMIC list catches: "presentation", "explained that", "discussed", "described", "during his", "conference", etc. FILLER_PHRASES catches: "here and there", "my whole life", "kind of", "sort of", etc. GENERIC_STARTS catches: "i think", "so i", "basically i", etc.
 
-3. **Compact card hook text**: Now shows 2-line hook excerpt below title when a quality quote is available. Gives readers a reason to click beyond just the title.
+3. **Feed_hook quality scoring** (March 22 late): Feed hooks now scored through `scoreSentence() + 10` instead of flat score of 20. This ensures vivid AI hooks ("A security patrol chases unexplained lights...") beat dry/academic ones ("Joe McMoneagle projects four photographs..."). Vivid hooks score ~15-25, dry ones score ~7-12.
 
-4. **Visual rhythm across all 3 formats**: Featured card gets category gradient + radial accent glow. Pull-quote gets `bg-gradient-to-t` category tint + watermark overlay. Compact gets subtle radial accent only. Each format now feels visually distinct rather than three identical dark glass boxes.
+4. **Smart report selection overhaul**: Hook quality is now the dominant selection signal. `selectBestReports()` uses `extractHook().score` directly as the primary scoring component. Category diversity enforced for first 2 cards; 3rd card picks purely by quality regardless of category. Fetch pool expanded to 20 reports (was 10).
 
-5. **All cards use `overflow-hidden` + `relative`/`z-10`** pattern: Background layers are absolutely positioned, content is z-10. This enables layered atmospheric effects without layout issues.
+5. **Pull-quote card atmospheric redesign**: Category-tinted gradient backgrounds. Oversized decorative quote watermark at 8-10rem opacity 6% in category-specific color. Quote mark colored per category (green for UFO, amber for cryptid, purple for ghost, etc.). Pull-quote slot explicitly requires `isQuote=true`.
+
+6. **Compact card hook text**: Now shows 2-line hook excerpt below title when a quality quote is available.
+
+7. **Visual rhythm across all 3 formats**: Featured card gets category gradient + radial accent glow. Pull-quote gets `bg-gradient-to-t` category tint + watermark overlay. Compact gets subtle radial accent only. All cards use `overflow-hidden` + `relative`/`z-10` pattern for layered atmospheric backgrounds.
+
+8. **Section title**: Changed to "Eyewitness accounts" with subline "Millions of real reports from people worldwide."
+
+9. **Featured card title fix**: Hook paragraph only renders when `hookResult.isQuote` is true, preventing duplicate title display when hook extraction falls back to title.
 
 **DiscoverCards.tsx (Discover feed) changes:**
 
-1. **Complete `ACCENT_VARIATIONS` coverage**: Added 6 missing categories (psychological_experiences, biological_factors, perception_sensory, religion_mythology, esoteric_practices, combination). Previously only 5 of 11 categories had accent variations; the rest fell through to `DEFAULT_ACCENTS`. Now every category gets unique radial gradient glow variations.
+1. **Complete `ACCENT_VARIATIONS` coverage**: Added 6 missing categories (psychological_experiences, biological_factors, perception_sensory, religion_mythology, esoteric_practices, combination). All 11 categories now have unique accent variations.
 
-2. **Category-specific quote borders**: Raw summary quote borders now use category color instead of mood-based color. UFO reports get indigo border, cryptid reports get emerald, ghost reports get purple, etc. More visually distinctive at scale.
+2. **Category-specific quote borders**: Raw summary quote borders now use category color instead of mood-based color.
+
+**Feed Hook Generation (March 22):**
+
+- **New endpoint**: `/api/admin/generate-hooks` — Admin API for AI feed_hook generation using Claude Sonnet. Auth via `x-admin-api-key` header. Supports `limit`, `category`, `dryRun`, `overwrite` query params. Processes in batches of 5 with 300ms rate limiting.
+- **198 of 200 reports** processed successfully in first batch run. Hooks stored in `reports.feed_hook` column.
+- **~700+ reports** still need hooks generated. Run: `curl -X POST "https://beta.discoverparadocs.com/api/admin/generate-hooks?limit=800" -H "x-admin-api-key: [key]"`
+- **A few hooks have formatting artifacts** (markdown headers, bold markers in ~3-4 hooks) — could be cleaned with SQL.
 
 **Scaling Strategy for feed_hook Pipeline (future ingestion session):**
 
 The `feed_hook` field is the key to making millions of text-only reports visually compelling at scale. Current approach:
 
-- **Immediate (no feed_hook)**: `extractHook()` scores sentences for vividness and picks the best one. Works well for ~60-70% of reports. The new quality threshold catches the remaining ~30% and falls back to styled title.
-- **Ingestion pipeline (future)**: When mass-ingesting 5M+ reports, the AI pipeline should generate a `feed_hook` for each report: a 1-2 sentence engagement-optimized teaser. This is a one-time write during ingestion, stored in the `feed_hook` column. No runtime AI calls needed.
-- **Batch generation**: For existing reports without `feed_hook`, a background job can batch-generate hooks using the AI pipeline. Priority: reports with longest/richest summaries first (they're most likely to appear in feeds).
-- **Graceful degradation**: Both homepage and Discover feed already handle missing `feed_hook` gracefully. The Supabase query tries with `feed_hook` first, retries without it if the column doesn't exist. The scoring system gives +4 bonus to reports with `feed_hook`, ensuring they surface first.
-- **Visual variety at scale**: The Discover feed's generative variety system (deterministic hash-based moods, gradients, accents, watermarks) ensures 10M+ text reports each look unique. No manual design per report. 4 moods x 4 gradient angles x 4 accent variations x 4 watermarks = 256 unique visual combinations per category, 2,816 total across all 11 categories.
+- **Immediate (no feed_hook)**: `extractHook()` scores sentences for vividness and picks the best one. Quality threshold catches weak text and falls back to styled title.
+- **Ingestion pipeline (future)**: When mass-ingesting 5M+ reports, the AI pipeline should generate a `feed_hook` for each report. One-time write during ingestion, stored in `feed_hook` column. No runtime AI calls.
+- **Batch generation**: `/api/admin/generate-hooks` endpoint ready for batches. Priority: reports with longest/richest summaries first.
+- **Graceful degradation**: Homepage and Discover feed handle missing `feed_hook` gracefully. Supabase query tries with `feed_hook` first, retries without if column doesn't exist.
+- **Quality differentiation**: Feed hooks are scored through the same vivid-language system as raw summaries. The +10 base bonus ensures AI hooks generally win over raw text, but a dry AI hook can still lose to a vivid raw sentence. This prevents low-quality generated hooks from surfacing.
+- **Visual variety at scale**: Generative variety system provides 2,816 unique visual combinations across all 11 categories (4 moods x 4 gradients x 4 accents x 4 watermarks per category).
 
 ---
 

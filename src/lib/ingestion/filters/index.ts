@@ -7,6 +7,7 @@ export {
   assessQuality,
   calculateQualityScore,
   getStatusFromScore,
+  getSourceThresholds,
   isObviouslyLowQuality,
   // Quality filter patterns (for adapters that need custom checks)
   META_POST_PATTERNS,
@@ -55,6 +56,12 @@ export const SOURCE_LABELS: Record<string, { label: string; displayName: string;
   'shadowlands': { label: 'Shadowlands', displayName: 'Shadowlands', icon: 'ghost' },
   'ghostsofamerica': { label: 'GoA', displayName: 'Ghosts of America', icon: 'ghost' },
   'user': { label: 'User', displayName: 'User Submitted', icon: 'user' },
+  // Session 10: New sources
+  'youtube': { label: 'YouTube', displayName: 'YouTube', icon: 'video' },
+  'news': { label: 'News', displayName: 'News Article', icon: 'newspaper' },
+  'erowid': { label: 'Erowid', displayName: 'Erowid Experience Vault', icon: 'database' },
+  'podcast': { label: 'Podcast', displayName: 'Podcast Transcript', icon: 'mic' },
+  'government': { label: 'Gov', displayName: 'Government Document', icon: 'file' },
 };
 
 /**

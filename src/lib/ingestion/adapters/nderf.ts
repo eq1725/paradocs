@@ -226,6 +226,7 @@ function parseExperiencePage(html: string, id: string, name: string): ScrapedRep
     description: content,
     category: 'psychological_experiences',
     event_date: undefined, // NDERF doesn't always include specific dates
+    event_date_precision: 'unknown',
     credibility: determineCredibility(content, ndeType),
     source_type: 'nderf',
     original_report_id: `nderf-${id}`,

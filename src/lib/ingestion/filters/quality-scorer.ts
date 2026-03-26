@@ -398,6 +398,12 @@ const SOURCE_TIERS: Record<string, { base: number; tier: string }> = {
   'reddit':          { base: 4, tier: 'social media' },
   'ghostsofamerica': { base: 4.5, tier: 'community site' },
   'shadowlands':     { base: 4, tier: 'community site' },
+  // Session 10: New source tiers
+  'youtube':         { base: 5, tier: 'video platform' },
+  'news':            { base: 6.5, tier: 'news media' },
+  'erowid':          { base: 6, tier: 'research database' },
+  'podcast':         { base: 5.5, tier: 'podcast transcript' },
+  'government':      { base: 8.5, tier: 'government document' },
 };
 
 function scoreSourceReliability(input: ScoringInput): DimensionScore {
@@ -425,6 +431,33 @@ function scoreSourceReliability(input: ScoringInput): DimensionScore {
     } else if (input.metadata.score > 50) {
       score += 1;
       factors.push('moderate engagement');
+    }
+  }
+
+  // YouTube engagement boost (view counts indicate reach/credibility)
+  if (sourceType === 'youtube' && input.metadata?.viewCount) {
+    var views = parseInt(input.metadata.viewCount);
+    if (views > 1000000) {
+      score += 2;
+      factors.push('viral video (' + Math.round(views / 1000000) + 'M views)');
+    } else if (views > 100000) {
+      score += 1.5;
+      factors.push('popular video (' + Math.round(views / 1000) + 'K views)');
+    } else if (views > 10000) {
+      score += 0.5;
+      factors.push('moderate viewership');
+    }
+  }
+
+  // News source credibility boost
+  if (sourceType === 'news' && input.metadata?.source_name) {
+    var majorOutlets = ['BBC', 'CNN', 'Reuters', 'AP', 'NPR', 'The Guardian', 'New York Times', 'Washington Post'];
+    var isMainstream = majorOutlets.some(function(outlet) {
+      return (input.metadata?.source_name || '').toLowerCase().includes(outlet.toLowerCase());
+    });
+    if (isMainstream) {
+      score += 1.5;
+      factors.push('major news outlet: ' + input.metadata.source_name);
     }
   }
 

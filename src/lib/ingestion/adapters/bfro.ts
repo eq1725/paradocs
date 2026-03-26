@@ -325,6 +325,19 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
       console.log(`[BFRO] Found ${mediaItems.length} media items in report #${reportNumber}`);
     }
 
+    // Determine event_date_precision based on date parsing
+    let eventDatePrecision: 'exact' | 'month' | 'year' | 'decade' | 'estimated' | 'unknown' = 'unknown';
+    if (eventDate) {
+      // Check if we have a full date (YYYY-MM-DD)
+      if (/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
+        eventDatePrecision = 'exact';
+      } else if (/^\d{4}-\d{2}/.test(eventDate)) {
+        eventDatePrecision = 'month';
+      } else if (/^\d{4}/.test(eventDate)) {
+        eventDatePrecision = 'year';
+      }
+    }
+
     return {
       title: generateTitle(county, state, year, reportNumber),
       summary: generateSummary(description, classification),
@@ -335,6 +348,7 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
       state_province: state,
       city: county ? `${county} County` : undefined,
       event_date: eventDate,
+      event_date_precision: eventDatePrecision,
       credibility: getCredibility(classification),
       source_type: 'bfro',
       original_report_id: `bfro-${reportNumber}`,

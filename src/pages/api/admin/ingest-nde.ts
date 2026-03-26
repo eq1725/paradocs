@@ -437,9 +437,9 @@ export default async function handler(
           continue;
         }
 
-        // Get quality score and determine status
+        // Get quality score and determine status (NDE sources get academic thresholds)
         const qualityScore = qualityResult.qualityScore!;
-        const status = getStatusFromScore(qualityScore.total);
+        const status = getStatusFromScore(qualityScore.total, 'nderf');
 
         if (status === 'rejected') {
           rejected++;

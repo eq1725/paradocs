@@ -241,6 +241,12 @@ const SOURCE_CREDIBILITY: Record<string, number> = {
   'reddit': 15,      // User-submitted, variable quality
   'shadowlands': 12, // Less moderated
   'ghostsofamerica': 12, // Community submissions
+  // Session 10: New sources
+  'youtube': 14,     // Video transcripts, variable quality
+  'news': 18,        // News articles, generally reliable
+  'erowid': 16,      // Structured self-reports, good format
+  'podcast': 15,     // Transcript-based, moderate quality
+  'government': 22,  // Official government documents
   'default': 10,
 };
 
@@ -547,11 +553,15 @@ export function assessQuality(
   report: ScrapedReport,
   metadata?: Record<string, any>
 ): FilterResult & { qualityScore?: QualityScore } {
-  // First run content filter
+  // Get source-specific thresholds for minimum description length
+  var thresholds = getSourceThresholds(report.source_type);
+
+  // First run content filter with source-specific min length
   const filterResult = filterContent(
     report.title,
     report.description,
-    report.source_type
+    report.source_type,
+    { minLength: thresholds.minDescLength }
   );
 
   if (!filterResult.passed) {
@@ -567,12 +577,71 @@ export function assessQuality(
   };
 }
 
+// Source-specific quality thresholds
+// Each source type can have custom approve/review cutoffs and minimum description lengths
+// Sources not listed here fall through to the defaults (70/40)
+var SOURCE_THRESHOLDS: Record<string, { approve: number; review: number; minDescLength: number }> = {
+  // Government/FOIA — highest trust, lowest bar
+  'government': { approve: 50, review: 30, minDescLength: 100 },
+  'blackvault': { approve: 50, review: 30, minDescLength: 100 },
+  'bluebook':   { approve: 50, review: 30, minDescLength: 100 },
+  'foia':       { approve: 50, review: 30, minDescLength: 100 },
+  'geipan':     { approve: 50, review: 30, minDescLength: 100 },
+
+  // Academic / structured questionnaire — credible format, moderate bar
+  'nderf':  { approve: 55, review: 35, minDescLength: 200 },
+  'iands':  { approve: 55, review: 35, minDescLength: 200 },
+  'oberf':  { approve: 55, review: 35, minDescLength: 200 },
+
+  // Investigation orgs — established standards, moderate bar
+  'bfro':   { approve: 60, review: 40, minDescLength: 150 },
+  'nuforc': { approve: 60, review: 40, minDescLength: 150 },
+  'mufon':  { approve: 60, review: 40, minDescLength: 150 },
+
+  // News — editorial oversight, moderate-high bar
+  'news':   { approve: 65, review: 45, minDescLength: 200 },
+
+  // Community / user-submitted — needs higher bar
+  'reddit':           { approve: 70, review: 45, minDescLength: 300 },
+  'reddit-v2':        { approve: 70, review: 45, minDescLength: 300 },
+  'youtube':          { approve: 70, review: 45, minDescLength: 200 },
+  'youtube-comments': { approve: 70, review: 45, minDescLength: 150 },
+
+  // Ghost databases — typically short entries, lower bar
+  'shadowlands':    { approve: 50, review: 30, minDescLength: 80 },
+  'ghostsofamerica':{ approve: 50, review: 30, minDescLength: 80 },
+  'paranormaldb-uk':{ approve: 50, review: 30, minDescLength: 80 },
+
+  // Reference / historical — not eyewitness, lower bar
+  'wikipedia':    { approve: 50, review: 30, minDescLength: 100 },
+  'cryptid-wiki': { approve: 50, review: 30, minDescLength: 100 },
+
+  // Erowid — needs paranormal dimension, higher bar
+  'erowid': { approve: 70, review: 50, minDescLength: 300 },
+
+  // Bulk imports (Kaggle/HuggingFace) — pre-cleaned, moderate bar
+  'kaggle-import': { approve: 55, review: 35, minDescLength: 100 },
+};
+
 /**
- * Determine the status based on quality score
+ * Get source-specific thresholds, falling back to defaults
  */
-export function getStatusFromScore(score: number): 'approved' | 'pending_review' | 'rejected' {
-  if (score >= 70) return 'approved';
-  if (score >= 40) return 'pending_review';
+export function getSourceThresholds(sourceType?: string): { approve: number; review: number; minDescLength: number } {
+  if (sourceType && SOURCE_THRESHOLDS[sourceType]) {
+    return SOURCE_THRESHOLDS[sourceType];
+  }
+  return { approve: 70, review: 40, minDescLength: 100 };
+}
+
+/**
+ * Determine the status based on quality score and source type
+ * Different sources have different approval thresholds — government sources
+ * auto-approve at lower scores while community sources need higher scores
+ */
+export function getStatusFromScore(score: number, sourceType?: string): 'approved' | 'pending_review' | 'rejected' {
+  var thresholds = getSourceThresholds(sourceType);
+  if (score >= thresholds.approve) return 'approved';
+  if (score >= thresholds.review) return 'pending_review';
   return 'rejected';
 }
 

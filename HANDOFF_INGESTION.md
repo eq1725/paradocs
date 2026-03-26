@@ -1,63 +1,101 @@
-# HANDOFF - Data Ingestion & Pipeline (Session 10)
+# HANDOFF - Data Ingestion & Pipeline (Session 10 — Revised)
 
-**Date:** March 21, 2026 (Session 10 complete)
-**Session:** Data Ingestion & Pipeline (Session 10)
-**Status:** CORE INFRASTRUCTURE DEPLOYED. Feed hook service live, 4 new adapters built (12 total), ingestion engine integrated with hooks + embeddings. Quality scorer expanded for new sources. Ready for data cleanup and mass ingestion execution.
-**Next session:** Execute data cleanup SQL, run migration, add env vars, mass ingest adapter-by-adapter, backfill hooks + embeddings.
-
----
-
-## What Was Built
-
-### 1. Database Migration — Feed Hook Columns
-
-**File:** `supabase/migrations/20260321_feed_hook.sql`
-
-Added three columns to `reports` table:
-- `feed_hook` (text) — 2-3 sentence hook for Discover feed cards
-- `feed_hook_generated_at` (timestamptz) — when the hook was last generated
-- `needs_reingestion` (boolean, default false) — flag for marking reports that should be re-processed
-
-Created three targeted indexes:
-- `idx_reports_feed_hook_not_null` — approved reports with hooks, ordered by date (for feed queries)
-- `idx_reports_needs_reingestion` — reports flagged for re-ingestion (by source type)
-- `idx_reports_missing_feed_hook` — approved reports missing hooks (for backfill)
-
-**Migration status:** SQL ready. Run via Supabase dashboard or CLI.
+**Date:** March 25, 2026 (Session 10 Revised — continued)
+**Session:** Data Ingestion & Pipeline (Session 10 — Revised for index-with-attribution model)
+**Status:** PIPELINE TESTED + ENUM FIX + NUFORC FIX + SOURCE CATALOG EXPANDED + ENRICHMENT PIPELINE + SOURCE-SPECIFIC THRESHOLDS + CROSS-POST DEDUP. All code changes are LOCAL ONLY — not yet deployed to Vercel.
+**Next:** Deploy to Vercel → Add API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) → Clean up existing duplicates on live site → Re-run 20-report quality test with all fixes → Scale to 2-5K per source.
+**Action Item (Chase — Report Experience-Curated session):** Re-seed Roswell witness cluster (13) and Rendlesham Forest cluster (6) from existing seed scripts (`seed-rendlesham-cluster.ts`, `admin-seed-roswell-witnesses.js`, `admin-roswell-cluster-upgrade.js`).
 
 ---
 
-### 2. Feed Hook Generation Service
+## What Was Built (This Session — Revised)
 
-**File:** `src/lib/services/feed-hook.service.ts`
+### 1. Database Migration — Paradocs Analysis Fields
 
-Claude Haiku-powered service that generates compelling 2-3 sentence hooks for the Discover feed. Each hook creates irresistible curiosity — think documentary trailer opening.
+**File:** `supabase/migrations/20260323_paradocs_analysis.sql`
 
-**Key functions:**
-- `generateAndSaveFeedHook(reportId)` — Generate and save a hook for one report
-- `generateHooksBatch(reportIds, options)` — Batch process with rate limiting (200ms between calls, 2s between batches of 15)
-- `getFeedHookStats()` — Coverage statistics (total approved, with/without hooks, coverage %)
+Added columns to `reports` table:
+- `paradocs_narrative` (text) — 1-4 paragraph original contextual analysis (Paradocs editorial voice)
+- `paradocs_assessment` (jsonb) — Structured assessment: credibility score, mundane explanations, content type, emotional tone
+- `paradocs_analysis_generated_at` (timestamptz) — When analysis was generated
+- `paradocs_analysis_model` (text) — Which model generated the analysis
+- `event_date_precision` (text, CHECK constraint) — One of: exact, month, year, decade, estimated, unknown
+- `source_url` (text) — Link back to original source (legally required for index model)
+- `emotional_tone` (text, CHECK constraint) — For future feed ranking: frightening, awe_inspiring, ambiguous, clinical, unsettling, hopeful
+
+Created indexes:
+- `idx_reports_paradocs_analysis` — Approved reports with analysis, ordered by date
+- `idx_reports_event_date_precision` — Reports with reliable dates (for On This Date feature)
+- `idx_reports_missing_source_url` — Reports missing attribution (audit index)
+
+Also ensures `feed_hook` + `feed_hook_generated_at` columns exist (from previous session).
+
+**Migration status:** ✅ APPLIED (March 25, 2026) via Supabase SQL editor. All columns and indexes live in production.
+
+---
+
+### 2. Data Cleanup SQL
+
+**File:** `supabase/migrations/20260323_data_cleanup.sql`
+
+Pre-formatted SQL for deleting all test data while preserving curated reports.
+
+**Status:** ✅ EXECUTED (March 25, 2026). All cleanup complete:
+- Deleted ~2M hidden Reddit dev data (reddit-comments, reddit-posts, reddit archived)
+- Deleted all bfro, nuforc, wikipedia, historical_archive, NULL source types
+- Deleted 40 AI-generated filler reports (incorrectly labeled `source_type='curated'`, all created 2026-02-15, all with `source_url=NULL` and uniform ~1,400 char AI-written descriptions)
+- Reset data_sources metrics
+- Re-enabled report_phenomena trigger
+- **Result:** 1 report remains — "The Roswell Incident — July 1947" (the original showcase, created 2026-02-12)
+
+---
+
+### 3. Paradocs Analysis Generation Service
+
+**File:** `src/lib/services/paradocs-analysis.service.ts`
+
+Claude Haiku-powered service that generates original contextual analysis + structured assessment for each report. This is the transformative content layer that makes Paradocs an index rather than a republisher.
+
+**What it produces per report:**
+
+1. `paradocs_narrative` (text) — 1-4 paragraph original editorial analysis:
+   - Places the report in broader context (historical parallels, geographic patterns)
+   - Notes what makes the account notable or typical
+   - References relevant phenomena categories and known patterns
+   - Length-proportional to source (50 words source → 1 paragraph; 500+ → 3-4 paragraphs)
+   - Category-specific tone (technical for UFOs, atmospheric for ghosts, clinical for NDEs, etc.)
+   - NEVER a summary or paraphrase of the source text
+
+2. `paradocs_assessment` (JSON):
+   ```json
+   {
+     "credibility_score": 0-100,
+     "credibility_reasoning": "1-2 sentences",
+     "credibility_factors": [{"name", "impact", "description"}],
+     "mundane_explanations": [{"explanation", "likelihood", "reasoning"}],
+     "content_type": {"suggested_type", "is_first_hand_account", "confidence"},
+     "similar_phenomena": ["phenomenon name 1", "phenomenon name 2"],
+     "emotional_tone": "frightening|awe_inspiring|ambiguous|clinical|unsettling|hopeful"
+   }
+   ```
 
 **AI Provider:** Claude Haiku 4.5 primary, Claude Haiku 3.5 fallback. Uses `ANTHROPIC_API_KEY` env var.
 
-**Prompt engineering:** Category-specific tone guidance:
-- UFOs: technical, aviation-flavored
-- Cryptids: nature documentary tone
-- Ghosts: gothic atmosphere
-- Psychic: clinical but open-minded
-- Consciousness: experiential, first-person-adjacent
+**Cost optimization:** Combined single API call (narrative + assessment in one request). Fallback to separate calls if combined parsing fails. ~$0.50-0.60 per 1,000 reports.
 
-**Quality rules:** 40-80 words, no cliche words ("mysterious", "shocking"), no spoilers, no rhetorical questions, present tense for immediacy.
-
-**Cost estimate:** ~$0.15-0.20 per 1,000 reports at Haiku pricing.
+**Key functions:**
+- `generateParadocsAnalysis(reportId)` — Generate narrative + assessment for one report
+- `generateAndSaveParadocsAnalysis(reportId)` — Generate and persist to database
+- `generateAnalysisBatch(reportIds, options)` — Batch process with rate limiting (200ms between calls, 2s between batches of 15)
+- `getParadocsAnalysisStats()` — Coverage statistics
 
 ---
 
-### 3. Batch Hook Generation Endpoint
+### 4. Batch Analysis Generation Endpoint
 
-**File:** `src/pages/api/admin/ai/generate-hooks.ts`
+**File:** `src/pages/api/admin/ai/generate-analysis.ts`
 
-**Endpoint:** `POST /api/admin/ai/generate-hooks`
+**Endpoint:** `POST /api/admin/ai/generate-analysis`
 
 **Auth:** Bearer token (admin role check) or `x-admin-key` header.
 
@@ -65,127 +103,135 @@ Claude Haiku-powered service that generates compelling 2-3 sentence hooks for th
 
 | Action | Body | Description |
 |--------|------|-------------|
-| `stats` | `{ action: 'stats' }` | Get hook coverage statistics |
-| `single` | `{ action: 'single', id: 'uuid' }` | Generate hook for one report |
-| `all_missing` | `{ action: 'all_missing', limit: 100 }` | Batch generate for reports without hooks |
+| `stats` | `{ action: 'stats' }` | Get analysis coverage statistics |
+| `single` | `{ action: 'single', id: 'uuid' }` | Generate analysis for one report |
+| `all_missing` | `{ action: 'all_missing', limit: 100 }` | Batch generate for reports without analysis |
 | `all` | `{ action: 'all', force: true, limit: 50 }` | Force regenerate all (with optional limit) |
 
 ---
 
-### 4. Ingestion Engine Integration
+### 5. Source URL Audit — All 12 Adapters
+
+Every adapter now outputs `source_url` on ScrapedReport. This is legally required for the index-with-attribution model.
+
+| Adapter | source_url format | Status |
+|---------|------------------|--------|
+| NUFORC | `https://nuforc.org/sighting/?id={id}` | ✅ Verified |
+| BFRO | `https://www.bfro.net/GDB/show_report.asp?id={id}` | ✅ Verified |
+| Reddit (legacy) | `https://reddit.com{permalink}` | ✅ Verified |
+| Reddit v2 | `https://reddit.com{permalink}` | ✅ Verified |
+| NDERF | `https://www.nderf.org/Experiences/{id}.htm` | ✅ Verified |
+| IANDS | `https://iands.org/nde-stories/nde-accounts/{id}` | ✅ Verified |
+| Ghosts of America | `https://www.ghostsofamerica.com/ghosts/{state}/` | ✅ **FIXED** (was missing) |
+| Shadowlands | `https://theshadowlands.net/places/{state}` | ✅ **FIXED** (was missing) |
+| Wikipedia | `https://en.wikipedia.org/wiki/{article}` | ✅ Verified |
+| YouTube | `https://youtube.com/watch?v={videoId}` | ✅ Verified |
+| News | Original article URL from NewsAPI | ✅ Verified |
+| Erowid | `https://erowid.org/experiences/exp.php?ID={id}` | ✅ Verified |
+
+**Type change:** `source_url` is now **required** (not optional) in `ScrapedReport` interface.
+
+---
+
+### 6. Event Date Precision — All 12 Adapters
+
+Every adapter now outputs `event_date_precision` to support the On This Date feature.
+
+| Adapter | Precision Logic | Typical Value |
+|---------|----------------|---------------|
+| NUFORC | Full date → 'exact', partial → 'month'/'year' | exact |
+| BFRO | Full date → 'exact', partial → 'month'/'year' | month |
+| Reddit (legacy) | Post date ≠ event date | unknown |
+| Reddit v2 | Post date ≠ event date | unknown |
+| NDERF | No event date extracted | unknown |
+| IANDS | No event date extracted | unknown |
+| Ghosts of America | Year-only → 'year', full date → 'exact' | year/unknown |
+| Shadowlands | No date extraction | unknown |
+| Wikipedia | Year-only dates | year |
+| YouTube | Upload date ≠ event date | unknown |
+| News | Article date ≈ event date | exact |
+| Erowid | No event date extracted | unknown |
+
+**Type:** Added `event_date_precision?: 'exact' | 'month' | 'year' | 'decade' | 'estimated' | 'unknown'` to `ScrapedReport` interface.
+
+---
+
+### 7. Ingestion Engine Integration
 
 **File:** `src/lib/ingestion/engine.ts` (modified)
 
 **Changes:**
-- Added imports for `generateAndSaveFeedHook` and `embedReport`
-- **INSERT path (new reports):** After phenomena linking and media insertion, approved reports now get:
-  1. Feed hook generation (non-blocking, logs and continues on failure)
-  2. Vector embedding via `embedReport()` (non-blocking)
-- **UPDATE path (re-ingested reports):** If the existing report lacks a `feed_hook`, generates one during update
+- Added import for `generateAndSaveParadocsAnalysis`
+- **INSERT path:** After feed hook generation, now generates Paradocs Analysis (non-blocking)
+- **UPDATE path:** If existing report lacks `paradocs_narrative`, generates it during update
+- **INSERT + UPDATE:** Now writes `event_date_precision` and `source_url` to database
+- Pipeline order: Title improvement → Slug → Phenomena linking → Media → Feed hook → **Paradocs Analysis** → Embedding
 
-**Critical design decision:** Both feed hook and embedding are non-fatal. If either fails, the report is still ingested successfully. Batch backfill endpoints catch any stragglers.
-
----
-
-### 5. New Source Adapters (4 built)
-
-All adapters implement the `SourceAdapter` interface: `{ name: string, scrape(config, limit): Promise<AdapterResult> }`.
-
-#### reddit-v2 (`src/lib/ingestion/adapters/reddit-v2.ts`)
-- **Source:** Arctic Shift API (Reddit archive)
-- **13 subreddits:** r/Paranormal, r/Glitch_in_the_Matrix, r/Thetruthishere, r/UFOs, r/HighStrangeness, r/Ghosts, r/Cryptids, r/NDE, r/AstralProjection, r/Humanoidencounters, r/Missing411, r/Skinwalkers, r/CrawlerSightings
-- **Filters:** Self posts only, min 200 chars, excludes [deleted]/[removed]
-- **Config:** `subreddits`, `minScore` (default 5), `afterEpoch`
-- **Rate limit:** 1s between subreddit fetches
-
-#### youtube (`src/lib/ingestion/adapters/youtube.ts`)
-- **Source:** YouTube Data API v3
-- **Env var:** `YOUTUBE_API_KEY` required
-- **Default channels:** Nukes Top 5, MrBallen, Bedtime Stories, The Why Files
-- **Maps:** Video metadata + description to report; thumbnail as primary media
-- **Config:** `channels`, `apiKey`, `publishedAfter`
-- **Rate limit:** 500ms between API calls
-
-#### news (`src/lib/ingestion/adapters/news.ts`)
-- **Source:** NewsAPI.org
-- **Env var:** `NEWS_API_KEY` required
-- **7 search queries:** UFO sighting, paranormal encounter, ghost sighting, cryptid sighting, unexplained phenomenon, UAP military, near death experience
-- **Category detection:** Keyword-based from article title/content
-- **Credibility boost:** Major outlets (BBC, CNN, Reuters, etc.) get higher score
-- **Config:** `queries`, `apiKey`, `fromDate`
-
-#### erowid (`src/lib/ingestion/adapters/erowid.ts`)
-- **Source:** Erowid Experience Vaults (HTML scraping)
-- **Focus:** DMT, Ayahuasca, Salvia, 5-MeO-DMT, Ketamine experiences
-- **Maps to:** `consciousness_practices` and `psychological_experiences` categories
-- **Rate limit:** 2s between page fetches (respects Erowid servers)
-- **Config:** `startOffset`, `substances`
+**Pipeline cost per report (all AI steps):**
+- Title improvement (Haiku): ~$0.10 per 1K
+- Feed hook (Haiku): ~$0.15-0.20 per 1K
+- Paradocs Analysis — narrative + assessment (Haiku): ~$0.50-0.60 per 1K
+- Vector embedding (OpenAI): ~$0.10 per 1K
+- **Total: ~$0.85-1.00 per 1K reports, ~$850-1,000 per 1M**
 
 ---
 
-### 6. Quality Scorer Updates
+## Previous Session Work (Preserved)
 
-**Files modified:**
-- `src/lib/ingestion/filters/quality-scorer.ts` — Added source tiers for youtube (5), news (6.5), erowid (6), podcast (5.5), government (8.5). Added YouTube engagement boost (views) and news mainstream outlet boost.
-- `src/lib/ingestion/filters/quality-filter.ts` — Added source credibility scores for new sources.
-- `src/lib/ingestion/filters/index.ts` — Added SOURCE_LABELS for youtube, news, erowid, podcast, government.
+### Feed Hook Generation Service
+**File:** `src/lib/services/feed-hook.service.ts`
+Claude Haiku-powered, 2-3 sentence hooks for Discover feed. ~$0.15-0.20 per 1K reports.
 
----
+### Batch Hook Generation Endpoint
+**File:** `src/pages/api/admin/ai/generate-hooks.ts`
+Actions: stats, single, all_missing, all.
 
-### 7. Adapter Registry Update
+### 4 New Source Adapters
+- **reddit-v2** — Arctic Shift API, 13 subreddits
+- **youtube** — YouTube Data API v3, 4 default channels
+- **news** — NewsAPI.org, 7 search queries
+- **erowid** — Erowid Experience Vaults, 5 substance categories
 
-**File:** `src/lib/ingestion/adapters/index.ts`
-
-Registered 4 new adapters: `reddit-v2`, `youtube`, `news`, `erowid`. Total: 12 adapters.
+### Quality Scorer Updates
+Source tiers for youtube (5), news (6.5), erowid (6), podcast (5.5), government (8.5).
 
 ---
 
 ## What Needs Manual Execution
 
-### Data Cleanup (Step 1 from session prompt)
+### Execution Order
 
-These require direct database access (Supabase dashboard SQL editor or CLI):
+1. **Run data cleanup SQL** (`20260323_data_cleanup.sql`)
+   - Execute in Supabase SQL editor
+   - Verify 20 curated reports remain after cleanup
 
-**1a. Delete ~2M hidden Reddit dev data:**
-```sql
--- Verify counts first
-SELECT status, count(*) FROM reports WHERE source_type = 'reddit' GROUP BY status;
+2. **Apply migration** (`20260323_paradocs_analysis.sql`)
+   - Run via Supabase dashboard or CLI
+   - Verify new columns exist: `paradocs_narrative`, `paradocs_assessment`, `event_date_precision`, `source_url`, `emotional_tone`
 
--- Delete foreign key references
-DELETE FROM report_phenomena WHERE report_id IN (
-  SELECT id FROM reports WHERE source_type = 'reddit' AND status != 'approved'
-);
-DELETE FROM report_media WHERE report_id IN (
-  SELECT id FROM reports WHERE source_type = 'reddit' AND status != 'approved'
-);
-DELETE FROM vector_chunks WHERE source_id IN (
-  SELECT id FROM reports WHERE source_type = 'reddit' AND status != 'approved'
-) AND source_table = 'report';
+3. **Set environment variables** (if not already set)
+   - `ANTHROPIC_API_KEY` — Claude Haiku for hooks + analysis (required)
+   - `OPENAI_API_KEY` — Vector embeddings (required)
+   - `YOUTUBE_API_KEY` — YouTube adapter (optional, needed for YouTube source)
+   - `NEWS_API_KEY` — News adapter (optional, needed for News source)
 
--- Delete the reports
-DELETE FROM reports WHERE source_type = 'reddit' AND status != 'approved';
-```
+4. **Staged ingestion (2-5K per source)**
+   - Run each adapter with `limit: 50` first — verify quality
+   - Run each adapter with `limit: 500` — check dedup, phenomena linking
+   - Run each adapter with `limit: 2000-5000` — **HARD STOP HERE**
+   - Review quality before scaling up: source_url validity, narrative quality, assessment scores
 
-**1b. Flag existing ~900 reports for re-ingestion:**
-```sql
-UPDATE reports SET needs_reingestion = true WHERE status = 'approved';
-```
+5. **Quality review checkpoint** (after 2-5K per source)
+   - Spot-check 20-30 reports per source:
+     - Does `source_url` link to the real source?
+     - Is `paradocs_narrative` original analysis (NOT a summary)?
+     - Is `paradocs_narrative` length-proportional to source?
+     - Is `paradocs_assessment` valid JSON with reasonable credibility scores?
+     - Is `feed_hook` compelling and cliche-free?
 
-### Mass Ingestion Execution (Step 7)
-
-Run adapter-by-adapter through the admin ingest endpoint:
-1. Limit 100 per adapter — verify quality
-2. Limit 1000 per adapter — check dedup + hooks
-3. Full runs — no limit
-
-### Required Environment Variables for New Adapters
-
-| Variable | Required For | Notes |
-|----------|-------------|-------|
-| `ANTHROPIC_API_KEY` | Feed hook generation | Already exists |
-| `OPENAI_API_KEY` | Vector embeddings | Already exists |
-| `YOUTUBE_API_KEY` | YouTube adapter | Need to add |
-| `NEWS_API_KEY` | News adapter | Need to add (NewsAPI.org) |
+6. **Scale up** (only after quality review approval)
+   - Remove limit, run full adapter scrapes
+   - Target: 1M+ for closed beta
 
 ---
 
@@ -196,12 +242,76 @@ Source Adapter (scrape) → Quality Filter → Dedup Check
     ↓
 Title Improvement (AI) → Slug Generation → Phenomena Linking
     ↓
-DB Insert/Update → Feed Hook Generation (Claude Haiku) → Vector Embedding (OpenAI)
+DB Insert/Update → Feed Hook (Claude Haiku) → Paradocs Analysis (Claude Haiku) → Vector Embedding (OpenAI)
     ↓
-Report live in database with hook + embedding
+Report live with: hook + narrative + assessment + embedding + source_url + event_date_precision
 ```
 
-**Failure handling:** Each post-insert step is non-blocking. Feed hook failure → report still ingested, caught by batch backfill. Embedding failure → report still ingested, caught by batch embed endpoint.
+**Failure handling:** Each post-insert step is non-blocking. Any failure → report still ingested, caught by batch backfill endpoints.
+
+---
+
+## Post-Ingestion Verification Query
+
+```sql
+SELECT
+  source_type,
+  count(*) as total,
+  count(feed_hook) as has_hook,
+  count(paradocs_narrative) as has_narrative,
+  count(paradocs_assessment) as has_assessment,
+  count(source_url) as has_source_url,
+  count(event_date) as has_event_date,
+  count(CASE WHEN event_date_precision IN ('exact','month') THEN 1 END) as reliable_dates,
+  count(emotional_tone) as has_tone,
+  count(CASE WHEN id IN (SELECT source_id FROM vector_chunks WHERE source_table = 'report') THEN 1 END) as embedded
+FROM reports
+WHERE status = 'approved'
+GROUP BY source_type
+ORDER BY total DESC;
+```
+
+**Coverage targets:**
+- Feed hook: 95%+
+- Paradocs Analysis (narrative + assessment): 95%+
+- Source URL: 100% (REQUIRED)
+- Embedding: 80%+ (batch-fill remaining)
+- Event date presence: varies by source
+
+---
+
+## Files Created/Modified Summary
+
+**New files (this session):**
+- `supabase/migrations/20260323_paradocs_analysis.sql` — DB migration
+- `supabase/migrations/20260323_data_cleanup.sql` — Data cleanup SQL
+- `src/lib/services/paradocs-analysis.service.ts` — Paradocs Analysis generation service
+- `src/pages/api/admin/ai/generate-analysis.ts` — Batch analysis generation endpoint
+
+**Modified files (this session):**
+- `src/lib/ingestion/engine.ts` — Added Paradocs Analysis integration + event_date_precision + source_url in insert/update
+- `src/lib/ingestion/types.ts` — `source_url` now required, added `event_date_precision` field
+- `src/lib/ingestion/adapters/ghostsofamerica.ts` — Added `source_url` + `event_date_precision`
+- `src/lib/ingestion/adapters/shadowlands.ts` — Added `source_url` + `event_date_precision`
+- `src/lib/ingestion/adapters/nuforc.ts` — Added `event_date_precision`
+- `src/lib/ingestion/adapters/bfro.ts` — Added `event_date_precision`
+- `src/lib/ingestion/adapters/reddit.ts` — Added `event_date_precision`
+- `src/lib/ingestion/adapters/reddit-v2.ts` — Added `event_date_precision`
+- `src/lib/ingestion/adapters/nderf.ts` — Added `event_date_precision`
+- `src/lib/ingestion/adapters/iands.ts` — Added `event_date_precision`
+- `src/lib/ingestion/adapters/wikipedia.ts` — Added `event_date_precision`
+- `src/lib/ingestion/adapters/youtube.ts` — Added `event_date_precision`
+- `src/lib/ingestion/adapters/news.ts` — Added `event_date_precision`
+- `src/lib/ingestion/adapters/erowid.ts` — Added `event_date_precision`
+
+**Preserved from previous session (not modified):**
+- `supabase/migrations/20260321_feed_hook.sql`
+- `src/lib/services/feed-hook.service.ts`
+- `src/pages/api/admin/ai/generate-hooks.ts`
+- `src/lib/ingestion/adapters/reddit-v2.ts` (new adapter)
+- `src/lib/ingestion/adapters/youtube.ts` (new adapter)
+- `src/lib/ingestion/adapters/news.ts` (new adapter)
+- `src/lib/ingestion/adapters/erowid.ts` (new adapter)
 
 ---
 
@@ -209,44 +319,102 @@ Report live in database with hook + embedding
 
 | Session | Integration | Status |
 |---------|------------|--------|
-| Session 2 (Discover) | `feed_hook` consumed by feed-v2 API for card copy | Ready — feed-v2 already has graceful fallback for missing hooks |
-| Session 2 (Discover) | `report_media` consumed by feed-v2 API for MediaReportCard image backgrounds | Ready — primary_media fetched from report_media table, used as full-screen card backdrop |
-| Session 2 (Discover) | Media is **critical for visual quality** in the Stories feed. Reports with images get MediaReportCard (full-screen photo bg); reports without get TextReportCard (generative gradient). More media = more visually compelling feed. | **HIGH PRIORITY**: Ensure all adapters extract media aggressively. YouTube thumbnails, Reddit image posts, news article hero images. Every report_media row makes the feed better. |
-| Session 2 (Discover) | `report_media` also consumed by `/api/discover/related-cards` for horizontal swipe-through cards | Ready — related-cards API resolves primary_media for reports with `has_photo_video`, used in full-screen related card display |
-| Session 7 (Homepage) | DiscoverPreview uses `feed_hook` | Ready — already wired with fallback |
-| Session 15 (AI/Embedding) | `embedReport()` called post-insert | Integrated — uses existing embedding.service.ts |
+| Session 2 (Discover) | `feed_hook` for card copy | Ready |
+| Session 2 (Discover) | `event_date_precision` enables On This Date cards | Ready — adapters output precision |
+| Session 2 (Discover) | `emotional_tone` for session continuity ranking | Ready — generated at ingestion |
+| Session 6b (Report detail) | `paradocs_narrative` + `paradocs_assessment` for Paradocs Analysis box | Ready — fields populated at ingestion |
+| Session 6b (Report detail) | `source_url` for attribution link | Ready — all 12 adapters output URLs |
+| Session 6b (Report detail) | Raw `description` NEVER rendered to users | Enforced — description is AI-only |
+| Session 7 (Homepage) | DiscoverPreview uses `feed_hook` | Ready |
+| Session 15 (AI/Embedding) | `embedReport()` called post-insert | Integrated |
 | Session 3 (Map) | More geolocated reports = richer map | Depends on ingestion volume |
-| Session 4 (Insights) | More data = better pattern detection | Depends on ingestion volume |
+| Session 8 (Subscription) | Depth gating depends on content volume | Depends on ingestion volume |
 
 ---
 
-## Cost Estimates for Mass Ingestion
+## Session 10 Continued — Quality Test Results & Fixes
 
-| Operation | Per 1K Reports | For 1M Reports |
-|-----------|---------------|-----------------|
-| Feed hook (Claude Haiku) | ~$0.15-0.20 | ~$150-200 |
-| Title improvement (Claude Haiku) | ~$0.15-0.20 | ~$150-200 |
-| Vector embedding (OpenAI small) | ~$0.02 per 1M tokens | ~$500-600 |
-| **Total** | | **~$300-400** |
+### 1. 20-Report Quality Test (NUFORC)
 
----
+Ran 20-report ingestion via browser console (`/api/admin/ingest?source=UUID&limit=20`).
 
-## Files Created/Modified Summary
+**Bug found:** All 20 reports failed to insert. Error: `invalid input value for enum report_status: "pending_review"`. The quality filter returns `pending_review` for scores 40-69, but the PostgreSQL `report_status` enum only had `{pending, approved, rejected, flagged, archived}`.
 
-**New files:**
-- `supabase/migrations/20260321_feed_hook.sql`
-- `src/lib/services/feed-hook.service.ts`
-- `src/pages/api/admin/ai/generate-hooks.ts`
-- `src/lib/ingestion/adapters/reddit-v2.ts`
-- `src/lib/ingestion/adapters/youtube.ts`
-- `src/lib/ingestion/adapters/news.ts`
-- `src/lib/ingestion/adapters/erowid.ts`
-- `HANDOFF_INGESTION.md` (this file)
+**Fix applied:** `ALTER TYPE report_status ADD VALUE IF NOT EXISTS 'pending_review'` — executed in Supabase SQL editor. Migration saved to `supabase/migrations/20260325_add_pending_review_status.sql`.
 
-**Modified files:**
-- `src/lib/ingestion/engine.ts` — Added feed_hook + embedding integration
-- `src/lib/ingestion/adapters/index.ts` — Registered 4 new adapters
-- `src/lib/ingestion/filters/quality-scorer.ts` — New source tiers + engagement boosts
-- `src/lib/ingestion/filters/quality-filter.ts` — New source credibility scores
-- `src/lib/ingestion/filters/index.ts` — New source labels
-- `PROJECT_STATUS.md` — Updated Session 10 section
+**Result after fix:** All 20 reports inserted successfully. However, all 20 had identical titles ("Disk Sighting in Old Bridge, New Jersey (2026-03-01)") despite having different `original_report_id` values — revealing the NUFORC adapter parsing bug.
+
+**Test data cleanup:** All 20 test records deleted after review.
+
+### 2. NUFORC Adapter Fix (wpDataTable Parsing)
+
+**Root cause:** NUFORC uses WordPress wpDataTable which loads table data via AJAX/JavaScript. The adapter's `fetchWithHeaders` gets server-rendered HTML that does NOT contain the actual table row data. Sighting IDs were extracted from embedded page scripts, but the row-level regex matched the same (or no) HTML content for all IDs, resulting in identical metadata for every report.
+
+**Fix (in `src/lib/ingestion/adapters/nuforc.ts`):**
+
+1. **New Approach 0 — wpDataTable AJAX**: Detects wpDataTable configuration in page HTML, extracts the `table_id` and AJAX endpoint, calls the DataTables server-side processing endpoint directly to get JSON row data. This bypasses JavaScript rendering entirely.
+
+2. **Improved Approach 1 — Row-split parsing**: Instead of using a single regex per ID (which could match across row boundaries), splits HTML at `<tr>` boundaries first, then matches IDs within isolated row substrings. Includes a duplicate-detection check: if all extracted rows have identical city+shape, the data is cleared as bad and falls through to the next approach.
+
+3. **New Approach 3 — ID-only fallback**: If no row data is available from any HTML parsing approach, returns IDs with empty metadata. The `scrape()` method detects this and auto-enables `fetch_full_details` to scrape individual report pages.
+
+4. **Enhanced `fetchReportDetails`**: Now extracts city, state, country, shape, and occurred date from individual report pages (not just description). When row data is empty, these fields populate the report metadata.
+
+5. **Rate limit raised**: Default changed from 100ms to 500ms to respect NUFORC servers during individual page fetches.
+
+### 3. Source Catalog Expansion
+
+Created comprehensive `INGESTION_SOURCES.md` covering:
+- **Tier 1**: 12 existing adapters with full config/quality docs
+- **Tier 2**: 13 new high-priority adapters to build
+- **Tier 3**: 2,569 sources from `Paradocs Research (1).xlsx` (2024 research), organized by phenomenon category with priority rankings
+
+Key new source clusters identified: 670 ghost/haunting sites, 527 combination/multi-category sources, 326 UFO databases, 305 psychological experience sources, 173 cryptid databases, 166 esoteric archives, 139 consciousness practice sources, 126 psychic phenomena sources, 113 religion/mythology sources.
+
+Estimated total addressable volume: 1.5M+ reports across all tiers.
+
+### 4. Source-Specific Quality Thresholds
+
+**File:** `src/lib/ingestion/filters/quality-filter.ts`
+
+Added `SOURCE_THRESHOLDS` config — per-source approve/review/reject cutoffs and minimum description lengths. Government docs and structured databases (BFRO, NUFORC) have lower thresholds since they're pre-curated. Reddit and Erowid require higher scores due to variable quality.
+
+`getStatusFromScore(score, sourceType?)` now accepts optional `sourceType` to use source-specific thresholds, falling back to defaults (70/40/100) when unspecified.
+
+### 5. Enrichment Pipeline
+
+**File:** `src/lib/ingestion/enrichment/report-enricher.ts` (NEW)
+
+Post-adapter, pre-scoring step that fills missing structured data from description text:
+- **Date extraction**: 7 regex pattern categories (exact dates, month/year, approximate years)
+- **Location extraction**: US-focused patterns (City+State, City+ST abbreviation, regional, standalone state)
+- **Date precision validation**: Verifies claimed precision against actual date format
+- **Geocoding**: MapTiler API integration using `NEXT_PUBLIC_MAPTILER_KEY`
+
+Key principle: NEVER fabricates data. Every extraction comes from clearly stated text.
+
+Wired into `engine.ts` between quick-reject and quality scoring so enriched data improves quality scores.
+
+### 6. Cross-Post Fuzzy Dedup (NEW)
+
+**Files:** `src/lib/ingestion/engine.ts`, `src/lib/ingestion/batch-reddit-importer.ts`
+
+**Problem found:** 21 live reports included duplicate Yowie encounter — same Reddit post cross-posted to r/cryptids and r/Paranormal. Cross-posts get different Reddit post IDs, so the exact `(source_type, original_report_id)` check didn't catch it.
+
+**Fix:** Wired the existing fuzzy dedup engine (`dedup.ts`) into both ingestion paths:
+- Before inserting a new report, queries up to 200 existing reports in the same category
+- Runs `checkForDuplicate()` which compares title (30%), location (25%), date (20%), and content (25%) similarity
+- **Definite match (>=0.85)**: Skip insert entirely, log as cross-post duplicate
+- **Likely match (>=0.65)**: Insert but record match in `duplicate_matches` table for admin review
+- **Possible match (>=0.45)**: Insert normally (no action)
+- Failure is non-fatal — dedup errors never block ingestion
+
+### 7. Outstanding Items
+
+- **Add API keys to Vercel**: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` needed for AI features (feed hooks, paradocs analysis, embeddings)
+- **Re-run 20-report test**: With NUFORC fix + enrichment + dedup all applied
+- **Clean up existing duplicates on live site**: The 21 current reports include at least one cross-post duplicate (Yowie encounter). Run the batch dedup scanner (`findDuplicates` from `dedup.ts`) against existing data, or manually remove.
+- **Test AI pipeline**: After API keys are set, verify feed hooks + paradocs analysis generation
+- **Deploy code changes**: All session work is local only — NUFORC fix, enrichment pipeline, source-specific thresholds, and cross-post dedup all need to be pushed/deployed
+- **Re-seed Roswell/Rendlesham clusters**: Chase action item from previous session
+- **Pre-existing type error**: `LogToConstellation.tsx` lines 96, 127 — concat type mismatch (not related to ingestion)

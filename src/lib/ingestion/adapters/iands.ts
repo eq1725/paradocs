@@ -260,6 +260,7 @@ function parseAccountPage(html: string, id: string, title: string): ScrapedRepor
     description: content,
     category: 'psychological_experiences',
     event_date: undefined,
+    event_date_precision: 'unknown',
     credibility: determineCredibility(content),
     source_type: 'iands',
     original_report_id: `iands-${id}`,

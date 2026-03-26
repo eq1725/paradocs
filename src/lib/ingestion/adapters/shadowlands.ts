@@ -128,8 +128,10 @@ function parseLocationEntries(html: string, stateName: string): ScrapedReport[] 
       source_type: 'shadowlands',
       original_report_id: reportId,
       tags,
+      event_date_precision: 'unknown',
       // New quality system fields
       source_label: 'Shadowlands',
+      source_url: 'https://theshadowlands.net/places/' + stateName.toLowerCase().replace(/\s+/g, ''),
       metadata: {
         locationName,
         stateName

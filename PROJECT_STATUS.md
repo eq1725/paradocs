@@ -72,7 +72,7 @@ Paradocs is an **index with attribution**, not a republisher. This mirrors Googl
 
 ### Launch Path (Critical — MVP)
 
-1. **Data cleanup** — Delete ~2M hidden Reddit dev data AND ~900 test reports (excluding 20 curated). Run feed_hook + paradocs_narrative + paradocs_assessment migration. Start with clean DB: only curated Roswell (14) + Rendlesham (6) remain.
+1. **Data cleanup** — ✅ DONE (Session 10, March 25 2026). Deleted ~2M hidden Reddit dev data, ~900 test reports, AND 40 AI-generated filler reports that were incorrectly labeled as curated. Migration applied. Clean DB: only 1 Roswell showcase report remains. **ACTION ITEM (Chase — Report Experience-Curated session):** Re-seed Roswell witness cluster (13 witnesses) and Rendlesham Forest cluster (1 showcase + 5 witnesses) from existing seed scripts in `src/pages/api/admin/seed-rendlesham-cluster.ts` and `public/admin-seed-roswell-witnesses.js` / `public/admin-roswell-cluster-upgrade.js`.
 2. **Finalize ingestion pipeline** — Pipeline outputs per report: metadata card (feed_hook + source attribution), Paradocs Analysis (narrative + assessment), vector embedding. Raw description stored but never displayed. Source URL required for every adapter.
 3. **Mass ingestion at scale** — YouTube, Erowid, Reddit (fresh via Arctic Shift), forums, news, etc. Target: 1M+ for closed beta. Cost: ~$750-1,000 per 1M for all AI generation (hooks + narrative + assessment).
 4. **Embedding pipeline at scale** — Embed all ingested reports into pgvector. Pipeline exists (Session 15). Cost: ~$500-600 for 5M reports.
@@ -91,9 +91,9 @@ Paradocs is an **index with attribution**, not a republisher. This mirrors Googl
 
 ### Data Status
 
-- **~900 approved test reports:** Will be DELETED before mass ingestion (test data only). The 20 curated reports (Roswell + Rendlesham) are preserved.
-- **~2M hidden Reddit reports:** Will be deleted entirely.
-- **20 curated reports (Roswell 14 + Rendlesham 6):** Real editorial content. Hand-crafted, not affected by pipeline changes.
+- **~900 test reports + ~2M hidden Reddit reports + 40 AI-generated filler:** ✅ ALL DELETED (March 25 2026).
+- **1 curated Roswell showcase report** remains in DB. Roswell witness cluster (13) and Rendlesham cluster (6) need re-seeding from existing seed scripts (see Action Item in Launch Path step 1).
+- **Ingestion pipeline:** Step 3 in progress — initial 20-report quality review ingestion underway.
 - **4,792 phenomena entries:** Basic taxonomy across 11 categories. Only cryptids (208) fully enriched. Sufficient for report classification.
 
 ### Conversion Strategy (Depth Gate)

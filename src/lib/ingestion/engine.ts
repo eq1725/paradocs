@@ -10,6 +10,11 @@ import {
   getSourceLabel,
   isObviouslyLowQuality,
 } from './filters';
+import { generateAndSaveFeedHook } from '../services/feed-hook.service';
+import { generateAndSaveParadocsAnalysis } from '../services/paradocs-analysis.service';
+import { embedReport } from '../services/embedding.service';
+import { enrichReport } from './enrichment/report-enricher';
+import { checkForDuplicate, DedupCandidate } from './dedup';
 
 // Phenomenon pattern matching for auto-identification during ingestion
 interface PhenomenonPattern {
@@ -290,7 +295,17 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           continue;
         }
 
-        // Full quality assessment
+        // Enrich report: extract missing dates/locations from text, geocode
+        // Runs BEFORE quality scoring so enriched data improves the score
+        // NEVER fabricates data — only extracts clearly stated info
+        try {
+          await enrichReport(report);
+        } catch (enrichError) {
+          // Enrichment failure should never block ingestion
+          console.log('[Ingestion] Enrichment error (non-fatal):', enrichError);
+        }
+
+        // Full quality assessment (now scores the enriched report)
         const qualityResult = assessQuality(report, report.metadata);
 
         if (!qualityResult.passed) {
@@ -299,9 +314,9 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           continue;
         }
 
-        // Get quality score and determine status
+        // Get quality score and determine status (source-specific thresholds)
         const qualityScore = qualityResult.qualityScore!;
-        const status = getStatusFromScore(qualityScore.total);
+        const status = getStatusFromScore(qualityScore.total, report.source_type);
 
         // Reject very low quality
         if (status === 'rejected') {
@@ -339,7 +354,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           .single();
 
         if (existing) {
-          // Update existing report
+          // Exact source match — update existing report
           const { error: updateError } = await supabase
             .from('reports')
             .update({
@@ -348,9 +363,11 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               description: report.description,
               location_name: report.location_name,
               event_date: report.event_date,
+              event_date_precision: report.event_date_precision || 'unknown',
               credibility: report.credibility,
               tags: report.tags,
               source_label: sourceLabel,
+              source_url: report.source_url,
               original_title: originalTitle,
               updated_at: new Date().toISOString()
             })
@@ -358,6 +375,26 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
 
           if (!updateError) {
             updated++;
+
+            // Generate feed_hook if missing on updated report (non-blocking)
+            try {
+              const { data: hookCheck } = await supabase
+                .from('reports')
+                .select('feed_hook, paradocs_narrative')
+                .eq('id', existing.id)
+                .single();
+
+              if (!hookCheck?.feed_hook) {
+                await generateAndSaveFeedHook(existing.id);
+              }
+
+              // Generate Paradocs Analysis if missing on updated report
+              if (!hookCheck?.paradocs_narrative) {
+                await generateAndSaveParadocsAnalysis(existing.id);
+              }
+            } catch (hookError) {
+              console.log('[Ingestion] Hook/Analysis generation failed for updated report, continuing...');
+            }
 
             // Update media for existing report if it has new media
             if (report.media && report.media.length > 0) {
@@ -404,6 +441,58 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
             skipped++;
           }
         } else {
+          // --- Cross-post / fuzzy duplicate check ---
+          // Catches Reddit cross-posts and near-identical content from different sources.
+          // Query recent reports with overlapping location or category to compare against.
+          var fuzzyMatch: ReturnType<typeof checkForDuplicate> = null;
+          try {
+            var dedupQuery = supabase
+              .from('reports')
+              .select('id, title, location_name, city, state_province, country, latitude, longitude, event_date, source_type, original_report_id, description')
+              .neq('original_report_id', report.original_report_id)
+              .limit(200);
+
+            // Narrow search: same category reduces false positives
+            if (report.category) {
+              dedupQuery = dedupQuery.eq('category', report.category);
+            }
+
+            var { data: dedupCandidates } = await dedupQuery;
+
+            if (dedupCandidates && dedupCandidates.length > 0) {
+              var incomingCandidate: DedupCandidate = {
+                id: report.original_report_id || 'new',
+                title: finalTitle,
+                location_name: report.location_name || null,
+                city: report.city || null,
+                state_province: report.state_province || null,
+                country: report.country || null,
+                latitude: report.latitude || null,
+                longitude: report.longitude || null,
+                event_date: report.event_date || null,
+                source_type: report.source_type || null,
+                original_report_id: report.original_report_id || null,
+                description: report.description
+              };
+
+              fuzzyMatch = checkForDuplicate(incomingCandidate, dedupCandidates as DedupCandidate[]);
+
+              if (fuzzyMatch && fuzzyMatch.confidence === 'definite') {
+                console.log('[Ingestion] Fuzzy dedup SKIP (definite): "' + finalTitle.substring(0, 40) + '..." matches report ' + fuzzyMatch.reportB + ' (score: ' + fuzzyMatch.overallScore.toFixed(2) + ')');
+                skipped++;
+                continue;
+              }
+
+              if (fuzzyMatch && fuzzyMatch.confidence === 'likely') {
+                console.log('[Ingestion] Fuzzy dedup flag (likely): "' + finalTitle.substring(0, 40) + '..." similar to report ' + fuzzyMatch.reportB + ' (score: ' + fuzzyMatch.overallScore.toFixed(2) + ')');
+                // Will record the match in duplicate_matches AFTER insert (need both UUIDs)
+              }
+            }
+          } catch (dedupErr) {
+            // Fuzzy dedup failure should never block ingestion
+            console.log('[Ingestion] Fuzzy dedup error (non-fatal):', dedupErr);
+          }
+
           // Insert new report with quality-based status
           const slug = generateSlug(finalTitle, report.original_report_id, report.source_type);
 
@@ -422,6 +511,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               latitude: report.latitude,
               longitude: report.longitude,
               event_date: report.event_date,
+              event_date_precision: report.event_date_precision || 'unknown',
               credibility: report.credibility || 'medium',
               source_type: report.source_type,
               original_report_id: report.original_report_id,
@@ -440,6 +530,26 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
             inserted++;
             if (titleResult.wasImproved) {
               console.log(`[Ingestion] Title improved: "${originalTitle?.substring(0, 30)}..." -> "${finalTitle.substring(0, 30)}..."`);
+            }
+
+            // Record fuzzy dedup match if one was flagged (now we have both UUIDs)
+            if (fuzzyMatch && fuzzyMatch.confidence === 'likely') {
+              try {
+                await supabase.from('duplicate_matches').insert({
+                  report_a_id: fuzzyMatch.reportB,  // existing report UUID
+                  report_b_id: insertedReport.id,    // newly inserted report UUID
+                  title_similarity: fuzzyMatch.titleSimilarity,
+                  location_similarity: fuzzyMatch.locationSimilarity,
+                  date_similarity: fuzzyMatch.dateSimilarity,
+                  content_similarity: fuzzyMatch.contentSimilarity,
+                  overall_score: fuzzyMatch.overallScore,
+                  confidence: fuzzyMatch.confidence,
+                  details: fuzzyMatch.details
+                });
+                console.log('[Ingestion] Recorded likely duplicate match for review');
+              } catch (dedupRecordErr) {
+                // Non-fatal — dedup tracking failure shouldn't block ingestion
+              }
             }
 
             // Auto-identify and link to phenomena (only for approved reports)
@@ -497,6 +607,32 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               }
               if (mediaInserted > 0) {
                 console.log(`[Ingestion] Added ${mediaInserted} media items to new report`);
+              }
+            }
+
+            // Generate feed_hook for the new report (non-blocking)
+            if (status === 'approved') {
+              try {
+                await generateAndSaveFeedHook(insertedReport.id);
+              } catch (hookError) {
+                console.log('[Ingestion] Feed hook generation failed for ' + slug + ', continuing...');
+                // Non-fatal — report is still ingested without a hook
+              }
+
+              // Generate Paradocs Analysis — narrative + assessment (non-blocking)
+              try {
+                await generateAndSaveParadocsAnalysis(insertedReport.id);
+              } catch (analysisError) {
+                console.log('[Ingestion] Paradocs Analysis generation failed for ' + slug + ', continuing...');
+                // Non-fatal — batch backfill catches gaps
+              }
+
+              // Generate vector embedding for semantic search (non-blocking)
+              try {
+                await embedReport(insertedReport.id);
+              } catch (embedError) {
+                console.log('[Ingestion] Embedding failed for ' + slug + ', will catch in batch');
+                // Non-fatal — embedding batch job catches stragglers
               }
             }
           } else {

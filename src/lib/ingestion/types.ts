@@ -64,7 +64,7 @@ export interface ScrapedReport {
   tags?: string[];
   // New fields for quality system
   source_label?: string;      // Display label (e.g., "r/Paranormal", "BFRO Database")
-  source_url?: string;        // Link back to original source
+  source_url: string;         // REQUIRED — index model needs attribution link
   original_title?: string;    // Original title before improvement
   quality_score?: number;     // 0-100 quality score
   quality_breakdown?: {       // Detailed score breakdown
@@ -75,6 +75,8 @@ export interface ScrapedReport {
   };
   // Media extracted from the source
   media?: ScrapedMediaItem[];
+  // Event date precision for On This Date feature
+  event_date_precision?: 'exact' | 'month' | 'year' | 'decade' | 'estimated' | 'unknown';
   // Adapter-specific metadata
   metadata?: Record<string, any>;
 }

@@ -124,6 +124,7 @@ function parseTableRow(row: string, category: string, pageTitle: string, index: 
     country,
     state_province: stateProvince,
     event_date: eventDate,
+    event_date_precision: eventDate ? 'year' : 'unknown',
     credibility: 'medium', // Wikipedia is generally reliable
     source_type: 'wikipedia',
     original_report_id: reportId,
@@ -302,6 +303,7 @@ function parseWikiContent(html: string, category: string, pageTitle: string): Sc
         credibility: 'medium',
         source_type: 'wikipedia',
         original_report_id: reportId,
+        event_date_precision: 'unknown',
         tags: ['wikipedia', 'historical', category.replace(/_/g, '-')],
         // New quality system fields
         source_label: 'Wikipedia',

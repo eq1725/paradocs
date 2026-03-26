@@ -9,6 +9,11 @@ import { redditAdapter } from './reddit';
 import { wikipediaAdapter } from './wikipedia';
 import { nderfAdapter } from './nderf';
 import { iandsAdapter } from './iands';
+// Session 10: New adapters for expanded source coverage
+import { redditV2Adapter } from './reddit-v2';
+import { youtubeAdapter } from './youtube';
+import { newsAdapter } from './news';
+import { erowidAdapter } from './erowid';
 
 // Registry of all available adapters
 const adapters: Record<string, SourceAdapter> = {
@@ -20,8 +25,15 @@ const adapters: Record<string, SourceAdapter> = {
   wikipedia: wikipediaAdapter,
   nderf: nderfAdapter,
   iands: iandsAdapter,
+  // Session 10: Expanded adapters
+  'reddit-v2': redditV2Adapter,
+  youtube: youtubeAdapter,
+  news: newsAdapter,
+  erowid: erowidAdapter,
   // Future adapters:
   // mufon: mufonAdapter,
+  // podcasts: podcastAdapter,
+  // government: governmentDocsAdapter,
 };
 
 export function getAdapter(adapterType: string): SourceAdapter | null {
@@ -40,5 +52,10 @@ export {
   redditAdapter,
   wikipediaAdapter,
   nderfAdapter,
-  iandsAdapter
+  iandsAdapter,
+  // Session 10
+  redditV2Adapter,
+  youtubeAdapter,
+  newsAdapter,
+  erowidAdapter,
 };

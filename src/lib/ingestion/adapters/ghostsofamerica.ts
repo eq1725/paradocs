@@ -154,6 +154,16 @@ function parseGhostStories(html: string, stateName: string, cityName?: string): 
       credibility = 'low';
     }
 
+    // Determine event_date_precision
+    var datePrecision: 'exact' | 'month' | 'year' | 'decade' | 'estimated' | 'unknown' = 'unknown';
+    if (eventDate) {
+      if (/^\d{4}-01-01$/.test(eventDate) && dateMatch && /^\d{4}$/.test(dateMatch[1])) {
+        datePrecision = 'year';
+      } else {
+        datePrecision = 'exact';
+      }
+    }
+
     reports.push({
       title: title.length > 100 ? title.substring(0, 97) + '...' : title,
       summary,
@@ -164,12 +174,14 @@ function parseGhostStories(html: string, stateName: string, cityName?: string): 
       state_province: stateName,
       city: cityName,
       event_date: eventDate,
+      event_date_precision: datePrecision,
       credibility,
       source_type: 'ghostsofamerica',
       original_report_id: reportId,
       tags,
       // New quality system fields
       source_label: 'Ghosts of America',
+      source_url: 'https://www.ghostsofamerica.com/ghosts/' + Object.keys(STATE_NAMES).find(function(k) { return STATE_NAMES[k] === stateName; }) + '/',
       metadata: {
         stateName,
         cityName,
@@ -207,8 +219,10 @@ function parseGhostStories(html: string, stateName: string, cityName?: string): 
         source_type: 'ghostsofamerica',
         original_report_id: reportId,
         tags: ['ghost-story'],
+        event_date_precision: 'unknown',
         // New quality system fields
         source_label: 'Ghosts of America',
+        source_url: 'https://www.ghostsofamerica.com/ghosts/' + (Object.keys(STATE_NAMES).find(function(k) { return STATE_NAMES[k] === stateName; }) || stateName.toLowerCase().replace(/\s+/g, '')) + '/',
         metadata: {
           stateName,
           cityName

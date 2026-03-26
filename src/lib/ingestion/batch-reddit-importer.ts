@@ -11,6 +11,7 @@ import {
   isObviouslyLowQuality,
 } from './filters';
 import { parseLocation } from './utils/location-parser';
+import { checkForDuplicate, DedupCandidate } from './dedup';
 import * as readline from 'readline';
 import * as fs from 'fs';
 import * as zlib from 'zlib';
@@ -569,7 +570,7 @@ export async function batchImportRedditDump(options: BatchImportOptions): Promis
       }
 
       const qualityScore = qualityResult.qualityScore!;
-      const status = getStatusFromScore(qualityScore.total);
+      const status = getStatusFromScore(qualityScore.total, 'reddit');
 
       if (status === 'rejected') {
         progress.rejected++;
@@ -633,6 +634,47 @@ async function processBatch(
         if (existing) {
           progress.skipped++;
           continue;
+        }
+
+        // Cross-post fuzzy dedup: catch same content posted to different subreddits
+        try {
+          var dedupQuery = supabase
+            .from('reports')
+            .select('id, title, location_name, city, state_province, country, latitude, longitude, event_date, source_type, original_report_id, description')
+            .neq('original_report_id', report.original_report_id)
+            .limit(200);
+
+          if (report.category) {
+            dedupQuery = dedupQuery.eq('category', report.category);
+          }
+
+          var { data: dedupCandidates } = await dedupQuery;
+
+          if (dedupCandidates && dedupCandidates.length > 0) {
+            var incoming: DedupCandidate = {
+              id: report.original_report_id || 'new',
+              title: report.title,
+              location_name: report.location_name || null,
+              city: report.city || null,
+              state_province: report.state_province || null,
+              country: report.country || null,
+              latitude: report.latitude || null,
+              longitude: report.longitude || null,
+              event_date: report.event_date || null,
+              source_type: report.source_type || null,
+              original_report_id: report.original_report_id || null,
+              description: report.description
+            };
+
+            var fuzzyMatch = checkForDuplicate(incoming, dedupCandidates as DedupCandidate[]);
+            if (fuzzyMatch && fuzzyMatch.confidence === 'definite') {
+              console.log('[BatchReddit] Fuzzy dedup SKIP: "' + report.title.substring(0, 40) + '..." (cross-post of ' + fuzzyMatch.reportB + ')');
+              progress.skipped++;
+              continue;
+            }
+          }
+        } catch (dedupErr) {
+          // Non-fatal
         }
       }
 

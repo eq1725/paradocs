@@ -182,179 +182,321 @@ interface ReportMetadata {
   explanation: string;
 }
 
-async function parseMonthPage(html: string): Promise<ReportMetadata[]> {
-  const reports: ReportMetadata[] = [];
+// Extract wpDataTable AJAX configuration from the page HTML
+function findWpDataTableConfig(html: string): { tableId: string; ajaxUrl: string } | null {
+  // Look for wpDataTables initialization in script blocks
+  // Common patterns: wpdatatables_init_XXX, wpDataTablesGlobalData, data-wpdatatable_id
 
-  // Debug: Log HTML size and look for key markers
-  console.log(`[NUFORC] HTML size: ${html.length} bytes`);
-  const hasSightingLink = html.includes('/sighting/?id=');
-  console.log(`[NUFORC] Contains sighting link: ${hasSightingLink}`);
-  console.log(`[NUFORC] Contains table: ${html.includes('<table')}`);
-  console.log(`[NUFORC] Contains wpDataTable: ${html.includes('wpDataTable')}`);
+  // Pattern 1: data-wpdatatable_id attribute on table element
+  var tableIdMatch = html.match(/data-wpdatatable_id=['"](\d+)['"]/i);
 
-  // If sighting link exists, show a sample of the HTML around it
-  if (hasSightingLink) {
-    const idx = html.indexOf('/sighting/?id=');
-    const sample = html.substring(Math.max(0, idx - 50), Math.min(html.length, idx + 100));
-    console.log(`[NUFORC] Sample around sighting link: ${sample.replace(/[\n\r]+/g, ' ').substring(0, 200)}`);
+  // Pattern 2: wdt_var.table_id in script
+  if (!tableIdMatch) {
+    tableIdMatch = html.match(/table_id\s*[:=]\s*['"]?(\d+)['"]?/i);
   }
 
-  // First approach: Find all sighting links directly and extract surrounding row data
-  // The site uses SINGLE QUOTES in href attributes: href='/sighting/?id=194984'
-  let sightingIds: string[] = [];
-
-  // Pattern 1: Single quotes (actual format used by NUFORC)
-  const pattern1 = /href='\/sighting\/\?id=(\d+)'/gi;
-  let match;
-  while ((match = pattern1.exec(html)) !== null) {
-    sightingIds.push(match[1]);
+  // Pattern 3: wpDataTable ID in initialization script
+  if (!tableIdMatch) {
+    tableIdMatch = html.match(/wpdatatables\[['"]?(\d+)['"]?\]/i);
   }
-  console.log(`[NUFORC] Pattern 1 (single quotes): ${sightingIds.length} matches`);
 
-  // Pattern 2: Double quotes (fallback)
-  if (sightingIds.length === 0) {
-    const pattern2 = /href="\/sighting\/\?id=(\d+)"/gi;
-    while ((match = pattern2.exec(html)) !== null) {
-      sightingIds.push(match[1]);
+  if (!tableIdMatch) return null;
+
+  var tableId = tableIdMatch[1];
+
+  // Find the AJAX URL — usually wp-admin/admin-ajax.php or similar
+  var ajaxUrlMatch = html.match(/["'](https?:\/\/[^"']*admin-ajax\.php)["']/i);
+  if (!ajaxUrlMatch) {
+    // Default WordPress AJAX endpoint
+    var siteUrlMatch = html.match(/(https?:\/\/nuforc\.org)/i);
+    var siteUrl = siteUrlMatch ? siteUrlMatch[1] : 'https://nuforc.org';
+    return { tableId: tableId, ajaxUrl: siteUrl + '/wp-admin/admin-ajax.php' };
+  }
+
+  return { tableId: tableId, ajaxUrl: ajaxUrlMatch[1] };
+}
+
+// Fetch wpDataTable data via AJAX endpoint (server-side processing)
+async function fetchWpDataTableData(config: { tableId: string; ajaxUrl: string }, monthUrl: string): Promise<ReportMetadata[]> {
+  var reports: ReportMetadata[] = [];
+
+  try {
+    // wpDataTables uses DataTables server-side processing
+    // The AJAX endpoint expects POST with DataTables parameters
+    var params = new URLSearchParams();
+    params.append('action', 'get_wdtable');
+    params.append('table_id', config.tableId);
+    params.append('draw', '1');
+    params.append('start', '0');
+    params.append('length', '500'); // Get up to 500 rows per request
+    params.append('wdtNonce', ''); // May need nonce — try without first
+
+    console.log('[NUFORC] Attempting wpDataTable AJAX fetch: ' + config.ajaxUrl + ' (table_id: ' + config.tableId + ')');
+
+    var response = await fetch(config.ajaxUrl, {
+      method: 'POST',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Referer': monthUrl,
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: params.toString()
+    });
+
+    if (!response.ok) {
+      console.log('[NUFORC] AJAX fetch failed: HTTP ' + response.status);
+      return reports;
     }
-    console.log(`[NUFORC] Pattern 2 (double quotes): ${sightingIds.length} matches`);
-  }
 
-  // Pattern 3: Either quote type with character class
-  if (sightingIds.length === 0) {
-    const pattern3 = /href=['"]\/sighting\/\?id=(\d+)['"]/gi;
-    while ((match = pattern3.exec(html)) !== null) {
-      sightingIds.push(match[1]);
+    var json = await response.json() as any;
+
+    // DataTables response format: { data: [[cell1, cell2, ...], ...] } or { data: [{col: val}, ...] }
+    if (!json.data || !Array.isArray(json.data)) {
+      console.log('[NUFORC] AJAX response has no data array');
+      return reports;
     }
-    console.log(`[NUFORC] Pattern 3 (either quote): ${sightingIds.length} matches`);
-  }
 
-  console.log(`[NUFORC] Total sighting IDs found: ${sightingIds.length}`);
+    console.log('[NUFORC] AJAX returned ' + json.data.length + ' rows');
 
-  // If we have sighting IDs, find table rows containing them
-  if (sightingIds.length > 0) {
-    // Try to find each sighting's row data
-    for (const id of sightingIds) {
-      // Find the table row containing this sighting ID (handles both single and double quotes)
-      const rowPattern = new RegExp(`<tr[^>]*>[\\s\\S]*?href=['"]\\/sighting\\/\\?id=${id}['"][\\s\\S]*?<\\/tr>`, 'i');
-      const rowMatch = html.match(rowPattern);
+    for (var row of json.data) {
+      try {
+        var rowData: string[];
 
-      if (rowMatch) {
-        const rowHtml = rowMatch[0];
-
-        // Extract all td cells
-        const cellPattern = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-        const cells: string[] = [];
-        let cellMatch;
-        while ((cellMatch = cellPattern.exec(rowHtml)) !== null) {
-          cells.push(cleanText(cellMatch[1].replace(/<[^>]+>/g, '')));
+        // Handle both array and object formats
+        if (Array.isArray(row)) {
+          rowData = row.map(function(cell: any) { return cleanText(String(cell || '').replace(/<[^>]+>/g, '')); });
+        } else {
+          // Object format — extract values in column order
+          rowData = Object.values(row).map(function(cell: any) { return cleanText(String(cell || '').replace(/<[^>]+>/g, '')); });
         }
 
-        // We expect: Link, Occurred, City, State, Country, Shape, Summary, Reported, Media, Explanation
-        if (cells.length >= 7) {
+        // Extract sighting ID from the first cell (which contains the link)
+        var rawFirstCell = Array.isArray(row) ? String(row[0] || '') : String(Object.values(row)[0] || '');
+        var idMatch = rawFirstCell.match(/\/sighting\/\?id=(\d+)/);
+        if (!idMatch) continue;
+
+        // Column order: Link, Occurred, City, State, Country, Shape, Summary, Reported, HasMedia, Explanation
+        if (rowData.length >= 7) {
           reports.push({
-            id: id,
-            occurred: cells[1] || '',
-            city: cells[2] || '',
-            state: cells[3] || '',
-            country: cells[4] || 'USA',
-            shape: cells[5] || 'unknown',
-            summary: cells[6] || '',
-            reported: cells[7] || '',
-            hasMedia: (cells[8] || '').toLowerCase() === 'y' || (cells[8] || '').toLowerCase() === 'yes',
-            explanation: cells[9] || ''
+            id: idMatch[1],
+            occurred: rowData[1] || '',
+            city: rowData[2] || '',
+            state: rowData[3] || '',
+            country: rowData[4] || 'USA',
+            shape: rowData[5] || 'unknown',
+            summary: rowData[6] || '',
+            reported: rowData[7] || '',
+            hasMedia: (rowData[8] || '').toLowerCase() === 'y' || (rowData[8] || '').toLowerCase() === 'yes',
+            explanation: rowData[9] || ''
           });
         }
+      } catch (e) {
+        // Skip malformed rows
+      }
+    }
+
+    console.log('[NUFORC] AJAX parsing produced ' + reports.length + ' reports');
+  } catch (e) {
+    console.log('[NUFORC] AJAX fetch error: ' + (e instanceof Error ? e.message : String(e)));
+  }
+
+  return reports;
+}
+
+async function parseMonthPage(html: string, monthUrl: string): Promise<ReportMetadata[]> {
+  var reports: ReportMetadata[] = [];
+
+  // Debug: Log HTML size and look for key markers
+  console.log('[NUFORC] HTML size: ' + html.length + ' bytes');
+  var hasSightingLink = html.includes('/sighting/?id=');
+  var hasWpDataTable = html.includes('wpDataTable') || html.includes('wpdatatables');
+  console.log('[NUFORC] Contains sighting link: ' + hasSightingLink);
+  console.log('[NUFORC] Contains wpDataTable: ' + hasWpDataTable);
+
+  // ===== APPROACH 0: wpDataTable AJAX (most reliable for JS-rendered tables) =====
+  if (hasWpDataTable) {
+    var tableConfig = findWpDataTableConfig(html);
+    if (tableConfig) {
+      var ajaxReports = await fetchWpDataTableData(tableConfig, monthUrl);
+      if (ajaxReports.length > 0) {
+        console.log('[NUFORC] wpDataTable AJAX succeeded: ' + ajaxReports.length + ' reports');
+        return ajaxReports;
+      }
+      console.log('[NUFORC] wpDataTable AJAX returned 0 reports, falling back to HTML parsing');
+    } else {
+      console.log('[NUFORC] Could not find wpDataTable config in HTML');
+    }
+  }
+
+  // ===== APPROACH 1: Extract sighting IDs and match to HTML table rows =====
+  var sightingIds: string[] = [];
+  var match: RegExpExecArray | null;
+
+  // Find all sighting IDs using multiple patterns
+  var idPatterns = [
+    /href='\/sighting\/\?id=(\d+)'/gi,
+    /href="\/sighting\/\?id=(\d+)"/gi,
+    /\/sighting\/\?id=(\d+)/gi
+  ];
+
+  for (var p = 0; p < idPatterns.length; p++) {
+    if (sightingIds.length > 0) break;
+    while ((match = idPatterns[p].exec(html)) !== null) {
+      if (sightingIds.indexOf(match[1]) === -1) {
+        sightingIds.push(match[1]);
+      }
+    }
+    if (sightingIds.length > 0) {
+      console.log('[NUFORC] ID pattern ' + (p + 1) + ' found ' + sightingIds.length + ' sighting IDs');
+    }
+  }
+
+  if (sightingIds.length === 0) {
+    console.log('[NUFORC] No sighting IDs found in HTML');
+    return reports;
+  }
+
+  console.log('[NUFORC] Total unique sighting IDs: ' + sightingIds.length);
+
+  // Try row-by-row extraction: split HTML into table rows first, then match
+  // This avoids the regex backtracking issue where all IDs match the same row
+  var rowSplitPattern = /<tr[^>]*>/gi;
+  var rowStarts: number[] = [];
+  while ((match = rowSplitPattern.exec(html)) !== null) {
+    rowStarts.push(match.index);
+  }
+
+  if (rowStarts.length > 1) {
+    // Extract each row as a substring between consecutive <tr> tags
+    var rowsFound = 0;
+    for (var ri = 0; ri < rowStarts.length; ri++) {
+      var rowStart = rowStarts[ri];
+      var rowEnd = ri + 1 < rowStarts.length ? rowStarts[ri + 1] : html.length;
+      var rowHtml = html.substring(rowStart, rowEnd);
+
+      // Skip header rows
+      if (rowHtml.includes('<th')) continue;
+
+      // Check if this row contains a sighting link
+      var rowIdMatch = rowHtml.match(/\/sighting\/\?id=(\d+)/);
+      if (!rowIdMatch) continue;
+
+      var rowId = rowIdMatch[1];
+
+      // Extract all td cells from this specific row
+      var cellPattern = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+      var cells: string[] = [];
+      var cellMatch: RegExpExecArray | null;
+      while ((cellMatch = cellPattern.exec(rowHtml)) !== null) {
+        cells.push(cleanText(cellMatch[1].replace(/<[^>]+>/g, '')));
+      }
+
+      // Column order: Link, Occurred, City, State, Country, Shape, Summary, Reported, Media, Explanation
+      if (cells.length >= 7) {
+        reports.push({
+          id: rowId,
+          occurred: cells[1] || '',
+          city: cells[2] || '',
+          state: cells[3] || '',
+          country: cells[4] || 'USA',
+          shape: cells[5] || 'unknown',
+          summary: cells[6] || '',
+          reported: cells[7] || '',
+          hasMedia: (cells[8] || '').toLowerCase() === 'y' || (cells[8] || '').toLowerCase() === 'yes',
+          explanation: cells[9] || ''
+        });
+        rowsFound++;
       }
     }
 
     if (reports.length > 0) {
-      console.log(`[NUFORC] Direct ID extraction found ${reports.length} reports`);
-      return reports;
+      console.log('[NUFORC] Row-split extraction found ' + reports.length + ' reports');
+
+      // Validate: check if all reports have the same metadata (indicating the old bug)
+      if (reports.length > 1) {
+        var firstCity = reports[0].city;
+        var firstShape = reports[0].shape;
+        var allSame = reports.every(function(r) { return r.city === firstCity && r.shape === firstShape; });
+        if (allSame) {
+          console.log('[NUFORC] WARNING: All reports have identical metadata — likely parsing from non-data HTML');
+          console.log('[NUFORC] First report: city=' + firstCity + ' shape=' + firstShape + ' occurred=' + reports[0].occurred);
+          // Clear these — they're bad data
+          reports = [];
+          console.log('[NUFORC] Cleared duplicate-metadata reports, will use fetch_full_details fallback');
+        }
+      }
+
+      if (reports.length > 0) return reports;
     }
   }
 
-  // Second approach: Class-based cell extraction (for browser-rendered HTML)
-  const rowPattern = /<tr[^>]*class="(?:odd|even)"[^>]*>([\s\S]*?)<\/tr>/gi;
+  // ===== APPROACH 2: Class-based cell extraction (DataTables rendered HTML) =====
+  var classRowPattern = /<tr[^>]*class="(?:odd|even)"[^>]*>([\s\S]*?)<\/tr>/gi;
 
-  while ((match = rowPattern.exec(html)) !== null) {
-    const rowHtml = match[1];
-    const idMatch = rowHtml.match(/href=['"]\/sighting\/\?id=(\d+)['"]/i);
-    if (!idMatch) continue;
+  while ((match = classRowPattern.exec(html)) !== null) {
+    var classRowHtml = match[1];
+    var classIdMatch = classRowHtml.match(/href=['"]\/sighting\/\?id=(\d+)['"]/i);
+    if (!classIdMatch) continue;
 
-    const extractCell = (className: string): string => {
-      const pattern = new RegExp(`<td[^>]*class="[^"]*column-${className}[^"]*"[^>]*>([\\s\\S]*?)<\\/td>`, 'i');
-      const cellMatch = rowHtml.match(pattern);
+    var extractCell = function(className: string): string {
+      var pattern = new RegExp('<td[^>]*class="[^"]*column-' + className + '[^"]*"[^>]*>([\\s\\S]*?)<\\/td>', 'i');
+      var cellMatch = classRowHtml.match(pattern);
       if (cellMatch) {
         return cleanText(cellMatch[1].replace(/<[^>]+>/g, ''));
       }
       return '';
     };
 
-    const occurred = extractCell('occurred');
-    const city = extractCell('city');
-    const state = extractCell('state');
-    const country = extractCell('country') || 'USA';
-    const shape = extractCell('shape') || 'unknown';
-    const summary = extractCell('summary');
-    const reported = extractCell('reported');
-    const hasImage = extractCell('hasimage');
-    const explanation = extractCell('explanation');
+    var occurred = extractCell('occurred');
+    var city = extractCell('city');
+    var state = extractCell('state');
+    var country = extractCell('country') || 'USA';
+    var shape = extractCell('shape') || 'unknown';
+    var summary = extractCell('summary');
+    var reported = extractCell('reported');
+    var hasImage = extractCell('hasimage');
+    var explanation = extractCell('explanation');
 
     if (occurred || summary) {
       reports.push({
-        id: idMatch[1],
-        occurred,
-        city,
-        state,
-        country,
-        shape,
-        summary,
-        reported,
+        id: classIdMatch[1],
+        occurred: occurred,
+        city: city,
+        state: state,
+        country: country,
+        shape: shape,
+        summary: summary,
+        reported: reported,
         hasMedia: hasImage.toLowerCase() === 'y' || hasImage.toLowerCase() === 'yes',
-        explanation
+        explanation: explanation
       });
     }
   }
 
   if (reports.length > 0) {
-    console.log(`[NUFORC] Class-based parsing found ${reports.length} reports`);
+    console.log('[NUFORC] Class-based parsing found ' + reports.length + ' reports');
     return reports;
   }
 
-  // Third approach: Generic row parsing
-  console.log('[NUFORC] Class-based parsing found 0 rows, trying generic parsing...');
-
-  const genericRowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-
-  while ((match = genericRowPattern.exec(html)) !== null) {
-    const rowHtml = match[0];
-
-    // Skip header rows (contain <th>)
-    if (rowHtml.includes('<th')) continue;
-
-    const idMatch = rowHtml.match(/href=['"][^'"]*\/sighting\/\?id=(\d+)['"]/i);
-    if (!idMatch) continue;
-
-    const cellPattern = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-    const cells: string[] = [];
-    let cellMatch;
-    while ((cellMatch = cellPattern.exec(rowHtml)) !== null) {
-      cells.push(cleanText(cellMatch[1].replace(/<[^>]+>/g, '')));
-    }
-
-    if (cells.length >= 7) {
+  // ===== APPROACH 3: IDs only (no row data available — return IDs for fetch_full_details) =====
+  // If we have sighting IDs but couldn't extract row data, return minimal metadata
+  // so the adapter can use fetch_full_details to get each report individually
+  if (sightingIds.length > 0) {
+    console.log('[NUFORC] No row data found — returning ' + sightingIds.length + ' IDs for individual fetch');
+    for (var si = 0; si < sightingIds.length; si++) {
       reports.push({
-        id: idMatch[1],
-        occurred: cells[1] || '',
-        city: cells[2] || '',
-        state: cells[3] || '',
-        country: cells[4] || 'USA',
-        shape: cells[5] || 'unknown',
-        summary: cells[6] || '',
-        reported: cells[7] || '',
-        hasMedia: (cells[8] || '').toLowerCase() === 'y',
-        explanation: cells[9] || ''
+        id: sightingIds[si],
+        occurred: '',
+        city: '',
+        state: '',
+        country: 'USA',
+        shape: 'unknown',
+        summary: '',
+        reported: '',
+        hasMedia: false,
+        explanation: ''
       });
     }
   }
@@ -435,41 +577,78 @@ async function fetchReportDetails(id: string): Promise<{
   observers: number;
   color: string;
   location: string;
+  shape: string;
+  occurred: string;
+  city: string;
+  state: string;
+  country: string;
   media: ScrapedMediaItem[];
 } | null> {
-  const url = `https://nuforc.org/sighting/?id=${id}`;
-  const html = await fetchWithHeaders(url, 2);
-  if (!html) return null;
+  var url = 'https://nuforc.org/sighting/?id=' + id;
+  var rawHtml = await fetchWithHeaders(url, 2);
+  if (!rawHtml) return null;
+  var html: string = rawHtml;
 
-  // Extract fields from the report page
-  const extractField = (label: string): string => {
-    const pattern = new RegExp(`<strong>${label}:?</strong>\\s*([^<]+)`, 'i');
-    const match = html.match(pattern);
-    return match ? cleanText(match[1]) : '';
+  // Extract fields from the report page metadata
+  var extractField = function(label: string): string {
+    // Try multiple patterns — NUFORC pages vary in structure
+    var patterns = [
+      new RegExp('<strong>' + label + ':?</strong>\\s*([^<]+)', 'i'),
+      new RegExp(label + '\\s*:\\s*</(?:strong|b|th|td)>\\s*(?:<[^>]+>)?\\s*([^<]+)', 'i'),
+      new RegExp('<td[^>]*>' + label + '</td>\\s*<td[^>]*>([^<]+)</td>', 'i')
+    ];
+    for (var i = 0; i < patterns.length; i++) {
+      var m = html.match(patterns[i]);
+      if (m) return cleanText(m[1]);
+    }
+    return '';
   };
 
   // Extract description - it's in paragraph tags after the metadata
-  const descMatch = html.match(/<\/p>\s*<p[^>]*>([\s\S]*?)<p[^>]*><em>Posted/i) ||
-                    html.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
+  var descMatch = html.match(/<\/p>\s*<p[^>]*>([\s\S]*?)<p[^>]*><em>Posted/i) ||
+                  html.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
+                  html.match(/<div[^>]*class="[^"]*entry-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
 
-  let description = '';
+  var description = '';
   if (descMatch) {
     description = cleanText(descMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '));
   }
 
+  // Extract structured metadata from the detail page
+  var occurred = extractField('Occurred') || extractField('Date') || extractField('Event Date');
+  var city = extractField('City');
+  var state = extractField('State') || extractField('Province');
+  var country = extractField('Country');
+  var shape = extractField('Shape') || extractField('Object Shape');
+  var location = extractField('Location');
+
+  // Parse city/state from location if not found separately
+  if (!city && !state && location) {
+    var locParts = location.split(',');
+    if (locParts.length >= 2) {
+      city = locParts[0].trim();
+      state = locParts[1].trim();
+    }
+  }
+
   // Extract media from the page
-  const media = extractMediaFromPage(html);
+  var media = extractMediaFromPage(html);
   if (media.length > 0) {
-    console.log(`[NUFORC] Found ${media.length} media items in report ${id}`);
+    console.log('[NUFORC] Found ' + media.length + ' media items in report ' + id);
   }
 
   return {
-    description,
+    description: description,
     duration: extractField('Duration'),
     observers: parseInt(extractField('No of observers')) || 1,
     color: extractField('Color'),
-    location: extractField('Location'),
-    media
+    location: location,
+    shape: shape,
+    occurred: occurred,
+    city: city,
+    state: state,
+    country: country || 'USA',
+    media: media
   };
 }
 
@@ -478,16 +657,16 @@ export const nuforcAdapter: SourceAdapter = {
 
   async scrape(config: Record<string, any>, limit: number = 100): Promise<AdapterResult> {
     const reports: ScrapedReport[] = [];
-    const rateLimitMs = config.rate_limit_ms || 100; // Faster rate limit for bulk scraping
-    const fetchFullDetails = config.fetch_full_details === true; // Default to FALSE for speed
-    const maxMonths = config.max_months || 6; // Fewer months by default to avoid timeout
+    var rateLimitMs = config.rate_limit_ms || 500; // 500ms default — respects NUFORC server
+    var fetchFullDetails = config.fetch_full_details === true; // Default to FALSE for speed
+    var maxMonths = config.max_months || 6; // Fewer months by default to avoid timeout
 
     try {
-      console.log(`[NUFORC] Starting scrape. Limit: ${limit}, Max months: ${maxMonths}`);
+      console.log('[NUFORC] Starting scrape. Limit: ' + limit + ', Max months: ' + maxMonths);
 
       // Fetch the main index page
-      const indexUrl = 'https://nuforc.org/ndx/?id=event';
-      const indexHtml = await fetchWithHeaders(indexUrl);
+      var indexUrl = 'https://nuforc.org/ndx/?id=event';
+      var indexHtml = await fetchWithHeaders(indexUrl);
 
       if (!indexHtml) {
         return {
@@ -498,67 +677,97 @@ export const nuforcAdapter: SourceAdapter = {
       }
 
       // Parse available months
-      const months = await parseMainIndex(indexHtml);
-      console.log(`[NUFORC] Found ${months.length} months in index`);
+      var months = await parseMainIndex(indexHtml);
+      console.log('[NUFORC] Found ' + months.length + ' months in index');
 
       if (months.length === 0) {
         // Fallback: Try known recent months
-        const now = new Date();
-        for (let i = 0; i < maxMonths; i++) {
-          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          const monthId = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
-          months.push({ monthId, count: 100 });
+        var now = new Date();
+        for (var i = 0; i < maxMonths; i++) {
+          var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          var monthId = '' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0');
+          months.push({ monthId: monthId, count: 100 });
         }
-        console.log(`[NUFORC] Using fallback months: ${months.map(m => m.monthId).join(', ')}`);
+        console.log('[NUFORC] Using fallback months: ' + months.map(function(m) { return m.monthId; }).join(', '));
       }
 
       // Process months until we have enough reports
-      const monthsToProcess = months.slice(0, maxMonths);
+      var monthsToProcess = months.slice(0, maxMonths);
 
-      for (const month of monthsToProcess) {
+      for (var month of monthsToProcess) {
         if (reports.length >= limit) break;
 
-        const monthUrl = `https://nuforc.org/subndx/?id=e${month.monthId}`;
-        console.log(`[NUFORC] Fetching month ${month.monthId}...`);
+        var monthUrl = 'https://nuforc.org/subndx/?id=e' + month.monthId;
+        console.log('[NUFORC] Fetching month ' + month.monthId + '...');
 
-        const monthHtml = await fetchWithHeaders(monthUrl);
+        var monthHtml = await fetchWithHeaders(monthUrl);
         if (!monthHtml) {
-          console.log(`[NUFORC] Failed to fetch month ${month.monthId}`);
+          console.log('[NUFORC] Failed to fetch month ' + month.monthId);
           continue;
         }
 
-        const monthReports = await parseMonthPage(monthHtml);
-        console.log(`[NUFORC] Found ${monthReports.length} reports in month ${month.monthId}`);
+        var monthReports = await parseMonthPage(monthHtml, monthUrl);
+        console.log('[NUFORC] Found ' + monthReports.length + ' reports in month ' + month.monthId);
 
-        for (const meta of monthReports) {
+        // Check if we got IDs without row data (empty summaries) — auto-enable full details
+        var hasRowData = monthReports.some(function(r) { return r.summary.length > 0 || r.city.length > 0; });
+        var needFullDetails = fetchFullDetails || !hasRowData;
+        if (!hasRowData && monthReports.length > 0) {
+          console.log('[NUFORC] No row data available — auto-enabling fetch_full_details for individual pages');
+        }
+
+        for (var meta of monthReports) {
           if (reports.length >= limit) break;
 
           try {
-            let description = meta.summary;
-            let duration = '';
-            let mediaItems: ScrapedMediaItem[] = [];
+            var description = meta.summary;
+            var duration = '';
+            var mediaItems: ScrapedMediaItem[] = [];
 
-            // Fetch full report details if needed (short description OR has media)
-            if (fetchFullDetails && (description.length < 200 || meta.hasMedia)) {
-              await new Promise(resolve => setTimeout(resolve, rateLimitMs));
-              const details = await fetchReportDetails(meta.id);
+            // Fetch full report details when:
+            // 1. fetch_full_details is enabled, OR
+            // 2. No row data was parsed (wpDataTable AJAX failed), OR
+            // 3. Description is too short and might benefit from full page scrape
+            if (needFullDetails || (fetchFullDetails && (description.length < 200 || meta.hasMedia))) {
+              await new Promise(function(resolve) { setTimeout(resolve, rateLimitMs); });
+              var details = await fetchReportDetails(meta.id);
               if (details) {
                 description = details.description || meta.summary;
                 duration = details.duration;
                 mediaItems = details.media;
+                // Fill in missing row data from detail page
+                if (!meta.city && details.city) meta.city = details.city;
+                if (!meta.state && details.state) meta.state = details.state;
+                if (!meta.country && details.country) meta.country = details.country;
+                if ((!meta.shape || meta.shape === 'unknown') && details.shape) meta.shape = details.shape;
+                if (!meta.occurred && details.occurred) meta.occurred = details.occurred;
               }
             }
 
-            const state = STATE_MAP[meta.state] || meta.state;
-            const eventDate = parseDate(meta.occurred);
-            const locationName = meta.city ? `${meta.city}, ${state}` : state;
+            var state = STATE_MAP[meta.state] || meta.state;
+            var eventDate = parseDate(meta.occurred);
+            var locationName = meta.city ? meta.city + ', ' + state : state;
 
             // Build tags array
-            const baseTags = extractTags(meta.shape, description);
-            const tags = mediaItems.length > 0 ? [...baseTags, 'has-media'] : baseTags;
+            var baseTags = extractTags(meta.shape, description);
+            var tags = mediaItems.length > 0 ? baseTags.concat(['has-media']) : baseTags;
 
-            const report: ScrapedReport = {
-              title: `${meta.shape || 'UFO'} Sighting in ${locationName}${eventDate ? ` (${eventDate})` : ''}`.substring(0, 200),
+            // Determine event_date_precision based on date parsing
+            var eventDatePrecision: 'exact' | 'month' | 'year' | 'decade' | 'estimated' | 'unknown' = 'unknown';
+            if (eventDate) {
+              if (/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
+                eventDatePrecision = 'exact';
+              } else if (/^\d{4}-\d{2}/.test(eventDate)) {
+                eventDatePrecision = 'month';
+              } else if (/^\d{4}/.test(eventDate)) {
+                eventDatePrecision = 'year';
+              }
+            }
+
+            var titleShape = meta.shape || 'UFO';
+            var titleDate = eventDate ? ' (' + eventDate + ')' : '';
+            var report: ScrapedReport = {
+              title: (titleShape + ' Sighting in ' + locationName + titleDate).substring(0, 200),
               summary: meta.summary.length > 400 ? meta.summary.substring(0, 397) + '...' : meta.summary,
               description: description,
               category: 'ufos_aliens',
@@ -567,14 +776,13 @@ export const nuforcAdapter: SourceAdapter = {
               state_province: state,
               city: meta.city,
               event_date: eventDate,
+              event_date_precision: eventDatePrecision,
               credibility: determineCredibility(description, meta.shape, meta.hasMedia || mediaItems.length > 0),
               source_type: 'nuforc',
-              original_report_id: `nuforc-${meta.id}`,
+              original_report_id: 'nuforc-' + meta.id,
               tags: tags,
-              // New quality system fields
               source_label: 'NUFORC',
-              source_url: `https://nuforc.org/sighting/?id=${meta.id}`,
-              // Media extracted from the report
+              source_url: 'https://nuforc.org/sighting/?id=' + meta.id,
               media: mediaItems.length > 0 ? mediaItems : undefined,
               metadata: {
                 shape: meta.shape,
@@ -587,19 +795,19 @@ export const nuforcAdapter: SourceAdapter = {
             reports.push(report);
 
             if (reports.length % 50 === 0) {
-              console.log(`[NUFORC] Processed ${reports.length} reports...`);
+              console.log('[NUFORC] Processed ' + reports.length + ' reports...');
             }
 
           } catch (e) {
-            console.error(`[NUFORC] Error processing report ${meta.id}:`, e);
+            console.error('[NUFORC] Error processing report ' + meta.id + ':', e);
           }
         }
 
         // Minimal rate limiting between months (server is robust)
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(function(resolve) { setTimeout(resolve, 100); });
       }
 
-      console.log(`[NUFORC] Successfully scraped ${reports.length} reports`);
+      console.log('[NUFORC] Successfully scraped ' + reports.length + ' reports');
 
       return {
         success: true,
