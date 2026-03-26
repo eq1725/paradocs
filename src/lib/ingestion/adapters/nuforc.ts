@@ -709,11 +709,12 @@ export const nuforcAdapter: SourceAdapter = {
         var monthReports = await parseMonthPage(monthHtml, monthUrl);
         console.log('[NUFORC] Found ' + monthReports.length + ' reports in month ' + month.monthId);
 
-        // Check if we got IDs without row data (empty summaries) — auto-enable full details
-        var hasRowData = monthReports.some(function(r) { return r.summary.length > 0 || r.city.length > 0; });
+        // Check if we got IDs without meaningful row data — auto-enable full details
+        // A summary must be >50 chars to count as real data (otherwise it's just a shape label like "Disk")
+        var hasRowData = monthReports.some(function(r) { return r.summary.length > 50 || r.city.length > 0; });
         var needFullDetails = fetchFullDetails || !hasRowData;
         if (!hasRowData && monthReports.length > 0) {
-          console.log('[NUFORC] No row data available — auto-enabling fetch_full_details for individual pages');
+          console.log('[NUFORC] No usable row data (summaries too short) — auto-enabling fetch_full_details for individual pages');
         }
 
         for (var meta of monthReports) {

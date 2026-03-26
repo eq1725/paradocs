@@ -1,6 +1,11 @@
 // API Route: /api/admin/ingest
 // Allows admin users to trigger data ingestion manually
 
+// Extend Vercel function timeout — ingestion scrapes external sites and needs time
+export const config = {
+  maxDuration: 120, // 2 minutes (Pro plan allows up to 300s)
+};
+
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { runScheduledIngestion, runIngestion } from '@/lib/ingestion/engine';
