@@ -102,19 +102,19 @@ export const CREDIBILITY_CONFIG: Record<CredibilityLevel, {
     label: 'Low Credibility',
     color: 'text-red-400',
     bgColor: 'bg-red-400/10',
-    description: 'Lacks supporting evidence'
+    description: 'Limited verifiable details or corroborating evidence'
   },
   medium: {
     label: 'Medium Credibility',
     color: 'text-yellow-400',
     bgColor: 'bg-yellow-400/10',
-    description: 'Some supporting details'
+    description: 'Contains specific details but lacks independent corroboration'
   },
   high: {
     label: 'High Credibility',
     color: 'text-green-400',
     bgColor: 'bg-green-400/10',
-    description: 'Well-documented with evidence'
+    description: 'Well-documented with multiple verifiable details'
   },
   confirmed: {
     label: 'Confirmed',

@@ -162,7 +162,7 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
             <div className="mt-3 flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
               {credibilityConfig && (
                 <span
-                  title={credibilityConfig.description}
+                  title={((report as any).paradocs_assessment && (report as any).paradocs_assessment.credibility_reasoning) || credibilityConfig.description}
                   className={classNames(
                     'px-2 py-0.5 rounded font-medium cursor-help',
                     credibilityConfig.bgColor,

@@ -1114,7 +1114,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                   Why {credibilityConfig.label}?
                 </h4>
                 <p className="text-sm text-gray-300 leading-relaxed">
-                  {(report as any).credibility_rationale || credibilityConfig.description}
+                  {(report as any).credibility_rationale || ((report as any).paradocs_assessment && (report as any).paradocs_assessment.credibility_reasoning) || credibilityConfig.description}
                 </p>
               </div>
             </div>
