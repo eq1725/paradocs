@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** March 25, 2026
+**Last updated:** March 27, 2026
 **Project:** beta.discoverparadocs.com
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -654,25 +654,23 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Database tables:** `reports` (with new feed_hook, feed_hook_generated_at, needs_reingestion columns), `ingestion_logs`, `ingestion_jobs`, `data_sources`
 
-**Current state (March 21, 2026):**
+**Current state (March 27, 2026):**
 - **Feed hook service DEPLOYED:** Claude Haiku generates 2-3 sentence curiosity hooks per report. Batch endpoint supports single/all_missing/all/stats actions. Rate-limited with model fallback chain.
-- **Ingestion engine UPGRADED:** Post-insert pipeline now runs: quality filter → dedup → title improvement → slug → phenomena linking → **feed_hook generation** → **vector embedding**. Non-blocking — failures log and continue.
-- **12 source adapters:** Original 8 (NUFORC, BFRO, Reddit, NDERF, IANDS, Ghosts of America, Shadowlands, Wikipedia) + 4 new:
-  - `reddit-v2`: Expanded Arctic Shift adapter covering 13 paranormal subreddits
-  - `youtube`: YouTube Data API v3 for paranormal channel videos (Nukes Top 5, MrBallen, Bedtime Stories, The Why Files)
-  - `news`: NewsAPI.org paranormal news aggregation
-  - `erowid`: Erowid Experience Vaults (consciousness/psychedelic reports)
-- **Quality scorer EXPANDED:** New source tiers for YouTube (engagement boost by views), News (mainstream outlet boost), Erowid, Government, Podcast sources
-- ~900 approved reports still live (flagged for re-ingestion). ~2M Reddit dev data still needs deletion (SQL provided, requires manual execution).
+- **Ingestion engine UPGRADED:** Post-insert pipeline now runs: quality filter → dedup → title improvement → slug → phenomena linking → **feed_hook generation** → **Paradocs Analysis** → **vector embedding**. Non-blocking — failures log and continue.
+- **12 source adapters:** Original 8 (NUFORC, BFRO, Reddit, NDERF, IANDS, Ghosts of America, Shadowlands, Wikipedia) + 4 new (reddit-v2, youtube, news, erowid)
+- **NUFORC adapter fully upgraded (March 27):** Extracts structured metadata (speed, size, direction, elevation, distance, observers, characteristics, time) into `metadata` JSONB column. Images no longer scraped (link_only policy). All 18 reports have full metadata.
+- **Research data panel (academicData API) rewritten:** Extracts speed (with unit inference), time, witnesses, direction, altitude, brightness from descriptions + NUFORC metadata. QA coverage: 100% time, 94% elevation, 89% shape/direction, 83% size.
+- **Credibility reasoning upgraded:** Prompt expanded to require 2-4 specific sentences. Anti-generic instruction added. All 19 analyses regenerated with specific, report-referencing reasoning.
+- **Media compliance enforced:** Hotlinked NUFORC images removed. New `MediaMentionBanner` component shows prominent link to source when description references media. Working on Prayagraj (video) and Guelph (image).
+- **Database:** 19 reports (1 curated Roswell + 18 NUFORC), all approved. Data cleanup complete (no more test/dev data).
 
 **What needs work (Priority Order):**
-1. **Execute data cleanup:** Run the SQL to delete ~2M hidden Reddit dev data (SQL in session prompt, requires manual Supabase execution). Flag ~900 existing reports with `needs_reingestion = true`.
-2. **Mass ingestion run:** Execute adapter-by-adapter ingestion: limit 100 → limit 1000 → full run. Monitor ingestion_logs.
-3. **Backfill feed hooks:** Session 10 endpoint at `/api/admin/ai/generate-hooks` returns 404 on production (build/import issue). Working alternative: Session 7's `/api/admin/generate-hooks` (auth via `x-admin-api-key` header). Already processed 198/200 reports; ~700+ remaining. Run: `curl -X POST "https://beta.discoverparadocs.com/api/admin/generate-hooks?limit=800" -H "x-admin-api-key: [key]"`
-4. **Post-ingestion embedding:** Batch embed new reports via `/api/admin/ai/embed` with `action: 'all_reports'`.
-5. **Additional adapters:** Podcast transcripts, MUFON (if public API), government docs, forums
-6. Pipeline monitoring and error alerting
-7. Automated scheduled ingestion (cron optimization)
+1. **Commit speed parser fix:** Improved speed parsing in `academicData.ts` strips trailing commentary from NUFORC metadata values. Ready to commit + push.
+2. **Scale testing:** Run 50 → 500 → 2,000 per source for NUFORC, then test BFRO, Reddit, Wikipedia adapters
+3. **Post-ingestion embedding:** Batch embed new reports via `/api/admin/ai/embed` with `action: 'all_reports'`.
+4. **Additional adapters:** Podcast transcripts, MUFON (if public API), government docs, forums
+5. Pipeline monitoring and error alerting
+6. Automated scheduled ingestion (cron optimization — daily cron currently re-ingests NUFORC, may cause duplicates)
 
 **Touches other sessions:** AI Experience (new reports auto-embedded after ingestion), Discover (feed_hook consumed by feed-v2 API for card copy), Map (more geolocated reports), Reports (quality templates at scale), Search (more searchable content), Insights (more data = better patterns), Encyclopedia (phenomena linking after ingestion)
 

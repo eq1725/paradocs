@@ -346,19 +346,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     var meta = (report as any).metadata || {}
 
     // Helper: get NUFORC metadata speed with unit inference
+    // NUFORC "Estimated Speed" can be: "100+", "1000 - 2000 mph i guess, with distance in mind",
+    // or descriptive text like "disappeared from my view in about 4 to 6 seconds".
+    // We extract just the clean numeric (or range) + unit, discarding trailing commentary.
     var sourceSpeed: string | null = null
     if (meta.estimatedSpeed) {
       var rawSpeed = String(meta.estimatedSpeed).trim()
-      // Only process if the value starts with a number (NUFORC sometimes puts descriptive text
-      // like "disappeared from my view in about 4 to 6 seconds" instead of a numeric speed)
+      // Only process if the value starts with a number
       var hasNumericSpeed = /^\d/.test(rawSpeed)
       if (hasNumericSpeed) {
-        // NUFORC often gives bare numbers like "100+" — infer units from country
-        if (!/mph|km|knot/i.test(rawSpeed)) {
-          var unit = isImperialCountry(report.country) ? ' mph' : ' km/h'
-          sourceSpeed = rawSpeed + unit
-        } else {
-          sourceSpeed = rawSpeed
+        // Try to extract a clean speed: number(+range) + optional unit
+        // Matches: "100+", "100", "1000 - 2000", "1000-2000 mph", "250 km/h"
+        var cleanMatch = rawSpeed.match(/^(\d[\d,]*\.?\d*)\+?\s*(?:-\s*(\d[\d,]*\.?\d*)\+?)?\s*(mph|miles?\s*per\s*hour|km\/h|kmh|kph|knots?|kts?)?/i)
+        if (cleanMatch) {
+          var speedLow = (cleanMatch[1] || '').replace(/,/g, '')
+          var speedHigh = cleanMatch[2] ? cleanMatch[2].replace(/,/g, '') : null
+          var explicitUnit = cleanMatch[3] || ''
+
+          // Normalize unit
+          var speedUnit = ''
+          if (/mph|miles?\s*per\s*hour/i.test(explicitUnit)) {
+            speedUnit = 'mph'
+          } else if (/km|kph/i.test(explicitUnit)) {
+            speedUnit = 'km/h'
+          } else if (/knot|kts?/i.test(explicitUnit)) {
+            speedUnit = 'knots'
+          } else {
+            // No explicit unit — infer from country
+            speedUnit = isImperialCountry(report.country) ? 'mph' : 'km/h'
+          }
+
+          // Check for "+" indicator in original text
+          var hasPlus = rawSpeed.indexOf(speedLow + '+') !== -1
+
+          if (speedHigh) {
+            sourceSpeed = speedLow + '-' + speedHigh + ' ' + speedUnit
+          } else {
+            sourceSpeed = speedLow + (hasPlus ? '+' : '') + ' ' + speedUnit
+          }
         }
       }
       // If non-numeric, skip — the description regex extraction will handle what it can

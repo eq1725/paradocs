@@ -1,9 +1,9 @@
 # HANDOFF - Data Ingestion & Pipeline (Session 10 — Revised)
 
-**Date:** March 25, 2026 (Session 10 Revised — continued)
+**Date:** March 27, 2026 (Session 10 Revised — QA/QC Round 3)
 **Session:** Data Ingestion & Pipeline (Session 10 — Revised for index-with-attribution model)
-**Status:** ✅ DEPLOYED + TESTED. NUFORC 20-report quality test: **18/20 inserted (90% pass rate)**. 8 approved, 10 pending_review. Descriptions 440-1,913 chars. Live on beta.discoverparadocs.com.
-**Next:** Add API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) to Vercel for AI features → Scale to 2-5K per source → Test other adapters (BFRO, Reddit, etc.).
+**Status:** ✅ DEPLOYED + QA COMPLETE. 18 NUFORC reports live with full structured metadata extraction, specific credibility reasoning, media compliance (no hotlinked images, MediaMentionBanner for referenced media). Research data panel coverage: 100% event time, 94% elevation, 89% shape/direction, 83% size. Speed parsing pending final commit.
+**Next:** Commit speed parser fix → Scale to 2-5K per source → Test other adapters (BFRO, Reddit, etc.).
 **Action Item (Chase — Report Experience-Curated session):** Re-seed Roswell witness cluster (13) and Rendlesham Forest cluster (6) from existing seed scripts (`seed-rendlesham-cluster.ts`, `admin-seed-roswell-witnesses.js`, `admin-roswell-cluster-upgrade.js`).
 **Action Item (Chase — Vercel env vars):** Add `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` to Vercel environment variables (Settings → Environment Variables) for feed hook generation, Paradocs analysis, and vector embeddings.
 
@@ -498,8 +498,78 @@ Wired into `engine.ts` between quick-reject and quality scoring so enriched data
 - `scripts/reset-and-reingest.js` — 3-step: delete non-curated → re-ingest NUFORC (limit 20) → generate Paradocs Analysis → print final state. Working correctly.
 - `scripts/reingest-nuforc.js` — Simpler single-source reingest. Working correctly.
 
-### 10. Outstanding Items
+### 10. QA/QC Round 3 — Data Panel, Credibility, Media (March 27, 2026)
 
+**Context:** Full QA pass on 18 NUFORC reports revealed gaps in research data extraction, generic credibility reasoning, and media policy compliance issues.
+
+**A. NUFORC Structured Metadata Extraction**
+
+Previously the adapter only scraped the narrative description, ignoring NUFORC's structured metadata fields above the description (`<b>Label:</b> value<br>` format). These fields contain critical data like Estimated Speed, Estimated Size, Direction, Angle of Elevation, Closest Distance, Viewed From, Characteristics, and number of observers.
+
+**Files modified:**
+- `src/lib/ingestion/adapters/nuforc.ts` — Major rewrite:
+  - Fixed `extractField` to match `<b>` tags (NUFORC uses `<b>` not `<strong>`)
+  - Added extraction of all structured metadata fields: `estimatedSpeed`, `estimatedSize`, `directionFromViewer`, `angleOfElevation`, `closestDistance`, `viewedFrom`, `characteristics`, `eventTime`
+  - Event time extracted from NUFORC "Occurred" field
+  - Removed all image scraping from `extractMediaFromPage` (link_only policy)
+  - Report building now includes `witness_count`, `event_time`, `has_official_report`, `has_photo_video`, and `metadata` JSONB
+- `src/lib/ingestion/types.ts` — Added `witness_count`, `event_time`, `has_official_report`, `has_photo_video`, `metadata` fields to `ScrapedReport`
+- `src/lib/ingestion/engine.ts` — Added conditional insert for new fields (witness_count, event_time, has_official_report, has_photo_video, metadata)
+- `supabase/migrations/20260327_add_reports_metadata.sql` — New `metadata JSONB DEFAULT '{}'` column with GIN index
+
+**B. Research Data Panel (academicData API)**
+
+- `src/pages/api/reports/[slug]/academicData.ts` — Complete rewrite (~300 lines → ~500 lines):
+  - Added `isImperialCountry()` for unit inference (mph for US/UK/Myanmar/Liberia, km/h for others)
+  - Speed extraction: 5 regex patterns + clean numeric parsing from NUFORC metadata (strips trailing commentary like "i guess, with distance in mind")
+  - Event time: 6 explicit patterns + 8 time-of-day fallback patterns
+  - Witness count: 25+ companion/group/explicit-number patterns
+  - Direction, altitude, brightness extraction from descriptions
+  - Official report detection (NUFORC/BFRO/MUFON/NICAP/GEIPAN/NARCAP)
+  - Source metadata integration: uses `metadata` JSONB column for speed, size, direction, elevation, distance, characteristics
+  - Speed validation: `var hasNumericSpeed = /^\d/.test(rawSpeed)` — skips descriptive text; clean regex extraction strips trailing commentary
+
+**QA Results (18 NUFORC reports):**
+| Field | Coverage | Notes |
+|-------|----------|-------|
+| Event time | 18/18 (100%) | From NUFORC structured data |
+| Elevation angle | 17/18 (94%) | From NUFORC metadata |
+| Shape | 16/18 (89%) | From description/category |
+| Direction | 16/18 (89%) | From NUFORC metadata |
+| Size estimate | 15/18 (83%) | From NUFORC metadata |
+| Sound | 7/18 (39%) | Specific values; rest "unknown" |
+| Speed | 4/18 (22%) | Only when NUFORC has numeric data |
+| Official source | 18/18 (100%) | All flagged as NUFORC |
+| Multi-witness | 5/18 detected | Companion patterns working |
+
+**C. Credibility Reasoning**
+
+- `src/lib/services/paradocs-analysis.service.ts` — Expanded prompt:
+  - Changed from "1-2 sentences" to "2-4 sentences explaining specific details"
+  - Added anti-generic instruction: `'NEVER use generic phrases like "some supporting details" or "moderate credibility". Be specific about what raises or lowers the score.'`
+  - Added explicit example of good credibility reasoning
+  - All 19 analyses regenerated via `POST /api/admin/ai/generate-analysis` with `{ action: 'all', force: true }`
+  - **Verified**: Prayagraj (38/100) references temporal imprecision, Comet 3I/ATLAS literacy, missing video evidence. Guelph (62/100) references transit speed comparisons, 9-day reporting delay, population density.
+
+**D. Media Compliance**
+
+- `src/components/reports/MediaMentionBanner.tsx` — New component:
+  - Detects when description mentions video/image/photo but no media items exist
+  - Shows prominent banner with icon + "View on [source]" link
+  - Red theme for video references, blue for image/photo
+  - Regex-based detection for video, image, photo keywords
+- `src/pages/report/[slug].tsx` — Added MediaMentionBanner between FeaturedMediaCard and Hero Media Gallery
+- `src/lib/ingestion/adapters/nuforc.ts` — Removed all image scraping (link_only policy)
+- `scripts/remove-nuforc-hotlinked-images.js` — Script to clean up existing hotlinked images from report_media table. Run multiple times to catch images re-added during re-ingest with old code.
+
+**Commits:**
+- `8e5434e6` — Initial QA/QC Round 3 improvements
+- `41461d78` — Speed validation fix (non-numeric NUFORC speed values)
+- (pending) — Speed parsing improvement (strip trailing commentary from numeric values like "1000 - 2000 mph i guess")
+
+### 11. Outstanding Items
+
+- **Speed parsing pending commit**: The improved speed parser (strips trailing commentary from NUFORC metadata values like "1000 - 2000 mph i guess, with distance in mind" → "1000-2000 mph") is in `academicData.ts` but needs commit + deploy
 - **18 vs 20 reports**: NUFORC scraper fetches 20 but 2 get filtered out. Likely short descriptions under `minDescLength: 150`. Could investigate and tune if needed.
 - **Scale testing**: Run 50 → 500 → 2,000 per source for NUFORC, then test BFRO, Reddit, Wikipedia adapters
 - **Re-seed Roswell/Rendlesham clusters**: Chase action item from previous session
