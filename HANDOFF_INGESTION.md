@@ -2,10 +2,10 @@
 
 **Date:** March 27, 2026 (Session 10 Revised — QA/QC Round 3)
 **Session:** Data Ingestion & Pipeline (Session 10 — Revised for index-with-attribution model)
-**Status:** ✅ DEPLOYED + QA COMPLETE. 18 NUFORC reports live with full structured metadata extraction, specific credibility reasoning, media compliance (no hotlinked images, MediaMentionBanner for referenced media). Research data panel coverage: 100% event time, 94% elevation, 89% shape/direction, 83% size. Speed parsing pending final commit.
-**Next:** Commit speed parser fix → Scale to 2-5K per source → Test other adapters (BFRO, Reddit, etc.).
+**Status:** ✅ DEPLOYED + QA COMPLETE + MAP LIVE. 19 reports (18 NUFORC + Roswell) plotted on interactive map with global geocoding via MapTiler. Full structured metadata extraction, specific credibility reasoning, media compliance. Research data panel coverage: 100% event time, 94% elevation, 89% shape/direction, 83% size.
+**Next:** Push geocoding commit → Verify map in browser → Scale to 2-5K per source → Test other adapters (BFRO, Reddit, etc.).
 **Action Item (Chase — Report Experience-Curated session):** Re-seed Roswell witness cluster (13) and Rendlesham Forest cluster (6) from existing seed scripts (`seed-rendlesham-cluster.ts`, `admin-seed-roswell-witnesses.js`, `admin-roswell-cluster-upgrade.js`).
-**Action Item (Chase — Vercel env vars):** Add `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` to Vercel environment variables (Settings → Environment Variables) for feed hook generation, Paradocs analysis, and vector embeddings.
+**Action Item (Chase — Vercel env vars):** Add `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` to Vercel environment variables (Settings → Environment Variables) for feed hook generation, Paradocs analysis, and vector embeddings. Ensure `NEXT_PUBLIC_MAPTILER_KEY` (or `MAPTILER_KEY`) is also set for serverless geocoding during ingestion.
 
 ---
 
@@ -562,14 +562,26 @@ Previously the adapter only scraped the narrative description, ignoring NUFORC's
 - `src/lib/ingestion/adapters/nuforc.ts` — Removed all image scraping (link_only policy)
 - `scripts/remove-nuforc-hotlinked-images.js` — Script to clean up existing hotlinked images from report_media table. Run multiple times to catch images re-added during re-ingest with old code.
 
+**E. Geocoding & Map Integration**
+
+- `src/lib/services/geocoding.service.ts` — Rewrote from Mapbox (broken, no key) to MapTiler API:
+  - Global coverage: US, Canada, UK, India, Argentina, Netherlands all confirmed
+  - In-memory cache for batch deduplication (same city hits API once)
+  - `batchGeocode()` with configurable rate limiting (default 100ms)
+  - `buildLocationQuery()` constructs "City, State/Province, Country" queries
+- `src/lib/ingestion/enrichment/report-enricher.ts` — Refactored to use centralized geocoding service (removed inline duplicate MapTiler code)
+- Backfilled all 18 NUFORC reports with coordinates via MapTiler geocoding API
+- All 19 reports (18 NUFORC + Roswell) now appear on the interactive map
+- **Env var required on Vercel:** `NEXT_PUBLIC_MAPTILER_KEY` or `MAPTILER_KEY` must be set for future ingestion geocoding
+
 **Commits:**
 - `8e5434e6` — Initial QA/QC Round 3 improvements
 - `41461d78` — Speed validation fix (non-numeric NUFORC speed values)
-- (pending) — Speed parsing improvement (strip trailing commentary from numeric values like "1000 - 2000 mph i guess")
+- `0033bee4` — Speed parsing improvement + QA documentation
+- `3f77b9da` — Credibility reasoning fallback fix
+- `d5ef4372` — Geocoding consolidation (MapTiler rewrite + enricher refactor)
 
 ### 11. Outstanding Items
-
-- **Speed parsing pending commit**: The improved speed parser (strips trailing commentary from NUFORC metadata values like "1000 - 2000 mph i guess, with distance in mind" → "1000-2000 mph") is in `academicData.ts` but needs commit + deploy
 - **18 vs 20 reports**: NUFORC scraper fetches 20 but 2 get filtered out. Likely short descriptions under `minDescLength: 150`. Could investigate and tune if needed.
 - **Scale testing**: Run 50 → 500 → 2,000 per source for NUFORC, then test BFRO, Reddit, Wikipedia adapters
 - **Re-seed Roswell/Rendlesham clusters**: Chase action item from previous session

@@ -662,11 +662,11 @@ Each major feature area has a dedicated Claude session with its own deep context
 - **Research data panel (academicData API) rewritten:** Extracts speed (with unit inference), time, witnesses, direction, altitude, brightness from descriptions + NUFORC metadata. QA coverage: 100% time, 94% elevation, 89% shape/direction, 83% size.
 - **Credibility reasoning upgraded:** Prompt expanded to require 2-4 specific sentences. Anti-generic instruction added. All 19 analyses regenerated with specific, report-referencing reasoning.
 - **Media compliance enforced:** Hotlinked NUFORC images removed. New `MediaMentionBanner` component shows prominent link to source when description references media. Working on Prayagraj (video) and Guelph (image).
-- **Database:** 19 reports (1 curated Roswell + 18 NUFORC), all approved. Data cleanup complete (no more test/dev data).
+- **Geocoding consolidated on MapTiler (March 27):** `geocoding.service.ts` rewritten from broken Mapbox to MapTiler API. Global coverage confirmed (US, Canada, UK, India, Argentina, Netherlands). In-memory cache for batch deduplication. `report-enricher.ts` refactored to use centralized service. All 19 reports now have coordinates and appear on the interactive map.
+- **Database:** 19 reports (1 curated Roswell + 18 NUFORC), all approved, all geocoded. Data cleanup complete (no more test/dev data).
 
 **What needs work (Priority Order):**
-1. **Commit speed parser fix:** Improved speed parsing in `academicData.ts` strips trailing commentary from NUFORC metadata values. Ready to commit + push.
-2. **Scale testing:** Run 50 → 500 → 2,000 per source for NUFORC, then test BFRO, Reddit, Wikipedia adapters
+1. **Scale testing:** Run 50 → 500 → 2,000 per source for NUFORC, then test BFRO, Reddit, Wikipedia adapters
 3. **Post-ingestion embedding:** Batch embed new reports via `/api/admin/ai/embed` with `action: 'all_reports'`.
 4. **Additional adapters:** Podcast transcripts, MUFON (if public API), government docs, forums
 5. Pipeline monitoring and error alerting
