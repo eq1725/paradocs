@@ -595,7 +595,7 @@ var SOURCE_THRESHOLDS: Record<string, { approve: number; review: number; minDesc
 
   // Investigation orgs — established standards, moderate bar
   'bfro':   { approve: 60, review: 40, minDescLength: 150 },
-  'nuforc': { approve: 60, review: 40, minDescLength: 150 },
+  'nuforc': { approve: 60, review: 40, minDescLength: 100 },
   'mufon':  { approve: 60, review: 40, minDescLength: 150 },
 
   // News — editorial oversight, moderate-high bar
