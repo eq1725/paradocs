@@ -505,47 +505,15 @@ async function parseMonthPage(html: string, monthUrl: string): Promise<ReportMet
 }
 
 // Extract media from NUFORC report page
+// NOTE: Per media policy, NUFORC images are NOT extracted (link_only policy).
+// Hotlinking NUFORC images is risky — their ToS doesn't grant hotlinking rights.
+// Instead, the MediaMentionBanner component surfaces a link to the source page
+// when the description references images/video. Only YouTube embeds are extracted.
 function extractMediaFromPage(html: string): ScrapedMediaItem[] {
   const media: ScrapedMediaItem[] = [];
   const seenUrls = new Set<string>();
 
-  // NUFORC image patterns - they often link to images on various hosts
-  const imagePatterns = [
-    // Direct image links
-    /<img[^>]+src=["']([^"']+\.(?:jpg|jpeg|png|gif|webp)(?:\?[^"']*)?)["']/gi,
-    // Links to images
-    /<a[^>]+href=["']([^"']+\.(?:jpg|jpeg|png|gif|webp)(?:\?[^"']*)?)["']/gi,
-    // WordPress media uploads
-    /src=["'](https?:\/\/[^"']*\/wp-content\/uploads\/[^"']+)["']/gi,
-    // Figure tags with images
-    /<figure[^>]*>[\s\S]*?src=["']([^"']+)["']/gi,
-  ];
-
-  for (const pattern of imagePatterns) {
-    let match;
-    while ((match = pattern.exec(html)) !== null) {
-      const url = match[1];
-
-      // Skip icons, logos, and tiny images
-      if (url.includes('icon') || url.includes('logo') || url.includes('avatar') ||
-          url.includes('sprite') || url.includes('1x1') || url.includes('blank') ||
-          url.includes('loading') || url.includes('placeholder')) {
-        continue;
-      }
-
-      // Skip if already seen
-      if (seenUrls.has(url)) continue;
-      seenUrls.add(url);
-
-      media.push({
-        type: 'image',
-        url: url,
-        isPrimary: media.length === 0
-      });
-    }
-  }
-
-  // Also look for YouTube/video embeds
+  // YouTube/video embeds only — these are fine to embed per our media policy
   const videoPatterns = [
     /src=["'](https?:\/\/(?:www\.)?youtube\.com\/embed\/[^"']+)["']/gi,
     /href=["'](https?:\/\/(?:www\.)?youtube\.com\/watch[^"']+)["']/gi,

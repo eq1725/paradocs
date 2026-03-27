@@ -25,6 +25,7 @@ import ParadocsAnalysisBox from '@/components/reports/ParadocsAnalysisBox'
 import type { ParadocsAssessment } from '@/components/reports/ParadocsAnalysisBox'
 import SourceAttribution from '@/components/reports/SourceAttribution'
 import FeaturedMediaCard from '@/components/reports/FeaturedMediaCard'
+import MediaMentionBanner from '@/components/reports/MediaMentionBanner'
 const LogToConstellation = dynamic(
   () => import('@/components/LogToConstellation'),
   { ssr: false }
@@ -918,6 +919,15 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         {media.length > 0 && (
           <FeaturedMediaCard media={media} />
         )}
+
+        {/* Media Mention Banner — when description references video/photo but no media items */}
+        <MediaMentionBanner
+          description={report.description}
+          sourceUrl={report.source_url}
+          sourceLabel={report.source_label || report.source_type}
+          hasMediaItems={media.length > 0}
+          className="mb-6"
+        />
 
         {/* Hero Media Gallery — images only, shown compactly above TOC */}
         {media.length > 0 && (
