@@ -10,7 +10,7 @@
  */
 
 import React, { useState } from 'react'
-import { Lightbulb, Shield, AlertCircle, Tag, ChevronDown, ChevronUp, Info } from 'lucide-react'
+import { Lightbulb, Shield, AlertCircle, Tag, ChevronDown, ChevronUp } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 import Link from 'next/link'
 
@@ -184,10 +184,6 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
                         })}
                       </div>
                     )}
-                    <p className="text-[10px] text-gray-600 flex items-center gap-1 mt-2">
-                      <Info className="w-3 h-3" />
-                      Paradocs Analysis
-                    </p>
                   </div>
                 )}
               </div>
@@ -231,10 +227,6 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
                         </div>
                       )
                     })}
-                    <p className="text-[10px] text-gray-600 flex items-center gap-1 mt-2">
-                      <Info className="w-3 h-3" />
-                      Paradocs Analysis
-                    </p>
                   </div>
                 )}
               </div>
@@ -279,10 +271,6 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-gray-600 flex items-center gap-1 mt-2">
-                      <Info className="w-3 h-3" />
-                      Paradocs Analysis
-                    </p>
                   </div>
                 )}
               </div>

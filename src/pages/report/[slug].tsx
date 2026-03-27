@@ -223,11 +223,12 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
 
     // Fetch profile for role/subscription checks
     if (currentUser) {
-      var { data: profile } = await supabase
+      var { data: profile, error: profileErr } = await supabase
         .from('profiles')
         .select('role, subscription_tier_id')
         .eq('id', currentUser.id)
         .single()
+      console.log('[checkUser] profile fetch:', { profile: profile, error: profileErr, email: currentUser.email })
       setUserProfile(profile || null)
     }
 
