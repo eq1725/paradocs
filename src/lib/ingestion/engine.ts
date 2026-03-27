@@ -526,9 +526,8 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           // Insert new report with quality-based status
           const slug = generateSlug(finalTitle, report.original_report_id, report.source_type);
 
-          const { data: insertedReport, error: insertError } = await supabase
-            .from('reports')
-            .insert({
+          // Build insert data with optional structured fields
+          const insertData: Record<string, any> = {
               title: finalTitle,
               slug: slug,
               summary: report.summary,
@@ -552,7 +551,18 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               original_title: originalTitle,
               upvotes: 0,
               view_count: 0
-            })
+          };
+          // Add structured observation fields if provided by adapter
+          if (report.witness_count && report.witness_count > 0) insertData.witness_count = report.witness_count;
+          if (report.event_time) insertData.event_time = report.event_time;
+          if (report.has_official_report) insertData.has_official_report = true;
+          if (report.has_photo_video) insertData.has_photo_video = true;
+          // Store adapter metadata as JSON if present
+          if (report.metadata) insertData.metadata = report.metadata;
+
+          const { data: insertedReport, error: insertError } = await supabase
+            .from('reports')
+            .insert(insertData)
             .select('id')
             .single();
 

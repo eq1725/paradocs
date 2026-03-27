@@ -77,6 +77,11 @@ export interface ScrapedReport {
   media?: ScrapedMediaItem[];
   // Event date precision for On This Date feature
   event_date_precision?: 'exact' | 'month' | 'year' | 'decade' | 'estimated' | 'unknown';
+  // Structured observation fields (populated from source metadata)
+  witness_count?: number;
+  event_time?: string;
+  has_official_report?: boolean;
+  has_photo_video?: boolean;
   // Adapter-specific metadata
   metadata?: Record<string, any>;
 }

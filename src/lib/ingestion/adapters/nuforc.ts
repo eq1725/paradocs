@@ -551,6 +551,15 @@ async function fetchReportDetails(id: string): Promise<{
   state: string;
   country: string;
   media: ScrapedMediaItem[];
+  // Structured NUFORC metadata fields
+  estimatedSpeed: string;
+  estimatedSize: string;
+  directionFromViewer: string;
+  angleOfElevation: string;
+  closestDistance: string;
+  viewedFrom: string;
+  characteristics: string;
+  eventTime: string;
 } | null> {
   var url = 'https://nuforc.org/sighting/?id=' + id;
   var rawHtml = await fetchWithHeaders(url, 2);
@@ -558,9 +567,11 @@ async function fetchReportDetails(id: string): Promise<{
   var html: string = rawHtml;
 
   // Extract fields from the report page metadata
+  // NUFORC pages use <b>Label:</b> value<br> structure
   var extractField = function(label: string): string {
     // Try multiple patterns — NUFORC pages vary in structure
     var patterns = [
+      new RegExp('<b>' + label + ':?</b>\\s*([^<]+)', 'i'),
       new RegExp('<strong>' + label + ':?</strong>\\s*([^<]+)', 'i'),
       new RegExp(label + '\\s*:\\s*</(?:strong|b|th|td)>\\s*(?:<[^>]+>)?\\s*([^<]+)', 'i'),
       new RegExp('<td[^>]*>' + label + '</td>\\s*<td[^>]*>([^<]+)</td>', 'i')
@@ -636,6 +647,15 @@ async function fetchReportDetails(id: string): Promise<{
     console.log('[NUFORC] Found ' + media.length + ' media items in report ' + id);
   }
 
+  // Extract event time from "Occurred" field (format: "2026-03-01 03:28 Local - Approximate")
+  var eventTime = '';
+  if (occurred) {
+    var timeMatch = occurred.match(/\d{4}-\d{2}-\d{2}\s+(\d{1,2}:\d{2})/);
+    if (timeMatch) {
+      eventTime = timeMatch[1];
+    }
+  }
+
   return {
     description: description,
     duration: extractField('Duration'),
@@ -647,7 +667,16 @@ async function fetchReportDetails(id: string): Promise<{
     city: city,
     state: state,
     country: country || 'USA',
-    media: media
+    media: media,
+    // Structured NUFORC metadata
+    estimatedSpeed: extractField('Estimated Speed'),
+    estimatedSize: extractField('Estimated Size'),
+    directionFromViewer: extractField('Direction from Viewer'),
+    angleOfElevation: extractField('Angle of Elevation'),
+    closestDistance: extractField('Closest Distance'),
+    viewedFrom: extractField('Viewed From'),
+    characteristics: extractField('Characteristics'),
+    eventTime: eventTime
   };
 }
 
@@ -766,6 +795,26 @@ export const nuforcAdapter: SourceAdapter = {
 
             var titleShape = meta.shape || 'UFO';
             var titleDate = eventDate ? ' (' + eventDate + ')' : '';
+            // Build NUFORC-specific metadata from detail page fields
+            var hasDetails = !!(details && details.description);
+            var nuforcMeta: Record<string, any> = {
+              shape: meta.shape,
+              hasMedia: meta.hasMedia || mediaItems.length > 0,
+              duration: duration,
+              reportId: meta.id
+            };
+            // Add structured fields if we fetched the detail page
+            if (hasDetails) {
+              if (details!.estimatedSpeed) nuforcMeta.estimatedSpeed = details!.estimatedSpeed;
+              if (details!.estimatedSize) nuforcMeta.estimatedSize = details!.estimatedSize;
+              if (details!.directionFromViewer) nuforcMeta.directionFromViewer = details!.directionFromViewer;
+              if (details!.angleOfElevation) nuforcMeta.angleOfElevation = details!.angleOfElevation;
+              if (details!.closestDistance) nuforcMeta.closestDistance = details!.closestDistance;
+              if (details!.viewedFrom) nuforcMeta.viewedFrom = details!.viewedFrom;
+              if (details!.characteristics) nuforcMeta.characteristics = details!.characteristics;
+              if (details!.color) nuforcMeta.color = details!.color;
+            }
+
             var report: ScrapedReport = {
               title: (titleShape + ' Sighting in ' + locationName + titleDate).substring(0, 200),
               summary: meta.summary.length > 400 ? meta.summary.substring(0, 397) + '...' : meta.summary,
@@ -784,12 +833,12 @@ export const nuforcAdapter: SourceAdapter = {
               source_label: 'NUFORC',
               source_url: 'https://nuforc.org/sighting/?id=' + meta.id,
               media: mediaItems.length > 0 ? mediaItems : undefined,
-              metadata: {
-                shape: meta.shape,
-                hasMedia: meta.hasMedia || mediaItems.length > 0,
-                duration: duration,
-                reportId: meta.id
-              }
+              // Structured observation fields from NUFORC page
+              witness_count: hasDetails ? details!.observers : 1,
+              event_time: hasDetails ? details!.eventTime : undefined,
+              has_official_report: true,  // All NUFORC submissions are official reports
+              has_photo_video: meta.hasMedia || mediaItems.length > 0,
+              metadata: nuforcMeta
             };
 
             reports.push(report);

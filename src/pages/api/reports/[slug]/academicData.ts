@@ -312,7 +312,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Get report data - use only columns that exist in base schema
+    // Get report data - include metadata JSON for adapter-specific fields
     const { data: report, error: reportError } = await supabase
       .from('reports')
       .select(`
@@ -322,7 +322,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         witness_count,
         has_photo_video, has_physical_evidence, has_official_report,
         tags, category, source_type, source_url,
-        credibility, created_at
+        credibility, created_at, metadata
       `)
       .eq('slug', slug)
       .eq('status', 'approved')
@@ -341,6 +341,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Extract additional details from description
     const extracted = extractObservationDetails(report)
+
+    // Source-specific metadata (NUFORC, BFRO, etc. store structured fields here)
+    var meta = (report as any).metadata || {}
+
+    // Helper: get NUFORC metadata speed with unit inference
+    var sourceSpeed: string | null = null
+    if (meta.estimatedSpeed) {
+      var rawSpeed = String(meta.estimatedSpeed).trim()
+      // NUFORC often gives bare numbers like "100+" — infer units from country
+      if (rawSpeed && !/mph|km|knot/i.test(rawSpeed)) {
+        var unit = isImperialCountry(report.country) ? ' mph' : ' km/h'
+        sourceSpeed = rawSpeed + unit
+      } else {
+        sourceSpeed = rawSpeed
+      }
+    }
 
     // Build the structured academic data response
     const structuredData = {
@@ -386,20 +402,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       phenomenon: {
         objectCount: academicData?.object_count || 1,
         shape: academicData?.object_shape || extracted.detectedShape,
-        colors: academicData?.object_color || (extracted.detectedColors.length > 0 ? extracted.detectedColors : null),
+        colors: academicData?.object_color || (meta.color ? [meta.color] : (extracted.detectedColors.length > 0 ? extracted.detectedColors : null)),
         brightness: academicData?.object_brightness || extracted.detectedBrightness,
         sound: academicData?.object_sound || extracted.sound,
         sizeApparent: academicData?.object_size_apparent || null,
-        sizeEstimated: academicData?.object_size_estimated || null,
-        speed: extracted.detectedSpeed
+        sizeEstimated: academicData?.object_size_estimated || meta.estimatedSize || null,
+        speed: sourceSpeed || extracted.detectedSpeed,
+        characteristics: meta.characteristics || null
       },
 
       // Motion Characteristics
       motion: {
         type: academicData?.motion_type || extracted.detectedMotion,
-        speedApparent: academicData?.motion_speed_apparent || extracted.detectedSpeed,
-        direction: academicData?.motion_direction || extracted.detectedDirection,
+        speedApparent: academicData?.motion_speed_apparent || sourceSpeed || extracted.detectedSpeed,
+        direction: academicData?.motion_direction || meta.directionFromViewer || extracted.detectedDirection,
         altitudeApparent: academicData?.motion_altitude_apparent || extracted.detectedAltitude,
+        angleOfElevation: meta.angleOfElevation || null,
+        closestDistance: meta.closestDistance || null,
         maneuvers: academicData?.motion_maneuvers || null
       },
 
