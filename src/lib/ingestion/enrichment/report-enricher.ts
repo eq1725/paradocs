@@ -7,6 +7,7 @@
 // If we can't find it, we leave it null. Period.
 
 import { ScrapedReport } from '../types';
+import { geocodeLocation, buildLocationQuery } from '../../services/geocoding.service';
 
 // ============================================================================
 // TYPES
@@ -306,8 +307,9 @@ export function validateDatePrecision(
 // ============================================================================
 
 /**
- * Geocode a report's location using the existing geocoding service.
+ * Geocode a report's location using the centralized geocoding service (MapTiler).
  * Only geocodes if we have location data but no coordinates.
+ * Works globally — not limited to any country.
  * Returns coordinates or null. Never fabricates coordinates.
  */
 export async function geocodeReport(report: ScrapedReport): Promise<{ latitude: number; longitude: number; source: string } | null> {
@@ -317,52 +319,26 @@ export async function geocodeReport(report: ScrapedReport): Promise<{ latitude: 
     return null;
   }
 
-  // Need some location data to geocode
-  var locationParts: string[] = [];
-  if (report.city) locationParts.push(report.city);
-  if (report.state_province) locationParts.push(report.state_province);
-  if (report.country) locationParts.push(report.country);
-
-  var locationQuery = locationParts.length > 0
-    ? locationParts.join(', ')
-    : report.location_name || '';
+  // Build location query from available fields
+  var locationQuery = buildLocationQuery({
+    city: report.city,
+    state: report.state_province,
+    country: report.country,
+    location_name: report.location_name
+  });
 
   if (!locationQuery || locationQuery.length < 3) return null;
 
-  // Use MapTiler geocoding API (we have a MapTiler key, not Mapbox)
-  var maptilerKey = process.env.NEXT_PUBLIC_MAPTILER_KEY;
-  if (!maptilerKey) {
-    console.log('[Enrichment] No MapTiler key — skipping geocoding');
-    return null;
-  }
-
   try {
-    var encodedLocation = encodeURIComponent(locationQuery);
-    var url = 'https://api.maptiler.com/geocoding/' + encodedLocation + '.json?key=' + maptilerKey + '&limit=1';
-
-    var response = await fetch(url);
-    if (!response.ok) {
-      console.log('[Enrichment] MapTiler geocode failed: HTTP ' + response.status);
-      return null;
+    var result = await geocodeLocation(locationQuery);
+    if (result) {
+      return {
+        latitude: result.latitude,
+        longitude: result.longitude,
+        source: locationQuery
+      };
     }
-
-    var data = await response.json() as any;
-    if (!data.features || data.features.length === 0) {
-      return null;
-    }
-
-    var feature = data.features[0];
-    // MapTiler/GeoJSON returns [longitude, latitude]
-    var lng = feature.center ? feature.center[0] : (feature.geometry?.coordinates?.[0]);
-    var lat = feature.center ? feature.center[1] : (feature.geometry?.coordinates?.[1]);
-
-    if (lat == null || lng == null) return null;
-
-    return {
-      latitude: lat,
-      longitude: lng,
-      source: locationQuery
-    };
+    return null;
   } catch (e) {
     console.log('[Enrichment] Geocode error: ' + (e instanceof Error ? e.message : String(e)));
     return null;

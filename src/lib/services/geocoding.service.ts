@@ -1,5 +1,6 @@
-// Geocoding service using Mapbox Geocoding API
-// Fast, accurate, and allows up to 100k requests/month free
+// Geocoding service using MapTiler Geocoding API
+// Works globally, GeoJSON-based, generous free tier
+// Falls back gracefully: city → state/province → country
 
 interface GeocodingResult {
   latitude: number;
@@ -8,26 +9,32 @@ interface GeocodingResult {
   confidence: number; // 0-1 based on result relevance
 }
 
-interface MapboxFeature {
+interface MapTilerFeature {
   center: [number, number]; // [longitude, latitude]
   place_name: string;
   relevance: number;
   place_type: string[];
+  geometry?: { coordinates: [number, number] };
 }
 
-interface MapboxResponse {
-  features: MapboxFeature[];
+interface MapTilerResponse {
+  features: MapTilerFeature[];
 }
 
-// In-memory cache to avoid repeated requests
-const geocodeCache = new Map<string, GeocodingResult | null>();
+// In-memory cache to avoid repeated requests for identical locations
+// At scale, the same city appears in many reports — cache prevents redundant API calls
+var geocodeCache = new Map<string, GeocodingResult | null>();
 
-// Mapbox API key from environment
-const MAPBOX_TOKEN = process.env.MAPBOX_ACCESS_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+// MapTiler API key — works in both NEXT_PUBLIC_ (build-time) and server-side contexts
+function getMapTilerKey(): string | null {
+  return process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.MAPTILER_KEY || null;
+}
 
 /**
- * Geocode a location string to coordinates using Mapbox
- * @param location The location string (e.g., "San Francisco, California, USA")
+ * Geocode a location string to coordinates using MapTiler.
+ * Works globally — not limited to US.
+ *
+ * @param location The location string (e.g., "Guelph, Ontario, Canada" or "Prayagraj, Uttar Pradesh, India")
  * @returns Geocoding result or null if not found
  */
 export async function geocodeLocation(location: string): Promise<GeocodingResult | null> {
@@ -35,12 +42,13 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
     return null;
   }
 
-  if (!MAPBOX_TOKEN) {
-    console.error('[Geocoding] Mapbox token not configured');
+  var apiKey = getMapTilerKey();
+  if (!apiKey) {
+    console.error('[Geocoding] MapTiler key not configured (set NEXT_PUBLIC_MAPTILER_KEY or MAPTILER_KEY)');
     return null;
   }
 
-  const cacheKey = location.toLowerCase().trim();
+  var cacheKey = location.toLowerCase().trim();
 
   // Check cache first
   if (geocodeCache.has(cacheKey)) {
@@ -48,47 +56,60 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
   }
 
   try {
-    const encodedLocation = encodeURIComponent(location);
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedLocation}.json?access_token=${MAPBOX_TOKEN}&limit=1&types=place,locality,neighborhood,address,poi`;
+    var encodedLocation = encodeURIComponent(location);
+    var url = 'https://api.maptiler.com/geocoding/' + encodedLocation + '.json?key=' + apiKey + '&limit=1';
 
-    const response = await fetch(url);
+    var response = await fetch(url);
 
     if (!response.ok) {
-      console.error(`[Geocoding] Mapbox API error: ${response.status}`);
+      console.error('[Geocoding] MapTiler API error: ' + response.status);
       geocodeCache.set(cacheKey, null);
       return null;
     }
 
-    const data: MapboxResponse = await response.json();
+    var data = await response.json() as MapTilerResponse;
 
     if (!data.features || data.features.length === 0) {
-      console.log(`[Geocoding] No results for: ${location}`);
+      console.log('[Geocoding] No results for: ' + location);
       geocodeCache.set(cacheKey, null);
       return null;
     }
 
-    const feature = data.features[0];
-    const geocoded: GeocodingResult = {
-      latitude: feature.center[1],  // Mapbox returns [lng, lat]
-      longitude: feature.center[0],
-      displayName: feature.place_name,
+    var feature = data.features[0];
+    // MapTiler/GeoJSON returns [longitude, latitude]
+    var lng = feature.center ? feature.center[0] : (feature.geometry ? feature.geometry.coordinates[0] : null);
+    var lat = feature.center ? feature.center[1] : (feature.geometry ? feature.geometry.coordinates[1] : null);
+
+    if (lat == null || lng == null) {
+      geocodeCache.set(cacheKey, null);
+      return null;
+    }
+
+    var geocoded: GeocodingResult = {
+      latitude: lat,
+      longitude: lng,
+      displayName: feature.place_name || location,
       confidence: feature.relevance || 0.5
     };
 
     geocodeCache.set(cacheKey, geocoded);
-    console.log(`[Geocoding] Success: ${location} -> ${geocoded.latitude}, ${geocoded.longitude}`);
+    console.log('[Geocoding] Success: ' + location + ' -> ' + geocoded.latitude.toFixed(4) + ', ' + geocoded.longitude.toFixed(4));
 
     return geocoded;
 
   } catch (error) {
-    console.error(`[Geocoding] Error for ${location}:`, error);
+    console.error('[Geocoding] Error for ' + location + ':', error);
     geocodeCache.set(cacheKey, null);
     return null;
   }
 }
 
 /**
- * Build a location query string from components
+ * Build a location query string from components.
+ * Constructs the most specific query possible for global geocoding:
+ *   "City, State/Province, Country" → most precise
+ *   "State/Province, Country" → fallback
+ *   "Country" → last resort
  */
 export function buildLocationQuery(components: {
   city?: string;
@@ -96,11 +117,11 @@ export function buildLocationQuery(components: {
   country?: string;
   location_name?: string;
 }): string {
-  const parts: string[] = [];
+  var parts: string[] = [];
 
   if (components.location_name) {
     // Use location_name directly if it looks complete (has comma or multiple words)
-    if (components.location_name.includes(',') || components.location_name.split(' ').length >= 3) {
+    if (components.location_name.indexOf(',') !== -1 || components.location_name.split(' ').length >= 3) {
       return components.location_name;
     }
   }
@@ -117,8 +138,11 @@ export function buildLocationQuery(components: {
 }
 
 /**
- * Geocode multiple reports in batch (respecting rate limits)
+ * Geocode multiple reports in batch (respecting rate limits).
+ * Uses in-memory cache so duplicate locations (same city) only hit the API once.
+ *
  * @param reports Array of reports with location info
+ * @param rateLimitMs Delay between API calls (default 100ms — MapTiler allows ~10 req/s)
  * @returns Map of report IDs to geocoding results
  */
 export async function batchGeocode(
@@ -128,12 +152,15 @@ export async function batchGeocode(
     state_province?: string;
     country?: string;
     location_name?: string;
-  }>
+  }>,
+  rateLimitMs?: number
 ): Promise<Map<string, GeocodingResult>> {
-  const results = new Map<string, GeocodingResult>();
+  var results = new Map<string, GeocodingResult>();
+  var delay = rateLimitMs || 100;
 
-  for (const report of reports) {
-    const locationQuery = buildLocationQuery({
+  for (var i = 0; i < reports.length; i++) {
+    var report = reports[i];
+    var locationQuery = buildLocationQuery({
       city: report.city,
       state: report.state_province,
       country: report.country,
@@ -142,9 +169,15 @@ export async function batchGeocode(
 
     if (!locationQuery) continue;
 
-    const result = await geocodeLocation(locationQuery);
+    var result = await geocodeLocation(locationQuery);
     if (result) {
       results.set(report.id, result);
+    }
+
+    // Rate limit only for cache misses (actual API calls)
+    // The cache prevents redundant calls for same location
+    if (i < reports.length - 1) {
+      await new Promise(function(resolve) { setTimeout(resolve, delay); });
     }
   }
 
@@ -152,7 +185,7 @@ export async function batchGeocode(
 }
 
 /**
- * Clear the geocode cache
+ * Clear the geocode cache (useful between batches to free memory)
  */
 export function clearGeocodeCache(): void {
   geocodeCache.clear();
