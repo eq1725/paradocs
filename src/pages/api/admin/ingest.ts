@@ -145,7 +145,8 @@ export default async function handler(
         success: r.success,
         recordsFound: r.recordsFound,
         recordsInserted: r.recordsInserted,
-        error: r.error
+        error: r.error,
+        rejectedDetails: (r as any).rejectedDetails || []
       })),
       patternsAnalyzed: false as boolean | { patterns_detected: number }
     };
