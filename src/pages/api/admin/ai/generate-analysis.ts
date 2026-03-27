@@ -57,7 +57,11 @@ export default async function handler(
     var adminKey = req.headers['x-admin-key']
     var isAdminKey = adminKey === process.env.ADMIN_API_KEY
 
-    if (!userId && !isAdminKey) {
+    // Also allow service role key as Bearer token (for scripts/CI)
+    var serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    var isServiceKey = !!(serviceKey && authHeader === 'Bearer ' + serviceKey)
+
+    if (!userId && !isAdminKey && !isServiceKey) {
       return res.status(401).json({ error: 'Unauthorized' })
     }
 

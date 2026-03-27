@@ -70,7 +70,8 @@ var NARRATIVE_SYSTEM_PROMPT = 'You are an editorial analyst for Paradocs, a comp
   + '- Ghosts/Hauntings: Atmospheric, investigative. Reference property history, recurring patterns, environmental factors.\n'
   + '- NDEs/Consciousness: Clinical yet empathetic. Reference common NDE elements, neurological research, cross-cultural parallels.\n'
   + '- Psychic phenomena: Empirical framing. Reference experimental protocols, statistical anomalies, replication.\n\n'
-  + 'Return ONLY the narrative text. No quotes, no labels, no explanation, no markdown headers.'
+  + 'Return ONLY the narrative text. No quotes, no labels, no explanation.\n'
+  + 'NEVER use markdown headings (no # or ## or ###). NEVER start with the report title as a heading. Just write plain paragraphs.'
 
 var ASSESSMENT_SYSTEM_PROMPT = 'Analyze this paranormal report and provide a structured assessment. '
   + 'Return valid JSON only, no markdown code fences, no commentary.\n\n'
@@ -106,7 +107,9 @@ var COMBINED_SYSTEM_PROMPT = 'You are an editorial analyst for Paradocs, a compr
   + '- Maintain intellectual rigor while taking the subject matter seriously\n'
   + '- NEVER reproduce or closely paraphrase the source text\n'
   + '- NEVER start with "This report..." or "The witness describes..."\n'
-  + '- Write as if you\'re a documentary narrator, not a summarizer\n\n'
+  + '- Write as if you\'re a documentary narrator, not a summarizer\n'
+  + '- NEVER use markdown headings (no # or ## or ###). Just write plain paragraphs.\n'
+  + '- NEVER start with the report title as a heading. Jump straight into the analysis.\n\n'
   + 'Length rules (STRICT — based on source content length):\n'
   + '- Source under 50 words: 1 paragraph (3-5 sentences)\n'
   + '- Source 50-200 words: 2 paragraphs\n'
@@ -276,6 +279,20 @@ function parseAssessmentJson(text: string): ParadocsAssessment | null {
   }
 }
 
+/**
+ * Clean up narrative text — strip markdown headings, leading titles, etc.
+ */
+function cleanNarrative(text: string): string {
+  var cleaned = text
+  // Remove markdown headings (# Title, ## Title, ### Title)
+  cleaned = cleaned.replace(/^#{1,4}\s+.+$/gm, '')
+  // Remove bold-only lines that look like titles (** Title **)
+  cleaned = cleaned.replace(/^\*\*[^*]+\*\*\s*$/gm, '')
+  // Collapse multiple blank lines into one
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n')
+  return cleaned.trim()
+}
+
 function parseCombinedResponse(response: string): {
   narrative: string | null
   assessment: ParadocsAssessment | null
@@ -286,7 +303,7 @@ function parseCombinedResponse(response: string): {
   if (delimiterIndex === -1) {
     // Try to detect if the whole thing is just a narrative (no JSON part)
     if (response.indexOf('{') === -1) {
-      return { narrative: response.trim(), assessment: null }
+      return { narrative: cleanNarrative(response), assessment: null }
     }
     // Try to detect if JSON is embedded without delimiter
     var lastBrace = response.lastIndexOf('}')
@@ -294,7 +311,7 @@ function parseCombinedResponse(response: string): {
     if (firstBrace > 50) {
       // There's text before the JSON — assume narrative + json
       return {
-        narrative: response.substring(0, firstBrace).trim(),
+        narrative: cleanNarrative(response.substring(0, firstBrace)),
         assessment: parseAssessmentJson(response.substring(firstBrace))
       }
     }
@@ -305,7 +322,7 @@ function parseCombinedResponse(response: string): {
   var assessmentPart = response.substring(delimiterIndex + delimiter.length).trim()
 
   return {
-    narrative: narrativePart.length > 30 ? narrativePart : null,
+    narrative: narrativePart.length > 30 ? cleanNarrative(narrativePart) : null,
     assessment: parseAssessmentJson(assessmentPart)
   }
 }

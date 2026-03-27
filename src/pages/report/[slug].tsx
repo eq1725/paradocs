@@ -115,6 +115,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const [media, setMedia] = useState<any[]>(initialMedia || [])
   const [loading, setLoading] = useState(!initialReport && !fetchError)
   const [user, setUser] = useState<any>(null)
+  const [userProfile, setUserProfile] = useState<any>(null)
   // Comment state retained for data compatibility — UI removed from report pages
   const [newComment, setNewComment] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
@@ -219,6 +220,17 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     const { data: { session } } = await supabase.auth.getSession()
     const currentUser = session?.user || null
     setUser(currentUser)
+
+    // Fetch profile for role/subscription checks
+    if (currentUser) {
+      var { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', currentUser.id)
+        .single()
+      setUserProfile(profile || null)
+    }
+
     return currentUser
   }
 
@@ -1001,7 +1013,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               reportId={report.id}
               reportTitle={report.title}
               reportCategory={report.category}
-              isSubscribed={false}
+              isSubscribed={!!(userProfile && userProfile.role === 'admin')}
               isAuthenticated={!!user}
             />
           </>
