@@ -349,13 +349,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     var sourceSpeed: string | null = null
     if (meta.estimatedSpeed) {
       var rawSpeed = String(meta.estimatedSpeed).trim()
-      // NUFORC often gives bare numbers like "100+" — infer units from country
-      if (rawSpeed && !/mph|km|knot/i.test(rawSpeed)) {
-        var unit = isImperialCountry(report.country) ? ' mph' : ' km/h'
-        sourceSpeed = rawSpeed + unit
-      } else {
-        sourceSpeed = rawSpeed
+      // Only process if the value starts with a number (NUFORC sometimes puts descriptive text
+      // like "disappeared from my view in about 4 to 6 seconds" instead of a numeric speed)
+      var hasNumericSpeed = /^\d/.test(rawSpeed)
+      if (hasNumericSpeed) {
+        // NUFORC often gives bare numbers like "100+" — infer units from country
+        if (!/mph|km|knot/i.test(rawSpeed)) {
+          var unit = isImperialCountry(report.country) ? ' mph' : ' km/h'
+          sourceSpeed = rawSpeed + unit
+        } else {
+          sourceSpeed = rawSpeed
+        }
       }
+      // If non-numeric, skip — the description regex extraction will handle what it can
     }
 
     // Build the structured academic data response
