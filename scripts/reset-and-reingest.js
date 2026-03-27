@@ -19,34 +19,18 @@ var serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 async function deleteNonCurated() {
   console.log('\n=== STEP 1: Delete all non-curated reports (keeping Roswell + curated) ===\n');
 
-  // Find all non-curated reports
+  // Find all non-curated reports (curated = source_type 'curated' or 'editorial')
   var { data: reports, error: findErr } = await supabase
     .from('reports')
-    .select('id, title, status, source_type, content_origin')
-    .neq('content_origin', 'curated');
+    .select('id, title, status, source_type')
+    .not('source_type', 'in', '("curated","editorial")');
 
   if (findErr) {
     console.error('Find error:', findErr);
     return false;
   }
 
-  // Also find any reports that have null content_origin but are not curated
-  var { data: nullOrigin } = await supabase
-    .from('reports')
-    .select('id, title, status, source_type, content_origin')
-    .is('content_origin', null)
-    .neq('source_type', 'curated');
-
-  var allReports = (reports || []).concat(nullOrigin || []);
-
-  // Deduplicate by ID
-  var seen = {};
-  var uniqueReports = allReports.filter(function(r) {
-    if (seen[r.id]) return false;
-    seen[r.id] = true;
-    return true;
-  });
-
+  var uniqueReports = reports || [];
   console.log('Found ' + uniqueReports.length + ' non-curated reports to delete');
 
   if (uniqueReports.length === 0) {
@@ -57,8 +41,8 @@ async function deleteNonCurated() {
   // Show what we're keeping
   var { data: kept } = await supabase
     .from('reports')
-    .select('id, title, content_origin')
-    .eq('content_origin', 'curated');
+    .select('id, title, source_type')
+    .in('source_type', ['curated', 'editorial']);
   if (kept && kept.length > 0) {
     console.log('Keeping ' + kept.length + ' curated reports:');
     kept.forEach(function(r) { console.log('  - ' + r.title); });
@@ -157,7 +141,7 @@ async function main() {
           'Authorization': 'Bearer ' + serviceKey,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ action: 'batch-missing', limit: 20 }),
+        body: JSON.stringify({ action: 'all_missing' }),
         signal: AbortSignal.timeout(300000),
       }
     );
@@ -182,21 +166,17 @@ async function main() {
   console.log('\n=== FINAL STATE ===');
   var { data: all } = await supabase
     .from('reports')
-    .select('id, status, source_type, content_origin');
+    .select('id, status, source_type');
 
   if (all) {
-    var byOrigin = {};
     var byStatus = {};
     var bySource = {};
     all.forEach(function(r) {
-      var origin = r.content_origin || 'scraped';
-      byOrigin[origin] = (byOrigin[origin] || 0) + 1;
       byStatus[r.status] = (byStatus[r.status] || 0) + 1;
       var src = r.source_type || 'unknown';
       bySource[src] = (bySource[src] || 0) + 1;
     });
     console.log('Total reports: ' + all.length);
-    console.log('By origin:', JSON.stringify(byOrigin));
     console.log('By status:', JSON.stringify(byStatus));
     console.log('By source:', JSON.stringify(bySource));
   }

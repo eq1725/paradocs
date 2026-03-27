@@ -119,7 +119,7 @@ export default function ExplorePage() {
   const [initialized, setInitialized] = useState(false)
   useEffect(() => {
     if (router.isReady) {
-      const { category: cat, q, country: c, credibility: cred, featured: feat, sort: s, contentType: ct, page: p } = router.query
+      const { category: cat, q, country: c, credibility: cred, featured: feat, sort: s, contentType: ct, page: p, view: v } = router.query
       if (cat && typeof cat === 'string') setCategory(cat as PhenomenonCategory)
       if (q && typeof q === 'string') setSearchQuery(q)
       if (c && typeof c === 'string') setCountry(c)
@@ -128,8 +128,8 @@ export default function ExplorePage() {
       if (s && typeof s === 'string') setSort(s as SortOption)
       if (ct && typeof ct === 'string') setContentType(ct as ContentType | 'all' | 'primary')
       if (p && typeof p === 'string') setPage(parseInt(p, 10) || 1)
-      // Auto-switch to Browse view when filter params are present in URL
-      if (cat || q || c || cred || feat === 'true') {
+      // Restore active view from URL (browse/feed) or auto-switch when filters present
+      if (v === 'browse' || cat || q || c || cred || feat === 'true') {
         setActiveView('browse')
       }
       setInitialized(true)
@@ -141,6 +141,7 @@ export default function ExplorePage() {
     if (!initialized) return
     const timeout = setTimeout(() => {
       const params: Record<string, string> = {}
+      if (activeView === 'browse') params.view = 'browse'
       if (category !== 'all') params.category = category
       if (searchQuery) params.q = searchQuery
       if (country) params.country = country
@@ -153,7 +154,7 @@ export default function ExplorePage() {
       router.replace({ pathname: '/explore', query: params }, undefined, { shallow: true })
     }, 300)
     return () => clearTimeout(timeout)
-  }, [initialized, category, searchQuery, country, credibility, featured, sort, contentType, page])
+  }, [initialized, activeView, category, searchQuery, country, credibility, featured, sort, contentType, page])
 
   const loadReports = useCallback(async () => {
     setLoading(true)

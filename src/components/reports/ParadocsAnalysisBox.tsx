@@ -3,7 +3,7 @@
  *
  * Displays the Paradocs Analysis for mass-ingested reports.
  * Narrative section: Paradocs editorial voice (NOT labeled as AI).
- * Assessment sections: labeled "AI-Assisted Analysis" (credibility, mundane explanations, content type, similar phenomena).
+ * Assessment sections: credibility, mundane explanations, content type, similar phenomena.
  * Purple gradient styling matches the encyclopedia phenomena page Paradocs Analysis box.
  *
  * SWC compliant: var, function(){}, string concat, no template literals in JSX, unicode escapes.
@@ -127,7 +127,7 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
           </div>
         )}
 
-        {/* Assessment sections — collapsible, labeled "AI-Assisted Analysis" */}
+        {/* Assessment sections — collapsible */}
         {assessment && (
           <div className="space-y-0">
             {/* Credibility Assessment */}
@@ -186,7 +186,7 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
                     )}
                     <p className="text-[10px] text-gray-600 flex items-center gap-1 mt-2">
                       <Info className="w-3 h-3" />
-                      AI-Assisted Analysis
+                      Paradocs Analysis
                     </p>
                   </div>
                 )}
@@ -233,7 +233,7 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
                     })}
                     <p className="text-[10px] text-gray-600 flex items-center gap-1 mt-2">
                       <Info className="w-3 h-3" />
-                      AI-Assisted Analysis
+                      Paradocs Analysis
                     </p>
                   </div>
                 )}
@@ -281,7 +281,7 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
                     </div>
                     <p className="text-[10px] text-gray-600 flex items-center gap-1 mt-2">
                       <Info className="w-3 h-3" />
-                      AI-Assisted Analysis
+                      Paradocs Analysis
                     </p>
                   </div>
                 )}

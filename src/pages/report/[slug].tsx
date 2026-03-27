@@ -225,7 +225,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     if (currentUser) {
       var { data: profile } = await supabase
         .from('profiles')
-        .select('role')
+        .select('role, subscription_tier_id')
         .eq('id', currentUser.id)
         .single()
       setUserProfile(profile || null)
@@ -1013,7 +1013,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               reportId={report.id}
               reportTitle={report.title}
               reportCategory={report.category}
-              isSubscribed={!!(userProfile && userProfile.role === 'admin')}
+              isSubscribed={!!(userProfile && (userProfile.role === 'admin' || userProfile.role === 'moderator' || userProfile.role === 'enterprise' || userProfile.subscription_tier_id))}
               isAuthenticated={!!user}
             />
           </>
