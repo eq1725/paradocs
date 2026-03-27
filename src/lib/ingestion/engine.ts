@@ -288,12 +288,14 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
     let rejected = 0;
     let pendingReview = 0;
     let phenomenaLinked = 0;
+    var rejectedDetails: Array<{ title: string; reason: string; descLength: number }> = [];
 
     for (const report of result.reports) {
       try {
         // Quick rejection for obviously low quality content
         if (isObviouslyLowQuality(report.title, report.description)) {
           console.log(`[Ingestion] Quick reject: "${report.title.substring(0, 40)}..." (obviously low quality)`);
+          rejectedDetails.push({ title: report.title, reason: 'obviously low quality', descLength: (report.description || '').length });
           rejected++;
           continue;
         }
@@ -313,6 +315,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
 
         if (!qualityResult.passed) {
           console.log(`[Ingestion] Filtered: "${report.title.substring(0, 40)}..." (${qualityResult.reason})`);
+          rejectedDetails.push({ title: report.title, reason: qualityResult.reason || 'quality filter', descLength: (report.description || '').length });
           rejected++;
           continue;
         }
@@ -324,6 +327,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
         // Reject very low quality
         if (status === 'rejected') {
           console.log(`[Ingestion] Low score reject: "${report.title.substring(0, 40)}..." (score: ${qualityScore.total})`);
+          rejectedDetails.push({ title: report.title, reason: 'low score: ' + qualityScore.total, descLength: (report.description || '').length });
           rejected++;
           continue;
         }
@@ -727,6 +731,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
       recordsRejected: rejected,
       recordsPendingReview: pendingReview,
       phenomenaLinked: phenomenaLinked,
+      rejectedDetails: rejectedDetails,
       duration: Date.now() - startTime
     };
 
