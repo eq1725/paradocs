@@ -116,7 +116,7 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
 
         {/* Narrative — the main content. NOT labeled as AI-generated. */}
         {narrative && (
-          <div className="prose prose-invert prose-purple max-w-none mb-6">
+          <div className="prose prose-invert prose-purple max-w-none mb-0">
             {narrative.split('\n\n').map(function(paragraph, i) {
               return (
                 <p key={i} className="text-gray-300 leading-relaxed mb-4 last:mb-0">

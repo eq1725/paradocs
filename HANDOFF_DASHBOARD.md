@@ -273,10 +273,29 @@ The project uses SWC compiler with strict constraints:
 
 ---
 
+## Priority Action Items
+
+### ResearchHubPreview Redesign (from Session 10 — March 27, 2026)
+
+The `ResearchHubPreview` component on report pages (`src/components/reports/ResearchHubPreview.tsx`) needs redesign. Currently:
+- **Subscribed users** see "Add to Hub" button — but report pages already have "Save to Research Hub" at the top, making this redundant
+- **Free users** see blurred paywall preview ("Unlock the full research toolkit") — this is the conversion touchpoint and should remain, but needs differentiation from the top save button
+
+**Options to discuss:**
+1. **Repurpose for deeper engagement** — Show related reports, constellation connections, or "X researchers also saved this" social proof
+2. **Constellation preview** — Mini visualization showing how this report connects to the user's existing constellation (for subscribed users)
+3. **Remove for subscribed users** — Only show for free users as conversion CTA; subscribed users already have the save button
+4. **Smart CTA** — If user already saved this report, show constellation/case file suggestions; if not saved, show save CTA with context
+
+This is a priority item for the Dashboard & Constellation session.
+
+---
+
 ## Quick Start for Next Session
 
 1. Read `PROJECT_STATUS.md` (cross-feature notes)
 2. Read `CONSTELLATION_V2_DESIGN.md` (full architecture spec)
 3. Read this file (`HANDOFF_DASHBOARD.md`)
 4. Read `HANDOFF_MOBILE.md` (current mobile state — Session 13 handles comprehensive mobile redesign)
-5. Pick up from Phase 3b (Constellation View — External URL support is DONE)
+5. **NEW: Review ResearchHubPreview redesign** (Priority Action Items section above)
+6. Pick up from Phase 3b (Constellation View — External URL support is DONE)

@@ -477,11 +477,33 @@ Wired into `engine.ts` between quick-reject and quality scoring so enriched data
 - `src/pages/admin/report-review.tsx` — Full review UI with status tabs, source filters, credibility score bars, expand-to-detail, bulk approve/reject
 - `src/pages/api/admin/report-review.ts` — API endpoint with auth, GET (paginated listing + stats), POST (approve/reject actions)
 
-### 9. Outstanding Items
+### 9. Session 10 Continued — March 27, 2026
 
-- **Git push** (Chase): Push pending commits: `ce08d0a9` (crash fix), `b6ad00db` (admin review page), + media policy commits
-- **Test AI pipeline**: After API keys are set, verify feed hooks + paradocs analysis generation on the 18 NUFORC reports
+**Full reset + re-ingest completed successfully:**
+- Deleted 108 non-curated reports (18 nuforc, 32 wikipedia, 55 reddit, 3 bfro) from cron job accumulation
+- Preserved 1 curated Roswell report
+- Re-ingested 18 NUFORC reports (20 fetched, 2 filtered — likely short descriptions under 150 char threshold)
+- All 18 approved via smart re-evaluation (witness-source boost + content quality checks)
+- Paradocs Analysis generated for all reports (17 inline during ingestion, 1 via batch endpoint)
+- **Total: 19 reports (1 curated + 18 NUFORC), all approved**
+
+**Fixes deployed (commits `c58f37aa`, `e4fded4c`, `960a6fc5`):**
+- `reset-and-reingest.js`: Fixed `content_origin` column error → uses `source_type` instead; fixed analysis API action `batch-missing` → `all_missing`
+- `ParadocsAnalysisBox.tsx`: Removed all "AI-Assisted Analysis" footer labels; normalized spacing between collapsible sections
+- `explore.tsx`: Browser back button now preserves Browse/Feed view via `?view=browse` URL param
+- `[slug].tsx`: Fixed admin profile query (was including non-existent `subscription_tier_id` column, breaking entire query → paywall showed for admin); broadened `isSubscribed` check to cover admin/moderator/enterprise roles
+- `paradocs-analysis.service.ts`: Added "no markdown headings" instruction to combined prompt + `cleanNarrative()` post-processing
+
+**Scripts:**
+- `scripts/reset-and-reingest.js` — 3-step: delete non-curated → re-ingest NUFORC (limit 20) → generate Paradocs Analysis → print final state. Working correctly.
+- `scripts/reingest-nuforc.js` — Simpler single-source reingest. Working correctly.
+
+### 10. Outstanding Items
+
+- **18 vs 20 reports**: NUFORC scraper fetches 20 but 2 get filtered out. Likely short descriptions under `minDescLength: 150`. Could investigate and tune if needed.
 - **Scale testing**: Run 50 → 500 → 2,000 per source for NUFORC, then test BFRO, Reddit, Wikipedia adapters
 - **Re-seed Roswell/Rendlesham clusters**: Chase action item from previous session
 - **Wikipedia media download test**: Run a small Wikipedia ingestion batch to verify download+store works with CC BY-SA attribution
 - **Pre-existing type error**: `LogToConstellation.tsx` lines 96, 127 — concat type mismatch (not related to ingestion)
+- **Daily cron job**: `/api/cron/ingest` runs at 6am via vercel.json. Currently will re-ingest NUFORC daily, adding duplicates. Consider: (a) improve dedup in engine, (b) disable cron until pipeline is stable, or (c) limit cron to only new reports
+- **ResearchHubPreview on report pages**: Currently shows "Add to Hub" for admin users. PRIORITY ACTION ITEM for Dashboard & Constellation session (Session 5): Redesign this component — report pages already have "Save to Research Hub" at the top, so the bottom ResearchHubPreview is redundant for subscribed users. Options: (a) repurpose for related reports / deeper engagement CTA, (b) show constellation connections preview, (c) remove for subscribed users entirely. For free users, the paywall preview should remain as a conversion touchpoint but needs to be differentiated from the top save button.
