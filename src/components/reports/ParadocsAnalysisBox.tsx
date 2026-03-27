@@ -161,7 +161,7 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
                 </button>
 
                 {(expandedSections as any).credibility && (
-                  <div className="mt-3 space-y-3">
+                  <div className="mt-3 pb-1 space-y-3">
                     {assessment.credibility_reasoning && (
                       <p className="text-sm text-gray-400">{assessment.credibility_reasoning}</p>
                     )}
@@ -208,7 +208,7 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
                 </button>
 
                 {(expandedSections as any).mundane && (
-                  <div className="mt-3 space-y-3">
+                  <div className="mt-3 pb-1 space-y-3">
                     {assessment.mundane_explanations.map(function(exp, i) {
                       return (
                         <div key={i} className="bg-white/5 rounded-lg p-3">
@@ -251,7 +251,7 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
                 </button>
 
                 {(expandedSections as any).contentType && (
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-3 pb-1 space-y-2">
                     <div className="flex flex-wrap gap-2">
                       <span className="px-3 py-1 rounded-full text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30">
                         {(function() {
@@ -295,7 +295,7 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
                 </button>
 
                 {(expandedSections as any).phenomena && (
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-3 pb-1 flex flex-wrap gap-2">
                     {assessment.similar_phenomena.map(function(phenomenon, i) {
                       var phenomenonSlug = phenomenon.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
                       return (

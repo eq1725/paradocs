@@ -223,12 +223,11 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
 
     // Fetch profile for role/subscription checks
     if (currentUser) {
-      var { data: profile, error: profileErr } = await supabase
+      var { data: profile } = await supabase
         .from('profiles')
-        .select('role, subscription_tier_id')
+        .select('role')
         .eq('id', currentUser.id)
         .single()
-      console.log('[checkUser] profile fetch:', { profile: profile, error: profileErr, email: currentUser.email })
       setUserProfile(profile || null)
     }
 
@@ -1014,7 +1013,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               reportId={report.id}
               reportTitle={report.title}
               reportCategory={report.category}
-              isSubscribed={!!(userProfile && (userProfile.role === 'admin' || userProfile.role === 'moderator' || userProfile.role === 'enterprise' || userProfile.subscription_tier_id))}
+              isSubscribed={!!(userProfile && (userProfile.role === 'admin' || userProfile.role === 'moderator' || userProfile.role === 'enterprise'))}
               isAuthenticated={!!user}
             />
           </>
