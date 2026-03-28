@@ -18,55 +18,45 @@ import Link from 'next/link'
  * Narrative text highlighting for skimmer engagement.
  *
  * Strategy:
- *  - First sentence of each paragraph: brighter text (topic sentence anchor)
- *  - Parenthetical content like (3:28 AM): purple accent (specific data)
- *  - Em-dash clauses: slightly emphasized (analytical asides)
- *  - Key analytical/evidential phrases: medium weight white
+ *  - "Key Takeaway" pull-quote: first sentence displayed prominently with accent border
+ *  - Background-highlighted key phrases: visible "highlighter pen" effect on important terms
+ *  - Data points: bright white with background for measurements and times
  *
  * SWC compliant: var, function(){}, no arrow functions or template literals.
  */
 
-// Phrases that signal key analytical weight — bold white
+// Key analytical phrases — get background highlight treatment
 var HIGHLIGHT_PHRASES = [
   // Evidence & credibility signals
   /\b(video evidence|physical evidence|photographic evidence|radar data|multiple witnesses|secondary observer|corroborating (?:evidence|witness|testimony|data))\b/gi,
-  // Analytical conclusions
-  /\b(noteworthy|notably|significantly|critically|distinguishes|elevates|complicating factor|recurring (?:pattern|theme)|consistent with|inconsistent with)\b/gi,
   // Phenomenon descriptors (multi-word)
   /\b(close-proximity (?:UAP|UFO) encounter|triangular (?:configuration|formation)|geometric formation|acoustic signature|behavioral marker|structured craft|formation integrity)\b/gi,
   // Named phenomena & historical references
   /\b(Belgian wave|Rendlesham Forest|Phoenix Lights|Nimitz encounter|Tic[\s-]Tac|Hudson Valley)\b/gi,
+  // Analytical conclusions (only the strong ones)
+  /\b(recurring (?:pattern|theme)|complicating factor|consistent with|inconsistent with)\b/gi,
 ]
 
-// Specific measurements and data points — semibold white
+// Specific measurements and data points
 var DATA_PATTERN = /\b(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)|\d+(?:,\d{3})*\s*(?:feet|ft|meters?|m|miles?|mi|km|mph|km\/h|knots?|seconds?|minutes?|hours?)|\d+\/100)\b/g
 
-// Parenthetical content — purple accent for specific inline data
-var PAREN_PATTERN = /(\([^)]{3,60}\))/g
-
 /**
- * Split a paragraph into first sentence + rest.
- * Uses period+space or period+end as sentence boundary.
+ * Extract the first sentence from the full narrative for the key takeaway.
  */
-function splitFirstSentence(text) {
-  var match = text.match(/^(.+?[.!?])(\s+.+)?$/)
-  if (match && match[2]) {
-    return { first: match[1], rest: match[2] }
-  }
-  return { first: text, rest: '' }
+function extractFirstSentence(text) {
+  var cleaned = text.replace(/\n\n/g, ' ').trim()
+  var match = cleaned.match(/^(.+?[.!?])\s/)
+  if (match) return match[1]
+  return cleaned.length > 200 ? cleaned.substring(0, 200) + '\u2026' : cleaned
 }
 
 /**
- * Render text with inline highlights.
- * Returns an array of React elements with strategic bold/color accents.
+ * Render text with background-highlighted key phrases.
+ * Uses visible background colors instead of subtle font-weight changes.
  */
-function renderHighlightedText(text, baseClass) {
-  // Build a merged pattern that captures all highlight types
-  // We process in order: data points > phrases > parentheticals
+function renderHighlightedText(text) {
   var segments = []
   var lastIndex = 0
-
-  // Collect all matches with their positions and types
   var allMatches = []
 
   // Data points
@@ -76,7 +66,7 @@ function renderHighlightedText(text, baseClass) {
     allMatches.push({ start: m.index, end: m.index + m[0].length, text: m[0], type: 'data' })
   }
 
-  // Highlight phrases
+  // Key phrases
   for (var p = 0; p < HIGHLIGHT_PHRASES.length; p++) {
     HIGHLIGHT_PHRASES[p].lastIndex = 0
     while ((m = HIGHLIGHT_PHRASES[p].exec(text)) !== null) {
@@ -84,13 +74,7 @@ function renderHighlightedText(text, baseClass) {
     }
   }
 
-  // Parentheticals
-  PAREN_PATTERN.lastIndex = 0
-  while ((m = PAREN_PATTERN.exec(text)) !== null) {
-    allMatches.push({ start: m.index, end: m.index + m[0].length, text: m[0], type: 'paren' })
-  }
-
-  // Sort by position, remove overlaps (keep earlier/longer match)
+  // Sort by position, remove overlaps
   allMatches.sort(function(a, b) { return a.start - b.start || b.end - a.end })
   var filtered = []
   var maxEnd = 0
@@ -101,84 +85,25 @@ function renderHighlightedText(text, baseClass) {
     }
   }
 
-  // Build segments
+  // Build segments with background highlight styles
   for (var j = 0; j < filtered.length; j++) {
     var match = filtered[j]
     if (match.start > lastIndex) {
       segments.push(React.createElement('span', { key: 'plain-' + j }, text.substring(lastIndex, match.start)))
     }
-    var cls = match.type === 'data'
-      ? 'font-semibold text-white'
-      : match.type === 'phrase'
-        ? 'font-semibold text-white'
-        : 'text-purple-300/90'
-    segments.push(React.createElement('span', { key: 'hl-' + j, className: cls }, match.text))
+    // Both data and phrases get a visible background highlight
+    var style = match.type === 'data'
+      ? { backgroundColor: 'rgba(168, 85, 247, 0.2)', color: '#e9d5ff', borderRadius: '3px', padding: '1px 4px', fontWeight: 600 }
+      : { backgroundColor: 'rgba(168, 85, 247, 0.15)', color: '#f3e8ff', borderRadius: '3px', padding: '1px 4px', fontWeight: 500 }
+    segments.push(React.createElement('span', { key: 'hl-' + j, style: style }, match.text))
     lastIndex = match.end
   }
 
-  // Remaining text
   if (lastIndex < text.length) {
     segments.push(React.createElement('span', { key: 'tail' }, text.substring(lastIndex)))
   }
 
   return segments.length > 0 ? segments : [text]
-}
-
-/**
- * Render a narrative paragraph with first-sentence emphasis and inline highlights.
- */
-function NarrativeParagraph(props) {
-  var text = props.text
-  var index = props.index
-  var parts = splitFirstSentence(text)
-
-  return React.createElement('p', {
-    key: index,
-    className: 'text-gray-300 leading-relaxed mb-4 last:mb-0'
-  }, [
-    // First sentence — brighter, slightly heavier for topic-sentence anchoring
-    React.createElement('span', {
-      key: 'first',
-      className: 'text-gray-100'
-    }, renderHighlightedText(parts.first, 'text-gray-100')),
-    // Rest of paragraph — standard weight with highlights
-    parts.rest ? React.createElement('span', {
-      key: 'rest'
-    }, renderHighlightedText(parts.rest, 'text-gray-300')) : null
-  ])
-}
-
-/**
- * Render credibility reasoning as clean text.
- * Only data points (scores, measurements) get bold white — no colored word highlights.
- */
-function CredibilityReasoningText(props) {
-  var text = props.text
-
-  var segments = []
-  var lastIdx = 0
-  var allM = []
-
-  // Only highlight data points — no green/yellow word coloring
-  DATA_PATTERN.lastIndex = 0
-  var pm
-  while ((pm = DATA_PATTERN.exec(text)) !== null) {
-    allM.push({ start: pm.index, end: pm.index + pm[0].length, text: pm[0] })
-  }
-
-  for (var j = 0; j < allM.length; j++) {
-    var mt = allM[j]
-    if (mt.start > lastIdx) {
-      segments.push(React.createElement('span', { key: 'p-' + j }, text.substring(lastIdx, mt.start)))
-    }
-    segments.push(React.createElement('span', { key: 'c-' + j, className: 'font-semibold text-white' }, mt.text))
-    lastIdx = mt.end
-  }
-  if (lastIdx < text.length) {
-    segments.push(React.createElement('span', { key: 'ct' }, text.substring(lastIdx)))
-  }
-
-  return React.createElement('p', { className: 'text-sm text-gray-400 leading-relaxed' }, segments)
 }
 
 interface CredibilityFactor {
@@ -281,11 +206,24 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
           </div>
         </div>
 
-        {/* Narrative — the main content with strategic highlights for skimmers. */}
+        {/* Key Takeaway — pull-quote for skimmers who won't read the full analysis */}
+        {narrative && (
+          <div className="mb-5 pl-4 border-l-2 border-purple-400/60">
+            <p className="text-sm font-medium text-purple-300/70 uppercase tracking-wider mb-1">Key Takeaway</p>
+            <p className="text-gray-100 leading-relaxed font-medium">
+              {extractFirstSentence(narrative)}
+            </p>
+          </div>
+        )}
+
+        {/* Full Narrative — with background-highlighted key phrases for scanning. */}
         {narrative && (
           <div className="prose prose-invert prose-purple max-w-none mb-0">
             {narrative.split('\n\n').map(function(paragraph, i) {
-              return React.createElement(NarrativeParagraph, { key: i, text: paragraph, index: i })
+              return React.createElement('p', {
+                key: i,
+                className: 'text-gray-300 leading-relaxed mb-4 last:mb-0'
+              }, renderHighlightedText(paragraph))
             })}
           </div>
         )}
