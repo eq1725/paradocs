@@ -223,14 +223,17 @@ export default async function handler(
 
   // ---- Batch missing ----
   var batchSize = (req.body && req.body.batch_size) || 25
+  var offset = (req.body && req.body.offset) || 0
   var delay = (req.body && req.body.delay_ms) || 500
 
-  var { data: missing } = await supabase
+  var query = supabase
     .from('phenomena')
     .select('id, name, slug, category, icon, ai_summary, ai_description, ai_quick_facts, primary_regions, first_reported_date, report_count, aliases')
     .is('feed_hook', null)
     .order('report_count', { ascending: false })
-    .limit(batchSize)
+    .range(offset, offset + batchSize - 1)
+
+  var { data: missing } = await query
 
   if (!missing || missing.length === 0) {
     return res.status(200).json({ message: 'All phenomena have hooks', generated: 0 })
