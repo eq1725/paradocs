@@ -46,7 +46,7 @@ const PHENOMENON_PATTERNS: Record<string, Array<{ pattern: RegExp; title: string
     // Encounters
     { pattern: /\b(abduct|taken|aboard|inside\s*(the|a)\s*(craft|ship))\b/i, title: 'Abduction Experience', priority: 10 },
     { pattern: /\b(alien|grey|gray|being|entity|creature)\s*(encounter|contact|saw)?\b/i, title: 'Entity Encounter', priority: 9 },
-    { pattern: /\b(close\s*encounter|landed|landing)\b/i, title: 'Close Encounter', priority: 9 },
+    { pattern: /\b(close\s*encounter|(it|craft|object|ufo)\s*landed)\b/i, title: 'Close Encounter', priority: 9 },
     { pattern: /\b(missing\s*time|lost\s*time|time\s*loss)\b/i, title: 'Missing Time Event', priority: 10 },
     // Behavior
     { pattern: /\b(hover|hovering|stationary)\b/i, title: 'Hovering Object', priority: 6 },
@@ -130,6 +130,8 @@ const GENERIC_TITLE_PATTERNS = [
   /^\d{4}[-\/]\d{2}[-\/]\d{2}$/,  // Just a date
   /^report\s*#?\d+$/i,  // Just a report number
   /^(unknown|untitled|no title)/i,
+  // Formulaic "Shape Sighting in Location (Date)" titles from NUFORC adapter
+  /^(other|unknown|changing|circle|disk|disc|oval|light|orb|sphere|fireball|flash|formation|rectangle|cross|diamond|egg|star|chevron|cigar|triangle|boomerang)\s+sighting\s+in\s+/i,
 ];
 
 // Title quality issues
@@ -347,9 +349,15 @@ export function generateImprovedTitle(
   }
 
   // Ensure proper capitalization (title case)
+  // Preserve known acronyms and abbreviations
+  const PRESERVE_CASE = ['UFO', 'NDE', 'EVP', 'OBE', 'UAP', 'CE5', 'CE-5', 'NHI', 'EMF', 'MUFON', 'NUFORC', 'ON', 'BC', 'AB', 'QC', 'UK', 'US', 'USA', 'NASA', 'FAA', 'NORAD'];
   newTitle = newTitle
     .split(' ')
     .map((word, i) => {
+      // Preserve known acronyms
+      if (PRESERVE_CASE.includes(word.toUpperCase())) {
+        return word.toUpperCase();
+      }
       // Don't capitalize small words unless first or after dash
       const smallWords = ['a', 'an', 'the', 'in', 'on', 'at', 'by', 'for', 'of', 'to'];
       if (i > 0 && smallWords.includes(word.toLowerCase()) && !newTitle.split(' ')[i-1]?.endsWith('-')) {
@@ -357,9 +365,10 @@ export function generateImprovedTitle(
       }
       // Handle hyphenated words
       if (word.includes('-')) {
-        return word.split('-').map(part =>
-          part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
-        ).join('-');
+        return word.split('-').map(part => {
+          if (PRESERVE_CASE.includes(part.toUpperCase())) return part.toUpperCase();
+          return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+        }).join('-');
       }
       return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
     })
