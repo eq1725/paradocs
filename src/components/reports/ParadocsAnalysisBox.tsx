@@ -19,26 +19,45 @@ import Link from 'next/link'
  *
  * Strategy:
  *  - "Key Takeaway" pull-quote: first sentence displayed prominently with accent border
- *  - Background-highlighted key phrases: visible "highlighter pen" effect on important terms
- *  - Data points: bright white with background for measurements and times
+ *  - Category-based phrase matching: catches technical vocabulary across ALL narratives
+ *  - Parenthetical asides: specific inline data in purple
+ *  - Quoted terms: witness or editorial emphasis preserved
+ *  - Data points: times, measurements, scores
+ *
+ * Uses broad adjective+noun patterns rather than hardcoded individual phrases,
+ * so any report's analytical vocabulary gets highlighted consistently.
  *
  * SWC compliant: var, function(){}, no arrow functions or template literals.
  */
 
-// Key analytical phrases — get background highlight treatment
-var HIGHLIGHT_PHRASES = [
-  // Evidence & credibility signals
-  /\b(video evidence|physical evidence|photographic evidence|radar data|multiple witnesses|secondary observer|corroborating (?:evidence|witness|testimony|data))\b/gi,
-  // Phenomenon descriptors (multi-word)
-  /\b(close-proximity (?:UAP|UFO) encounter|triangular (?:configuration|formation)|geometric formation|acoustic signature|behavioral marker|structured craft|formation integrity)\b/gi,
-  // Named phenomena & historical references
-  /\b(Belgian wave|Rendlesham Forest|Phoenix Lights|Nimitz encounter|Tic[\s-]Tac|Hudson Valley)\b/gi,
-  // Analytical conclusions (only the strong ones)
-  /\b(recurring (?:pattern|theme)|complicating factor|consistent with|inconsistent with)\b/gi,
+// --- PRIMARY HIGHLIGHTS: Key evidence, named refs, analytical conclusions ---
+var PRIMARY_PHRASES = [
+  // Evidence & documentation
+  /\b(video evidence|physical evidence|photographic evidence|radar data|multiple witnesses|secondary (?:observer|witness)|corroborating (?:evidence|witness|testimony|data)|independent (?:verification|confirmation)|documented (?:cases?|reports?|sightings?|encounters?))\b/gi,
+  // Named phenomena, orgs, celestial refs
+  /\b(Belgian wave|Rendlesham Forest|Phoenix Lights|Nimitz encounter|Tic[\s-]Tac|Hudson Valley|Roswell|Hessdalen|NUFORC|MUFON|Iridium flare|Starlink|Comet \w+(?:\/\w+)?)\b/gi,
+  // Analytical conclusions
+  /\b(recurring (?:pattern|theme)|complicating factor|consistent with|inconsistent with|parsimonious explanation|distinguishes (?:this|such)|remains (?:difficult|unclear|unknown|unexplained))\b/gi,
 ]
 
-// Specific measurements and data points
+// --- SECONDARY HIGHLIGHTS: Technical descriptors via adjective+noun patterns ---
+// These catch compound analytical terms universally across any narrative.
+var TECHNICAL_ADJ = '(?:triangular|geometric|luminous|acoustic|behavioral|mechanical|angular|visual|kinetic|temporal|aerial|celestial|optical|orbital|atmospheric|terrestrial|evidential|observational|electromagnetic|gravitational|structural|thermal|directional|instantaneous|discontinuous|anomalous|periodic|systematic|astronomical|mundane)'
+var TECHNICAL_NOUN = '(?:configuration|formation|signature|marker|appearance|displacement|anomaly|phenomenon|activity|object|craft|velocity|precision|literacy|properties|blur|noise|distortion|characteristics|conditions|integrity|motion|visibility|observation|perception|analysis|behavior|explanation|documentation|assessment|verification|constraint|threshold)'
+var TECH_COMPOUND = new RegExp('\\b(' + TECHNICAL_ADJ + '\\s+' + TECHNICAL_NOUN + ')\\b', 'gi')
+
+// Hyphenated compound descriptors (close-proximity, disk-like, high-speed, etc.)
+var HYPHENATED = /\b(\w+-(?:proximity|range|speed|altitude|source|like|shaped|encounter|level|scale)\s*(?:UAP|UFO|craft|object|encounter|observation|reports?)?)\b/gi
+
+// --- DATA & INLINE EMPHASIS ---
+// Times, measurements, scores
 var DATA_PATTERN = /\b(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)|\d+(?:,\d{3})*\s*(?:feet|ft|meters?|m|miles?|mi|km|mph|km\/h|knots?|seconds?|minutes?|hours?)|\d+\/100)\b/g
+
+// Parenthetical asides — contain specific inline data/clarifications
+var PAREN_PATTERN = /(\([^)]{3,80}\))/g
+
+// Quoted terms — editorial or witness emphasis
+var QUOTED_PATTERN = /(\u2018[^'\u2019]{2,40}\u2019|'[^']{2,40}')/g
 
 /**
  * Extract the first sentence from the full narrative for the key takeaway.
@@ -52,30 +71,57 @@ function extractFirstSentence(text) {
 
 /**
  * Render text with background-highlighted key phrases.
- * Uses visible background colors instead of subtle font-weight changes.
+ * Three visual tiers:
+ *  - Primary (named refs, evidence, conclusions): stronger purple bg
+ *  - Technical (adjective+noun compounds): standard purple bg
+ *  - Data/parens/quotes: data gets stronger, parens/quotes get lighter accent
  */
 function renderHighlightedText(text) {
   var segments = []
   var lastIndex = 0
   var allMatches = []
+  var m
+
+  // Collect primary phrase matches
+  for (var p = 0; p < PRIMARY_PHRASES.length; p++) {
+    PRIMARY_PHRASES[p].lastIndex = 0
+    while ((m = PRIMARY_PHRASES[p].exec(text)) !== null) {
+      allMatches.push({ start: m.index, end: m.index + m[0].length, text: m[0], type: 'primary' })
+    }
+  }
+
+  // Technical adjective+noun compounds
+  TECH_COMPOUND.lastIndex = 0
+  while ((m = TECH_COMPOUND.exec(text)) !== null) {
+    allMatches.push({ start: m.index, end: m.index + m[0].length, text: m[0], type: 'tech' })
+  }
+
+  // Hyphenated compounds
+  HYPHENATED.lastIndex = 0
+  while ((m = HYPHENATED.exec(text)) !== null) {
+    allMatches.push({ start: m.index, end: m.index + m[0].length, text: m[0], type: 'tech' })
+  }
 
   // Data points
-  var m
   DATA_PATTERN.lastIndex = 0
   while ((m = DATA_PATTERN.exec(text)) !== null) {
     allMatches.push({ start: m.index, end: m.index + m[0].length, text: m[0], type: 'data' })
   }
 
-  // Key phrases
-  for (var p = 0; p < HIGHLIGHT_PHRASES.length; p++) {
-    HIGHLIGHT_PHRASES[p].lastIndex = 0
-    while ((m = HIGHLIGHT_PHRASES[p].exec(text)) !== null) {
-      allMatches.push({ start: m.index, end: m.index + m[0].length, text: m[0], type: 'phrase' })
-    }
+  // Parentheticals
+  PAREN_PATTERN.lastIndex = 0
+  while ((m = PAREN_PATTERN.exec(text)) !== null) {
+    allMatches.push({ start: m.index, end: m.index + m[0].length, text: m[0], type: 'paren' })
   }
 
-  // Sort by position, remove overlaps
-  allMatches.sort(function(a, b) { return a.start - b.start || b.end - a.end })
+  // Quoted terms
+  QUOTED_PATTERN.lastIndex = 0
+  while ((m = QUOTED_PATTERN.exec(text)) !== null) {
+    allMatches.push({ start: m.index, end: m.index + m[0].length, text: m[0], type: 'quote' })
+  }
+
+  // Sort by position; on overlap keep longer match first, then earlier start
+  allMatches.sort(function(a, b) { return a.start - b.start || (b.end - b.start) - (a.end - a.start) })
   var filtered = []
   var maxEnd = 0
   for (var i = 0; i < allMatches.length; i++) {
@@ -85,17 +131,22 @@ function renderHighlightedText(text) {
     }
   }
 
-  // Build segments with background highlight styles
+  // Style map — three visual tiers
+  var STYLES = {
+    primary: { backgroundColor: 'rgba(168, 85, 247, 0.22)', color: '#e9d5ff', borderRadius: '3px', padding: '1px 5px', fontWeight: 600 },
+    tech:    { backgroundColor: 'rgba(168, 85, 247, 0.14)', color: '#f3e8ff', borderRadius: '3px', padding: '1px 4px', fontWeight: 500 },
+    data:    { backgroundColor: 'rgba(168, 85, 247, 0.22)', color: '#e9d5ff', borderRadius: '3px', padding: '1px 5px', fontWeight: 600 },
+    paren:   { color: '#c4b5fd', fontStyle: 'italic' },
+    quote:   { color: '#ddd6fe', fontStyle: 'italic' }
+  }
+
+  // Build segments
   for (var j = 0; j < filtered.length; j++) {
     var match = filtered[j]
     if (match.start > lastIndex) {
       segments.push(React.createElement('span', { key: 'plain-' + j }, text.substring(lastIndex, match.start)))
     }
-    // Both data and phrases get a visible background highlight
-    var style = match.type === 'data'
-      ? { backgroundColor: 'rgba(168, 85, 247, 0.2)', color: '#e9d5ff', borderRadius: '3px', padding: '1px 4px', fontWeight: 600 }
-      : { backgroundColor: 'rgba(168, 85, 247, 0.15)', color: '#f3e8ff', borderRadius: '3px', padding: '1px 4px', fontWeight: 500 }
-    segments.push(React.createElement('span', { key: 'hl-' + j, style: style }, match.text))
+    segments.push(React.createElement('span', { key: 'hl-' + j, style: STYLES[match.type] || STYLES.tech }, match.text))
     lastIndex = match.end
   }
 
