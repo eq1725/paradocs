@@ -87,6 +87,7 @@ export default function DiscoverPage() {
   var rowRefs = useRef<Map<number, HTMLDivElement>>(new Map())
   var loadingRef = useRef(false)
   var initialSettled = useRef(false)
+  var snapReady = useRef(false)
 
   var [maxSeen, setMaxSeen] = useState(0)
 
@@ -118,11 +119,30 @@ export default function DiscoverPage() {
     }
   }, [])
 
+  // --- Force scroll to top on mount (prevent browser scroll restoration) ---
+  useEffect(function () {
+    if (typeof window !== 'undefined') {
+      window.history.scrollRestoration = 'manual'
+    }
+    if (containerRef.current) {
+      containerRef.current.scrollTop = 0
+    }
+  }, [])
+
   // --- Load initial feed ---
   useEffect(function () {
     if (showOnboarding) return // Wait for onboarding
+    // Reset scroll to top before loading
+    if (containerRef.current) {
+      containerRef.current.scrollTop = 0
+    }
     loadFeed(0)
-    var timer = setTimeout(function () { initialSettled.current = true }, 1200)
+    var timer = setTimeout(function () {
+      initialSettled.current = true
+      snapReady.current = true
+      // Force re-render so snap class updates
+      setCurrentIndex(function (prev) { return prev })
+    }, 2000)
     return function () { clearTimeout(timer) }
   }, [showOnboarding])
 
@@ -171,6 +191,10 @@ export default function DiscoverPage() {
       .then(function (res) { return res.json() })
       .then(function (data) {
         if (data.items && data.items.length > 0) {
+          // On first load, ensure scroll starts at top
+          if (feedOffset === 0 && containerRef.current) {
+            containerRef.current.scrollTop = 0
+          }
           setItems(function (prev) {
             var existingIds = new Set(prev.map(function (p) { return p.id }))
             var newItems = data.items.filter(function (item: ExtendedFeedItem) {
@@ -200,59 +224,85 @@ export default function DiscoverPage() {
       })
   }
 
+  // --- Pending special cards (batched to avoid scroll disruption) ---
+  var pendingSpecialCards = useRef<{ card: ExtendedFeedItem; position: number }[]>([])
+  var specialCardsInjected = useRef(false)
+
   // --- Fetch and interleave special card types ---
+  // Cards are collected then injected in one batch to prevent
+  // multiple splice operations from disrupting snap scroll position.
   function fetchSpecialCards() {
+    if (specialCardsInjected.current) return
+    var fetches: Promise<void>[] = []
+
     // Fetch On This Date cards
-    fetch('/api/discover/on-this-date')
-      .then(function (res) { return res.ok ? res.json() : null })
-      .then(function (data) {
-        if (data && data.items && data.items.length > 0) {
-          // Insert first On This Date card at position 2-3
-          var otdCard = data.items[0] as OnThisDateData
-          setItems(function (prev) {
-            var arr = prev.slice()
-            var insertAt = Math.min(2, arr.length)
-            arr.splice(insertAt, 0, otdCard)
-            return arr
-          })
-        }
-      })
-      .catch(function () {})
+    fetches.push(
+      fetch('/api/discover/on-this-date')
+        .then(function (res) { return res.ok ? res.json() : null })
+        .then(function (data) {
+          if (data && data.items && data.items.length > 0) {
+            pendingSpecialCards.current.push({ card: data.items[0] as OnThisDateData, position: 2 })
+          }
+        })
+        .catch(function () {})
+    )
 
     // Fetch Clustering cards
-    fetch('/api/discover/clusters')
-      .then(function (res) { return res.ok ? res.json() : null })
-      .then(function (data) {
-        if (data && data.clusters && data.clusters.length > 0) {
-          // Inject first cluster card around position 8-10
-          var clusterCard: ClusterCardData = Object.assign({}, data.clusters[0], { item_type: 'cluster' as const })
-          setItems(function (prev) {
-            var arr = prev.slice()
-            var insertAt = Math.min(8, arr.length)
-            arr.splice(insertAt, 0, clusterCard)
-            return arr
+    fetches.push(
+      fetch('/api/discover/clusters')
+        .then(function (res) { return res.ok ? res.json() : null })
+        .then(function (data) {
+          if (data && data.clusters && data.clusters.length > 0) {
+            var clusterCard: ClusterCardData = Object.assign({}, data.clusters[0], { item_type: 'cluster' as const })
+            pendingSpecialCards.current.push({ card: clusterCard, position: 8 })
+          }
+        })
+        .catch(function () {})
+    )
+
+    // After all fetches complete, inject all special cards in one batch
+    Promise.all(fetches).then(function () {
+      // Add Research Hub promo
+      var promoCard: PromoCardData = {
+        item_type: 'promo',
+        id: 'promo-research-hub-1',
+        promo_type: 'research_hub',
+      }
+      pendingSpecialCards.current.push({ card: promoCard, position: 14 })
+
+      // Sort by position descending so splices don't shift earlier insert points
+      pendingSpecialCards.current.sort(function (a, b) { return b.position - a.position })
+
+      setItems(function (prev) {
+        var arr = prev.slice()
+        var container = containerRef.current
+        var scrollBefore = container ? container.scrollTop : 0
+        var viewportCard = Math.round(scrollBefore / window.innerHeight)
+
+        // Track how many cards inserted before current view
+        var insertedBefore = 0
+
+        pendingSpecialCards.current.forEach(function (entry) {
+          var insertAt = Math.min(entry.position, arr.length)
+          arr.splice(insertAt, 0, entry.card)
+          if (insertAt <= viewportCard) {
+            insertedBefore++
+          }
+        })
+
+        // If cards were inserted above current position, adjust scroll
+        // to keep the same card in view (done after render via RAF)
+        if (insertedBefore > 0 && container) {
+          var newScroll = scrollBefore + (insertedBefore * window.innerHeight)
+          requestAnimationFrame(function () {
+            container!.scrollTop = newScroll
           })
         }
-      })
-      .catch(function () {})
 
-    // Insert Research Hub promo at position ~15
-    var promoCard: PromoCardData = {
-      item_type: 'promo',
-      id: 'promo-research-hub-1',
-      promo_type: 'research_hub',
-    }
-    setTimeout(function () {
-      setItems(function (prev) {
-        if (prev.length >= 12) {
-          var arr = prev.slice()
-          var insertAt = Math.min(14, arr.length)
-          arr.splice(insertAt, 0, promoCard)
-          return arr
-        }
-        return prev
+        specialCardsInjected.current = true
+        return arr
       })
-    }, 2000) // Slight delay to not interfere with initial load
+    })
   }
 
   // --- Fetch related cards for active item ---
@@ -620,7 +670,7 @@ export default function DiscoverPage() {
       {/* Main vertical scroll container */}
       <div
         ref={containerRef}
-        className="h-screen overflow-y-auto snap-y snap-mandatory overscroll-y-none"
+        className={"h-screen overflow-y-auto snap-y overscroll-y-none" + (snapReady.current ? " snap-mandatory" : " snap-proximity")}
       >
         {items.map(function (item, index) {
           var related = relatedCache[item.id] || []
