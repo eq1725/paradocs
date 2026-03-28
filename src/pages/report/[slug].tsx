@@ -132,6 +132,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const [parentCase, setParentCase] = useState<{ slug: string; title: string } | null>(null)
   const [showAllTags, setShowAllTags] = useState(false)
   const [showRationale, setShowRationale] = useState(false)
+  const [panelsExpanded, setPanelsExpanded] = useState(false)
 
   // Load parent case report when this report belongs to a case group
   useEffect(() => {
@@ -936,6 +937,19 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           </div>
         )}
 
+        {/* Location Intelligence Map — shown early for immediate geographic context */}
+        {report.latitude && report.longitude && (
+          <div data-tour-step="location-map">
+          <LocationMap
+            reportSlug={slug as string}
+            reportTitle={report.title}
+            latitude={report.latitude}
+            longitude={report.longitude}
+            className="mb-8"
+          />
+          </div>
+        )}
+
         {/* === CURATED EDITORIAL MODE: Full body text, TOC, reading experience === */}
         {isCurated && (
           <>
@@ -1136,23 +1150,18 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           </div>
         )}
 
-        {/* Location Intelligence Map */}
-        {report.latitude && report.longitude && (
-          <div data-tour-step="location-map">
-          <LocationMap
+        {/* Environmental Context & Academic Data — on mobile only (desktop shows in sidebar) */}
+        <div className="lg:hidden grid sm:grid-cols-2 gap-4 mb-6 sm:mb-8" data-tour-step="environmental-mobile">
+          <EnvironmentalContext
             reportSlug={slug as string}
-            reportTitle={report.title}
-            latitude={report.latitude}
-            longitude={report.longitude}
-            className="mb-8"
+            isExpanded={panelsExpanded}
+            onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
           />
-          </div>
-        )}
-
-        {/* Environmental Context & Academic Data - Side by Side on larger screens */}
-        <div className="grid md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8" data-tour-step="environmental">
-          <EnvironmentalContext reportSlug={slug as string} />
-          <AcademicObservationPanel reportSlug={slug as string} />
+          <AcademicObservationPanel
+            reportSlug={slug as string}
+            isExpanded={panelsExpanded}
+            onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
+          />
         </div>
 
         {/* Did You Know? Connection Cards — py-1 provides space for hover:scale effect */}
@@ -1280,6 +1289,20 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               'lg:sticky lg:top-20 space-y-6',
               sidebarOpen ? 'block' : 'hidden lg:block'
             )}>
+              {/* Environmental Context & Research Data — desktop sidebar placement */}
+              <div className="hidden lg:block space-y-4" data-tour-step="environmental">
+                <EnvironmentalContext
+                  reportSlug={slug as string}
+                  isExpanded={panelsExpanded}
+                  onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
+                />
+                <AcademicObservationPanel
+                  reportSlug={slug as string}
+                  isExpanded={panelsExpanded}
+                  onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
+                />
+              </div>
+
               <RelatedReports
                 reportId={report.id}
                 category={report.category}

@@ -354,12 +354,8 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
 
                 {(expandedSections as any).credibility && (
                   <div className="mt-3 pb-1 space-y-3">
-                    {assessment.credibility_reasoning && (
-                      React.createElement(CredibilityReasoningText, {
-                        text: assessment.credibility_reasoning,
-                        score: credScore
-                      })
-                    )}
+                    {/* Credibility reasoning paragraph removed — shown in Credibility Rationale
+                        section below the info grid to avoid duplication. Bullets only here. */}
                     {assessment.credibility_factors && assessment.credibility_factors.length > 0 && (
                       <div className="space-y-2">
                         {assessment.credibility_factors.map(function(factor, i) {

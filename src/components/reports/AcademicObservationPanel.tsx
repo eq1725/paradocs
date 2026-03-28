@@ -102,13 +102,20 @@ interface AcademicData {
 interface Props {
   reportSlug: string
   className?: string
+  /** Controlled expand state — when provided, component uses this instead of internal state */
+  isExpanded?: boolean
+  /** Callback when user toggles expand — required when isExpanded is provided */
+  onToggleExpand?: () => void
 }
 
-export default function AcademicObservationPanel({ reportSlug, className }: Props) {
+export default function AcademicObservationPanel({ reportSlug, className, isExpanded, onToggleExpand }: Props) {
   const [data, setData] = useState<AcademicData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState(false)
+  const [internalExpanded, setInternalExpanded] = useState(false)
+
+  // Support both controlled and uncontrolled modes
+  const expanded = isExpanded !== undefined ? isExpanded : internalExpanded
   const [copied, setCopied] = useState(false)
   const { canAccess, tierName } = useSubscription()
 
@@ -241,7 +248,7 @@ export default function AcademicObservationPanel({ reportSlug, className }: Prop
             )}
           </div>
           <button
-            onClick={() => setExpanded(!expanded)}
+            onClick={() => { if (onToggleExpand) { onToggleExpand() } else { setInternalExpanded(prev => !prev) } }}
             className="text-gray-400 hover:text-white transition-colors"
           >
             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -443,7 +450,7 @@ export default function AcademicObservationPanel({ reportSlug, className }: Prop
       {!expanded && (
         <div className="px-4 pb-3 pt-2">
           <button
-            onClick={() => setExpanded(true)}
+            onClick={() => { if (onToggleExpand) { onToggleExpand() } else { setInternalExpanded(true) } }}
             className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
           >
             {canExport

@@ -51,13 +51,20 @@ interface EnvironmentData {
 interface Props {
   reportSlug: string
   className?: string
+  /** Controlled expand state — when provided, component uses this instead of internal state */
+  isExpanded?: boolean
+  /** Callback when user toggles expand — required when isExpanded is provided */
+  onToggleExpand?: () => void
 }
 
-export default function EnvironmentalContext({ reportSlug, className }: Props) {
+export default function EnvironmentalContext({ reportSlug, className, isExpanded, onToggleExpand }: Props) {
   const [data, setData] = useState<EnvironmentData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState(false)
+  const [internalExpanded, setInternalExpanded] = useState(false)
+
+  // Support both controlled and uncontrolled modes
+  const expanded = isExpanded !== undefined ? isExpanded : internalExpanded
 
   useEffect(() => {
     fetchEnvironmentData()
@@ -143,7 +150,7 @@ export default function EnvironmentalContext({ reportSlug, className }: Props) {
             <h4 className="text-sm font-medium text-white">Environmental Context</h4>
           </div>
           <button
-            onClick={() => setExpanded(!expanded)}
+            onClick={() => { if (onToggleExpand) { onToggleExpand() } else { setInternalExpanded(prev => !prev) } }}
             className="text-gray-400 hover:text-white transition-colors"
           >
             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -303,7 +310,7 @@ export default function EnvironmentalContext({ reportSlug, className }: Props) {
       {!expanded && relevantNotes.length > 0 && (
         <div className="px-4 pb-3 pt-1">
           <button
-            onClick={() => setExpanded(true)}
+            onClick={() => { if (onToggleExpand) { onToggleExpand() } else { setInternalExpanded(true) } }}
             className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
           >
             {relevantNotes.length} analysis note{relevantNotes.length !== 1 ? 's' : ''} available
