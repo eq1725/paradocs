@@ -1,8 +1,8 @@
 # HANDOFF_EXPLORE.md — Explore & Discovery Session
 
-**Last updated:** March 25, 2026
+**Last updated:** March 28, 2026
 **Session:** Explore & Discovery (Session 2)
-**Status:** Active — Phase 3: Algorithmic feed with behavioral signals, scored ranking, cold start onboarding, session context, new card types (Clustering, On This Date, Promo), depth gating, admin metrics
+**Status:** Active — Phase 3.5: Card content overhaul for index model + feed hook generation at scale
 
 ---
 
@@ -324,7 +324,10 @@ Gate copy rules: Always reference specific report (category, location), include 
 | `src/components/discover/OnThisDateCard.tsx` | **NEW** (Phase 3) — On This Date card component |
 | `src/components/discover/CaseViewGate.tsx` | **NEW** (Phase 3) — Full-page gate screen |
 | `src/components/discover/ResearchHubPromo.tsx` | **NEW** (Phase 3) — Research Hub promo card |
-| `src/components/discover/DiscoverCards.tsx` | **UNCHANGED** (Phase 3) — PhenomenonCard, TextReportCard, MediaReportCard |
+| `src/components/discover/DiscoverCards.tsx` | **MODIFIED** (Phase 3.5) — Killed quote-style blockquote fallback, unified to bold editorial voice. `'quote'` mood → `'dossier'` (case-file grid, corner markers, ▣ watermark). PhenomenonCard now prefers `feed_hook` over `ai_summary`. Removed `isHook` branching from TextReportCard and MediaReportCard. |
+| `src/components/homepage/DiscoverPreview.tsx` | **MODIFIED** (Phase 3.5) — `PullQuoteCard` → `DossierCard` (case-file grid, no quote marks, no italic/serif). `isQuote` → `hasHook` throughout. Removed `CATEGORY_QUOTE_COLORS`. All card text in bold editorial voice via `feed_hook`. |
+| `src/pages/api/admin/ai/generate-phenomena-hooks.ts` | **NEW** (Phase 3.5) — Admin batch endpoint for phenomena feed hook generation via Claude Haiku. Category-specific documentary-trailer prompting. Supports batch_missing/single/stats actions + offset parameter for parallel processing. |
+| `src/lib/services/feed-hook.service.ts` | **MODIFIED** (Phase 3.5) — System prompt rewritten for two-line format (25-50 words). Category tones sharpened. Validation bounds tightened. |
 | `src/pages/discover.tsx` | **REWRITTEN** (Phase 3) — Adds event tracking, onboarding, session context, new card types, gating |
 | `src/styles/globals.css` | **MODIFIED** — Added `@keyframes swipe-breathe` for SwipeHint breathing animation |
 
@@ -343,12 +346,13 @@ Gate copy rules: Always reference specific report (category, location), include 
 - ~~Phase 2: Mixed content feed~~ ✅ (March 21)
 - ~~Phase 2.5: 2D horizontal swipe-through~~ ✅ (March 22)
 - ~~Phase 3: Algorithmic feed~~ ✅ (March 25) — scored ranking, behavioral signals, onboarding, new card types, gating
-- **Run migration `20260324_feed_events.sql`** in Supabase dashboard — creates feed_events, feed_config, category_engagement, user_usage tables
-- **Run migration `20260321_feed_hook.sql`** — feed_hook column on reports (from Session 10, may not have been run yet)
-- **Create `refresh_category_engagement` RPC** in Supabase — function that does `REFRESH MATERIALIZED VIEW CONCURRENTLY category_engagement`
-- **Set up Vercel cron** for `/api/cron/refresh-engagement` (hourly)
+- ~~Phase 3.5: Card content overhaul~~ ✅ (March 28) — index model compliance, editorial voice, hook generation at scale
+- ~~Run migration `20260324_feed_events.sql`~~ ✅ (March 25) — feed_events, feed_config, category_engagement, user_usage tables
+- ~~Phenomena feed_hook column~~ ✅ (March 28) — `ALTER TABLE phenomena ADD COLUMN feed_hook text` run in Supabase
+- ~~Homepage "Eyewitness accounts" cards~~ ✅ (March 28) — PullQuoteCard → DossierCard, quote styling killed
+- ~~Feed hooks for all content~~ ✅ (March 28) — 29/29 reports (100%), 4,727/4,743 phenomena (100%)
+- **Set up Vercel cron** for `/api/cron/refresh-engagement` (hourly) — engagement materialized view refresh
 - **Test full flow on live site** — onboarding → feed → horizontal swipe → gating → promo cards
-- **Homepage "Stories from the unknown" cards** — Session 7's `DiscoverPreview` component also needs compelling visual treatment
 
 ### Short-term
 - **Tune ranking weights** — Monitor admin metrics dashboard, adjust engagement/recency/affinity/explore weights in feed_config
@@ -368,7 +372,8 @@ Gate copy rules: Always reference specific report (category, location), include 
 ### Content dependencies
 - Mass ingestion (Session 10) provides volume for clustering cards and engagement data
 - `event_date_precision` quality needed before On This Date can include reports (currently phenomena only)
-- Feed hooks (Claude Haiku) need to be generated for all reports — run `generate-hooks` API after ingestion
+- Feed hooks auto-generated at ingestion time (report pipeline) — phenomena hooks need batch run via `/api/admin/ai/generate-phenomena-hooks` after new phenomena are added
+- ~~Feed hooks (Claude Haiku) need to be generated for all reports~~ ✅ 100% coverage achieved (March 28)
 
 ---
 
@@ -402,4 +407,5 @@ Gate copy rules: Always reference specific report (category, location), include 
 | 2026-03-21 | **Stories feed now mixed content (feed-v2):** `/api/discover/feed-v2` serves both phenomena and reports. Old `/api/discover/feed` still exists for backward compat but is no longer consumed by `/discover`. | All sessions touching /discover, Admin (analytics) |
 | 2026-03-21 | **Three card templates in DiscoverCards.tsx:** PhenomenonCard, TextReportCard, MediaReportCard. Any session modifying the Stories experience should use these components. | Mobile Design, Foundation |
 | 2026-03-22 | **Phase 2.5: 2D horizontal swipe-through replaces Related Tray.** Framer Motion `RelatedTray` removed. New `/api/discover/related-cards` endpoint returns full FeedItemV2-shaped cards (category + phenomenon_type matching, not RAG). `DiscoverCards.tsx` no longer imports framer-motion. `discover.tsx` uses native CSS snap-x for horizontal navigation. SwipeHint animation uses custom keyframe in globals.css. | Foundation (globals.css modified, framer-motion removed from DiscoverCards), All sessions (Stories feed now has 2D navigation) |
+| 2026-03-28 | **Phase 3.5: Card content overhaul for index model.** All quote-style rendering killed across Discover feed cards AND homepage Eyewitness accounts preview. `PullQuoteCard` → `DossierCard` on homepage (case-file grid, corner markers, no quote marks). `'quote'` mood → `'dossier'` mood on feed cards. `isQuote` → `hasHook` throughout. All card text unified to bold editorial voice via `feed_hook`. `CATEGORY_QUOTE_COLORS` removed. Phenomena `feed_hook` column added + admin generation endpoint deployed. Feed hooks regenerated for all 29 reports (new two-line prompt) and all 4,727 phenomena (100% coverage). Feed-v2 scoring: +3 quality bonus for items with hooks, quality cap raised to 10. Report hook prompt rewritten: two-line format (25-50 words), category-specific tones (cockpit-clinical, field-biologist, etc). Phenomena hook prompt: matching two-line format with phenomenon-specific data points. |
 | 2026-03-25 | **Phase 3: Algorithmic feed fully deployed.** `feed-v2.ts` rewritten with scored ranking (parameterized weights in `feed_config` table). New `feed_events` table collects all behavioral signals. `useFeedEvents` hook tracks impression/dwell/tap/save/share/scroll_depth/swipe_related. `TopicOnboarding` shown on first visit. New card types: ClusteringCard, OnThisDateCard, ResearchHubPromo, CaseViewGate. Session context weights feed 60/40 with long-term affinity. Depth gating: 3 free views/day, gate shows contextual CTA. Admin metrics at `/api/admin/feed-metrics`. | All sessions (feed structure changed), Session 6b (report page scroll_depth + "You might also find" integration), Session 8 (gate CTAs link to pricing), Session 10 (clustering cards need ingestion volume), Session 15 (Ask the Unknown weekly limit) |

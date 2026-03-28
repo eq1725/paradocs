@@ -287,6 +287,22 @@ Expert-reviewed and implemented visual design + engagement improvements for both
 - **~700+ reports** still need hooks generated. Run: `curl -X POST "https://beta.discoverparadocs.com/api/admin/generate-hooks?limit=800" -H "x-admin-api-key: [key]"`
 - **A few hooks have formatting artifacts** (markdown headers, bold markers in ~3-4 hooks) — could be cleaned with SQL.
 
+### Session 2 Continued: Card Content Overhaul for Index Model (March 28, 2026)
+
+Session 2 overhauled all card rendering across the codebase to comply with the index model (Paradocs is an index with attribution — never republishes source text). Changes to homepage `DiscoverPreview.tsx`:
+
+1. **PullQuoteCard → DossierCard**: Giant `"` quotation mark watermark removed. Italic serif text removed. Category-colored quote marks removed. Replaced with case-file grid pattern (subtle 40px grid lines at 2% opacity), geometric corner markers (border-l-2 + border-t-2), matching the Discover feed's dossier mood.
+
+2. **`isQuote` → `hasHook`**: Renamed throughout `extractHook()`, `FeaturedCard`, `DossierCard`, `CompactCard`, `assignFormats()`. The concept is no longer "is this a quote from someone" but "does this item have engagement copy."
+
+3. **`CATEGORY_QUOTE_COLORS` removed**: No longer needed — no quote marks to color.
+
+4. **All card text unified**: Bold, non-italic, `font-medium` text in `text-gray-200`/`text-gray-300`. No italic blockquotes anywhere. `feed_hook` is the primary text source; summary fallback uses same style.
+
+5. **`assignFormats()` updated**: `'pullquote'` format → `'dossier'` format. Selection logic unchanged (prefers reports with hooks for dossier slot).
+
+6. **Feed hooks at 100% coverage**: 29/29 reports regenerated with new two-line prompt. 4,727/4,743 phenomena generated via new `/api/admin/ai/generate-phenomena-hooks` endpoint.
+
 **Scaling Strategy for feed_hook Pipeline (future ingestion session):**
 
 The `feed_hook` field is the key to making millions of text-only reports visually compelling at scale. Current approach:

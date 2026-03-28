@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** March 27, 2026
+**Last updated:** March 28, 2026
 **Project:** beta.discoverparadocs.com
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -46,9 +46,13 @@ Paradocs is an **index with attribution**, not a republisher. This mirrors Googl
 - **AI labeling rules:** The narrative analysis is NOT labeled as AI-generated — it's Paradocs's editorial voice. The assessment sections (credibility, mundane explanations, content classification, related phenomena) are NOT labeled as AI — they're presented as Paradocs Analysis, our editorial product. No "AI-Assisted" labels anywhere.
 - Length proportionality: source under 50 words → 1 paragraph. 50-200 words → 2 paragraphs. 200+ words → 3-4 paragraphs. Never exceed source length.
 
-**Feed card content:**
+**Feed card content (updated March 28):**
 - Feed cards show: category badge, location, date, credibility indicator, `feed_hook` (AI-generated, not labeled), source attribution.
-- No raw source text on cards. The `feed_hook` is Paradocs's editorial voice.
+- No raw source text on cards. The `feed_hook` is Paradocs's editorial voice — two-line format (25-50 words): line 1 = hardest-hitting fact/stat, line 2 = unresolved tension.
+- All quote-style rendering removed (italic blockquotes, serif quote marks, `"` watermarks). Cards use bold editorial voice only.
+- Visual moods: `dossier` (case-file grid, corner markers), `cinematic`, `minimal`, `atmospheric` — no `quote` mood.
+- 100% hook coverage: 29/29 reports, 4,727/4,743 phenomena have `feed_hook` generated via Claude Haiku.
+- Homepage "Eyewitness accounts" preview uses same editorial voice — `DossierCard` replaced `PullQuoteCard`.
 
 ### Algorithmic Feed Strategy (March 24, 2026)
 
@@ -94,7 +98,7 @@ Paradocs is an **index with attribution**, not a republisher. This mirrors Googl
 - **~900 test reports + ~2M hidden Reddit reports + 40 AI-generated filler:** ✅ ALL DELETED (March 25 2026).
 - **1 curated Roswell showcase report** remains in DB. Roswell witness cluster (13) and Rendlesham cluster (6) need re-seeding from existing seed scripts (see Action Item in Launch Path step 1).
 - **Ingestion pipeline:** Step 3 in progress — initial 20-report quality review ingestion underway.
-- **4,792 phenomena entries:** Basic taxonomy across 11 categories. Only cryptids (208) fully enriched. Sufficient for report classification.
+- **4,743 phenomena entries:** Basic taxonomy across 11 categories. Only cryptids (208) fully enriched. Sufficient for report classification. **4,727 have AI-generated feed_hooks** (100% coverage, March 28).
 
 ### Conversion Strategy (Depth Gate)
 
@@ -145,13 +149,13 @@ Each major feature area has a dedicated Claude session with its own deep context
 | # | Session Name | Scope | HANDOFF File | Status |
 |---|-------------|-------|-------------|--------|
 | 1 | **Encyclopedia Enrichment** | Phenomena content, AI fields, QA/QC, triage | `HANDOFF.md` (existing) | Active — Cryptid category 100% complete |
-| 2 | **Explore & Discovery** | Algorithmic feed (scored ranking, behavioral signals, cold start), depth gating, new card types, personalization | `HANDOFF_EXPLORE.md` | Active — **Phase 3 DEPLOYED (March 25):** Algorithmic feed with scored ranking (parameterized weights), behavioral signal collection (impression/dwell/tap/save/share), cold start onboarding ("pick 3 topics"), session context weighting (60/40 session vs long-term), new card types (ClusteringCard, OnThisDateCard, ResearchHubPromo, CaseViewGate), depth gating (3 free views/day), admin metrics dashboard. Phase 2.5 (2D swipe) deployed March 22. **Next: Run migration, tune weights, wire search/Ask gating.** |
+| 2 | **Explore & Discovery** | Algorithmic feed (scored ranking, behavioral signals, cold start), depth gating, new card types, personalization | `HANDOFF_EXPLORE.md` | Active — **Phase 3.5 DEPLOYED (March 28):** Card content overhaul for index model — all quote styling killed, editorial voice unified, 100% feed hook coverage (29 reports + 4,727 phenomena). Phase 3 algorithmic feed (March 25). Phase 2.5 2D swipe (March 22). **Next: Set up Vercel cron for engagement refresh, tune weights, wire search/Ask gating.** |
 | 3 | **Map & Geospatial** | MapLibre GL map, PostGIS queries, Supercluster, heatmap, bottom sheet | `HANDOFF_MAP.md` | Active — Phase 1 & 2 COMPLETE, Phase 3 partial. Deep-link URL params added (lat/lng/zoom) |
 | 4 | **Insights & Pattern Analysis** | Pattern detection algorithms, AI narratives, skeptic mode, trending, methodology | `HANDOFF_INSIGHTS.md` | Not started |
 | 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
 | 6a | **Report Experience — Curated Content** | Handcrafted case files, editorial enrichment, Featured Investigations, curated media, book recommendations | `HANDOFF_REPORTS.md` | Active — 20 reports across 2 case clusters (Roswell 14 + Rendlesham 6), credibility rationales, badge redesign, homepage discovery row |
 | 6b | **Report Experience — Ingestion & Scale** | Reports from mass ingestion pipeline, quality templates, automated enrichment, connection generation at scale | `HANDOFF_REPORTS_INGESTION.md` | Active — Report detail page redesign COMPLETE (March 25). Index model enforced: ParadocsAnalysisBox, SourceAttribution, ResearchHubPreview. Curated reports unaffected. Behavioral event stubs wired for Session 2. Awaiting Session 10 data to populate. |
-| 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO, color system, PWA | `HANDOFF_SEARCH_NAV.md` | COMPLETE — Homepage: 4 optimized sections (Hero, Four Pillars, Eyewitness Accounts, Get Started CTA). DiscoverPreview: 3 card formats (featured/pull-quote/compact), smart selection from pool of 20, quality-scored hook extraction with feed_hook integration + vivid language scoring, category color accents. 198 AI feed_hooks generated via `/api/admin/generate-hooks`. PWA + color (#9000F0) + fulltext search + A/B testing all shipped. |
+| 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO, color system, PWA | `HANDOFF_SEARCH_NAV.md` | COMPLETE — Homepage: 4 optimized sections (Hero, Four Pillars, Eyewitness Accounts, Get Started CTA). DiscoverPreview: 3 card formats (featured/dossier/compact), smart selection from pool of 20, quality-scored hook extraction with feed_hook integration + vivid language scoring. **March 28:** PullQuoteCard → DossierCard (case-file grid, no quote marks), `isQuote` → `hasHook`, all card text unified to bold editorial voice. PWA + color (#9000F0) + fulltext search + A/B testing all shipped. |
 | 8 | **Subscription & Monetization** | Stripe checkout, paywall, tier system, billing portal, cancellation | `HANDOFF_SUBSCRIPTION.md` | Not started |
 | 9 | **Email & Engagement** | Weekly digests, drip campaigns, smart alerts, winback, notifications | `HANDOFF_EMAIL.md` | Not started |
 | 10 | **Data Ingestion & Pipeline** | Source adapters, quality filters, dedup, bulk import, feed hooks, Paradocs Analysis, embedding integration | `HANDOFF_INGESTION.md` | Active — **March 27:** Full reset + re-ingest complete. 19 reports live (1 curated Roswell + 18 NUFORC, all approved). Smart re-evaluation tuned (witness-source boost). Media compliance policy integrated. Reset/reingest scripts working. **Next:** Investigate 18/20 filter gap → Scale to 50/500/2K per source → Test BFRO/Reddit/Wikipedia adapters → Tune quality filters at scale. |
@@ -213,7 +217,9 @@ Each major feature area has a dedicated Claude session with its own deep context
 - `src/pages/api/admin/feed-metrics.ts` — **NEW Phase 3** Admin metrics dashboard
 - `supabase/migrations/20260324_feed_events.sql` — **NEW Phase 3** Migration: feed_events, feed_config, category_engagement, user_usage
 - `src/pages/api/discover/feed.ts` — Legacy phenomena-only feed API (preserved for backward compat)
-- `src/components/discover/DiscoverCards.tsx` — **NEW** Three card templates: PhenomenonCard, TextReportCard, MediaReportCard
+- `src/components/discover/DiscoverCards.tsx` — **MODIFIED** Three card templates: PhenomenonCard, TextReportCard, MediaReportCard. Phase 3.5: quote styling killed, `'dossier'` mood, unified editorial voice, phenomena `feed_hook` support.
+- `src/components/homepage/DiscoverPreview.tsx` — **MODIFIED** (Phase 3.5) Homepage "Eyewitness accounts" preview. PullQuoteCard → DossierCard, `isQuote` → `hasHook`.
+- `src/pages/api/admin/ai/generate-phenomena-hooks.ts` — **NEW** (Phase 3.5) Batch phenomena hook generation via Claude Haiku with offset for parallel processing.
 - `src/pages/api/feed/personalized.ts` — Explore feed API (encyclopedia spotlight, trending, category highlights)
 - `src/lib/services/personalization.service.ts` — User preference engine
 - `src/components/CategoryFilter.tsx`, `SubcategoryFilter.tsx`, `PhenomenaFilter.tsx`
@@ -222,25 +228,27 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Database tables:** `reports`, `phenomena`, `saved_reports`, `user_preferences`, `feed_events` (Phase 3), `feed_config` (Phase 3), `user_usage` (Phase 3), `category_engagement` materialized view (Phase 3)
 
-**Current state (March 25, 2026):**
+**Current state (March 28, 2026):**
 - **Anonymous feed COMPLETE:** Rich 5-7 section editorial feed for all users (Encyclopedia Spotlight, Trending, Category Highlights, Recently Added). No empty states for logged-out users.
 - **Soft-wall signup COMPLETE:** 3 contextual touchpoints (bookmark, in-feed card, bottom CTA). Research-backed: gate depth not breadth.
 - **Mobile UX optimized (March 16):** Layout.tsx header fixed (logo nowrap, Submit demoted, Sign In pill button). Explore page compacted (inline title+toggle, larger encyclopedia cards at 75vw, compressed Pattern Insights banner). Ask the Unknown FAB repositioned above bottom nav with AI presence animations (rotating aurora border, breathing glow, sparkle micro-animation). MobileBottomTabs enlarged (Stories FAB 64px, nav icons 24px).
 - **Phase 2 mixed content feed (March 21):** Stories feed now serves both phenomena AND reports via `/api/discover/feed-v2`. Three card templates: PhenomenonCard (encyclopedia entries), TextReportCard (first-person accounts with generative visual variety), MediaReportCard (reports with photo/video evidence from `report_media` table). Completion milestone toasts at 25/50/75%. Content type pill indicator in header.
 - **Phase 2.5: 2D horizontal swipe-through (March 22):** Swiping left on any Stories card reveals full-screen related cards using the same card templates. New `/api/discover/related-cards` returns full FeedItemV2-shaped data via category + phenomenon_type matching. `FeedRow` component wraps each main card + related cards in CSS snap-x container. Engagement-optimized SwipeHint (three-phase slide-in, content preview, breathing glow). Prefetch cascade bug fixed (initialSettled guard). Similarity display "4700% match" double-multiplication fixed.
 - **Phase 3: Algorithmic feed architecture (March 25):** Full behavioral signal collection (`feed_events` table + `useFeedEvents` hook with batch buffering + sendBeacon on unload). V1 scored ranking in `feed-v2.ts` (`base_engagement * W_engagement + recency * W_recency + affinity * W_affinity + explore * W_explore`, weights tuneable via `feed_config` table). Cold start onboarding ("What draws you in?" — pick 3+ topics from 7 categories). Session context weighting (60% session / 40% long-term affinity via `useSessionContext`). Depth gating (3 free case views/day, anonymous via localStorage, auth via `user_usage` table). New card types: ClusteringCard (geographic clusters + temporal bursts, purple gradient), OnThisDateCard (historical matches, amber gradient), ResearchHubPromo (blurred preview + CTA), CaseViewGate (blurred Paradocs Analysis + contextual copy). Admin metrics dashboard at `/api/admin/feed-metrics`. `category_engagement` materialized view for 30-day rolling engagement rates. Build verified clean (18.3kB /discover).
+- **Phase 3.5: Card content overhaul for index model (March 28):** All quote-style rendering killed across entire codebase — Paradocs is an index with attribution, never republishing source text. `'quote'` mood replaced with `'dossier'` (case-file grid pattern, geometric ▣ watermark, corner markers). Italic blockquote fallback removed from TextReportCard and MediaReportCard — all card text uses single bold editorial voice via `feed_hook`. PhenomenonCard now prefers `feed_hook` over `ai_summary`. Feed-v2 scoring updated: +3 quality bonus for items with hooks, quality cap raised to 10, photo/video bonus rebalanced to +2. Report hook prompt rewritten for punchier two-line format (25-50 words). New `generate-phenomena-hooks` admin endpoint for batch phenomena hook generation with offset parameter for parallel processing. Feed hooks generated: 29/29 reports (100%), 4,727/4,743 phenomena (100%). Homepage "Eyewitness accounts" section overhauled: `PullQuoteCard` → `DossierCard`, `isQuote` → `hasHook`, `CATEGORY_QUOTE_COLORS` map removed.
 
 **What needs work:**
-- **Immediate:** Run `20260324_feed_events.sql` migration, create `refresh_category_engagement` RPC, set up Vercel cron for hourly engagement refresh
+- **Immediate:** ~~Run `20260324_feed_events.sql` migration~~ ✅, ~~create `refresh_category_engagement` RPC~~ ✅, set up Vercel cron for hourly engagement refresh
 - **Short-term:** Tune ranking weights via admin metrics dashboard, wire search gating (basic keyword free / AI search at Core), wire Ask the Unknown weekly limit (coordinate with Session 15)
 - **Medium-term:** Per-user ML model (V1 scored query carries load for now), A/B testing framework for feed composition, emotional tone tagging at ingestion
 - Save functionality for logged-in users (bookmark currently only gates anonymous)
 - "Connection cards" / "Did You Know?" cross-report relationships (Sprint 2, not built)
 - Smart match alerts (Sprint 2, not built)
 - ~~Report media display~~ ✅ MediaReportCard now uses actual report media from `report_media` table
-- ~~Homepage "Stories from the unknown" cards~~ ✅ DiscoverPreview rewritten (March 22)
+- ~~Homepage "Stories from the unknown" cards~~ ✅ DiscoverPreview rewritten (March 22), overhauled for index model (March 28)
 - ~~Feed personalization~~ ✅ Scored ranking with behavioral signals + cold start onboarding (March 25)
 - ~~Free tier content limits~~ ✅ Depth gating: 3 free case views/day with contextual CaseViewGate (March 25)
+- ~~Card content index model compliance~~ ✅ Quote styling killed, editorial voice unified, 100% hook coverage (March 28)
 
 **Touches other sessions:** Encyclopedia (content quality affects feed + spotlight), Insights (trending patterns surface in feed), Dashboard (personalization preferences), Search (shared filter components), Foundation (Layout.tsx + globals.css modified), Mobile Design (MobileBottomTabs modified)
 
@@ -563,7 +571,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **March 21 session — homepage card redesign:**
 - `FourPillars.tsx`: taller cards, full descriptions, white h2 section header
-- `DiscoverPreview.tsx`: 3-format card system (featured/pull-quote/compact), smart report selection (10 fetched, best 3 chosen), vivid hook extraction, category color accents, "Stories from the unknown" header, "Explore stories" CTA
+- `DiscoverPreview.tsx`: 3-format card system (featured/dossier/compact — was featured/pull-quote/compact, updated March 28 for index model), smart report selection (20 fetched, best 3 chosen), vivid hook extraction, category color accents, "Eyewitness accounts" header, "Explore stories" CTA
 
 **Key files added/modified (March 21):**
 - `src/components/homepage/FourPillars.tsx` — Taller cards, richer descriptions, h2 header
@@ -655,7 +663,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 **Database tables:** `reports` (with new feed_hook, feed_hook_generated_at, needs_reingestion columns), `ingestion_logs`, `ingestion_jobs`, `data_sources`
 
 **Current state (March 27, 2026):**
-- **Feed hook service DEPLOYED:** Claude Haiku generates 2-3 sentence curiosity hooks per report. Batch endpoint supports single/all_missing/all/stats actions. Rate-limited with model fallback chain.
+- **Feed hook service DEPLOYED (prompt upgraded March 28):** Claude Haiku generates two-line (25-50 word) scroll-stopping hooks per report. Line 1 = hardest-hitting fact/stat, Line 2 = unresolved tension. Category-specific tones (cockpit-clinical for UFOs, field-biologist for cryptids, etc). Batch endpoint supports single/all_missing/all/stats actions. Rate-limited with model fallback chain. All 29 current reports regenerated with new prompt.
 - **Ingestion engine UPGRADED:** Post-insert pipeline now runs: quality filter → dedup → title improvement → slug → phenomena linking → **feed_hook generation** → **Paradocs Analysis** → **vector embedding**. Non-blocking — failures log and continue.
 - **12 source adapters:** Original 8 (NUFORC, BFRO, Reddit, NDERF, IANDS, Ghosts of America, Shadowlands, Wikipedia) + 4 new (reddit-v2, youtube, news, erowid)
 - **NUFORC adapter fully upgraded (March 27):** Extracts structured metadata (speed, size, direction, elevation, distance, observers, characteristics, time) into `metadata` JSONB column. Images no longer scraped (link_only policy). All 18 reports have full metadata.
