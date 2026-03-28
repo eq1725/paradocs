@@ -107,24 +107,22 @@ function scoreSentence(sentence: string, index: number): number {
 }
 
 /** Extract the best hook from a report.
- *  Returns { text, isQuote, score } so selection can use the score. */
-function extractHook(report: PreviewReport): { text: string; isQuote: boolean; score: number } {
-  /* Prefer AI-generated feed_hook — but score it for quality instead of flat bonus.
-   * This ensures vivid hooks ("A security patrol chases unexplained lights...")
-   * beat dry/academic ones ("Joe McMoneagle projects four photographs..."). */
+ *  Returns { text, hasHook, score } so selection can use the score. */
+function extractHook(report: PreviewReport): { text: string; hasHook: boolean; score: number } {
+  /* Prefer AI-generated feed_hook — always the primary text */
   if (report.feed_hook) {
     var hookScore = scoreSentence(report.feed_hook, 0) + 10
-    return { text: report.feed_hook, isQuote: true, score: hookScore }
+    return { text: report.feed_hook, hasHook: true, score: hookScore }
   }
 
-  if (!report.summary) return { text: report.title, isQuote: false, score: 0 }
+  if (!report.summary) return { text: report.title, hasHook: false, score: 0 }
 
   /* Split into sentences and score for vividness */
   var sentences = report.summary
     .split(/(?<=[.!?])\s+/)
     .filter(function(s) { return s.length > 20 && s.length < 200 })
 
-  if (sentences.length === 0) return { text: report.title, isQuote: false, score: 0 }
+  if (sentences.length === 0) return { text: report.title, hasHook: false, score: 0 }
 
   var best = 0
   var bestScore = -999
@@ -136,12 +134,12 @@ function extractHook(report: PreviewReport): { text: string; isQuote: boolean; s
     }
   }
 
-  /* If best sentence doesn\u2019t meet quality threshold, fall back to title */
+  /* If best sentence doesn't meet quality threshold, fall back to title */
   if (bestScore < HOOK_QUALITY_THRESHOLD) {
-    return { text: report.title, isQuote: false, score: bestScore }
+    return { text: report.title, hasHook: false, score: bestScore }
   }
 
-  return { text: sentences[best], isQuote: true, score: bestScore }
+  return { text: sentences[best], hasHook: true, score: bestScore }
 }
 
 /* ── Category color systems ──────────────────────────── */
@@ -204,21 +202,6 @@ var CATEGORY_ACCENTS: Record<string, string> = {
   combination: 'bg-[radial-gradient(ellipse_at_30%_70%,rgba(107,114,128,0.06),transparent_60%)]'
 }
 
-/** Category-specific quote mark colors */
-var CATEGORY_QUOTE_COLORS: Record<string, string> = {
-  ufos_aliens: 'text-green-600',
-  cryptids: 'text-amber-600',
-  ghosts_hauntings: 'text-purple-600',
-  psychic_phenomena: 'text-blue-600',
-  consciousness_practices: 'text-indigo-600',
-  psychological_experiences: 'text-pink-600',
-  biological_factors: 'text-emerald-600',
-  perception_sensory: 'text-cyan-600',
-  religion_mythology: 'text-yellow-600',
-  esoteric_practices: 'text-violet-600',
-  combination: 'text-gray-600'
-}
-
 function getCategoryBorderColor(category: string): string {
   return CATEGORY_BORDER_COLORS[category] || 'border-primary-500'
 }
@@ -270,9 +253,9 @@ function FeaturedCard({ report }: { report: PreviewReport }) {
             {report.title}
           </h3>
 
-          {/* Only show hook text when it\u2019s a real quote \u2014 avoids duplicate title display */}
-          {hookResult.isQuote && (
-            <p className="text-sm sm:text-base text-gray-400 leading-relaxed line-clamp-3">
+          {/* Hook text — Paradocs editorial voice */}
+          {hookResult.hasHook && (
+            <p className="text-sm sm:text-base text-gray-300 leading-relaxed line-clamp-3 font-medium">
               {hookResult.text}
             </p>
           )}
@@ -295,16 +278,15 @@ function FeaturedCard({ report }: { report: PreviewReport }) {
   )
 }
 
-/* ── Format B: Pull-Quote Card (atmospheric, text-forward) ─ */
+/* ── Format B: Dossier Card (investigative, text-forward) ─ */
 
-function PullQuoteCard({ report }: { report: PreviewReport }) {
+function DossierCard({ report }: { report: PreviewReport }) {
   var config = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
   var hookResult = extractHook(report)
   var borderColor = getCategoryBorderColor(report.category)
   var glowColor = getCategoryGlowColor(report.category)
   var cardGradient = CATEGORY_CARD_GRADIENTS[report.category] || CATEGORY_CARD_GRADIENTS.combination
   var accent = CATEGORY_ACCENTS[report.category] || ''
-  var quoteColor = CATEGORY_QUOTE_COLORS[report.category] || 'text-gray-600'
 
   return (
     <Link href={'/report/' + report.slug} className="block group">
@@ -318,22 +300,21 @@ function PullQuoteCard({ report }: { report: PreviewReport }) {
         <div className={classNames('absolute inset-0 bg-gradient-to-t', cardGradient)} />
         <div className={classNames('absolute inset-0', accent)} />
 
-        {/* Decorative oversized quote watermark */}
-        <div className="absolute top-2 left-4 opacity-[0.06] pointer-events-none select-none">
-          <span className={classNames('text-[8rem] sm:text-[10rem] leading-none font-serif', quoteColor)}>{'\u201C'}</span>
+        {/* Case-file grid pattern */}
+        <div className="absolute inset-0 opacity-[0.02] pointer-events-none" style={{backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '40px 40px'}} />
+
+        {/* Corner marker */}
+        <div className="absolute top-3 left-3 opacity-[0.06] pointer-events-none">
+          <div className="w-6 h-6 border-l-2 border-t-2 border-white/40" />
         </div>
 
-        {/* Large quote-style hook */}
+        {/* Hook text — Paradocs editorial voice */}
         <div className="relative z-10 flex-grow">
-          {hookResult.isQuote ? (
-            <>
-              <span className={classNames('text-3xl font-serif leading-none block mb-2', quoteColor)}>{'\u201C'}</span>
-              <p className="text-sm sm:text-base text-gray-200 leading-relaxed line-clamp-4 italic font-light">
-                {hookResult.text}
-              </p>
-            </>
+          {hookResult.hasHook ? (
+            <p className="text-sm sm:text-base text-gray-200 leading-relaxed line-clamp-4 font-medium mt-2">
+              {hookResult.text}
+            </p>
           ) : (
-            /* Title-only fallback: display title dramatically instead of bad quote */
             <p className="text-base sm:text-lg text-white leading-snug line-clamp-4 font-semibold mt-4">
               {hookResult.text}
             </p>
@@ -348,12 +329,12 @@ function PullQuoteCard({ report }: { report: PreviewReport }) {
               {config.label}
             </span>
           </div>
-          {hookResult.isQuote && (
+          {hookResult.hasHook && (
             <h3 className="text-sm font-semibold text-white group-hover:text-primary-400 transition-colors leading-snug line-clamp-2">
               {report.title}
             </h3>
           )}
-          {!hookResult.isQuote && report.location_name && (
+          {!hookResult.hasHook && report.location_name && (
             <div className="flex items-center gap-1.5 text-xs text-gray-500">
               <MapPin className="w-3 h-3" />
               <span>{report.location_name}</span>
@@ -406,7 +387,7 @@ function CompactCard({ report }: { report: PreviewReport }) {
           </h3>
 
           {/* Hook text \u2014 gives readers a reason to click beyond just the title */}
-          {hookResult.isQuote && (
+          {hookResult.hasHook && (
             <p className="text-xs text-gray-400 leading-relaxed line-clamp-2 mb-2">
               {hookResult.text}
             </p>
@@ -425,9 +406,9 @@ function CompactCard({ report }: { report: PreviewReport }) {
 }
 
 /* ── Smart card format assignment ─────────────────────── */
-/* Now uses hook quality to decide which report gets which slot.
- * Pull-quote slot REQUIRES a report with a real quote (isQuote=true).
- * Featured gets the richest content. Compact gets good metadata. */
+/* Uses hook quality to decide which report gets which slot.
+ * Dossier slot prefers reports with hooks. Featured gets richest content.
+ * Compact gets good metadata. */
 
 function assignFormats(reports: PreviewReport[]): Array<{ report: PreviewReport; format: string }> {
   if (reports.length === 0) return []
@@ -457,22 +438,21 @@ function assignFormats(reports: PreviewReport[]): Array<{ report: PreviewReport;
     used[featuredCandidates[0].report.id] = true
   }
 
-  /* PULL-QUOTE: must have a real quote (isQuote=true), highest hook score wins */
-  var quoteCandidates = withHooks
-    .filter(function(w) { return !used[w.report.id] && w.hook.isQuote })
+  /* DOSSIER: prefers reports with a hook, highest hook score wins */
+  var dossierCandidates = withHooks
+    .filter(function(w) { return !used[w.report.id] && w.hook.hasHook })
     .sort(function(a, b) { return b.hook.score - a.hook.score })
 
-  if (quoteCandidates.length > 0) {
-    assigned.push({ report: quoteCandidates[0].report, format: 'pullquote' })
-    used[quoteCandidates[0].report.id] = true
+  if (dossierCandidates.length > 0) {
+    assigned.push({ report: dossierCandidates[0].report, format: 'dossier' })
+    used[dossierCandidates[0].report.id] = true
   } else {
-    /* No report with a good quote \u2014 pick best remaining for title fallback */
-    var fallbackQuote = withHooks
+    var fallbackDossier = withHooks
       .filter(function(w) { return !used[w.report.id] })
       .sort(function(a, b) { return b.metaScore - a.metaScore })
-    if (fallbackQuote.length > 0) {
-      assigned.push({ report: fallbackQuote[0].report, format: 'pullquote' })
-      used[fallbackQuote[0].report.id] = true
+    if (fallbackDossier.length > 0) {
+      assigned.push({ report: fallbackDossier[0].report, format: 'dossier' })
+      used[fallbackDossier[0].report.id] = true
     }
   }
 
@@ -620,8 +600,8 @@ export default function DiscoverPreview() {
               if (card.format === 'featured') {
                 return <FeaturedCard key={card.report.id} report={card.report} />
               }
-              if (card.format === 'pullquote') {
-                return <PullQuoteCard key={card.report.id} report={card.report} />
+              if (card.format === 'dossier') {
+                return <DossierCard key={card.report.id} report={card.report} />
               }
               return <CompactCard key={card.report.id} report={card.report} />
             })
