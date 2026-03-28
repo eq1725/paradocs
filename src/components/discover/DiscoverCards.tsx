@@ -57,6 +57,7 @@ export interface PhenomenonItem {
   ai_summary: string | null
   ai_description: string | null
   ai_quick_facts: QuickFacts | null
+  feed_hook: string | null
   primary_image_url: string | null
   report_count: number
   primary_regions: string[] | null
@@ -158,7 +159,7 @@ function hashString(str: string): number {
 }
 
 /** Visual treatment moods for text report cards */
-var CARD_MOODS = ['quote', 'cinematic', 'minimal', 'atmospheric'] as const
+var CARD_MOODS = ['dossier', 'cinematic', 'minimal', 'atmospheric'] as const
 type CardMood = typeof CARD_MOODS[number]
 
 /** Gradient angle variations — each has a different visual feel */
@@ -248,7 +249,7 @@ var DEFAULT_ACCENTS = [
 ]
 
 /** Decorative watermark elements for different moods */
-var WATERMARK_CHARS = ['\u201C', '\u2022', '\u25C6', '\u2605'] // ", •, ◆, ★
+var WATERMARK_CHARS = ['\u25A3', '\u2022', '\u25C6', '\u2605'] // ▣, •, ◆, ★
 
 function getCardVariation(reportId: string, category: string) {
   var hash = hashString(reportId)
@@ -408,13 +409,16 @@ export function PhenomenonCard(props: {
           </p>
         )}
 
-        {/* Summary */}
-        {item.ai_summary && (
+        {/* Hook or summary — editorial voice */}
+        {(item.feed_hook || item.ai_summary) && (
           <p className={classNames(
-            'text-sm sm:text-base md:text-lg text-gray-300 max-w-2xl leading-relaxed mb-4 sm:mb-6 line-clamp-3 transition-all duration-500 delay-100',
+            'max-w-2xl leading-relaxed mb-4 sm:mb-6 transition-all duration-500 delay-100',
+            item.feed_hook
+              ? 'text-base sm:text-lg md:text-xl text-gray-200 line-clamp-4 font-medium'
+              : 'text-sm sm:text-base md:text-lg text-gray-300 line-clamp-3',
             props.isActive ? 'opacity-100 translate-y-0' : 'opacity-60 translate-y-2'
           )}>
-            {item.ai_summary}
+            {item.feed_hook || item.ai_summary}
           </p>
         )}
 
@@ -534,7 +538,6 @@ export function TextReportCard(props: {
 
   // Prefer feed_hook (engagement-optimized) over raw summary
   var displayText = item.feed_hook || item.summary || ''
-  var isHook = !!item.feed_hook
 
   return (
     <div
@@ -560,10 +563,19 @@ export function TextReportCard(props: {
       ) : (
         <div className={classNames('absolute inset-0', variation.gradientDir, gradient)}>
           {/* Mood-specific decorative element */}
-          {variation.mood === 'quote' && (
-            <div className="absolute top-16 left-6 sm:left-12 opacity-[0.04]">
-              <span className="text-[16rem] sm:text-[24rem] leading-none select-none font-serif">{variation.watermark}</span>
-            </div>
+          {variation.mood === 'dossier' && (
+            <>
+              {/* Case-file grid pattern */}
+              <div className="absolute inset-0 opacity-[0.02]" style={{backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '40px 40px'}} />
+              {/* Subtle watermark */}
+              <div className="absolute top-20 right-6 sm:right-12 opacity-[0.03]">
+                <span className="text-[10rem] sm:text-[14rem] leading-none select-none font-mono tracking-tighter">{variation.watermark}</span>
+              </div>
+              {/* Top-left case marker */}
+              <div className="absolute top-4 left-4 opacity-[0.06]">
+                <div className="w-8 h-8 border-l-2 border-t-2 border-white/40" />
+              </div>
+            </>
           )}
           {variation.mood === 'cinematic' && (
             <>
@@ -656,35 +668,15 @@ export function TextReportCard(props: {
           )}
         </div>
 
-        {/* Hook or excerpt — the draw */}
+        {/* Hook text — Paradocs editorial voice, never a quote */}
         {displayText && (
           <div className={classNames(
             'max-w-2xl mb-4 sm:mb-6 transition-all duration-500 delay-150',
             props.isActive ? 'opacity-100 translate-y-0' : 'opacity-60 translate-y-2'
           )}>
-            {isHook ? (
-              /* Feed hook: engagement-optimized, display prominently */
-              <p className="text-base sm:text-lg md:text-xl text-gray-200 leading-relaxed line-clamp-4 font-medium">
-                {displayText}
-              </p>
-            ) : (
-              /* Raw summary: style as a first-person quote with category-tinted border */
-              <div className={classNames(
-                'pl-4 border-l-2',
-                item.category === 'cryptids' ? 'border-emerald-500/30' :
-                item.category === 'ufos_aliens' ? 'border-indigo-500/30' :
-                item.category === 'ghosts_hauntings' ? 'border-purple-500/30' :
-                item.category === 'psychic_phenomena' ? 'border-violet-500/30' :
-                item.category === 'consciousness_practices' ? 'border-amber-500/30' :
-                item.category === 'religion_mythology' ? 'border-yellow-500/30' :
-                item.category === 'esoteric_practices' ? 'border-fuchsia-500/30' :
-                'border-white/20'
-              )}>
-                <p className="text-sm sm:text-base md:text-lg text-gray-300 leading-relaxed line-clamp-4 italic">
-                  {displayText}
-                </p>
-              </div>
-            )}
+            <p className="text-base sm:text-lg md:text-xl text-gray-200 leading-relaxed line-clamp-4 font-medium">
+              {displayText}
+            </p>
           </div>
         )}
 
@@ -779,7 +771,6 @@ export function MediaReportCard(props: {
 
   // Prefer feed_hook for preview text
   var displayText = item.feed_hook || item.summary || ''
-  var isHook = !!item.feed_hook
 
   return (
     <div
@@ -889,27 +880,18 @@ export function MediaReportCard(props: {
           )}
         </div>
 
-        {/* Hook or summary */}
+        {/* Hook text — Paradocs editorial voice */}
         {displayText && (
           <div className={classNames(
             'max-w-2xl mb-4 sm:mb-6 transition-all duration-500 delay-150',
             props.isActive ? 'opacity-100 translate-y-0' : 'opacity-60 translate-y-2'
           )}>
-            {isHook ? (
-              <p className={classNames(
-                'text-base sm:text-lg md:text-xl text-gray-200 leading-relaxed line-clamp-3 font-medium',
-                hasImage ? 'drop-shadow-md' : ''
-              )}>
-                {displayText}
-              </p>
-            ) : (
-              <p className={classNames(
-                'text-sm sm:text-base md:text-lg text-gray-300 leading-relaxed line-clamp-3',
-                hasImage ? 'drop-shadow-md' : ''
-              )}>
-                {displayText}
-              </p>
-            )}
+            <p className={classNames(
+              'text-base sm:text-lg md:text-xl text-gray-200 leading-relaxed line-clamp-3 font-medium',
+              hasImage ? 'drop-shadow-md' : ''
+            )}>
+              {displayText}
+            </p>
           </div>
         )}
 

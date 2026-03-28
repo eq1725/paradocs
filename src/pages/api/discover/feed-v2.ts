@@ -189,7 +189,7 @@ export default async function handler(
     // ---- Fetch phenomena candidates ----
     var phenQuery = supabase
       .from('phenomena')
-      .select('id, category, report_count, primary_image_url, ai_description, ai_quick_facts, created_at')
+      .select('id, category, report_count, primary_image_url, ai_description, ai_quick_facts, feed_hook, created_at')
       .eq('status', 'active')
       .not('ai_summary', 'is', null);
 
@@ -206,7 +206,7 @@ export default async function handler(
     // ---- Fetch report candidates ----
     var reportQuery = supabase
       .from('reports')
-      .select('id, category, credibility, upvotes, view_count, has_photo_video, has_physical_evidence, content_type, created_at')
+      .select('id, category, credibility, upvotes, view_count, has_photo_video, has_physical_evidence, content_type, feed_hook, created_at')
       .eq('status', 'approved')
       .not('summary', 'is', null);
 
@@ -268,27 +268,29 @@ export default async function handler(
       };
     };
 
-    // Score phenomena
+    // Score phenomena — feed_hook presence is a major quality signal
     var scoredAll: ScoredItem[] = allPhen.map(function (item) {
       var quality = 1;
-      if (item.primary_image_url && item.primary_image_url !== placeholderUrl) quality += 3;
+      if (item.feed_hook) quality += 3; // Hook = engagement-ready card
+      if (item.primary_image_url && item.primary_image_url !== placeholderUrl) quality += 2;
       if (item.ai_description) quality += 1;
       if (item.ai_quick_facts) quality += 1;
       if (item.report_count > 0) quality += 1;
       if (item.report_count >= 5) quality += 1;
-      return scoreItem(item.id, 'phenomenon', item.category, Math.min(quality, 8), item.created_at);
+      return scoreItem(item.id, 'phenomenon', item.category, Math.min(quality, 10), item.created_at);
     });
 
-    // Score reports
+    // Score reports — feed_hook presence is a major quality signal
     var scoredReports: ScoredItem[] = allReports.map(function (item) {
       var quality = 1;
-      if (item.has_photo_video) quality += 3;
+      if (item.feed_hook) quality += 3; // Hook = engagement-ready card
+      if (item.has_photo_video) quality += 2;
       if (item.has_physical_evidence) quality += 1;
       if (item.credibility === 'high') quality += 2;
       else if (item.credibility === 'medium') quality += 1;
       if (item.upvotes > 3) quality += 1;
       if (item.content_type === 'historical_case') quality += 1;
-      return scoreItem(item.id, 'report', item.category, Math.min(quality, 8), item.created_at);
+      return scoreItem(item.id, 'report', item.category, Math.min(quality, 10), item.created_at);
     });
 
     scoredAll = scoredAll.concat(scoredReports);
@@ -352,7 +354,7 @@ export default async function handler(
     if (phenIds.length > 0) {
       var { data: fullPhen } = await supabase
         .from('phenomena')
-        .select('id, name, slug, category, icon, ai_summary, ai_description, ai_quick_facts, primary_image_url, report_count, primary_regions, first_reported_date, aliases')
+        .select('id, name, slug, category, icon, ai_summary, ai_description, ai_quick_facts, feed_hook, primary_image_url, report_count, primary_regions, first_reported_date, aliases')
         .in('id', phenIds);
 
       if (fullPhen) {
@@ -459,6 +461,7 @@ export default async function handler(
           ai_summary: p.ai_summary,
           ai_description: p.ai_description,
           ai_quick_facts: p.ai_quick_facts,
+          feed_hook: p.feed_hook || null,
           primary_image_url: p.primary_image_url,
           report_count: p.report_count,
           primary_regions: p.primary_regions,

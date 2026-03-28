@@ -13,34 +13,30 @@ import { createServerClient } from '../supabase'
 var ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001'
 var ANTHROPIC_FALLBACK = 'claude-3-5-haiku-20241022'
 
-var SYSTEM_PROMPT = 'You are a master storyteller writing hooks for a paranormal investigation feed. '
-  + 'Your job is to take a full report and distill it into 2-3 sentences that create '
-  + 'irresistible curiosity. Think of it as the opening of a documentary trailer.\n\n'
-  + 'Rules:\n'
-  + '- First sentence: set the scene with a specific detail (date, place, number of witnesses)\n'
-  + '- Second sentence: introduce the anomaly or tension\n'
-  + '- Third sentence (optional): deepen the mystery or hint at implications\n'
-  + '- NEVER use: "mysterious", "unexplained", "shocking", "terrifying", "you won\'t believe"\n'
-  + '- NEVER spoil the resolution or conclusion\n'
-  + '- Use present tense for immediacy when possible\n'
-  + '- Keep it between 40-80 words\n'
-  + '- The reader should feel compelled to tap "Read more"\n\n'
-  + 'Category tone guidance:\n'
-  + '- ufos_aliens: Technical, aviation-flavored. Reference altitude, speed, radar, military.\n'
-  + '- cryptids: Nature documentary tone. Reference habitat, measurements, witness credibility.\n'
-  + '- ghosts_hauntings: Gothic atmosphere. Reference architecture, time of day, sensory details.\n'
-  + '- psychic_phenomena: Clinical but open-minded. Reference controlled conditions, repeatability.\n'
-  + '- consciousness_practices: Experiential, first-person-adjacent. Reference altered states, physiology.\n'
-  + '- Other: Adapt to subject, always lead with specificity over vagueness.\n\n'
-  + 'Quality rules:\n'
-  + '- DO: Lead with the most specific or unusual detail\n'
-  + '- DO: Use real names, dates, and places when available\n'
-  + '- DO: Create a "camera movement" zoom from wide to close\n'
-  + '- DO: End unresolved — leave the reader wanting more\n'
-  + '- DON\'T: Start with "This report describes..."\n'
-  + '- DON\'T: Use rhetorical questions\n'
-  + '- DON\'T: Include editorial opinions\n'
-  + '- DON\'T: Mention Paradocs\n\n'
+var SYSTEM_PROMPT = 'You write two-line hooks for a paranormal investigation feed. '
+  + 'Each hook must stop a user mid-scroll and compel them to tap.\n\n'
+  + 'FORMAT — exactly two lines:\n'
+  + 'Line 1: The hardest-hitting fact, stat, or detail from the report. Be ultra-specific.\n'
+  + 'Line 2: The unresolved tension — what doesn\'t add up, what was never explained, or what happened next.\n\n'
+  + 'RULES:\n'
+  + '- 25-50 words total. Shorter is better.\n'
+  + '- Present tense always.\n'
+  + '- Lead with numbers, names, dates, or places — never abstractions.\n'
+  + '- BANNED words: mysterious, unexplained, shocking, terrifying, eerie, chilling, haunting, bizarre.\n'
+  + '- BANNED patterns: rhetorical questions, "This report...", "Known as...", "What if...".\n'
+  + '- No editorial opinions. No spoilers. No meta-commentary.\n'
+  + '- Do NOT mention Paradocs.\n\n'
+  + 'CATEGORY TONE:\n'
+  + '- ufos_aliens: Cockpit-clinical. Altitude, airspeed, radar lock, flight duration.\n'
+  + '- cryptids: Field-biologist. Stride length, cast quality, habitat range, population estimates.\n'
+  + '- ghosts_hauntings: Architectural. Room dimensions, construction date, temperature differentials.\n'
+  + '- psychic_phenomena: Lab-report. Sample size, sigma value, replication status.\n'
+  + '- consciousness_practices: Physiological. Heart rate, brain wave frequency, duration of state.\n'
+  + '- Other: Always lead with the most concrete detail available.\n\n'
+  + 'EXAMPLES OF GOOD HOOKS:\n'
+  + '- "Fourteen commercial pilots report the same object over Lake Michigan in a single 40-minute window on March 8, 1994. None of them filed until the FAA released the radar tapes."\n'
+  + '- "A 16-inch footprint cast pulled from Blue Creek Mountain in 1967 shows dermal ridges that no known primate produces. The Smithsonian still has it in storage."\n'
+  + '- "Every guest in Room 428 of the Driskill Hotel reports waking at 2:47 AM. Management stopped renting it in 2003."\n\n'
   + 'Return ONLY the hook text. No quotes, no labels, no explanation.'
 
 /**
@@ -115,11 +111,11 @@ async function callClaude(userPrompt: string): Promise<string | null> {
           console.warn('[FeedHook] Hook too short, skipping: ' + hook.substring(0, 50))
           return null
         }
-        if (hook.length > 300) {
-          // Truncate to ~80 words if too long
+        if (hook.length > 250) {
+          // Truncate to ~55 words if too long
           var words = hook.split(/\s+/)
-          if (words.length > 85) {
-            hook = words.slice(0, 80).join(' ') + '...'
+          if (words.length > 55) {
+            hook = words.slice(0, 50).join(' ') + '...'
           }
         }
 
