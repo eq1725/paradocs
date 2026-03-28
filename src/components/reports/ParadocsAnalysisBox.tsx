@@ -110,7 +110,7 @@ function renderHighlightedText(text, baseClass) {
     var cls = match.type === 'data'
       ? 'font-semibold text-white'
       : match.type === 'phrase'
-        ? 'font-medium text-gray-100'
+        ? 'font-semibold text-white'
         : 'text-purple-300/90'
     segments.push(React.createElement('span', { key: 'hl-' + j, className: cls }, match.text))
     lastIndex = match.end
@@ -149,58 +149,29 @@ function NarrativeParagraph(props) {
 }
 
 /**
- * Render credibility reasoning with positive/negative phrase coloring.
+ * Render credibility reasoning as clean text.
+ * Only data points (scores, measurements) get bold white — no colored word highlights.
  */
 function CredibilityReasoningText(props) {
   var text = props.text
-  var score = props.score
-
-  // Highlight specific evidential phrases contextually
-  var positivePatterns = /\b(strengthen|elevate|corroborat|specific|precise|consistent|attentive|careful observation)\w*\b/gi
-  var negativePatterns = /\b(lack(?:s|ing)?|absence|deficit|ambiguity|complicat|insufficient|uncorroborat|disagree|discrepancy|bias|subjective)\w*\b/gi
 
   var segments = []
   var lastIdx = 0
   var allM = []
 
-  positivePatterns.lastIndex = 0
-  var pm
-  while ((pm = positivePatterns.exec(text)) !== null) {
-    allM.push({ start: pm.index, end: pm.index + pm[0].length, text: pm[0], type: 'pos' })
-  }
-
-  negativePatterns.lastIndex = 0
-  while ((pm = negativePatterns.exec(text)) !== null) {
-    allM.push({ start: pm.index, end: pm.index + pm[0].length, text: pm[0], type: 'neg' })
-  }
-
-  // Also highlight data points
+  // Only highlight data points — no green/yellow word coloring
   DATA_PATTERN.lastIndex = 0
+  var pm
   while ((pm = DATA_PATTERN.exec(text)) !== null) {
-    allM.push({ start: pm.index, end: pm.index + pm[0].length, text: pm[0], type: 'data' })
+    allM.push({ start: pm.index, end: pm.index + pm[0].length, text: pm[0] })
   }
 
-  allM.sort(function(a, b) { return a.start - b.start })
-  var filt = []
-  var mEnd = 0
-  for (var i = 0; i < allM.length; i++) {
-    if (allM[i].start >= mEnd) {
-      filt.push(allM[i])
-      mEnd = allM[i].end
-    }
-  }
-
-  for (var j = 0; j < filt.length; j++) {
-    var mt = filt[j]
+  for (var j = 0; j < allM.length; j++) {
+    var mt = allM[j]
     if (mt.start > lastIdx) {
       segments.push(React.createElement('span', { key: 'p-' + j }, text.substring(lastIdx, mt.start)))
     }
-    var color = mt.type === 'pos'
-      ? 'font-medium text-green-400/80'
-      : mt.type === 'neg'
-        ? 'font-medium text-yellow-400/80'
-        : 'font-semibold text-white'
-    segments.push(React.createElement('span', { key: 'c-' + j, className: color }, mt.text))
+    segments.push(React.createElement('span', { key: 'c-' + j, className: 'font-semibold text-white' }, mt.text))
     lastIdx = mt.end
   }
   if (lastIdx < text.length) {
