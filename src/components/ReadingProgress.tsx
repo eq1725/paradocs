@@ -35,7 +35,8 @@ export default function ReadingProgress() {
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-[9999] h-[4px] bg-transparent pointer-events-none"
+      className="fixed left-0 right-0 z-[9999] h-[4px] bg-transparent pointer-events-none"
+      style={{ top: 'env(safe-area-inset-top, 0px)' }}
       aria-hidden="true"
     >
       <div

@@ -144,7 +144,7 @@ export default function MapPage() {
         <meta name="description" content="Explore paranormal sightings, encounters, and phenomena on an interactive global map. Filter by category, credibility, date, and location." />
       </Head>
 
-      <div className="fixed inset-0 top-[56px] bg-gray-950">
+      <div className="fixed inset-0 bg-gray-950" style={{ top: 'calc(56px + env(safe-area-inset-top, 0px))' }}>
         {/* ─── Map fills entire viewport ─── */}
         <MapContainer
           features={features}

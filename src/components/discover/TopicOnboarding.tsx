@@ -129,10 +129,13 @@ export function TopicOnboarding(props: TopicOnboardingProps) {
   var canProceed = selected.size >= 3
 
   return (
-    <div className={
-      'fixed inset-0 z-[70] flex flex-col items-center justify-center bg-gray-950/98 backdrop-blur-xl transition-opacity duration-400 ' +
-      (isAnimating ? 'opacity-0 scale-105' : 'opacity-100 scale-100')
-    }>
+    <div
+      className={
+        'fixed inset-0 z-[70] flex flex-col items-center justify-center bg-gray-950/98 backdrop-blur-xl transition-opacity duration-400 ' +
+        (isAnimating ? 'opacity-0 scale-105' : 'opacity-100 scale-100')
+      }
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
       {/* Skip button — pushed below Dynamic Island via safe-area-inset-top */}
       <button
         onClick={handleSkip}
