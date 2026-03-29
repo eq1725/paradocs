@@ -710,7 +710,7 @@ export default function DiscoverPage() {
           <div
             className="absolute inset-0 px-5 sm:px-6 mobile-content-pb overflow-y-auto transition-all duration-200"
             style={{
-              paddingTop: 'calc(3.75rem + env(safe-area-inset-top, 0px))',
+              paddingTop: 'calc(4.5rem + env(safe-area-inset-top, 0px))',
               transform: swipeAnim === 'up' ? 'translateY(-52px)' : swipeAnim === 'down' ? 'translateY(52px)' : 'translateY(0)',
               opacity: swipeAnim ? 0 : 1,
             }}
