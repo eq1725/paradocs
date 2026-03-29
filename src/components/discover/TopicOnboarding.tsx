@@ -133,10 +133,11 @@ export function TopicOnboarding(props: TopicOnboardingProps) {
       'fixed inset-0 z-[70] flex flex-col items-center justify-center bg-gray-950/98 backdrop-blur-xl transition-opacity duration-400 ' +
       (isAnimating ? 'opacity-0 scale-105' : 'opacity-100 scale-100')
     }>
-      {/* Skip button */}
+      {/* Skip button — pushed below Dynamic Island via safe-area-inset-top */}
       <button
         onClick={handleSkip}
-        className="absolute top-4 right-4 sm:top-6 sm:right-6 p-2 text-gray-500 hover:text-gray-300 transition-colors"
+        className="absolute right-4 sm:right-6 p-2 text-gray-500 hover:text-gray-300 transition-colors z-10"
+        style={{ top: 'calc(1rem + env(safe-area-inset-top, 0px))' }}
         title="Skip"
       >
         <X className="w-5 h-5" />
