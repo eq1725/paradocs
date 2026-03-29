@@ -39,7 +39,7 @@ import { RabbitHolePanel } from '@/components/discover/RabbitHolePanel'
 import type { RabbitHoleCard } from '@/components/discover/RabbitHolePanel'
 import { DetailView } from '@/components/discover/DetailView'
 import { Constellation } from '@/components/discover/Constellation'
-import { BottomNav } from '@/components/discover/BottomNav'
+import { MobileBottomTabs } from '@/components/mobile/MobileBottomTabs'
 import { useFeedEvents } from '@/lib/hooks/useFeedEvents'
 import { useSessionContext } from '@/lib/hooks/useSessionContext'
 import { useGateStatus } from '@/lib/hooks/useGateStatus'
@@ -624,10 +624,10 @@ export default function DiscoverPage() {
         <Head>
           <title>Discover - Paradocs</title>
         </Head>
-        <div style={{ minHeight: '100vh', background: '#030306', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ width: 48, height: 48, border: '2px solid transparent', borderBottomColor: '#9000F0', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
-            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 16 }}>Loading stories...</p>
+        <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4" />
+            <p className="text-gray-400 text-lg font-sans">Loading stories...</p>
           </div>
         </div>
       </>
@@ -653,236 +653,135 @@ export default function DiscoverPage() {
         />
       )}
 
-      <div style={{
-        minHeight: '100vh',
-        background: '#030306',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
-        {/* Phone frame (on desktop acts as constraining viewport) */}
-        <div style={{
-          width: '100%',
-          maxWidth: 430,
-          height: '100vh',
-          maxHeight: 932,
-          background: '#09090f',
-          borderRadius: 0,
-          overflow: 'hidden',
-          position: 'relative',
-          display: 'flex',
-          flexDirection: 'column',
-        }}>
-          {/* Status bar area */}
-          <div style={{ padding: 'max(14px, env(safe-area-inset-top)) 26px 0', display: 'flex', justifyContent: 'space-between', flexShrink: 0 }}>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: "'Courier New',monospace" }}>
-              {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)' }}>{'\u2022\u2022\u2022'}</span>
-          </div>
-
-          {/* Header */}
-          <div style={{
-            padding: '8px 22px 11px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexShrink: 0,
-            borderBottom: '1px solid rgba(255,255,255,0.05)',
-            zIndex: 10,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
-              <span style={{ fontSize: 18, fontWeight: 900, color: '#d4af37', fontFamily: "system-ui,-apple-system,sans-serif" }}>
-                Paradocs<span style={{ color: '#9000F0' }}>.</span>
-              </span>
-              <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.18)', letterSpacing: 1, fontFamily: "'Courier New',monospace" }}>
-                DISCOVER
+      <div className="min-h-screen bg-gray-950 flex flex-col">
+        {/* Fixed header */}
+        <div className="fixed top-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-lg border-b border-gray-800 safe-area-pt">
+          <div className="flex items-center justify-between h-14 px-4 sm:px-6">
+            <div className="flex items-center gap-3">
+              <Link href="/">
+                <span className="font-sans font-black text-xl text-white tracking-tight whitespace-nowrap">
+                  Paradocs<span style={{color:'#9000F0'}}>.</span>
+                </span>
+              </Link>
+              <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
+                Discover
               </span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="flex items-center gap-3">
               {/* Feedback label */}
               {feedbackLabel && (
-                <span style={{
-                  fontSize: 10,
-                  fontFamily: "'Courier New',monospace",
-                  color: feedbackLabel.indexOf('\u2726') >= 0 ? '#d4af37' : 'rgba(255,255,255,0.4)',
-                  animation: 'fadeIn 0.15s ease',
-                }}>
+                <span className={
+                  'text-xs font-medium animate-fade-in ' +
+                  (feedbackLabel.indexOf('\u2726') >= 0 ? 'text-primary-400' : 'text-gray-400')
+                }>
                   {feedbackLabel}
                 </span>
               )}
               {/* Card counter */}
-              <span style={{ fontSize: 15, color: 'rgba(255,255,255,0.22)', cursor: 'pointer' }}>
-                {'\u2630'}
+              <span className="text-xs text-gray-500 bg-white/5 px-2.5 py-1 rounded-full font-medium">
+                {(idx + 1) + ' / ' + (totalAvailable > 0 ? totalAvailable : items.length)}
               </span>
             </div>
           </div>
 
           {/* Progress bar */}
-          <div style={{ padding: '7px 22px 0', display: 'flex', gap: 4, flexShrink: 0, zIndex: 5 }}>
-            {items.length > 0 && items.slice(0, Math.min(items.length, 20)).map(function (_, i) {
-              return (
-                <div key={i} style={{
-                  height: 2,
-                  flex: 1,
-                  borderRadius: 2,
-                  background: i === idx ? '#d4af37' : i < idx ? 'rgba(212,175,55,0.28)' : 'rgba(255,255,255,0.06)',
-                  transition: 'background 0.3s',
-                }} />
-              )
-            })}
+          <div className="h-0.5 bg-gray-900">
+            <div
+              className="h-full bg-primary-500 transition-all duration-300"
+              style={{ width: totalAvailable > 0 ? ((idx + 1) / totalAvailable * 100) + '%' : items.length > 0 ? ((idx + 1) / items.length * 100) + '%' : '0%' }}
+            />
           </div>
+        </div>
 
-          {/* Card area */}
+        {/* Card area — full viewport with top/bottom padding for header and nav */}
+        <div
+          className="flex-1 relative overflow-hidden cursor-grab main-content-pt mobile-content-pb"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onWheel={handleWheel}
+        >
+          {/* Category accent stripe */}
           <div
-            style={{ flex: 1, position: 'relative', overflow: 'hidden', cursor: 'grab' }}
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-            onWheel={handleWheel}
+            className="absolute left-0 top-0 bottom-0 w-[3px] opacity-50 z-10 transition-colors duration-400"
+            style={{ background: catColor }}
+          />
+
+          {/* Main card */}
+          <div
+            className="absolute inset-0 p-5 sm:p-6 transition-all duration-200"
+            style={{
+              transform: swipeAnim === 'up' ? 'translateY(-52px)' : swipeAnim === 'down' ? 'translateY(52px)' : 'translateY(0)',
+              opacity: swipeAnim ? 0 : 1,
+            }}
           >
-            {/* Category accent stripe */}
-            <div style={{
-              position: 'absolute',
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: 2.5,
-              background: catColor,
-              opacity: 0.5,
-              zIndex: 5,
-              transition: 'background 0.4s',
-            }} />
-
-            {/* Main card */}
-            <div style={cardStyle}>
-              {renderCardContent()}
-            </div>
-
-            {/* Gesture hints */}
-            {!expanded && !rabbitOpen && (
-              <>
-                <div style={{ position: 'absolute', left: 7, top: '50%', transform: 'translateY(-50%)', fontSize: 8, color: 'rgba(255,255,255,0.08)', fontFamily: "'Courier New',monospace", writingMode: 'vertical-lr' as const }}>
-                  {'\u2192 save'}
-                </div>
-                <div style={{ position: 'absolute', right: 7, top: '50%', transform: 'translateY(-50%)', fontSize: 8, color: 'rgba(255,255,255,0.08)', fontFamily: "'Courier New',monospace", writingMode: 'vertical-lr' as const }}>
-                  {'\u2190 dismiss'}
-                </div>
-                <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', fontSize: 8, color: 'rgba(255,255,255,0.08)', fontFamily: "'Courier New',monospace" }}>
-                  {'\u2193 rabbit hole'}
-                </div>
-              </>
-            )}
-
-            {/* Rabbit hole panel */}
-            {rabbitOpen && (
-              <RabbitHolePanel
-                cards={getRabbitHoleCards()}
-                color={catColor}
-                onClose={function () { setRabbitOpen(false) }}
-                onSelect={function (c) { setDetailCard(c) }}
-              />
-            )}
-
-            {/* Detail view */}
-            {detailCard && (
-              <DetailView
-                card={detailCard}
-                onBack={function () { setDetailCard(null) }}
-              />
-            )}
+            {renderCardContent()}
           </div>
 
-          {/* Bottom nav */}
-          <BottomNav active="discover" />
+          {/* Gesture hints (subtle, only when idle) */}
+          {!expanded && !rabbitOpen && !detailCard && idx < 3 && (
+            <>
+              <div className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] text-white/[0.06] font-sans" style={{ writingMode: 'vertical-lr' as const }}>
+                {'\u2192 save'}
+              </div>
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[8px] text-white/[0.06] font-sans" style={{ writingMode: 'vertical-lr' as const }}>
+                {'\u2190 dismiss'}
+              </div>
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[8px] text-white/[0.06] font-sans">
+                {'\u2193 rabbit hole'}
+              </div>
+            </>
+          )}
 
-          {/* Legend (only on first card) */}
-          {idx === 0 && !expanded && !rabbitOpen && !detailCard && (
-            <div style={{
-              position: 'absolute',
-              bottom: 80,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              display: 'flex',
-              gap: 14,
-              opacity: 0.16,
-              zIndex: 5,
-              whiteSpace: 'nowrap' as const,
-            }}>
-              {[
-                { key: '\u2191 swipe', label: 'next' },
-                { key: '\u2193 swipe', label: 'rabbit hole' },
-                { key: '\u2190 swipe', label: 'dismiss' },
-                { key: '\u2192 swipe', label: 'save' },
-                { key: 'tap', label: 'expand' },
-              ].map(function (item) {
-                return (
-                  <div key={item.key} style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.16)', fontFamily: "'Courier New',monospace" }}>
-                    <span style={{ color: 'rgba(255,255,255,0.28)' }}>{item.key}</span>
-                    {' \u00B7 ' + item.label}
-                  </div>
-                )
-              })}
-            </div>
+          {/* Rabbit hole panel */}
+          {rabbitOpen && (
+            <RabbitHolePanel
+              cards={getRabbitHoleCards()}
+              color={catColor}
+              onClose={function () { setRabbitOpen(false) }}
+              onSelect={function (c) { setDetailCard(c) }}
+            />
+          )}
+
+          {/* Detail view */}
+          {detailCard && (
+            <DetailView
+              card={detailCard}
+              onBack={function () { setDetailCard(null) }}
+            />
           )}
         </div>
+
+        {/* Site's mobile bottom tabs */}
+        <MobileBottomTabs />
       </div>
 
       {/* Signup prompt overlay */}
       {showSignupPrompt && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 60,
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'center',
-          background: 'rgba(0,0,0,0.6)',
-          backdropFilter: 'blur(4px)',
-          WebkitBackdropFilter: 'blur(4px)',
-        }}>
-          <div style={{
-            width: '100%',
-            maxWidth: 430,
-            background: '#111118',
-            borderTop: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: '16px 16px 0 0',
-            padding: 24,
-            textAlign: 'center',
-          }}>
-            <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)', margin: '0 auto 16px' }} />
-            <div style={{ fontSize: 24, marginBottom: 8 }}>{'\u2726'}</div>
-            <h3 style={{ fontSize: 20, fontWeight: 700, color: 'white', marginBottom: 8 }}>Down the rabbit hole?</h3>
-            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', marginBottom: 20 }}>
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-6">
+          <div className="w-full sm:max-w-sm bg-gray-900 border-t sm:border border-gray-700 rounded-t-2xl sm:rounded-2xl p-6 text-center relative">
+            <div className="flex justify-center mb-3 sm:hidden">
+              <div className="w-10 h-1 rounded-full bg-gray-700" />
+            </div>
+            <button
+              onClick={function () { setShowSignupPrompt(false); setSignupDismissed(true) }}
+              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center text-gray-500 hover:text-white transition-colors"
+            >
+              {'\u2715'}
+            </button>
+            <div className="text-3xl mb-3">{'\u2726'}</div>
+            <h3 className="text-xl font-display font-bold text-white mb-2">Down the rabbit hole?</h3>
+            <p className="text-gray-400 text-sm font-sans mb-5">
               Create a free account to save entries, get personalized recommendations, and submit your own sightings.
             </p>
             <Link
               href="/login"
-              style={{
-                display: 'block',
-                width: '100%',
-                padding: '12px 0',
-                background: '#9000F0',
-                color: 'white',
-                borderRadius: 24,
-                fontWeight: 600,
-                fontSize: 14,
-                textDecoration: 'none',
-                textAlign: 'center',
-                marginBottom: 12,
-              }}
+              className="block w-full py-3 bg-primary-600 hover:bg-primary-500 active:bg-primary-500 text-white rounded-full font-medium transition-colors mb-3"
             >
               Create Free Account
             </Link>
             <button
               onClick={function () { setShowSignupPrompt(false); setSignupDismissed(true) }}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'rgba(255,255,255,0.35)',
-                fontSize: 14,
-                cursor: 'pointer',
-                padding: '8px 0',
-              }}
+              className="text-sm text-gray-500 hover:text-gray-300 transition-colors py-2"
             >
               Keep scrolling
             </button>
@@ -890,14 +789,9 @@ export default function DiscoverPage() {
         </div>
       )}
 
-      {/* Global keyframe styles */}
+      {/* Keyframe styles for slide-up panels */}
       <style>{'\
         @keyframes slideUp { from{transform:translateY(100%);opacity:0} to{transform:translateY(0);opacity:1} }\
-        @keyframes fadeIn { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }\
-        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }\
-        *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}\
-        ::-webkit-scrollbar{display:none;}\
-        button:focus{outline:none;}\
       '}</style>
     </>
   )

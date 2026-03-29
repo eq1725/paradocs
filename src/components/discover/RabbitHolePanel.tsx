@@ -3,9 +3,9 @@
 /**
  * RabbitHolePanel — slide-up panel showing related cases
  *
- * Triggered by swiping DOWN on a card. Slides up from the bottom
- * with a spring animation. Each related case is a tappable row
- * that can open a DetailView overlay.
+ * Triggered by swiping DOWN on a card. Slides up from the bottom.
+ * Uses site typography (Inter body, Space Grotesk headings) and
+ * color system (primary-500, gray-900, border-white/5).
  *
  * SWC-compatible: var, function expressions, string concat.
  */
@@ -13,20 +13,7 @@
 import React from 'react'
 import { Constellation } from './Constellation'
 import { CATEGORY_CONFIG } from '@/lib/constants'
-
-var CAT_ICON: Record<string, string> = {
-  ufos_aliens: '\uD83D\uDEF8',
-  cryptids: '\uD83D\uDC3E',
-  ghosts_hauntings: '\uD83D\uDC7B',
-  psychic_phenomena: '\uD83D\uDD2E',
-  consciousness_practices: '\uD83E\uDDE0',
-  psychological_experiences: '\uD83E\uDDE0',
-  biological_factors: '\uD83E\uDDEC',
-  perception_sensory: '\uD83D\uDC41\uFE0F',
-  religion_mythology: '\u2721\uFE0F',
-  esoteric_practices: '\u2728',
-  combination: '\uD83C\uDF00',
-}
+import { classNames } from '@/lib/utils'
 
 export interface RabbitHoleCard {
   id: string
@@ -48,99 +35,61 @@ export function RabbitHolePanel(props: {
   onSelect: (card: RabbitHoleCard) => void
 }) {
   return (
-    <div style={{
-      position: 'absolute',
-      inset: 0,
-      background: '#07070e',
-      zIndex: 20,
-      display: 'flex',
-      flexDirection: 'column',
-      animation: 'slideUp 0.3s cubic-bezier(0.32,0,0.15,1)',
-    }}>
+    <div className="absolute inset-0 bg-gray-950 z-20 flex flex-col animate-slide-up">
       {/* Drag handle */}
-      <div style={{ padding: '14px 0 8px', display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
-        <div style={{ width: 34, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.25)' }} />
+      <div className="py-3 flex justify-center flex-shrink-0">
+        <div className="w-8 h-0.5 rounded-full bg-gray-700" />
       </div>
 
       {/* Header */}
-      <div style={{
-        padding: '0 22px 12px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexShrink: 0,
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, color: props.color }}>{'\u25C9'}</span>
-          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', fontFamily: "'Courier New',monospace", letterSpacing: 1, textTransform: 'uppercase' as const }}>
+      <div className="px-5 pb-3 flex items-center justify-between flex-shrink-0 border-b border-white/5">
+        <div className="flex items-center gap-2">
+          <span className="text-sm" style={{ color: props.color }}>{'\u25C9'}</span>
+          <span className="text-[10px] text-gray-400 font-sans font-medium uppercase tracking-wider">
             Connected cases
           </span>
         </div>
-        <button onClick={props.onClose} style={{
-          background: 'none',
-          border: 'none',
-          color: 'rgba(255,255,255,0.28)',
-          fontSize: 11,
-          cursor: 'pointer',
-          fontFamily: "'Courier New',monospace",
-          letterSpacing: 1,
-          padding: '4px 6px',
-        }}>
-          {'\u2191 BACK'}
+        <button
+          onClick={props.onClose}
+          className="text-gray-500 hover:text-gray-300 text-xs font-sans font-medium uppercase tracking-wider px-2 py-1 transition-colors"
+        >
+          {'\u2191 Back'}
         </button>
       </div>
 
       {/* Cards list */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2.5">
         {props.cards.map(function (c, i) {
           var catConfig = CATEGORY_CONFIG[c.category as keyof typeof CATEGORY_CONFIG]
-          var icon = CAT_ICON[c.category] || '\uD83D\uDD0D'
 
           return (
             <button
               key={c.id}
               onClick={function () { props.onSelect(c) }}
-              style={{
-                background: 'rgba(255,255,255,0.025)',
-                border: '1px solid rgba(255,255,255,0.07)',
-                borderLeft: '2.5px solid ' + c.categoryColor,
-                borderRadius: 10,
-                padding: '13px 14px',
-                cursor: 'pointer',
-                textAlign: 'left' as const,
-                animation: 'fadeIn 0.2s ease ' + (i * 0.06) + 's both',
-              }}
+              className="bg-white/[0.025] border border-white/[0.07] rounded-xl px-3.5 py-3 text-left transition-colors hover:bg-white/[0.05] cursor-pointer"
+              style={{ borderLeft: '3px solid ' + c.categoryColor, animationDelay: (i * 0.06) + 's' }}
             >
               {/* Category + location */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
-                <span style={{ fontSize: 7.5, letterSpacing: 2, color: c.categoryColor, fontFamily: "'Courier New',monospace", textTransform: 'uppercase' as const }}>
-                  {icon + ' ' + (catConfig?.label || c.category)}
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[9px] font-sans font-semibold uppercase tracking-wider" style={{ color: c.categoryColor }}>
+                  {(catConfig?.icon || '') + ' ' + (catConfig?.label || c.category)}
                 </span>
-                <span style={{ fontSize: 7.5, color: 'rgba(255,255,255,0.22)', fontFamily: "'Courier New',monospace" }}>
-                  {c.location + ' \u00B7 ' + c.tag}
+                <span className="text-[9px] text-gray-500 font-sans">
+                  {c.location + (c.tag ? ' \u00B7 ' + c.tag : '')}
                 </span>
               </div>
 
               {/* Headline */}
-              <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.42, color: '#ede9e3', marginBottom: 6 }}>
+              <p className="text-sm font-display font-semibold text-gray-200 leading-snug mb-1.5">
                 {c.headline}
-              </div>
+              </p>
 
               {/* Credibility tags */}
               {c.credibility && c.credibility.length > 0 && (
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' as const }}>
+                <div className="flex gap-1 flex-wrap">
                   {c.credibility.map(function (tag, j) {
                     return (
-                      <span key={j} style={{
-                        fontSize: 7,
-                        padding: '2px 7px',
-                        borderRadius: 20,
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        color: 'rgba(255,255,255,0.3)',
-                        fontFamily: "'Courier New',monospace",
-                        letterSpacing: 0.8,
-                      }}>
+                      <span key={j} className="text-[8px] px-2 py-0.5 rounded-full border border-white/[0.08] text-gray-500 font-sans">
                         {tag}
                       </span>
                     )
@@ -150,8 +99,8 @@ export function RabbitHolePanel(props: {
             </button>
           )
         })}
-        <div style={{ marginTop: 4 }}><Constellation /></div>
-        <div style={{ height: 10 }} />
+        <div className="mt-2"><Constellation /></div>
+        <div className="h-3" />
       </div>
     </div>
   )

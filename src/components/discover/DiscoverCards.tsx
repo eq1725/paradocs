@@ -12,8 +12,9 @@
  *   4. Large bold opener line — headline treatment
  *   5. "Read Case" button → expands summary + Constellation paywall
  *
- * Three card types: PhenomenonCard, TextReportCard, MediaReportCard
- * All accept an `expanded` prop + `onExpand` callback for inline expand.
+ * Typography: Inter (font-sans) body, Space Grotesk (font-display) headings.
+ * Colors: primary-500 (#9000F0) accent, gray-900 backgrounds.
+ * Matches site-wide styling from tailwind.config + globals.css.
  *
  * SWC-compatible: var, function expressions, string concat only.
  */
@@ -97,7 +98,7 @@ export interface ReportItem {
 export type FeedItemV2 = PhenomenonItem | ReportItem
 
 // =========================================================================
-//  Category color map (hex values for inline styles)
+//  Category color map (hex values for accent stripe / inline color)
 // =========================================================================
 
 var CATEGORY_COLORS: Record<string, string> = {
@@ -114,49 +115,17 @@ var CATEGORY_COLORS: Record<string, string> = {
   combination: '#80cbc4',
 }
 
-var CAT_ICON: Record<string, string> = {
-  ufos_aliens: '\uD83D\uDEF8',
-  cryptids: '\uD83D\uDC3E',
-  ghosts_hauntings: '\uD83D\uDC7B',
-  psychic_phenomena: '\uD83D\uDD2E',
-  consciousness_practices: '\uD83E\uDDE0',
-  psychological_experiences: '\uD83E\uDDE0',
-  biological_factors: '\uD83E\uDDEC',
-  perception_sensory: '\uD83D\uDC41\uFE0F',
-  religion_mythology: '\u2721\uFE0F',
-  esoteric_practices: '\u2728',
-  combination: '\uD83C\uDF00',
-}
-
-/** Simple hash for deterministic variety */
-function hashString(str: string): number {
-  var hash = 0
-  for (var i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash) + str.charCodeAt(i)
-    hash |= 0
-  }
-  return Math.abs(hash)
-}
-
 // =========================================================================
 //  Shared: Credibility tag pills
 // =========================================================================
 
-function CredibilityTags(props: { tags: string[], color: string }) {
+function CredibilityTags(props: { tags: string[] }) {
   if (!props.tags || props.tags.length === 0) return null
   return (
-    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' as const, flexShrink: 0 }}>
+    <div className="flex gap-1.5 flex-wrap flex-shrink-0">
       {props.tags.map(function (tag, i) {
         return (
-          <span key={i} style={{
-            fontSize: 7.5,
-            padding: '2px 9px',
-            borderRadius: 20,
-            border: '1px solid rgba(255,255,255,0.1)',
-            color: 'rgba(255,255,255,0.35)',
-            fontFamily: "'Courier New',monospace",
-            letterSpacing: 0.8,
-          }}>
+          <span key={i} className="text-[10px] px-2.5 py-0.5 rounded-full border border-white/10 text-gray-400 font-sans font-medium">
             {tag}
           </span>
         )
@@ -171,19 +140,47 @@ function CredibilityTags(props: { tags: string[], color: string }) {
 
 function StatsRow(props: { items: { value: string | number, label: string }[], color: string }) {
   return (
-    <div style={{ display: 'flex', gap: 18, flexShrink: 0 }}>
+    <div className="flex gap-6 flex-shrink-0">
       {props.items.map(function (item, i) {
         return (
-          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: 20, fontWeight: 900, color: props.color, fontFamily: "system-ui,-apple-system,sans-serif" }}>
+          <div key={i} className="flex flex-col gap-0.5">
+            <span className="text-xl font-display font-bold" style={{ color: props.color }}>
               {item.value}
             </span>
-            <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.28)', fontFamily: "'Courier New',monospace", textTransform: 'uppercase' as const, letterSpacing: 1 }}>
+            <span className="text-[9px] text-gray-500 font-sans font-medium uppercase tracking-wider">
               {item.label}
             </span>
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// =========================================================================
+//  Shared: Read Case button
+// =========================================================================
+
+function ReadCaseButton(props: { onExpand: () => void }) {
+  return (
+    <button
+      onClick={props.onExpand}
+      className="w-full py-2.5 rounded-lg border border-white/10 bg-white/[0.03] text-gray-400 text-xs font-sans font-medium uppercase tracking-widest hover:bg-white/[0.06] hover:text-gray-300 transition-colors flex-shrink-0 cursor-pointer"
+    >
+      {'\u25BC Read Case'}
+    </button>
+  )
+}
+
+// =========================================================================
+//  Shared: Bottom stats bar
+// =========================================================================
+
+function BottomStatsBar(props: { left: string, right: string }) {
+  return (
+    <div className="flex items-center justify-between mt-auto">
+      <span className="text-[10px] text-gray-600 font-sans">{props.left}</span>
+      <span className="text-[10px] text-gray-700 font-sans">{props.right}</span>
     </div>
   )
 }
@@ -204,10 +201,9 @@ export function PhenomenonCard(props: {
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
   var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
-  var icon = CAT_ICON[item.category] || '\uD83D\uDD0D'
   var qf = item.ai_quick_facts
 
-  // Build case type badge
+  // Build case type badge parts
   var badgeParts: string[] = []
   badgeParts.push(config?.label || item.category)
   if (item.first_reported_date) {
@@ -218,104 +214,73 @@ export function PhenomenonCard(props: {
     badgeParts.push(item.primary_regions[0])
   }
 
-  // Build credibility signals from quick facts
+  // Credibility signals
   var credSignals: string[] = []
   if (qf?.evidence_types) credSignals.push(qf.evidence_types)
   if (qf?.classification) credSignals.push(qf.classification)
   if (item.report_count > 5) credSignals.push(item.report_count + ' reports')
 
-  // Tension stat
+  // Tension stats
   var tensionItems: { value: string | number, label: string }[] = []
   if (item.report_count > 0) tensionItems.push({ value: item.report_count, label: 'reports' })
   if (qf?.danger_level) tensionItems.push({ value: qf.danger_level.split(' ')[0], label: 'danger' })
 
-  // Display text: hook or summary
   var displayText = item.feed_hook || item.ai_summary || ''
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 13,
-      height: '100%',
-      overflowY: props.expanded ? 'auto' : 'hidden',
-    }}>
+    <div className={'flex flex-col gap-4 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}>
       {/* Case type badge */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <span style={{ fontSize: 9, letterSpacing: 2.5, color: catColor, fontFamily: "'Courier New',monospace", textTransform: 'uppercase' as const }}>
-            {icon + ' ' + badgeParts.join(' \u00B7 ')}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: catColor }}>
+            {(config?.icon || '') + ' ' + badgeParts.join(' \u00B7 ')}
           </span>
           {item.report_count > 20 && (
-            <span style={{ fontSize: 7.5, background: 'rgba(212,175,55,0.11)', color: '#d4af37', padding: '1px 7px', borderRadius: 10, fontFamily: "'Courier New',monospace", letterSpacing: 0.5 }}>
+            <span className="text-[9px] bg-primary-500/15 text-primary-400 px-2 py-0.5 rounded-full font-medium">
               trending
             </span>
           )}
         </div>
       </div>
 
-      {/* Location + tag */}
-      <div style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.35)', fontFamily: "'Courier New',monospace" }}>
-        {'\u25C9 ' + (item.primary_regions ? item.primary_regions.join(', ') : 'Global') + (qf?.classification ? ' \u00B7 ' + qf.classification : '')}
-      </div>
+      {/* Location + meta */}
+      <p className="text-[11px] text-gray-500 font-sans">
+        {(item.primary_regions ? item.primary_regions.join(', ') : 'Global') + (qf?.classification ? ' \u00B7 ' + qf.classification : '')}
+      </p>
 
-      {/* Large bold opener */}
-      <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.45, color: '#f2f0eb', fontFamily: "system-ui,-apple-system,sans-serif" }}>
+      {/* Large bold opener — font-display for headlines */}
+      <h2 className="text-lg sm:text-xl font-display font-bold text-white leading-snug">
         {displayText || item.name}
-      </div>
+      </h2>
 
       {/* Credibility signals */}
-      <CredibilityTags tags={credSignals} color={catColor} />
+      <CredibilityTags tags={credSignals} />
 
-      {/* Stats */}
+      {/* Tension stats */}
       {tensionItems.length > 0 && (
         <StatsRow items={tensionItems} color={catColor} />
       )}
 
-      {/* Read Case button */}
-      {!props.expanded && (
-        <button onClick={props.onExpand} style={{
-          background: 'rgba(255,255,255,0.035)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 8,
-          padding: '9px 0',
-          color: 'rgba(255,255,255,0.35)',
-          fontSize: 9.5,
-          fontFamily: "'Courier New',monospace",
-          letterSpacing: 2,
-          textTransform: 'uppercase' as const,
-          cursor: 'pointer',
-          flexShrink: 0,
-        }}>
-          {'\u25BC Read Case'}
-        </button>
-      )}
-
-      {/* Expanded content */}
-      {props.expanded && (
+      {/* Read Case / Expanded */}
+      {!props.expanded ? (
+        <ReadCaseButton onExpand={props.onExpand} />
+      ) : (
         <>
-          <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', flexShrink: 0 }} />
-          <div style={{ fontSize: 13, lineHeight: 1.8, color: 'rgba(255,255,255,0.65)', fontFamily: "'Courier New',monospace" }}>
+          <div className="h-px bg-white/[0.07] flex-shrink-0" />
+          <p className="text-sm text-gray-400 leading-relaxed font-sans">
             {item.ai_summary || item.ai_description || 'No additional information available.'}
-          </div>
+          </p>
           <Constellation />
-          <div style={{ height: 20 }} />
+          <div className="h-5" />
         </>
       )}
 
-      {/* Bottom stats bar (when not expanded) */}
+      {/* Bottom bar */}
       {!props.expanded && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.2)' }}>
-            <span>{'\u2661'}</span>
-            <span style={{ fontSize: 8, fontFamily: "'Courier New',monospace" }}>
-              {item.report_count + ' reports'}
-            </span>
-          </div>
-          <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.13)', fontFamily: "'Courier New',monospace" }}>
-            {qf?.first_documented || ''}
-          </span>
-        </div>
+        <BottomStatsBar
+          left={item.report_count > 0 ? '\u2661 ' + item.report_count + ' reports' : ''}
+          right={qf?.first_documented || ''}
+        />
       )}
     </div>
   )
@@ -337,9 +302,8 @@ export function TextReportCard(props: {
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
   var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
-  var icon = CAT_ICON[item.category] || '\uD83D\uDD0D'
 
-  // Build case type badge
+  // Badge parts
   var badgeParts: string[] = []
   badgeParts.push(config?.label || item.category)
   if (item.event_date) {
@@ -351,106 +315,72 @@ export function TextReportCard(props: {
   if (item.state_province) locationParts.push(item.state_province)
   if (item.country) locationParts.push(item.country)
   var locationStr = locationParts.join(', ')
-  if (locationStr) badgeParts.push(locationStr.length > 20 ? locationStr.substring(0, 18) + '...' : locationStr)
+  if (locationStr) badgeParts.push(locationStr.length > 20 ? locationStr.substring(0, 18) + '\u2026' : locationStr)
 
-  // Credibility signals
+  // Credibility
   var credSignals: string[] = []
   if (item.credibility === 'high') credSignals.push('High Credibility')
   if (item.has_physical_evidence) credSignals.push('Physical Evidence')
   if (item.source_label) credSignals.push(item.source_label)
   if (item.phenomenon_type) credSignals.push(item.phenomenon_type.name)
 
-  // Tag line
   var tagLine = ''
   if (item.source_type) tagLine = item.source_type
   if (item.content_type) tagLine = tagLine ? tagLine + ' \u00B7 ' + item.content_type : item.content_type
 
-  // Display text
   var displayText = item.feed_hook || item.summary || ''
 
-  // Tension stats
+  // Stats
   var tensionItems: { value: string | number, label: string }[] = []
   if (item.upvotes > 0) tensionItems.push({ value: item.upvotes, label: 'upvotes' })
   if (item.view_count > 0) tensionItems.push({ value: item.view_count > 999 ? Math.round(item.view_count / 100) / 10 + 'k' : item.view_count, label: 'views' })
   if (item.comment_count > 0) tensionItems.push({ value: item.comment_count, label: 'comments' })
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 13,
-      height: '100%',
-      overflowY: props.expanded ? 'auto' : 'hidden',
-    }}>
+    <div className={'flex flex-col gap-4 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}>
       {/* Case type badge */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 9, letterSpacing: 2.5, color: catColor, fontFamily: "'Courier New',monospace", textTransform: 'uppercase' as const }}>
-          {icon + ' ' + badgeParts.join(' \u00B7 ')}
-        </span>
-      </div>
+      <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: catColor }}>
+        {(config?.icon || '') + ' ' + badgeParts.join(' \u00B7 ')}
+      </span>
 
-      {/* Location + tag */}
-      <div style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.35)', fontFamily: "'Courier New',monospace" }}>
-        {'\u25C9 ' + (locationStr || 'Unknown location') + (tagLine ? ' \u00B7 ' + tagLine : '')}
-      </div>
+      {/* Location */}
+      <p className="text-[11px] text-gray-500 font-sans">
+        {(locationStr || 'Unknown location') + (tagLine ? ' \u00B7 ' + tagLine : '')}
+      </p>
 
-      {/* Large bold opener — headline, not a sentence */}
-      <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.45, color: '#f2f0eb', fontFamily: "system-ui,-apple-system,sans-serif" }}>
+      {/* Large bold opener */}
+      <h2 className="text-lg sm:text-xl font-display font-bold text-white leading-snug">
         {displayText || item.title}
-      </div>
+      </h2>
 
-      {/* Credibility signals */}
-      <CredibilityTags tags={credSignals} color={catColor} />
+      {/* Credibility */}
+      <CredibilityTags tags={credSignals} />
 
-      {/* Tension stats */}
+      {/* Stats */}
       {tensionItems.length > 0 && (
         <StatsRow items={tensionItems} color={catColor} />
       )}
 
-      {/* Read Case button */}
-      {!props.expanded && (
-        <button onClick={props.onExpand} style={{
-          background: 'rgba(255,255,255,0.035)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 8,
-          padding: '9px 0',
-          color: 'rgba(255,255,255,0.35)',
-          fontSize: 9.5,
-          fontFamily: "'Courier New',monospace",
-          letterSpacing: 2,
-          textTransform: 'uppercase' as const,
-          cursor: 'pointer',
-          flexShrink: 0,
-        }}>
-          {'\u25BC Read Case'}
-        </button>
-      )}
-
-      {/* Expanded content */}
-      {props.expanded && (
+      {/* Read Case / Expanded */}
+      {!props.expanded ? (
+        <ReadCaseButton onExpand={props.onExpand} />
+      ) : (
         <>
-          <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', flexShrink: 0 }} />
-          <div style={{ fontSize: 13, lineHeight: 1.8, color: 'rgba(255,255,255,0.65)', fontFamily: "'Courier New',monospace" }}>
+          <div className="h-px bg-white/[0.07] flex-shrink-0" />
+          <p className="text-sm text-gray-400 leading-relaxed font-sans">
             {item.summary || 'No additional details available.'}
-          </div>
+          </p>
           <Constellation />
-          <div style={{ height: 20 }} />
+          <div className="h-5" />
         </>
       )}
 
       {/* Bottom bar */}
       {!props.expanded && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.2)' }}>
-            <span>{'\u2661'}</span>
-            <span style={{ fontSize: 8, fontFamily: "'Courier New',monospace" }}>
-              {item.upvotes > 0 ? item.upvotes.toLocaleString() : ''}
-            </span>
-          </div>
-          <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.13)', fontFamily: "'Courier New',monospace" }}>
-            {item.event_date ? new Date(item.event_date).getFullYear().toString() : ''}
-          </span>
-        </div>
+        <BottomStatsBar
+          left={item.upvotes > 0 ? '\u2661 ' + item.upvotes.toLocaleString() : ''}
+          right={item.event_date ? new Date(item.event_date).getFullYear().toString() : ''}
+        />
       )}
     </div>
   )
@@ -469,13 +399,9 @@ export function MediaReportCard(props: {
   user: any
   onShowSignup: (show: boolean) => void
 }) {
-  // MediaReportCard uses the same layout as TextReportCard but with
-  // an "Evidence" badge. The actual image display is minimal in the
-  // typography-first design — images are reserved for expanded view.
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
   var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
-  var icon = CAT_ICON[item.category] || '\uD83D\uDD0D'
 
   var badgeParts: string[] = []
   badgeParts.push(config?.label || item.category)
@@ -488,7 +414,7 @@ export function MediaReportCard(props: {
   if (item.state_province) locationParts.push(item.state_province)
   if (item.country) locationParts.push(item.country)
   var locationStr = locationParts.join(', ')
-  if (locationStr) badgeParts.push(locationStr.length > 20 ? locationStr.substring(0, 18) + '...' : locationStr)
+  if (locationStr) badgeParts.push(locationStr.length > 20 ? locationStr.substring(0, 18) + '\u2026' : locationStr)
 
   var credSignals: string[] = []
   if (item.has_photo_video) credSignals.push('Photo/Video Evidence')
@@ -503,110 +429,69 @@ export function MediaReportCard(props: {
   if (item.view_count > 0) tensionItems.push({ value: item.view_count > 999 ? Math.round(item.view_count / 100) / 10 + 'k' : item.view_count, label: 'views' })
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 13,
-      height: '100%',
-      overflowY: props.expanded ? 'auto' : 'hidden',
-    }}>
+    <div className={'flex flex-col gap-4 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}>
       {/* Case type badge + evidence marker */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 9, letterSpacing: 2.5, color: catColor, fontFamily: "'Courier New',monospace", textTransform: 'uppercase' as const }}>
-          {icon + ' ' + badgeParts.join(' \u00B7 ')}
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: catColor }}>
+          {(config?.icon || '') + ' ' + badgeParts.join(' \u00B7 ')}
         </span>
-        <span style={{
-          fontSize: 7,
-          padding: '2px 8px',
-          borderRadius: 10,
-          background: 'rgba(255,179,64,0.12)',
-          color: '#ffb740',
-          fontFamily: "'Courier New',monospace",
-          letterSpacing: 1,
-          textTransform: 'uppercase' as const,
-        }}>
+        <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-sans font-semibold uppercase tracking-wider">
           Evidence
         </span>
       </div>
 
       {/* Location */}
-      <div style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.35)', fontFamily: "'Courier New',monospace" }}>
-        {'\u25C9 ' + (locationStr || 'Unknown location')}
-      </div>
+      <p className="text-[11px] text-gray-500 font-sans">
+        {locationStr || 'Unknown location'}
+      </p>
 
       {/* Large bold opener */}
-      <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.45, color: '#f2f0eb', fontFamily: "system-ui,-apple-system,sans-serif" }}>
+      <h2 className="text-lg sm:text-xl font-display font-bold text-white leading-snug">
         {displayText || item.title}
-      </div>
+      </h2>
 
       {/* Credibility */}
-      <CredibilityTags tags={credSignals} color={catColor} />
+      <CredibilityTags tags={credSignals} />
 
       {/* Stats */}
       {tensionItems.length > 0 && (
         <StatsRow items={tensionItems} color={catColor} />
       )}
 
-      {/* Read Case */}
-      {!props.expanded && (
-        <button onClick={props.onExpand} style={{
-          background: 'rgba(255,255,255,0.035)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 8,
-          padding: '9px 0',
-          color: 'rgba(255,255,255,0.35)',
-          fontSize: 9.5,
-          fontFamily: "'Courier New',monospace",
-          letterSpacing: 2,
-          textTransform: 'uppercase' as const,
-          cursor: 'pointer',
-          flexShrink: 0,
-        }}>
-          {'\u25BC Read Case'}
-        </button>
-      )}
-
-      {/* Expanded */}
-      {props.expanded && (
+      {/* Read Case / Expanded */}
+      {!props.expanded ? (
+        <ReadCaseButton onExpand={props.onExpand} />
+      ) : (
         <>
-          <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', flexShrink: 0 }} />
-          {/* Show media thumbnail if available */}
+          <div className="h-px bg-white/[0.07] flex-shrink-0" />
+          {/* Media thumbnail */}
           {item.primary_media && (item.primary_media.thumbnail_url || item.primary_media.url) && (
-            <div style={{ borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
+            <div className="rounded-lg overflow-hidden flex-shrink-0">
               <img
                 src={item.primary_media.thumbnail_url || item.primary_media.url}
                 alt={item.primary_media.caption || ''}
-                style={{ width: '100%', height: 180, objectFit: 'cover', opacity: 0.8 }}
+                className="w-full h-44 object-cover opacity-80"
                 referrerPolicy="no-referrer"
               />
               {item.primary_media.caption && (
-                <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', fontFamily: "'Courier New',monospace", padding: '6px 0 0' }}>
-                  {item.primary_media.caption}
-                </div>
+                <p className="text-[10px] text-gray-500 font-sans pt-1.5">{item.primary_media.caption}</p>
               )}
             </div>
           )}
-          <div style={{ fontSize: 13, lineHeight: 1.8, color: 'rgba(255,255,255,0.65)', fontFamily: "'Courier New',monospace" }}>
+          <p className="text-sm text-gray-400 leading-relaxed font-sans">
             {item.summary || 'No additional details available.'}
-          </div>
+          </p>
           <Constellation />
-          <div style={{ height: 20 }} />
+          <div className="h-5" />
         </>
       )}
 
       {/* Bottom bar */}
       {!props.expanded && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.2)' }}>
-            <span>{'\u2661'}</span>
-            <span style={{ fontSize: 8, fontFamily: "'Courier New',monospace" }}>
-              {item.upvotes > 0 ? item.upvotes.toLocaleString() : ''}
-            </span>
-          </div>
-          <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.13)', fontFamily: "'Courier New',monospace" }}>
-            {item.event_date ? new Date(item.event_date).getFullYear().toString() : ''}
-          </span>
-        </div>
+        <BottomStatsBar
+          left={item.upvotes > 0 ? '\u2661 ' + item.upvotes.toLocaleString() : ''}
+          right={item.event_date ? new Date(item.event_date).getFullYear().toString() : ''}
+        />
       )}
     </div>
   )

@@ -4,8 +4,7 @@
  * DetailView — full-screen overlay for expanded case detail
  *
  * Opened from RabbitHolePanel when a related case is tapped.
- * Shows full summary, credibility tags, and Constellation paywall.
- * Slides up with spring animation.
+ * Uses site typography and colors (Inter, Space Grotesk, primary-500).
  *
  * SWC-compatible: var, function expressions, string concat.
  */
@@ -15,101 +14,51 @@ import { Constellation } from './Constellation'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import type { RabbitHoleCard } from './RabbitHolePanel'
 
-var CAT_ICON: Record<string, string> = {
-  ufos_aliens: '\uD83D\uDEF8',
-  cryptids: '\uD83D\uDC3E',
-  ghosts_hauntings: '\uD83D\uDC7B',
-  psychic_phenomena: '\uD83D\uDD2E',
-  consciousness_practices: '\uD83E\uDDE0',
-  psychological_experiences: '\uD83E\uDDE0',
-  biological_factors: '\uD83E\uDDEC',
-  perception_sensory: '\uD83D\uDC41\uFE0F',
-  religion_mythology: '\u2721\uFE0F',
-  esoteric_practices: '\u2728',
-  combination: '\uD83C\uDF00',
-}
-
 export function DetailView(props: {
   card: RabbitHoleCard
   onBack: () => void
 }) {
   var card = props.card
   var catConfig = CATEGORY_CONFIG[card.category as keyof typeof CATEGORY_CONFIG]
-  var icon = CAT_ICON[card.category] || '\uD83D\uDD0D'
 
   return (
-    <div style={{
-      position: 'absolute',
-      inset: 0,
-      background: '#08080f',
-      zIndex: 30,
-      display: 'flex',
-      flexDirection: 'column',
-      animation: 'slideUp 0.26s cubic-bezier(0.32,0,0.15,1)',
-    }}>
+    <div className="absolute inset-0 bg-gray-950 z-30 flex flex-col animate-slide-up">
       {/* Drag handle */}
-      <div style={{ padding: '14px 0 8px', display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
-        <div style={{ width: 34, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.25)' }} />
+      <div className="py-3 flex justify-center flex-shrink-0">
+        <div className="w-8 h-0.5 rounded-full bg-gray-700" />
       </div>
 
       {/* Header */}
-      <div style={{
-        padding: '0 22px 12px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexShrink: 0,
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-      }}>
-        <span style={{
-          fontSize: 8.5,
-          letterSpacing: 2,
-          color: card.categoryColor,
-          fontFamily: "'Courier New',monospace",
-          textTransform: 'uppercase' as const,
-        }}>
-          {icon + ' ' + (catConfig?.label || card.category) + ' \u00B7 ' + card.year}
+      <div className="px-5 pb-3 flex items-center justify-between flex-shrink-0 border-b border-white/5">
+        <span className="text-[10px] font-sans font-semibold uppercase tracking-wider" style={{ color: card.categoryColor }}>
+          {(catConfig?.icon || '') + ' ' + (catConfig?.label || card.category) + ' \u00B7 ' + card.year}
         </span>
-        <button onClick={props.onBack} style={{
-          background: 'none',
-          border: 'none',
-          color: 'rgba(255,255,255,0.28)',
-          fontSize: 11,
-          cursor: 'pointer',
-          fontFamily: "'Courier New',monospace",
-          letterSpacing: 1,
-          padding: '4px 6px',
-        }}>
-          {'\u2190 BACK'}
+        <button
+          onClick={props.onBack}
+          className="text-gray-500 hover:text-gray-300 text-xs font-sans font-medium uppercase tracking-wider px-2 py-1 transition-colors"
+        >
+          {'\u2190 Back'}
         </button>
       </div>
 
       {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '18px 22px' }}>
+      <div className="flex-1 overflow-y-auto px-5 py-4">
         {/* Location + tag */}
-        <div style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.32)', fontFamily: "'Courier New',monospace", marginBottom: 12 }}>
-          {'\u25C9 ' + card.location + ' \u00B7 ' + card.tag}
-        </div>
+        <p className="text-[11px] text-gray-500 font-sans mb-3">
+          {card.location + (card.tag ? ' \u00B7 ' + card.tag : '')}
+        </p>
 
         {/* Headline */}
-        <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.45, color: '#f2f0eb', fontFamily: "system-ui,-apple-system,sans-serif", marginBottom: 12 }}>
+        <h2 className="text-lg font-display font-bold text-white leading-snug mb-3">
           {card.headline}
-        </div>
+        </h2>
 
         {/* Credibility tags */}
         {card.credibility && card.credibility.length > 0 && (
-          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' as const, marginBottom: 14 }}>
+          <div className="flex gap-1.5 flex-wrap mb-4">
             {card.credibility.map(function (c, i) {
               return (
-                <span key={i} style={{
-                  fontSize: 7.5,
-                  padding: '2px 9px',
-                  borderRadius: 20,
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: 'rgba(255,255,255,0.4)',
-                  fontFamily: "'Courier New',monospace",
-                  letterSpacing: 0.8,
-                }}>
+                <span key={i} className="text-[10px] px-2.5 py-0.5 rounded-full border border-white/10 text-gray-400 font-sans font-medium">
                   {c}
                 </span>
               )
@@ -118,19 +67,18 @@ export function DetailView(props: {
         )}
 
         {/* Divider */}
-        <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', marginBottom: 14 }} />
+        <div className="h-px bg-white/[0.07] mb-4" />
 
         {/* Summary */}
-        <div style={{ fontSize: 13.5, lineHeight: 1.8, color: 'rgba(255,255,255,0.66)', fontFamily: "'Courier New',monospace" }}>
+        <p className="text-sm text-gray-400 leading-relaxed font-sans">
           {card.summary}
-        </div>
+        </p>
 
         {/* Constellation paywall */}
-        <div style={{ marginTop: 20 }}>
+        <div className="mt-5">
           <Constellation />
         </div>
-
-        <div style={{ height: 24 }} />
+        <div className="h-6" />
       </div>
     </div>
   )
