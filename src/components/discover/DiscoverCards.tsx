@@ -1,35 +1,28 @@
 'use client'
 
 /**
- * Phase 2 Discover Card Templates
+ * Phase 4 Discover Card Templates — Typography-First Visual Hierarchy
  *
- * Three card templates for the mixed-content Stories feed:
- *  1. PhenomenonCard  — Full-screen encyclopedia entry (image or gradient bg)
- *  2. TextReportCard  — First-person experiencer report, text-focused
- *  3. MediaReportCard — Report with photo/video evidence, image-backed
+ * Redesigned for the gesture-based feed (no CSS snap-scroll).
+ * Cards use typography and layout as the visual layer:
  *
- * All cards are full-viewport-height snap items for the TikTok-style scroll.
- * Related content is handled by horizontal swipe in discover.tsx (2D snap grid).
+ *   1. Case type badge (UFO · 1976 · Iran) — scannable identity
+ *   2. Credibility signal (Military witness · Radar corroboration) — trust
+ *   3. Tension stat (3 witnesses · No explanation) — urgency
+ *   4. Large bold opener line — headline treatment
+ *   5. "Read Case" button → expands summary + Constellation paywall
+ *
+ * Three card types: PhenomenonCard, TextReportCard, MediaReportCard
+ * All accept an `expanded` prop + `onExpand` callback for inline expand.
+ *
+ * SWC-compatible: var, function expressions, string concat only.
  */
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import Link from 'next/link'
-import {
-  Bookmark,
-  Share2,
-  Compass,
-  Eye,
-  ArrowRight,
-  AlertTriangle,
-  MapPin,
-  Tag,
-  Calendar,
-  Shield,
-  FileText,
-  Camera,
-} from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
+import { Constellation } from './Constellation'
 
 // =========================================================================
 //  Shared types
@@ -103,847 +96,518 @@ export interface ReportItem {
 
 export type FeedItemV2 = PhenomenonItem | ReportItem
 
-// RelatedItem interface removed — related content is now handled as
-// full FeedItemV2 cards in the 2D horizontal swipe grid (discover.tsx)
-
 // =========================================================================
-//  Color maps
+//  Category color map (hex values for inline styles)
 // =========================================================================
 
-var CARD_GRADIENTS: Record<string, string> = {
-  cryptids: 'from-emerald-950/90 via-gray-950/80 to-gray-950',
-  ufos_aliens: 'from-indigo-950/90 via-gray-950/80 to-gray-950',
-  ghosts_hauntings: 'from-purple-950/90 via-gray-950/80 to-gray-950',
-  psychic_phenomena: 'from-violet-950/90 via-gray-950/80 to-gray-950',
-  consciousness_practices: 'from-amber-950/90 via-gray-950/80 to-gray-950',
-  psychological_experiences: 'from-cyan-950/90 via-gray-950/80 to-gray-950',
-  biological_factors: 'from-rose-950/90 via-gray-950/80 to-gray-950',
-  perception_sensory: 'from-orange-950/90 via-gray-950/80 to-gray-950',
-  religion_mythology: 'from-yellow-950/90 via-gray-950/80 to-gray-950',
-  esoteric_practices: 'from-fuchsia-950/90 via-gray-950/80 to-gray-950',
-  combination: 'from-teal-950/90 via-gray-950/80 to-gray-950',
+var CATEGORY_COLORS: Record<string, string> = {
+  ufos_aliens: '#4fc3f7',
+  cryptids: '#a5d6a7',
+  ghosts_hauntings: '#ce93d8',
+  psychic_phenomena: '#b39ddb',
+  consciousness_practices: '#ffb74d',
+  psychological_experiences: '#80deea',
+  biological_factors: '#ef9a9a',
+  perception_sensory: '#ffcc80',
+  religion_mythology: '#fff176',
+  esoteric_practices: '#f48fb1',
+  combination: '#80cbc4',
 }
 
-var DANGER_COLORS: Record<string, { bg: string; text: string; glow: string }> = {
-  'Low': { bg: 'bg-green-500/20', text: 'text-green-400', glow: 'shadow-green-500/20' },
-  'Moderate': { bg: 'bg-yellow-500/20', text: 'text-yellow-400', glow: 'shadow-yellow-500/20' },
-  'High': { bg: 'bg-orange-500/20', text: 'text-orange-400', glow: 'shadow-orange-500/20' },
-  'Extreme': { bg: 'bg-red-500/20', text: 'text-red-400', glow: 'shadow-red-500/20' },
-  'Unknown': { bg: 'bg-gray-500/20', text: 'text-gray-400', glow: '' },
-  'Varies': { bg: 'bg-purple-500/20', text: 'text-purple-400', glow: 'shadow-purple-500/20' },
+var CAT_ICON: Record<string, string> = {
+  ufos_aliens: '\uD83D\uDEF8',
+  cryptids: '\uD83D\uDC3E',
+  ghosts_hauntings: '\uD83D\uDC7B',
+  psychic_phenomena: '\uD83D\uDD2E',
+  consciousness_practices: '\uD83E\uDDE0',
+  psychological_experiences: '\uD83E\uDDE0',
+  biological_factors: '\uD83E\uDDEC',
+  perception_sensory: '\uD83D\uDC41\uFE0F',
+  religion_mythology: '\u2721\uFE0F',
+  esoteric_practices: '\u2728',
+  combination: '\uD83C\uDF00',
 }
 
-var CREDIBILITY_STYLES: Record<string, { bg: string; text: string; icon: string }> = {
-  'high': { bg: 'bg-emerald-500/20', text: 'text-emerald-400', icon: '\u2713\u2713' },
-  'medium': { bg: 'bg-yellow-500/20', text: 'text-yellow-400', icon: '\u2713' },
-  'low': { bg: 'bg-red-500/20', text: 'text-red-400', icon: '?' },
-}
-
-var placeholderUrl = 'https://bhkbctdmwnowfmqpksed.supabase.co/storage/v1/object/public/phenomena-images/default-cryptid.jpg'
-
-// =========================================================================
-//  Generative visual variety system for text-based report cards
-//  Ensures every card feels unique even without media.
-//  Uses a simple hash of report ID to deterministically pick visual treatments.
-// =========================================================================
-
-/** Simple string hash → number (deterministic) */
+/** Simple hash for deterministic variety */
 function hashString(str: string): number {
   var hash = 0
   for (var i = 0; i < str.length; i++) {
-    var char = str.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash |= 0 // Convert to 32-bit int
+    hash = ((hash << 5) - hash) + str.charCodeAt(i)
+    hash |= 0
   }
   return Math.abs(hash)
 }
 
-/** Visual treatment moods for text report cards */
-var CARD_MOODS = ['dossier', 'cinematic', 'minimal', 'atmospheric'] as const
-type CardMood = typeof CARD_MOODS[number]
-
-/** Gradient angle variations — each has a different visual feel */
-var GRADIENT_ANGLES = [
-  'bg-gradient-to-t',    // bottom-up (standard)
-  'bg-gradient-to-tr',   // diagonal
-  'bg-gradient-to-tl',   // opposite diagonal
-  'bg-gradient-to-br',   // top-down diagonal
-]
-
-/** Accent color variations within categories (subtle shifts).
- *  All 11 categories covered so every card gets a category-specific glow. */
-var ACCENT_VARIATIONS: Record<string, string[]> = {
-  cryptids: [
-    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(16,185,129,0.08),transparent_60%)]',
-    'bg-[radial-gradient(ellipse_at_70%_30%,rgba(52,211,153,0.06),transparent_50%)]',
-    'bg-[radial-gradient(circle_at_20%_80%,rgba(6,95,70,0.12),transparent_55%)]',
-    'bg-[radial-gradient(ellipse_at_80%_60%,rgba(16,185,129,0.05),transparent_65%)]',
-  ],
-  ufos_aliens: [
-    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(99,102,241,0.08),transparent_60%)]',
-    'bg-[radial-gradient(ellipse_at_70%_20%,rgba(129,140,248,0.06),transparent_50%)]',
-    'bg-[radial-gradient(circle_at_50%_50%,rgba(55,48,163,0.12),transparent_55%)]',
-    'bg-[radial-gradient(ellipse_at_20%_40%,rgba(99,102,241,0.07),transparent_65%)]',
-  ],
-  ghosts_hauntings: [
-    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(168,85,247,0.08),transparent_60%)]',
-    'bg-[radial-gradient(ellipse_at_70%_80%,rgba(192,132,252,0.06),transparent_50%)]',
-    'bg-[radial-gradient(circle_at_40%_20%,rgba(107,33,168,0.10),transparent_55%)]',
-    'bg-[radial-gradient(ellipse_at_60%_90%,rgba(168,85,247,0.05),transparent_65%)]',
-  ],
-  psychic_phenomena: [
-    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(139,92,246,0.08),transparent_60%)]',
-    'bg-[radial-gradient(ellipse_at_80%_30%,rgba(167,139,250,0.06),transparent_50%)]',
-    'bg-[radial-gradient(circle_at_50%_80%,rgba(109,40,217,0.10),transparent_55%)]',
-    'bg-[radial-gradient(ellipse_at_20%_50%,rgba(139,92,246,0.07),transparent_65%)]',
-  ],
-  consciousness_practices: [
-    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(217,119,6,0.08),transparent_60%)]',
-    'bg-[radial-gradient(ellipse_at_70%_40%,rgba(245,158,11,0.06),transparent_50%)]',
-    'bg-[radial-gradient(circle_at_40%_60%,rgba(180,83,9,0.10),transparent_55%)]',
-    'bg-[radial-gradient(ellipse_at_60%_20%,rgba(217,119,6,0.05),transparent_65%)]',
-  ],
-  psychological_experiences: [
-    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(6,182,212,0.08),transparent_60%)]',
-    'bg-[radial-gradient(ellipse_at_70%_40%,rgba(34,211,238,0.06),transparent_50%)]',
-    'bg-[radial-gradient(circle_at_40%_80%,rgba(8,145,178,0.10),transparent_55%)]',
-    'bg-[radial-gradient(ellipse_at_60%_20%,rgba(6,182,212,0.05),transparent_65%)]',
-  ],
-  biological_factors: [
-    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(244,63,94,0.08),transparent_60%)]',
-    'bg-[radial-gradient(ellipse_at_70%_30%,rgba(251,113,133,0.06),transparent_50%)]',
-    'bg-[radial-gradient(circle_at_50%_80%,rgba(190,18,60,0.10),transparent_55%)]',
-    'bg-[radial-gradient(ellipse_at_20%_40%,rgba(244,63,94,0.05),transparent_65%)]',
-  ],
-  perception_sensory: [
-    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(249,115,22,0.08),transparent_60%)]',
-    'bg-[radial-gradient(ellipse_at_70%_40%,rgba(251,146,60,0.06),transparent_50%)]',
-    'bg-[radial-gradient(circle_at_20%_60%,rgba(194,65,12,0.10),transparent_55%)]',
-    'bg-[radial-gradient(ellipse_at_80%_30%,rgba(249,115,22,0.05),transparent_65%)]',
-  ],
-  religion_mythology: [
-    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(234,179,8,0.08),transparent_60%)]',
-    'bg-[radial-gradient(ellipse_at_70%_30%,rgba(250,204,21,0.06),transparent_50%)]',
-    'bg-[radial-gradient(circle_at_50%_80%,rgba(161,98,7,0.10),transparent_55%)]',
-    'bg-[radial-gradient(ellipse_at_20%_40%,rgba(234,179,8,0.05),transparent_65%)]',
-  ],
-  esoteric_practices: [
-    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(192,38,211,0.08),transparent_60%)]',
-    'bg-[radial-gradient(ellipse_at_70%_40%,rgba(217,70,239,0.06),transparent_50%)]',
-    'bg-[radial-gradient(circle_at_40%_20%,rgba(134,25,143,0.10),transparent_55%)]',
-    'bg-[radial-gradient(ellipse_at_60%_80%,rgba(192,38,211,0.05),transparent_65%)]',
-  ],
-  combination: [
-    'bg-[radial-gradient(ellipse_at_30%_70%,rgba(20,184,166,0.08),transparent_60%)]',
-    'bg-[radial-gradient(ellipse_at_70%_30%,rgba(45,212,191,0.06),transparent_50%)]',
-    'bg-[radial-gradient(circle_at_50%_50%,rgba(13,148,136,0.10),transparent_55%)]',
-    'bg-[radial-gradient(ellipse_at_20%_80%,rgba(20,184,166,0.05),transparent_65%)]',
-  ],
-}
-
-var DEFAULT_ACCENTS = [
-  'bg-[radial-gradient(ellipse_at_30%_70%,rgba(139,92,246,0.06),transparent_60%)]',
-  'bg-[radial-gradient(ellipse_at_70%_30%,rgba(99,102,241,0.06),transparent_50%)]',
-  'bg-[radial-gradient(circle_at_50%_50%,rgba(168,85,247,0.08),transparent_55%)]',
-  'bg-[radial-gradient(ellipse_at_20%_80%,rgba(79,70,229,0.06),transparent_65%)]',
-]
-
-/** Decorative watermark elements for different moods */
-var WATERMARK_CHARS = ['\u25A3', '\u2022', '\u25C6', '\u2605'] // ▣, •, ◆, ★
-
-function getCardVariation(reportId: string, category: string) {
-  var hash = hashString(reportId)
-  var mood = CARD_MOODS[hash % CARD_MOODS.length]
-  var gradientDir = GRADIENT_ANGLES[hash % GRADIENT_ANGLES.length]
-  var accents = ACCENT_VARIATIONS[category] || DEFAULT_ACCENTS
-  var accent = accents[(hash >> 4) % accents.length]
-  var watermark = WATERMARK_CHARS[(hash >> 8) % WATERMARK_CHARS.length]
-  // Use phenomenon image rarely (1 in 8 cards)
-  var usePhenomenonImage = (hash % 8) === 0
-  return { mood: mood, gradientDir: gradientDir, accent: accent, watermark: watermark, usePhenomenonImage: usePhenomenonImage }
-}
-
 // =========================================================================
-//  Shared sidebar actions (TikTok-style right rail)
+//  Shared: Credibility tag pills
 // =========================================================================
 
-function SidebarActions(props: {
-  shareTitle: string
-  shareText: string
-  shareUrl: string
-  categoryHref: string
-  user: any
-  onShowSignup: (show: boolean) => void
-  isActive: boolean
-}) {
+function CredibilityTags(props: { tags: string[], color: string }) {
+  if (!props.tags || props.tags.length === 0) return null
   return (
-    <div className={classNames(
-      'absolute right-3 sm:right-6 bottom-20 sm:bottom-40 md:bottom-24 flex flex-col items-center gap-4 sm:gap-5 transition-all duration-500',
-      props.isActive ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
-    )}>
-      <button
-        onClick={function (e) {
-          e.stopPropagation()
-          if (!props.user) props.onShowSignup(true)
-        }}
-        className="flex flex-col items-center gap-1 text-white/70 hover:text-white transition-colors"
-        title="Save"
-      >
-        <div className="w-10 h-10 sm:w-11 sm:h-11 bg-gray-800/60 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-gray-700/60 transition-colors">
-          <Bookmark className="w-4 h-4 sm:w-5 sm:h-5" />
-        </div>
-        <span className="text-[10px]">Save</span>
-      </button>
-      <button
-        onClick={function (e) {
-          e.stopPropagation()
-          if (navigator.share) {
-            navigator.share({
-              title: props.shareTitle,
-              text: props.shareText,
-              url: props.shareUrl,
-            }).catch(function () {})
-          } else {
-            navigator.clipboard.writeText(props.shareUrl)
-          }
-        }}
-        className="flex flex-col items-center gap-1 text-white/70 hover:text-white transition-colors"
-        title="Share"
-      >
-        <div className="w-10 h-10 sm:w-11 sm:h-11 bg-gray-800/60 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-gray-700/60 transition-colors">
-          <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />
-        </div>
-        <span className="text-[10px]">Share</span>
-      </button>
-      <Link
-        href={props.categoryHref}
-        className="flex flex-col items-center gap-1 text-white/70 hover:text-white transition-colors"
-        title="More like this"
-      >
-        <div className="w-10 h-10 sm:w-11 sm:h-11 bg-gray-800/60 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-gray-700/60 transition-colors">
-          <Compass className="w-4 h-4 sm:w-5 sm:h-5" />
-        </div>
-        <span className="text-[10px]">More</span>
-      </Link>
+    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' as const, flexShrink: 0 }}>
+      {props.tags.map(function (tag, i) {
+        return (
+          <span key={i} style={{
+            fontSize: 7.5,
+            padding: '2px 9px',
+            borderRadius: 20,
+            border: '1px solid rgba(255,255,255,0.1)',
+            color: 'rgba(255,255,255,0.35)',
+            fontFamily: "'Courier New',monospace",
+            letterSpacing: 0.8,
+          }}>
+            {tag}
+          </span>
+        )
+      })}
     </div>
   )
 }
 
-// RelatedTray removed — replaced by 2D horizontal swipe grid in discover.tsx
+// =========================================================================
+//  Shared: Stats row (witnesses, documents, depth)
+// =========================================================================
+
+function StatsRow(props: { items: { value: string | number, label: string }[], color: string }) {
+  return (
+    <div style={{ display: 'flex', gap: 18, flexShrink: 0 }}>
+      {props.items.map(function (item, i) {
+        return (
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <span style={{ fontSize: 20, fontWeight: 900, color: props.color, fontFamily: "system-ui,-apple-system,sans-serif" }}>
+              {item.value}
+            </span>
+            <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.28)', fontFamily: "'Courier New',monospace", textTransform: 'uppercase' as const, letterSpacing: 1 }}>
+              {item.label}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 // =========================================================================
-//  1. PhenomenonCard — encyclopedia entry (existing DiscoverCard, upgraded)
+//  1. PhenomenonCard — encyclopedia entry, typography-first
 // =========================================================================
 
 export function PhenomenonCard(props: {
   item: PhenomenonItem
   index: number
   isActive: boolean
+  expanded: boolean
+  onExpand: () => void
   user: any
   onShowSignup: (show: boolean) => void
 }) {
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
-  var gradient = CARD_GRADIENTS[item.category] || 'from-gray-950/90 to-gray-950'
+  var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
+  var icon = CAT_ICON[item.category] || '\uD83D\uDD0D'
   var qf = item.ai_quick_facts
-  var [imgError, setImgError] = useState(false)
-  var hasImage = item.primary_image_url && !imgError && item.primary_image_url !== placeholderUrl
 
-  var dangerKey = qf?.danger_level?.split(' ')?.[0] || ''
-  var dangerStyle = DANGER_COLORS[dangerKey] || null
+  // Build case type badge
+  var badgeParts: string[] = []
+  badgeParts.push(config?.label || item.category)
+  if (item.first_reported_date) {
+    var yearMatch = item.first_reported_date.match(/\d{4}/)
+    if (yearMatch) badgeParts.push(yearMatch[0])
+  }
+  if (item.primary_regions && item.primary_regions.length > 0) {
+    badgeParts.push(item.primary_regions[0])
+  }
+
+  // Build credibility signals from quick facts
+  var credSignals: string[] = []
+  if (qf?.evidence_types) credSignals.push(qf.evidence_types)
+  if (qf?.classification) credSignals.push(qf.classification)
+  if (item.report_count > 5) credSignals.push(item.report_count + ' reports')
+
+  // Tension stat
+  var tensionItems: { value: string | number, label: string }[] = []
+  if (item.report_count > 0) tensionItems.push({ value: item.report_count, label: 'reports' })
+  if (qf?.danger_level) tensionItems.push({ value: qf.danger_level.split(' ')[0], label: 'danger' })
+
+  // Display text: hook or summary
+  var displayText = item.feed_hook || item.ai_summary || ''
 
   return (
-    <div
-      className="h-screen w-full relative overflow-hidden bg-gray-950"
-    >
-      {/* Background */}
-      {hasImage ? (
-        <>
-          <img
-            src={item.primary_image_url!}
-            alt=""
-            className={classNames(
-              'absolute inset-0 w-full h-full object-cover transition-transform duration-700',
-              props.isActive ? 'scale-100' : 'scale-105'
-            )}
-            referrerPolicy="no-referrer"
-            loading="lazy"
-            onError={function () { setImgError(true) }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/60 to-gray-950/30" />
-        </>
-      ) : (
-        <div className={classNames('absolute inset-0 bg-gradient-to-br', gradient)}>
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.06]">
-            <span className="text-[12rem] sm:text-[20rem] leading-none select-none">{item.icon || config?.icon}</span>
-          </div>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(139,92,246,0.05),transparent_70%)]" />
-        </div>
-      )}
-
-      {/* Content */}
-      <div className="absolute inset-0 flex flex-col justify-end p-5 pb-16 pr-16 sm:p-8 sm:pb-24 sm:pr-24 md:p-12 md:pb-16 md:pr-12">
-        {/* Category badge */}
-        <div className="mb-3 sm:mb-4">
-          <span className={classNames(
-            'inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold backdrop-blur-sm',
-            config?.bgColor || 'bg-gray-800', config?.color || 'text-gray-400'
-          )}>
-            <span>{config?.icon}</span>
-            {config?.label}
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 13,
+      height: '100%',
+      overflowY: props.expanded ? 'auto' : 'hidden',
+    }}>
+      {/* Case type badge */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={{ fontSize: 9, letterSpacing: 2.5, color: catColor, fontFamily: "'Courier New',monospace", textTransform: 'uppercase' as const }}>
+            {icon + ' ' + badgeParts.join(' \u00B7 ')}
           </span>
-        </div>
-
-        {/* Title */}
-        <h1 className={classNames(
-          'text-3xl sm:text-5xl md:text-6xl font-bold text-white mb-2 sm:mb-3 leading-tight transition-all duration-500',
-          props.isActive ? 'opacity-100 translate-y-0' : 'opacity-80 translate-y-2'
-        )}>
-          {item.name}
-        </h1>
-
-        {/* Aliases */}
-        {item.aliases && item.aliases.length > 0 && (
-          <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4 italic line-clamp-1">
-            Also known as: {item.aliases.slice(0, 3).join(', ')}
-          </p>
-        )}
-
-        {/* Hook or summary — editorial voice */}
-        {(item.feed_hook || item.ai_summary) && (
-          <p className={classNames(
-            'max-w-2xl leading-relaxed mb-4 sm:mb-6 transition-all duration-500 delay-100',
-            item.feed_hook
-              ? 'text-base sm:text-lg md:text-xl text-gray-200 line-clamp-4 font-medium'
-              : 'text-sm sm:text-base md:text-lg text-gray-300 line-clamp-3',
-            props.isActive ? 'opacity-100 translate-y-0' : 'opacity-60 translate-y-2'
-          )}>
-            {item.feed_hook || item.ai_summary}
-          </p>
-        )}
-
-        {/* Quick fact pills */}
-        {qf && (
-          <div className={classNames(
-            'flex gap-1.5 sm:gap-2 mb-4 sm:mb-6 transition-all duration-500 delay-200 overflow-x-auto scrollbar-hide -mx-1 px-1 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible',
-            props.isActive ? 'opacity-100 translate-y-0' : 'opacity-40 translate-y-2'
-          )}>
-            {dangerStyle && qf.danger_level && (
-              <span className={classNames(
-                'inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold backdrop-blur-sm shadow-lg flex-shrink-0',
-                dangerStyle.bg, dangerStyle.text, dangerStyle.glow
-              )}>
-                <AlertTriangle className="w-3 h-3" />
-                {'Danger: ' + qf.danger_level.split(' ')[0]}
-              </span>
-            )}
-            {qf.origin && (
-              <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold bg-white/10 text-gray-300 backdrop-blur-sm flex-shrink-0">
-                <MapPin className="w-3 h-3" />
-                {qf.origin.length > 25 ? qf.origin.substring(0, 23) + '...' : qf.origin}
-              </span>
-            )}
-            {qf.classification && (
-              <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold bg-white/10 text-gray-300 backdrop-blur-sm flex-shrink-0">
-                <Tag className="w-3 h-3" />
-                {qf.classification.length > 20 ? qf.classification.substring(0, 18) + '...' : qf.classification}
-              </span>
-            )}
-            {qf.first_documented && (
-              <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/10 text-gray-300 backdrop-blur-sm flex-shrink-0">
-                <Calendar className="w-3 h-3" />
-                {qf.first_documented.length > 25 ? qf.first_documented.substring(0, 23) + '...' : qf.first_documented}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* CTA */}
-        <div className={classNames(
-          'flex items-center gap-3 transition-all duration-500 delay-300',
-          props.isActive ? 'opacity-100 translate-y-0' : 'opacity-40 translate-y-2'
-        )}>
-          <Link
-            href={'/phenomena/' + item.slug}
-            className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm transition-all bg-white text-gray-900 hover:bg-gray-100 active:bg-gray-200 hover:shadow-lg hover:shadow-white/10"
-          >
-            <Eye className="w-4 h-4" />
-            Read Full Entry
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-          {item.report_count > 0 && (
-            <span className="text-xs sm:text-sm text-gray-500">
-              {item.report_count + ' report' + (item.report_count !== 1 ? 's' : '')}
+          {item.report_count > 20 && (
+            <span style={{ fontSize: 7.5, background: 'rgba(212,175,55,0.11)', color: '#d4af37', padding: '1px 7px', borderRadius: 10, fontFamily: "'Courier New',monospace", letterSpacing: 0.5 }}>
+              trending
             </span>
           )}
         </div>
       </div>
 
-      {/* Sidebar actions */}
-      <SidebarActions
-        shareTitle={item.name}
-        shareText={item.ai_summary || 'Discover ' + item.name + ' on Paradocs'}
-        shareUrl={typeof window !== 'undefined' ? window.location.origin + '/phenomena/' + item.slug : '/phenomena/' + item.slug}
-        categoryHref={'/phenomena?category=' + item.category}
-        user={props.user}
-        onShowSignup={props.onShowSignup}
-        isActive={props.isActive}
-      />
+      {/* Location + tag */}
+      <div style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.35)', fontFamily: "'Courier New',monospace" }}>
+        {'\u25C9 ' + (item.primary_regions ? item.primary_regions.join(', ') : 'Global') + (qf?.classification ? ' \u00B7 ' + qf.classification : '')}
+      </div>
+
+      {/* Large bold opener */}
+      <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.45, color: '#f2f0eb', fontFamily: "system-ui,-apple-system,sans-serif" }}>
+        {displayText || item.name}
+      </div>
+
+      {/* Credibility signals */}
+      <CredibilityTags tags={credSignals} color={catColor} />
+
+      {/* Stats */}
+      {tensionItems.length > 0 && (
+        <StatsRow items={tensionItems} color={catColor} />
+      )}
+
+      {/* Read Case button */}
+      {!props.expanded && (
+        <button onClick={props.onExpand} style={{
+          background: 'rgba(255,255,255,0.035)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 8,
+          padding: '9px 0',
+          color: 'rgba(255,255,255,0.35)',
+          fontSize: 9.5,
+          fontFamily: "'Courier New',monospace",
+          letterSpacing: 2,
+          textTransform: 'uppercase' as const,
+          cursor: 'pointer',
+          flexShrink: 0,
+        }}>
+          {'\u25BC Read Case'}
+        </button>
+      )}
+
+      {/* Expanded content */}
+      {props.expanded && (
+        <>
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', flexShrink: 0 }} />
+          <div style={{ fontSize: 13, lineHeight: 1.8, color: 'rgba(255,255,255,0.65)', fontFamily: "'Courier New',monospace" }}>
+            {item.ai_summary || item.ai_description || 'No additional information available.'}
+          </div>
+          <Constellation />
+          <div style={{ height: 20 }} />
+        </>
+      )}
+
+      {/* Bottom stats bar (when not expanded) */}
+      {!props.expanded && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.2)' }}>
+            <span>{'\u2661'}</span>
+            <span style={{ fontSize: 8, fontFamily: "'Courier New',monospace" }}>
+              {item.report_count + ' reports'}
+            </span>
+          </div>
+          <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.13)', fontFamily: "'Courier New',monospace" }}>
+            {qf?.first_documented || ''}
+          </span>
+        </div>
+      )}
     </div>
   )
 }
 
 // =========================================================================
-//  2. TextReportCard — first-person experiencer report
-//     Generative visual variety: each card gets a unique-feeling treatment
-//     derived from the report ID hash. Phenomenon images used sparingly
-//     (~1 in 8 cards) to avoid repetition at scale (10M+ text reports).
-//     Prefers feed_hook over summary for preview text.
+//  2. TextReportCard — experiencer report, text-focused
 // =========================================================================
 
 export function TextReportCard(props: {
   item: ReportItem
   index: number
   isActive: boolean
+  expanded: boolean
+  onExpand: () => void
   user: any
   onShowSignup: (show: boolean) => void
 }) {
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
-  var gradient = CARD_GRADIENTS[item.category] || 'from-gray-950/90 to-gray-950'
-  var credStyle = CREDIBILITY_STYLES[item.credibility || ''] || null
-  var [imgError, setImgError] = useState(false)
+  var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
+  var icon = CAT_ICON[item.category] || '\uD83D\uDD0D'
 
-  // Generative visual variety based on report ID
-  var variation = getCardVariation(item.id, item.category)
-
-  // Only use phenomenon image on ~1/8 of cards to avoid repetition at scale
-  var useBgImage = variation.usePhenomenonImage && !imgError && item.associated_image_url
-
+  // Build case type badge
+  var badgeParts: string[] = []
+  badgeParts.push(config?.label || item.category)
+  if (item.event_date) {
+    var yearMatch = item.event_date.match(/\d{4}/)
+    if (yearMatch) badgeParts.push(yearMatch[0])
+  }
   var locationParts: string[] = []
   if (item.city) locationParts.push(item.city)
   if (item.state_province) locationParts.push(item.state_province)
   if (item.country) locationParts.push(item.country)
   var locationStr = locationParts.join(', ')
+  if (locationStr) badgeParts.push(locationStr.length > 20 ? locationStr.substring(0, 18) + '...' : locationStr)
 
-  var dateStr = ''
-  if (item.event_date) {
-    try {
-      var d = new Date(item.event_date)
-      dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    } catch (e) {
-      dateStr = item.event_date
-    }
-  }
+  // Credibility signals
+  var credSignals: string[] = []
+  if (item.credibility === 'high') credSignals.push('High Credibility')
+  if (item.has_physical_evidence) credSignals.push('Physical Evidence')
+  if (item.source_label) credSignals.push(item.source_label)
+  if (item.phenomenon_type) credSignals.push(item.phenomenon_type.name)
 
-  // Prefer feed_hook (engagement-optimized) over raw summary
+  // Tag line
+  var tagLine = ''
+  if (item.source_type) tagLine = item.source_type
+  if (item.content_type) tagLine = tagLine ? tagLine + ' \u00B7 ' + item.content_type : item.content_type
+
+  // Display text
   var displayText = item.feed_hook || item.summary || ''
 
+  // Tension stats
+  var tensionItems: { value: string | number, label: string }[] = []
+  if (item.upvotes > 0) tensionItems.push({ value: item.upvotes, label: 'upvotes' })
+  if (item.view_count > 0) tensionItems.push({ value: item.view_count > 999 ? Math.round(item.view_count / 100) / 10 + 'k' : item.view_count, label: 'views' })
+  if (item.comment_count > 0) tensionItems.push({ value: item.comment_count, label: 'comments' })
+
   return (
-    <div
-      className="h-screen w-full relative overflow-hidden bg-gray-950"
-    >
-      {/* Background: rare phenomenon image, or generative gradient */}
-      {useBgImage ? (
-        <>
-          <img
-            src={item.associated_image_url!}
-            alt=""
-            className={classNames(
-              'absolute inset-0 w-full h-full object-cover transition-transform duration-700 blur-[2px]',
-              props.isActive ? 'scale-100' : 'scale-110'
-            )}
-            referrerPolicy="no-referrer"
-            loading="lazy"
-            onError={function () { setImgError(true) }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/85 to-gray-950/50" />
-          <div className="absolute inset-0 bg-gray-950/30" />
-        </>
-      ) : (
-        <div className={classNames('absolute inset-0', variation.gradientDir, gradient)}>
-          {/* Mood-specific decorative element */}
-          {variation.mood === 'dossier' && (
-            <>
-              {/* Case-file grid pattern */}
-              <div className="absolute inset-0 opacity-[0.02]" style={{backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '40px 40px'}} />
-              {/* Subtle watermark */}
-              <div className="absolute top-20 right-6 sm:right-12 opacity-[0.03]">
-                <span className="text-[10rem] sm:text-[14rem] leading-none select-none font-mono tracking-tighter">{variation.watermark}</span>
-              </div>
-              {/* Top-left case marker */}
-              <div className="absolute top-4 left-4 opacity-[0.06]">
-                <div className="w-8 h-8 border-l-2 border-t-2 border-white/40" />
-              </div>
-            </>
-          )}
-          {variation.mood === 'cinematic' && (
-            <>
-              {/* Film-grain-like noise overlay */}
-              <div className="absolute inset-0 opacity-[0.015]" style={{backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")', backgroundSize: '200px 200px'}} />
-              {/* Cinematic letterbox bars */}
-              <div className="absolute top-0 left-0 right-0 h-12 sm:h-16 bg-black/40" />
-              <div className="absolute bottom-0 left-0 right-0 h-12 sm:h-16 bg-black/40" />
-            </>
-          )}
-          {variation.mood === 'minimal' && (
-            /* Clean, almost no decoration — let the text breathe */
-            <div className="absolute bottom-0 left-0 right-0 h-2/3 bg-gradient-to-t from-gray-950 to-transparent" />
-          )}
-          {variation.mood === 'atmospheric' && (
-            <>
-              {/* Subtle icon watermark from category */}
-              <div className="absolute top-1/4 right-8 sm:right-16 opacity-[0.03]">
-                <span className="text-[10rem] sm:text-[16rem] leading-none select-none">{config?.icon || '\ud83d\udd0d'}</span>
-              </div>
-              {/* Vignette effect */}
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,rgba(0,0,0,0.4)_100%)]" />
-            </>
-          )}
-          {/* Category-specific accent glow — varies per card */}
-          <div className={classNames('absolute inset-0', variation.accent)} />
-        </div>
-      )}
-
-      {/* Content */}
-      <div className="absolute inset-0 flex flex-col justify-end p-5 pb-16 pr-16 sm:p-8 sm:pb-24 sm:pr-24 md:p-12 md:pb-16 md:pr-12">
-        {/* Type badge row */}
-        <div className="mb-3 sm:mb-4 flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold bg-white/10 backdrop-blur-sm text-gray-300">
-            <FileText className="w-3 h-3" />
-            Experiencer Report
-          </span>
-          <span className={classNames(
-            'inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold backdrop-blur-sm',
-            config?.bgColor || 'bg-gray-800', config?.color || 'text-gray-400'
-          )}>
-            <span>{config?.icon}</span>
-            {config?.label}
-          </span>
-          {credStyle && (
-            <span className={classNames(
-              'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-semibold backdrop-blur-sm',
-              credStyle.bg, credStyle.text
-            )}>
-              <Shield className="w-3 h-3" />
-              {(item.credibility || '').charAt(0).toUpperCase() + (item.credibility || '').slice(1)}
-            </span>
-          )}
-        </div>
-
-        {/* Title */}
-        <h1 className={classNames(
-          'text-2xl sm:text-4xl md:text-5xl font-bold text-white mb-2 sm:mb-3 leading-tight transition-all duration-500',
-          props.isActive ? 'opacity-100 translate-y-0' : 'opacity-80 translate-y-2'
-        )}>
-          {item.title}
-        </h1>
-
-        {/* Phenomenon link */}
-        {item.phenomenon_type && (
-          <p className="text-xs sm:text-sm text-gray-500 mb-2">
-            {'Related: '}
-            <Link href={'/phenomena/' + item.phenomenon_type.slug} className="text-primary-400 hover:text-primary-300 underline decoration-dotted">
-              {item.phenomenon_type.name}
-            </Link>
-          </p>
-        )}
-
-        {/* Meta row: location + date */}
-        <div className={classNames(
-          'flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-400 mb-3 sm:mb-4 flex-wrap transition-all duration-500 delay-100',
-          props.isActive ? 'opacity-100' : 'opacity-50'
-        )}>
-          {locationStr && (
-            <span className="inline-flex items-center gap-1">
-              <MapPin className="w-3 h-3" />
-              {locationStr}
-            </span>
-          )}
-          {dateStr && (
-            <span className="inline-flex items-center gap-1">
-              <Calendar className="w-3 h-3" />
-              {dateStr}
-            </span>
-          )}
-        </div>
-
-        {/* Hook text — Paradocs editorial voice, never a quote */}
-        {displayText && (
-          <div className={classNames(
-            'max-w-2xl mb-4 sm:mb-6 transition-all duration-500 delay-150',
-            props.isActive ? 'opacity-100 translate-y-0' : 'opacity-60 translate-y-2'
-          )}>
-            <p className="text-base sm:text-lg md:text-xl text-gray-200 leading-relaxed line-clamp-4 font-medium">
-              {displayText}
-            </p>
-          </div>
-        )}
-
-        {/* Evidence pills */}
-        {item.has_physical_evidence && (
-          <div className={classNames(
-            'flex gap-2 mb-4 sm:mb-6 transition-all duration-500 delay-200',
-            props.isActive ? 'opacity-100' : 'opacity-40'
-          )}>
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-semibold bg-emerald-500/15 text-emerald-400 backdrop-blur-sm">
-              Physical Evidence
-            </span>
-          </div>
-        )}
-
-        {/* CTA */}
-        <div className={classNames(
-          'flex items-center gap-3 transition-all duration-500 delay-300',
-          props.isActive ? 'opacity-100 translate-y-0' : 'opacity-40 translate-y-2'
-        )}>
-          <Link
-            href={'/report/' + item.slug}
-            className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm transition-all bg-white text-gray-900 hover:bg-gray-100 active:bg-gray-200 hover:shadow-lg hover:shadow-white/10"
-          >
-            <Eye className="w-4 h-4" />
-            Read Full Report
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-          {item.upvotes > 0 && (
-            <span className="text-xs sm:text-sm text-gray-500">
-              {item.upvotes + ' upvote' + (item.upvotes !== 1 ? 's' : '')}
-            </span>
-          )}
-        </div>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 13,
+      height: '100%',
+      overflowY: props.expanded ? 'auto' : 'hidden',
+    }}>
+      {/* Case type badge */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 9, letterSpacing: 2.5, color: catColor, fontFamily: "'Courier New',monospace", textTransform: 'uppercase' as const }}>
+          {icon + ' ' + badgeParts.join(' \u00B7 ')}
+        </span>
       </div>
 
-      {/* Sidebar actions */}
-      <SidebarActions
-        shareTitle={item.title}
-        shareText={item.feed_hook || item.summary || item.title}
-        shareUrl={typeof window !== 'undefined' ? window.location.origin + '/report/' + item.slug : '/report/' + item.slug}
-        categoryHref={'/explore?category=' + item.category}
-        user={props.user}
-        onShowSignup={props.onShowSignup}
-        isActive={props.isActive}
-      />
+      {/* Location + tag */}
+      <div style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.35)', fontFamily: "'Courier New',monospace" }}>
+        {'\u25C9 ' + (locationStr || 'Unknown location') + (tagLine ? ' \u00B7 ' + tagLine : '')}
+      </div>
+
+      {/* Large bold opener — headline, not a sentence */}
+      <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.45, color: '#f2f0eb', fontFamily: "system-ui,-apple-system,sans-serif" }}>
+        {displayText || item.title}
+      </div>
+
+      {/* Credibility signals */}
+      <CredibilityTags tags={credSignals} color={catColor} />
+
+      {/* Tension stats */}
+      {tensionItems.length > 0 && (
+        <StatsRow items={tensionItems} color={catColor} />
+      )}
+
+      {/* Read Case button */}
+      {!props.expanded && (
+        <button onClick={props.onExpand} style={{
+          background: 'rgba(255,255,255,0.035)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 8,
+          padding: '9px 0',
+          color: 'rgba(255,255,255,0.35)',
+          fontSize: 9.5,
+          fontFamily: "'Courier New',monospace",
+          letterSpacing: 2,
+          textTransform: 'uppercase' as const,
+          cursor: 'pointer',
+          flexShrink: 0,
+        }}>
+          {'\u25BC Read Case'}
+        </button>
+      )}
+
+      {/* Expanded content */}
+      {props.expanded && (
+        <>
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', flexShrink: 0 }} />
+          <div style={{ fontSize: 13, lineHeight: 1.8, color: 'rgba(255,255,255,0.65)', fontFamily: "'Courier New',monospace" }}>
+            {item.summary || 'No additional details available.'}
+          </div>
+          <Constellation />
+          <div style={{ height: 20 }} />
+        </>
+      )}
+
+      {/* Bottom bar */}
+      {!props.expanded && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.2)' }}>
+            <span>{'\u2661'}</span>
+            <span style={{ fontSize: 8, fontFamily: "'Courier New',monospace" }}>
+              {item.upvotes > 0 ? item.upvotes.toLocaleString() : ''}
+            </span>
+          </div>
+          <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.13)', fontFamily: "'Courier New',monospace" }}>
+            {item.event_date ? new Date(item.event_date).getFullYear().toString() : ''}
+          </span>
+        </div>
+      )}
     </div>
   )
 }
 
 // =========================================================================
 //  3. MediaReportCard — report with photo/video evidence
-//     Uses actual report media (from report_media table) as full-screen
-//     background when available. Falls back to cinematic gradient.
-//     Prefers feed_hook for preview text.
 // =========================================================================
 
 export function MediaReportCard(props: {
   item: ReportItem
   index: number
   isActive: boolean
+  expanded: boolean
+  onExpand: () => void
   user: any
   onShowSignup: (show: boolean) => void
 }) {
+  // MediaReportCard uses the same layout as TextReportCard but with
+  // an "Evidence" badge. The actual image display is minimal in the
+  // typography-first design — images are reserved for expanded view.
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
-  var credStyle = CREDIBILITY_STYLES[item.credibility || ''] || null
-  var [imgError, setImgError] = useState(false)
+  var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
+  var icon = CAT_ICON[item.category] || '\uD83D\uDD0D'
 
+  var badgeParts: string[] = []
+  badgeParts.push(config?.label || item.category)
+  if (item.event_date) {
+    var yearMatch = item.event_date.match(/\d{4}/)
+    if (yearMatch) badgeParts.push(yearMatch[0])
+  }
   var locationParts: string[] = []
   if (item.city) locationParts.push(item.city)
   if (item.state_province) locationParts.push(item.state_province)
   if (item.country) locationParts.push(item.country)
   var locationStr = locationParts.join(', ')
+  if (locationStr) badgeParts.push(locationStr.length > 20 ? locationStr.substring(0, 18) + '...' : locationStr)
 
-  var dateStr = ''
-  if (item.event_date) {
-    try {
-      var d = new Date(item.event_date)
-      dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    } catch (e) {
-      dateStr = item.event_date
-    }
-  }
+  var credSignals: string[] = []
+  if (item.has_photo_video) credSignals.push('Photo/Video Evidence')
+  if (item.credibility === 'high') credSignals.push('High Credibility')
+  if (item.has_physical_evidence) credSignals.push('Physical Evidence')
+  if (item.source_label) credSignals.push(item.source_label)
 
-  // Determine the best image to show
-  var mediaUrl = !imgError && item.primary_media
-    ? (item.primary_media.thumbnail_url || item.primary_media.url)
-    : null
-  var hasImage = !!mediaUrl
-  var gradient = CARD_GRADIENTS[item.category] || 'from-gray-950/90 to-gray-950'
-
-  // Prefer feed_hook for preview text
   var displayText = item.feed_hook || item.summary || ''
 
+  var tensionItems: { value: string | number, label: string }[] = []
+  if (item.upvotes > 0) tensionItems.push({ value: item.upvotes, label: 'upvotes' })
+  if (item.view_count > 0) tensionItems.push({ value: item.view_count > 999 ? Math.round(item.view_count / 100) / 10 + 'k' : item.view_count, label: 'views' })
+
   return (
-    <div
-      className="h-screen w-full relative overflow-hidden bg-gray-950"
-    >
-      {/* Background: actual report media image or cinematic gradient */}
-      {hasImage ? (
-        <>
-          <img
-            src={mediaUrl!}
-            alt=""
-            className={classNames(
-              'absolute inset-0 w-full h-full object-cover transition-transform duration-700',
-              props.isActive ? 'scale-100' : 'scale-105'
-            )}
-            referrerPolicy="no-referrer"
-            loading="lazy"
-            onError={function () { setImgError(true) }}
-          />
-          {/* Cinematic overlay — strong enough for text readability */}
-          <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/70 to-gray-950/20" />
-          {/* Subtle amber tint to signal "evidence" */}
-          <div className="absolute inset-0 bg-amber-950/10" />
-        </>
-      ) : (
-        <div className={classNames('absolute inset-0 bg-gradient-to-br', gradient)}>
-          <div className="absolute top-1/4 right-8 sm:right-16 opacity-[0.04]">
-            <Camera className="w-48 h-48 sm:w-72 sm:h-72" />
-          </div>
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_30%,rgba(239,68,68,0.04),transparent_60%)]" />
-        </div>
-      )}
-
-      {/* Media caption if available */}
-      {hasImage && item.primary_media?.caption && (
-        <div className={classNames(
-          'absolute top-16 sm:top-20 left-5 sm:left-8 right-20 transition-all duration-500',
-          props.isActive ? 'opacity-60' : 'opacity-0'
-        )}>
-          <p className="text-[10px] sm:text-xs text-gray-400 bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-lg inline-block max-w-sm">
-            {item.primary_media!.caption}
-          </p>
-        </div>
-      )}
-
-      {/* Content */}
-      <div className="absolute inset-0 flex flex-col justify-end p-5 pb-16 pr-16 sm:p-8 sm:pb-24 sm:pr-24 md:p-12 md:pb-16 md:pr-12">
-        {/* Type badge row */}
-        <div className="mb-3 sm:mb-4 flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold bg-amber-500/20 backdrop-blur-sm text-amber-400">
-            <Camera className="w-3 h-3" />
-            Evidence Report
-          </span>
-          <span className={classNames(
-            'inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold backdrop-blur-sm',
-            config?.bgColor || 'bg-gray-800', config?.color || 'text-gray-400'
-          )}>
-            <span>{config?.icon}</span>
-            {config?.label}
-          </span>
-          {credStyle && (
-            <span className={classNames(
-              'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-semibold backdrop-blur-sm',
-              credStyle.bg, credStyle.text
-            )}>
-              <Shield className="w-3 h-3" />
-              {(item.credibility || '').charAt(0).toUpperCase() + (item.credibility || '').slice(1)}
-            </span>
-          )}
-        </div>
-
-        {/* Title */}
-        <h1 className={classNames(
-          'text-2xl sm:text-4xl md:text-5xl font-bold text-white mb-2 sm:mb-3 leading-tight transition-all duration-500',
-          hasImage ? 'drop-shadow-lg' : '',
-          props.isActive ? 'opacity-100 translate-y-0' : 'opacity-80 translate-y-2'
-        )}>
-          {item.title}
-        </h1>
-
-        {/* Phenomenon link */}
-        {item.phenomenon_type && (
-          <p className="text-xs sm:text-sm text-gray-500 mb-2">
-            {'Related: '}
-            <Link href={'/phenomena/' + item.phenomenon_type.slug} className="text-primary-400 hover:text-primary-300 underline decoration-dotted">
-              {item.phenomenon_type.name}
-            </Link>
-          </p>
-        )}
-
-        {/* Meta row */}
-        <div className={classNames(
-          'flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-400 mb-3 sm:mb-4 flex-wrap transition-all duration-500 delay-100',
-          props.isActive ? 'opacity-100' : 'opacity-50'
-        )}>
-          {locationStr && (
-            <span className="inline-flex items-center gap-1">
-              <MapPin className="w-3 h-3" />
-              {locationStr}
-            </span>
-          )}
-          {dateStr && (
-            <span className="inline-flex items-center gap-1">
-              <Calendar className="w-3 h-3" />
-              {dateStr}
-            </span>
-          )}
-        </div>
-
-        {/* Hook text — Paradocs editorial voice */}
-        {displayText && (
-          <div className={classNames(
-            'max-w-2xl mb-4 sm:mb-6 transition-all duration-500 delay-150',
-            props.isActive ? 'opacity-100 translate-y-0' : 'opacity-60 translate-y-2'
-          )}>
-            <p className={classNames(
-              'text-base sm:text-lg md:text-xl text-gray-200 leading-relaxed line-clamp-3 font-medium',
-              hasImage ? 'drop-shadow-md' : ''
-            )}>
-              {displayText}
-            </p>
-          </div>
-        )}
-
-        {/* Evidence pills */}
-        <div className={classNames(
-          'flex gap-2 mb-4 sm:mb-6 transition-all duration-500 delay-200',
-          props.isActive ? 'opacity-100' : 'opacity-40'
-        )}>
-          {item.has_photo_video && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-semibold bg-amber-500/15 text-amber-400 backdrop-blur-sm">
-              <Camera className="w-3 h-3" />
-              Photo/Video
-            </span>
-          )}
-          {item.has_physical_evidence && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-semibold bg-emerald-500/15 text-emerald-400 backdrop-blur-sm">
-              Physical Evidence
-            </span>
-          )}
-        </div>
-
-        {/* CTA */}
-        <div className={classNames(
-          'flex items-center gap-3 transition-all duration-500 delay-300',
-          props.isActive ? 'opacity-100 translate-y-0' : 'opacity-40 translate-y-2'
-        )}>
-          <Link
-            href={'/report/' + item.slug}
-            className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm transition-all bg-white text-gray-900 hover:bg-gray-100 active:bg-gray-200 hover:shadow-lg hover:shadow-white/10"
-          >
-            <Eye className="w-4 h-4" />
-            View Evidence
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-          {item.view_count > 0 && (
-            <span className="text-xs sm:text-sm text-gray-500">
-              {item.view_count + ' view' + (item.view_count !== 1 ? 's' : '')}
-            </span>
-          )}
-        </div>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 13,
+      height: '100%',
+      overflowY: props.expanded ? 'auto' : 'hidden',
+    }}>
+      {/* Case type badge + evidence marker */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 9, letterSpacing: 2.5, color: catColor, fontFamily: "'Courier New',monospace", textTransform: 'uppercase' as const }}>
+          {icon + ' ' + badgeParts.join(' \u00B7 ')}
+        </span>
+        <span style={{
+          fontSize: 7,
+          padding: '2px 8px',
+          borderRadius: 10,
+          background: 'rgba(255,179,64,0.12)',
+          color: '#ffb740',
+          fontFamily: "'Courier New',monospace",
+          letterSpacing: 1,
+          textTransform: 'uppercase' as const,
+        }}>
+          Evidence
+        </span>
       </div>
 
-      {/* Sidebar actions */}
-      <SidebarActions
-        shareTitle={item.title}
-        shareText={item.feed_hook || item.summary || item.title}
-        shareUrl={typeof window !== 'undefined' ? window.location.origin + '/report/' + item.slug : '/report/' + item.slug}
-        categoryHref={'/explore?category=' + item.category}
-        user={props.user}
-        onShowSignup={props.onShowSignup}
-        isActive={props.isActive}
-      />
+      {/* Location */}
+      <div style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.35)', fontFamily: "'Courier New',monospace" }}>
+        {'\u25C9 ' + (locationStr || 'Unknown location')}
+      </div>
+
+      {/* Large bold opener */}
+      <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.45, color: '#f2f0eb', fontFamily: "system-ui,-apple-system,sans-serif" }}>
+        {displayText || item.title}
+      </div>
+
+      {/* Credibility */}
+      <CredibilityTags tags={credSignals} color={catColor} />
+
+      {/* Stats */}
+      {tensionItems.length > 0 && (
+        <StatsRow items={tensionItems} color={catColor} />
+      )}
+
+      {/* Read Case */}
+      {!props.expanded && (
+        <button onClick={props.onExpand} style={{
+          background: 'rgba(255,255,255,0.035)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 8,
+          padding: '9px 0',
+          color: 'rgba(255,255,255,0.35)',
+          fontSize: 9.5,
+          fontFamily: "'Courier New',monospace",
+          letterSpacing: 2,
+          textTransform: 'uppercase' as const,
+          cursor: 'pointer',
+          flexShrink: 0,
+        }}>
+          {'\u25BC Read Case'}
+        </button>
+      )}
+
+      {/* Expanded */}
+      {props.expanded && (
+        <>
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', flexShrink: 0 }} />
+          {/* Show media thumbnail if available */}
+          {item.primary_media && (item.primary_media.thumbnail_url || item.primary_media.url) && (
+            <div style={{ borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
+              <img
+                src={item.primary_media.thumbnail_url || item.primary_media.url}
+                alt={item.primary_media.caption || ''}
+                style={{ width: '100%', height: 180, objectFit: 'cover', opacity: 0.8 }}
+                referrerPolicy="no-referrer"
+              />
+              {item.primary_media.caption && (
+                <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', fontFamily: "'Courier New',monospace", padding: '6px 0 0' }}>
+                  {item.primary_media.caption}
+                </div>
+              )}
+            </div>
+          )}
+          <div style={{ fontSize: 13, lineHeight: 1.8, color: 'rgba(255,255,255,0.65)', fontFamily: "'Courier New',monospace" }}>
+            {item.summary || 'No additional details available.'}
+          </div>
+          <Constellation />
+          <div style={{ height: 20 }} />
+        </>
+      )}
+
+      {/* Bottom bar */}
+      {!props.expanded && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.2)' }}>
+            <span>{'\u2661'}</span>
+            <span style={{ fontSize: 8, fontFamily: "'Courier New',monospace" }}>
+              {item.upvotes > 0 ? item.upvotes.toLocaleString() : ''}
+            </span>
+          </div>
+          <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.13)', fontFamily: "'Courier New',monospace" }}>
+            {item.event_date ? new Date(item.event_date).getFullYear().toString() : ''}
+          </span>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,34 +1,25 @@
 'use client'
 
 /**
- * /discover — Stories (TikTok-style fullscreen swipe feed)
+ * /discover — Gesture-based card feed (Phase 4)
  *
- * Phase 3: Algorithmic feed with behavioral signal collection,
- * scored ranking, cold start onboarding, session context weighting,
- * new card types, and depth gating.
+ * Replaces CSS snap-scroll with custom touch gesture handling:
+ *   - Swipe UP    → next card in feed (TikTok muscle memory)
+ *   - Swipe DOWN  → rabbit hole panel slides up with related cases
+ *   - Swipe LEFT  → dismiss, flashes "Dismissed", advances
+ *   - Swipe RIGHT → save, flashes "✦ Saved" in gold
+ *   - Tap "Read Case" → expands summary + blurred Constellation paywall
  *
- * Layout:
- *   Outer div: snap-y snap-mandatory (vertical feed)
- *   Each row:  snap-start + snap-x snap-mandatory (horizontal related cards)
- *   Each card:  w-screen h-screen snap-start snap-always
+ * All infrastructure preserved: feed-v2 API, behavioral tracking,
+ * onboarding, gating, special card injection, session context.
  *
- * Related cards are full-screen, same templates as main feed.
- * Swiping up/down from any horizontal position returns to the main feed.
+ * SWC-compatible: var, function expressions, string concat.
  */
 
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import {
-  ChevronDown,
-  ChevronUp,
-  ChevronLeft,
-  Sparkles,
-  X,
-  LogIn,
-} from 'lucide-react'
-import { classNames } from '@/lib/utils'
 import { createClient } from '@supabase/supabase-js'
 import {
   PhenomenonCard,
@@ -44,9 +35,15 @@ import { ResearchHubPromo } from '@/components/discover/ResearchHubPromo'
 import type { PromoCardData } from '@/components/discover/ResearchHubPromo'
 import { CaseViewGate } from '@/components/discover/CaseViewGate'
 import { TopicOnboarding, isOnboardingComplete, getOnboardingTopics } from '@/components/discover/TopicOnboarding'
+import { RabbitHolePanel } from '@/components/discover/RabbitHolePanel'
+import type { RabbitHoleCard } from '@/components/discover/RabbitHolePanel'
+import { DetailView } from '@/components/discover/DetailView'
+import { Constellation } from '@/components/discover/Constellation'
+import { BottomNav } from '@/components/discover/BottomNav'
 import { useFeedEvents } from '@/lib/hooks/useFeedEvents'
 import { useSessionContext } from '@/lib/hooks/useSessionContext'
 import { useGateStatus } from '@/lib/hooks/useGateStatus'
+import { CATEGORY_CONFIG } from '@/lib/constants'
 
 // Extended feed item type that includes new card types
 type ExtendedFeedItem = FeedItemV2 | ClusterCardData | OnThisDateData | PromoCardData
@@ -56,50 +53,76 @@ var supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
+// Category color hex map (duplicated from cards for inline use)
+var CATEGORY_COLORS: Record<string, string> = {
+  ufos_aliens: '#4fc3f7',
+  cryptids: '#a5d6a7',
+  ghosts_hauntings: '#ce93d8',
+  psychic_phenomena: '#b39ddb',
+  consciousness_practices: '#ffb74d',
+  psychological_experiences: '#80deea',
+  biological_factors: '#ef9a9a',
+  perception_sensory: '#ffcc80',
+  religion_mythology: '#fff176',
+  esoteric_practices: '#f48fb1',
+  combination: '#80cbc4',
+}
+
 export default function DiscoverPage() {
   var router = useRouter()
+
+  // --- Feed state ---
   var [items, setItems] = useState<ExtendedFeedItem[]>([])
   var [loading, setLoading] = useState(true)
-
-  // Fresh seed on every mount
   var sessionSeed = useRef(Math.floor(Math.random() * 2147483647))
   var [loadingMore, setLoadingMore] = useState(false)
   var [hasMore, setHasMore] = useState(true)
   var [totalAvailable, setTotalAvailable] = useState(0)
-  var [offset, setOffset] = useState(0)
-  var [currentIndex, setCurrentIndex] = useState(0)
-  var [user, setUser] = useState<any>(null)
-  var [showSignupPrompt, setShowSignupPrompt] = useState(false)
-  var [signupDismissed, setSignupDismissed] = useState(false)
+  var [feedOffset, setFeedOffset] = useState(0)
+  var loadingRef = useRef(false)
 
-  // Onboarding state
+  // --- Card index + gesture state ---
+  var [idx, setIdx] = useState(0)
+  var [expanded, setExpanded] = useState(false)
+  var [rabbitOpen, setRabbitOpen] = useState(false)
+  var [detailCard, setDetailCard] = useState<RabbitHoleCard | null>(null)
+  var [saved, setSaved] = useState<Set<string>>(function () { return new Set() })
+  var [swipeAnim, setSwipeAnim] = useState<string | null>(null)
+  var [feedbackLabel, setFeedbackLabel] = useState<string | null>(null)
+  var touchStart = useRef<{ x: number; y: number } | null>(null)
+  var animating = useRef(false)
+
+  // --- Auth ---
+  var [user, setUser] = useState<any>(null)
+
+  // --- Onboarding ---
   var [showOnboarding, setShowOnboarding] = useState(false)
   var [onboardingTopics, setOnboardingTopics] = useState<string[]>([])
 
-  // Related cards cache
+  // --- Related cards cache (for rabbit hole) ---
   var [relatedCache, setRelatedCache] = useState<Record<string, FeedItemV2[]>>({})
   var relatedLoadingRef = useRef<Record<string, boolean>>({})
-
-  // Horizontal swipe tracking
-  var [horizontalIndex, setHorizontalIndex] = useState(0)
-
-  var containerRef = useRef<HTMLDivElement>(null)
-  var rowRefs = useRef<Map<number, HTMLDivElement>>(new Map())
-  var loadingRef = useRef(false)
-  var initialSettled = useRef(false)
-  var snapReady = useRef(false)
-
-  var [maxSeen, setMaxSeen] = useState(0)
 
   // --- Behavioral hooks ---
   var feedEvents = useFeedEvents(user?.id || null)
   var sessionCtx = useSessionContext()
   var gateStatus = useGateStatus(user?.id || null)
 
-  // Dwell tracking refs
-  var dwellStartRef = useRef<Record<number, number>>({})
+  // --- Dwell tracking ---
+  var dwellStartRef = useRef<number>(Date.now())
+  var [maxSeen, setMaxSeen] = useState(0)
 
-  // --- Auth ---
+  // --- Signup prompt ---
+  var [showSignupPrompt, setShowSignupPrompt] = useState(false)
+  var [signupDismissed, setSignupDismissed] = useState(false)
+
+  // Pending special cards
+  var pendingSpecialCards = useRef<{ card: ExtendedFeedItem; position: number }[]>([])
+  var specialCardsInjected = useRef(false)
+
+  // =========================================================================
+  //  Auth
+  // =========================================================================
   useEffect(function () {
     supabase.auth.getSession().then(function (result) {
       setUser(result.data.session?.user || null)
@@ -110,7 +133,9 @@ export default function DiscoverPage() {
     return function () { sub.data.subscription.unsubscribe() }
   }, [])
 
-  // --- Check onboarding on mount ---
+  // =========================================================================
+  //  Onboarding
+  // =========================================================================
   useEffect(function () {
     if (!isOnboardingComplete()) {
       setShowOnboarding(true)
@@ -119,104 +144,51 @@ export default function DiscoverPage() {
     }
   }, [])
 
-  // --- Force scroll to top on mount (prevent browser scroll restoration) ---
+  // =========================================================================
+  //  Load feed
+  // =========================================================================
   useEffect(function () {
-    if (typeof window !== 'undefined') {
-      window.history.scrollRestoration = 'manual'
-    }
-    if (containerRef.current) {
-      containerRef.current.scrollTop = 0
-    }
-  }, [])
-
-  // --- Load initial feed ---
-  useEffect(function () {
-    if (showOnboarding) return // Wait for onboarding
-    // Reset scroll to top before loading
-    if (containerRef.current) {
-      containerRef.current.scrollTop = 0
-    }
+    if (showOnboarding) return
     loadFeed(0)
-    var timer = setTimeout(function () {
-      initialSettled.current = true
-      snapReady.current = true
-      // Force re-render so snap class updates
-      setCurrentIndex(function (prev) { return prev })
-    }, 2000)
-    return function () { clearTimeout(timer) }
   }, [showOnboarding])
 
-  // --- Signup gate at card 6 ---
-  useEffect(function () {
-    if (!user && !signupDismissed && currentIndex === 5) {
-      setShowSignupPrompt(true)
-    }
-  }, [currentIndex, user, signupDismissed])
-
-  // --- Track max seen index ---
-  useEffect(function () {
-    if (currentIndex > maxSeen) setMaxSeen(currentIndex)
-  }, [currentIndex])
-
-  // --- Update gate status with session depth ---
-  useEffect(function () {
-    gateStatus.updateSessionDepth(sessionCtx.sessionDepth)
-  }, [sessionCtx.sessionDepth])
-
-  function loadFeed(feedOffset: number) {
+  function loadFeed(offset: number) {
     if (loadingRef.current) return
     loadingRef.current = true
-
-    if (feedOffset > 0) setLoadingMore(true)
+    if (offset > 0) setLoadingMore(true)
     else setLoading(true)
 
     var params = new URLSearchParams({
       limit: '15',
-      offset: String(feedOffset),
+      offset: String(offset),
       seed: String(sessionSeed.current),
     })
-
-    // Pass onboarding topics for affinity
     if (onboardingTopics.length > 0) {
       params.set('onboarding_topics', onboardingTopics.join(','))
     }
-
-    // Pass session affinity
     var sessionAff = sessionCtx.getSessionAffinityParam()
-    if (sessionAff) {
-      params.set('session_affinity', sessionAff)
-    }
+    if (sessionAff) params.set('session_affinity', sessionAff)
 
     fetch('/api/discover/feed-v2?' + params.toString())
       .then(function (res) { return res.json() })
       .then(function (data) {
         if (data.items && data.items.length > 0) {
-          // On first load, ensure scroll starts at top
-          if (feedOffset === 0 && containerRef.current) {
-            containerRef.current.scrollTop = 0
-          }
           setItems(function (prev) {
             var existingIds = new Set(prev.map(function (p) { return p.id }))
             var newItems = data.items.filter(function (item: ExtendedFeedItem) {
               return !existingIds.has(item.id)
             })
-            return feedOffset > 0 ? (prev as ExtendedFeedItem[]).concat(newItems) : data.items
+            return offset > 0 ? (prev as ExtendedFeedItem[]).concat(newItems) : data.items
           })
-          setOffset(data.nextOffset || feedOffset + data.items.length)
+          setFeedOffset(data.nextOffset || offset + data.items.length)
           setHasMore(data.hasMore)
           setTotalAvailable(data.totalAvailable || 0)
-
-          // On first load, also fetch special card types
-          if (feedOffset === 0) {
-            fetchSpecialCards()
-          }
+          if (offset === 0) fetchSpecialCards()
         } else {
           setHasMore(false)
         }
       })
-      .catch(function (err) {
-        console.error('[Discover] Feed error:', err)
-      })
+      .catch(function (err) { console.error('[Discover] Feed error:', err) })
       .finally(function () {
         setLoading(false)
         setLoadingMore(false)
@@ -224,18 +196,13 @@ export default function DiscoverPage() {
       })
   }
 
-  // --- Pending special cards (batched to avoid scroll disruption) ---
-  var pendingSpecialCards = useRef<{ card: ExtendedFeedItem; position: number }[]>([])
-  var specialCardsInjected = useRef(false)
-
-  // --- Fetch and interleave special card types ---
-  // Cards are collected then injected in one batch to prevent
-  // multiple splice operations from disrupting snap scroll position.
+  // =========================================================================
+  //  Special card injection (clusters, on-this-date, promo)
+  // =========================================================================
   function fetchSpecialCards() {
     if (specialCardsInjected.current) return
     var fetches: Promise<void>[] = []
 
-    // Fetch On This Date cards
     fetches.push(
       fetch('/api/discover/on-this-date')
         .then(function (res) { return res.ok ? res.json() : null })
@@ -247,7 +214,6 @@ export default function DiscoverPage() {
         .catch(function () {})
     )
 
-    // Fetch Clustering cards
     fetches.push(
       fetch('/api/discover/clusters')
         .then(function (res) { return res.ok ? res.json() : null })
@@ -260,62 +226,38 @@ export default function DiscoverPage() {
         .catch(function () {})
     )
 
-    // After all fetches complete, inject all special cards in one batch
     Promise.all(fetches).then(function () {
-      // Add Research Hub promo
       var promoCard: PromoCardData = {
         item_type: 'promo',
         id: 'promo-research-hub-1',
         promo_type: 'research_hub',
       }
       pendingSpecialCards.current.push({ card: promoCard, position: 14 })
-
-      // Sort by position descending so splices don't shift earlier insert points
       pendingSpecialCards.current.sort(function (a, b) { return b.position - a.position })
 
       setItems(function (prev) {
         var arr = prev.slice()
-        var container = containerRef.current
-        var scrollBefore = container ? container.scrollTop : 0
-        var viewportCard = Math.round(scrollBefore / window.innerHeight)
-
-        // Track how many cards inserted before current view
-        var insertedBefore = 0
-
         pendingSpecialCards.current.forEach(function (entry) {
           var insertAt = Math.min(entry.position, arr.length)
           arr.splice(insertAt, 0, entry.card)
-          if (insertAt <= viewportCard) {
-            insertedBefore++
-          }
         })
-
-        // If cards were inserted above current position, adjust scroll
-        // to keep the same card in view (done after render via RAF)
-        if (insertedBefore > 0 && container) {
-          var newScroll = scrollBefore + (insertedBefore * window.innerHeight)
-          requestAnimationFrame(function () {
-            container!.scrollTop = newScroll
-          })
-        }
-
         specialCardsInjected.current = true
         return arr
       })
     })
   }
 
-  // --- Fetch related cards for active item ---
+  // =========================================================================
+  //  Fetch related cards for rabbit hole
+  // =========================================================================
   useEffect(function () {
     if (items.length === 0) return
-    var activeItem = items[currentIndex]
+    var activeItem = items[idx]
     if (!activeItem) return
-    // Only fetch related for phenomena and reports (not special cards)
     if (activeItem.item_type !== 'phenomenon' && activeItem.item_type !== 'report') return
     if (relatedCache[activeItem.id] || relatedLoadingRef.current[activeItem.id]) return
 
     relatedLoadingRef.current[activeItem.id] = true
-
     var url = '/api/discover/related-cards?id=' + encodeURIComponent(activeItem.id) + '&type=' + encodeURIComponent(activeItem.item_type)
 
     fetch(url)
@@ -331,135 +273,187 @@ export default function DiscoverPage() {
         }
       })
       .catch(function () {})
-      .finally(function () {
-        relatedLoadingRef.current[activeItem.id] = false
-      })
-  }, [currentIndex, items.length])
+      .finally(function () { relatedLoadingRef.current[activeItem.id] = false })
+  }, [idx, items.length])
 
-  // --- IntersectionObserver for vertical scroll tracking + impression/dwell ---
+  // =========================================================================
+  //  Behavioral tracking
+  // =========================================================================
   useEffect(function () {
-    var observer = new IntersectionObserver(
-      function (entries) {
-        var settled = initialSettled.current
-        entries.forEach(function (entry) {
-          var idx = parseInt(entry.target.getAttribute('data-row-index') || '0', 10)
+    if (items.length === 0) return
+    var item = items[idx]
+    if (!item) return
 
-          if (entry.isIntersecting) {
-            if (settled || idx === 0) {
-              setCurrentIndex(idx)
-              setHorizontalIndex(0)
-              var rowEl = entry.target as HTMLDivElement
-              if (rowEl.scrollLeft > 0) {
-                rowEl.scrollTo({ left: 0, behavior: 'auto' })
-              }
+    // Track impression
+    feedEvents.trackImpression(item.id, item.item_type, (item as any).category || '')
+    dwellStartRef.current = Date.now()
 
-              // Track impression
-              var item = items[idx]
-              if (item) {
-                feedEvents.trackImpression(
-                  item.id,
-                  item.item_type,
-                  (item as any).category || ''
-                )
-                // Start dwell timer
-                dwellStartRef.current[idx] = Date.now()
-              }
-            }
-          } else {
-            // Card left viewport — track dwell
-            var startTime = dwellStartRef.current[idx]
-            if (startTime) {
-              var duration = Date.now() - startTime
-              var dwellItem = items[idx]
-              if (dwellItem) {
-                feedEvents.trackDwell(
-                  dwellItem.id,
-                  dwellItem.item_type,
-                  (dwellItem as any).category || '',
-                  duration
-                )
-              }
-              delete dwellStartRef.current[idx]
-            }
-          }
-        })
-      },
-      { threshold: 0.6 }
-    )
+    // Track max seen
+    if (idx > maxSeen) setMaxSeen(idx)
 
-    rowRefs.current.forEach(function (node) {
-      observer.observe(node)
-    })
+    // Update session depth
+    sessionCtx.recordImpression()
+    gateStatus.updateSessionDepth(sessionCtx.sessionDepth)
 
-    return function () { observer.disconnect() }
-  }, [items.length])
-
-  // --- Prefetch next batch ---
-  useEffect(function () {
-    if (!initialSettled.current) return
-    if (currentIndex >= items.length - 5 && hasMore && !loadingRef.current) {
-      loadFeed(offset)
+    // Prefetch more if near end
+    if (idx >= items.length - 5 && hasMore && !loadingRef.current) {
+      loadFeed(feedOffset)
     }
-  }, [currentIndex, items.length, hasMore, offset])
 
-  function registerRow(node: HTMLDivElement | null, index: number) {
-    if (node) {
-      rowRefs.current.set(index, node)
+    return function () {
+      // Track dwell on leave
+      var duration = Date.now() - dwellStartRef.current
+      if (item) {
+        feedEvents.trackDwell(item.id, item.item_type, (item as any).category || '', duration)
+      }
+    }
+  }, [idx, items.length])
+
+  // Signup gate at card 6
+  useEffect(function () {
+    if (!user && !signupDismissed && idx === 5) {
+      setShowSignupPrompt(true)
+    }
+  }, [idx, user, signupDismissed])
+
+  // =========================================================================
+  //  Gesture: flash label
+  // =========================================================================
+  function flash(label: string) {
+    setFeedbackLabel(label)
+    setTimeout(function () { setFeedbackLabel(null) }, 900)
+  }
+
+  // =========================================================================
+  //  Gesture: next card
+  // =========================================================================
+  var nextCard = useCallback(function () {
+    if (animating.current || idx >= items.length - 1) return
+    animating.current = true
+    setSwipeAnim('up')
+    setExpanded(false)
+    setTimeout(function () {
+      setIdx(function (i) { return i + 1 })
+      setSwipeAnim(null)
+      animating.current = false
+    }, 230)
+  }, [idx, items.length])
+
+  // =========================================================================
+  //  Gesture: previous card
+  // =========================================================================
+  var prevCard = useCallback(function () {
+    if (animating.current || idx <= 0) return
+    animating.current = true
+    setSwipeAnim('down')
+    setExpanded(false)
+    setTimeout(function () {
+      setIdx(function (i) { return Math.max(0, i - 1) })
+      setSwipeAnim(null)
+      animating.current = false
+    }, 230)
+  }, [idx])
+
+  // =========================================================================
+  //  Touch handlers
+  // =========================================================================
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (!touchStart.current || rabbitOpen || detailCard) return
+    var dx = e.changedTouches[0].clientX - touchStart.current.x
+    var dy = e.changedTouches[0].clientY - touchStart.current.y
+    touchStart.current = null
+
+    if (Math.abs(dy) > Math.abs(dx)) {
+      // Vertical swipe
+      if (dy < -45) nextCard()                     // swipe UP → next
+      if (dy > 45) setRabbitOpen(true)             // swipe DOWN → rabbit hole
     } else {
-      rowRefs.current.delete(index)
+      // Horizontal swipe
+      if (Math.abs(dx) < 50) return
+      if (dx < 0) {
+        // swipe LEFT → dismiss
+        flash('Dismissed')
+        nextCard()
+        var item = items[idx]
+        if (item) {
+          feedEvents.trackTap(item.id, item.item_type, (item as any).category || '')
+        }
+      } else {
+        // swipe RIGHT → save
+        var currentItem = items[idx]
+        if (currentItem) {
+          setSaved(function (s) {
+            var n = new Set(s)
+            n.add(currentItem.id)
+            return n
+          })
+          feedEvents.trackSave(currentItem.id, currentItem.item_type, (currentItem as any).category || '')
+        }
+        flash('\u2726 Saved')
+      }
     }
   }
 
-  function scrollToNext() {
-    var nextRow = rowRefs.current.get(currentIndex + 1)
-    if (nextRow) nextRow.scrollIntoView({ behavior: 'smooth' })
+  // =========================================================================
+  //  Mouse wheel (desktop)
+  // =========================================================================
+  function handleWheel(e: React.WheelEvent) {
+    if (rabbitOpen || detailCard || expanded) return
+    if (e.deltaY > 35) nextCard()
+    if (e.deltaY < -35) prevCard()
   }
 
-  function scrollToPrev() {
-    var prevRow = rowRefs.current.get(Math.max(0, currentIndex - 1))
-    if (prevRow) prevRow.scrollIntoView({ behavior: 'smooth' })
-  }
-
-  // --- Keyboard nav ---
+  // =========================================================================
+  //  Keyboard navigation
+  // =========================================================================
   useEffect(function () {
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'ArrowDown' || e.key === ' ') {
+      if (rabbitOpen || detailCard) return
+      if (e.key === 'ArrowUp' || e.key === 'k') {
         e.preventDefault()
-        scrollToNext()
-      } else if (e.key === 'ArrowUp') {
+        prevCard()
+      } else if (e.key === 'ArrowDown' || e.key === 'j' || e.key === ' ') {
         e.preventDefault()
-        scrollToPrev()
+        nextCard()
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault()
-        var row = rowRefs.current.get(currentIndex)
-        if (row) {
-          var newPos = Math.max(0, row.scrollLeft - window.innerWidth)
-          row.scrollTo({ left: newPos, behavior: 'smooth' })
-        }
+        flash('Dismissed')
+        nextCard()
       } else if (e.key === 'ArrowRight') {
         e.preventDefault()
-        var row2 = rowRefs.current.get(currentIndex)
-        if (row2) {
-          var newPos2 = row2.scrollLeft + window.innerWidth
-          row2.scrollTo({ left: newPos2, behavior: 'smooth' })
+        var currentItem = items[idx]
+        if (currentItem) {
+          setSaved(function (s) { var n = new Set(s); n.add(currentItem.id); return n })
         }
+        flash('\u2726 Saved')
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        setExpanded(true)
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        if (expanded) setExpanded(false)
+        else if (rabbitOpen) setRabbitOpen(false)
       }
     }
     window.addEventListener('keydown', handleKey)
     return function () { window.removeEventListener('keydown', handleKey) }
-  }, [currentIndex])
+  }, [idx, items.length, expanded, rabbitOpen, detailCard, nextCard, prevCard])
 
-  var setShowSignupPromptCb = useCallback(function (show: boolean) {
-    setShowSignupPrompt(show)
-  }, [])
-
-  // --- Onboarding complete handler ---
+  // =========================================================================
+  //  Onboarding handler
+  // =========================================================================
   function handleOnboardingComplete(topics: string[]) {
     setOnboardingTopics(topics)
     setShowOnboarding(false)
   }
 
-  // --- Card tap handler (tracks tap + session context) ---
+  // =========================================================================
+  //  Card tap handler
+  // =========================================================================
   function handleCardTap(item: ExtendedFeedItem) {
     feedEvents.trackTap(item.id, item.item_type, (item as any).category || '')
     if ((item as any).category) {
@@ -467,49 +461,108 @@ export default function DiscoverPage() {
     }
   }
 
-  // --- Completion percentage ---
-  var completionPct = totalAvailable > 0
-    ? Math.round(((maxSeen + 1) / totalAvailable) * 100)
-    : 0
+  // =========================================================================
+  //  Build rabbit hole cards from related cache
+  // =========================================================================
+  function getRabbitHoleCards(): RabbitHoleCard[] {
+    var card = items[idx]
+    if (!card) return []
+    var related = relatedCache[card.id] || []
+    return related.map(function (r) {
+      var isP = r.item_type === 'phenomenon'
+      var p = r as PhenomenonItem
+      var rep = r as ReportItem
+      var cat = (r as any).category || ''
+      var catColor = CATEGORY_COLORS[cat] || '#b39ddb'
 
-  // --- Render a single card by type ---
-  function renderCard(item: ExtendedFeedItem, index: number, isActive: boolean, cardKey: string) {
-    // New card types
-    if (item.item_type === 'cluster') {
-      return (
-        <ClusteringCard
-          key={cardKey}
-          item={item as ClusterCardData}
-          isActive={isActive}
-        />
-      )
+      var location = ''
+      var year = ''
+      var tag = ''
+      var headline = ''
+      var summary = ''
+      var credibility: string[] = []
+
+      if (isP) {
+        location = p.primary_regions ? p.primary_regions[0] || '' : ''
+        var ym = p.first_reported_date ? (p.first_reported_date.match(/\d{4}/) || [''])[0] : ''
+        year = ym
+        headline = p.feed_hook || p.ai_summary || p.name
+        summary = p.ai_summary || p.ai_description || ''
+        if (p.ai_quick_facts?.classification) credibility.push(p.ai_quick_facts.classification)
+        if (p.report_count > 5) credibility.push(p.report_count + ' reports')
+      } else {
+        var lp: string[] = []
+        if (rep.city) lp.push(rep.city)
+        if (rep.state_province) lp.push(rep.state_province)
+        location = lp.join(', ') || rep.country || ''
+        year = rep.event_date ? (rep.event_date.match(/\d{4}/) || [''])[0] : ''
+        tag = rep.source_type || ''
+        headline = rep.feed_hook || rep.summary || rep.title
+        summary = rep.summary || ''
+        if (rep.credibility === 'high') credibility.push('High Credibility')
+        if (rep.has_photo_video) credibility.push('Photo/Video')
+        if (rep.has_physical_evidence) credibility.push('Physical Evidence')
+      }
+
+      return {
+        id: r.id,
+        item_type: r.item_type,
+        category: cat,
+        categoryColor: catColor,
+        location: location,
+        year: year,
+        tag: tag,
+        headline: headline,
+        summary: summary,
+        credibility: credibility,
+      }
+    })
+  }
+
+  // =========================================================================
+  //  Current card state
+  // =========================================================================
+  var card = items[idx]
+  var isSaved = card ? saved.has(card.id) : false
+  var catColor = card ? CATEGORY_COLORS[(card as any).category || ''] || '#b39ddb' : '#b39ddb'
+
+  // Card animation style
+  var cardStyle: React.CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    padding: '22px 22px 20px',
+    transition: 'transform 0.23s cubic-bezier(0.4,0,0.2,1), opacity 0.23s ease',
+    transform: swipeAnim === 'up' ? 'translateY(-52px)' : swipeAnim === 'down' ? 'translateY(52px)' : 'translateY(0)',
+    opacity: swipeAnim ? 0 : 1,
+    overflowY: 'hidden',
+  }
+
+  var setShowSignupPromptCb = useCallback(function (show: boolean) {
+    setShowSignupPrompt(show)
+  }, [])
+
+  // =========================================================================
+  //  Render card by type
+  // =========================================================================
+  function renderCardContent() {
+    if (!card) return null
+
+    // Special card types render their own full-screen layouts
+    if (card.item_type === 'cluster') {
+      return <ClusteringCard item={card as ClusterCardData} isActive={true} />
+    }
+    if (card.item_type === 'on_this_date') {
+      return <OnThisDateCard item={card as OnThisDateData} isActive={true} />
+    }
+    if (card.item_type === 'promo') {
+      return <ResearchHubPromo isActive={true} />
     }
 
-    if (item.item_type === 'on_this_date') {
-      return (
-        <OnThisDateCard
-          key={cardKey}
-          item={item as OnThisDateData}
-          isActive={isActive}
-        />
-      )
-    }
-
-    if (item.item_type === 'promo') {
-      return (
-        <ResearchHubPromo
-          key={cardKey}
-          isActive={isActive}
-        />
-      )
-    }
-
-    // Check gate for report cards
-    if (item.item_type === 'report' && gateStatus.status.isViewGated) {
-      var reportItem = item as ReportItem
+    // Gate check
+    if (card.item_type === 'report' && gateStatus.status.isViewGated) {
+      var reportItem = card as ReportItem
       return (
         <CaseViewGate
-          key={cardKey}
           category={reportItem.category}
           locationName={reportItem.location_name}
           linkedCount={reportItem.phenomenon_type ? 1 : 0}
@@ -519,28 +572,30 @@ export default function DiscoverPage() {
       )
     }
 
-    // Standard card types
-    if (item.item_type === 'phenomenon') {
+    // Standard cards
+    if (card.item_type === 'phenomenon') {
       return (
         <PhenomenonCard
-          key={cardKey}
-          item={item as PhenomenonItem}
-          index={index}
-          isActive={isActive}
+          item={card as PhenomenonItem}
+          index={idx}
+          isActive={true}
+          expanded={expanded}
+          onExpand={function () { setExpanded(true) }}
           user={user}
           onShowSignup={setShowSignupPromptCb}
         />
       )
     }
 
-    var report = item as ReportItem
+    var report = card as ReportItem
     if (report.has_photo_video) {
       return (
         <MediaReportCard
-          key={cardKey}
           item={report}
-          index={index}
-          isActive={isActive}
+          index={idx}
+          isActive={true}
+          expanded={expanded}
+          onExpand={function () { setExpanded(true) }}
           user={user}
           onShowSignup={setShowSignupPromptCb}
         />
@@ -549,38 +604,44 @@ export default function DiscoverPage() {
 
     return (
       <TextReportCard
-        key={cardKey}
         item={report}
-        index={index}
-        isActive={isActive}
+        index={idx}
+        isActive={true}
+        expanded={expanded}
+        onExpand={function () { setExpanded(true) }}
         user={user}
         onShowSignup={setShowSignupPromptCb}
       />
     )
   }
 
-  // --- Loading state ---
+  // =========================================================================
+  //  Loading state
+  // =========================================================================
   if (loading && !showOnboarding) {
     return (
       <>
         <Head>
-          <title>Stories - Paradocs</title>
+          <title>Discover - Paradocs</title>
         </Head>
-        <div className="h-screen w-screen bg-gray-950 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
-            <p className="text-gray-400 text-lg">Loading stories...</p>
+        <div style={{ minHeight: '100vh', background: '#030306', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ width: 48, height: 48, border: '2px solid transparent', borderBottomColor: '#9000F0', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 16 }}>Loading stories...</p>
           </div>
         </div>
       </>
     )
   }
 
+  // =========================================================================
+  //  Main render
+  // =========================================================================
   return (
     <>
       <Head>
-        <title>Stories - Paradocs</title>
-        <meta name="description" content="Scroll through the world's most fascinating paranormal phenomena and firsthand reports. Cryptids, UFOs, ghosts, and unexplained events \u2014 one swipe at a time." />
+        <title>Discover - Paradocs</title>
+        <meta name="description" content="Scroll through the world's most fascinating paranormal phenomena and firsthand reports. Cryptids, UFOs, ghosts, and unexplained events." />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </Head>
 
@@ -592,193 +653,236 @@ export default function DiscoverPage() {
         />
       )}
 
-      {/* Fixed header */}
-      <div className="fixed top-0 left-0 right-0 z-50 px-3 sm:px-4 pt-[max(0.625rem,env(safe-area-inset-top))] sm:pt-3 pb-2 sm:pb-3 flex items-center justify-between bg-gradient-to-b from-gray-950 via-gray-950/80 to-transparent pointer-events-none">
-        <div className="flex items-center gap-2.5 pointer-events-auto">
-          <Link href="/">
-            <span className="text-lg sm:text-xl font-bold text-white tracking-tight">Paradocs<span style={{color:'#9000F0'}}>.</span></span>
-          </Link>
-          <span className="text-[10px] sm:text-xs text-gray-500 bg-gray-900/50 backdrop-blur-sm px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">
-            {currentIndex + 1} / {totalAvailable > 0 ? totalAvailable : items.length}{hasMore ? '+' : ''}
-          </span>
-          {items[currentIndex] && (
-            <span className={classNames(
-              'text-[10px] px-2 py-0.5 rounded-full font-medium backdrop-blur-sm',
-              items[currentIndex].item_type === 'phenomenon'
-                ? 'bg-purple-500/20 text-purple-400'
-                : items[currentIndex].item_type === 'cluster'
-                ? 'bg-purple-500/20 text-purple-300'
-                : items[currentIndex].item_type === 'on_this_date'
-                ? 'bg-amber-500/20 text-amber-400'
-                : items[currentIndex].item_type === 'promo'
-                ? 'bg-indigo-500/20 text-indigo-400'
-                : 'bg-blue-500/20 text-blue-400'
-            )}>
-              {items[currentIndex].item_type === 'phenomenon' ? 'Encyclopedia'
-                : items[currentIndex].item_type === 'cluster' ? 'Trending'
-                : items[currentIndex].item_type === 'on_this_date' ? 'On This Date'
-                : items[currentIndex].item_type === 'promo' ? 'Featured'
-                : 'Report'}
+      <div style={{
+        minHeight: '100vh',
+        background: '#030306',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        {/* Phone frame (on desktop acts as constraining viewport) */}
+        <div style={{
+          width: '100%',
+          maxWidth: 430,
+          height: '100vh',
+          maxHeight: 932,
+          background: '#09090f',
+          borderRadius: 0,
+          overflow: 'hidden',
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          {/* Status bar area */}
+          <div style={{ padding: 'max(14px, env(safe-area-inset-top)) 26px 0', display: 'flex', justifyContent: 'space-between', flexShrink: 0 }}>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: "'Courier New',monospace" }}>
+              {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
-          )}
-          {/* Horizontal depth indicator */}
-          {horizontalIndex > 0 && items[currentIndex] && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium backdrop-blur-sm bg-white/10 text-gray-400">
-              {'Related ' + horizontalIndex + ' / ' + ((relatedCache[items[currentIndex]?.id] || []).length)}
-            </span>
-          )}
-        </div>
-        <div className="pointer-events-auto">
-          {!user ? (
-            <Link
-              href="/login"
-              className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs sm:text-sm font-medium rounded-full transition-colors"
-            >
-              <LogIn className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span>Sign In</span>
-            </Link>
-          ) : (
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-800 hover:bg-gray-700 text-white text-xs sm:text-sm font-medium rounded-full transition-colors"
-            >
-              Dashboard
-            </Link>
-          )}
-        </div>
-      </div>
-
-      {/* Progress indicator */}
-      <div className="fixed left-0 right-0 z-40 h-0.5 bg-gray-900" style={{ top: 'env(safe-area-inset-top, 0px)' }}>
-        <div
-          className="h-full bg-purple-500 transition-all duration-300"
-          style={{ width: totalAvailable > 0 ? ((currentIndex + 1) / totalAvailable * 100) + '%' : items.length > 0 ? ((currentIndex + 1) / items.length * 100) + '%' : '0%' }}
-        />
-      </div>
-
-      {/* Completion milestone toasts */}
-      {completionPct >= 25 && completionPct < 50 && currentIndex === maxSeen && maxSeen > 5 && (
-        <CompletionToast pct={25} total={totalAvailable} />
-      )}
-      {completionPct >= 50 && completionPct < 75 && currentIndex === maxSeen && (
-        <CompletionToast pct={50} total={totalAvailable} />
-      )}
-      {completionPct >= 75 && completionPct < 100 && currentIndex === maxSeen && (
-        <CompletionToast pct={75} total={totalAvailable} />
-      )}
-
-      {/* Main vertical scroll container */}
-      <div
-        ref={containerRef}
-        className={"h-screen overflow-y-auto snap-y overscroll-y-none" + (snapReady.current ? " snap-mandatory" : " snap-proximity")}
-      >
-        {items.map(function (item, index) {
-          var related = relatedCache[item.id] || []
-          var isActiveRow = index === currentIndex
-          var hasRelated = related.length > 0
-          // Only show related for standard content cards
-          var showRelated = (item.item_type === 'phenomenon' || item.item_type === 'report') && hasRelated
-
-          return (
-            <FeedRow
-              key={item.id}
-              item={item}
-              related={showRelated ? related : []}
-              index={index}
-              isActiveRow={isActiveRow}
-              hasRelated={showRelated}
-              user={user}
-              onRef={function (node) { registerRow(node, index) }}
-              onShowSignup={setShowSignupPromptCb}
-              onHorizontalChange={function (hIdx) {
-                if (isActiveRow) {
-                  setHorizontalIndex(hIdx)
-                  // Track swipe_related event when swiping to related content
-                  if (hIdx > 0 && item) {
-                    feedEvents.trackSwipeRelated(
-                      item.id,
-                      item.item_type,
-                      (item as any).category || ''
-                    )
-                  }
-                }
-              }}
-              renderCard={renderCard}
-            />
-          )
-        })}
-
-        {/* Loading more indicator */}
-        {loadingMore && (
-          <div className="h-screen w-full snap-start snap-always flex items-center justify-center bg-gray-950">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)' }}>{'\u2022\u2022\u2022'}</span>
           </div>
-        )}
 
-        {/* End of feed */}
-        {!hasMore && items.length > 0 && (
-          <div className="h-screen w-full snap-start snap-always flex flex-col items-center justify-center bg-gray-950 px-6 text-center">
-            <Sparkles className="w-12 h-12 text-purple-500 mb-4" />
-            <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">You have explored them all!</h2>
-            <p className="text-gray-400 text-sm sm:text-base mb-2 max-w-md">
-              {'You scrolled through all ' + items.length + ' stories \u2014 phenomena and reports combined.'}
-            </p>
-            <p className="text-gray-500 text-xs mb-8">
-              {'That\u2019s ' + totalAvailable + ' entries from our database. More are added every week.'}
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto">
-              <Link
-                href="/phenomena"
-                className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-full font-medium transition-colors text-center"
-              >
-                Browse Encyclopedia
-              </Link>
-              <Link
-                href="/explore"
-                className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-full font-medium transition-colors text-center"
-              >
-                Explore Feed
-              </Link>
-              {!user && (
-                <Link
-                  href="/login"
-                  className="px-6 py-3 bg-white/10 hover:bg-white/15 text-white rounded-full font-medium transition-colors text-center border border-white/15"
-                >
-                  Create Account
-                </Link>
+          {/* Header */}
+          <div style={{
+            padding: '8px 22px 11px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0,
+            borderBottom: '1px solid rgba(255,255,255,0.05)',
+            zIndex: 10,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
+              <span style={{ fontSize: 18, fontWeight: 900, color: '#d4af37', fontFamily: "system-ui,-apple-system,sans-serif" }}>
+                Paradocs<span style={{ color: '#9000F0' }}>.</span>
+              </span>
+              <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.18)', letterSpacing: 1, fontFamily: "'Courier New',monospace" }}>
+                DISCOVER
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {/* Feedback label */}
+              {feedbackLabel && (
+                <span style={{
+                  fontSize: 10,
+                  fontFamily: "'Courier New',monospace",
+                  color: feedbackLabel.indexOf('\u2726') >= 0 ? '#d4af37' : 'rgba(255,255,255,0.4)',
+                  animation: 'fadeIn 0.15s ease',
+                }}>
+                  {feedbackLabel}
+                </span>
               )}
+              {/* Card counter */}
+              <span style={{ fontSize: 15, color: 'rgba(255,255,255,0.22)', cursor: 'pointer' }}>
+                {'\u2630'}
+              </span>
             </div>
           </div>
-        )}
+
+          {/* Progress bar */}
+          <div style={{ padding: '7px 22px 0', display: 'flex', gap: 4, flexShrink: 0, zIndex: 5 }}>
+            {items.length > 0 && items.slice(0, Math.min(items.length, 20)).map(function (_, i) {
+              return (
+                <div key={i} style={{
+                  height: 2,
+                  flex: 1,
+                  borderRadius: 2,
+                  background: i === idx ? '#d4af37' : i < idx ? 'rgba(212,175,55,0.28)' : 'rgba(255,255,255,0.06)',
+                  transition: 'background 0.3s',
+                }} />
+              )
+            })}
+          </div>
+
+          {/* Card area */}
+          <div
+            style={{ flex: 1, position: 'relative', overflow: 'hidden', cursor: 'grab' }}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            onWheel={handleWheel}
+          >
+            {/* Category accent stripe */}
+            <div style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 2.5,
+              background: catColor,
+              opacity: 0.5,
+              zIndex: 5,
+              transition: 'background 0.4s',
+            }} />
+
+            {/* Main card */}
+            <div style={cardStyle}>
+              {renderCardContent()}
+            </div>
+
+            {/* Gesture hints */}
+            {!expanded && !rabbitOpen && (
+              <>
+                <div style={{ position: 'absolute', left: 7, top: '50%', transform: 'translateY(-50%)', fontSize: 8, color: 'rgba(255,255,255,0.08)', fontFamily: "'Courier New',monospace", writingMode: 'vertical-lr' as const }}>
+                  {'\u2192 save'}
+                </div>
+                <div style={{ position: 'absolute', right: 7, top: '50%', transform: 'translateY(-50%)', fontSize: 8, color: 'rgba(255,255,255,0.08)', fontFamily: "'Courier New',monospace", writingMode: 'vertical-lr' as const }}>
+                  {'\u2190 dismiss'}
+                </div>
+                <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', fontSize: 8, color: 'rgba(255,255,255,0.08)', fontFamily: "'Courier New',monospace" }}>
+                  {'\u2193 rabbit hole'}
+                </div>
+              </>
+            )}
+
+            {/* Rabbit hole panel */}
+            {rabbitOpen && (
+              <RabbitHolePanel
+                cards={getRabbitHoleCards()}
+                color={catColor}
+                onClose={function () { setRabbitOpen(false) }}
+                onSelect={function (c) { setDetailCard(c) }}
+              />
+            )}
+
+            {/* Detail view */}
+            {detailCard && (
+              <DetailView
+                card={detailCard}
+                onBack={function () { setDetailCard(null) }}
+              />
+            )}
+          </div>
+
+          {/* Bottom nav */}
+          <BottomNav active="discover" />
+
+          {/* Legend (only on first card) */}
+          {idx === 0 && !expanded && !rabbitOpen && !detailCard && (
+            <div style={{
+              position: 'absolute',
+              bottom: 80,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              gap: 14,
+              opacity: 0.16,
+              zIndex: 5,
+              whiteSpace: 'nowrap' as const,
+            }}>
+              {[
+                { key: '\u2191 swipe', label: 'next' },
+                { key: '\u2193 swipe', label: 'rabbit hole' },
+                { key: '\u2190 swipe', label: 'dismiss' },
+                { key: '\u2192 swipe', label: 'save' },
+                { key: 'tap', label: 'expand' },
+              ].map(function (item) {
+                return (
+                  <div key={item.key} style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.16)', fontFamily: "'Courier New',monospace" }}>
+                    <span style={{ color: 'rgba(255,255,255,0.28)' }}>{item.key}</span>
+                    {' \u00B7 ' + item.label}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Signup prompt overlay */}
       {showSignupPrompt && (
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-6">
-          <div className="w-full sm:max-w-sm bg-gray-900 border-t sm:border border-gray-700 rounded-t-2xl sm:rounded-2xl p-6 text-center relative">
-            <div className="flex justify-center mb-3 sm:hidden">
-              <div className="w-10 h-1 rounded-full bg-gray-700" />
-            </div>
-            <button
-              onClick={function () { setShowSignupPrompt(false); setSignupDismissed(true) }}
-              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center text-gray-500 hover:text-white transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <Sparkles className="w-10 h-10 text-purple-500 mx-auto mb-3" />
-            <h3 className="text-xl font-bold text-white mb-2">Down the rabbit hole?</h3>
-            <p className="text-gray-400 text-sm mb-5">
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 60,
+          display: 'flex',
+          alignItems: 'flex-end',
+          justifyContent: 'center',
+          background: 'rgba(0,0,0,0.6)',
+          backdropFilter: 'blur(4px)',
+          WebkitBackdropFilter: 'blur(4px)',
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: 430,
+            background: '#111118',
+            borderTop: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '16px 16px 0 0',
+            padding: 24,
+            textAlign: 'center',
+          }}>
+            <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)', margin: '0 auto 16px' }} />
+            <div style={{ fontSize: 24, marginBottom: 8 }}>{'\u2726'}</div>
+            <h3 style={{ fontSize: 20, fontWeight: 700, color: 'white', marginBottom: 8 }}>Down the rabbit hole?</h3>
+            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', marginBottom: 20 }}>
               Create a free account to save entries, get personalized recommendations, and submit your own sightings.
             </p>
             <Link
               href="/login"
-              className="block w-full py-3 bg-purple-600 hover:bg-purple-500 active:bg-purple-500 text-white rounded-full font-medium transition-colors mb-3"
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '12px 0',
+                background: '#9000F0',
+                color: 'white',
+                borderRadius: 24,
+                fontWeight: 600,
+                fontSize: 14,
+                textDecoration: 'none',
+                textAlign: 'center',
+                marginBottom: 12,
+              }}
             >
               Create Free Account
             </Link>
             <button
               onClick={function () { setShowSignupPrompt(false); setSignupDismissed(true) }}
-              className="text-sm text-gray-500 hover:text-gray-300 transition-colors py-2"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'rgba(255,255,255,0.35)',
+                fontSize: 14,
+                cursor: 'pointer',
+                padding: '8px 0',
+              }}
             >
               Keep scrolling
             </button>
@@ -786,244 +890,15 @@ export default function DiscoverPage() {
         </div>
       )}
 
-      {/* Desktop navigation arrows */}
-      <div className="fixed right-6 bottom-8 z-40 hidden md:flex flex-col gap-2">
-        <button
-          onClick={scrollToPrev}
-          disabled={currentIndex === 0}
-          className="p-3 bg-gray-800/80 backdrop-blur-sm rounded-full text-white hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-        >
-          <ChevronUp className="w-5 h-5" />
-        </button>
-        <button
-          onClick={scrollToNext}
-          disabled={currentIndex >= items.length - 1 && !hasMore}
-          className="p-3 bg-gray-800/80 backdrop-blur-sm rounded-full text-white hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-        >
-          <ChevronDown className="w-5 h-5" />
-        </button>
-      </div>
-
-      {/* Scroll hint on first card */}
-      {currentIndex === 0 && horizontalIndex === 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-bounce md:hidden">
-          <div className="flex flex-col items-center text-gray-500">
-            <span className="text-xs mb-1">Swipe up</span>
-            <ChevronDown className="w-5 h-5" />
-          </div>
-        </div>
-      )}
-
-      {/* Back-to-main hint when in related cards */}
-      {horizontalIndex > 0 && (
-        <div className="fixed left-4 top-1/2 -translate-y-1/2 z-40">
-          <button
-            onClick={function () {
-              var row = rowRefs.current.get(currentIndex)
-              if (row) row.scrollTo({ left: 0, behavior: 'smooth' })
-            }}
-            className="p-2 bg-gray-800/70 backdrop-blur-sm rounded-full text-white/60 hover:text-white hover:bg-gray-700/70 transition-all"
-            title="Back to main card"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-        </div>
-      )}
+      {/* Global keyframe styles */}
+      <style>{'\
+        @keyframes slideUp { from{transform:translateY(100%);opacity:0} to{transform:translateY(0);opacity:1} }\
+        @keyframes fadeIn { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }\
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }\
+        *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}\
+        ::-webkit-scrollbar{display:none;}\
+        button:focus{outline:none;}\
+      '}</style>
     </>
-  )
-}
-
-// =========================================================================
-//  FeedRow — one horizontal row containing main card + related cards
-// =========================================================================
-
-function FeedRow(props: {
-  item: ExtendedFeedItem
-  related: FeedItemV2[]
-  index: number
-  isActiveRow: boolean
-  hasRelated: boolean
-  user: any
-  onRef: (node: HTMLDivElement | null) => void
-  onShowSignup: (show: boolean) => void
-  onHorizontalChange: (hIdx: number) => void
-  renderCard: (item: ExtendedFeedItem, index: number, isActive: boolean, key: string) => React.ReactNode
-}) {
-  var rowRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(function () {
-    var el = rowRef.current
-    if (!el) return
-
-    var handleScroll = function () {
-      var hIdx = Math.round(el!.scrollLeft / window.innerWidth)
-      props.onHorizontalChange(hIdx)
-    }
-
-    el.addEventListener('scroll', handleScroll, { passive: true })
-    return function () {
-      el!.removeEventListener('scroll', handleScroll)
-    }
-  }, [props.hasRelated])
-
-  function setRef(node: HTMLDivElement | null) {
-    rowRef.current = node
-    props.onRef(node)
-  }
-
-  var allCards: ExtendedFeedItem[] = [props.item].concat(props.related as ExtendedFeedItem[])
-
-  return (
-    <div
-      ref={setRef}
-      data-row-index={props.index}
-      className="h-screen w-full snap-start snap-always flex overflow-x-auto snap-x snap-mandatory overscroll-x-none scrollbar-hide"
-      style={{ scrollSnapStop: 'always' }}
-    >
-      {allCards.map(function (card, hIdx) {
-        var isMainCard = hIdx === 0
-        var cardKey = isMainCard ? card.id : card.id + '-related-' + hIdx
-
-        return (
-          <div
-            key={cardKey}
-            className="h-screen w-screen flex-shrink-0 snap-start snap-always relative"
-          >
-            {props.renderCard(card, props.index, props.isActiveRow && isMainCard, cardKey)}
-
-            {/* Swipe-left hint on main card when related cards are available */}
-            {isMainCard && props.hasRelated && props.isActiveRow && (
-              <SwipeHint
-                count={props.related.length}
-                firstRelatedTitle={
-                  props.related[0]
-                    ? (props.related[0].item_type === 'phenomenon'
-                        ? (props.related[0] as any).name
-                        : (props.related[0] as any).title) || ''
-                    : ''
-                }
-              />
-            )}
-
-            {/* "Back to main" indicator on related cards */}
-            {!isMainCard && (
-              <div className="absolute top-16 sm:top-20 left-5 sm:left-8 z-10">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold bg-white/10 backdrop-blur-sm text-gray-300">
-                  <ChevronLeft className="w-3 h-3" />
-                  {'Related ' + hIdx + ' of ' + props.related.length}
-                </span>
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-// =========================================================================
-//  SwipeHint — edge-peek affordance showing related content exists
-// =========================================================================
-
-function SwipeHint(props: { count: number; firstRelatedTitle?: string }) {
-  var [phase, setPhase] = useState<'enter' | 'hold' | 'exit' | 'gone'>('enter')
-
-  useEffect(function () {
-    var holdTimer = setTimeout(function () { setPhase('hold') }, 600)
-    var exitTimer = setTimeout(function () { setPhase('exit') }, 5000)
-    var goneTimer = setTimeout(function () { setPhase('gone') }, 5800)
-    return function () {
-      clearTimeout(holdTimer)
-      clearTimeout(exitTimer)
-      clearTimeout(goneTimer)
-    }
-  }, [])
-
-  if (phase === 'gone') return null
-
-  var previewText = props.firstRelatedTitle || ''
-  if (previewText.length > 24) previewText = previewText.slice(0, 24) + '\u2026'
-
-  var opacity = phase === 'enter' ? 'opacity-0' : phase === 'exit' ? 'opacity-0' : 'opacity-100'
-  var translate = phase === 'enter' ? 'translate-x-full' : phase === 'exit' ? 'translate-x-8 opacity-0' : 'translate-x-0'
-
-  return (
-    <>
-      {/* Right-edge gradient */}
-      <div
-        className={classNames(
-          'absolute top-0 right-0 bottom-0 w-16 bg-gradient-to-l from-[#9000F0]/15 to-transparent pointer-events-none z-10 transition-opacity duration-500',
-          phase === 'exit' ? 'opacity-0' : 'opacity-100'
-        )}
-      />
-
-      {/* Hint pill */}
-      <div
-        className={classNames(
-          'absolute right-3 top-1/2 -translate-y-1/2 z-20 pointer-events-none transition-all',
-          translate,
-          opacity
-        )}
-        style={{
-          transitionDuration: phase === 'enter' ? '600ms' : '800ms',
-          transitionTimingFunction: phase === 'enter' ? 'cubic-bezier(0.34, 1.56, 0.64, 1)' : 'ease-out',
-        }}
-      >
-        <div className={classNames(
-          'flex items-center gap-2 px-3 py-2.5 rounded-xl',
-          'bg-white/[0.07] border border-white/[0.12] backdrop-blur-md',
-          'shadow-lg shadow-black/30',
-          phase === 'hold' ? 'animate-[swipe-breathe_2.5s_ease-in-out_infinite]' : ''
-        )}>
-          {/* Content preview */}
-          {previewText && (
-            <span className="text-[11px] text-gray-300 font-medium max-w-[120px] truncate">
-              {previewText}
-            </span>
-          )}
-
-          {/* Chevrons */}
-          <div className="flex items-center -space-x-1.5">
-            <ChevronLeft className="w-3.5 h-3.5 text-purple-400/50" />
-            <ChevronLeft className="w-3.5 h-3.5 text-purple-400/70" />
-            <ChevronLeft className="w-3.5 h-3.5 text-purple-400" />
-          </div>
-
-          {/* Count badge */}
-          <span className="text-[10px] text-purple-300 font-semibold ml-0.5">
-            {props.count}
-          </span>
-        </div>
-      </div>
-    </>
-  )
-}
-
-// =========================================================================
-//  CompletionToast
-// =========================================================================
-
-function CompletionToast(props: { pct: number; total: number }) {
-  var [visible, setVisible] = useState(true)
-
-  useEffect(function () {
-    var timer = setTimeout(function () { setVisible(false) }, 4000)
-    return function () { clearTimeout(timer) }
-  }, [])
-
-  if (!visible) return null
-
-  return (
-    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-slide-down">
-      <div className="bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-full px-4 py-2 flex items-center gap-2 shadow-xl">
-        <Sparkles className="w-4 h-4 text-purple-400" />
-        <span className="text-sm text-white font-medium">
-          {props.pct + '% explored'}
-        </span>
-        <span className="text-xs text-gray-500">
-          {'of ' + props.total}
-        </span>
-      </div>
-    </div>
   )
 }
