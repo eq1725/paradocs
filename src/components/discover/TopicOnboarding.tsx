@@ -131,16 +131,23 @@ export function TopicOnboarding(props: TopicOnboardingProps) {
   return (
     <div
       className={
-        'fixed inset-0 z-[70] flex flex-col items-center justify-center bg-gray-950/98 backdrop-blur-xl transition-opacity duration-400 ' +
+        'fixed inset-0 z-[70] bg-gray-950/98 backdrop-blur-xl overflow-y-auto transition-opacity duration-400 ' +
         (isAnimating ? 'opacity-0 scale-105' : 'opacity-100 scale-100')
       }
-      style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
-      {/* Skip button — pushed below Dynamic Island via safe-area-inset-top */}
+      {/* Scrollable inner container with safe spacing */}
+      <div
+        className="min-h-full flex flex-col items-center justify-center py-6"
+        style={{
+          paddingTop: 'max(env(safe-area-inset-top, 0px) + 2.5rem, 4rem)',
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px) + 1rem, 2rem)',
+        }}
+      >
+      {/* Skip button — well below Dynamic Island */}
       <button
         onClick={handleSkip}
         className="absolute right-4 sm:right-6 p-2 text-gray-500 hover:text-gray-300 transition-colors z-10"
-        style={{ top: 'calc(1rem + env(safe-area-inset-top, 0px))' }}
+        style={{ top: 'max(env(safe-area-inset-top, 0px) + 0.75rem, 2.5rem)' }}
         title="Skip"
       >
         <X className="w-5 h-5" />
@@ -215,6 +222,7 @@ export function TopicOnboarding(props: TopicOnboardingProps) {
         <p className="text-center text-xs text-gray-600 mt-3">
           {'Selected ' + selected.size + ' of 7'}
         </p>
+      </div>
       </div>
     </div>
   )
