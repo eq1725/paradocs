@@ -693,9 +693,9 @@ export default function DiscoverPage() {
           </div>
         </div>
 
-        {/* Card area — full viewport with top/bottom padding for header and nav */}
+        {/* Card area — full viewport */}
         <div
-          className="flex-1 relative overflow-hidden cursor-grab main-content-pt mobile-content-pb"
+          className="flex-1 relative overflow-hidden cursor-grab"
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
           onWheel={handleWheel}
@@ -706,10 +706,11 @@ export default function DiscoverPage() {
             style={{ background: catColor }}
           />
 
-          {/* Main card */}
+          {/* Main card — padding clears fixed header (h-14 + progress bar + safe area) and bottom nav */}
           <div
-            className="absolute inset-0 p-5 sm:p-6 transition-all duration-200"
+            className="absolute inset-0 px-5 sm:px-6 mobile-content-pb overflow-y-auto transition-all duration-200"
             style={{
+              paddingTop: 'calc(3.75rem + env(safe-area-inset-top, 0px))',
               transform: swipeAnim === 'up' ? 'translateY(-52px)' : swipeAnim === 'down' ? 'translateY(52px)' : 'translateY(0)',
               opacity: swipeAnim ? 0 : 1,
             }}
