@@ -34,10 +34,10 @@ export default function App({ Component, pageProps }: AppProps) {
 
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 
-        <link rel="icon" href="/favicon.ico" sizes="32x32" />
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="icon" href="/favicon.ico?v=2" sizes="32x32" />
+        <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml" />
 
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href="/manifest.json?v=2" />
 
         <meta name="theme-color" content="#0a0a14" />
         <meta name="msapplication-TileColor" content="#0a0a14" />
@@ -46,10 +46,10 @@ export default function App({ Component, pageProps }: AppProps) {
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Paradocs" />
 
-        <link rel="apple-touch-icon" href="/icons/icon-152x152.png" />
-        <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
-        <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-152x152.png" />
+        <link rel="apple-touch-icon" href="/icons/icon-152x152.png?v=2" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png?v=2" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png?v=2" />
+        <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-152x152.png?v=2" />
 
         <meta name="apple-mobile-web-app-capable" content="yes" />
 
