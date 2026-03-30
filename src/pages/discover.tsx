@@ -747,34 +747,31 @@ export default function DiscoverPage() {
               }}
             >
               {renderCardContent()}
-
-              {/* Desktop keyboard shortcuts — below card content */}
-              {showShortcuts && (
-                <div className="hidden md:block mt-8 pt-5 border-t border-white/5">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[10px] text-gray-500 font-sans font-medium uppercase tracking-wider">Keyboard shortcuts</span>
-                    <button onClick={function () { setShowShortcuts(false) }} className="text-gray-600 hover:text-gray-400 text-xs transition-colors">{'\u2715'}</button>
-                  </div>
-                  <div className="grid grid-cols-3 gap-x-4 gap-y-1.5">
-                    {[
-                      { key: '\u2191 / K', action: 'Previous' },
-                      { key: '\u2193 / J', action: 'Next' },
-                      { key: '\u2192', action: 'Save' },
-                      { key: '\u2190', action: 'Dismiss' },
-                      { key: 'Enter', action: 'Expand' },
-                      { key: 'Esc', action: 'Close' },
-                    ].map(function (s) {
-                      return (
-                        <div key={s.key} className="flex items-center gap-2">
-                          <kbd className="text-[10px] bg-white/[0.05] border border-white/10 px-1.5 py-0.5 rounded text-gray-400 font-mono min-w-[28px] text-center">{s.key}</kbd>
-                          <span className="text-[10px] text-gray-500 font-sans">{s.action}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
+
+            {/* Desktop keyboard shortcuts — pinned to bottom of card pane */}
+            {showShortcuts && (
+              <div className="hidden md:block absolute bottom-0 left-0 right-0 z-20 bg-gray-950/90 backdrop-blur-sm border-t border-white/5 px-8 lg:px-10 py-3">
+                <div className="flex items-center gap-6">
+                  <span className="text-[10px] text-gray-500 font-sans font-medium uppercase tracking-wider flex-shrink-0">Shortcuts</span>
+                  {[
+                    { key: '\u2191\u2193', action: 'Navigate' },
+                    { key: '\u2192', action: 'Save' },
+                    { key: '\u2190', action: 'Dismiss' },
+                    { key: 'Enter', action: 'Expand' },
+                    { key: 'Esc', action: 'Close' },
+                  ].map(function (s) {
+                    return (
+                      <div key={s.key} className="flex items-center gap-1.5">
+                        <kbd className="text-[10px] bg-white/[0.05] border border-white/10 px-1.5 py-0.5 rounded text-gray-400 font-mono">{s.key}</kbd>
+                        <span className="text-[10px] text-gray-500 font-sans">{s.action}</span>
+                      </div>
+                    )
+                  })}
+                  <button onClick={function () { setShowShortcuts(false) }} className="ml-auto text-gray-600 hover:text-gray-400 text-xs transition-colors flex-shrink-0">{'\u2715'}</button>
+                </div>
+              </div>
+            )}
 
             {/* Mobile gesture hints (only on small screens, first 3 cards) */}
             {!expanded && !rabbitOpen && !detailCard && idx < 3 && (
