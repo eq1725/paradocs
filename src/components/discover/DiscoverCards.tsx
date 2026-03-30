@@ -267,9 +267,55 @@ export function PhenomenonCard(props: {
       ) : (
         <>
           <div className="h-px bg-white/[0.07] flex-shrink-0" />
+
+          {/* Description — prefer ai_description (richer) over ai_summary (often mirrors hook) */}
           <p className="text-sm text-gray-400 leading-relaxed font-sans">
-            {item.ai_summary || item.ai_description || 'No additional information available.'}
+            {item.ai_description || item.ai_summary || 'No additional information available.'}
           </p>
+
+          {/* Quick facts strip */}
+          {qf && (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 py-3 px-3 rounded-lg bg-white/[0.02] border border-white/[0.06] flex-shrink-0">
+              {qf.first_documented && (
+                <div className="flex flex-col">
+                  <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">First documented</span>
+                  <span className="text-xs text-gray-300 font-sans">{qf.first_documented}</span>
+                </div>
+              )}
+              {qf.origin && (
+                <div className="flex flex-col">
+                  <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Origin</span>
+                  <span className="text-xs text-gray-300 font-sans">{qf.origin}</span>
+                </div>
+              )}
+              {qf.typical_encounter && (
+                <div className="flex flex-col">
+                  <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Typical encounter</span>
+                  <span className="text-xs text-gray-300 font-sans">{qf.typical_encounter}</span>
+                </div>
+              )}
+              {qf.danger_level && (
+                <div className="flex flex-col">
+                  <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Danger level</span>
+                  <span className="text-xs text-gray-300 font-sans">{qf.danger_level}</span>
+                </div>
+              )}
+              {qf.notable_feature && (
+                <div className="flex flex-col col-span-2">
+                  <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Notable feature</span>
+                  <span className="text-xs text-gray-300 font-sans">{qf.notable_feature}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Aliases */}
+          {item.aliases && item.aliases.length > 0 && (
+            <p className="text-[11px] text-gray-500 font-sans flex-shrink-0">
+              {'Also known as: ' + item.aliases.slice(0, 4).join(', ')}
+            </p>
+          )}
+
           <Link
             href={'/phenomena/' + item.slug}
             className="inline-flex items-center gap-2 text-sm font-sans font-medium text-primary-400 hover:text-primary-300 transition-colors flex-shrink-0"
@@ -373,9 +419,57 @@ export function TextReportCard(props: {
       ) : (
         <>
           <div className="h-px bg-white/[0.07] flex-shrink-0" />
+
+          {/* Summary */}
           <p className="text-sm text-gray-400 leading-relaxed font-sans">
             {item.summary || 'No additional details available.'}
           </p>
+
+          {/* Evidence & context strip */}
+          {(item.has_physical_evidence || item.credibility === 'high' || item.source_label || item.event_date || item.phenomenon_type) && (
+            <div className="flex flex-col gap-2 py-3 px-3 rounded-lg bg-white/[0.02] border border-white/[0.06] flex-shrink-0">
+              {/* Evidence indicators */}
+              {(item.has_physical_evidence || item.credibility === 'high') && (
+                <div className="flex items-center gap-3">
+                  {item.credibility === 'high' && (
+                    <span className="text-[10px] text-emerald-400 font-sans font-medium">{'\u2713 High credibility'}</span>
+                  )}
+                  {item.has_physical_evidence && (
+                    <span className="text-[10px] text-amber-400 font-sans font-medium">{'\u25C6 Physical evidence'}</span>
+                  )}
+                </div>
+              )}
+              {/* Details row */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                {item.event_date && (
+                  <div className="flex flex-col">
+                    <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Date</span>
+                    <span className="text-xs text-gray-300 font-sans">{new Date(item.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                  </div>
+                )}
+                {item.source_label && (
+                  <div className="flex flex-col">
+                    <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Source</span>
+                    <span className="text-xs text-gray-300 font-sans">{item.source_label}</span>
+                  </div>
+                )}
+                {item.content_type && (
+                  <div className="flex flex-col">
+                    <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Type</span>
+                    <span className="text-xs text-gray-300 font-sans">{item.content_type.replace(/_/g, ' ')}</span>
+                  </div>
+                )}
+              </div>
+              {/* Connected phenomenon */}
+              {item.phenomenon_type && (
+                <div className="flex items-center gap-2 pt-1 border-t border-white/[0.04]">
+                  <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Linked to</span>
+                  <span className="text-[11px] text-primary-400 font-sans font-medium">{item.phenomenon_type.name}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           <Link
             href={'/report/' + item.slug}
             className="inline-flex items-center gap-2 text-sm font-sans font-medium text-primary-400 hover:text-primary-300 transition-colors flex-shrink-0"
@@ -493,6 +587,49 @@ export function MediaReportCard(props: {
           <p className="text-sm text-gray-400 leading-relaxed font-sans">
             {item.summary || 'No additional details available.'}
           </p>
+
+          {/* Evidence & context strip */}
+          {(item.has_physical_evidence || item.credibility === 'high' || item.source_label || item.event_date || item.phenomenon_type) && (
+            <div className="flex flex-col gap-2 py-3 px-3 rounded-lg bg-white/[0.02] border border-white/[0.06] flex-shrink-0">
+              {(item.has_physical_evidence || item.credibility === 'high') && (
+                <div className="flex items-center gap-3">
+                  {item.credibility === 'high' && (
+                    <span className="text-[10px] text-emerald-400 font-sans font-medium">{'\u2713 High credibility'}</span>
+                  )}
+                  {item.has_physical_evidence && (
+                    <span className="text-[10px] text-amber-400 font-sans font-medium">{'\u25C6 Physical evidence'}</span>
+                  )}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                {item.event_date && (
+                  <div className="flex flex-col">
+                    <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Date</span>
+                    <span className="text-xs text-gray-300 font-sans">{new Date(item.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                  </div>
+                )}
+                {item.source_label && (
+                  <div className="flex flex-col">
+                    <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Source</span>
+                    <span className="text-xs text-gray-300 font-sans">{item.source_label}</span>
+                  </div>
+                )}
+                {item.content_type && (
+                  <div className="flex flex-col">
+                    <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Type</span>
+                    <span className="text-xs text-gray-300 font-sans">{item.content_type.replace(/_/g, ' ')}</span>
+                  </div>
+                )}
+              </div>
+              {item.phenomenon_type && (
+                <div className="flex items-center gap-2 pt-1 border-t border-white/[0.04]">
+                  <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Linked to</span>
+                  <span className="text-[11px] text-primary-400 font-sans font-medium">{item.phenomenon_type.name}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           <Link
             href={'/report/' + item.slug}
             className="inline-flex items-center gap-2 text-sm font-sans font-medium text-primary-400 hover:text-primary-300 transition-colors flex-shrink-0"
