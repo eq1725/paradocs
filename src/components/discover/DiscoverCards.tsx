@@ -270,6 +270,12 @@ export function PhenomenonCard(props: {
           <p className="text-sm text-gray-400 leading-relaxed font-sans">
             {item.ai_summary || item.ai_description || 'No additional information available.'}
           </p>
+          <Link
+            href={'/phenomena/' + item.slug}
+            className="inline-flex items-center gap-2 text-sm font-sans font-medium text-primary-400 hover:text-primary-300 transition-colors flex-shrink-0"
+          >
+            {'View Full Case \u2192'}
+          </Link>
           <Constellation />
           <div className="h-5" />
         </>
@@ -370,6 +376,12 @@ export function TextReportCard(props: {
           <p className="text-sm text-gray-400 leading-relaxed font-sans">
             {item.summary || 'No additional details available.'}
           </p>
+          <Link
+            href={'/report/' + item.slug}
+            className="inline-flex items-center gap-2 text-sm font-sans font-medium text-primary-400 hover:text-primary-300 transition-colors flex-shrink-0"
+          >
+            {'View Full Report \u2192'}
+          </Link>
           <Constellation />
           <div className="h-5" />
         </>
@@ -481,6 +493,12 @@ export function MediaReportCard(props: {
           <p className="text-sm text-gray-400 leading-relaxed font-sans">
             {item.summary || 'No additional details available.'}
           </p>
+          <Link
+            href={'/report/' + item.slug}
+            className="inline-flex items-center gap-2 text-sm font-sans font-medium text-primary-400 hover:text-primary-300 transition-colors flex-shrink-0"
+          >
+            {'View Full Report \u2192'}
+          </Link>
           <Constellation />
           <div className="h-5" />
         </>

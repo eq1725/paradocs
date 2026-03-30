@@ -11,12 +11,14 @@
  */
 
 import React from 'react'
+import Link from 'next/link'
 import { Constellation } from './Constellation'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
 
 export interface RabbitHoleCard {
   id: string
+  slug: string
   item_type: string
   category: string
   categoryColor: string

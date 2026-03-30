@@ -506,6 +506,7 @@ export default function DiscoverPage() {
 
       return {
         id: r.id,
+        slug: (r as any).slug || r.id,
         item_type: r.item_type,
         category: cat,
         categoryColor: catColor,
@@ -882,6 +883,12 @@ export default function DiscoverPage() {
                 )}
                 <div className="h-px bg-white/[0.07] mb-4" />
                 <p className="text-sm text-gray-400 leading-relaxed font-sans">{detailCard.summary}</p>
+                <Link
+                  href={(detailCard.item_type === 'phenomenon' ? '/phenomena/' : '/report/') + detailCard.slug}
+                  className="inline-flex items-center gap-2 mt-4 text-sm font-sans font-medium text-primary-400 hover:text-primary-300 transition-colors"
+                >
+                  {detailCard.item_type === 'phenomenon' ? 'View Full Case \u2192' : 'View Full Report \u2192'}
+                </Link>
                 <div className="mt-5"><Constellation /></div>
               </div>
             </div>

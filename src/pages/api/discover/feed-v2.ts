@@ -197,7 +197,7 @@ export default async function handler(
 
     var { data: phenCandidates, error: phenError } = await phenQuery
       .order('report_count', { ascending: false })
-      .limit(800);
+      .limit(5000);
 
     if (phenError) {
       console.error('[Feed V2] Phenomena query error:', phenError);
@@ -214,7 +214,7 @@ export default async function handler(
 
     var { data: reportCandidates, error: reportError } = await reportQuery
       .order('view_count', { ascending: false })
-      .limit(400);
+      .limit(1000);
 
     if (reportError) {
       console.error('[Feed V2] Report query error:', reportError);

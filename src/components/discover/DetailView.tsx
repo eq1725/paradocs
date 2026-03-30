@@ -10,6 +10,7 @@
  */
 
 import React from 'react'
+import Link from 'next/link'
 import { Constellation } from './Constellation'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import type { RabbitHoleCard } from './RabbitHolePanel'
@@ -73,6 +74,14 @@ export function DetailView(props: {
         <p className="text-sm text-gray-400 leading-relaxed font-sans">
           {card.summary}
         </p>
+
+        {/* Link to full case/report page */}
+        <Link
+          href={(card.item_type === 'phenomenon' ? '/phenomena/' : '/report/') + card.slug}
+          className="inline-flex items-center gap-2 mt-4 text-sm font-sans font-medium text-primary-400 hover:text-primary-300 transition-colors"
+        >
+          {card.item_type === 'phenomenon' ? 'View Full Case \u2192' : 'View Full Report \u2192'}
+        </Link>
 
         {/* Constellation paywall */}
         <div className="mt-5">
