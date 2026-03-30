@@ -413,17 +413,17 @@ export default function DiscoverPage() {
   useEffect(function () {
     function handleKey(e: KeyboardEvent) {
       if (rabbitOpen || detailCard) return
-      if (e.key === 'ArrowUp' || e.key === 'k') {
+      if (e.key === 'ArrowUp' || e.key === 'k' || e.key === 'w' || e.key === 'W') {
         e.preventDefault()
         prevCard()
-      } else if (e.key === 'ArrowDown' || e.key === 'j' || e.key === ' ') {
+      } else if (e.key === 'ArrowDown' || e.key === 'j' || e.key === 's' || e.key === 'S' || e.key === ' ') {
         e.preventDefault()
         nextCard()
-      } else if (e.key === 'ArrowLeft') {
+      } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
         e.preventDefault()
         flash('Dismissed')
         nextCard()
-      } else if (e.key === 'ArrowRight') {
+      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
         e.preventDefault()
         var currentItem = items[idx]
         if (currentItem) {
@@ -755,9 +755,10 @@ export default function DiscoverPage() {
                 <div className="flex items-center gap-6">
                   <span className="text-[10px] text-gray-500 font-sans font-medium uppercase tracking-wider flex-shrink-0">Shortcuts</span>
                   {[
-                    { key: '\u2191\u2193', action: 'Navigate' },
-                    { key: '\u2192', action: 'Save' },
-                    { key: '\u2190', action: 'Dismiss' },
+                    { key: 'W / \u2191', action: 'Previous' },
+                    { key: 'S / \u2193', action: 'Next' },
+                    { key: 'D / \u2192', action: 'Save' },
+                    { key: 'A / \u2190', action: 'Dismiss' },
                     { key: 'Enter', action: 'Expand' },
                     { key: 'Esc', action: 'Close' },
                   ].map(function (s) {
