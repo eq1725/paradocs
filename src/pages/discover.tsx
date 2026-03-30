@@ -747,6 +747,33 @@ export default function DiscoverPage() {
               }}
             >
               {renderCardContent()}
+
+              {/* Desktop keyboard shortcuts — below card content */}
+              {showShortcuts && (
+                <div className="hidden md:block mt-8 pt-5 border-t border-white/5">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[10px] text-gray-500 font-sans font-medium uppercase tracking-wider">Keyboard shortcuts</span>
+                    <button onClick={function () { setShowShortcuts(false) }} className="text-gray-600 hover:text-gray-400 text-xs transition-colors">{'\u2715'}</button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-x-4 gap-y-1.5">
+                    {[
+                      { key: '\u2191 / K', action: 'Previous' },
+                      { key: '\u2193 / J', action: 'Next' },
+                      { key: '\u2192', action: 'Save' },
+                      { key: '\u2190', action: 'Dismiss' },
+                      { key: 'Enter', action: 'Expand' },
+                      { key: 'Esc', action: 'Close' },
+                    ].map(function (s) {
+                      return (
+                        <div key={s.key} className="flex items-center gap-2">
+                          <kbd className="text-[10px] bg-white/[0.05] border border-white/10 px-1.5 py-0.5 rounded text-gray-400 font-mono min-w-[28px] text-center">{s.key}</kbd>
+                          <span className="text-[10px] text-gray-500 font-sans">{s.action}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Mobile gesture hints (only on small screens, first 3 cards) */}
@@ -845,32 +872,6 @@ export default function DiscoverPage() {
               <div className="mt-2"><Constellation /></div>
             </div>
 
-            {/* Keyboard shortcuts */}
-            {showShortcuts && (
-              <div className="flex-shrink-0 border-t border-white/5 px-5 py-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] text-gray-500 font-sans font-medium uppercase tracking-wider">Keyboard shortcuts</span>
-                  <button onClick={function () { setShowShortcuts(false) }} className="text-gray-600 hover:text-gray-400 text-xs transition-colors">{'\u2715'}</button>
-                </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                  {[
-                    { key: '\u2191 / K', action: 'Previous' },
-                    { key: '\u2193 / J', action: 'Next' },
-                    { key: '\u2192', action: 'Save' },
-                    { key: '\u2190', action: 'Dismiss' },
-                    { key: 'Enter', action: 'Expand' },
-                    { key: 'Esc', action: 'Close' },
-                  ].map(function (s) {
-                    return (
-                      <div key={s.key} className="flex items-center gap-2">
-                        <kbd className="text-[10px] bg-white/[0.05] border border-white/10 px-1.5 py-0.5 rounded text-gray-400 font-mono min-w-[28px] text-center">{s.key}</kbd>
-                        <span className="text-[10px] text-gray-500 font-sans">{s.action}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
