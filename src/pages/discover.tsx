@@ -616,6 +616,16 @@ export default function DiscoverPage() {
   }
 
   // =========================================================================
+  //  Desktop sidebar: keyboard hints
+  // =========================================================================
+  var [showShortcuts, setShowShortcuts] = useState(true)
+
+  // =========================================================================
+  //  Responsive helpers
+  // =========================================================================
+  var rabbitHoleCards = getRabbitHoleCards()
+
+  // =========================================================================
   //  Loading state
   // =========================================================================
   if (loading && !showOnboarding) {
@@ -633,6 +643,12 @@ export default function DiscoverPage() {
       </>
     )
   }
+
+  // =========================================================================
+  //  Progress percentage
+  // =========================================================================
+  var progressPct = totalAvailable > 0 ? ((idx + 1) / totalAvailable * 100) + '%' : items.length > 0 ? ((idx + 1) / items.length * 100) + '%' : '0%'
+  var counterText = (idx + 1) + ' / ' + (totalAvailable > 0 ? totalAvailable : items.length)
 
   // =========================================================================
   //  Main render
@@ -654,9 +670,11 @@ export default function DiscoverPage() {
       )}
 
       <div className="min-h-screen bg-gray-950 flex flex-col">
-        {/* Fixed header */}
+        {/* ================================================================
+            Fixed header — full width, responsive padding
+            ================================================================ */}
         <div className="fixed top-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-lg border-b border-gray-800 safe-area-pt">
-          <div className="flex items-center justify-between h-14 px-4 sm:px-6">
+          <div className="flex items-center justify-between h-14 px-4 sm:px-6 lg:px-8">
             <div className="flex items-center gap-3">
               <Link href="/">
                 <span className="font-sans font-black text-xl text-white tracking-tight whitespace-nowrap">
@@ -679,8 +697,14 @@ export default function DiscoverPage() {
               )}
               {/* Card counter */}
               <span className="text-xs text-gray-500 bg-white/5 px-2.5 py-1 rounded-full font-medium">
-                {(idx + 1) + ' / ' + (totalAvailable > 0 ? totalAvailable : items.length)}
+                {counterText}
               </span>
+              {/* Desktop nav links */}
+              <div className="hidden md:flex items-center gap-4 ml-3">
+                <Link href="/explore" className="text-xs text-gray-500 hover:text-gray-300 transition-colors font-sans">Explore</Link>
+                <Link href="/map" className="text-xs text-gray-500 hover:text-gray-300 transition-colors font-sans">Map</Link>
+                <Link href="/phenomena" className="text-xs text-gray-500 hover:text-gray-300 transition-colors font-sans">Encyclopedia</Link>
+              </div>
             </div>
           </div>
 
@@ -688,79 +712,216 @@ export default function DiscoverPage() {
           <div className="h-0.5 bg-gray-900">
             <div
               className="h-full bg-primary-500 transition-all duration-300"
-              style={{ width: totalAvailable > 0 ? ((idx + 1) / totalAvailable * 100) + '%' : items.length > 0 ? ((idx + 1) / items.length * 100) + '%' : '0%' }}
+              style={{ width: progressPct }}
             />
           </div>
         </div>
 
-        {/* Card area — full viewport */}
-        <div
-          className="flex-1 relative overflow-hidden cursor-grab"
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          onWheel={handleWheel}
-        >
-          {/* Category accent stripe */}
+        {/* ================================================================
+            Main content — responsive layout
+            Mobile: full-screen card
+            Tablet: centered column
+            Desktop: two-pane (card + sidebar)
+            ================================================================ */}
+        <div className="flex-1 flex">
+          {/* ---- Card feed pane ---- */}
           <div
-            className="absolute left-0 top-0 bottom-0 w-[3px] opacity-50 z-10 transition-colors duration-400"
-            style={{ background: catColor }}
-          />
-
-          {/* Main card — padding clears fixed header (h-14 + progress bar + safe area) and bottom nav */}
-          <div
-            className="absolute inset-0 px-5 sm:px-6 mobile-content-pb overflow-y-auto transition-all duration-200"
-            style={{
-              paddingTop: 'calc(4.5rem + env(safe-area-inset-top, 0px))',
-              transform: swipeAnim === 'up' ? 'translateY(-52px)' : swipeAnim === 'down' ? 'translateY(52px)' : 'translateY(0)',
-              opacity: swipeAnim ? 0 : 1,
-            }}
+            className="flex-1 relative overflow-hidden cursor-grab lg:max-w-2xl lg:mx-auto xl:mx-0 xl:max-w-none xl:flex-1"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            onWheel={handleWheel}
           >
-            {renderCardContent()}
+            {/* Category accent stripe */}
+            <div
+              className="absolute left-0 top-0 bottom-0 w-[3px] opacity-50 z-10 transition-colors duration-400"
+              style={{ background: catColor }}
+            />
+
+            {/* Main card — padding clears header and bottom nav (mobile) */}
+            <div
+              className="absolute inset-0 px-5 sm:px-6 md:px-8 lg:px-10 mobile-content-pb md:pb-8 overflow-y-auto transition-all duration-200"
+              style={{
+                paddingTop: 'calc(4.5rem + env(safe-area-inset-top, 0px))',
+                transform: swipeAnim === 'up' ? 'translateY(-52px)' : swipeAnim === 'down' ? 'translateY(52px)' : 'translateY(0)',
+                opacity: swipeAnim ? 0 : 1,
+              }}
+            >
+              {renderCardContent()}
+            </div>
+
+            {/* Mobile gesture hints (only on small screens, first 3 cards) */}
+            {!expanded && !rabbitOpen && !detailCard && idx < 3 && (
+              <div className="md:hidden">
+                <div className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] text-white/[0.06] font-sans" style={{ writingMode: 'vertical-lr' as const }}>
+                  {'\u2192 save'}
+                </div>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[8px] text-white/[0.06] font-sans" style={{ writingMode: 'vertical-lr' as const }}>
+                  {'\u2190 dismiss'}
+                </div>
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[8px] text-white/[0.06] font-sans">
+                  {'\u2193 rabbit hole'}
+                </div>
+              </div>
+            )}
+
+            {/* Rabbit hole panel (mobile: overlay, desktop: in sidebar) */}
+            <div className="xl:hidden">
+              {rabbitOpen && (
+                <RabbitHolePanel
+                  cards={rabbitHoleCards}
+                  color={catColor}
+                  onClose={function () { setRabbitOpen(false) }}
+                  onSelect={function (c) { setDetailCard(c) }}
+                />
+              )}
+              {detailCard && (
+                <DetailView
+                  card={detailCard}
+                  onBack={function () { setDetailCard(null) }}
+                />
+              )}
+            </div>
           </div>
 
-          {/* Gesture hints (subtle, only when idle) */}
-          {!expanded && !rabbitOpen && !detailCard && idx < 3 && (
-            <>
-              <div className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] text-white/[0.06] font-sans" style={{ writingMode: 'vertical-lr' as const }}>
-                {'\u2192 save'}
+          {/* ---- Desktop sidebar (xl+) ---- */}
+          <div className="hidden xl:flex flex-col w-[380px] border-l border-gray-800/50 bg-gray-950 overflow-hidden main-content-pt">
+            {/* Sidebar header */}
+            <div className="px-5 pt-4 pb-3 border-b border-white/5 flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm" style={{ color: catColor }}>{'\u25C9'}</span>
+                  <span className="text-[10px] text-gray-400 font-sans font-medium uppercase tracking-wider">
+                    Connected cases
+                  </span>
+                </div>
+                <span className="text-[10px] text-gray-600 font-sans">
+                  {rabbitHoleCards.length > 0 ? rabbitHoleCards.length + ' related' : ''}
+                </span>
               </div>
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[8px] text-white/[0.06] font-sans" style={{ writingMode: 'vertical-lr' as const }}>
-                {'\u2190 dismiss'}
-              </div>
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[8px] text-white/[0.06] font-sans">
-                {'\u2193 rabbit hole'}
-              </div>
-            </>
-          )}
+            </div>
 
-          {/* Rabbit hole panel */}
-          {rabbitOpen && (
-            <RabbitHolePanel
-              cards={getRabbitHoleCards()}
-              color={catColor}
-              onClose={function () { setRabbitOpen(false) }}
-              onSelect={function (c) { setDetailCard(c) }}
-            />
-          )}
+            {/* Related cards list */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2.5">
+              {rabbitHoleCards.length > 0 ? (
+                rabbitHoleCards.map(function (c, i) {
+                  var catConfig = CATEGORY_CONFIG[c.category as keyof typeof CATEGORY_CONFIG]
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={function () { setDetailCard(c) }}
+                      className="bg-white/[0.025] border border-white/[0.07] rounded-xl px-3.5 py-3 text-left transition-colors hover:bg-white/[0.05] cursor-pointer"
+                      style={{ borderLeft: '3px solid ' + c.categoryColor }}
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-[9px] font-sans font-semibold uppercase tracking-wider" style={{ color: c.categoryColor }}>
+                          {(catConfig?.icon || '') + ' ' + (catConfig?.label || c.category)}
+                        </span>
+                        <span className="text-[9px] text-gray-500 font-sans">
+                          {c.location + (c.tag ? ' \u00B7 ' + c.tag : '')}
+                        </span>
+                      </div>
+                      <p className="text-sm font-display font-semibold text-gray-200 leading-snug mb-1.5">
+                        {c.headline}
+                      </p>
+                      {c.credibility && c.credibility.length > 0 && (
+                        <div className="flex gap-1 flex-wrap">
+                          {c.credibility.map(function (tag, j) {
+                            return (
+                              <span key={j} className="text-[8px] px-2 py-0.5 rounded-full border border-white/[0.08] text-gray-500 font-sans">
+                                {tag}
+                              </span>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </button>
+                  )
+                })
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-600 text-xs font-sans">No related cases loaded yet</p>
+                </div>
+              )}
+              <div className="mt-2"><Constellation /></div>
+            </div>
 
-          {/* Detail view */}
-          {detailCard && (
-            <DetailView
-              card={detailCard}
-              onBack={function () { setDetailCard(null) }}
-            />
-          )}
+            {/* Keyboard shortcuts */}
+            {showShortcuts && (
+              <div className="flex-shrink-0 border-t border-white/5 px-5 py-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[10px] text-gray-500 font-sans font-medium uppercase tracking-wider">Keyboard shortcuts</span>
+                  <button onClick={function () { setShowShortcuts(false) }} className="text-gray-600 hover:text-gray-400 text-xs transition-colors">{'\u2715'}</button>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                  {[
+                    { key: '\u2191 / K', action: 'Previous' },
+                    { key: '\u2193 / J', action: 'Next' },
+                    { key: '\u2192', action: 'Save' },
+                    { key: '\u2190', action: 'Dismiss' },
+                    { key: 'Enter', action: 'Expand' },
+                    { key: 'Esc', action: 'Close' },
+                  ].map(function (s) {
+                    return (
+                      <div key={s.key} className="flex items-center gap-2">
+                        <kbd className="text-[10px] bg-white/[0.05] border border-white/10 px-1.5 py-0.5 rounded text-gray-400 font-mono min-w-[28px] text-center">{s.key}</kbd>
+                        <span className="text-[10px] text-gray-500 font-sans">{s.action}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Site's mobile bottom tabs */}
+        {/* Detail view overlay (desktop: centered modal instead of panel) */}
+        {detailCard && (
+          <div className="hidden xl:flex fixed inset-0 z-[60] items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="w-full max-w-lg max-h-[80vh] bg-gray-900 border border-gray-700 rounded-2xl overflow-hidden flex flex-col">
+              <div className="px-5 py-4 flex items-center justify-between flex-shrink-0 border-b border-white/5">
+                <span className="text-[10px] font-sans font-semibold uppercase tracking-wider" style={{ color: detailCard.categoryColor }}>
+                  {detailCard.category + ' \u00B7 ' + detailCard.year}
+                </span>
+                <button
+                  onClick={function () { setDetailCard(null) }}
+                  className="text-gray-500 hover:text-gray-300 text-xs font-sans font-medium uppercase tracking-wider px-2 py-1 transition-colors"
+                >
+                  {'\u2715 Close'}
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                <p className="text-[11px] text-gray-500 font-sans mb-3">
+                  {detailCard.location + (detailCard.tag ? ' \u00B7 ' + detailCard.tag : '')}
+                </p>
+                <h2 className="text-xl font-display font-bold text-white leading-snug mb-3">
+                  {detailCard.headline}
+                </h2>
+                {detailCard.credibility && detailCard.credibility.length > 0 && (
+                  <div className="flex gap-1.5 flex-wrap mb-4">
+                    {detailCard.credibility.map(function (c, i) {
+                      return (
+                        <span key={i} className="text-[10px] px-2.5 py-0.5 rounded-full border border-white/10 text-gray-400 font-sans font-medium">{c}</span>
+                      )
+                    })}
+                  </div>
+                )}
+                <div className="h-px bg-white/[0.07] mb-4" />
+                <p className="text-sm text-gray-400 leading-relaxed font-sans">{detailCard.summary}</p>
+                <div className="mt-5"><Constellation /></div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mobile bottom tabs (hidden on desktop) */}
         <MobileBottomTabs />
       </div>
 
       {/* Signup prompt overlay */}
       {showSignupPrompt && (
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-6">
-          <div className="w-full sm:max-w-sm bg-gray-900 border-t sm:border border-gray-700 rounded-t-2xl sm:rounded-2xl p-6 text-center relative">
-            <div className="flex justify-center mb-3 sm:hidden">
+        <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-6">
+          <div className="w-full md:max-w-sm bg-gray-900 border-t md:border border-gray-700 rounded-t-2xl md:rounded-2xl p-6 text-center relative">
+            <div className="flex justify-center mb-3 md:hidden">
               <div className="w-10 h-1 rounded-full bg-gray-700" />
             </div>
             <button

@@ -122,10 +122,10 @@ var CATEGORY_COLORS: Record<string, string> = {
 function CredibilityTags(props: { tags: string[] }) {
   if (!props.tags || props.tags.length === 0) return null
   return (
-    <div className="flex gap-1.5 flex-wrap flex-shrink-0">
+    <div className="flex gap-1.5 md:gap-2 flex-wrap flex-shrink-0">
       {props.tags.map(function (tag, i) {
         return (
-          <span key={i} className="text-[10px] px-2.5 py-0.5 rounded-full border border-white/10 text-gray-400 font-sans font-medium">
+          <span key={i} className="text-[10px] md:text-[11px] px-2.5 md:px-3 py-0.5 md:py-1 rounded-full border border-white/10 text-gray-400 font-sans font-medium">
             {tag}
           </span>
         )
@@ -140,14 +140,14 @@ function CredibilityTags(props: { tags: string[] }) {
 
 function StatsRow(props: { items: { value: string | number, label: string }[], color: string }) {
   return (
-    <div className="flex gap-6 flex-shrink-0">
+    <div className="flex gap-6 md:gap-8 flex-shrink-0">
       {props.items.map(function (item, i) {
         return (
           <div key={i} className="flex flex-col gap-0.5">
-            <span className="text-xl font-display font-bold" style={{ color: props.color }}>
+            <span className="text-xl md:text-2xl font-display font-bold" style={{ color: props.color }}>
               {item.value}
             </span>
-            <span className="text-[9px] text-gray-500 font-sans font-medium uppercase tracking-wider">
+            <span className="text-[9px] md:text-[10px] text-gray-500 font-sans font-medium uppercase tracking-wider">
               {item.label}
             </span>
           </div>
@@ -165,7 +165,7 @@ function ReadCaseButton(props: { onExpand: () => void }) {
   return (
     <button
       onClick={props.onExpand}
-      className="w-full py-2.5 rounded-lg border border-white/10 bg-white/[0.03] text-gray-400 text-xs font-sans font-medium uppercase tracking-widest hover:bg-white/[0.06] hover:text-gray-300 transition-colors flex-shrink-0 cursor-pointer"
+      className="w-full md:w-auto md:px-8 py-2.5 md:py-3 rounded-lg border border-white/10 bg-white/[0.03] text-gray-400 text-xs md:text-sm font-sans font-medium uppercase tracking-widest hover:bg-white/[0.06] hover:text-gray-300 transition-colors flex-shrink-0 cursor-pointer"
     >
       {'\u25BC Read Case'}
     </button>
@@ -228,11 +228,11 @@ export function PhenomenonCard(props: {
   var displayText = item.feed_hook || item.ai_summary || ''
 
   return (
-    <div className={'flex flex-col gap-4 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}>
+    <div className={'flex flex-col gap-4 md:gap-5 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}>
       {/* Case type badge */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: catColor }}>
+          <span className="text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
             {(config?.icon || '') + ' ' + badgeParts.join(' \u00B7 ')}
           </span>
           {item.report_count > 20 && (
@@ -249,7 +249,7 @@ export function PhenomenonCard(props: {
       </p>
 
       {/* Large bold opener — font-display for headlines */}
-      <h2 className="text-lg sm:text-xl font-display font-bold text-white leading-snug">
+      <h2 className="text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] font-display font-bold text-white leading-snug">
         {displayText || item.name}
       </h2>
 
@@ -337,19 +337,19 @@ export function TextReportCard(props: {
   if (item.comment_count > 0) tensionItems.push({ value: item.comment_count, label: 'comments' })
 
   return (
-    <div className={'flex flex-col gap-4 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}>
+    <div className={'flex flex-col gap-4 md:gap-5 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}>
       {/* Case type badge */}
-      <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: catColor }}>
+      <span className="text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
         {(config?.icon || '') + ' ' + badgeParts.join(' \u00B7 ')}
       </span>
 
       {/* Location */}
-      <p className="text-[11px] text-gray-500 font-sans">
+      <p className="text-[11px] md:text-xs text-gray-500 font-sans">
         {(locationStr || 'Unknown location') + (tagLine ? ' \u00B7 ' + tagLine : '')}
       </p>
 
       {/* Large bold opener */}
-      <h2 className="text-lg sm:text-xl font-display font-bold text-white leading-snug">
+      <h2 className="text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] font-display font-bold text-white leading-snug">
         {displayText || item.title}
       </h2>
 
@@ -429,10 +429,10 @@ export function MediaReportCard(props: {
   if (item.view_count > 0) tensionItems.push({ value: item.view_count > 999 ? Math.round(item.view_count / 100) / 10 + 'k' : item.view_count, label: 'views' })
 
   return (
-    <div className={'flex flex-col gap-4 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}>
+    <div className={'flex flex-col gap-4 md:gap-5 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}>
       {/* Case type badge + evidence marker */}
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: catColor }}>
+        <span className="text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
           {(config?.icon || '') + ' ' + badgeParts.join(' \u00B7 ')}
         </span>
         <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-sans font-semibold uppercase tracking-wider">
@@ -446,7 +446,7 @@ export function MediaReportCard(props: {
       </p>
 
       {/* Large bold opener */}
-      <h2 className="text-lg sm:text-xl font-display font-bold text-white leading-snug">
+      <h2 className="text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] font-display font-bold text-white leading-snug">
         {displayText || item.title}
       </h2>
 
