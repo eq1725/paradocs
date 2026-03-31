@@ -346,9 +346,6 @@ export default function DiscoverPreview() {
               first_reported_date: item.first_reported_date || null,
             })
           } else if (item.item_type === 'report' && repPool.length < 15) {
-            /* Only include reports with a phenomenon_type for clean topic names */
-            var pt = item.phenomenon_type || null
-            if (!pt) return
             repPool.push({
               item_type: 'report',
               id: item.id,
@@ -365,7 +362,7 @@ export default function DiscoverPreview() {
               city: item.city || null,
               state_province: item.state_province || null,
               country: item.country || null,
-              phenomenon_type: pt,
+              phenomenon_type: item.phenomenon_type || null,
             })
           }
         })
