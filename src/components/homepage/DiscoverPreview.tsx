@@ -14,7 +14,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 
 // =========================================================================
@@ -314,62 +313,63 @@ export default function DiscoverPreview() {
   var [hovered, setHovered] = useState(false)
   var timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  /* Fetch data */
+  /* Fetch data via feed-v2 API (uses service role key, bypasses RLS) */
   useEffect(function () {
     async function fetchData() {
       try {
-        var phenResult = await supabase
-          .from('phenomena')
-          .select('id, name, slug, category, feed_hook, ai_summary, ai_quick_facts, report_count, primary_regions, first_reported_date')
-          .eq('status', 'active')
-          .not('feed_hook', 'is', null)
-          .order('report_count', { ascending: false })
-          .limit(20)
+        var seed = Math.floor(Math.random() * 2147483647)
+        var res = await fetch('/api/discover/feed-v2?limit=40&offset=0&seed=' + seed)
+        if (!res.ok) throw new Error('Feed fetch failed')
+        var data = await res.json()
+        var feedItems = data.items || []
 
-        var phenPool = (phenResult.data || []).map(function (p: any) {
-          return Object.assign({}, p, { item_type: 'phenomenon' as const })
-        })
+        /* Separate phenomena and reports from the feed */
+        var phenPool: PreviewPhenomenon[] = []
+        var repPool: PreviewReport[] = []
 
-        /* Fetch reports — only those linked to a phenomenon so we get clean topic names */
-        var repResult = await supabase
-          .from('reports')
-          .select('id, title, slug, category, feed_hook, summary, credibility, has_photo_video, has_physical_evidence, event_date, location_name, city, state_province, country, phenomenon_type_id')
-          .eq('status', 'approved')
-          .not('feed_hook', 'is', null)
-          .not('phenomenon_type_id', 'is', null)
-          .order('view_count', { ascending: false })
-          .limit(20)
-
-        var rawReports = repResult.data || []
-
-        /* Resolve phenomenon names for topic labels */
-        var ptIds = rawReports
-          .filter(function (r: any) { return r.phenomenon_type_id })
-          .map(function (r: any) { return r.phenomenon_type_id })
-
-        var ptMap: Record<string, any> = {}
-        if (ptIds.length > 0) {
-          var ptResult = await supabase
-            .from('phenomena')
-            .select('id, name, slug, category')
-            .in('id', ptIds)
-
-          if (ptResult.data) {
-            ptResult.data.forEach(function (pt: any) { ptMap[pt.id] = pt })
+        feedItems.forEach(function (item: any) {
+          if (item.item_type === 'phenomenon' && phenPool.length < 15) {
+            phenPool.push({
+              item_type: 'phenomenon',
+              id: item.id,
+              name: item.name || '',
+              slug: item.slug || item.id,
+              category: item.category || 'combination',
+              feed_hook: item.feed_hook || null,
+              ai_summary: item.ai_summary || null,
+              ai_quick_facts: item.ai_quick_facts || null,
+              report_count: item.report_count || 0,
+              primary_regions: item.primary_regions || null,
+              first_reported_date: item.first_reported_date || null,
+            })
+          } else if (item.item_type === 'report' && repPool.length < 15) {
+            /* Only include reports with a phenomenon_type for clean topic names */
+            var pt = item.phenomenon_type || null
+            if (!pt) return
+            repPool.push({
+              item_type: 'report',
+              id: item.id,
+              title: item.title || '',
+              slug: item.slug || item.id,
+              category: item.category || 'combination',
+              feed_hook: item.feed_hook || null,
+              summary: item.summary || null,
+              credibility: item.credibility || null,
+              has_photo_video: !!item.has_photo_video,
+              has_physical_evidence: !!item.has_physical_evidence,
+              event_date: item.event_date || null,
+              location_name: item.location_name || null,
+              city: item.city || null,
+              state_province: item.state_province || null,
+              country: item.country || null,
+              phenomenon_type: pt,
+            })
           }
-        }
-
-        var repPool = rawReports.map(function (r: any) {
-          var pt = r.phenomenon_type_id ? ptMap[r.phenomenon_type_id] : null
-          return Object.assign({}, r, {
-            item_type: 'report' as const,
-            phenomenon_type: pt ? { name: pt.name, slug: pt.slug, category: pt.category } : null,
-          })
         })
 
         setSlides(buildSlides(phenPool, repPool))
       } catch (e) {
-        /* non-critical */
+        console.error('[DiscoverPreview] fetch error:', e)
       }
       setLoading(false)
     }
