@@ -115,8 +115,8 @@ function truncateHook(text: string, maxLen: number): string {
   return (wordEnd > maxLen * 0.4 ? trimmed.substring(0, wordEnd) : trimmed) + '\u2026'
 }
 
-/** Extract clean topic name from report title */
-function extractTopicName(title: string): string {
+/** Extract clean topic name from report title, with category label fallback */
+function extractTopicName(title: string, categoryLabel: string): string {
   var raw = title.split(/\s*[-\u2014]\s*/)[0] || title
   raw = raw
     .replace(/\s+Caught on Camera.*$/i, '')
@@ -127,7 +127,17 @@ function extractTopicName(title: string): string {
     .replace(/\s+Experience.*$/i, '')
     .replace(/\s+after\s+.*/i, '')
     .trim()
-  return raw.length > 28 ? raw.substring(0, 26) + '\u2026' : raw
+
+  /* If the result is still too long, looks like a sentence (starts with
+     "I ", "The ", "My ", "A ", etc.), or contains too many words, fall
+     back to the category label which is always clean */
+  var wordCount = raw.split(/\s+/).length
+  var isSentence = /^(I |The |My |A |An |We |He |She |It |This |That |Some |One |Two |Three |Four |North |South |East |West )/i.test(raw)
+  if (raw.length > 24 || wordCount > 4 || isSentence) {
+    return categoryLabel
+  }
+
+  return raw || categoryLabel
 }
 
 /** Build location string from report fields */
@@ -214,7 +224,7 @@ function ReportCard(props: { item: PreviewReport }) {
   var href = '/report/' + item.slug
   var topicName = (item.phenomenon_type && item.phenomenon_type.name)
     ? item.phenomenon_type.name
-    : extractTopicName(item.title)
+    : extractTopicName(item.title, config?.label || item.category)
   var locationStr = buildLocation(item)
   var year = item.event_date ? (item.event_date.match(/\d{4}/) || [''])[0] : ''
 
