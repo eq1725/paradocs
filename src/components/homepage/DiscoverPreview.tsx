@@ -484,9 +484,9 @@ export default function DiscoverPreview() {
         {/* Header */}
         <div className="flex items-end justify-between mb-8">
           <div>
-            <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-2">Eyewitness accounts</h2>
+            <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-2">What people are reporting</h2>
             <p className="text-sm sm:text-base text-gray-400 max-w-2xl">
-              Real reports and encyclopedia entries from our case files.
+              Real encounters and AI-detected patterns emerging from millions of cases.
             </p>
           </div>
 
