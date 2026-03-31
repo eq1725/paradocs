@@ -1,16 +1,17 @@
 'use client'
 
 /**
- * DiscoverPreview — homepage section showcasing the Discover feed.
+ * DiscoverPreview — homepage carousel showcasing the Discover feed.
  *
- * Mirrors the Discover card aesthetic: typography-first, hook-driven,
- * category accent colors. Fetches a mix of phenomena (encyclopedia)
- * and reports to represent the full feed experience.
+ * Each "slide" = 1 large encyclopedia card + 2 small experiencer report cards.
+ * Desktop: auto-rotates every 6s, pauses on hover/focus, crossfade transition.
+ * Mobile: horizontal swipeable scroll (no auto-play — UX best practice).
+ * Respects prefers-reduced-motion.
  *
  * SWC-compatible: var, function expressions, string concat.
  */
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -52,10 +53,14 @@ interface PreviewReport {
   country: string | null
 }
 
-type PreviewItem = PreviewPhenomenon | PreviewReport
+/** A slide = 1 phenomenon + 2 reports */
+interface Slide {
+  phenomenon: PreviewPhenomenon
+  reports: PreviewReport[]
+}
 
 // =========================================================================
-//  Category color map (matches DiscoverCards.tsx)
+//  Category colors (matches DiscoverCards.tsx)
 // =========================================================================
 
 var CATEGORY_COLORS: Record<string, string> = {
@@ -72,72 +77,57 @@ var CATEGORY_COLORS: Record<string, string> = {
   combination: '#80cbc4',
 }
 
+var ROTATE_INTERVAL = 6000
+
 // =========================================================================
-//  Featured card (large, spans 2 cols on desktop)
+//  Encyclopedia card (large)
 // =========================================================================
 
-function FeaturedCard(props: { item: PreviewItem }) {
+function EncyclopediaCard(props: { item: PreviewPhenomenon }) {
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
   var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
-  var isPhen = item.item_type === 'phenomenon'
-  var phen = item as PreviewPhenomenon
-  var report = item as PreviewReport
 
-  var hookText = item.feed_hook || (isPhen ? phen.ai_summary : report.summary) || ''
-  var title = isPhen ? phen.name : report.title
-  var href = isPhen ? '/phenomena/' + phen.slug : '/report/' + report.slug
+  var hookText = item.feed_hook || item.ai_summary || ''
+  var href = '/phenomena/' + item.slug
 
-  // Badge parts
   var badgeParts: string[] = []
   badgeParts.push(config?.label || item.category)
-  if (isPhen && phen.primary_regions && phen.primary_regions.length > 0) {
-    badgeParts.push(phen.primary_regions[0])
-  }
-  if (!isPhen && report.country) {
-    var loc = report.city || report.state_province || report.country
-    badgeParts.push(loc)
+  if (item.primary_regions && item.primary_regions.length > 0) {
+    badgeParts.push(item.primary_regions[0])
   }
 
-  // Credibility signals
   var signals: string[] = []
-  if (isPhen) {
-    var qf = phen.ai_quick_facts
-    if (qf && qf.evidence_types) signals.push(qf.evidence_types)
-    if (phen.report_count > 5) signals.push(phen.report_count + ' reports')
-  } else {
-    if (report.credibility === 'high') signals.push('High credibility')
-    if (report.has_photo_video) signals.push('Photo/Video')
-    if (report.has_physical_evidence) signals.push('Physical evidence')
-  }
+  var qf = item.ai_quick_facts
+  if (qf && qf.evidence_types) signals.push(qf.evidence_types)
+  if (item.report_count > 5) signals.push(item.report_count + ' reports')
 
   return (
-    <Link href={href} className="block group sm:col-span-2">
-      <div className="relative rounded-xl border border-white/[0.08] overflow-hidden bg-gray-950 p-6 sm:p-8 min-h-[240px] sm:min-h-[280px] flex flex-col transition-all duration-300 hover:border-white/15">
-        {/* Subtle category glow */}
+    <Link href={href} className="block group">
+      <div className="relative rounded-xl border border-white/[0.08] overflow-hidden bg-gray-950 p-6 sm:p-7 min-h-[220px] sm:min-h-[260px] flex flex-col transition-all duration-300 hover:border-white/15">
         <div className="absolute inset-0 opacity-[0.04]" style={{ background: 'radial-gradient(ellipse at 20% 80%, ' + catColor + ', transparent 65%)' }} />
 
         <div className="relative z-10 flex flex-col h-full">
-          {/* Category badge */}
-          <div className="flex items-center gap-2 mb-4">
+          {/* Badge */}
+          <div className="flex items-center gap-2 mb-3">
             <span className="text-[10px] font-semibold uppercase tracking-widest font-sans" style={{ color: catColor }}>
               {(config?.icon || '') + ' ' + badgeParts.join(' \u00B7 ')}
             </span>
-            {isPhen && phen.report_count > 20 && (
+            {item.report_count > 20 && (
               <span className="text-[9px] bg-primary-500/15 text-primary-400 px-2 py-0.5 rounded-full font-medium font-sans">
                 trending
               </span>
             )}
           </div>
 
-          {/* Hook text — the headline */}
-          <h3 className="text-lg sm:text-xl md:text-2xl font-display font-bold text-white leading-snug mb-3 group-hover:text-primary-400 transition-colors">
-            {hookText || title}
+          {/* Hook */}
+          <h3 className="text-lg sm:text-xl font-display font-bold text-white leading-snug mb-3 group-hover:text-primary-400 transition-colors line-clamp-4">
+            {hookText || item.name}
           </h3>
 
-          {/* Credibility signals */}
+          {/* Signals */}
           {signals.length > 0 && (
-            <div className="flex gap-1.5 flex-wrap mb-4">
+            <div className="flex gap-1.5 flex-wrap mb-3">
               {signals.map(function (s, i) {
                 return (
                   <span key={i} className="text-[10px] px-2.5 py-0.5 rounded-full border border-white/10 text-gray-400 font-sans font-medium">
@@ -148,18 +138,13 @@ function FeaturedCard(props: { item: PreviewItem }) {
             </div>
           )}
 
-          {/* Spacer */}
           <div className="flex-grow" />
 
-          {/* Bottom: title (if hook shown) + CTA */}
-          <div className="flex items-end justify-between pt-4 border-t border-white/5">
-            <div className="flex-1 min-w-0">
-              {hookText && hookText !== title && (
-                <p className="text-sm text-gray-400 font-sans truncate">{title}</p>
-              )}
-            </div>
-            <span className="text-xs font-medium text-primary-400 group-hover:text-primary-300 transition-colors flex items-center gap-1 flex-shrink-0 ml-4 font-sans">
-              {isPhen ? 'Read case' : 'Read report'}
+          {/* Bottom */}
+          <div className="flex items-end justify-between pt-3 border-t border-white/5">
+            <p className="text-xs text-gray-500 font-sans truncate flex-1 min-w-0 mr-3">{item.name}</p>
+            <span className="text-[10px] font-medium text-primary-400 group-hover:text-primary-300 font-sans flex-shrink-0 flex items-center gap-1">
+              Read case
               <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
             </span>
           </div>
@@ -170,66 +155,51 @@ function FeaturedCard(props: { item: PreviewItem }) {
 }
 
 // =========================================================================
-//  Standard card (single column)
+//  Report card (small)
 // =========================================================================
 
-function StandardCard(props: { item: PreviewItem }) {
+function ReportCard(props: { item: PreviewReport }) {
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
   var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
-  var isPhen = item.item_type === 'phenomenon'
-  var phen = item as PreviewPhenomenon
-  var report = item as PreviewReport
 
-  var hookText = item.feed_hook || (isPhen ? phen.ai_summary : report.summary) || ''
-  var title = isPhen ? phen.name : report.title
-  var href = isPhen ? '/phenomena/' + phen.slug : '/report/' + report.slug
+  var hookText = item.feed_hook || item.summary || ''
+  var href = '/report/' + item.slug
 
-  var subtitle = ''
-  if (isPhen) {
-    subtitle = phen.primary_regions ? phen.primary_regions[0] || '' : ''
-  } else {
-    var parts: string[] = []
-    if (report.city) parts.push(report.city)
-    if (report.state_province) parts.push(report.state_province)
-    if (report.country && parts.length === 0) parts.push(report.country)
-    subtitle = parts.join(', ')
-  }
+  var locParts: string[] = []
+  if (item.city) locParts.push(item.city)
+  if (item.state_province) locParts.push(item.state_province)
+  if (item.country && locParts.length === 0) locParts.push(item.country)
+  var location = locParts.join(', ')
 
   return (
     <Link href={href} className="block group">
-      <div className="relative rounded-xl border border-white/[0.08] overflow-hidden bg-gray-950 p-5 sm:p-6 h-full flex flex-col transition-all duration-300 hover:border-white/15">
-        {/* Subtle accent glow */}
+      <div className="relative rounded-xl border border-white/[0.08] overflow-hidden bg-gray-950 p-5 h-full flex flex-col transition-all duration-300 hover:border-white/15">
         <div className="absolute inset-0 opacity-[0.03]" style={{ background: 'radial-gradient(ellipse at 30% 70%, ' + catColor + ', transparent 60%)' }} />
 
         <div className="relative z-10 flex flex-col h-full">
           {/* Category */}
-          <span className="text-[10px] font-semibold uppercase tracking-widest font-sans mb-3" style={{ color: catColor }}>
+          <span className="text-[10px] font-semibold uppercase tracking-widest font-sans mb-2" style={{ color: catColor }}>
             {(config?.icon || '') + ' ' + (config?.label || item.category)}
           </span>
 
-          {/* Hook text */}
-          <h3 className="text-base sm:text-lg font-display font-bold text-white leading-snug mb-2 group-hover:text-primary-400 transition-colors line-clamp-3">
-            {hookText || title}
+          {/* Hook */}
+          <h3 className="text-sm sm:text-base font-display font-bold text-white leading-snug mb-2 group-hover:text-primary-400 transition-colors line-clamp-3">
+            {hookText || item.title}
           </h3>
 
-          {/* Subtitle (location/title) */}
-          {subtitle && (
-            <p className="text-[11px] text-gray-500 font-sans mb-3">{subtitle}</p>
+          {/* Location */}
+          {location && (
+            <p className="text-[11px] text-gray-500 font-sans">{location}</p>
           )}
 
-          {/* Spacer */}
           <div className="flex-grow" />
 
           {/* Bottom */}
-          <div className="flex items-center justify-between pt-3 border-t border-white/5">
-            {hookText && hookText !== title ? (
-              <p className="text-xs text-gray-500 font-sans truncate flex-1 min-w-0 mr-3">{title}</p>
-            ) : (
-              <div />
-            )}
+          <div className="flex items-center justify-between pt-2 border-t border-white/5 mt-3">
+            <p className="text-[11px] text-gray-500 font-sans truncate flex-1 min-w-0 mr-2">{item.title}</p>
             <span className="text-[10px] font-medium text-primary-400 group-hover:text-primary-300 font-sans flex-shrink-0">
-              {isPhen ? 'Read case \u2192' : 'Read report \u2192'}
+              {'Read report \u2192'}
             </span>
           </div>
         </div>
@@ -239,51 +209,69 @@ function StandardCard(props: { item: PreviewItem }) {
 }
 
 // =========================================================================
-//  Data fetching + selection
+//  Build slides from fetched data
 // =========================================================================
 
-function selectBestItems(phenomena: PreviewPhenomenon[], reports: PreviewReport[]): PreviewItem[] {
-  /* Score phenomena by richness */
+function buildSlides(phenomena: PreviewPhenomenon[], reports: PreviewReport[]): Slide[] {
+  /* Score phenomena */
   var scoredPhen = phenomena.map(function (p) {
     var score = 0
-    if (p.feed_hook) score = score + 10
-    if (p.ai_summary) score = score + 3
-    if (p.ai_quick_facts) score = score + 2
-    if (p.report_count > 10) score = score + 3
-    if (p.report_count > 50) score = score + 2
-    if (p.primary_regions && p.primary_regions.length > 0) score = score + 1
-    return { item: p as PreviewItem, score: score, cat: p.category }
+    if (p.feed_hook) score += 10
+    if (p.ai_summary) score += 3
+    if (p.report_count > 10) score += 3
+    if (p.report_count > 50) score += 2
+    if (p.primary_regions && p.primary_regions.length > 0) score += 1
+    return { item: p, score: score }
   })
+  scoredPhen.sort(function (a, b) { return b.score - a.score })
 
-  /* Score reports by richness */
+  /* Score reports */
   var scoredRep = reports.map(function (r) {
     var score = 0
-    if (r.feed_hook) score = score + 10
-    if (r.summary && r.summary.length > 100) score = score + 3
-    if (r.has_photo_video) score = score + 2
-    if (r.has_physical_evidence) score = score + 2
-    if (r.credibility === 'high') score = score + 2
-    if (r.location_name || r.city) score = score + 1
-    return { item: r as PreviewItem, score: score, cat: r.category }
+    if (r.feed_hook) score += 10
+    if (r.summary && r.summary.length > 100) score += 3
+    if (r.has_photo_video) score += 2
+    if (r.has_physical_evidence) score += 2
+    if (r.credibility === 'high') score += 2
+    if (r.location_name || r.city) score += 1
+    return { item: r, score: score }
   })
+  scoredRep.sort(function (a, b) { return b.score - a.score })
 
-  /* Merge and sort */
-  var all = scoredPhen.concat(scoredRep)
-  all.sort(function (a, b) { return b.score - a.score })
+  /* Build slides: pair each phenomenon with 2 reports, ensure category diversity */
+  var slides: Slide[] = []
+  var usedReportIds: Record<string, boolean> = {}
+  var repIdx = 0
 
-  /* Pick 4 items with category diversity: at least 3 different categories */
-  var selected: PreviewItem[] = []
-  var usedCats: Record<string, number> = {}
+  for (var pi = 0; pi < scoredPhen.length && slides.length < 5; pi++) {
+    var phen = scoredPhen[pi].item
+    var slideReports: PreviewReport[] = []
 
-  for (var i = 0; i < all.length && selected.length < 4; i++) {
-    var catCount = usedCats[all[i].cat] || 0
-    if (catCount < 2 || selected.length >= 3) {
-      selected.push(all[i].item)
-      usedCats[all[i].cat] = catCount + 1
+    /* Find 2 reports preferring different categories from the phenomenon */
+    for (var ri = repIdx; ri < scoredRep.length && slideReports.length < 2; ri++) {
+      var rep = scoredRep[ri].item
+      if (usedReportIds[rep.id]) continue
+      /* Prefer different category from phenomenon for diversity */
+      if (slideReports.length === 0 || rep.category !== phen.category) {
+        slideReports.push(rep)
+        usedReportIds[rep.id] = true
+      }
+    }
+
+    /* Backfill if we didn't get 2 diverse reports */
+    for (var bi = 0; bi < scoredRep.length && slideReports.length < 2; bi++) {
+      if (!usedReportIds[scoredRep[bi].item.id]) {
+        slideReports.push(scoredRep[bi].item)
+        usedReportIds[scoredRep[bi].item.id] = true
+      }
+    }
+
+    if (slideReports.length >= 2) {
+      slides.push({ phenomenon: phen, reports: slideReports })
     }
   }
 
-  return selected
+  return slides
 }
 
 // =========================================================================
@@ -291,75 +279,160 @@ function selectBestItems(phenomena: PreviewPhenomenon[], reports: PreviewReport[
 // =========================================================================
 
 export default function DiscoverPreview() {
-  var [items, setItems] = useState<PreviewItem[]>([])
+  var [slides, setSlides] = useState<Slide[]>([])
+  var [activeIdx, setActiveIdx] = useState(0)
   var [loading, setLoading] = useState(true)
+  var [hovered, setHovered] = useState(false)
+  var timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  /* Fetch data */
   useEffect(function () {
     async function fetchData() {
       try {
-        /* Fetch phenomena with feed hooks (highest quality) */
         var phenResult = await supabase
           .from('phenomena')
           .select('id, name, slug, category, feed_hook, ai_summary, ai_quick_facts, report_count, primary_regions, first_reported_date')
           .eq('status', 'active')
           .not('feed_hook', 'is', null)
           .order('report_count', { ascending: false })
-          .limit(15)
+          .limit(20)
 
         var phenPool = (phenResult.data || []).map(function (p: any) {
           return Object.assign({}, p, { item_type: 'phenomenon' as const })
         })
 
-        /* Fetch reports with feed hooks */
         var repResult = await supabase
           .from('reports')
           .select('id, title, slug, category, feed_hook, summary, credibility, has_photo_video, has_physical_evidence, event_date, location_name, city, state_province, country')
           .eq('status', 'approved')
           .not('feed_hook', 'is', null)
           .order('view_count', { ascending: false })
-          .limit(15)
+          .limit(20)
 
         var repPool = (repResult.data || []).map(function (r: any) {
           return Object.assign({}, r, { item_type: 'report' as const })
         })
 
-        var best = selectBestItems(phenPool, repPool)
-        setItems(best)
+        setSlides(buildSlides(phenPool, repPool))
       } catch (e) {
-        /* non-critical — homepage still works without this section */
+        /* non-critical */
       }
       setLoading(false)
     }
     fetchData()
   }, [])
 
+  /* Auto-rotate on desktop (only when not hovered) */
+  var advance = useCallback(function () {
+    setActiveIdx(function (prev) {
+      return slides.length > 0 ? (prev + 1) % slides.length : 0
+    })
+  }, [slides.length])
+
+  useEffect(function () {
+    /* Check prefers-reduced-motion */
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    /* Only auto-rotate on md+ (desktop/tablet) */
+    if (typeof window !== 'undefined' && window.innerWidth < 768) return
+
+    if (!hovered && slides.length > 1) {
+      timerRef.current = setInterval(advance, ROTATE_INTERVAL)
+    }
+
+    return function () {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [hovered, slides.length, advance])
+
+  var currentSlide = slides[activeIdx] || null
+
   return (
     <section className="py-10 md:py-16 border-t border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Section header */}
-        <div className="mb-8">
-          <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-2">From the case files</h2>
-          <p className="text-sm sm:text-base text-gray-400 max-w-2xl">
-            Encyclopedia entries and eyewitness reports, scored and ranked from thousands of sources.
-          </p>
+        {/* Header */}
+        <div className="flex items-end justify-between mb-8">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-2">Eyewitness accounts</h2>
+            <p className="text-sm sm:text-base text-gray-400 max-w-2xl">
+              Real reports and encyclopedia entries from our case files.
+            </p>
+          </div>
+
+          {/* Desktop: progress dots */}
+          {slides.length > 1 && (
+            <div className="hidden md:flex items-center gap-1.5">
+              {slides.map(function (_s, i) {
+                return (
+                  <button
+                    key={i}
+                    onClick={function () { setActiveIdx(i) }}
+                    className={'w-1.5 h-1.5 rounded-full transition-all duration-300 cursor-pointer' + (i === activeIdx ? ' bg-primary-400 w-4' : ' bg-gray-700 hover:bg-gray-500')}
+                    aria-label={'Go to slide ' + (i + 1)}
+                  />
+                )
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Cards — featured (2-col) + 2 standard cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* ── Desktop: crossfade carousel ── */}
+        <div
+          className="hidden md:block"
+          onMouseEnter={function () { setHovered(true) }}
+          onMouseLeave={function () { setHovered(false) }}
+          onFocus={function () { setHovered(true) }}
+          onBlur={function () { setHovered(false) }}
+        >
           {loading ? (
-            [0, 1, 2, 3].map(function (i) {
-              return (
-                <div
-                  key={i}
-                  className={'rounded-xl border border-white/[0.06] animate-pulse bg-white/[0.02]' + (i === 0 ? ' h-64 sm:col-span-2' : ' h-48')}
-                />
-              )
-            })
-          ) : items.length > 0 ? (
-            items.map(function (item, i) {
-              if (i === 0) return <FeaturedCard key={item.id} item={item} />
-              return <StandardCard key={item.id} item={item} />
-            })
+            <div className="grid grid-cols-4 gap-4">
+              <div className="col-span-2 h-64 rounded-xl border border-white/[0.06] animate-pulse bg-white/[0.02]" />
+              <div className="h-64 rounded-xl border border-white/[0.06] animate-pulse bg-white/[0.02]" />
+              <div className="h-64 rounded-xl border border-white/[0.06] animate-pulse bg-white/[0.02]" />
+            </div>
+          ) : currentSlide ? (
+            <div
+              key={activeIdx}
+              className="grid grid-cols-4 gap-4 animate-fade-in"
+            >
+              <div className="col-span-2">
+                <EncyclopediaCard item={currentSlide.phenomenon} />
+              </div>
+              {currentSlide.reports.map(function (r) {
+                return <ReportCard key={r.id} item={r} />
+              })}
+            </div>
+          ) : null}
+        </div>
+
+        {/* ── Mobile: horizontal scroll ── */}
+        <div className="md:hidden">
+          {loading ? (
+            <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide">
+              {[0, 1, 2].map(function (i) {
+                return (
+                  <div key={i} className={'flex-shrink-0 rounded-xl border border-white/[0.06] animate-pulse bg-white/[0.02]' + (i === 0 ? ' w-[85vw] h-56' : ' w-[70vw] h-48')} />
+                )
+              })}
+            </div>
+          ) : slides.length > 0 ? (
+            <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
+              {slides.map(function (slide, si) {
+                return (
+                  <React.Fragment key={si}>
+                    <div className="flex-shrink-0 w-[85vw] snap-start">
+                      <EncyclopediaCard item={slide.phenomenon} />
+                    </div>
+                    {slide.reports.map(function (r) {
+                      return (
+                        <div key={r.id} className="flex-shrink-0 w-[70vw] snap-start">
+                          <ReportCard item={r} />
+                        </div>
+                      )
+                    })}
+                  </React.Fragment>
+                )
+              })}
+            </div>
           ) : null}
         </div>
 
