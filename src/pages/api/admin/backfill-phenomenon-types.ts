@@ -142,46 +142,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   var unmatchedSamples: string[] = []
   var errors = 0
   var sampleErrors: string[] = []
+  var debugInfo: string[] = []
 
-  for (var i = 0; i < reports.length; i++) {
-    var report = reports[i]
-    var searchText = [report.title || '', report.summary || ''].join(' ')
-    var matchedSlug: string | null = null
+  // Log available slugs for debugging
+  var availableSlugs = Object.keys(slugToId)
+  debugInfo.push('available_slugs: ' + availableSlugs.join(', '))
+  debugInfo.push('available_categories: ' + Object.keys(CATEGORY_DEFAULTS).join(', '))
+
+  function classifyReport(title: string, summary: string, category: string): string | null {
+    var searchText = (title || '') + ' ' + (summary || '')
 
     // Try classification rules in priority order
     for (var r = 0; r < CLASSIFICATION_RULES.length; r++) {
       var rule = CLASSIFICATION_RULES[r]
 
-      // If rule has a category guard, skip if report category doesn't match
+      // Category guard: skip rule if report category doesn't match
+      // UNLESS the first (most specific) pattern matches the title directly
       if (rule.categoryGuard) {
-        var catMatch = false
+        var guardMatches = false
         for (var c = 0; c < rule.categoryGuard.length; c++) {
-          if (report.category === rule.categoryGuard[c]) { catMatch = true; break }
+          if (category === rule.categoryGuard[c]) { guardMatches = true; break }
         }
-        // Only enforce category guard for category-specific rules
-        // Still allow match if pattern is very specific (first pattern matches title directly)
-        if (!catMatch) {
-          // Check if the FIRST (most specific) pattern matches the title directly
-          if (!rule.patterns[0].test(report.title || '')) continue
+        if (!guardMatches) {
+          if (!rule.patterns[0].test(title || '')) continue
         }
       }
 
+      // Check all patterns against full text
       for (var p = 0; p < rule.patterns.length; p++) {
         if (rule.patterns[p].test(searchText)) {
-          matchedSlug = rule.slug
-          break
+          return rule.slug
         }
       }
-      if (matchedSlug) break
     }
 
-    // Fallback to category default
-    if (!matchedSlug) {
-      var defaultSlug = CATEGORY_DEFAULTS[report.category]
-      if (defaultSlug) {
-        matchedSlug = defaultSlug
-      }
-    }
+    // Fallback: category default
+    return CATEGORY_DEFAULTS[category] || null
+  }
+
+  for (var i = 0; i < reports.length; i++) {
+    var report = reports[i]
+    var matchedSlug = classifyReport(report.title, report.summary, report.category)
 
     if (matchedSlug && slugToId[matchedSlug]) {
       if (!dryRun) {
@@ -197,11 +198,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
       updated++
-      byType[slugToName[matchedSlug] || matchedSlug] = (byType[slugToName[matchedSlug] || matchedSlug] || 0) + 1
+      var displayName = slugToName[matchedSlug] || matchedSlug
+      byType[displayName] = (byType[displayName] || 0) + 1
     } else {
       unmatched++
       if (unmatchedSamples.length < 10) {
-        unmatchedSamples.push((report.title || '').substring(0, 60) + ' [cat=' + report.category + ']')
+        unmatchedSamples.push((report.title || '').substring(0, 60) + ' [cat=' + report.category + '] [slug=' + (matchedSlug || 'none') + ']')
       }
     }
   }
@@ -216,5 +218,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     unmatched_samples: unmatchedSamples,
     errors: errors,
     sample_errors: sampleErrors,
+    debug: debugInfo,
   })
 }
