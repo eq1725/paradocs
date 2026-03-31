@@ -1,20 +1,16 @@
 /**
- * Backfill phenomenon_type_id for reports that don't have one set.
+ * Backfill phenomenon_type_id for reports using smart keyword rules.
  *
- * IMPORTANT: reports.phenomenon_type_id references the `phenomenon_types`
- * table (24 seeded classification types like "UFO Sighting", "Apparition").
- * NOT the `phenomena` table (encyclopedia entries like "Phoenix Lights").
+ * reports.phenomenon_type_id FK -> phenomenon_types table.
  *
- * Strategy:
- * 1. For reports linked to phenomena via report_phenomena, look up that
- *    phenomenon's own phenomenon_type_id and assign it to the report.
- * 2. For unlinked reports, pattern-match against phenomenon_types names
- *    and the report's category to find the best classification.
+ * Uses title + category to classify each report into the correct type.
+ * Priority: title keywords > category-based defaults.
  *
  * POST /api/admin/backfill-phenomenon-types
  * Query params:
- *   limit - max reports to process (default 500)
- *   dry_run - if "true", don't write, just report what would change
+ *   limit    - max reports (default 500)
+ *   dry_run  - "true" to preview without writing
+ *   reset    - "true" to clear ALL phenomenon_type_id first, then reclassify
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next'
@@ -27,20 +23,66 @@ function getSupabaseAdmin() {
   )
 }
 
-// Map from report category enum to phenomenon_types category enum
-// Reports use categories like 'ghosts_hauntings', phenomenon_types use 'ghost_haunting'
-var CATEGORY_MAP: Record<string, string> = {
-  ufos_aliens: 'ufo_uap',
-  cryptids: 'cryptid',
-  ghosts_hauntings: 'ghost_haunting',
-  psychic_phenomena: 'psychic_paranormal',
-  consciousness_practices: 'psychic_paranormal',
-  psychological_experiences: 'unexplained_event',
-  biological_factors: 'unexplained_event',
-  perception_sensory: 'psychic_paranormal',
-  religion_mythology: 'unexplained_event',
-  esoteric_practices: 'psychic_paranormal',
-  combination: 'other',
+/**
+ * Title-based classification rules.
+ * Each rule: { slugs: phenomenon_type slugs to match, patterns: regexes to test against title+summary }
+ * Rules are checked in order — first match wins. Put specific rules before generic ones.
+ */
+var CLASSIFICATION_RULES: Array<{ slug: string; patterns: RegExp[]; categoryGuard?: string[] }> = [
+  // Bigfoot/Sasquatch — MUST come before generic "encounter/sighting" rules
+  { slug: 'bigfoot', patterns: [/bigfoot/i, /sasquatch/i, /bfro/i, /large.*(bipedal|ape|primate)/i, /wood.?ape/i], categoryGuard: ['cryptids', 'cryptid'] },
+
+  // Other specific cryptids
+  { slug: 'mothman', patterns: [/mothman/i, /winged.*(humanoid|creature|entity)/i] },
+  { slug: 'chupacabra', patterns: [/chupacabra/i] },
+  { slug: 'lake-monster', patterns: [/lake.?monster/i, /sea.?serpent/i, /nessie/i, /loch.?ness/i] },
+  { slug: 'other-cryptid', patterns: [/cryptid/i, /unknown.*(creature|animal)/i, /strange.*(creature|animal)/i], categoryGuard: ['cryptids', 'cryptid'] },
+
+  // Ghost/Haunting types
+  { slug: 'apparition', patterns: [/apparition/i, /ghost/i, /spirit/i, /phantom/i, /spectral/i, /saw.*(figure|shadow|person)/i], categoryGuard: ['ghosts_hauntings', 'ghost_haunting'] },
+  { slug: 'poltergeist', patterns: [/poltergeist/i, /objects?.*(moving|thrown|flying)/i, /physical.?disturbance/i] },
+  { slug: 'evp', patterns: [/evp/i, /electronic.?voice/i, /disembodied.?voice/i, /strange.*(sound|noise|audio)/i], categoryGuard: ['ghosts_hauntings', 'ghost_haunting'] },
+  { slug: 'haunted-location', patterns: [/haunted/i, /haunt/i], categoryGuard: ['ghosts_hauntings', 'ghost_haunting'] },
+
+  // NDE / OBE — check before generic psychic/paranormal
+  { slug: 'obe', patterns: [/near.?death/i, /\bnde\b/i, /out.?of.?body/i, /\bobe\b/i, /astral.?project/i, /died.*(came|returned)/i, /clinical.?death/i, /after.*death/i, /afterlife/i] },
+
+  // Psychic phenomena
+  { slug: 'precognition', patterns: [/precognition/i, /premonition/i, /future.?sight/i, /predicted/i, /prophetic/i] },
+  { slug: 'telepathy', patterns: [/telepathy/i, /telepathic/i, /mind.?read/i] },
+
+  // UFO subtypes — specific before generic
+  { slug: 'abduction', patterns: [/abduct/i, /taken.*(aboard|ship|craft)/i, /missing.?time/i] },
+  { slug: 'uso', patterns: [/\buso\b/i, /underwater.*object/i, /submerged.*object/i, /emerged?.*(from|out of).*(water|ocean|lake|sea)/i] },
+  { slug: 'close-encounter', patterns: [/close.?encounter/i, /entity.?contact/i, /alien.?(contact|encounter)/i, /being.?encounter/i] },
+  // Generic UFO sighting — catches everything with UFO/UAP/orb/craft/triangle/lights in sky
+  { slug: 'ufo-sighting', patterns: [/\bufo\b/i, /\buap\b/i, /\borb\b/i, /unidentified.*object/i, /flying.*object/i, /strange.?light/i, /luminous/i, /pulsating.?light/i, /hovering.*object/i, /silent.?craft/i, /black.?triangle/i, /triangle.*ufo/i, /caught.?on.?camera/i, /high.?speed.*object/i, /craft/i, /sighting/i], categoryGuard: ['ufos_aliens', 'ufo_uap'] },
+
+  // Unexplained events
+  { slug: 'time-slip', patterns: [/time.?slip/i, /temporal.?anomal/i, /time.?travel/i, /glitch.?in/i] },
+  { slug: 'disappearance', patterns: [/disappear/i, /vanish/i, /missing.?person/i] },
+  { slug: 'spontaneous-combustion', patterns: [/spontaneous.?combust/i] },
+  { slug: 'crop-circle', patterns: [/crop.?circle/i] },
+
+  // Mystery locations
+  { slug: 'bermuda-triangle', patterns: [/bermuda.?triangle/i] },
+  { slug: 'skinwalker-ranch', patterns: [/skinwalker/i] },
+  { slug: 'ley-line', patterns: [/ley.?line/i] },
+]
+
+/**
+ * Category-based default type mapping (last resort fallback).
+ * Maps report category -> phenomenon_type slug.
+ */
+var CATEGORY_DEFAULTS: Record<string, string> = {
+  ufos_aliens: 'ufo-sighting',
+  cryptids: 'other-cryptid',
+  ghosts_hauntings: 'apparition',
+  psychic_phenomena: 'precognition',
+  consciousness_practices: 'obe',
+  psychological_experiences: 'obe',
+  biological_factors: 'obe',
+  perception_sensory: 'precognition',
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -51,214 +93,127 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   var supabase = getSupabaseAdmin()
   var limit = Math.min(parseInt(req.query.limit as string) || 500, 2000)
   var dryRun = req.query.dry_run === 'true'
+  var reset = req.query.reset === 'true'
 
-  // Step 1: Get reports that have NO phenomenon_type_id
-  var { data: reportsWithout, error: fetchErr } = await supabase
+  // Step 1: If reset mode, clear all phenomenon_type_id values first
+  if (reset && !dryRun) {
+    await supabase
+      .from('reports')
+      .update({ phenomenon_type_id: null })
+      .not('phenomenon_type_id', 'is', null)
+  }
+
+  // Step 2: Get phenomenon_types and build slug -> id map
+  var { data: phenomenonTypes } = await supabase
+    .from('phenomenon_types')
+    .select('id, name, slug, category')
+
+  if (!phenomenonTypes || phenomenonTypes.length === 0) {
+    return res.status(500).json({ error: 'No phenomenon_types found' })
+  }
+
+  var slugToId: Record<string, string> = {}
+  var slugToName: Record<string, string> = {}
+  phenomenonTypes.forEach(function(pt) {
+    slugToId[pt.slug] = pt.id
+    slugToName[pt.slug] = pt.name
+  })
+
+  // Step 3: Get reports that need classification
+  var { data: reports, error: fetchErr } = await supabase
     .from('reports')
     .select('id, title, category, summary')
     .is('phenomenon_type_id', null)
     .in('status', ['approved', 'pending_review'])
     .limit(limit)
 
-  if (fetchErr || !reportsWithout) {
+  if (fetchErr || !reports) {
     return res.status(500).json({ error: 'Failed to fetch reports', details: fetchErr })
   }
 
-  if (reportsWithout.length === 0) {
-    return res.status(200).json({ message: 'All reports already have phenomenon_type_id', updated: 0 })
+  if (reports.length === 0) {
+    return res.status(200).json({ message: 'All reports already classified', updated: 0, reset: reset })
   }
 
-  var reportIds = reportsWithout.map(function(r) { return r.id })
-
-  // Step 2: Get the phenomenon_types table (the 24 classification types)
-  var { data: phenomenonTypes } = await supabase
-    .from('phenomenon_types')
-    .select('id, name, slug, category, description')
-
-  if (!phenomenonTypes || phenomenonTypes.length === 0) {
-    return res.status(500).json({ error: 'No phenomenon_types found in database' })
-  }
-
-  // Step 3: Check report_phenomena links, and resolve each phenomenon's
-  // phenomenon_type_id to get a valid FK for the report
-  var { data: existingLinks } = await supabase
-    .from('report_phenomena')
-    .select('report_id, phenomenon_id, confidence')
-    .in('report_id', reportIds)
-    .order('confidence', { ascending: false })
-
-  // Get the phenomena records to find their phenomenon_type_id
-  var linkedPhenomenonIds: string[] = []
-  if (existingLinks && existingLinks.length > 0) {
-    linkedPhenomenonIds = Array.from(new Set(existingLinks.map(function(l) { return l.phenomenon_id })))
-  }
-
-  var phenomenaTypeMap: Record<string, string> = {} // phenomena.id -> phenomenon_types.id
-  if (linkedPhenomenonIds.length > 0) {
-    var { data: linkedPhenomena } = await supabase
-      .from('phenomena')
-      .select('id, phenomenon_type_id, category')
-      .in('id', linkedPhenomenonIds)
-
-    if (linkedPhenomena) {
-      linkedPhenomena.forEach(function(p) {
-        if (p.phenomenon_type_id) {
-          phenomenaTypeMap[p.id] = p.phenomenon_type_id
-        }
-      })
-    }
-  }
-
-  // Build map: report_id -> best phenomenon_type_id (from junction table)
-  var bestLinksToType: Record<string, string> = {}
-  if (existingLinks) {
-    // Group by report, pick highest confidence that has a valid type mapping
-    var linksByReport: Record<string, Array<{ phenomenon_id: string; confidence: number }>> = {}
-    existingLinks.forEach(function(link) {
-      if (!linksByReport[link.report_id]) linksByReport[link.report_id] = []
-      linksByReport[link.report_id].push(link)
-    })
-
-    Object.keys(linksByReport).forEach(function(reportId) {
-      var links = linksByReport[reportId]
-      // Sort by confidence desc (already ordered but be safe)
-      links.sort(function(a, b) { return b.confidence - a.confidence })
-      for (var idx = 0; idx < links.length; idx++) {
-        var typeId = phenomenaTypeMap[links[idx].phenomenon_id]
-        if (typeId) {
-          bestLinksToType[reportId] = typeId
-          break
-        }
-      }
-    })
-  }
-
-  // Step 4: Build pattern matching against phenomenon_types for unlinked reports
-  // Keywords that indicate each type
-  var typePatterns: Array<{ id: string; terms: string[]; category: string }> = phenomenonTypes.map(function(pt) {
-    var terms = [pt.name.toLowerCase()]
-    // Add common aliases/keywords for each type
-    var slug = pt.slug || ''
-    if (slug) terms.push(slug.replace(/-/g, ' '))
-    // Add words from description
-    if (pt.description) {
-      var descWords = pt.description.toLowerCase().split(/\s+/).filter(function(w: string) { return w.length > 4 })
-      descWords.forEach(function(w: string) { terms.push(w) })
-    }
-    return { id: pt.id, terms: terms, category: pt.category }
-  })
-
-  // Also build a simple category -> default type mapping (fallback)
-  var categoryDefaults: Record<string, string> = {}
-  phenomenonTypes.forEach(function(pt) {
-    // Use the first type in each category as default
-    if (!categoryDefaults[pt.category]) {
-      categoryDefaults[pt.category] = pt.id
-    }
-  })
-
-  var updatedFromLinks = 0
-  var updatedFromPatterns = 0
-  var updatedFromCategory = 0
+  // Step 4: Classify each report
+  var updated = 0
+  var byType: Record<string, number> = {}
   var unmatched = 0
+  var unmatchedSamples: string[] = []
   var errors = 0
   var sampleErrors: string[] = []
 
-  for (var i = 0; i < reportsWithout.length; i++) {
-    var report = reportsWithout[i]
-    var assignedTypeId: string | null = null
+  for (var i = 0; i < reports.length; i++) {
+    var report = reports[i]
+    var searchText = [report.title || '', report.summary || ''].join(' ')
+    var matchedSlug: string | null = null
 
-    // Priority 1: From junction table link -> phenomenon -> phenomenon_type_id
-    if (bestLinksToType[report.id]) {
-      assignedTypeId = bestLinksToType[report.id]
+    // Try classification rules in priority order
+    for (var r = 0; r < CLASSIFICATION_RULES.length; r++) {
+      var rule = CLASSIFICATION_RULES[r]
+
+      // If rule has a category guard, skip if report category doesn't match
+      if (rule.categoryGuard) {
+        var catMatch = false
+        for (var c = 0; c < rule.categoryGuard.length; c++) {
+          if (report.category === rule.categoryGuard[c]) { catMatch = true; break }
+        }
+        // Only enforce category guard for category-specific rules
+        // Still allow match if pattern is very specific (first pattern matches title directly)
+        if (!catMatch) {
+          // Check if the FIRST (most specific) pattern matches the title directly
+          if (!rule.patterns[0].test(report.title || '')) continue
+        }
+      }
+
+      for (var p = 0; p < rule.patterns.length; p++) {
+        if (rule.patterns[p].test(searchText)) {
+          matchedSlug = rule.slug
+          break
+        }
+      }
+      if (matchedSlug) break
+    }
+
+    // Fallback to category default
+    if (!matchedSlug) {
+      var defaultSlug = CATEGORY_DEFAULTS[report.category]
+      if (defaultSlug) {
+        matchedSlug = defaultSlug
+      }
+    }
+
+    if (matchedSlug && slugToId[matchedSlug]) {
       if (!dryRun) {
-        var { error: err1 } = await supabase
+        var { error: updateErr } = await supabase
           .from('reports')
-          .update({ phenomenon_type_id: assignedTypeId })
+          .update({ phenomenon_type_id: slugToId[matchedSlug] })
           .eq('id', report.id)
-        if (err1) {
+
+        if (updateErr) {
           errors++
-          if (sampleErrors.length < 3) sampleErrors.push(err1.message || JSON.stringify(err1))
+          if (sampleErrors.length < 5) sampleErrors.push(updateErr.message + ' | slug=' + matchedSlug)
           continue
         }
       }
-      updatedFromLinks++
-      continue
-    }
-
-    // Priority 2: Pattern match report title/summary against phenomenon_types
-    var searchText = [report.title || '', report.summary || ''].join(' ').toLowerCase()
-    var bestMatch: { id: string; score: number } | null = null
-
-    for (var j = 0; j < typePatterns.length; j++) {
-      var tp = typePatterns[j]
-      for (var k = 0; k < tp.terms.length; k++) {
-        var term = tp.terms[k]
-        if (term.length < 3) continue
-        try {
-          var escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-          var regex = new RegExp('\\b' + escaped + '\\b', 'i')
-          if (regex.test(searchText)) {
-            var score = 0.6
-            if (regex.test((report.title || '').toLowerCase())) score = 0.8
-            if (!bestMatch || score > bestMatch.score) {
-              bestMatch = { id: tp.id, score: score }
-            }
-            break
-          }
-        } catch (e) {
-          // skip
-        }
+      updated++
+      byType[slugToName[matchedSlug] || matchedSlug] = (byType[slugToName[matchedSlug] || matchedSlug] || 0) + 1
+    } else {
+      unmatched++
+      if (unmatchedSamples.length < 10) {
+        unmatchedSamples.push((report.title || '').substring(0, 60) + ' [cat=' + report.category + ']')
       }
     }
-
-    if (bestMatch) {
-      assignedTypeId = bestMatch.id
-      if (!dryRun) {
-        var { error: err2 } = await supabase
-          .from('reports')
-          .update({ phenomenon_type_id: assignedTypeId })
-          .eq('id', report.id)
-        if (err2) {
-          errors++
-          if (sampleErrors.length < 3) sampleErrors.push(err2.message || JSON.stringify(err2))
-          continue
-        }
-      }
-      updatedFromPatterns++
-      continue
-    }
-
-    // Priority 3: Fall back to category default
-    var mappedCategory = CATEGORY_MAP[report.category] || report.category
-    var defaultTypeId = categoryDefaults[mappedCategory]
-    if (defaultTypeId) {
-      assignedTypeId = defaultTypeId
-      if (!dryRun) {
-        var { error: err3 } = await supabase
-          .from('reports')
-          .update({ phenomenon_type_id: assignedTypeId })
-          .eq('id', report.id)
-        if (err3) {
-          errors++
-          if (sampleErrors.length < 3) sampleErrors.push(err3.message || JSON.stringify(err3))
-          continue
-        }
-      }
-      updatedFromCategory++
-      continue
-    }
-
-    unmatched++
   }
 
   return res.status(200).json({
     dry_run: dryRun,
-    total_without_type: reportsWithout.length,
-    updated_from_links: updatedFromLinks,
-    updated_from_patterns: updatedFromPatterns,
-    updated_from_category: updatedFromCategory,
+    reset: reset,
+    total_reports: reports.length,
+    updated: updated,
+    by_type: byType,
     unmatched: unmatched,
+    unmatched_samples: unmatchedSamples,
     errors: errors,
     sample_errors: sampleErrors,
   })

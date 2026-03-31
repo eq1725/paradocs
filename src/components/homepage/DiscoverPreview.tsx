@@ -96,6 +96,23 @@ var CATEGORY_GRADIENTS: Record<string, string> = {
 var CARD_HEIGHT = 'h-[300px] sm:h-[320px]'
 var ROTATE_INTERVAL = 6000
 
+/** Short display names for verbose phenomenon_type names */
+var TYPE_DISPLAY_NAMES: Record<string, string> = {
+  'CE-1: Close Encounter First Kind': 'Close Encounter',
+  'CE-2: Close Encounter Second Kind': 'Close Encounter',
+  'CE-3: Close Encounter Third Kind': 'Close Encounter',
+  'CE-4: Close Encounter Fourth Kind': 'Close Encounter',
+  'CE-5: Close Encounter Fifth Kind': 'Close Encounter',
+  'USO (Unidentified Submerged Object)': 'USO Sighting',
+  'USO (Underwater)': 'USO Sighting',
+  'Bigfoot/Sasquatch': 'Bigfoot',
+  'Spontaneous Combustion': 'Unexplained Fire',
+  'Near-Death Experience': 'Near-Death Experience',
+  'Haunted Location': 'Haunted Location',
+  'Other Cryptid': 'Cryptid Sighting',
+  'Out of Body': 'Out-of-Body Experience',
+}
+
 // =========================================================================
 //  Helpers
 // =========================================================================
@@ -200,8 +217,9 @@ function ReportCard(props: { item: PreviewReport }) {
   var href = '/report/' + item.slug
 
   /* Topic name from the phenomenon_type linked in the DB.
-     Falls back to location + year if no phenomenon_type is set yet. */
-  var topicName = (item.phenomenon_type && item.phenomenon_type.name) ? item.phenomenon_type.name : ''
+     Uses short display name if available, falls back to location + year. */
+  var rawTypeName = (item.phenomenon_type && item.phenomenon_type.name) ? item.phenomenon_type.name : ''
+  var topicName = rawTypeName ? (TYPE_DISPLAY_NAMES[rawTypeName] || rawTypeName) : ''
   var locationLabel = buildLocation(item)
   var year = item.event_date ? (item.event_date.match(/\d{4}/) || [''])[0] : ''
   var bottomLabel = topicName
