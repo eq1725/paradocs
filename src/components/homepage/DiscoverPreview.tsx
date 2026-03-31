@@ -327,17 +327,40 @@ export default function DiscoverPreview() {
           return Object.assign({}, p, { item_type: 'phenomenon' as const })
         })
 
-        /* Fetch reports — include phenomenon_type for topic name */
+        /* Fetch reports */
         var repResult = await supabase
           .from('reports')
-          .select('id, title, slug, category, feed_hook, summary, credibility, has_photo_video, has_physical_evidence, event_date, location_name, city, state_province, country, phenomenon_type:phenomenon_type_id(name, slug, category)')
+          .select('id, title, slug, category, feed_hook, summary, credibility, has_photo_video, has_physical_evidence, event_date, location_name, city, state_province, country, phenomenon_type_id')
           .eq('status', 'approved')
           .not('feed_hook', 'is', null)
           .order('view_count', { ascending: false })
           .limit(20)
 
-        var repPool = (repResult.data || []).map(function (r: any) {
-          return Object.assign({}, r, { item_type: 'report' as const })
+        var rawReports = repResult.data || []
+
+        /* Resolve phenomenon names for topic labels */
+        var ptIds = rawReports
+          .filter(function (r: any) { return r.phenomenon_type_id })
+          .map(function (r: any) { return r.phenomenon_type_id })
+
+        var ptMap: Record<string, any> = {}
+        if (ptIds.length > 0) {
+          var ptResult = await supabase
+            .from('phenomena')
+            .select('id, name, slug, category')
+            .in('id', ptIds)
+
+          if (ptResult.data) {
+            ptResult.data.forEach(function (pt: any) { ptMap[pt.id] = pt })
+          }
+        }
+
+        var repPool = rawReports.map(function (r: any) {
+          var pt = r.phenomenon_type_id ? ptMap[r.phenomenon_type_id] : null
+          return Object.assign({}, r, {
+            item_type: 'report' as const,
+            phenomenon_type: pt ? { name: pt.name, slug: pt.slug, category: pt.category } : null,
+          })
         })
 
         setSlides(buildSlides(phenPool, repPool))
