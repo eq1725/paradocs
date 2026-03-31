@@ -206,12 +206,20 @@ async function getRelatedForReport(supabase: any, reportId: string) {
   var seenIds: Record<string, boolean> = {}
   seenIds[reportId] = true
 
-  // 1. If linked to a phenomenon, include that phenomenon entry
-  if (report.phenomenon_type_id) {
+  // 1. If linked to a phenomenon (via report_phenomena), include that phenomenon entry
+  var { data: rpLink } = await supabase
+    .from('report_phenomena')
+    .select('phenomenon_id')
+    .eq('report_id', reportId)
+    .order('confidence', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (rpLink) {
     var { data: phen } = await supabase
       .from('phenomena')
       .select('id, name, slug, category, icon, ai_summary, ai_description, ai_quick_facts, primary_image_url, report_count, primary_regions, first_reported_date, aliases')
-      .eq('id', report.phenomenon_type_id)
+      .eq('id', rpLink.phenomenon_id)
       .single()
 
     if (phen) {
@@ -327,8 +335,8 @@ async function getRelatedForReport(supabase: any, reportId: string) {
 
       if (ptIds.length > 0) {
         var { data: ptData } = await supabase
-          .from('phenomena')
-          .select('id, name, slug, category, primary_image_url')
+          .from('phenomenon_types')
+          .select('id, name, slug, category')
           .in('id', ptIds)
 
         if (ptData) {

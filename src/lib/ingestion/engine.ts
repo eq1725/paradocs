@@ -133,16 +133,25 @@ async function identifyPhenomenaForReport(
     if (!error) linked++;
   }
 
-  // Also set phenomenon_type_id on the report to the highest-confidence match
-  // This powers the topic label on feed cards
+  // Also set phenomenon_type_id on the report via the linked phenomenon's own type.
+  // reports.phenomenon_type_id FK -> phenomenon_types table, so we need to resolve
+  // the phenomena entry's phenomenon_type_id rather than using the phenomena ID directly.
   if (matches.length > 0) {
     const best = matches.reduce((a, b) => a.confidence > b.confidence ? a : b);
     if (best.confidence >= 0.6) {
-      await supabase
-        .from('reports')
-        .update({ phenomenon_type_id: best.phenomenonId })
-        .eq('id', reportId)
-        .is('phenomenon_type_id', null); // Don't overwrite manual assignments
+      const { data: phenRecord } = await supabase
+        .from('phenomena')
+        .select('phenomenon_type_id')
+        .eq('id', best.phenomenonId)
+        .single();
+
+      if (phenRecord && phenRecord.phenomenon_type_id) {
+        await supabase
+          .from('reports')
+          .update({ phenomenon_type_id: phenRecord.phenomenon_type_id })
+          .eq('id', reportId)
+          .is('phenomenon_type_id', null); // Don't overwrite manual assignments
+      }
     }
   }
 

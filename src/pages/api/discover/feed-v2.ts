@@ -372,12 +372,12 @@ export default async function handler(
         fullReports.forEach(function (r) { reportMap[r.id] = r; });
       }
 
-      // Resolve phenomenon names + images
+      // Resolve phenomenon type names from the phenomenon_types table (the FK target)
       var ptIds = fullReports ? fullReports.filter(function (r) { return r.phenomenon_type_id; }).map(function (r) { return r.phenomenon_type_id; }) : [];
       if (ptIds.length > 0) {
         var { data: ptData } = await supabase
-          .from('phenomena')
-          .select('id, name, slug, category, primary_image_url')
+          .from('phenomenon_types')
+          .select('id, name, slug, category, icon')
           .in('id', ptIds);
 
         if (ptData) {
@@ -387,13 +387,39 @@ export default async function handler(
             var r = reportMap[rid];
             if (r.phenomenon_type_id && ptMap[r.phenomenon_type_id]) {
               var pt = ptMap[r.phenomenon_type_id];
-              r.phenomenon_type = { id: pt.id, name: pt.name, slug: pt.slug, category: pt.category };
-              if (!r.has_photo_video && pt.primary_image_url && pt.primary_image_url !== placeholderUrl) {
-                r.associated_image_url = pt.primary_image_url;
-                r.associated_image_source = pt.name;
-              }
+              r.phenomenon_type = { id: pt.id, name: pt.name, slug: pt.slug || '', category: pt.category };
             }
           });
+        }
+      }
+
+      // Get associated images from linked phenomena (via report_phenomena junction)
+      var reportIdsNoMedia = fullReports ? fullReports.filter(function (r) { return !r.has_photo_video; }).map(function (r) { return r.id; }) : [];
+      if (reportIdsNoMedia.length > 0) {
+        var { data: rpLinks } = await supabase
+          .from('report_phenomena')
+          .select('report_id, phenomenon_id')
+          .in('report_id', reportIdsNoMedia);
+
+        if (rpLinks && rpLinks.length > 0) {
+          var phenIds = Array.from(new Set(rpLinks.map(function (l) { return l.phenomenon_id; })));
+          var { data: phenData } = await supabase
+            .from('phenomena')
+            .select('id, name, primary_image_url')
+            .in('id', phenIds);
+
+          if (phenData) {
+            var phenImgMap: Record<string, any> = {};
+            phenData.forEach(function (ph) { phenImgMap[ph.id] = ph; });
+            rpLinks.forEach(function (link) {
+              var r = reportMap[link.report_id];
+              var ph = phenImgMap[link.phenomenon_id];
+              if (r && ph && ph.primary_image_url && ph.primary_image_url !== placeholderUrl && !r.associated_image_url) {
+                r.associated_image_url = ph.primary_image_url;
+                r.associated_image_source = ph.name;
+              }
+            });
+          }
         }
       }
 
