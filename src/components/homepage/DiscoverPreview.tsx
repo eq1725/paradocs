@@ -121,7 +121,7 @@ function EncyclopediaCard(props: { item: PreviewPhenomenon }) {
           </div>
 
           {/* Hook */}
-          <h3 className="text-lg sm:text-xl font-display font-bold text-white leading-snug mb-3 group-hover:text-primary-400 transition-colors line-clamp-4">
+          <h3 className="text-lg sm:text-xl font-display font-bold text-white leading-snug mb-3 group-hover:text-primary-400 transition-colors">
             {hookText || item.name}
           </h3>
 
@@ -184,7 +184,7 @@ function ReportCard(props: { item: PreviewReport }) {
           </span>
 
           {/* Hook */}
-          <h3 className="text-sm sm:text-base font-display font-bold text-white leading-snug mb-2 group-hover:text-primary-400 transition-colors line-clamp-3">
+          <h3 className="text-sm sm:text-base font-display font-bold text-white leading-snug mb-2 group-hover:text-primary-400 transition-colors">
             {hookText || item.title}
           </h3>
 
