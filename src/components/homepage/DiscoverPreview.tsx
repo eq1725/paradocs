@@ -92,8 +92,52 @@ var CATEGORY_GRADIENTS: Record<string, string> = {
   combination: 'linear-gradient(135deg, rgba(128,203,196,0.06) 0%, rgba(128,203,196,0.02) 40%, transparent 70%)',
 }
 
-var CARD_HEIGHT = 'h-[280px] sm:h-[300px]'
+var CARD_HEIGHT = 'h-[300px] sm:h-[320px]'
 var ROTATE_INTERVAL = 6000
+
+// =========================================================================
+//  Helpers
+// =========================================================================
+
+/** Truncate text intelligently: prefer sentence boundary, fall back to word boundary */
+function truncateHook(text: string, maxLen: number): string {
+  if (!text || text.length <= maxLen) return text
+  /* Try to break at the last sentence within maxLen */
+  var trimmed = text.substring(0, maxLen)
+  var sentenceEnd = Math.max(
+    trimmed.lastIndexOf('. '),
+    trimmed.lastIndexOf('? '),
+    trimmed.lastIndexOf('! ')
+  )
+  if (sentenceEnd > maxLen * 0.5) return trimmed.substring(0, sentenceEnd + 1)
+  /* Fall back to word boundary */
+  var wordEnd = trimmed.lastIndexOf(' ')
+  return (wordEnd > maxLen * 0.4 ? trimmed.substring(0, wordEnd) : trimmed) + '\u2026'
+}
+
+/** Extract clean topic name from report title */
+function extractTopicName(title: string): string {
+  var raw = title.split(/\s*[-\u2014]\s*/)[0] || title
+  raw = raw
+    .replace(/\s+Caught on Camera.*$/i, '')
+    .replace(/\s+Sighting in.*$/i, '')
+    .replace(/\s+Spotted (in|near|at).*$/i, '')
+    .replace(/\s+Encounter (in|near|at).*$/i, '')
+    .replace(/\s+Report.*$/i, '')
+    .replace(/\s+Experience.*$/i, '')
+    .replace(/\s+after\s+.*/i, '')
+    .trim()
+  return raw.length > 28 ? raw.substring(0, 26) + '\u2026' : raw
+}
+
+/** Build location string from report fields */
+function buildLocation(item: PreviewReport): string {
+  var parts: string[] = []
+  if (item.city) parts.push(item.city)
+  if (item.state_province) parts.push(item.state_province)
+  else if (item.country) parts.push(item.country)
+  return parts.join(', ')
+}
 
 // =========================================================================
 //  Encyclopedia card (large)
@@ -105,71 +149,50 @@ function EncyclopediaCard(props: { item: PreviewPhenomenon }) {
   var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
   var gradient = CATEGORY_GRADIENTS[item.category] || CATEGORY_GRADIENTS.combination
 
-  var hookText = item.feed_hook || item.ai_summary || ''
+  var hookText = truncateHook(item.feed_hook || item.ai_summary || '', 180)
   var href = '/phenomena/' + item.slug
-
-  var badgeParts: string[] = []
-  badgeParts.push(config?.label || item.category)
-  if (item.primary_regions && item.primary_regions.length > 0) {
-    badgeParts.push(item.primary_regions[0])
-  }
-
-  var signals: string[] = []
-  var qf = item.ai_quick_facts
-  if (qf && qf.evidence_types) signals.push(qf.evidence_types)
-  if (item.report_count > 5) signals.push(item.report_count + ' reports')
 
   return (
     <Link href={href} className="block group">
-      <div className={'relative rounded-xl border border-white/[0.08] overflow-hidden bg-gray-950 p-6 sm:p-7 flex flex-col transition-all duration-300 hover:border-white/15 ' + CARD_HEIGHT}>
+      <div className={'relative rounded-xl border border-white/[0.08] overflow-hidden bg-gray-950 p-6 sm:p-7 flex flex-col transition-all duration-300 hover:border-white/[0.15] hover:shadow-lg hover:shadow-black/20 ' + CARD_HEIGHT}>
         {/* Category-tinted background */}
         <div className="absolute inset-0" style={{ background: gradient }} />
-        <div className="absolute inset-0 opacity-[0.04]" style={{ background: 'radial-gradient(ellipse at 20% 80%, ' + catColor + ', transparent 65%)' }} />
-        {/* Subtle left accent border */}
-        <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl" style={{ background: catColor, opacity: 0.4 }} />
+        <div className="absolute inset-0 opacity-[0.05]" style={{ background: 'radial-gradient(ellipse at 20% 80%, ' + catColor + ', transparent 60%)' }} />
+        {/* Left accent border */}
+        <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl" style={{ background: catColor, opacity: 0.5 }} />
 
-        <div className="relative z-10 flex flex-col h-full overflow-hidden">
-          {/* Badge */}
-          <div className="flex items-center gap-2 mb-3 flex-shrink-0">
+        <div className="relative z-10 flex flex-col h-full">
+          {/* Top: category badge + report count */}
+          <div className="flex items-center justify-between mb-4 flex-shrink-0">
             <span className="text-[10px] font-semibold uppercase tracking-widest font-sans" style={{ color: catColor }}>
-              {(config?.icon || '') + ' ' + badgeParts.join(' \u00B7 ')}
+              {(config?.icon || '') + ' ' + (config?.label || item.category)}
+              {item.primary_regions && item.primary_regions.length > 0 ? ' \u00B7 ' + item.primary_regions[0] : ''}
             </span>
-            {item.report_count > 20 && (
-              <span className="text-[9px] bg-primary-500/15 text-primary-400 px-2 py-0.5 rounded-full font-medium font-sans">
-                trending
+            {item.report_count > 5 && (
+              <span className="text-[9px] px-2 py-0.5 rounded-full font-medium font-sans" style={{ background: catColor + '18', color: catColor }}>
+                {item.report_count + ' reports'}
               </span>
             )}
           </div>
 
-          {/* Hook */}
-          <div className="flex-1 min-h-0 overflow-hidden mb-3">
-            <h3 className="text-base sm:text-lg font-display font-bold text-white leading-snug group-hover:text-primary-400 transition-colors">
+          {/* Hook text — regular weight for readability, larger for the big card */}
+          <div className="flex-1 min-h-0 overflow-hidden mb-4">
+            <p className="text-[15px] sm:text-base text-gray-200 leading-relaxed font-sans group-hover:text-white transition-colors">
               {hookText || item.name}
-            </h3>
+            </p>
           </div>
 
-          {/* Bottom — topic name + report count (always visible) */}
-          <div className="flex-shrink-0 pt-3 border-t border-white/5">
+          {/* Bottom bar */}
+          <div className="flex-shrink-0 pt-3 border-t border-white/[0.06]">
             <div className="flex items-center justify-between">
               <span className="text-sm font-display font-bold truncate flex-1 min-w-0 mr-3" style={{ color: catColor }}>
                 {item.name}
               </span>
-              <span className="text-[10px] font-medium text-primary-400 group-hover:text-primary-300 font-sans flex-shrink-0 flex items-center gap-1">
+              <span className="text-[10px] font-medium text-primary-400 group-hover:text-primary-300 font-sans flex-shrink-0 flex items-center gap-1 transition-colors">
                 Read case
                 <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
               </span>
             </div>
-            {signals.length > 0 && (
-              <div className="flex gap-1.5 flex-wrap mt-2">
-                {signals.map(function (s, i) {
-                  return (
-                    <span key={i} className="text-[10px] px-2.5 py-0.5 rounded-full border border-white/10 text-gray-400 font-sans font-medium">
-                      {s}
-                    </span>
-                  )
-                })}
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -187,61 +210,58 @@ function ReportCard(props: { item: PreviewReport }) {
   var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
   var gradient = CATEGORY_GRADIENTS[item.category] || CATEGORY_GRADIENTS.combination
 
-  var hookText = item.feed_hook || item.summary || ''
+  var hookText = truncateHook(item.feed_hook || item.summary || '', 140)
   var href = '/report/' + item.slug
-
-  /* Topic name: prefer the linked phenomenon name (e.g. "Bigfoot", "Black Triangle").
-     Fallback: extract the core subject from the title by stripping location
-     suffixes and common phrases like "Caught on Camera", "Sighting in", etc. */
-  var topicName = ''
-  if (item.phenomenon_type && item.phenomenon_type.name) {
-    topicName = item.phenomenon_type.name
-  } else {
-    /* Step 1: take text before first dash/em-dash (strips " - Location" and " - Report #XXXXX") */
-    var raw = item.title.split(/\s*[-\u2014]\s*/)[0] || item.title
-    /* Step 2: strip common trailing phrases to get just the subject */
-    raw = raw
-      .replace(/\s+Caught on Camera.*$/i, '')
-      .replace(/\s+Sighting in.*$/i, '')
-      .replace(/\s+Spotted (in|near|at).*$/i, '')
-      .replace(/\s+Encounter (in|near|at).*$/i, '')
-      .replace(/\s+Report.*$/i, '')
-      .replace(/\s+Experience.*$/i, '')
-      .replace(/\s+after\s+.*/i, '')
-      .trim()
-    topicName = raw.length > 28 ? raw.substring(0, 26) + '\u2026' : raw
-  }
+  var topicName = (item.phenomenon_type && item.phenomenon_type.name)
+    ? item.phenomenon_type.name
+    : extractTopicName(item.title)
+  var locationStr = buildLocation(item)
+  var year = item.event_date ? (item.event_date.match(/\d{4}/) || [''])[0] : ''
 
   return (
     <Link href={href} className="block group">
-      <div className={'relative rounded-xl border border-white/[0.08] overflow-hidden bg-gray-950 p-5 flex flex-col transition-all duration-300 hover:border-white/15 ' + CARD_HEIGHT}>
+      <div className={'relative rounded-xl border border-white/[0.08] overflow-hidden bg-gray-950 p-5 flex flex-col transition-all duration-300 hover:border-white/[0.15] hover:shadow-lg hover:shadow-black/20 ' + CARD_HEIGHT}>
         {/* Category-tinted background */}
         <div className="absolute inset-0" style={{ background: gradient }} />
-        <div className="absolute inset-0 opacity-[0.03]" style={{ background: 'radial-gradient(ellipse at 30% 70%, ' + catColor + ', transparent 60%)' }} />
-        {/* Subtle left accent border */}
-        <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl" style={{ background: catColor, opacity: 0.4 }} />
+        <div className="absolute inset-0 opacity-[0.04]" style={{ background: 'radial-gradient(ellipse at 30% 70%, ' + catColor + ', transparent 60%)' }} />
+        {/* Left accent border */}
+        <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl" style={{ background: catColor, opacity: 0.5 }} />
 
-        <div className="relative z-10 flex flex-col h-full overflow-hidden">
-          {/* Category */}
-          <span className="text-[10px] font-semibold uppercase tracking-widest font-sans mb-2 flex-shrink-0" style={{ color: catColor }}>
-            {(config?.icon || '') + ' ' + (config?.label || item.category)}
-          </span>
-
-          {/* Hook — flex-1 with fade mask so it never pushes bottom out */}
-          <div className="flex-1 min-h-0 overflow-hidden relative mb-2">
-            <h3 className="text-sm sm:text-base font-display font-bold text-white leading-snug group-hover:text-primary-400 transition-colors">
-              {hookText || item.title}
-            </h3>
-            {/* No visible fade — clean clip via overflow-hidden on parent */}
+        <div className="relative z-10 flex flex-col h-full">
+          {/* Top: category + meta */}
+          <div className="flex items-center justify-between mb-1 flex-shrink-0">
+            <span className="text-[10px] font-semibold uppercase tracking-widest font-sans" style={{ color: catColor }}>
+              {(config?.icon || '') + ' ' + (config?.label || item.category)}
+            </span>
+            {(item.has_photo_video || item.credibility === 'high') && (
+              <span className="text-[9px] px-2 py-0.5 rounded-full font-medium font-sans" style={{ background: item.has_photo_video ? 'rgba(251,191,36,0.12)' : 'rgba(52,211,153,0.12)', color: item.has_photo_video ? '#fbbf24' : '#34d399' }}>
+                {item.has_photo_video ? 'Evidence' : 'Verified'}
+              </span>
+            )}
           </div>
 
-          {/* Bottom — topic name in category color (always visible) */}
-          <div className="flex items-center justify-between pt-2 border-t border-white/5 flex-shrink-0">
+          {/* Location + date meta line */}
+          {(locationStr || year) && (
+            <p className="text-[10px] text-gray-500 font-sans mb-2 flex-shrink-0">
+              {[locationStr, year].filter(Boolean).join(' \u00B7 ')}
+            </p>
+          )}
+
+          {/* Hook text — regular weight for readability */}
+          <div className="flex-1 min-h-0 overflow-hidden mb-3">
+            <p className="text-sm text-gray-300 leading-relaxed font-sans group-hover:text-gray-200 transition-colors">
+              {hookText || item.title}
+            </p>
+          </div>
+
+          {/* Bottom bar */}
+          <div className="flex items-center justify-between pt-2.5 border-t border-white/[0.06] flex-shrink-0">
             <span className="text-sm font-display font-bold truncate flex-1 min-w-0 mr-2" style={{ color: catColor }}>
               {topicName}
             </span>
-            <span className="text-[10px] font-medium text-primary-400 group-hover:text-primary-300 font-sans flex-shrink-0">
-              {'Read report \u2192'}
+            <span className="text-[10px] font-medium text-primary-400 group-hover:text-primary-300 font-sans flex-shrink-0 flex items-center gap-1 transition-colors">
+              Read report
+              <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
             </span>
           </div>
         </div>
