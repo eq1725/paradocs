@@ -129,9 +129,9 @@ function EncyclopediaCard(props: { item: PreviewPhenomenon }) {
         {/* Subtle left accent border */}
         <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl" style={{ background: catColor, opacity: 0.4 }} />
 
-        <div className="relative z-10 flex flex-col h-full">
+        <div className="relative z-10 flex flex-col h-full overflow-hidden">
           {/* Badge */}
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-3 flex-shrink-0">
             <span className="text-[10px] font-semibold uppercase tracking-widest font-sans" style={{ color: catColor }}>
               {(config?.icon || '') + ' ' + badgeParts.join(' \u00B7 ')}
             </span>
@@ -142,28 +142,31 @@ function EncyclopediaCard(props: { item: PreviewPhenomenon }) {
             )}
           </div>
 
-          {/* Hook */}
-          <h3 className="text-base sm:text-lg font-display font-bold text-white leading-snug mb-3 group-hover:text-primary-400 transition-colors">
-            {hookText || item.name}
-          </h3>
+          {/* Hook — flex-1 with fade mask so it never pushes bottom out */}
+          <div className="flex-1 min-h-0 overflow-hidden relative mb-3">
+            <h3 className="text-base sm:text-lg font-display font-bold text-white leading-snug group-hover:text-primary-400 transition-colors">
+              {hookText || item.name}
+            </h3>
 
-          {/* Signals */}
-          {signals.length > 0 && (
-            <div className="flex gap-1.5 flex-wrap mb-3">
-              {signals.map(function (s, i) {
-                return (
-                  <span key={i} className="text-[10px] px-2.5 py-0.5 rounded-full border border-white/10 text-gray-400 font-sans font-medium">
-                    {s}
-                  </span>
-                )
-              })}
-            </div>
-          )}
+            {/* Signals */}
+            {signals.length > 0 && (
+              <div className="flex gap-1.5 flex-wrap mt-3">
+                {signals.map(function (s, i) {
+                  return (
+                    <span key={i} className="text-[10px] px-2.5 py-0.5 rounded-full border border-white/10 text-gray-400 font-sans font-medium">
+                      {s}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
 
-          <div className="flex-grow" />
+            {/* Fade-out at bottom if content overflows */}
+            <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-gray-950 to-transparent pointer-events-none" />
+          </div>
 
-          {/* Bottom — topic name in category color */}
-          <div className="flex items-end justify-between pt-3 border-t border-white/5">
+          {/* Bottom — topic name in category color (always visible) */}
+          <div className="flex items-end justify-between pt-3 border-t border-white/5 flex-shrink-0">
             <span className="text-sm font-display font-bold truncate flex-1 min-w-0 mr-3" style={{ color: catColor }}>
               {item.name}
             </span>
@@ -204,21 +207,23 @@ function ReportCard(props: { item: PreviewReport }) {
         {/* Subtle left accent border */}
         <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl" style={{ background: catColor, opacity: 0.4 }} />
 
-        <div className="relative z-10 flex flex-col h-full">
+        <div className="relative z-10 flex flex-col h-full overflow-hidden">
           {/* Category */}
-          <span className="text-[10px] font-semibold uppercase tracking-widest font-sans mb-2" style={{ color: catColor }}>
+          <span className="text-[10px] font-semibold uppercase tracking-widest font-sans mb-2 flex-shrink-0" style={{ color: catColor }}>
             {(config?.icon || '') + ' ' + (config?.label || item.category)}
           </span>
 
-          {/* Hook — use feed_hook (the short punchy hook), NOT expanded summary */}
-          <h3 className="text-sm sm:text-base font-display font-bold text-white leading-snug mb-2 group-hover:text-primary-400 transition-colors">
-            {hookText || item.title}
-          </h3>
+          {/* Hook — flex-1 with fade mask so it never pushes bottom out */}
+          <div className="flex-1 min-h-0 overflow-hidden relative mb-2">
+            <h3 className="text-sm sm:text-base font-display font-bold text-white leading-snug group-hover:text-primary-400 transition-colors">
+              {hookText || item.title}
+            </h3>
+            {/* Fade-out at bottom if content overflows */}
+            <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-gray-950 to-transparent pointer-events-none" />
+          </div>
 
-          <div className="flex-grow" />
-
-          {/* Bottom — topic name in category color */}
-          <div className="flex items-center justify-between pt-2 border-t border-white/5 mt-3">
+          {/* Bottom — topic name in category color (always visible) */}
+          <div className="flex items-center justify-between pt-2 border-t border-white/5 flex-shrink-0">
             <span className="text-sm font-display font-bold truncate flex-1 min-w-0 mr-2" style={{ color: catColor }}>
               {topicName}
             </span>
