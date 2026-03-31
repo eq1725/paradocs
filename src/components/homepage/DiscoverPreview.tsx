@@ -96,21 +96,49 @@ var CATEGORY_GRADIENTS: Record<string, string> = {
 var CARD_HEIGHT = 'h-[300px] sm:h-[320px]'
 var ROTATE_INTERVAL = 6000
 
-/** Short display names for verbose phenomenon_type names */
-var TYPE_DISPLAY_NAMES: Record<string, string> = {
-  'CE-1: Close Encounter First Kind': 'Close Encounter',
-  'CE-2: Close Encounter Second Kind': 'Close Encounter',
-  'CE-3: Close Encounter Third Kind': 'Close Encounter',
-  'CE-4: Close Encounter Fourth Kind': 'Close Encounter',
-  'CE-5: Close Encounter Fifth Kind': 'Close Encounter',
-  'USO (Unidentified Submerged Object)': 'USO Sighting',
-  'USO (Underwater)': 'USO Sighting',
-  'Bigfoot/Sasquatch': 'Bigfoot',
-  'Spontaneous Combustion': 'Unexplained Fire',
-  'Near-Death Experience': 'Near-Death Experience',
-  'Haunted Location': 'Haunted Location',
-  'Other Cryptid': 'Cryptid Sighting',
-  'Out of Body': 'Out-of-Body Experience',
+/** Short display names for verbose phenomenon_type names.
+ *  Strips "CE-N:" prefixes, parenthetical details, and maps known long names. */
+function shortTypeName(name: string): string {
+  if (!name) return ''
+  /* Explicit overrides for known long/awkward names */
+  var overrides: Record<string, string> = {
+    'Poltergeist Activity': 'Poltergeist',
+    'Residual Haunting': 'Haunting',
+    'Intelligent Haunting': 'Haunting',
+    'Historical UFO Sighting': 'UFO Sighting',
+    'Historical Haunting': 'Haunting',
+    'Historical Cryptid': 'Cryptid Sighting',
+    'Cryptid Eyewitness': 'Cryptid Sighting',
+    'Cryptid Evidence': 'Cryptid Evidence',
+    'Paranormal Investigation': 'Investigation',
+    'Famous Haunted Site': 'Haunted Site',
+    'Infamous Ghost Case': 'Ghost Case',
+    'Anomalous Perception': 'Anomaly',
+    'Anomalous Memory': 'Memory Anomaly',
+    'Psychophysiological': 'Psychophysiological',
+    'Environmental Influence': 'Environment',
+    'Geographical Anomaly': 'Geo Anomaly',
+    'Genetic Predisposition': 'Genetic Factor',
+    'Meditation Experience': 'Meditation',
+    'Sensory Deprivation': 'Sensory Deprivation',
+    'Astrological Event': 'Astrology',
+    'Occult Phenomenon': 'Occult',
+    'Multi-Phenomena': 'Multiple Phenomena',
+    'Premonition Dream': 'Premonition',
+    'NHI Contact': 'Alien Contact',
+  }
+  if (overrides[name]) return overrides[name]
+  /* Strip "CE-N: " prefix, keep the rest */
+  var cleaned = name.replace(/^CE-\d:\s*/i, '')
+  /* Strip parenthetical details */
+  cleaned = cleaned.replace(/\s*\(.*?\)\s*/, ' ').trim()
+  /* If still over 22 chars, truncate at last word boundary */
+  if (cleaned.length > 22) {
+    var cut = cleaned.substring(0, 22)
+    var lastSpace = cut.lastIndexOf(' ')
+    if (lastSpace > 10) cleaned = cut.substring(0, lastSpace)
+  }
+  return cleaned
 }
 
 // =========================================================================
@@ -219,7 +247,7 @@ function ReportCard(props: { item: PreviewReport }) {
   /* Topic name from the phenomenon_type linked in the DB.
      Uses short display name if available, falls back to location + year. */
   var rawTypeName = (item.phenomenon_type && item.phenomenon_type.name) ? item.phenomenon_type.name : ''
-  var topicName = rawTypeName ? (TYPE_DISPLAY_NAMES[rawTypeName] || rawTypeName) : ''
+  var topicName = rawTypeName ? shortTypeName(rawTypeName) : ''
   var locationLabel = buildLocation(item)
   var year = item.event_date ? (item.event_date.match(/\d{4}/) || [''])[0] : ''
   var bottomLabel = topicName

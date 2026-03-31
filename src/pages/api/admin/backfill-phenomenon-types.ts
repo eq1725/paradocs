@@ -28,61 +28,80 @@ function getSupabaseAdmin() {
  * Each rule: { slugs: phenomenon_type slugs to match, patterns: regexes to test against title+summary }
  * Rules are checked in order — first match wins. Put specific rules before generic ones.
  */
+/**
+ * Classification rules using ACTUAL DB slugs from phenomenon_types table.
+ * Rules checked in order — first match wins. Specific before generic.
+ */
 var CLASSIFICATION_RULES: Array<{ slug: string; patterns: RegExp[]; categoryGuard?: string[] }> = [
-  // Bigfoot/Sasquatch — MUST come before generic "encounter/sighting" rules
-  { slug: 'bigfoot', patterns: [/bigfoot/i, /sasquatch/i, /bfro/i, /large.*(bipedal|ape|primate)/i, /wood.?ape/i], categoryGuard: ['cryptids', 'cryptid'] },
-
-  // Other specific cryptids
-  { slug: 'mothman', patterns: [/mothman/i, /winged.*(humanoid|creature|entity)/i] },
+  // ── Cryptids (specific before generic) ──
+  { slug: 'bigfoot', patterns: [/bigfoot/i, /sasquatch/i, /bfro/i, /large.*(bipedal|ape|primate)/i, /wood.?ape/i] },
+  { slug: 'mothman', patterns: [/mothman/i] },
   { slug: 'chupacabra', patterns: [/chupacabra/i] },
+  { slug: 'thunderbird', patterns: [/thunderbird/i] },
+  { slug: 'dogman', patterns: [/dogman/i, /werewolf/i, /wolf.?man/i] },
   { slug: 'lake-monster', patterns: [/lake.?monster/i, /sea.?serpent/i, /nessie/i, /loch.?ness/i] },
-  { slug: 'other-cryptid', patterns: [/cryptid/i, /unknown.*(creature|animal)/i, /strange.*(creature|animal)/i], categoryGuard: ['cryptids', 'cryptid'] },
+  { slug: 'cryptid-eyewitness', patterns: [/cryptid/i, /unknown.*(creature|animal)/i, /strange.*(creature|animal)/i], categoryGuard: ['cryptids'] },
 
-  // Ghost/Haunting types
-  { slug: 'apparition', patterns: [/apparition/i, /ghost/i, /spirit/i, /phantom/i, /spectral/i, /saw.*(figure|shadow|person)/i], categoryGuard: ['ghosts_hauntings', 'ghost_haunting'] },
-  { slug: 'poltergeist', patterns: [/poltergeist/i, /objects?.*(moving|thrown|flying)/i, /physical.?disturbance/i] },
-  { slug: 'evp', patterns: [/evp/i, /electronic.?voice/i, /disembodied.?voice/i, /strange.*(sound|noise|audio)/i], categoryGuard: ['ghosts_hauntings', 'ghost_haunting'] },
-  { slug: 'haunted-location', patterns: [/haunted/i, /haunt/i], categoryGuard: ['ghosts_hauntings', 'ghost_haunting'] },
+  // ── Ghosts/Hauntings ──
+  { slug: 'poltergeist', patterns: [/poltergeist/i, /objects?.*(moving|thrown|flying)/i] },
+  { slug: 'shadow-person', patterns: [/shadow.?(person|people|figure|man|being)/i] },
+  { slug: 'evp', patterns: [/\bevp\b/i, /electronic.?voice/i, /disembodied.?voice/i] },
+  { slug: 'apparition', patterns: [/apparition/i, /ghost/i, /spirit/i, /phantom/i, /spectral/i], categoryGuard: ['ghosts_hauntings'] },
+  { slug: 'intelligent-haunting', patterns: [/haunted/i, /haunt/i], categoryGuard: ['ghosts_hauntings'] },
 
-  // NDE / OBE — check before generic psychic/paranormal
-  { slug: 'obe', patterns: [/near.?death/i, /\bnde\b/i, /out.?of.?body/i, /\bobe\b/i, /astral.?project/i, /died.*(came|returned)/i, /clinical.?death/i, /after.*death/i, /afterlife/i] },
+  // ── NDEs / OBEs (before generic psychic) ──
+  { slug: 'nde', patterns: [/near.?death/i, /\bnde\b/i, /died.*(came|returned)/i, /clinical.?death/i, /flatlined/i] },
+  { slug: 'obe', patterns: [/out.?of.?body/i, /\bobe\b/i, /astral.?project/i] },
+  { slug: 'astral-projection', patterns: [/astral/i] },
+  { slug: 'past-life-memory', patterns: [/past.?life/i, /reincarnation/i, /previous.?life/i] },
+  { slug: 'time-slip', patterns: [/time.?slip/i, /temporal.?anomal/i, /glitch.?in/i] },
 
-  // Psychic phenomena
-  { slug: 'precognition', patterns: [/precognition/i, /premonition/i, /future.?sight/i, /predicted/i, /prophetic/i] },
+  // ── Psychic phenomena ──
+  { slug: 'precognition', patterns: [/precognition/i, /premonition/i, /prophetic/i] },
+  { slug: 'premonition-dream', patterns: [/premonition.*dream/i, /prophetic.*dream/i, /dream.*came.*true/i] },
   { slug: 'telepathy', patterns: [/telepathy/i, /telepathic/i, /mind.?read/i] },
+  { slug: 'remote-viewing', patterns: [/remote.?view/i] },
+  { slug: 'clairvoyance', patterns: [/clairvoyant/i, /clairvoyance/i] },
 
-  // UFO subtypes — specific before generic
-  { slug: 'abduction', patterns: [/abduct/i, /taken.*(aboard|ship|craft)/i, /missing.?time/i] },
-  { slug: 'uso', patterns: [/\buso\b/i, /underwater.*object/i, /submerged.*object/i, /emerged?.*(from|out of).*(water|ocean|lake|sea)/i] },
-  { slug: 'close-encounter', patterns: [/close.?encounter/i, /entity.?contact/i, /alien.?(contact|encounter)/i, /being.?encounter/i] },
-  // Generic UFO sighting — catches everything with UFO/UAP/orb/craft/triangle/lights in sky
-  { slug: 'ufo-sighting', patterns: [/\bufo\b/i, /\buap\b/i, /\borb\b/i, /unidentified.*object/i, /flying.*object/i, /strange.?light/i, /luminous/i, /pulsating.?light/i, /hovering.*object/i, /silent.?craft/i, /black.?triangle/i, /triangle.*ufo/i, /caught.?on.?camera/i, /high.?speed.*object/i, /craft/i, /sighting/i], categoryGuard: ['ufos_aliens', 'ufo_uap'] },
+  // ── UFO subtypes (specific before generic) ──
+  { slug: 'nhi-contact', patterns: [/abduct/i, /taken.*(aboard|ship|craft)/i, /alien.?(contact|encounter)/i, /entity.?(contact|encounter)/i, /being.?encounter/i] },
+  { slug: 'uso', patterns: [/\buso\b/i, /underwater.*object/i, /submerged.*object/i] },
+  { slug: 'mass-sighting', patterns: [/mass.*sighting/i, /multiple.*witness/i, /many.*saw/i] },
+  { slug: 'notable-ufo-case', patterns: [/roswell/i, /phoenix.?lights/i, /rendlesham/i, /flatwoods/i, /kecksburg/i, /incident/i, /case/i] },
+  { slug: 'historical-ufo-sighting', patterns: [/nuremberg/i, /puget.?sound/i, /cape.?girardeau/i, /\b1[89]\d{2}\b/], categoryGuard: ['ufos_aliens'] },
+  // Generic UFO sighting (ce-1) — catches all remaining UFO/UAP reports
+  { slug: 'ce-1', patterns: [/\bufo\b/i, /\buap\b/i, /\borb\b/i, /unidentified.*object/i, /flying.*object/i, /strange.?light/i, /luminous/i, /pulsating/i, /hovering/i, /silent.?craft/i, /black.?triangle/i, /caught.?on.?camera/i, /high.?speed/i, /craft/i, /sighting/i, /object/i, /lights/i], categoryGuard: ['ufos_aliens'] },
 
-  // Unexplained events
-  { slug: 'time-slip', patterns: [/time.?slip/i, /temporal.?anomal/i, /time.?travel/i, /glitch.?in/i] },
-  { slug: 'disappearance', patterns: [/disappear/i, /vanish/i, /missing.?person/i] },
-  { slug: 'spontaneous-combustion', patterns: [/spontaneous.?combust/i] },
-  { slug: 'crop-circle', patterns: [/crop.?circle/i] },
+  // ── Religion/Mythology ──
+  { slug: 'angel-encounter', patterns: [/angel/i] },
+  { slug: 'demonic-encounter', patterns: [/demon/i, /demonic/i, /possession/i] },
+  { slug: 'mystical-experience', patterns: [/mystical/i, /divine/i, /spiritual.*experience/i, /afterlife/i, /after.*death/i] },
 
-  // Mystery locations
-  { slug: 'bermuda-triangle', patterns: [/bermuda.?triangle/i] },
-  { slug: 'skinwalker-ranch', patterns: [/skinwalker/i] },
+  // ── Perception/Sensory ──
+  { slug: 'infrasound-effect', patterns: [/infrasound/i] },
+  { slug: 'emf-sensitivity', patterns: [/\bemf\b/i, /electromagnetic/i] },
+  { slug: 'hypnagogic', patterns: [/hypnagog/i, /sleep.?paralysis/i] },
+
+  // ── Esoteric ──
   { slug: 'ley-line', patterns: [/ley.?line/i] },
 ]
 
 /**
  * Category-based default type mapping (last resort fallback).
- * Maps report category -> phenomenon_type slug.
+ * Uses ACTUAL DB slugs.
  */
 var CATEGORY_DEFAULTS: Record<string, string> = {
-  ufos_aliens: 'ufo-sighting',
+  ufos_aliens: 'ce-1',
   cryptids: 'other-cryptid',
   ghosts_hauntings: 'apparition',
   psychic_phenomena: 'precognition',
-  consciousness_practices: 'obe',
-  psychological_experiences: 'obe',
-  biological_factors: 'obe',
-  perception_sensory: 'precognition',
+  consciousness_practices: 'meditation-experience',
+  psychological_experiences: 'nde',
+  biological_factors: 'psychophysiological',
+  perception_sensory: 'anomalous-perception',
+  religion_mythology: 'mystical-experience',
+  esoteric_practices: 'occult-phenomenon',
+  combination: 'multi-phenomena',
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
