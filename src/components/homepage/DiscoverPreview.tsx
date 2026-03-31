@@ -161,8 +161,7 @@ function EncyclopediaCard(props: { item: PreviewPhenomenon }) {
               </div>
             )}
 
-            {/* Fade-out at bottom if content overflows */}
-            <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-gray-950 to-transparent pointer-events-none" />
+            {/* No visible fade — clean clip via overflow-hidden on parent */}
           </div>
 
           {/* Bottom — topic name in category color (always visible) */}
@@ -195,8 +194,15 @@ function ReportCard(props: { item: PreviewReport }) {
   var href = '/report/' + item.slug
 
   /* Topic name: prefer the linked phenomenon name (e.g. "Bigfoot", "Black Triangle")
-     Fall back to short title */
-  var topicName = item.phenomenon_type ? item.phenomenon_type.name : item.title
+     Fall back to a short version of the title (before first dash/colon/comma) */
+  var topicName = ''
+  if (item.phenomenon_type && item.phenomenon_type.name) {
+    topicName = item.phenomenon_type.name
+  } else {
+    /* Extract short topic from title: "Luminous Orb Caught on Camera - Marana" → "Luminous Orb" */
+    var shortTitle = item.title.split(/\s*[-\u2014:,|]\s*/)[0] || item.title
+    topicName = shortTitle.length > 30 ? shortTitle.substring(0, 28) + '\u2026' : shortTitle
+  }
 
   return (
     <Link href={href} className="block group">
@@ -218,8 +224,7 @@ function ReportCard(props: { item: PreviewReport }) {
             <h3 className="text-sm sm:text-base font-display font-bold text-white leading-snug group-hover:text-primary-400 transition-colors">
               {hookText || item.title}
             </h3>
-            {/* Fade-out at bottom if content overflows */}
-            <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-gray-950 to-transparent pointer-events-none" />
+            {/* No visible fade — clean clip via overflow-hidden on parent */}
           </div>
 
           {/* Bottom — topic name in category color (always visible) */}
