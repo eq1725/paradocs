@@ -39,7 +39,7 @@ import { RabbitHolePanel } from '@/components/discover/RabbitHolePanel'
 import type { RabbitHoleCard } from '@/components/discover/RabbitHolePanel'
 import { DetailView } from '@/components/discover/DetailView'
 import { Constellation } from '@/components/discover/Constellation'
-import { MobileBottomTabs } from '@/components/mobile/MobileBottomTabs'
+// MobileBottomTabs now provided by Layout wrapper
 import { useFeedEvents } from '@/lib/hooks/useFeedEvents'
 import { useSessionContext } from '@/lib/hooks/useSessionContext'
 import { useGateStatus } from '@/lib/hooks/useGateStatus'
@@ -639,7 +639,7 @@ export default function DiscoverPage() {
         <Head>
           <title>Discover - Paradocs</title>
         </Head>
-        <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="flex items-center justify-center" style={{ minHeight: 'calc(100vh - 4rem)' }}>
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4" />
             <p className="text-gray-400 text-lg font-sans">Loading stories...</p>
@@ -674,22 +674,10 @@ export default function DiscoverPage() {
         />
       )}
 
-      <div className="min-h-screen bg-gray-950 flex flex-col">
-        {/* ================================================================
-            Fixed header — full width, responsive padding
-            ================================================================ */}
-        <div className="fixed top-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-lg border-b border-gray-800 safe-area-pt">
-          <div className="flex items-center justify-between h-14 px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-3">
-              <Link href="/">
-                <span className="font-sans font-black text-xl text-white tracking-tight whitespace-nowrap">
-                  Paradocs<span style={{color:'#9000F0'}}>.</span>
-                </span>
-              </Link>
-              <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
-                Discover
-              </span>
-            </div>
+      <div className="flex flex-col" style={{ minHeight: 'calc(100vh - 4rem)' }}>
+        {/* Progress bar + counter strip — just below the site header */}
+        <div className="bg-gray-900/80 backdrop-blur-sm border-b border-white/5">
+          <div className="flex items-center justify-between h-9 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
             <div className="flex items-center gap-3">
               {/* Feedback label */}
               {feedbackLabel && (
@@ -700,19 +688,12 @@ export default function DiscoverPage() {
                   {feedbackLabel}
                 </span>
               )}
-              {/* Card counter */}
-              <span className="text-xs text-gray-500 bg-white/5 px-2.5 py-1 rounded-full font-medium">
-                {counterText}
-              </span>
-              {/* Desktop nav links */}
-              <div className="hidden md:flex items-center gap-4 ml-3">
-                <Link href="/explore" className="text-xs text-gray-500 hover:text-gray-300 transition-colors font-sans">Explore</Link>
-                <Link href="/map" className="text-xs text-gray-500 hover:text-gray-300 transition-colors font-sans">Map</Link>
-                <Link href="/phenomena" className="text-xs text-gray-500 hover:text-gray-300 transition-colors font-sans">Encyclopedia</Link>
-              </div>
             </div>
+            {/* Card counter */}
+            <span className="text-xs text-gray-500 bg-white/5 px-2.5 py-1 rounded-full font-medium">
+              {counterText}
+            </span>
           </div>
-
           {/* Progress bar */}
           <div className="h-0.5 bg-gray-900">
             <div
@@ -742,11 +723,11 @@ export default function DiscoverPage() {
               style={{ background: catColor }}
             />
 
-            {/* Main card — padding clears header and bottom nav (mobile) */}
+            {/* Main card area */}
             <div
               className="absolute inset-0 px-5 sm:px-6 md:px-8 lg:px-10 mobile-content-pb md:pb-8 overflow-y-auto transition-all duration-200"
               style={{
-                paddingTop: 'calc(4.5rem + env(safe-area-inset-top, 0px))',
+                paddingTop: '1.5rem',
                 transform: swipeAnim === 'up' ? 'translateY(-52px)' : swipeAnim === 'down' ? 'translateY(52px)' : 'translateY(0)',
                 opacity: swipeAnim ? 0 : 1,
               }}
@@ -790,7 +771,7 @@ export default function DiscoverPage() {
           </div>
 
           {/* ---- Desktop sidebar (xl+) ---- */}
-          <div className="hidden xl:flex flex-col w-[380px] border-l border-gray-800/50 bg-gray-950 overflow-hidden main-content-pt">
+          <div className="hidden xl:flex flex-col w-[380px] border-l border-gray-800/50 bg-gray-950 overflow-hidden">
             {/* Sidebar header */}
             <div className="px-5 pt-4 pb-3 border-b border-white/5 flex-shrink-0">
               <div className="flex items-center justify-between">
@@ -899,8 +880,6 @@ export default function DiscoverPage() {
           </div>
         )}
 
-        {/* Mobile bottom tabs (hidden on desktop) */}
-        <MobileBottomTabs />
       </div>
 
       {/* Desktop keyboard shortcuts — fixed to bottom of viewport */}

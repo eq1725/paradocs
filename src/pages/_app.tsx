@@ -7,7 +7,7 @@ import Layout from '@/components/Layout'
 import { ToastProvider } from '@/components/Toast'
 
 // Pages that should NOT have the main app layout (nav, footer, etc.)
-const STANDALONE_PAGES = ['/beta-access', '/survey', '/discover']
+const STANDALONE_PAGES = ['/beta-access', '/survey']
 
 // Pages/routes that have their own complete layout (like DashboardLayout)
 const CUSTOM_LAYOUT_PREFIXES = ['/dashboard']
