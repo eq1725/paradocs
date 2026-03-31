@@ -318,7 +318,7 @@ export default function DiscoverPreview() {
     async function fetchData() {
       try {
         var seed = Math.floor(Math.random() * 2147483647)
-        var res = await fetch('/api/discover/feed-v2?limit=40&offset=0&seed=' + seed)
+        var res = await fetch('/api/discover/feed-v2?limit=30&offset=0&seed=' + seed)
         if (!res.ok) throw new Error('Feed fetch failed')
         var data = await res.json()
         var feedItems = data.items || []
@@ -328,6 +328,9 @@ export default function DiscoverPreview() {
         var repPool: PreviewReport[] = []
 
         feedItems.forEach(function (item: any) {
+          /* Homepage only shows items with hooks for quality */
+          if (!item.feed_hook) return
+
           if (item.item_type === 'phenomenon' && phenPool.length < 15) {
             phenPool.push({
               item_type: 'phenomenon',

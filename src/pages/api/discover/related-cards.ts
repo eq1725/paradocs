@@ -75,7 +75,7 @@ async function getRelatedForPhenomenon(supabase: any, phenomenonId: string) {
   // Get the phenomenon itself for category info
   var { data: phenomenon } = await supabase
     .from('phenomena')
-    .select('id, category, name')
+    .select('id, category, name, slug')
     .eq('id', phenomenonId)
     .single()
 
@@ -139,7 +139,7 @@ async function getRelatedForPhenomenon(supabase: any, phenomenonId: string) {
         source_type: r.source_type,
         source_label: r.source_label,
         created_at: r.created_at,
-        phenomenon_type: { name: phenomenon.name, slug: '', category: phenomenon.category },
+        phenomenon_type: { name: phenomenon.name, slug: phenomenon.slug || '', category: phenomenon.category },
         primary_media: media ? {
           type: media.media_type,
           url: media.url,

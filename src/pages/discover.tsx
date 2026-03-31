@@ -376,12 +376,12 @@ export default function DiscoverPage() {
       if (Math.abs(dx) < 50) return
       if (dx < 0) {
         // swipe LEFT → dismiss
+        var dismissedItem = items[idx]
+        if (dismissedItem) {
+          feedEvents.trackDismiss(dismissedItem.id, dismissedItem.item_type, (dismissedItem as any).category || '')
+        }
         flash('Dismissed')
         nextCard()
-        var item = items[idx]
-        if (item) {
-          feedEvents.trackTap(item.id, item.item_type, (item as any).category || '')
-        }
       } else {
         // swipe RIGHT → save
         var currentItem = items[idx]
@@ -421,6 +421,10 @@ export default function DiscoverPage() {
         nextCard()
       } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
         e.preventDefault()
+        var dismissItem = items[idx]
+        if (dismissItem) {
+          feedEvents.trackDismiss(dismissItem.id, dismissItem.item_type, (dismissItem as any).category || '')
+        }
         flash('Dismissed')
         nextCard()
       } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {

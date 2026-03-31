@@ -33,7 +33,7 @@ interface IncomingEvent {
   created_at?: string
 }
 
-var VALID_EVENT_TYPES = ['impression', 'dwell', 'tap', 'save', 'share', 'scroll_depth', 'swipe_related']
+var VALID_EVENT_TYPES = ['impression', 'dwell', 'tap', 'save', 'share', 'scroll_depth', 'swipe_related', 'dismiss']
 
 export default async function handler(
   req: NextApiRequest,

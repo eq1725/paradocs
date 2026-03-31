@@ -19,7 +19,7 @@ interface FeedEvent {
   card_id: string
   card_type: string
   phenomenon_category: string
-  event_type: 'impression' | 'dwell' | 'tap' | 'save' | 'share' | 'scroll_depth' | 'swipe_related'
+  event_type: 'impression' | 'dwell' | 'tap' | 'save' | 'share' | 'scroll_depth' | 'swipe_related' | 'dismiss'
   duration_ms?: number
   scroll_depth_pct?: number
   metadata?: Record<string, any>
@@ -181,6 +181,15 @@ export function useFeedEvents(userId: string | null) {
     })
   }, [queueEvent])
 
+  var trackDismiss = useCallback(function (cardId: string, cardType: string, category: string) {
+    queueEvent({
+      card_id: cardId,
+      card_type: cardType,
+      phenomenon_category: category,
+      event_type: 'dismiss',
+    })
+  }, [queueEvent])
+
   var trackSwipeRelated = useCallback(function (cardId: string, cardType: string, category: string) {
     queueEvent({
       card_id: cardId,
@@ -197,6 +206,7 @@ export function useFeedEvents(userId: string | null) {
     trackSave: trackSave,
     trackShare: trackShare,
     trackScrollDepth: trackScrollDepth,
+    trackDismiss: trackDismiss,
     trackSwipeRelated: trackSwipeRelated,
     getSessionId: function () { return sessionIdRef.current },
   }
