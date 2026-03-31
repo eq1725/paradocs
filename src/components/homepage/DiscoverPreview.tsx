@@ -190,15 +190,26 @@ function ReportCard(props: { item: PreviewReport }) {
   var hookText = item.feed_hook || item.summary || ''
   var href = '/report/' + item.slug
 
-  /* Topic name: prefer the linked phenomenon name (e.g. "Bigfoot", "Black Triangle")
-     Fall back to a short version of the title (before first dash/colon/comma) */
+  /* Topic name: prefer the linked phenomenon name (e.g. "Bigfoot", "Black Triangle").
+     Fallback: extract the core subject from the title by stripping location
+     suffixes and common phrases like "Caught on Camera", "Sighting in", etc. */
   var topicName = ''
   if (item.phenomenon_type && item.phenomenon_type.name) {
     topicName = item.phenomenon_type.name
   } else {
-    /* Extract short topic from title: "Luminous Orb Caught on Camera - Marana" → "Luminous Orb" */
-    var shortTitle = item.title.split(/\s*[-\u2014:,|]\s*/)[0] || item.title
-    topicName = shortTitle.length > 30 ? shortTitle.substring(0, 28) + '\u2026' : shortTitle
+    /* Step 1: take text before first dash/em-dash (strips " - Location" and " - Report #XXXXX") */
+    var raw = item.title.split(/\s*[-\u2014]\s*/)[0] || item.title
+    /* Step 2: strip common trailing phrases to get just the subject */
+    raw = raw
+      .replace(/\s+Caught on Camera.*$/i, '')
+      .replace(/\s+Sighting in.*$/i, '')
+      .replace(/\s+Spotted (in|near|at).*$/i, '')
+      .replace(/\s+Encounter (in|near|at).*$/i, '')
+      .replace(/\s+Report.*$/i, '')
+      .replace(/\s+Experience.*$/i, '')
+      .replace(/\s+after\s+.*/i, '')
+      .trim()
+    topicName = raw.length > 28 ? raw.substring(0, 26) + '\u2026' : raw
   }
 
   return (
