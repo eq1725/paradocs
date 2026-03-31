@@ -254,42 +254,34 @@ function ReportCard(props: { item: PreviewReport }) {
 //  Build slides from fetched data
 // =========================================================================
 
+/** Fisher-Yates shuffle (in-place, returns same array) */
+function shuffle<T>(arr: T[]): T[] {
+  for (var i = arr.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1))
+    var tmp = arr[i]
+    arr[i] = arr[j]
+    arr[j] = tmp
+  }
+  return arr
+}
+
 function buildSlides(phenomena: PreviewPhenomenon[], reports: PreviewReport[]): Slide[] {
-  /* Score phenomena */
-  var scoredPhen = phenomena.map(function (p) {
-    var score = 0
-    if (p.feed_hook) score += 10
-    if (p.ai_summary) score += 3
-    if (p.report_count > 10) score += 3
-    if (p.report_count > 50) score += 2
-    if (p.primary_regions && p.primary_regions.length > 0) score += 1
-    return { item: p, score: score }
-  })
-  scoredPhen.sort(function (a, b) { return b.score - a.score })
+  /* Shuffle both pools so each page load produces different combinations.
+     All items already passed a quality gate (feed_hook required), so any
+     random selection is good enough for the homepage preview. */
+  var shuffledPhen = shuffle(phenomena.slice())
+  var shuffledRep = shuffle(reports.slice())
 
-  /* Score reports */
-  var scoredRep = reports.map(function (r) {
-    var score = 0
-    if (r.feed_hook) score += 10
-    if (r.summary && r.summary.length > 100) score += 3
-    if (r.has_photo_video) score += 2
-    if (r.has_physical_evidence) score += 2
-    if (r.credibility === 'high') score += 2
-    if (r.location_name || r.city) score += 1
-    return { item: r, score: score }
-  })
-  scoredRep.sort(function (a, b) { return b.score - a.score })
-
-  /* Build slides: pair each phenomenon with 2 reports, ensure category diversity */
+  /* Build slides: pair each phenomenon with 2 reports, prefer category diversity */
   var slides: Slide[] = []
   var usedReportIds: Record<string, boolean> = {}
 
-  for (var pi = 0; pi < scoredPhen.length && slides.length < 5; pi++) {
-    var phen = scoredPhen[pi].item
+  for (var pi = 0; pi < shuffledPhen.length && slides.length < 5; pi++) {
+    var phen = shuffledPhen[pi]
     var slideReports: PreviewReport[] = []
 
-    for (var ri = 0; ri < scoredRep.length && slideReports.length < 2; ri++) {
-      var rep = scoredRep[ri].item
+    for (var ri = 0; ri < shuffledRep.length && slideReports.length < 2; ri++) {
+      var rep = shuffledRep[ri]
       if (usedReportIds[rep.id]) continue
       if (slideReports.length === 0 || rep.category !== phen.category) {
         slideReports.push(rep)
@@ -297,11 +289,11 @@ function buildSlides(phenomena: PreviewPhenomenon[], reports: PreviewReport[]): 
       }
     }
 
-    /* Backfill */
-    for (var bi = 0; bi < scoredRep.length && slideReports.length < 2; bi++) {
-      if (!usedReportIds[scoredRep[bi].item.id]) {
-        slideReports.push(scoredRep[bi].item)
-        usedReportIds[scoredRep[bi].item.id] = true
+    /* Backfill if diversity constraint was too strict */
+    for (var bi = 0; bi < shuffledRep.length && slideReports.length < 2; bi++) {
+      if (!usedReportIds[shuffledRep[bi].id]) {
+        slideReports.push(shuffledRep[bi])
+        usedReportIds[shuffledRep[bi].id] = true
       }
     }
 
@@ -328,8 +320,10 @@ export default function DiscoverPreview() {
   useEffect(function () {
     async function fetchData() {
       try {
+        /* Random seed + random offset into the feed for variety on each page load */
         var seed = Math.floor(Math.random() * 2147483647)
-        var res = await fetch('/api/discover/feed-v2?limit=30&offset=0&seed=' + seed)
+        var randomOffset = Math.floor(Math.random() * 60)
+        var res = await fetch('/api/discover/feed-v2?limit=30&offset=' + randomOffset + '&seed=' + seed)
         if (!res.ok) throw new Error('Feed fetch failed')
         var data = await res.json()
         var feedItems = data.items || []
