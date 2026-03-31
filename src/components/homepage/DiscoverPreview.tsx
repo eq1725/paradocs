@@ -318,61 +318,74 @@ export default function DiscoverPreview() {
 
   /* Fetch data via feed-v2 API (uses service role key, bypasses RLS) */
   useEffect(function () {
+    /** Parse feed items into typed pools */
+    function parseFeedItems(feedItems: any[]) {
+      var phenPool: PreviewPhenomenon[] = []
+      var repPool: PreviewReport[] = []
+
+      feedItems.forEach(function (item: any) {
+        if (!item.feed_hook) return
+
+        if (item.item_type === 'phenomenon' && phenPool.length < 15) {
+          phenPool.push({
+            item_type: 'phenomenon',
+            id: item.id,
+            name: item.name || '',
+            slug: item.slug || item.id,
+            category: item.category || 'combination',
+            feed_hook: item.feed_hook || null,
+            ai_summary: item.ai_summary || null,
+            ai_quick_facts: item.ai_quick_facts || null,
+            report_count: item.report_count || 0,
+            primary_regions: item.primary_regions || null,
+            first_reported_date: item.first_reported_date || null,
+          })
+        } else if (item.item_type === 'report' && repPool.length < 15) {
+          repPool.push({
+            item_type: 'report',
+            id: item.id,
+            title: item.title || '',
+            slug: item.slug || item.id,
+            category: item.category || 'combination',
+            feed_hook: item.feed_hook || null,
+            summary: item.summary || null,
+            credibility: item.credibility || null,
+            has_photo_video: !!item.has_photo_video,
+            has_physical_evidence: !!item.has_physical_evidence,
+            event_date: item.event_date || null,
+            location_name: item.location_name || null,
+            city: item.city || null,
+            state_province: item.state_province || null,
+            country: item.country || null,
+            phenomenon_type: item.phenomenon_type || null,
+          })
+        }
+      })
+
+      return { phenPool: phenPool, repPool: repPool }
+    }
+
     async function fetchData() {
       try {
-        /* Random seed + random offset into the feed for variety on each page load */
         var seed = Math.floor(Math.random() * 2147483647)
-        var randomOffset = Math.floor(Math.random() * 60)
-        var res = await fetch('/api/discover/feed-v2?limit=30&offset=' + randomOffset + '&seed=' + seed)
-        if (!res.ok) throw new Error('Feed fetch failed')
+        /* Random offset (0-30) for variety; kept small to stay in quality zone */
+        var randomOffset = Math.floor(Math.random() * 30)
+        var url = '/api/discover/feed-v2?limit=30&offset=' + randomOffset + '&seed=' + seed
+        var res = await fetch(url)
+        if (!res.ok) throw new Error('Feed fetch failed: ' + res.status)
         var data = await res.json()
-        var feedItems = data.items || []
+        var parsed = parseFeedItems(data.items || [])
 
-        /* Separate phenomena and reports from the feed */
-        var phenPool: PreviewPhenomenon[] = []
-        var repPool: PreviewReport[] = []
-
-        feedItems.forEach(function (item: any) {
-          /* Homepage only shows items with hooks for quality */
-          if (!item.feed_hook) return
-
-          if (item.item_type === 'phenomenon' && phenPool.length < 15) {
-            phenPool.push({
-              item_type: 'phenomenon',
-              id: item.id,
-              name: item.name || '',
-              slug: item.slug || item.id,
-              category: item.category || 'combination',
-              feed_hook: item.feed_hook || null,
-              ai_summary: item.ai_summary || null,
-              ai_quick_facts: item.ai_quick_facts || null,
-              report_count: item.report_count || 0,
-              primary_regions: item.primary_regions || null,
-              first_reported_date: item.first_reported_date || null,
-            })
-          } else if (item.item_type === 'report' && repPool.length < 15) {
-            repPool.push({
-              item_type: 'report',
-              id: item.id,
-              title: item.title || '',
-              slug: item.slug || item.id,
-              category: item.category || 'combination',
-              feed_hook: item.feed_hook || null,
-              summary: item.summary || null,
-              credibility: item.credibility || null,
-              has_photo_video: !!item.has_photo_video,
-              has_physical_evidence: !!item.has_physical_evidence,
-              event_date: item.event_date || null,
-              location_name: item.location_name || null,
-              city: item.city || null,
-              state_province: item.state_province || null,
-              country: item.country || null,
-              phenomenon_type: item.phenomenon_type || null,
-            })
+        /* If random offset yielded too few items, retry from offset 0 */
+        if (parsed.phenPool.length < 1 || parsed.repPool.length < 2) {
+          var fallbackRes = await fetch('/api/discover/feed-v2?limit=30&offset=0&seed=' + seed)
+          if (fallbackRes.ok) {
+            var fallbackData = await fallbackRes.json()
+            parsed = parseFeedItems(fallbackData.items || [])
           }
-        })
+        }
 
-        setSlides(buildSlides(phenPool, repPool))
+        setSlides(buildSlides(parsed.phenPool, parsed.repPool))
       } catch (e) {
         console.error('[DiscoverPreview] fetch error:', e)
       }
