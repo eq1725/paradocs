@@ -142,15 +142,26 @@ function EncyclopediaCard(props: { item: PreviewPhenomenon }) {
             )}
           </div>
 
-          {/* Hook — flex-1 with fade mask so it never pushes bottom out */}
-          <div className="flex-1 min-h-0 overflow-hidden relative mb-3">
+          {/* Hook */}
+          <div className="flex-1 min-h-0 overflow-hidden mb-3">
             <h3 className="text-base sm:text-lg font-display font-bold text-white leading-snug group-hover:text-primary-400 transition-colors">
               {hookText || item.name}
             </h3>
+          </div>
 
-            {/* Signals */}
+          {/* Bottom — topic name + report count (always visible) */}
+          <div className="flex-shrink-0 pt-3 border-t border-white/5">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-display font-bold truncate flex-1 min-w-0 mr-3" style={{ color: catColor }}>
+                {item.name}
+              </span>
+              <span className="text-[10px] font-medium text-primary-400 group-hover:text-primary-300 font-sans flex-shrink-0 flex items-center gap-1">
+                Read case
+                <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+              </span>
+            </div>
             {signals.length > 0 && (
-              <div className="flex gap-1.5 flex-wrap mt-3">
+              <div className="flex gap-1.5 flex-wrap mt-2">
                 {signals.map(function (s, i) {
                   return (
                     <span key={i} className="text-[10px] px-2.5 py-0.5 rounded-full border border-white/10 text-gray-400 font-sans font-medium">
@@ -160,19 +171,6 @@ function EncyclopediaCard(props: { item: PreviewPhenomenon }) {
                 })}
               </div>
             )}
-
-            {/* No visible fade — clean clip via overflow-hidden on parent */}
-          </div>
-
-          {/* Bottom — topic name in category color (always visible) */}
-          <div className="flex items-end justify-between pt-3 border-t border-white/5 flex-shrink-0">
-            <span className="text-sm font-display font-bold truncate flex-1 min-w-0 mr-3" style={{ color: catColor }}>
-              {item.name}
-            </span>
-            <span className="text-[10px] font-medium text-primary-400 group-hover:text-primary-300 font-sans flex-shrink-0 flex items-center gap-1">
-              Read case
-              <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-            </span>
           </div>
         </div>
       </div>
@@ -332,12 +330,13 @@ export default function DiscoverPreview() {
           return Object.assign({}, p, { item_type: 'phenomenon' as const })
         })
 
-        /* Fetch reports */
+        /* Fetch reports — only those linked to a phenomenon so we get clean topic names */
         var repResult = await supabase
           .from('reports')
           .select('id, title, slug, category, feed_hook, summary, credibility, has_photo_video, has_physical_evidence, event_date, location_name, city, state_province, country, phenomenon_type_id')
           .eq('status', 'approved')
           .not('feed_hook', 'is', null)
+          .not('phenomenon_type_id', 'is', null)
           .order('view_count', { ascending: false })
           .limit(20)
 
