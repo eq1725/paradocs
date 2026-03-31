@@ -51,6 +51,7 @@ interface PreviewReport {
   city: string | null
   state_province: string | null
   country: string | null
+  phenomenon_type: { name: string; slug: string; category: string } | null
 }
 
 /** A slide = 1 phenomenon + 2 reports */
@@ -77,6 +78,22 @@ var CATEGORY_COLORS: Record<string, string> = {
   combination: '#80cbc4',
 }
 
+/** Category-tinted background gradients for card distinction */
+var CATEGORY_GRADIENTS: Record<string, string> = {
+  ufos_aliens: 'linear-gradient(135deg, rgba(79,195,247,0.06) 0%, rgba(79,195,247,0.02) 40%, transparent 70%)',
+  cryptids: 'linear-gradient(135deg, rgba(165,214,167,0.06) 0%, rgba(165,214,167,0.02) 40%, transparent 70%)',
+  ghosts_hauntings: 'linear-gradient(135deg, rgba(206,147,216,0.06) 0%, rgba(206,147,216,0.02) 40%, transparent 70%)',
+  psychic_phenomena: 'linear-gradient(135deg, rgba(179,157,219,0.06) 0%, rgba(179,157,219,0.02) 40%, transparent 70%)',
+  consciousness_practices: 'linear-gradient(135deg, rgba(255,183,77,0.06) 0%, rgba(255,183,77,0.02) 40%, transparent 70%)',
+  psychological_experiences: 'linear-gradient(135deg, rgba(128,222,234,0.06) 0%, rgba(128,222,234,0.02) 40%, transparent 70%)',
+  biological_factors: 'linear-gradient(135deg, rgba(239,154,154,0.06) 0%, rgba(239,154,154,0.02) 40%, transparent 70%)',
+  perception_sensory: 'linear-gradient(135deg, rgba(255,204,128,0.06) 0%, rgba(255,204,128,0.02) 40%, transparent 70%)',
+  religion_mythology: 'linear-gradient(135deg, rgba(255,241,118,0.06) 0%, rgba(255,241,118,0.02) 40%, transparent 70%)',
+  esoteric_practices: 'linear-gradient(135deg, rgba(244,143,177,0.06) 0%, rgba(244,143,177,0.02) 40%, transparent 70%)',
+  combination: 'linear-gradient(135deg, rgba(128,203,196,0.06) 0%, rgba(128,203,196,0.02) 40%, transparent 70%)',
+}
+
+var CARD_HEIGHT = 'h-[280px] sm:h-[300px]'
 var ROTATE_INTERVAL = 6000
 
 // =========================================================================
@@ -87,6 +104,7 @@ function EncyclopediaCard(props: { item: PreviewPhenomenon }) {
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
   var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
+  var gradient = CATEGORY_GRADIENTS[item.category] || CATEGORY_GRADIENTS.combination
 
   var hookText = item.feed_hook || item.ai_summary || ''
   var href = '/phenomena/' + item.slug
@@ -104,8 +122,12 @@ function EncyclopediaCard(props: { item: PreviewPhenomenon }) {
 
   return (
     <Link href={href} className="block group">
-      <div className="relative rounded-xl border border-white/[0.08] overflow-hidden bg-gray-950 p-6 sm:p-7 min-h-[220px] sm:min-h-[260px] flex flex-col transition-all duration-300 hover:border-white/15">
+      <div className={'relative rounded-xl border border-white/[0.08] overflow-hidden bg-gray-950 p-6 sm:p-7 flex flex-col transition-all duration-300 hover:border-white/15 ' + CARD_HEIGHT}>
+        {/* Category-tinted background */}
+        <div className="absolute inset-0" style={{ background: gradient }} />
         <div className="absolute inset-0 opacity-[0.04]" style={{ background: 'radial-gradient(ellipse at 20% 80%, ' + catColor + ', transparent 65%)' }} />
+        {/* Subtle left accent border */}
+        <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl" style={{ background: catColor, opacity: 0.4 }} />
 
         <div className="relative z-10 flex flex-col h-full">
           {/* Badge */}
@@ -121,7 +143,7 @@ function EncyclopediaCard(props: { item: PreviewPhenomenon }) {
           </div>
 
           {/* Hook */}
-          <h3 className="text-lg sm:text-xl font-display font-bold text-white leading-snug mb-3 group-hover:text-primary-400 transition-colors">
+          <h3 className="text-base sm:text-lg font-display font-bold text-white leading-snug mb-3 group-hover:text-primary-400 transition-colors">
             {hookText || item.name}
           </h3>
 
@@ -140,9 +162,11 @@ function EncyclopediaCard(props: { item: PreviewPhenomenon }) {
 
           <div className="flex-grow" />
 
-          {/* Bottom */}
+          {/* Bottom — topic name in category color */}
           <div className="flex items-end justify-between pt-3 border-t border-white/5">
-            <p className="text-xs text-gray-500 font-sans truncate flex-1 min-w-0 mr-3">{item.name}</p>
+            <span className="text-sm font-display font-bold truncate flex-1 min-w-0 mr-3" style={{ color: catColor }}>
+              {item.name}
+            </span>
             <span className="text-[10px] font-medium text-primary-400 group-hover:text-primary-300 font-sans flex-shrink-0 flex items-center gap-1">
               Read case
               <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
@@ -162,20 +186,23 @@ function ReportCard(props: { item: PreviewReport }) {
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
   var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
+  var gradient = CATEGORY_GRADIENTS[item.category] || CATEGORY_GRADIENTS.combination
 
   var hookText = item.feed_hook || item.summary || ''
   var href = '/report/' + item.slug
 
-  var locParts: string[] = []
-  if (item.city) locParts.push(item.city)
-  if (item.state_province) locParts.push(item.state_province)
-  if (item.country && locParts.length === 0) locParts.push(item.country)
-  var location = locParts.join(', ')
+  /* Topic name: prefer the linked phenomenon name (e.g. "Bigfoot", "Black Triangle")
+     Fall back to short title */
+  var topicName = item.phenomenon_type ? item.phenomenon_type.name : item.title
 
   return (
     <Link href={href} className="block group">
-      <div className="relative rounded-xl border border-white/[0.08] overflow-hidden bg-gray-950 p-5 h-full flex flex-col transition-all duration-300 hover:border-white/15">
+      <div className={'relative rounded-xl border border-white/[0.08] overflow-hidden bg-gray-950 p-5 flex flex-col transition-all duration-300 hover:border-white/15 ' + CARD_HEIGHT}>
+        {/* Category-tinted background */}
+        <div className="absolute inset-0" style={{ background: gradient }} />
         <div className="absolute inset-0 opacity-[0.03]" style={{ background: 'radial-gradient(ellipse at 30% 70%, ' + catColor + ', transparent 60%)' }} />
+        {/* Subtle left accent border */}
+        <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl" style={{ background: catColor, opacity: 0.4 }} />
 
         <div className="relative z-10 flex flex-col h-full">
           {/* Category */}
@@ -183,21 +210,18 @@ function ReportCard(props: { item: PreviewReport }) {
             {(config?.icon || '') + ' ' + (config?.label || item.category)}
           </span>
 
-          {/* Hook */}
+          {/* Hook — use feed_hook (the short punchy hook), NOT expanded summary */}
           <h3 className="text-sm sm:text-base font-display font-bold text-white leading-snug mb-2 group-hover:text-primary-400 transition-colors">
             {hookText || item.title}
           </h3>
 
-          {/* Location */}
-          {location && (
-            <p className="text-[11px] text-gray-500 font-sans">{location}</p>
-          )}
-
           <div className="flex-grow" />
 
-          {/* Bottom */}
+          {/* Bottom — topic name in category color */}
           <div className="flex items-center justify-between pt-2 border-t border-white/5 mt-3">
-            <p className="text-[11px] text-gray-500 font-sans truncate flex-1 min-w-0 mr-2">{item.title}</p>
+            <span className="text-sm font-display font-bold truncate flex-1 min-w-0 mr-2" style={{ color: catColor }}>
+              {topicName}
+            </span>
             <span className="text-[10px] font-medium text-primary-400 group-hover:text-primary-300 font-sans flex-shrink-0">
               {'Read report \u2192'}
             </span>
@@ -241,24 +265,21 @@ function buildSlides(phenomena: PreviewPhenomenon[], reports: PreviewReport[]): 
   /* Build slides: pair each phenomenon with 2 reports, ensure category diversity */
   var slides: Slide[] = []
   var usedReportIds: Record<string, boolean> = {}
-  var repIdx = 0
 
   for (var pi = 0; pi < scoredPhen.length && slides.length < 5; pi++) {
     var phen = scoredPhen[pi].item
     var slideReports: PreviewReport[] = []
 
-    /* Find 2 reports preferring different categories from the phenomenon */
-    for (var ri = repIdx; ri < scoredRep.length && slideReports.length < 2; ri++) {
+    for (var ri = 0; ri < scoredRep.length && slideReports.length < 2; ri++) {
       var rep = scoredRep[ri].item
       if (usedReportIds[rep.id]) continue
-      /* Prefer different category from phenomenon for diversity */
       if (slideReports.length === 0 || rep.category !== phen.category) {
         slideReports.push(rep)
         usedReportIds[rep.id] = true
       }
     }
 
-    /* Backfill if we didn't get 2 diverse reports */
+    /* Backfill */
     for (var bi = 0; bi < scoredRep.length && slideReports.length < 2; bi++) {
       if (!usedReportIds[scoredRep[bi].item.id]) {
         slideReports.push(scoredRep[bi].item)
@@ -301,9 +322,10 @@ export default function DiscoverPreview() {
           return Object.assign({}, p, { item_type: 'phenomenon' as const })
         })
 
+        /* Fetch reports — include phenomenon_type for topic name */
         var repResult = await supabase
           .from('reports')
-          .select('id, title, slug, category, feed_hook, summary, credibility, has_photo_video, has_physical_evidence, event_date, location_name, city, state_province, country')
+          .select('id, title, slug, category, feed_hook, summary, credibility, has_photo_video, has_physical_evidence, event_date, location_name, city, state_province, country, phenomenon_type:phenomenon_type_id(name, slug, category)')
           .eq('status', 'approved')
           .not('feed_hook', 'is', null)
           .order('view_count', { ascending: false })
@@ -330,9 +352,7 @@ export default function DiscoverPreview() {
   }, [slides.length])
 
   useEffect(function () {
-    /* Check prefers-reduced-motion */
     if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    /* Only auto-rotate on md+ (desktop/tablet) */
     if (typeof window !== 'undefined' && window.innerWidth < 768) return
 
     if (!hovered && slides.length > 1) {
@@ -385,9 +405,9 @@ export default function DiscoverPreview() {
         >
           {loading ? (
             <div className="grid grid-cols-4 gap-4">
-              <div className="col-span-2 h-64 rounded-xl border border-white/[0.06] animate-pulse bg-white/[0.02]" />
-              <div className="h-64 rounded-xl border border-white/[0.06] animate-pulse bg-white/[0.02]" />
-              <div className="h-64 rounded-xl border border-white/[0.06] animate-pulse bg-white/[0.02]" />
+              <div className={'col-span-2 rounded-xl border border-white/[0.06] animate-pulse bg-white/[0.02] ' + CARD_HEIGHT} />
+              <div className={'rounded-xl border border-white/[0.06] animate-pulse bg-white/[0.02] ' + CARD_HEIGHT} />
+              <div className={'rounded-xl border border-white/[0.06] animate-pulse bg-white/[0.02] ' + CARD_HEIGHT} />
             </div>
           ) : currentSlide ? (
             <div
@@ -410,7 +430,7 @@ export default function DiscoverPreview() {
             <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide">
               {[0, 1, 2].map(function (i) {
                 return (
-                  <div key={i} className={'flex-shrink-0 rounded-xl border border-white/[0.06] animate-pulse bg-white/[0.02]' + (i === 0 ? ' w-[85vw] h-56' : ' w-[70vw] h-48')} />
+                  <div key={i} className={'flex-shrink-0 rounded-xl border border-white/[0.06] animate-pulse bg-white/[0.02] h-[280px]' + (i === 0 ? ' w-[85vw]' : ' w-[70vw]')} />
                 )
               })}
             </div>
