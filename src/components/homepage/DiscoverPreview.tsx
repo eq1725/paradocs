@@ -199,19 +199,20 @@ function ReportCard(props: { item: PreviewReport }) {
   var hookText = truncateHook(item.feed_hook || item.summary || '', 140)
   var href = '/report/' + item.slug
 
-  /* Build a compact location label for the bottom bar */
+  /* Topic name from the phenomenon_type linked in the DB.
+     Falls back to location + year if no phenomenon_type is set yet. */
+  var topicName = (item.phenomenon_type && item.phenomenon_type.name) ? item.phenomenon_type.name : ''
   var locationLabel = buildLocation(item)
   var year = item.event_date ? (item.event_date.match(/\d{4}/) || [''])[0] : ''
-  /* Bottom label: location with year, or source type, or content type */
-  var bottomLabel = ''
-  if (locationLabel && year) {
-    bottomLabel = locationLabel + ', ' + year
-  } else if (locationLabel) {
-    bottomLabel = locationLabel
-  } else if (item.source_type) {
-    bottomLabel = item.source_type.replace(/_/g, ' ')
-  } else if (year) {
-    bottomLabel = year
+  var bottomLabel = topicName
+  if (!bottomLabel) {
+    if (locationLabel && year) {
+      bottomLabel = locationLabel + ', ' + year
+    } else if (locationLabel) {
+      bottomLabel = locationLabel
+    } else if (year) {
+      bottomLabel = year
+    }
   }
 
   return (
@@ -243,10 +244,13 @@ function ReportCard(props: { item: PreviewReport }) {
             </p>
           </div>
 
-          {/* Bottom bar: location/date + read link */}
+          {/* Bottom bar: topic name or location + read link */}
           <div className="flex items-center justify-between pt-2.5 border-t border-white/[0.06] flex-shrink-0">
             {bottomLabel ? (
-              <span className="text-xs text-gray-400 font-sans truncate flex-1 min-w-0 mr-2">
+              <span
+                className={'truncate flex-1 min-w-0 mr-2 ' + (topicName ? 'text-sm font-display font-bold' : 'text-xs text-gray-400 font-sans')}
+                style={topicName ? { color: catColor } : undefined}
+              >
                 {bottomLabel}
               </span>
             ) : <span />}

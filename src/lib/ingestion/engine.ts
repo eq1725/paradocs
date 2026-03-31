@@ -133,6 +133,19 @@ async function identifyPhenomenaForReport(
     if (!error) linked++;
   }
 
+  // Also set phenomenon_type_id on the report to the highest-confidence match
+  // This powers the topic label on feed cards
+  if (matches.length > 0) {
+    const best = matches.reduce((a, b) => a.confidence > b.confidence ? a : b);
+    if (best.confidence >= 0.6) {
+      await supabase
+        .from('reports')
+        .update({ phenomenon_type_id: best.phenomenonId })
+        .eq('id', reportId)
+        .is('phenomenon_type_id', null); // Don't overwrite manual assignments
+    }
+  }
+
   return linked;
 }
 
