@@ -50,6 +50,7 @@ interface PreviewReport {
   city: string | null
   state_province: string | null
   country: string | null
+  source_type: string | null
   phenomenon_type: { name: string; slug: string; category: string } | null
 }
 
@@ -113,31 +114,6 @@ function truncateHook(text: string, maxLen: number): string {
   /* Fall back to word boundary */
   var wordEnd = trimmed.lastIndexOf(' ')
   return (wordEnd > maxLen * 0.4 ? trimmed.substring(0, wordEnd) : trimmed) + '\u2026'
-}
-
-/** Extract clean topic name from report title, with category label fallback */
-function extractTopicName(title: string, categoryLabel: string): string {
-  var raw = title.split(/\s*[-\u2014]\s*/)[0] || title
-  raw = raw
-    .replace(/\s+Caught on Camera.*$/i, '')
-    .replace(/\s+Sighting in.*$/i, '')
-    .replace(/\s+Spotted (in|near|at).*$/i, '')
-    .replace(/\s+Encounter (in|near|at).*$/i, '')
-    .replace(/\s+Report.*$/i, '')
-    .replace(/\s+Experience.*$/i, '')
-    .replace(/\s+after\s+.*/i, '')
-    .trim()
-
-  /* If the result is still too long, looks like a sentence (starts with
-     "I ", "The ", "My ", "A ", etc.), or contains too many words, fall
-     back to the category label which is always clean */
-  var wordCount = raw.split(/\s+/).length
-  var isSentence = /^(I |The |My |A |An |We |He |She |It |This |That |Some |One |Two |Three |Four |North |South |East |West )/i.test(raw)
-  if (raw.length > 24 || wordCount > 4 || isSentence) {
-    return categoryLabel
-  }
-
-  return raw || categoryLabel
 }
 
 /** Build location string from report fields */
@@ -222,11 +198,21 @@ function ReportCard(props: { item: PreviewReport }) {
 
   var hookText = truncateHook(item.feed_hook || item.summary || '', 140)
   var href = '/report/' + item.slug
-  var topicName = (item.phenomenon_type && item.phenomenon_type.name)
-    ? item.phenomenon_type.name
-    : extractTopicName(item.title, config?.label || item.category)
-  var locationStr = buildLocation(item)
+
+  /* Build a compact location label for the bottom bar */
+  var locationLabel = buildLocation(item)
   var year = item.event_date ? (item.event_date.match(/\d{4}/) || [''])[0] : ''
+  /* Bottom label: location with year, or source type, or content type */
+  var bottomLabel = ''
+  if (locationLabel && year) {
+    bottomLabel = locationLabel + ', ' + year
+  } else if (locationLabel) {
+    bottomLabel = locationLabel
+  } else if (item.source_type) {
+    bottomLabel = item.source_type.replace(/_/g, ' ')
+  } else if (year) {
+    bottomLabel = year
+  }
 
   return (
     <Link href={href} className="block group">
@@ -238,8 +224,8 @@ function ReportCard(props: { item: PreviewReport }) {
         <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl" style={{ background: catColor, opacity: 0.5 }} />
 
         <div className="relative z-10 flex flex-col h-full">
-          {/* Top: category + meta */}
-          <div className="flex items-center justify-between mb-1 flex-shrink-0">
+          {/* Top: category + badge */}
+          <div className="flex items-center justify-between mb-3 flex-shrink-0">
             <span className="text-[10px] font-semibold uppercase tracking-widest font-sans" style={{ color: catColor }}>
               {(config?.icon || '') + ' ' + (config?.label || item.category)}
             </span>
@@ -250,13 +236,6 @@ function ReportCard(props: { item: PreviewReport }) {
             )}
           </div>
 
-          {/* Location + date meta line */}
-          {(locationStr || year) && (
-            <p className="text-[10px] text-gray-500 font-sans mb-2 flex-shrink-0">
-              {[locationStr, year].filter(Boolean).join(' \u00B7 ')}
-            </p>
-          )}
-
           {/* Hook text — regular weight for readability */}
           <div className="flex-1 min-h-0 overflow-hidden mb-3">
             <p className="text-sm text-gray-300 leading-relaxed font-sans group-hover:text-gray-200 transition-colors">
@@ -264,11 +243,13 @@ function ReportCard(props: { item: PreviewReport }) {
             </p>
           </div>
 
-          {/* Bottom bar */}
+          {/* Bottom bar: location/date + read link */}
           <div className="flex items-center justify-between pt-2.5 border-t border-white/[0.06] flex-shrink-0">
-            <span className="text-sm font-display font-bold truncate flex-1 min-w-0 mr-2" style={{ color: catColor }}>
-              {topicName}
-            </span>
+            {bottomLabel ? (
+              <span className="text-xs text-gray-400 font-sans truncate flex-1 min-w-0 mr-2">
+                {bottomLabel}
+              </span>
+            ) : <span />}
             <span className="text-[10px] font-medium text-primary-400 group-hover:text-primary-300 font-sans flex-shrink-0 flex items-center gap-1 transition-colors">
               Read report
               <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
@@ -387,6 +368,7 @@ export default function DiscoverPreview() {
             city: item.city || null,
             state_province: item.state_province || null,
             country: item.country || null,
+            source_type: item.source_type || null,
             phenomenon_type: item.phenomenon_type || null,
           })
         }

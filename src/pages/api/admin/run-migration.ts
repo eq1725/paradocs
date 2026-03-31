@@ -94,6 +94,24 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  // Auth check — require admin session
+  var authHeader = req.headers.authorization || ''
+  var isServiceRole = authHeader.startsWith('Bearer ') && authHeader.includes('service_role')
+
+  if (!isServiceRole) {
+    var token = req.cookies['sb-bhkbctdmwnowfmqpksed-auth-token']
+    if (!token) {
+      var bearerToken = authHeader.replace('Bearer ', '')
+      if (!bearerToken) {
+        return res.status(401).json({ error: 'Unauthorized' })
+      }
+      var { data: userData } = await supabaseAdmin.auth.getUser(bearerToken)
+      if (!userData?.user || userData.user.email !== 'williamschaseh@gmail.com') {
+        return res.status(403).json({ error: 'Forbidden' })
+      }
+    }
+  }
+
   const results: { statement: string; success: boolean; error?: string }[] = []
 
   // Split into statements and execute each
