@@ -34,7 +34,7 @@ var SPOTLIGHT_CARDS: SpotlightCard[] = [
     icon: <Globe2 className="w-7 h-7" />,
     gradient: 'from-emerald-900/60 via-emerald-950/40 to-gray-950',
     accentColor: 'hover:border-emerald-500/40',
-    href: '/map?category=ufos_aliens&country=United+States',
+    href: '/explore?mode=map&category=ufos_aliens&country=United+States',
     reportCount: 308,
   },
   {
@@ -44,7 +44,7 @@ var SPOTLIGHT_CARDS: SpotlightCard[] = [
     icon: <Skull className="w-7 h-7" />,
     gradient: 'from-amber-900/60 via-amber-950/40 to-gray-950',
     accentColor: 'hover:border-amber-500/40',
-    href: '/map?category=cryptids',
+    href: '/explore?mode=map&category=cryptids',
     reportCount: 2,
   },
   {
@@ -54,7 +54,7 @@ var SPOTLIGHT_CARDS: SpotlightCard[] = [
     icon: <Ghost className="w-7 h-7" />,
     gradient: 'from-purple-900/60 via-purple-950/40 to-gray-950',
     accentColor: 'hover:border-purple-500/40',
-    href: '/map?category=ghosts_hauntings',
+    href: '/explore?mode=map&category=ghosts_hauntings',
     reportCount: 1,
   },
   {
@@ -64,7 +64,7 @@ var SPOTLIGHT_CARDS: SpotlightCard[] = [
     icon: <Flame className="w-7 h-7" />,
     gradient: 'from-red-900/60 via-red-950/40 to-gray-950',
     accentColor: 'hover:border-red-500/40',
-    href: '/map?mode=heat',
+    href: '/explore?mode=map&heat=true',
   },
   {
     id: 'pre-modern',
@@ -73,7 +73,7 @@ var SPOTLIGHT_CARDS: SpotlightCard[] = [
     icon: <Compass className="w-7 h-7" />,
     gradient: 'from-indigo-900/60 via-indigo-950/40 to-gray-950',
     accentColor: 'hover:border-indigo-500/40',
-    href: '/map?dateTo=1899',
+    href: '/explore?mode=map&dateTo=1899',
   },
 ]
 

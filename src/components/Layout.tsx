@@ -72,17 +72,17 @@ export default function Layout({ children }: LayoutProps) {
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
     if (searchQuery.trim()) {
-      router.push(`/search?q=${encodeURIComponent(searchQuery)}`)
+      router.push('/explore?mode=search&q=' + encodeURIComponent(searchQuery))
     }
   }
 
-  // Main navigation - core browse + AI-first entry points
+  // Main navigation — Session A2: Explore Consolidation
   const navigation = [
+    { name: 'Feed', href: '/discover', icon: Flame },
     { name: 'Explore', href: '/explore', icon: Compass },
-    { name: 'Map', href: '/map', icon: Map },
-    { name: 'Encyclopedia', href: '/phenomena', icon: BookOpen },
-    { name: 'Ask AI', href: '/search?mode=ai', icon: Sparkles },
-    { name: 'Stories', href: '/discover', icon: Flame },
+    { name: 'Encyclopedia', href: '/explore?mode=browse', icon: BookOpen },
+    { name: 'Ask AI', href: '/explore?mode=search', icon: Sparkles },
+    { name: 'Lab', href: '/lab', icon: Sparkles },
   ]
 
   return (
@@ -124,8 +124,8 @@ export default function Layout({ children }: LayoutProps) {
               })}
             </nav>
 
-            {/* Search Bar — invisible on /search page (keeps layout space, prevents shift) */}
-            <form onSubmit={handleSearch} className={'flex-1 max-w-md mx-8 hidden md:block' + (router.pathname === '/search' ? ' invisible' : '')}>
+            {/* Search Bar — invisible on /explore search mode (keeps layout space, prevents shift) */}
+            <form onSubmit={handleSearch} className={'flex-1 max-w-md mx-8 hidden md:block' + (router.pathname === '/explore' && router.query.mode === 'search' ? ' invisible' : '')}>
               <div className="relative group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-focus-within:text-primary-400 transition-colors" />
                 <input
@@ -140,7 +140,7 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Mobile search icon — persistent, always visible on mobile */}
             <Link
-              href="/search"
+              href="/explore?mode=search"
               className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors ml-auto"
               aria-label="Search"
             >
@@ -153,9 +153,9 @@ export default function Layout({ children }: LayoutProps) {
               {!loading && (
                 user ? (
                   <>
-                    {/* Mobile: Simple link to dashboard */}
+                    {/* Mobile: Simple link to profile */}
                     <Link
-                      href="/dashboard"
+                      href="/profile"
                       className="md:hidden flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 transition-colors"
                     >
                       <Avatar
@@ -178,15 +178,15 @@ export default function Layout({ children }: LayoutProps) {
                           <p className="font-medium text-white">{user.display_name || user.username}</p>
                           <p className="text-xs text-gray-400">@{user.username}</p>
                         </div>
-                        <Link href="/dashboard" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
+                        <Link href="/lab" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
                           <LayoutDashboard className="w-4 h-4" />
-                          Dashboard
+                          Lab
                         </Link>
-                        <Link href="/dashboard/settings" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
+                        <Link href="/profile" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
                           <User className="w-4 h-4" />
                           Profile
                         </Link>
-                        <Link href="/dashboard/settings" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
+                        <Link href="/profile" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
                           <Settings className="w-4 h-4" />
                           Settings
                         </Link>
@@ -244,15 +244,15 @@ export default function Layout({ children }: LayoutProps) {
                 <li><Link href="/explore?category=ufo_uap" className="hover:text-white">UFO Sightings</Link></li>
                 <li><Link href="/explore?category=cryptid" className="hover:text-white">Cryptids</Link></li>
                 <li><Link href="/explore?category=ghost_haunting" className="hover:text-white">Ghosts</Link></li>
-                <li><Link href="/map" className="hover:text-white">Interactive Map</Link></li>
-                <li><Link href="/insights" className="hover:text-white">Pattern Insights</Link></li>
+                <li><Link href="/explore?mode=map" className="hover:text-white">Interactive Map</Link></li>
+                <li><Link href="/explore?mode=search" className="hover:text-white">Search</Link></li>
               </ul>
             </div>
             <div>
               <h4 className="font-medium text-white mb-4">Community</h4>
               <ul className="space-y-2 text-sm text-gray-400">
                 <li><Link href="/submit" className="hover:text-white">Submit Report</Link></li>
-                <li><Link href="/analytics" className="hover:text-white">Analytics</Link></li>
+                <li><Link href="/explore" className="hover:text-white">Explore</Link></li>
                 <li><Link href="/about" className="hover:text-white">About</Link></li>
               </ul>
             </div>

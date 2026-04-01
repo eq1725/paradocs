@@ -5,12 +5,95 @@ const nextConfig = {
     return [
       {
         source: '/encyclopedia',
-        destination: '/phenomena',
+        destination: '/explore?mode=browse',
         permanent: true,
       },
       {
         source: '/encyclopedia/:slug',
         destination: '/phenomena/:slug',
+        permanent: true,
+      },
+      // Session A1: UX Consolidation — dashboard → lab redirects
+      {
+        source: '/dashboard',
+        destination: '/lab',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/saved',
+        destination: '/lab?tab=saves',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/research-hub',
+        destination: '/lab?tab=cases',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/reports',
+        destination: '/lab?tab=cases',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/constellation',
+        destination: '/lab?tab=map',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/journal',
+        destination: '/lab?tab=notes',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/journal/:path*',
+        destination: '/lab?tab=notes',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/insights',
+        destination: '/lab?tab=saves',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/digests',
+        destination: '/lab',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/settings',
+        destination: '/profile',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/subscription',
+        destination: '/profile',
+        permanent: true,
+      },
+      // Session A2: Explore Consolidation — absorbed routes
+      {
+        source: '/map',
+        destination: '/explore?mode=map',
+        permanent: true,
+      },
+      {
+        source: '/search',
+        destination: '/explore?mode=search',
+        permanent: true,
+      },
+      {
+        source: '/phenomena',
+        destination: '/explore?mode=browse',
+        permanent: true,
+      },
+      {
+        source: '/analytics',
+        destination: '/explore',
+        permanent: true,
+      },
+      // /discover stays as-is (Feed), but /feed also works
+      {
+        source: '/feed',
+        destination: '/discover',
         permanent: true,
       },
     ]

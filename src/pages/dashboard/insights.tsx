@@ -208,7 +208,7 @@ export default function InsightsPage() {
           ? `No paranormal reports within ${radius} miles of ${city}, ${state} in the past month. Be the first to document something!`
           : `There has been a ${Math.abs(percent_change)}% ${trendText} in paranormal reports within ${radius} miles of ${city}, ${state} this month (${current_count} total reports).`,
         icon: TrendIcon,
-        link: '/map'
+        link: '/explore?mode=map'
       })
     }
 

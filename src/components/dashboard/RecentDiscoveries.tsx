@@ -113,7 +113,7 @@ export default function RecentDiscoveries(props: RecentDiscoveriesProps) {
             Recent Discoveries
           </h3>
           <Link
-            href="/dashboard/saved"
+            href="/lab?tab=saves"
             className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
           >
             View All <ArrowRight className="w-3 h-3" />

@@ -221,7 +221,7 @@ export default function InsightsPage() {
                   {showPersonalized ? 'Showing My Interests' : 'Show My Interests'}
                 </button>
                 <Link
-                  href="/dashboard/settings"
+                  href="/profile"
                   className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
                   title="Update interests"
                 >

@@ -91,7 +91,10 @@ export function useMapState(): UseMapStateReturn {
       newSelectedId: string | null
     ) => {
       const query = filtersToQuery(newFilters, newHeatmap, newSelectedId)
-      router.replace({ pathname: '/map', query }, undefined, { shallow: true })
+      // Session A2: Map is now at /explore?mode=map
+      var basePath = router.pathname === '/explore' ? '/explore' : '/map'
+      if (basePath === '/explore') query.mode = 'map'
+      router.replace({ pathname: basePath, query: query }, undefined, { shallow: true })
     },
     [router]
   )

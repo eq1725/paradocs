@@ -72,7 +72,7 @@ export function UpgradeCard({ currentTier, variant = 'full' }: UpgradeCardProps)
   if (variant === 'compact') {
     return (
       <Link
-        href="/dashboard/subscription"
+        href="/profile"
         className="block p-4 bg-gradient-to-r from-purple-900/50 to-indigo-900/50 rounded-lg border border-purple-700/50 hover:border-purple-600 transition-colors group"
       >
         <div className="flex items-center justify-between">
@@ -117,7 +117,7 @@ export function UpgradeCard({ currentTier, variant = 'full' }: UpgradeCardProps)
       </ul>
 
       <Link
-        href="/dashboard/subscription"
+        href="/profile"
         className="block w-full py-3 px-4 bg-purple-600 hover:bg-purple-500 text-white font-medium text-center rounded-lg transition-colors"
       >
         View Upgrade Options

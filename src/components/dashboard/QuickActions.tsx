@@ -20,7 +20,7 @@ import {
 
 var actions = [
   { href: '/explore', label: 'Browse Cases', icon: Compass, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
-  { href: '/search', label: 'Search', icon: Search, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
+  { href: '/explore?mode=search', label: 'Search', icon: Search, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
   { href: '/ask', label: 'Ask the Unknown', icon: MessageCircle, color: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20' },
   { href: '/dashboard/research-hub', label: 'Research Hub', icon: Sparkles, color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
   { href: '/dashboard/saved', label: 'Saved', icon: Bookmark, color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },

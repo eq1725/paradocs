@@ -434,7 +434,7 @@ export default function AcademicObservationPanel({ reportSlug, className, isExpa
                   Structured observation data, citation generation, and JSON export are available on the Pro plan.
                 </p>
                 <Link
-                  href="/dashboard/subscription"
+                  href="/profile"
                   className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white rounded-lg transition-all hover:scale-105"
                   style={{ background: 'linear-gradient(135deg, #9000f0, #7a00cc)' }}
                 >

@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** March 31, 2026
+**Last updated:** April 1, 2026
 **Project:** beta.discoverparadocs.com
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -164,6 +164,116 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 13 | **Mobile-First Design System** | Cross-cutting mobile UX: bottom tabs, bottom sheets, design tokens, screen-by-screen redesign | `HANDOFF_MOBILE.md` | Active — Phase 1-2 + 3a + Nav Unification deployed. Screen-by-screen redesign next. |
 | 14 | **Amazon Affiliate & Revenue Content** | Book recommendations, ASIN curation, affiliate strategy, FTC compliance, revenue optimization | `HANDOFF_AFFILIATE.md` | Active — Foundation deployed (report_books table, FurtherReading component, 16 Roswell books). Expansion needed. |
 | 15 | **AI Experience & Intelligence** | Ask the Unknown chat, AI report analysis, AI cross-referencing, AI search, AI voice/personality, provider management | `HANDOFF_AI_EXPERIENCE.md` | DEPLOYED — RAG pipeline, semantic search, pattern detection, chat with citations all live. ~3,600 phenomena embedding remaining. |
+| A1 | **Lab + Nav + Profile (UX Consolidation)** | New /lab page (4 tabs), new /profile page, MobileBottomTabs rewrite, 301 redirects, Layout.tsx nav update | N/A | **COMPLETE (April 1)** — See details below |
+| A2 | **Explore Consolidation** | Merge /explore, /map, /search, /phenomena listing into one page with Map/Browse/Search tabs | N/A | **COMPLETE (April 1)** — See details below |
+
+---
+
+### Session A1: Lab + Nav + Profile — COMPLETE (April 1, 2026)
+
+**What was built:**
+
+1. **`/lab` page** (`src/pages/lab.tsx`) — Single tabbed view replacing 10 dashboard routes:
+   - 4 horizontal tabs: Saves | Cases | Map | Notes
+   - Saves tab: grid of saved reports with category filter, pagination, AI insight card placeholder
+   - Cases tab: placeholder — "Coming soon for Core+ subscribers"
+   - Map tab: placeholder — "Coming soon for Pro subscribers" (ConstellationMapV2 can be integrated here)
+   - Notes tab: journal entries with search, pagination, new note creation link
+   - Gear icon → /profile, Bell icon for future notifications, Submit Report link
+   - Works for unauthenticated users (shows sign-in prompt)
+
+2. **`/profile` page** (`src/pages/profile.tsx`) — Public researcher identity + account management:
+   - Shows avatar, display name, username, rank (Observer → Investigator → Senior Researcher → Field Agent)
+   - Stats row: saved count, reports, hypotheses (placeholder 0), corroborations (placeholder 0)
+   - Links to: Account Settings, Subscription, Public Profile, Lab, Sign Out
+   - Unauthenticated users see sign-in prompt
+
+3. **`MobileBottomTabs.tsx` rewrite** — New 4-tab structure:
+   - Feed (flame) | Explore (compass) | Lab (telescope) | Profile (user)
+   - "More" bottom sheet REMOVED entirely
+   - [+] FAB REMOVED
+   - Profile tab redirects to /login for unauthenticated users
+   - Active tab indicator uses existing brand primary-400 color
+
+4. **301 redirects** in `next.config.js`:
+   - `/dashboard` → `/lab`
+   - `/dashboard/saved` → `/lab?tab=saves`
+   - `/dashboard/research-hub`, `/dashboard/reports` → `/lab?tab=cases`
+   - `/dashboard/constellation` → `/lab?tab=map`
+   - `/dashboard/journal`, `/dashboard/journal/*` → `/lab?tab=notes`
+   - `/dashboard/insights` → `/lab?tab=saves`
+   - `/dashboard/digests` → `/lab`
+   - `/dashboard/settings`, `/dashboard/subscription` → `/profile`
+   - `/feed` → `/discover`
+
+5. **Layout.tsx desktop nav updated**:
+   - Navigation now: Feed | Explore | Encyclopedia | Ask AI | Lab
+   - User dropdown: Lab (was Dashboard), Profile (was Settings), Settings → /profile
+   - Mobile avatar link: /profile (was /dashboard)
+
+6. **Internal link updates** (9 files, 13 references):
+   - `submit/success.tsx`: /dashboard → /lab
+   - `FeatureGate.tsx`: /dashboard/subscription → /profile
+   - `UpgradeCard.tsx`: /dashboard/subscription → /profile (2 occurrences)
+   - `UsageWarningBanner.tsx`: /dashboard/settings#subscription → /profile
+   - `AcademicObservationPanel.tsx`: /dashboard/subscription → /profile
+   - `insights/index.tsx`: /dashboard/settings → /profile
+   - `RecentDiscoveries.tsx`: /dashboard/saved → /lab?tab=saves
+
+**Cross-session impacts for Session A2:**
+- Explore consolidation should follow the same tab pattern (Map | Browse | Search within /explore)
+- MobileBottomTabs already routes /explore, /map, /search, /phenomena to the "Explore" active state
+- The old dashboard pages still exist at their routes but all have 301 redirects — they can be deleted once A2 confirms no dependencies
+- Journal /dashboard/journal/new and /dashboard/journal/[id] still need to exist as actual pages (or be relocated into the Lab) since the Notes tab links to them
+
+**SWC compatibility:**
+- lab.tsx and profile.tsx use `var` + `function(){}` for SWC compatibility
+- MobileBottomTabs.tsx uses `var` + `function(){}` (same pattern as before)
+
+---
+
+### Session A2: Explore Consolidation — COMPLETE (April 1, 2026)
+
+**What was built:**
+
+1. **`/explore` page rewritten** (`src/pages/explore.tsx`) — Three mode tabs consolidating 5 routes:
+   - **Map mode:** Full-screen interactive MapLibre GL map, relocated from `/map`. All map components (MapContainer, MapControls, MapFilterPanel, MapBottomSheet, MapReportCard, MapTimeline) integrated. Deep-link URL params preserved (`/explore?mode=map&lat=33&lng=-112`).
+   - **Browse mode:** Category tiles → subcategory phenomena grid → filtered report list. Absorbs old `/explore` category browsing AND `/phenomena` encyclopedia listing. Personalized feed sections included. Tapping a category shows phenomena in that category, with drill-down to filtered reports.
+   - **Search mode:** Full keyword search with autocomplete, category facets, AI-related patterns, search mode toggle (Keywords/Exact Phrase). Relocated from `/search`. Deep-link: `/explore?mode=search&q=phoenix+lights`.
+   - Mode switching is client-side (no page reload). URL params update via shallow routing.
+
+2. **301 redirects** in `next.config.js`:
+   - `/map` → `/explore?mode=map`
+   - `/search` → `/explore?mode=search`
+   - `/phenomena` → `/explore?mode=browse`
+   - `/analytics` → `/explore`
+   - `/encyclopedia` → `/explore?mode=browse` (updated from chained redirect)
+
+3. **Internal link updates** (8 files, 15+ references):
+   - `Layout.tsx`: Desktop nav Encyclopedia → `/explore?mode=browse`, Ask AI → `/explore?mode=search`, search form → `/explore?mode=search`, mobile search icon → `/explore?mode=search`, footer Interactive Map → `/explore?mode=map`, footer Analytics → `/explore`
+   - `MapSpotlightRow.tsx`: All 5 spotlight card hrefs updated from `/map?...` to `/explore?mode=map&...`
+   - `useMapState.ts`: URL sync updated to detect `/explore` pathname and include `mode=map` param
+   - `QuickActions.tsx`: Search link → `/explore?mode=search`
+   - `index.tsx` (homepage): Search form → `/explore?mode=search`
+   - `dashboard/insights.tsx`: Map link → `/explore?mode=map`
+   - `NavigationHelper.tsx`: Removed `/search` and `/map` from list pages, added `/lab`
+   - `MobileBottomTabs.tsx`: Simplified explore detection (removed `/phenomena` from active check since individual pages still exist under `/phenomena/[slug]`)
+
+**NOT touched (as specified):**
+- `/phenomena/[slug]` detail pages — still render at their current URLs
+- `/report/[slug]` detail pages
+- `/lab` and `/profile` pages (Session A1)
+- Feed/discover page
+
+**Cross-session impacts for Session B1:**
+- The old `/map.tsx`, `/search.tsx`, and `/phenomena/index.tsx` page files still exist but are now unreachable due to 301 redirects. They can be deleted in a cleanup pass once confirmed.
+- `useMapState.ts` now detects whether it's on `/explore` or `/map` to set the correct pathname for URL sync. This is backward-compatible.
+- The personalized feed API (`/api/feed/personalized`) is still called from Browse mode — no changes to backend APIs.
+- Search still uses `/api/search/fulltext` and `/api/ai/related` — no backend changes.
+
+**SWC compatibility:**
+- explore.tsx uses `var` + `function(){}` throughout for SWC compatibility
+- All modified files maintain existing SWC patterns
 
 ---
 
@@ -728,25 +838,30 @@ Each major feature area has a dedicated Claude session with its own deep context
 - `src/lib/database.types.ts` — TypeScript types
 - `src/lib/constants.ts`, `utils.ts`
 - `src/styles/globals.css` — Tailwind + custom CSS
-- `supabase/migrations/` — 30 migration files (includes 20260311_research_hub_constellation_v2.sql)
+- `supabase/migrations/` — 30+ migration files (includes 20260311_research_hub_constellation_v2.sql, 20260331_rls_security_hardening.sql)
 - `next.config.js`, `tailwind.config.js`, `tsconfig.json`
 - `DEPLOYMENT.md`, `SECURITY.md`
 - `src/pages/auth/callback.tsx`, `src/pages/login.tsx`
 
 **Current state:** Next.js 14 Pages Router. Supabase with RLS. Vercel deployment (auto-deploy). Auth working.
 
+**Security hardening (April 1, 2026):**
+- **RLS security audit COMPLETE:** Supabase alerted on publicly accessible tables without Row-Level Security. Diagnosed 6 tables missing RLS: `feed_config`, `constellation_external_url_signals`, `duplicate_matches`, `daily_stats`, `data_sources`, `spatial_ref_sys` (PostGIS system table — cannot/should not have RLS). Migration applied: `supabase/migrations/20260331_rls_security_hardening.sql`. All fixable tables now have RLS enabled with appropriate policies (admin-only for feed_config/duplicate_matches, public read + auth write for constellation_external_url_signals, conditional for daily_stats/data_sources).
+- **Admin endpoint secured:** `src/pages/api/admin/run-migration.ts` had NO auth check — anyone hitting the endpoint could trigger migrations with service_role key. Added admin auth guard matching `report-review.ts` pattern (cookie + bearer token + email check for `williamschaseh@gmail.com`). File kept rather than deleted since project is still in active development.
+- **Note:** `spatial_ref_sys` (PostGIS system table) flagged by Supabase but is a read-only reference table that cannot/should not have RLS added. This is expected.
+
 **What needs work:**
 - Performance optimization (Core Web Vitals)
 - Database schema optimization (indexes for new queries)
 - Auth flow improvements
-- RLS policy audit
+- ~~RLS policy audit~~ ✅ DONE (April 1, 2026)
 - Error boundary implementation
 - Shared component library cleanup
 - TypeScript strictness improvements
 - CI/CD pipeline (tests, linting)
 - Mobile responsiveness audit
 - Accessibility (a11y) audit
-- Security hardening
+- ~~Security hardening~~ ✅ RLS + admin endpoint auth (April 1, 2026)
 
 **Touches other sessions:** ALL sessions (foundation changes affect everything). Extra care needed — coordinate via Cross-Feature Notes.
 
@@ -846,6 +961,8 @@ Each major feature area has a dedicated Claude session with its own deep context
 | ~3,600 phenomena not yet embedded | Full semantic search coverage for encyclopedia | Chase | Re-run embed batches with staggered timing (see HANDOFF_AI_EXPERIENCE.md). NOT a launch blocker — improves search quality incrementally. |
 | DB migration not yet run (Phase 3 feed tables) | Algorithmic feed scoring, behavioral signals, depth gating, admin metrics | Chase | Run `supabase/migrations/20260324_feed_events.sql` in Supabase dashboard. Creates `feed_events`, `feed_config`, `category_engagement` materialized view, `user_usage` table. Also create `refresh_category_engagement` RPC function for materialized view refresh. Required before feed personalization or depth gating works. |
 | Vercel cron not configured for engagement refresh | Hourly materialized view refresh for feed ranking | Chase | Add cron job hitting `/api/cron/refresh-engagement` hourly with CRON_SECRET header. Without this, `category_engagement` view becomes stale and ranking degrades. |
+| ~~RLS missing on 6 tables~~ | ~~Supabase security alert~~ | ~~Session 12~~ | ~~✅ RESOLVED (April 1, 2026) — Migration applied, all tables secured except spatial_ref_sys (PostGIS system table, expected).~~ |
+| ~~Admin endpoint /api/admin/run-migration.ts unprotected~~ | ~~Security risk — anyone could trigger migrations~~ | ~~Session 12~~ | ~~✅ RESOLVED (April 1, 2026) — Auth guard added (cookie + bearer + email check).~~ |
 
 ---
 
@@ -892,6 +1009,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 - No error monitoring service
 - Mobile responsiveness gaps → **Session 13 created to address comprehensively**
 - `/og-home.png` referenced in meta tags but doesn't exist yet — needs design (1200×630)
+- **Brand assets created (April 1):** `paradocs-zoom-background.png` (Zoom background, star field + logo + tagline), `paradocs-schema-viz.png` (database schema visualization for homepage pillar card, blue 3D style with all Paradocs tables). Schema viz may need further iteration to match reference style more closely.
 
 ---
 

@@ -44,7 +44,7 @@ export default function Home() {
     e.preventDefault()
     if (searchQuery.trim()) {
       heroTest.trackConversion('search')
-      window.location.href = '/search?q=' + encodeURIComponent(searchQuery)
+      window.location.href = '/explore?mode=search&q=' + encodeURIComponent(searchQuery)
     }
   }
 

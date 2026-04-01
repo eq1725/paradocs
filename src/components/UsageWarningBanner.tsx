@@ -124,7 +124,7 @@ export default function UsageWarningBanner(props: UsageWarningBannerProps) {
           </div>
           <div className="mt-3 flex items-center gap-3">
             <Link
-              href="/dashboard/settings#subscription"
+              href="/profile"
               className="inline-flex items-center gap-1.5 text-sm font-medium text-purple-400 hover:text-purple-300 transition-colors"
             >
               Upgrade your plan

@@ -6,11 +6,10 @@ import { classNames } from '@/lib/utils'
 // Pages where user browses lists and clicks into detail pages
 const LIST_PAGES: Record<string, string> = {
   '/explore': 'Explore',
-  '/search': 'Search Results',
   '/discover': 'Discover',
   '/phenomena': 'Encyclopedia',
   '/insights': 'Insights',
-  '/map': 'Map',
+  '/lab': 'Lab',
   '/dashboard/saved': 'Saved Reports',
   '/dashboard/reports': 'My Reports',
   '/dashboard/journal': 'Journal',

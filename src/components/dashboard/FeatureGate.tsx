@@ -141,7 +141,7 @@ export function FeatureGate({
         </div>
 
         <Link
-          href="/dashboard/subscription"
+          href="/profile"
           className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded-lg transition-colors"
         >
           Upgrade Now
