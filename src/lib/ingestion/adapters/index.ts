@@ -29,7 +29,7 @@ const adapters: Record<string, SourceAdapter> = {
   'reddit-v2': redditV2Adapter,
   youtube: youtubeAdapter,
   news: newsAdapter,
-  erowid: erowidAdapter,
+  // erowid: erowidAdapter, // DISABLED — requires written permission from Erowid Center before scraping. Email sent April 2026. Re-enable once approved.
   // Future adapters:
   // mufon: mufonAdapter,
   // podcasts: podcastAdapter,
