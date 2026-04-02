@@ -234,15 +234,17 @@ function parseExperiencePage(html: string, id: string, name: string): ScrapedRep
     return null;
   }
 
-  // Skip if content is absurdly long — likely scraped an index/listing page
-  if (content.length > 20000) {
+  // NDERF experience pages include questionnaire answers, sidebar HTML, etc.
+  // Real experiences can be 5K-15K chars after HTML stripping.
+  // Pages over 40K are almost certainly index/listing pages.
+  if (content.length > 40000) {
     console.log(`[NDERF] Skipping ${id}: content too long (${content.length} chars) — likely an index page`);
     return null;
   }
 
-  // Cap description at a reasonable length
-  if (content.length > 8000) {
-    content = content.substring(0, 8000) + '...';
+  // Cap description at a reasonable length for storage
+  if (content.length > 15000) {
+    content = content.substring(0, 15000) + '...';
   }
 
   // Determine NDE type from page content or URL

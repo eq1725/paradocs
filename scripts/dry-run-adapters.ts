@@ -40,7 +40,7 @@ const ADAPTER_CONFIGS: Record<string, { config: Record<string, any>; limit: numb
   'reddit-v2': {
     config: {
       subreddits: ['Paranormal', 'UFOs'],
-      minScore: 50,
+      minScore: 5,  // Lowered from 50 — Arctic Shift returns recent posts with low scores; real ingestion will use afterEpoch for date-range control
     },
     limit: DRY_RUN_LIMIT,
   },
