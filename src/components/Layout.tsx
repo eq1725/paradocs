@@ -80,8 +80,6 @@ export default function Layout({ children }: LayoutProps) {
   const navigation = [
     { name: 'Feed', href: '/discover', icon: Flame },
     { name: 'Explore', href: '/explore', icon: Compass },
-    { name: 'Encyclopedia', href: '/explore?mode=browse', icon: BookOpen },
-    { name: 'Ask AI', href: '/explore?mode=search', icon: Sparkles },
     { name: 'Lab', href: '/lab', icon: Sparkles },
   ]
 
