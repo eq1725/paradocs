@@ -177,8 +177,21 @@ async function parseArchiveIndex(html: string): Promise<Array<{ id: string; name
       const id = match[2];
       const name = cleanText(match[3]);
 
-      // Skip nav/menu links
+      // Skip nav/menu links and archive index pages (not individual experiences)
       if (!name || name.length < 3 || name.toLowerCase().includes('home') || name.toLowerCase().includes('back')) {
+        continue;
+      }
+      // Skip archive/index page IDs — these are listing pages, not experiences
+      const idLower = id.toLowerCase();
+      if (idLower.includes('nderf_ndes') || idLower.includes('archives') ||
+          idLower === 'exceptional' || idLower === 'probable_nde' ||
+          idLower.includes('index') || idLower.includes('main')) {
+        continue;
+      }
+      // Individual NDERF experiences typically start with a number (e.g., "1sara_j_nde_13516")
+      // or contain _nde, _obe, _sde, _adc in the ID
+      const looksLikeExperience = /^\d/.test(id) || /_(?:nde|obe|sde|adc|ste)/i.test(id);
+      if (!looksLikeExperience) {
         continue;
       }
 
@@ -219,6 +232,17 @@ function parseExperiencePage(html: string, id: string, name: string): ScrapedRep
   if (content.length < 100) {
     console.log(`[NDERF] Skipping ${id}: content too short (${content.length} chars)`);
     return null;
+  }
+
+  // Skip if content is absurdly long — likely scraped an index/listing page
+  if (content.length > 20000) {
+    console.log(`[NDERF] Skipping ${id}: content too long (${content.length} chars) — likely an index page`);
+    return null;
+  }
+
+  // Cap description at a reasonable length
+  if (content.length > 8000) {
+    content = content.substring(0, 8000) + '...';
   }
 
   // Determine NDE type from page content or URL

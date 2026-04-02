@@ -66,10 +66,7 @@ const ADAPTER_CONFIGS: Record<string, { config: Record<string, any>; limit: numb
     config: {},
     limit: DRY_RUN_LIMIT,
   },
-  erowid: {
-    config: {},
-    limit: DRY_RUN_LIMIT,
-  },
+  // erowid: disabled pending written permission from Erowid Center
 };
 
 interface ValidationResult {

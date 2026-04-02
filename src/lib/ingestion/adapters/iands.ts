@@ -195,12 +195,27 @@ async function parseAccountsListing(html: string): Promise<Array<{ id: string; t
   for (const pattern of linkPatterns) {
     let match;
     while ((match = pattern.exec(html)) !== null) {
-      const url = match[1].startsWith('http') ? match[1] : `https://iands.org${match[1]}`;
+      const rawUrl = match[1];
+      const url = rawUrl.startsWith('http') ? rawUrl : `https://iands.org${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
       const id = match[2] || url.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 50);
       const title = cleanText(match[3] || match[2]);
 
-      // Skip navigation/menu links
-      if (title.length < 5 || title.toLowerCase().includes('menu') || title.toLowerCase().includes('home')) {
+      // Skip navigation/menu/generic links
+      if (title.length < 5 ||
+          title.toLowerCase().includes('menu') ||
+          title.toLowerCase().includes('home') ||
+          title.toLowerCase().includes('click here') ||
+          title.toLowerCase().includes('read more') ||
+          title.toLowerCase().includes('submit') ||
+          title.toLowerCase().includes('archive') ||
+          title.toLowerCase() === 'next' ||
+          title.toLowerCase() === 'previous') {
+        continue;
+      }
+
+      // Skip listing/index pages
+      if (url.includes('archives.html') || url.includes('submit') ||
+          url.includes('nde-accounts.html') && !url.includes('/14-') && !url.includes('/880-')) {
         continue;
       }
 
@@ -209,6 +224,27 @@ async function parseAccountsListing(html: string): Promise<Array<{ id: string; t
       }
     }
   }
+
+  // If we found very few accounts from pattern matching, try a broader approach:
+  // look for any heading+link combos that point to .html pages on iands.org
+  if (accounts.length < 3) {
+    const broadPattern = /<a[^>]+href=["']((?:https?:\/\/iands\.org)?\/[^"']*\.html)["'][^>]*>([^<]{10,})/gi;
+    let match;
+    while ((match = broadPattern.exec(html)) !== null) {
+      const rawUrl = match[1];
+      const url = rawUrl.startsWith('http') ? rawUrl : `https://iands.org${rawUrl}`;
+      const title = cleanText(match[2]);
+      const id = url.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 50);
+
+      // Skip if we already have it, or if it's a generic nav link
+      if (accounts.find(a => a.url === url)) continue;
+      if (title.toLowerCase().includes('click') || title.toLowerCase().includes('menu')) continue;
+
+      accounts.push({ id, title, url });
+    }
+  }
+
+  console.log(`[IANDS] Parsed ${accounts.length} account links, samples: ${accounts.slice(0, 3).map(a => a.title).join(', ')}`);
 
   return accounts;
 }

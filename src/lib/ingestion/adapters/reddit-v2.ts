@@ -322,43 +322,60 @@ async function fetchSubredditPosts(
       return [];
     }
 
-    const data: ArcticShiftResponse = await response.json();
+    const rawData = await response.json();
 
-    if (!data.data || !Array.isArray(data.data)) {
-      console.warn(`[Reddit V2] Unexpected response format for r/${subreddit}`);
+    // Arctic Shift may return { data: [...] } or just [...] depending on version
+    let posts: ArcticShiftPost[];
+    if (Array.isArray(rawData)) {
+      posts = rawData;
+    } else if (rawData.data && Array.isArray(rawData.data)) {
+      posts = rawData.data;
+    } else if (rawData.results && Array.isArray(rawData.results)) {
+      posts = rawData.results;
+    } else {
+      console.warn(`[Reddit V2] Unexpected response format for r/${subreddit}:`, Object.keys(rawData));
       return [];
     }
+
+    console.log(`[Reddit V2] Got ${posts.length} raw posts from r/${subreddit}`);
 
     // Filter and convert posts
     const reports: ScrapedReport[] = [];
     const seenContentHashes = new Set<string>();
+    let skipStats = { deleted: 0, lowScore: 0, notSelf: 0, tooShort: 0, crosspost: 0 };
 
-    for (const post of data.data) {
+    for (const post of posts) {
       // Skip deleted/removed posts
       if (isDeletedOrRemoved(post.selftext)) {
+        skipStats.deleted++;
         continue;
       }
 
       // Apply minimum score filter
       if (post.score < minScore) {
+        skipStats.lowScore++;
         continue;
       }
 
       // Skip link posts (we want self posts only)
       if (!post.is_self) {
+        skipStats.notSelf++;
         continue;
       }
 
       // Skip very short content
       if (!post.selftext || post.selftext.length < 200) {
+        skipStats.tooShort++;
         continue;
       }
 
       // Skip crossposts — keep only the original to avoid duplicates
       if (post.crosspost_parent_list && post.crosspost_parent_list.length > 0) {
+        skipStats.crosspost++;
         continue;
       }
       if (post.crosspost_parent) {
+        skipStats.crosspost++;
         continue;
       }
 
@@ -372,6 +389,15 @@ async function fetchSubredditPosts(
 
       const report = postToReport(post);
       reports.push(report);
+    }
+
+    if (reports.length === 0 && posts.length > 0) {
+      console.log(`[Reddit V2] r/${subreddit}: All ${posts.length} posts filtered out — deleted:${skipStats.deleted} lowScore:${skipStats.lowScore} notSelf:${skipStats.notSelf} tooShort:${skipStats.tooShort} crosspost:${skipStats.crosspost}`);
+      // Log a sample post for debugging
+      const sample = posts[0];
+      console.log(`[Reddit V2] Sample post: is_self=${sample.is_self}, score=${sample.score}, selftext_len=${(sample.selftext || '').length}, title="${(sample.title || '').substring(0, 60)}"`);
+    } else {
+      console.log(`[Reddit V2] r/${subreddit}: ${reports.length} reports from ${posts.length} posts`);
     }
 
     return reports;
