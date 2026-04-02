@@ -77,13 +77,30 @@ class ErowidAdapter implements SourceAdapter {
 
   /**
    * Parse individual experience page
+   * @param listingTitle - fallback title from the index page if h1 extraction fails
    */
-  private parseExperiencePage(html: string, id: string): ParsedExperience | null {
-    // Extract title
+  private parseExperiencePage(html: string, id: string, listingTitle?: string): ParsedExperience | null {
+    // Extract title — try multiple patterns, fall back to listing title
     let title = '';
-    const titleMatch = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
-    if (titleMatch) {
-      title = this.decodeHtmlEntities(titleMatch[1]);
+    const titlePatterns = [
+      /<h1[^>]*>([^<]+)<\/h1>/i,
+      /<div[^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)<\/div>/i,
+      /<title>([^<]+)<\/title>/i,
+    ];
+    for (const pattern of titlePatterns) {
+      const match = html.match(pattern);
+      if (match && match[1].trim().length > 0) {
+        title = this.decodeHtmlEntities(match[1].trim());
+        // Clean up title if it came from <title> tag (often has site name appended)
+        if (pattern.source.includes('title')) {
+          title = title.replace(/\s*[-|].*erowid.*/i, '').trim();
+        }
+        break;
+      }
+    }
+    // Use listing title as fallback
+    if (!title && listingTitle) {
+      title = listingTitle;
     }
 
     // Extract body text from main content area
@@ -386,7 +403,7 @@ class ErowidAdapter implements SourceAdapter {
         try {
           const experienceUrl = this.buildExperienceUrl(listing.id);
           const experienceHtml = await this.fetchWithRateLimit(experienceUrl);
-          const parsed = this.parseExperiencePage(experienceHtml, listing.id);
+          const parsed = this.parseExperiencePage(experienceHtml, listing.id, listing.title);
 
           if (!parsed) {
             console.log(

@@ -157,17 +157,34 @@ async function fetchWithHeaders(url: string, retries: number = 3): Promise<strin
 async function parseArchiveIndex(html: string): Promise<Array<{ id: string; name: string; url: string }>> {
   const experiences: Array<{ id: string; name: string; url: string }> = [];
 
-  // NDERF uses links like /Experiences/1_name_nde.htm
-  const linkPattern = /<a[^>]+href=["']([^"']*\/Experiences\/([^"']+)\.htm)["'][^>]*>([^<]+)/gi;
+  // NDERF uses various link patterns across different archive pages:
+  //   /Experiences/1_name_nde.htm
+  //   /NDERF/NDE_Experiences/1_name_nde.htm
+  //   Relative links like 1_name_nde.htm
+  const linkPatterns = [
+    /<a[^>]+href=["']([^"']*\/Experiences\/([^"']+)\.htm[l]?)["'][^>]*>([^<]+)/gi,
+    /<a[^>]+href=["']([^"']*\/NDE_Experiences\/([^"']+)\.htm[l]?)["'][^>]*>([^<]+)/gi,
+    /<a[^>]+href=["']([^"']*\/NDE_Archives\/([^"']+)\.htm[l]?)["'][^>]*>([^<]+)/gi,
+    // Generic: any .htm link containing _nde or _NDE
+    /<a[^>]+href=["']([^"']*?([\w]+_(?:nde|NDE|obe|sde)[^"']*?)\.htm[l]?)["'][^>]*>([^<]+)/gi,
+  ];
 
-  let match;
-  while ((match = linkPattern.exec(html)) !== null) {
-    const url = match[1].startsWith('http') ? match[1] : `https://www.nderf.org${match[1]}`;
-    const id = match[2];
-    const name = cleanText(match[3]);
+  for (const linkPattern of linkPatterns) {
+    let match;
+    while ((match = linkPattern.exec(html)) !== null) {
+      const rawUrl = match[1];
+      const url = rawUrl.startsWith('http') ? rawUrl : `https://www.nderf.org${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+      const id = match[2];
+      const name = cleanText(match[3]);
 
-    if (name && id && !experiences.find(e => e.id === id)) {
-      experiences.push({ id, name, url });
+      // Skip nav/menu links
+      if (!name || name.length < 3 || name.toLowerCase().includes('home') || name.toLowerCase().includes('back')) {
+        continue;
+      }
+
+      if (id && !experiences.find(e => e.id === id)) {
+        experiences.push({ id, name, url });
+      }
     }
   }
 
@@ -251,11 +268,13 @@ export const nderfAdapter: SourceAdapter = {
     try {
       console.log(`[NDERF] Starting scrape. Limit: ${limit}`);
 
-      // NDERF archive URLs - different categories
+      // NDERF archive URLs - updated April 2026
+      // The site reorganized from /Experiences/ to /Archives/ and /NDERF/
       const archiveUrls = [
-        'https://www.nderf.org/Experiences/exceptional.htm',
-        'https://www.nderf.org/Experiences/probable_nde.htm',
+        'https://www.nderf.org/Archives/NDERF_NDEs.html',
         'https://www.nderf.org/Archives/exceptional.html',
+        'https://www.nderf.org/NDERF/NDE_Archives/archives_main.htm',
+        'https://www.nderf.org/Experiences/exceptional.htm',
       ];
 
       for (const archiveUrl of archiveUrls) {
@@ -299,8 +318,16 @@ export const nderfAdapter: SourceAdapter = {
 
       console.log(`[NDERF] Scrape complete. Total: ${reports.length} reports`);
 
+      if (reports.length === 0) {
+        return {
+          success: false,
+          reports: reports,
+          error: 'No reports found — NDERF archive URLs may have changed. Check site structure.'
+        };
+      }
+
       return {
-        success: reports.length > 0,
+        success: true,
         reports: reports
       };
 

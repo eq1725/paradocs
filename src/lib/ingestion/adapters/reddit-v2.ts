@@ -26,6 +26,7 @@ const SUBREDDIT_CATEGORIES: Record<string, string> = {
   'Ghosts': 'ghosts_hauntings',
   'Cryptids': 'cryptids',
   'NDE': 'psychological_experiences',
+  'Experiencers': 'combination',
   'AstralProjection': 'consciousness_practices',
   'Humanoidencounters': 'ufos_aliens',
   'Missing411': 'psychological_experiences',
@@ -47,6 +48,9 @@ interface ArcticShiftPost {
   permalink: string;
   link_flair_text?: string;
   is_self: boolean;
+  // Crosspost detection fields
+  crosspost_parent_list?: Array<{ id: string; subreddit: string }>;
+  crosspost_parent?: string;
   // Media-related fields
   is_video?: boolean;
   media?: {
@@ -300,7 +304,11 @@ async function fetchSubredditPosts(
   perSubLimit: number,
   minScore: number
 ): Promise<ScrapedReport[]> {
-  const endpoint = `${baseUrl}/posts/search?subreddit=${subreddit}&is_self=true&selftext_min_length=200&limit=${perSubLimit}&sort=score&order=desc`;
+  // Arctic Shift API only supports: subreddit, author, after, before, limit, title, selftext
+  // We filter for self posts and min text length client-side
+  // Request more than needed since we'll filter down
+  const fetchLimit = Math.min(perSubLimit * 3, 250);
+  const endpoint = `${baseUrl}/posts/search?subreddit=${subreddit}&limit=${fetchLimit}`;
 
   try {
     const response = await fetch(endpoint, {
@@ -323,6 +331,7 @@ async function fetchSubredditPosts(
 
     // Filter and convert posts
     const reports: ScrapedReport[] = [];
+    const seenContentHashes = new Set<string>();
 
     for (const post of data.data) {
       // Skip deleted/removed posts
@@ -344,6 +353,22 @@ async function fetchSubredditPosts(
       if (!post.selftext || post.selftext.length < 200) {
         continue;
       }
+
+      // Skip crossposts — keep only the original to avoid duplicates
+      if (post.crosspost_parent_list && post.crosspost_parent_list.length > 0) {
+        continue;
+      }
+      if (post.crosspost_parent) {
+        continue;
+      }
+
+      // Content-level dedup: skip posts with near-identical text within this batch
+      // Uses first 200 chars normalized as a fingerprint
+      const contentFingerprint = post.selftext.substring(0, 200).toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (seenContentHashes.has(contentFingerprint)) {
+        continue;
+      }
+      seenContentHashes.add(contentFingerprint);
 
       const report = postToReport(post);
       reports.push(report);
@@ -387,7 +412,7 @@ const redditV2Adapter: SourceAdapter = {
     try {
       // Configuration parameters
       const subreddits = config.subreddits || Object.keys(SUBREDDIT_CATEGORIES);
-      const minScore = config.minScore ?? 5;
+      const minScore = config.minScore ?? 10;
       const afterEpoch = config.afterEpoch ?? 0;
       const perSubLimit = Math.ceil((limit || 500) / subreddits.length);
 

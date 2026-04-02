@@ -121,9 +121,17 @@ function cleanText(text: string): string {
 }
 
 function generateTitle(county: string, state: string, year: string, reportNumber: string): string {
-  const location = county ? `${county} County, ${state}` : state;
+  let location = '';
+  if (county && state) {
+    location = `${county} County, ${state}`;
+  } else if (state) {
+    location = state;
+  } else if (county) {
+    location = `${county} County`;
+  }
   const yearStr = year ? ` (${year})` : '';
-  return `Bigfoot Sighting in ${location}${yearStr} - Report #${reportNumber}`.substring(0, 200);
+  const locationStr = location ? ` in ${location}` : '';
+  return `Bigfoot Sighting${locationStr}${yearStr} - Report #${reportNumber}`.substring(0, 200);
 }
 
 function generateSummary(description: string, classification: string): string {
@@ -273,13 +281,43 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     const classMatch = html.match(/Class[:\s]*(A|B|C)/i);
     const classification = classMatch ? `Class ${classMatch[1].toUpperCase()}` : 'Unknown';
 
-    // Location details
-    const countyMatch = html.match(/County:\s*([^<\n]+)/i);
-    const county = countyMatch ? cleanText(countyMatch[1]) : '';
+    // Location details — try multiple patterns since BFRO formatting varies
+    const countyPatterns = [
+      /County:\s*([^<\n]+)/i,
+      /County\s*<\/td>\s*<td[^>]*>\s*([^<\n]+)/i,
+      /County\s*<\/th>\s*<td[^>]*>\s*([^<\n]+)/i,
+      /<b>County[^<]*<\/b>\s*:?\s*([^<\n]+)/i,
+    ];
+    let county = '';
+    for (const p of countyPatterns) {
+      const m = html.match(p);
+      if (m && m[1].trim()) { county = cleanText(m[1]); break; }
+    }
 
-    const stateMatch = html.match(/State:\s*([^<\n]+)/i) || html.match(/Province:\s*([^<\n]+)/i);
-    const stateRaw = stateMatch ? cleanText(stateMatch[1]) : '';
+    const statePatterns = [
+      /State(?:\/Province)?:\s*([^<\n]+)/i,
+      /Province:\s*([^<\n]+)/i,
+      /State\s*<\/td>\s*<td[^>]*>\s*([^<\n]+)/i,
+      /State\s*<\/th>\s*<td[^>]*>\s*([^<\n]+)/i,
+      /<b>State[^<]*<\/b>\s*:?\s*([^<\n]+)/i,
+    ];
+    let stateRaw = '';
+    for (const p of statePatterns) {
+      const m = html.match(p);
+      if (m && m[1].trim()) { stateRaw = cleanText(m[1]); break; }
+    }
     const state = STATE_MAP[stateRaw] || stateRaw;
+
+    // If state is still empty, try to extract from the page title or URL
+    let fallbackState = state;
+    if (!fallbackState) {
+      const titleMatch = html.match(/<title[^>]*>([^<]+)/i);
+      if (titleMatch) {
+        // BFRO titles often contain state info
+        const stateInTitle = titleMatch[1].match(/(?:in|near)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
+        if (stateInTitle) fallbackState = stateInTitle[1];
+      }
+    }
 
     // Date
     const dateMatch = html.match(/Date:\s*([^<\n]+)/i) || html.match(/Year:\s*(\d{4})/i);
@@ -338,14 +376,15 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
       }
     }
 
+    const locationState = state || fallbackState;
     return {
-      title: generateTitle(county, state, year, reportNumber),
+      title: generateTitle(county, locationState, year, reportNumber),
       summary: generateSummary(description, classification),
       description: description,
       category: 'cryptids',
-      location_name: county ? `${county} County, ${state}` : state,
+      location_name: county ? `${county} County, ${locationState}` : (locationState || undefined),
       country: country,
-      state_province: state,
+      state_province: locationState || undefined,
       city: county ? `${county} County` : undefined,
       event_date: eventDate,
       event_date_precision: eventDatePrecision,

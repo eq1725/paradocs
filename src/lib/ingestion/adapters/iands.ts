@@ -178,13 +178,17 @@ async function fetchWithHeaders(url: string, retries: number = 3): Promise<strin
 async function parseAccountsListing(html: string): Promise<Array<{ id: string; title: string; url: string }>> {
   const accounts: Array<{ id: string; title: string; url: string }> = [];
 
-  // IANDS uses Joomla CMS - typical patterns for article links
+  // IANDS uses Joomla/WordPress CMS — try multiple link patterns
   const linkPatterns = [
-    // Standard Joomla article links
+    // Standard NDE account links (new and old paths)
+    /<a[^>]+href=["']([^"']*\/nde-accounts\/([^"']+))["'][^>]*>([^<]+)/gi,
     /<a[^>]+href=["']([^"']*\/nde-stories\/nde-accounts\/([^"']+))["'][^>]*>([^<]+)/gi,
-    // Alternative pattern
+    /<a[^>]+href=["']([^"']*\/nde-stories\/([^"']+))["'][^>]*>([^<]+)/gi,
+    // Research section links
+    /<a[^>]+href=["']([^"']*\/research0\/ndes\/nde-stories\/[^"']*\/(\d+)-([^"']+))["'][^>]*>/gi,
+    // Alternative pattern (Joomla itemid)
     /<a[^>]+href=["']([^"']*itemid=\d+[^"']*)["'][^>]*>([^<]+)/gi,
-    // Generic article pattern
+    // Generic article heading links
     /<h\d[^>]*><a[^>]+href=["']([^"']+)["'][^>]*>([^<]+)/gi,
   ];
 
@@ -285,8 +289,11 @@ export const iandsAdapter: SourceAdapter = {
     try {
       console.log(`[IANDS] Starting scrape. Limit: ${limit}`);
 
-      // IANDS NDE stories URL
+      // IANDS NDE stories URLs — updated April 2026
+      // Site restructured; old /nde-stories/ paths now 404
       const listingUrls = [
+        'https://iands.org/nde-accounts/',
+        'https://iands.org/research0/ndes/nde-stories/iands-nde-accounts.html',
         'https://iands.org/nde-stories/nde-accounts.html',
         'https://iands.org/nde-stories.html',
       ];
@@ -332,8 +339,16 @@ export const iandsAdapter: SourceAdapter = {
 
       console.log(`[IANDS] Scrape complete. Total: ${reports.length} reports`);
 
+      if (reports.length === 0) {
+        return {
+          success: false,
+          reports: reports,
+          error: 'No reports found — IANDS listing URLs may have changed. Check site structure.'
+        };
+      }
+
       return {
-        success: reports.length > 0,
+        success: true,
         reports: reports
       };
 
