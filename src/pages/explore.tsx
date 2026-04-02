@@ -757,7 +757,7 @@ function ExploreBrowseMode() {
         .select('id,name,slug,category,icon,ai_summary,report_count,primary_image_url,aliases,ai_quick_facts')
         .eq('category', cat)
         .order('report_count', { ascending: false })
-        .limit(50)
+        .limit(500)
       var result = await q
       if (result.error) throw result.error
       setPhenomena(result.data || [])
@@ -1273,7 +1273,7 @@ function ExploreSearchMode() {
           .eq('status', 'approved')
           .or('title.ilike.%' + searchQuery.trim() + '%,summary.ilike.%' + searchQuery.trim() + '%')
           .order('created_at', { ascending: false })
-          .limit(50)
+          .limit(100)
         if (filters.categories.length > 0) fbQuery = fbQuery.in('category', filters.categories)
         var fbResult = await fbQuery
         if (fbResult.data) {
