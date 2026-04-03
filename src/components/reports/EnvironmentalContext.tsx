@@ -105,8 +105,18 @@ export default function EnvironmentalContext({ reportSlug, className, isExpanded
     return null
   }
 
+  // Parse event date WITHOUT timezone shift — "2026-04-01" should stay April 1,
+  // not become March 31 due to UTC midnight interpretation in local timezone.
+  // Split the ISO date string and construct with explicit year/month/day.
+  function parseLocalDate(dateStr: string): Date {
+    const parts = dateStr.split('-')
+    return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
+  }
+
+  const eventDateLocal = data.eventDate ? parseLocalDate(data.eventDate) : null
+
   // Determine event year for date-aware filtering
-  const eventYear = data.eventDate ? new Date(data.eventDate).getFullYear() : null
+  const eventYear = eventDateLocal ? eventDateLocal.getFullYear() : null
 
   // Filter satellites by era — Starlink didn't exist before 2019, ISS before 1998
   const relevantSatellites = data.possibleSatellites.filter(sat => {
@@ -157,8 +167,8 @@ export default function EnvironmentalContext({ reportSlug, className, isExpanded
           </button>
         </div>
         <p className="text-xs text-gray-500 mt-1">
-          {data.eventDate
-            ? `Astronomical conditions on ${new Date(data.eventDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
+          {eventDateLocal
+            ? `Astronomical conditions on ${eventDateLocal.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
             : 'Astronomical conditions at time of sighting'
           }
         </p>

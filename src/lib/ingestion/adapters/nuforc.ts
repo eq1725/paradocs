@@ -752,6 +752,7 @@ export const nuforcAdapter: SourceAdapter = {
             var description = meta.summary;
             var duration = '';
             var mediaItems: ScrapedMediaItem[] = [];
+            var details: Awaited<ReturnType<typeof fetchReportDetails>> = null;
 
             // Fetch full report details when:
             // 1. fetch_full_details is enabled, OR
@@ -759,7 +760,7 @@ export const nuforcAdapter: SourceAdapter = {
             // 3. Description is too short and might benefit from full page scrape
             if (needFullDetails || (fetchFullDetails && (description.length < 200 || meta.hasMedia))) {
               await new Promise(function(resolve) { setTimeout(resolve, rateLimitMs); });
-              var details = await fetchReportDetails(meta.id);
+              details = await fetchReportDetails(meta.id);
               if (details) {
                 description = details.description || meta.summary;
                 duration = details.duration;

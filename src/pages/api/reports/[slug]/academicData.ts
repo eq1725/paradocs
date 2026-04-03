@@ -159,7 +159,7 @@ function extractObservationDetails(report: any) {
   }
 
   // ---- Sound ----
-  var sound: string | null = 'unknown'
+  var sound: string | null = null
   if (descLower.indexOf('silent') !== -1 || descLower.indexOf('no sound') !== -1 || descLower.indexOf('no noise') !== -1 || descLower.indexOf('made no') !== -1) {
     sound = 'silent'
   } else if (descLower.indexOf('humming') !== -1 || descLower.indexOf(' hum ') !== -1 || descLower.indexOf('hum.') !== -1) {

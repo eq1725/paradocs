@@ -37,8 +37,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: 'Report not found' })
     }
 
-    // Get environmental context
-    const latitude = report.latitude || 0
+    // Only return environmental context if we have a valid event_date
+    if (!report.event_date) {
+      return res.status(200).json({
+        reportId: report.id,
+        eventDate: null,
+        eventTime: report.event_time,
+        dataAvailable: false,
+        reason: 'No event date available for this report'
+      })
+    }
+
+    // Use actual latitude if available; pass null if no coordinates
+    // so the service can indicate location-dependent data is unavailable
+    const latitude = report.latitude || null
     const context = getEnvironmentalContext(
       report.event_date,
       report.event_time,
@@ -49,6 +61,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       reportId: report.id,
       eventDate: report.event_date,
       eventTime: report.event_time,
+      dataAvailable: true,
+      coordinatesAvailable: !!(report.latitude && report.longitude),
       ...context
     })
   } catch (error) {

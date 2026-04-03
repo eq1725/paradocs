@@ -223,10 +223,16 @@ function extractKeyDetails(description: string, category: string): {
   };
 
   // Extract additional key features that add context
+  //
+  // IMPORTANT: "Documented" feature requires CONFIRMED media, not just keyword mentions.
+  // Witnesses often say "I tried to record" or "caught on camera but lost the file" —
+  // those mean NO media. We only flag "Documented" if the description indicates media
+  // was SUCCESSFULLY captured AND no negation pattern contradicts it.
+  const MEDIA_NEGATION_PATTERNS = /\b(couldn.?t|could not|unable|failed|wouldn.?t|didn.?t|did not|no longer|lost|deleted|corrupted|blurry|too dark|phone died|battery died|wouldn.?t work|didn.?t work|does not work|no.{0,15}(photo|video|image|footage|picture|recording)|unfortunately|tried to|attempted to)\b/i;
+
   const featurePatterns = [
     { pattern: /\b(chased|followed|pursued)\b/i, feature: 'Pursuit' },
     { pattern: /\b(multiple witnesses|we all saw|group of us|family saw)\b/i, feature: 'Multiple Witnesses' },
-    { pattern: /\b(photograph|photo|video|recorded|on camera)\b/i, feature: 'Documented' },
     { pattern: /\b(recurring|happened again|multiple times|keeps happening)\b/i, feature: 'Recurring' },
     { pattern: /\b(childhood|as a (kid|child)|when I was young|grew up)\b/i, feature: 'Childhood' },
     { pattern: /\b(family home|parents.?\s*house|grandparents?)\b/i, feature: 'Family Home' },
@@ -240,6 +246,15 @@ function extractKeyDetails(description: string, category: string): {
     if (pattern.test(description)) {
       details.keyFeature = feature;
       break;
+    }
+  }
+
+  // "Documented" is handled separately — only if media keywords appear WITHOUT negation
+  if (!details.keyFeature) {
+    var hasMediaKeywords = /\b(photograph|photo|video|recorded|on camera|footage|filmed)\b/i.test(description);
+    var hasNegation = MEDIA_NEGATION_PATTERNS.test(description);
+    if (hasMediaKeywords && !hasNegation) {
+      details.keyFeature = 'Documented';
     }
   }
 

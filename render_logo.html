@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap');
+body { margin: 0; background: black; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="600" height="100"></canvas>
+<script>
+// Wait for font to load
+document.fonts.ready.then(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  // Clear
+  ctx.clearRect(0, 0, 600, 100);
+
+  // Draw "Paradocs" in white
+  ctx.font = '900 56px Inter, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Paradocs', 10, 50);
+
+  // Measure to position the dot
+  const textWidth = ctx.measureText('Paradocs').width;
+
+  // Draw "." in brand purple
+  ctx.fillStyle = '#9000F0';
+  ctx.fillText('.', 10 + textWidth, 50);
+
+  // Store dimensions for cropping
+  const totalWidth = ctx.measureText('Paradocs.').width;
+  window._logoWidth = totalWidth + 20;
+  window._logoReady = true;
+
+  document.title = 'LOGO_READY_' + Math.round(totalWidth + 20);
+});
+</script>
+</body>
+</html>

@@ -269,15 +269,25 @@ export interface EnvironmentalContext {
 export function getEnvironmentalContext(
   eventDate: string | null,
   eventTime: string | null,
-  latitude: number
+  latitude: number | null
 ): EnvironmentalContext {
-  const date = eventDate ? new Date(eventDate) : new Date()
+  // Parse date string without UTC timezone shift — "2026-04-01" should be April 1,
+  // not March 31 (which happens when new Date("2026-04-01") creates midnight UTC
+  // and the server/browser is in a negative-offset timezone like US Eastern)
+  let date: Date
+  if (eventDate && /^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
+    const parts = eventDate.split('-')
+    date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
+  } else {
+    date = eventDate ? new Date(eventDate) : new Date()
+  }
 
   const moonPhase = getMoonPhase(date)
   const meteorShowers = getActiveMeteorShowers(date)
   const timeOfDay = getTimeOfDay(eventTime)
   const witchingHour = isWitchingHour(eventTime)
-  const season = getSeason(date, latitude)
+  // Default to Northern Hemisphere (40°N) if no latitude available — most reports are US-based
+  const season = getSeason(date, latitude ?? 40)
   const satellites = getSatelliteInfo()
 
   // Generate analysis notes based on conditions

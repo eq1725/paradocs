@@ -689,12 +689,26 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                 // Non-fatal — report is still ingested without a hook
               }
 
-              // Generate Paradocs Analysis — narrative + assessment (non-blocking)
+              // Generate Paradocs Analysis — narrative + assessment (non-blocking, with retry)
               try {
-                await generateAndSaveParadocsAnalysis(insertedReport.id);
+                var analysisSuccess = await generateAndSaveParadocsAnalysis(insertedReport.id);
+                if (!analysisSuccess) {
+                  // First attempt returned false — wait and retry once
+                  console.log('[Ingestion] Paradocs Analysis first attempt failed for ' + slug + ', retrying in 2s...');
+                  await new Promise(function(resolve) { setTimeout(resolve, 2000); });
+                  var retrySuccess = await generateAndSaveParadocsAnalysis(insertedReport.id);
+                  if (!retrySuccess) {
+                    console.log('[Ingestion] Paradocs Analysis retry also failed for ' + slug + ', will need manual backfill');
+                  }
+                }
               } catch (analysisError) {
-                console.log('[Ingestion] Paradocs Analysis generation failed for ' + slug + ', continuing...');
-                // Non-fatal — batch backfill catches gaps
+                console.log('[Ingestion] Paradocs Analysis generation failed for ' + slug + ', retrying...');
+                try {
+                  await new Promise(function(resolve) { setTimeout(resolve, 2000); });
+                  await generateAndSaveParadocsAnalysis(insertedReport.id);
+                } catch (retryError) {
+                  console.log('[Ingestion] Paradocs Analysis retry failed for ' + slug + ', will need manual backfill');
+                }
               }
 
               // Generate vector embedding for semantic search (non-blocking)

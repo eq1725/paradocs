@@ -152,7 +152,13 @@ export default function AcademicObservationPanel({ reportSlug, className, isExpa
 
   function generateCitation(): string {
     if (!data) return ''
-    const date = data.temporal.eventDate ? new Date(data.temporal.eventDate).toLocaleDateString('en-US', {
+    // Parse date without UTC timezone shift (YYYY-MM-DD → local date)
+    let dateObj: Date | null = null
+    if (data.temporal.eventDate) {
+      const dp = data.temporal.eventDate.split('-')
+      dateObj = new Date(parseInt(dp[0]), parseInt(dp[1]) - 1, parseInt(dp[2]))
+    }
+    const date = dateObj ? dateObj.toLocaleDateString('en-US', {
       year: 'numeric', month: 'long', day: 'numeric'
     }) : 'Date unknown'
 
