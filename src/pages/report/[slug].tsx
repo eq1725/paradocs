@@ -927,6 +927,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           sourceUrl={report.source_url}
           sourceLabel={report.source_label || report.source_type}
           hasMediaItems={media.length > 0}
+          hasPhotoVideo={report.has_photo_video}
           className="mb-6"
         />
 

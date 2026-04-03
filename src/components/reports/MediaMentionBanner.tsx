@@ -17,6 +17,8 @@ interface Props {
   sourceUrl: string | null
   sourceLabel: string | null
   hasMediaItems: boolean
+  /** Whether the source (e.g. NUFORC column) confirms photo/video exists */
+  hasPhotoVideo?: boolean
   className?: string
 }
 
@@ -44,10 +46,18 @@ export default function MediaMentionBanner({
   sourceUrl,
   sourceLabel,
   hasMediaItems,
+  hasPhotoVideo,
   className
 }: Props) {
   // Don't show if there's no description, or if the report already has media items
   if (!description || hasMediaItems) return null
+
+  // If the source explicitly says NO photo/video, don't show the banner.
+  // Text-based detection is unreliable — witnesses often describe failed recording
+  // attempts ("recorded but it was pitch black", "Snapchat crashed", etc.)
+  // Only show the banner when the source confirms media exists (has_photo_video=true)
+  // or when we don't have that signal at all (hasPhotoVideo is undefined/null).
+  if (hasPhotoVideo === false) return null
 
   var mentions = detectMediaMentions(description)
   if (!mentions.hasVideo && !mentions.hasImage && !mentions.hasPhoto) return null
