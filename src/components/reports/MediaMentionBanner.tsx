@@ -20,9 +20,18 @@ interface Props {
   className?: string
 }
 
+// Patterns indicating media was mentioned but ultimately failed/unusable
+var MEDIA_FAILURE_PATTERNS = /\b(pitch\s*black|total\s*black|black\s*nothingness|blank\s*(footage|video|recording|screen)|unusable|corrupted|blurry|too\s*dark|couldn.?t\s*(record|capture|film|save|get)|could\s*not\s*(record|capture|film)|unable\s*to\s*(record|capture|film)|failed\s*to\s*(record|capture|film)|phone\s*(died|crashed|froze)|battery\s*died|recording\s*was\s*(?:just\s*)?(?:black|blank|nothing|empty|gone|lost|deleted)|no\s*(?:usable\s*)?(?:footage|video|photo|image|recording))\b/i
+
 // Detect what kind of media the description references
 function detectMediaMentions(description: string): { hasVideo: boolean; hasImage: boolean; hasPhoto: boolean } {
   var descLower = description.toLowerCase()
+
+  // If the description describes media failure, don't flag it as having media
+  if (MEDIA_FAILURE_PATTERNS.test(descLower)) {
+    return { hasVideo: false, hasImage: false, hasPhoto: false }
+  }
+
   return {
     hasVideo: /\b(video|footage|film|record(?:ing|ed)|capture[ds]?\s+on\s+(?:camera|video)|caught\s+on\s+(?:camera|video)|dashcam|dash\s+cam|security\s+cam|ring\s+cam|doorbell\s+cam)\b/.test(descLower),
     hasImage: /\b(image|picture|illustration|sketch|drawing|render)\b/.test(descLower),

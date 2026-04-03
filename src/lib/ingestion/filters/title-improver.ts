@@ -224,12 +224,6 @@ function extractKeyDetails(description: string, category: string): {
 
   // Extract additional key features that add context
   //
-  // IMPORTANT: "Documented" feature requires CONFIRMED media, not just keyword mentions.
-  // Witnesses often say "I tried to record" or "caught on camera but lost the file" —
-  // those mean NO media. We only flag "Documented" if the description indicates media
-  // was SUCCESSFULLY captured AND no negation pattern contradicts it.
-  const MEDIA_NEGATION_PATTERNS = /\b(couldn.?t|could not|unable|failed|wouldn.?t|didn.?t|did not|no longer|lost|deleted|corrupted|blurry|too dark|phone died|battery died|wouldn.?t work|didn.?t work|does not work|no.{0,15}(photo|video|image|footage|picture|recording)|unfortunately|tried to|attempted to)\b/i;
-
   const featurePatterns = [
     { pattern: /\b(chased|followed|pursued)\b/i, feature: 'Pursuit' },
     { pattern: /\b(multiple witnesses|we all saw|group of us|family saw)\b/i, feature: 'Multiple Witnesses' },
@@ -249,14 +243,13 @@ function extractKeyDetails(description: string, category: string): {
     }
   }
 
-  // "Documented" is handled separately — only if media keywords appear WITHOUT negation
-  if (!details.keyFeature) {
-    var hasMediaKeywords = /\b(photograph|photo|video|recorded|on camera|footage|filmed)\b/i.test(description);
-    var hasNegation = MEDIA_NEGATION_PATTERNS.test(description);
-    if (hasMediaKeywords && !hasNegation) {
-      details.keyFeature = 'Documented';
-    }
-  }
+  // NOTE: "Documented" / "Caught on Camera" feature has been REMOVED from text analysis.
+  // Witnesses frequently mention cameras, recording, or video in descriptions even when
+  // the media was lost, corrupted, or never captured ("recorded but it was pitch black",
+  // "tried to film but phone crashed", etc.). Text-based inference is unreliable here.
+  // If we want "Caught on Camera" titles, it must be driven by has_photo_video from the
+  // adapter (which checks the actual NUFORC media column / attached media), not from
+  // parsing the witness description.
 
   // Extract location from text
   const locationPatterns = [
@@ -338,8 +331,6 @@ export function generateImprovedTitle(
       newTitle = `${newTitle} in ${details.keyFeature}`;
     } else if (details.keyFeature === 'Multiple Witnesses') {
       newTitle = `${newTitle} - ${details.keyFeature}`;
-    } else if (details.keyFeature === 'Documented') {
-      newTitle = `${newTitle} Caught on Camera`;
     } else if (details.keyFeature === 'Recurring') {
       newTitle = `Recurring ${newTitle}`;
     }
