@@ -57,7 +57,7 @@ async function main() {
   console.log('Found ' + reports.length + ' NUFORC reports to backfill.\n');
 
   // Dynamic imports (deferred so dotenv is loaded first)
-  var { improveTitleWithAI } = await import('../src/lib/ingestion/filters');
+  var { improveTitleWithAI, generateImprovedTitle } = await import('../src/lib/ingestion/filters');
   var { geocodeLocation, buildLocationQuery } = await import('../src/lib/services/geocoding.service');
   var { generateAndSaveParadocsAnalysis } = await import('../src/lib/services/paradocs-analysis.service');
   var { generateAndSaveFeedHook } = await import('../src/lib/services/feed-hook.service');
@@ -74,21 +74,42 @@ async function main() {
     // ========================================
     console.log('  [Title] Regenerating...');
     try {
-      var titleResult = await improveTitleWithAI(
-        r.title,
-        r.description,
-        r.category,
-        r.location_name,
-        r.event_date
-      );
+      var hasCaughtOnCamera = /caught\s+on\s+camera/i.test(r.title);
+      var newTitle: string | null = null;
 
-      if (titleResult.wasImproved && titleResult.title !== r.title) {
-        console.log('  [Title] ' + r.title.substring(0, 40) + ' -> ' + titleResult.title.substring(0, 40));
-        updates.title = titleResult.title;
-        updates.original_title = titleResult.originalTitle || r.title;
+      if (hasCaughtOnCamera) {
+        // FORCE regeneration — bypass quality check since the title passes quality
+        // checks but contains the false "Caught on Camera" label.
+        // Call generateImprovedTitle directly (pattern-based, no quality gate).
+        console.log('  [Title] Found "Caught on Camera" — force rebuilding...');
+        newTitle = generateImprovedTitle(
+          r.title,
+          r.description,
+          r.category,
+          r.location_name,
+          r.event_date
+        );
+      } else {
+        // Normal path: only regenerate if quality issues detected
+        var titleResult = await improveTitleWithAI(
+          r.title,
+          r.description,
+          r.category,
+          r.location_name,
+          r.event_date
+        );
+        if (titleResult.wasImproved && titleResult.title !== r.title) {
+          newTitle = titleResult.title;
+        }
+      }
+
+      if (newTitle && newTitle !== r.title) {
+        console.log('  [Title] ' + r.title.substring(0, 40) + ' -> ' + newTitle.substring(0, 40));
+        updates.title = newTitle;
+        updates.original_title = r.title;
 
         // Regenerate slug for new title
-        var baseSlug = titleResult.title
+        var baseSlug = newTitle
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/^-+|-+$/g, '')
