@@ -193,6 +193,17 @@ function buildUserPrompt(report: any): string {
 // API Calling
 // ============================================
 
+var REQUEST_TIMEOUT_MS = 45000  // 45s timeout per API call
+var MAX_RETRIES = 3             // retry up to 3 times on transient errors
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(function(resolve) { setTimeout(resolve, ms) })
+}
+
+/**
+ * Call Anthropic API with timeout, retries, and exponential backoff.
+ * Handles rate limits (429), server errors (5xx), and network failures.
+ */
 async function callClaude(
   systemPrompt: string,
   userPrompt: string,
@@ -207,38 +218,89 @@ async function callClaude(
   var models = [ANTHROPIC_MODEL, ANTHROPIC_FALLBACK]
 
   for (var m = 0; m < models.length; m++) {
-    try {
-      var resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-          model: models[m],
-          max_tokens: maxTokens,
-          system: systemPrompt,
-          messages: [{ role: 'user', content: userPrompt }]
+    var modelName = models[m]
+
+    for (var attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        // AbortController for request timeout
+        var controller = new AbortController()
+        var timeoutId = setTimeout(function() { controller.abort() }, REQUEST_TIMEOUT_MS)
+
+        var resp = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: modelName,
+            max_tokens: maxTokens,
+            system: systemPrompt,
+            messages: [{ role: 'user', content: userPrompt }]
+          }),
+          signal: controller.signal
         })
-      })
 
-      if (!resp.ok) {
-        var errText = await resp.text()
-        console.error('[ParadocsAnalysis] API error with ' + models[m] + ': ' + resp.status + ' ' + errText)
-        continue
-      }
+        clearTimeout(timeoutId)
 
-      var data = await resp.json()
-      if (data.content && data.content.length > 0 && data.content[0].text) {
-        return data.content[0].text.trim()
+        // Rate limited — backoff and retry
+        if (resp.status === 429) {
+          var retryAfter = resp.headers.get('retry-after')
+          var backoffMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : (Math.pow(2, attempt + 1) * 1000)
+          console.warn('[ParadocsAnalysis] Rate limited (429) on ' + modelName + ', attempt ' + (attempt + 1) + '/' + MAX_RETRIES + ', backing off ' + backoffMs + 'ms')
+          await sleep(backoffMs)
+          continue
+        }
+
+        // Server error — backoff and retry
+        if (resp.status >= 500) {
+          var errBody = await resp.text().catch(function() { return '(no body)' })
+          var backoff5xx = Math.pow(2, attempt + 1) * 1000
+          console.warn('[ParadocsAnalysis] Server error ' + resp.status + ' on ' + modelName + ', attempt ' + (attempt + 1) + '/' + MAX_RETRIES + ', backing off ' + backoff5xx + 'ms. Body: ' + errBody.substring(0, 200))
+          await sleep(backoff5xx)
+          continue
+        }
+
+        // Other non-OK status — log and try next model
+        if (!resp.ok) {
+          var errText = await resp.text().catch(function() { return '(no body)' })
+          console.error('[ParadocsAnalysis] API error with ' + modelName + ': ' + resp.status + ' ' + errText.substring(0, 300))
+          break  // Don't retry on 4xx (except 429) — try next model
+        }
+
+        var data = await resp.json()
+        if (data.content && data.content.length > 0 && data.content[0].text) {
+          return data.content[0].text.trim()
+        }
+
+        console.warn('[ParadocsAnalysis] Empty response from ' + modelName + ': ' + JSON.stringify(data).substring(0, 200))
+        break  // Empty response — try next model
+
+      } catch (err: any) {
+        clearTimeout(timeoutId!)
+
+        if (err.name === 'AbortError') {
+          console.error('[ParadocsAnalysis] Request timeout (' + REQUEST_TIMEOUT_MS + 'ms) on ' + modelName + ', attempt ' + (attempt + 1) + '/' + MAX_RETRIES)
+          // Timeout — retry with backoff
+          if (attempt < MAX_RETRIES - 1) {
+            await sleep(Math.pow(2, attempt + 1) * 1000)
+            continue
+          }
+        } else {
+          console.error('[ParadocsAnalysis] Network error on ' + modelName + ', attempt ' + (attempt + 1) + '/' + MAX_RETRIES + ':', err.message || err)
+          if (attempt < MAX_RETRIES - 1) {
+            await sleep(Math.pow(2, attempt + 1) * 1000)
+            continue
+          }
+        }
+
+        break  // Exhausted retries — try next model
       }
-    } catch (err) {
-      console.error('[ParadocsAnalysis] Error with model ' + models[m] + ':', err)
-      continue
     }
   }
 
+  console.error('[ParadocsAnalysis] All models and retries exhausted')
   return null
 }
 
@@ -370,6 +432,8 @@ export async function generateParadocsAnalysis(reportId: string): Promise<{
 
   var userPrompt = buildUserPrompt(report)
 
+  console.log('[ParadocsAnalysis] Generating analysis for report: ' + reportId + ' (' + ((report as any).title || 'untitled').substring(0, 40) + ')')
+
   // Try combined approach first (single call, lower cost)
   var combinedResponse = await callClaude(COMBINED_SYSTEM_PROMPT, userPrompt, 1500)
 
@@ -377,6 +441,7 @@ export async function generateParadocsAnalysis(reportId: string): Promise<{
     var parsed = parseCombinedResponse(combinedResponse)
 
     if (parsed.narrative && parsed.assessment) {
+      console.log('[ParadocsAnalysis] Combined call succeeded for ' + reportId)
       return {
         narrative: parsed.narrative,
         assessment: parsed.assessment
@@ -385,32 +450,49 @@ export async function generateParadocsAnalysis(reportId: string): Promise<{
 
     // If combined failed to parse properly, try separate calls
     if (parsed.narrative && !parsed.assessment) {
-      // We got a narrative, just need assessment
+      console.log('[ParadocsAnalysis] Combined call got narrative but not assessment for ' + reportId + ', fetching assessment separately')
+      await sleep(1000)  // Brief pause before next API call
       var assessmentResponse = await callClaude(ASSESSMENT_SYSTEM_PROMPT, userPrompt, 800)
       if (assessmentResponse) {
         var assessment = parseAssessmentJson(assessmentResponse)
         if (assessment) {
           return { narrative: parsed.narrative, assessment: assessment }
         }
+        console.warn('[ParadocsAnalysis] Assessment JSON parse failed for ' + reportId + '. Raw (first 200 chars): ' + assessmentResponse.substring(0, 200))
       }
+    } else {
+      console.warn('[ParadocsAnalysis] Combined response parse failed for ' + reportId + '. Narrative: ' + (parsed.narrative ? 'yes' : 'no') + ', Assessment: ' + (parsed.assessment ? 'yes' : 'no') + '. Raw (first 200 chars): ' + combinedResponse.substring(0, 200))
     }
+  } else {
+    console.warn('[ParadocsAnalysis] Combined call returned null for ' + reportId)
   }
 
-  // Fallback: try separate calls
-  console.log('[ParadocsAnalysis] Combined call failed, trying separate calls for ' + reportId)
+  // Fallback: try separate calls with a pause between them
+  console.log('[ParadocsAnalysis] Falling back to separate calls for ' + reportId)
+  await sleep(1500)  // Pause before fallback calls
 
   var narrativeResponse = await callClaude(NARRATIVE_SYSTEM_PROMPT, userPrompt, 800)
+  await sleep(1000)  // Pause between the two calls
   var assessmentResponse2 = await callClaude(ASSESSMENT_SYSTEM_PROMPT, userPrompt, 800)
 
-  var narrative = narrativeResponse && narrativeResponse.length > 30 ? narrativeResponse : null
+  var narrative = narrativeResponse && narrativeResponse.length > 30 ? cleanNarrative(narrativeResponse) : null
   var assessment2 = assessmentResponse2 ? parseAssessmentJson(assessmentResponse2) : null
 
+  if (!narrative && narrativeResponse) {
+    console.warn('[ParadocsAnalysis] Narrative too short (' + narrativeResponse.length + ' chars) for ' + reportId)
+  }
+  if (!assessment2 && assessmentResponse2) {
+    console.warn('[ParadocsAnalysis] Assessment parse failed for ' + reportId + '. Raw (first 200 chars): ' + assessmentResponse2.substring(0, 200))
+  }
+
   if (narrative && assessment2) {
+    console.log('[ParadocsAnalysis] Separate calls succeeded for ' + reportId)
     return { narrative: narrative, assessment: assessment2 }
   }
 
   // If we got at least a narrative, return it with a minimal assessment
   if (narrative) {
+    console.warn('[ParadocsAnalysis] Only narrative generated for ' + reportId + ' — using fallback assessment')
     return {
       narrative: narrative,
       assessment: {
@@ -428,7 +510,7 @@ export async function generateParadocsAnalysis(reportId: string): Promise<{
     }
   }
 
-  console.error('[ParadocsAnalysis] Complete generation failure for report: ' + reportId)
+  console.error('[ParadocsAnalysis] COMPLETE FAILURE for report: ' + reportId + ' — no narrative or assessment generated after all attempts')
   return null
 }
 
@@ -436,42 +518,67 @@ export async function generateParadocsAnalysis(reportId: string): Promise<{
  * Generate and save Paradocs Analysis for a single report.
  * Returns true if saved successfully, false otherwise.
  */
+/**
+ * Generate and save Paradocs Analysis for a single report.
+ * Includes internal retry with exponential backoff — caller does NOT need to retry.
+ * Returns true if saved successfully, false otherwise.
+ */
 export async function generateAndSaveParadocsAnalysis(reportId: string): Promise<boolean> {
-  var result = await generateParadocsAnalysis(reportId)
+  var SAVE_RETRIES = 2
+  var lastError: any = null
 
-  if (!result) {
-    console.warn('[ParadocsAnalysis] Failed to generate analysis for report: ' + reportId)
-    return false
+  for (var attempt = 0; attempt <= SAVE_RETRIES; attempt++) {
+    if (attempt > 0) {
+      var backoff = Math.pow(2, attempt) * 2000  // 4s, 8s
+      console.log('[ParadocsAnalysis] Retry attempt ' + (attempt + 1) + '/' + (SAVE_RETRIES + 1) + ' for ' + reportId + ' after ' + backoff + 'ms backoff')
+      await sleep(backoff)
+    }
+
+    try {
+      var result = await generateParadocsAnalysis(reportId)
+
+      if (!result) {
+        console.warn('[ParadocsAnalysis] Generation returned null for report: ' + reportId + ' (attempt ' + (attempt + 1) + '/' + (SAVE_RETRIES + 1) + ')')
+        lastError = 'generation returned null'
+        continue
+      }
+
+      var supabase = createServerClient()
+
+      var updateData: Record<string, any> = {
+        paradocs_narrative: result.narrative,
+        paradocs_assessment: result.assessment,
+        paradocs_analysis_generated_at: new Date().toISOString(),
+        paradocs_analysis_model: ANTHROPIC_MODEL
+      }
+
+      if (result.assessment.emotional_tone) {
+        updateData.emotional_tone = result.assessment.emotional_tone
+      }
+
+      var { error: updateError } = await (supabase
+        .from('reports') as any)
+        .update(updateData)
+        .eq('id', reportId)
+
+      if (updateError) {
+        console.error('[ParadocsAnalysis] DB save error for ' + reportId + ':', updateError.message)
+        lastError = updateError.message
+        continue
+      }
+
+      console.log('[ParadocsAnalysis] Saved analysis for ' + reportId + ' (narrative: ' + result.narrative.length + ' chars)')
+      return true
+
+    } catch (err: any) {
+      console.error('[ParadocsAnalysis] Exception during generation/save for ' + reportId + ':', err.message || err)
+      lastError = err.message || 'unknown exception'
+      continue
+    }
   }
 
-  var supabase = createServerClient()
-
-  // Determine which model was used (we track for auditing)
-  var modelUsed = ANTHROPIC_MODEL
-
-  var updateData: Record<string, any> = {
-    paradocs_narrative: result.narrative,
-    paradocs_assessment: result.assessment,
-    paradocs_analysis_generated_at: new Date().toISOString(),
-    paradocs_analysis_model: modelUsed
-  }
-
-  // If we got an emotional_tone, save it too (for future feed ranking)
-  if (result.assessment.emotional_tone) {
-    updateData.emotional_tone = result.assessment.emotional_tone
-  }
-
-  var { error: updateError } = await (supabase
-    .from('reports') as any)
-    .update(updateData)
-    .eq('id', reportId)
-
-  if (updateError) {
-    console.error('[ParadocsAnalysis] Failed to save analysis for report ' + reportId + ':', updateError)
-    return false
-  }
-
-  return true
+  console.error('[ParadocsAnalysis] FAILED after ' + (SAVE_RETRIES + 1) + ' attempts for ' + reportId + ': ' + lastError)
+  return false
 }
 
 /**

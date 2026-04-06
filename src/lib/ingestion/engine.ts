@@ -680,44 +680,42 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               }
             }
 
-            // Generate feed_hook for the new report (non-blocking)
+            // Generate AI content for approved reports (feed hook, analysis, embedding)
+            // Each service handles its own retries internally.
             if (status === 'approved') {
+              // Feed hook
               try {
                 await generateAndSaveFeedHook(insertedReport.id);
               } catch (hookError) {
                 console.log('[Ingestion] Feed hook generation failed for ' + slug + ', continuing...');
-                // Non-fatal — report is still ingested without a hook
               }
 
-              // Generate Paradocs Analysis — narrative + assessment (non-blocking, with retry)
+              // Brief pause between AI service calls to avoid rate-limiting
+              await new Promise(function(resolve) { setTimeout(resolve, 1500); });
+
+              // Paradocs Analysis (service has built-in retries with backoff)
               try {
                 var analysisSuccess = await generateAndSaveParadocsAnalysis(insertedReport.id);
                 if (!analysisSuccess) {
-                  // First attempt returned false — wait and retry once
-                  console.log('[Ingestion] Paradocs Analysis first attempt failed for ' + slug + ', retrying in 2s...');
-                  await new Promise(function(resolve) { setTimeout(resolve, 2000); });
-                  var retrySuccess = await generateAndSaveParadocsAnalysis(insertedReport.id);
-                  if (!retrySuccess) {
-                    console.log('[Ingestion] Paradocs Analysis retry also failed for ' + slug + ', will need manual backfill');
-                  }
+                  console.log('[Ingestion] Paradocs Analysis failed for ' + slug + ' after all retries — will need manual backfill');
                 }
               } catch (analysisError) {
-                console.log('[Ingestion] Paradocs Analysis generation failed for ' + slug + ', retrying...');
-                try {
-                  await new Promise(function(resolve) { setTimeout(resolve, 2000); });
-                  await generateAndSaveParadocsAnalysis(insertedReport.id);
-                } catch (retryError) {
-                  console.log('[Ingestion] Paradocs Analysis retry failed for ' + slug + ', will need manual backfill');
-                }
+                console.log('[Ingestion] Paradocs Analysis exception for ' + slug + ':', analysisError);
               }
 
-              // Generate vector embedding for semantic search (non-blocking)
+              // Brief pause before embedding
+              await new Promise(function(resolve) { setTimeout(resolve, 500); });
+
+              // Vector embedding for semantic search
               try {
                 await embedReport(insertedReport.id);
               } catch (embedError) {
                 console.log('[Ingestion] Embedding failed for ' + slug + ', will catch in batch');
-                // Non-fatal — embedding batch job catches stragglers
               }
+
+              // Inter-report cooldown: prevents hammering the Anthropic API
+              // when processing multiple reports in sequence
+              await new Promise(function(resolve) { setTimeout(resolve, 2000); });
             }
           } else {
             console.error('Insert error:', insertError);
