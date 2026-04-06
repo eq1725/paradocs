@@ -811,33 +811,10 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             </p>
           )}
 
-          {/* Only show summary if it adds value beyond the title AND description */}
-          {(() => {
-            if (!report.summary) return null;
-            const summaryLower = report.summary.trim().toLowerCase();
-            const titleLower = (report.title || '').trim().toLowerCase();
-            const descLower = (report.description || '').trim().toLowerCase();
-
-            // Don't show if summary starts with title
-            if (summaryLower.startsWith(titleLower.slice(0, 30))) return null;
-
-            // Don't show if summary equals description
-            if (summaryLower === descLower) return null;
-
-            // Don't show if summary (minus trailing ...) matches start of description
-            // This handles truncated summaries like "text here..."
-            const summaryClean = summaryLower.replace(/\.{2,}$/, '').replace(/â¦$/, '').trim();
-            if (descLower.startsWith(summaryClean.slice(0, 50))) return null;
-
-            // Don't show if first 50 chars match (handles various truncation styles)
-            if (summaryLower.slice(0, 50) === descLower.slice(0, 50)) return null;
-
-            return (
-              <p className="text-lg text-gray-300 mb-6">
-                {report.summary}
-              </p>
-            );
-          })()}
+          {/* Source summary intentionally NOT displayed here.
+             Paradocs is an index with attribution, not a republisher.
+             The feed_hook (above) provides original editorial intro text.
+             Source content is only accessible via the "View Original" link. */}
 
           {/* Meta info */}
           <div className="flex flex-wrap gap-4 text-sm text-gray-400">
