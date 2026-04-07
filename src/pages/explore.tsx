@@ -934,7 +934,10 @@ function ExploreBrowseMode() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2.5">
                 <Clock className="w-5 h-5 text-emerald-400" />
-                <h2 className="text-lg font-semibold text-white">Latest Reports</h2>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Latest Reports</h2>
+                  <p className="text-xs text-gray-500">Fresh encounters from around the world</p>
+                </div>
               </div>
               <button
                 onClick={function() { setBrowseView('reports') }}
@@ -947,7 +950,7 @@ function ExploreBrowseMode() {
 
             {latestLoading ? (
               <div className="flex gap-3 overflow-hidden">
-                {[1,2,3,4].map(function(j) { return <div key={j} className="min-w-[260px] sm:min-w-[300px] h-40 skeleton rounded-xl flex-shrink-0" /> })}
+                {[1,2,3,4].map(function(j) { return <div key={j} className="min-w-[260px] sm:min-w-[300px] h-48 skeleton rounded-xl flex-shrink-0" /> })}
               </div>
             ) : (
               <div className="relative">
@@ -964,6 +967,7 @@ function ExploreBrowseMode() {
                         key={report.id}
                         href={'/report/' + report.slug}
                         className="min-w-[270px] sm:min-w-[310px] max-w-[290px] sm:max-w-[330px] flex-shrink-0 snap-start rounded-xl border border-white/10 hover:border-primary-500/30 bg-white/[0.02] hover:bg-white/[0.04] p-4 sm:p-5 transition-all group/card flex flex-col"
+                        style={{ minHeight: '12rem' }}
                       >
                         <div className="flex items-center gap-2 mb-3">
                           <div className={classNames('w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', catConfig.bgColor)}>
@@ -973,6 +977,7 @@ function ExploreBrowseMode() {
                           {report.source_label && <span className="text-[11px] text-gray-500 ml-auto truncate max-w-[80px]">{report.source_label}</span>}
                         </div>
                         <h3 className="font-medium text-white text-sm line-clamp-2 mb-2 group-hover/card:text-primary-300 transition-colors">{report.title}</h3>
+                        {report.summary && <p className="text-xs text-gray-500 line-clamp-2 mb-3 leading-relaxed">{report.summary}</p>}
                         <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500 mt-auto pt-2 border-t border-white/5">
                           {locationStr && <span className="flex items-center gap-1 truncate max-w-[120px]"><MapPin className="w-3 h-3 flex-shrink-0" />{locationStr}</span>}
                           <span className="flex items-center gap-1"><Clock className="w-3 h-3 flex-shrink-0" />{timeAgo}</span>
@@ -999,7 +1004,10 @@ function ExploreBrowseMode() {
           <div className="mb-8">
             <div className="flex items-center gap-2.5 mb-4">
               <Grid3X3 className="w-5 h-5 text-primary-400" />
-              <h2 className="text-lg font-semibold text-white">Browse by Category</h2>
+              <div>
+                <h2 className="text-lg font-semibold text-white">Browse by Category</h2>
+                <p className="text-xs text-gray-500">Explore reports organized by phenomenon type</p>
+              </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {Object.entries(CATEGORY_CONFIG).map(function(entry) {
