@@ -1058,26 +1058,39 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             </div>
           </div>
 
-          {/* Credibility — expandable with rationale */}
-          <button
-            className="glass-card p-3 sm:p-4 text-left w-full cursor-pointer hover:bg-white/[0.04] transition-colors"
-            onClick={() => setShowRationale(!showRationale)}
-            aria-expanded={showRationale}
-          >
-            <h4 className="text-[11px] text-gray-500 mb-1.5 uppercase tracking-wider flex items-center justify-between">
-              <span>Credibility</span>
-              <ChevronDown className={classNames(
-                'w-3 h-3 text-gray-500 transition-transform duration-200',
-                showRationale ? 'rotate-180' : ''
-              )} />
-            </h4>
-            <div className={classNames(
-              'text-sm font-medium',
-              credibilityConfig.color
-            )}>
-              {credibilityConfig.label}
-            </div>
-          </button>
+          {/* Credibility — uses Paradocs Assessment score for index reports,
+              falls back to ingestion quality label for curated/editorial */}
+          {(() => {
+            var assessScore = paradocsAssessment && typeof paradocsAssessment.credibility_score === 'number' ? paradocsAssessment.credibility_score : null
+            var useAssessment = isIndexReport && assessScore != null
+            var gridLabel = useAssessment
+              ? (assessScore >= 80 ? 'Strong' : assessScore >= 60 ? 'Moderate' : assessScore >= 40 ? 'Limited' : 'Weak')
+              : credibilityConfig.label
+            var gridColor = useAssessment
+              ? (assessScore >= 80 ? 'text-emerald-400' : assessScore >= 60 ? 'text-sky-400' : assessScore >= 40 ? 'text-amber-400' : 'text-red-400')
+              : credibilityConfig.color
+            return (
+              <button
+                className="glass-card p-3 sm:p-4 text-left w-full cursor-pointer hover:bg-white/[0.04] transition-colors"
+                onClick={() => setShowRationale(!showRationale)}
+                aria-expanded={showRationale}
+              >
+                <h4 className="text-[11px] text-gray-500 mb-1.5 uppercase tracking-wider flex items-center justify-between">
+                  <span>Credibility</span>
+                  <ChevronDown className={classNames(
+                    'w-3 h-3 text-gray-500 transition-transform duration-200',
+                    showRationale ? 'rotate-180' : ''
+                  )} />
+                </h4>
+                <div className={classNames('text-sm font-medium', gridColor)}>
+                  {gridLabel}
+                  {useAssessment && (
+                    <span className="text-gray-500 font-normal ml-1.5">{assessScore}/100</span>
+                  )}
+                </div>
+              </button>
+            )
+          })()}
 
           {/* Source Origin */}
           <div className="glass-card p-3 sm:p-4">
@@ -1097,21 +1110,34 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         </div>
 
         {/* Credibility Rationale — expandable explanation below the info grid */}
-        {showRationale && (
-          <div className="mb-6 sm:mb-8 -mt-2 sm:-mt-4 glass-card p-4 sm:p-5 border border-white/[0.08]">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className={classNames('w-4 h-4 mt-0.5 shrink-0', credibilityConfig.color)} />
-              <div>
-                <h4 className={classNames('text-sm font-medium mb-1.5', credibilityConfig.color)}>
-                  Why {credibilityConfig.label}?
-                </h4>
-                <p className="text-sm text-gray-300 leading-relaxed">
-                  {(report as any).credibility_rationale || ((report as any).paradocs_assessment && (report as any).paradocs_assessment.credibility_reasoning) || credibilityConfig.description}
-                </p>
+        {showRationale && (() => {
+          var assessScore = paradocsAssessment && typeof paradocsAssessment.credibility_score === 'number' ? paradocsAssessment.credibility_score : null
+          var useAssessment = isIndexReport && assessScore != null
+          var rationaleLabel = useAssessment
+            ? (assessScore >= 80 ? 'Strong' : assessScore >= 60 ? 'Moderate' : assessScore >= 40 ? 'Limited' : 'Weak')
+            : credibilityConfig.label
+          var rationaleColor = useAssessment
+            ? (assessScore >= 80 ? 'text-emerald-400' : assessScore >= 60 ? 'text-sky-400' : assessScore >= 40 ? 'text-amber-400' : 'text-red-400')
+            : credibilityConfig.color
+          var rationaleText = useAssessment
+            ? (paradocsAssessment?.credibility_reasoning || credibilityConfig.description)
+            : ((report as any).credibility_rationale || ((report as any).paradocs_assessment && (report as any).paradocs_assessment.credibility_reasoning) || credibilityConfig.description)
+          return (
+            <div className="mb-6 sm:mb-8 -mt-2 sm:-mt-4 glass-card p-4 sm:p-5 border border-white/[0.08]">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className={classNames('w-4 h-4 mt-0.5 shrink-0', rationaleColor)} />
+                <div>
+                  <h4 className={classNames('text-sm font-medium mb-1.5', rationaleColor)}>
+                    Why {rationaleLabel}?
+                  </h4>
+                  <p className="text-sm text-gray-300 leading-relaxed">
+                    {rationaleText}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Further Reading — Amazon affiliate book recommendations (curated reports only) */}
         {isCurated && (
