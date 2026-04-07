@@ -24,7 +24,8 @@ import {
   TrendingUp, MapPin, Heart, Clock, ChevronLeft, ChevronRight as ChevronRightIcon,
   Bookmark, Eye, ThumbsUp, BookOpen, UserPlus, Bell, Library, LogIn,
   Filter, Loader, AlertCircle, Map as MapIcon, Grid3X3, List,
-  ChevronUp, AlertTriangle, Tag, ArrowUp, Loader2, Brain, Calendar, Shield
+  ChevronUp, AlertTriangle, Tag, ArrowUp, Loader2, Brain, Calendar, Shield,
+  Radar, Footprints, HeartPulse, Dna, ScanEye, Moon, Layers, Zap
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonType, PhenomenonCategory, CredibilityLevel, ContentType } from '@/lib/database.types'
@@ -182,6 +183,36 @@ var CATEGORY_GRADIENTS: Record<string, string> = {
   religion_mythology: 'from-yellow-950/80 via-gray-900 to-gray-950',
   esoteric_practices: 'from-fuchsia-950 via-gray-900 to-gray-950',
   combination: 'from-teal-950 via-gray-900 to-gray-950',
+}
+
+// Lucide icons per category (replacing emojis for Apple HIG consistency)
+var CATEGORY_LUCIDE_ICONS: Record<string, any> = {
+  ufos_aliens: Radar,
+  cryptids: Footprints,
+  ghosts_hauntings: Eye,
+  psychic_phenomena: Zap,
+  consciousness_practices: Brain,
+  psychological_experiences: HeartPulse,
+  biological_factors: Dna,
+  perception_sensory: ScanEye,
+  religion_mythology: BookOpen,
+  esoteric_practices: Moon,
+  combination: Layers,
+}
+
+// Accent colors for category cards (icon tint + border highlight)
+var CATEGORY_ACCENT: Record<string, { icon: string; border: string; glow: string }> = {
+  ufos_aliens: { icon: 'text-indigo-400', border: 'border-indigo-500/30', glow: 'group-hover:shadow-indigo-500/10' },
+  cryptids: { icon: 'text-emerald-400', border: 'border-emerald-500/30', glow: 'group-hover:shadow-emerald-500/10' },
+  ghosts_hauntings: { icon: 'text-purple-400', border: 'border-purple-500/30', glow: 'group-hover:shadow-purple-500/10' },
+  psychic_phenomena: { icon: 'text-violet-400', border: 'border-violet-500/30', glow: 'group-hover:shadow-violet-500/10' },
+  consciousness_practices: { icon: 'text-amber-400', border: 'border-amber-500/30', glow: 'group-hover:shadow-amber-500/10' },
+  psychological_experiences: { icon: 'text-cyan-400', border: 'border-cyan-500/30', glow: 'group-hover:shadow-cyan-500/10' },
+  biological_factors: { icon: 'text-rose-400', border: 'border-rose-500/30', glow: 'group-hover:shadow-rose-500/10' },
+  perception_sensory: { icon: 'text-orange-400', border: 'border-orange-500/30', glow: 'group-hover:shadow-orange-500/10' },
+  religion_mythology: { icon: 'text-yellow-400', border: 'border-yellow-500/30', glow: 'group-hover:shadow-yellow-500/10' },
+  esoteric_practices: { icon: 'text-fuchsia-400', border: 'border-fuchsia-500/30', glow: 'group-hover:shadow-fuchsia-500/10' },
+  combination: { icon: 'text-teal-400', border: 'border-teal-500/30', glow: 'group-hover:shadow-teal-500/10' },
 }
 
 // ─── MODE TABS ──────────────────────────────────────────────
@@ -537,6 +568,12 @@ function ExploreBrowseMode() {
   var [feedSections, setFeedSections] = useState<FeedSection[]>([])
   var [feedLoading, setFeedLoading] = useState(true)
 
+  // Live category counts and latest reports for redesigned browse
+  var [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
+  var [categoryLatestTitle, setCategoryLatestTitle] = useState<Record<string, string>>({})
+  var [latestReports, setLatestReports] = useState<FeedReport[]>([])
+  var [latestLoading, setLatestLoading] = useState(true)
+
   useEffect(function() {
     async function fetchTotalCount() {
       try {
@@ -551,6 +588,66 @@ function ExploreBrowseMode() {
       }
     }
     fetchTotalCount()
+  }, [])
+
+  // Fetch live category counts + latest report title per category + latest 4 reports
+  useEffect(function() {
+    async function fetchCategoryData() {
+      setLatestLoading(true)
+      try {
+        // Category counts: group approved reports by category
+        var countRes = await supabase
+          .from('reports')
+          .select('category', { count: 'exact', head: false })
+          .eq('status', 'approved')
+        if (!countRes.error && countRes.data) {
+          var counts: Record<string, number> = {}
+          countRes.data.forEach(function(r: any) {
+            if (r.category) {
+              counts[r.category] = (counts[r.category] || 0) + 1
+            }
+          })
+          setCategoryCounts(counts)
+        }
+
+        // Latest report title per category (for hover preview)
+        var latestPerCat: Record<string, string> = {}
+        var catKeys = Object.keys(CATEGORY_CONFIG)
+        // Fetch the single most recent report per category in parallel
+        var promises = catKeys.map(function(cat) {
+          return supabase
+            .from('reports')
+            .select('title,category')
+            .eq('status', 'approved')
+            .eq('category', cat)
+            .order('created_at', { ascending: false })
+            .limit(1)
+        })
+        var results = await Promise.all(promises)
+        results.forEach(function(res, idx) {
+          if (!res.error && res.data && res.data.length > 0) {
+            latestPerCat[catKeys[idx]] = (res.data[0] as any).title
+          }
+        })
+        setCategoryLatestTitle(latestPerCat)
+
+        // Latest 4 reports across all categories
+        var latestRes = await supabase
+          .from('reports')
+          .select('id,title,slug,summary,category,country,city,state_province,event_date,credibility,upvotes,view_count,comment_count,created_at,location_name,source_type,source_label,has_photo_video,has_physical_evidence')
+          .eq('status', 'approved')
+          .order('created_at', { ascending: false })
+          .limit(4)
+        if (!latestRes.error && latestRes.data) {
+          setLatestReports(latestRes.data as FeedReport[])
+        }
+      } catch (err) {
+        console.error('Error fetching category data:', err)
+      } finally {
+        setLatestLoading(false)
+      }
+    }
+    fetchCategoryData()
   }, [])
 
   // Filters
@@ -829,48 +926,118 @@ function ExploreBrowseMode() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
-      {/* CATEGORIES VIEW — tile grid */}
+      {/* CATEGORIES VIEW — redesigned: Latest Reports → Categories → Encyclopedia → Map */}
       {browseView === 'categories' && !selectedCategoryForPhenomena && (
         <>
-          {/* Category Tiles */}
+          {/* ─── 1. LATEST REPORTS — immediate content preview ─── */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <Clock className="w-5 h-5 text-emerald-400" />
+                <h2 className="text-lg font-semibold text-white">Latest Reports</h2>
+              </div>
+              <button
+                onClick={function() { setBrowseView('reports') }}
+                className="flex items-center gap-1 text-sm text-primary-400 hover:text-primary-300 transition-colors"
+              >
+                View all {baselineCount > 0 ? baselineCount.toLocaleString() : ''} reports
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {latestLoading ? (
+              <div className="flex gap-3 overflow-hidden">
+                {[1,2,3,4].map(function(j) { return <div key={j} className="min-w-[260px] sm:min-w-[300px] h-40 skeleton rounded-xl flex-shrink-0" /> })}
+              </div>
+            ) : (
+              <div className="relative">
+                <div id="latest-reports-scroll" className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory pr-8">
+                  {latestReports.map(function(report) {
+                    var catConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
+                    var accent = CATEGORY_ACCENT[report.category] || CATEGORY_ACCENT.combination
+                    var CatIcon = CATEGORY_LUCIDE_ICONS[report.category] || Layers
+                    var locationParts = [report.city || report.location_name, report.state_province].filter(Boolean)
+                    var locationStr = locationParts.length > 0 ? locationParts.slice(0, 2).join(', ') : null
+                    var timeAgo = formatRelativeDate(report.created_at)
+                    return (
+                      <Link
+                        key={report.id}
+                        href={'/report/' + report.slug}
+                        className="min-w-[270px] sm:min-w-[310px] max-w-[290px] sm:max-w-[330px] flex-shrink-0 snap-start rounded-xl border border-white/10 hover:border-primary-500/30 bg-white/[0.02] hover:bg-white/[0.04] p-4 sm:p-5 transition-all group/card flex flex-col"
+                      >
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className={classNames('w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', catConfig.bgColor)}>
+                            <CatIcon className={classNames('w-4 h-4', accent.icon)} />
+                          </div>
+                          <span className={classNames('text-[11px] px-2 py-0.5 rounded-full font-medium', catConfig.bgColor, catConfig.color)}>{catConfig.label}</span>
+                          {report.source_label && <span className="text-[11px] text-gray-500 ml-auto truncate max-w-[80px]">{report.source_label}</span>}
+                        </div>
+                        <h3 className="font-medium text-white text-sm line-clamp-2 mb-2 group-hover/card:text-primary-300 transition-colors">{report.title}</h3>
+                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500 mt-auto pt-2 border-t border-white/5">
+                          {locationStr && <span className="flex items-center gap-1 truncate max-w-[120px]"><MapPin className="w-3 h-3 flex-shrink-0" />{locationStr}</span>}
+                          <span className="flex items-center gap-1"><Clock className="w-3 h-3 flex-shrink-0" />{timeAgo}</span>
+                        </div>
+                      </Link>
+                    )
+                  })}
+                  {/* "View all" end card */}
+                  <button
+                    onClick={function() { setBrowseView('reports') }}
+                    className="min-w-[140px] sm:min-w-[160px] flex-shrink-0 snap-start flex flex-col items-center justify-center rounded-xl border border-white/10 hover:border-primary-500/30 bg-white/[0.02] hover:bg-white/[0.04] transition-all gap-2 px-6"
+                  >
+                    <ArrowRight className="w-6 h-6 text-primary-400" />
+                    <span className="text-sm font-medium text-primary-400">View all</span>
+                    {baselineCount > 0 && <span className="text-xs text-gray-500">{baselineCount.toLocaleString()} reports</span>}
+                  </button>
+                </div>
+                <div className="absolute right-0 top-0 bottom-2 w-12 bg-gradient-to-l from-[#0a0a1a] to-transparent pointer-events-none" />
+              </div>
+            )}
+          </div>
+
+          {/* ─── 2. BROWSE BY CATEGORY — redesigned with Lucide icons + live counts ─── */}
           <div className="mb-8">
             <h2 className="text-lg font-semibold text-white mb-4">Browse by Category</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {Object.entries(CATEGORY_CONFIG).map(function(entry) {
                 var key = entry[0]
                 var config = entry[1]
+                var CatIcon = CATEGORY_LUCIDE_ICONS[key] || Layers
+                var accent = CATEGORY_ACCENT[key] || CATEGORY_ACCENT.combination
+                var count = categoryCounts[key] || 0
+                var latestTitle = categoryLatestTitle[key] || ''
                 return (
                   <button
                     key={key}
                     onClick={function() { handleCategoryTap(key) }}
                     className={classNames(
-                      'relative overflow-hidden rounded-xl p-4 sm:p-5 text-left transition-all hover:scale-[1.02] border border-white/10 hover:border-primary-500/30 group',
+                      'relative overflow-hidden rounded-xl p-4 sm:p-5 text-left transition-all hover:scale-[1.02] border group',
                       'bg-gradient-to-br',
-                      CATEGORY_GRADIENTS[key] || 'from-gray-900 to-gray-950'
+                      CATEGORY_GRADIENTS[key] || 'from-gray-900 to-gray-950',
+                      'border-white/10 hover:' + accent.border.replace('border-', 'border-'),
+                      'hover:shadow-lg',
+                      accent.glow
                     )}
+                    style={{ minHeight: '6rem' }}
                   >
-                    <span className="text-2xl sm:text-3xl block mb-2 group-hover:scale-110 transition-transform">{config.icon}</span>
-                    <span className="text-sm sm:text-base font-semibold text-white block">{config.label}</span>
-                    <span className="text-xs text-gray-500 mt-1 block">Tap to explore</span>
+                    <CatIcon className={classNames('w-7 h-7 sm:w-8 sm:h-8 mb-2 transition-transform group-hover:scale-110', accent.icon)} />
+                    <span className="text-sm sm:text-base font-semibold text-white block leading-tight">{config.label}</span>
+                    <span className="text-xs text-gray-400 mt-1 block tabular-nums">
+                      {count > 0 ? count.toLocaleString() + ' reports' : 'Explore'}
+                    </span>
+                    {/* Hover preview: most recent report title */}
+                    {latestTitle && (
+                      <span className="absolute bottom-0 left-0 right-0 px-4 py-2 text-[11px] text-gray-300 bg-gray-950/90 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity line-clamp-1 border-t border-white/5">
+                        Latest: {latestTitle}
+                      </span>
+                    )}
                   </button>
                 )
               })}
             </div>
           </div>
 
-          {/* "All Reports" button */}
-          <div className="mb-8">
-            <button
-              onClick={function() { setBrowseView('reports') }}
-              className="w-full sm:w-auto px-6 py-3 bg-primary-500/10 border border-primary-500/20 rounded-xl text-primary-400 font-medium hover:bg-primary-500/20 transition-all flex items-center gap-2 justify-center"
-            >
-              <Grid3X3 className="w-4 h-4" />
-              Browse All Reports
-              {baselineCount > 0 && <span className="text-xs text-gray-500">({baselineCount.toLocaleString()})</span>}
-            </button>
-          </div>
-
-          {/* Personalized feed sections */}
+          {/* ─── 3. ENCYCLOPEDIA SPOTLIGHT (personalized feed) ─── */}
           {!feedLoading && feedSections.length > 0 && (
             <div className="space-y-6 sm:space-y-10">
               {feedSections.map(function(section, sectionIndex) {
@@ -912,7 +1079,7 @@ function ExploreBrowseMode() {
                         <div className="relative">
                           <div id={'feed-' + section.id} className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory pr-8">
                             {section.phenomena.map(function(item) {
-                              var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
+                              var config2 = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
                               var hasImage = item.primary_image_url && item.primary_image_url.indexOf('default-cryptid') === -1
                               return (
                                 <Link key={item.id} href={'/phenomena/' + item.slug} className="min-w-[75vw] sm:min-w-[260px] max-w-[80vw] sm:max-w-[280px] flex-shrink-0 snap-start group/card relative overflow-hidden rounded-xl border border-white/10 hover:border-primary-500/30 transition-all">
@@ -922,14 +1089,14 @@ function ExploreBrowseMode() {
                                       <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/40 to-transparent" />
                                     </div>
                                   ) : (
-                                    <div className={classNames('relative h-44 sm:h-48 flex items-center justify-center', config.bgColor)}>
-                                      <span className="text-6xl opacity-40 group-hover/card:scale-110 transition-transform">{item.icon || config.icon}</span>
+                                    <div className={classNames('relative h-44 sm:h-48 flex items-center justify-center', config2.bgColor)}>
+                                      <span className="text-6xl opacity-40 group-hover/card:scale-110 transition-transform">{item.icon || config2.icon}</span>
                                       <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/30 to-transparent" />
                                     </div>
                                   )}
                                   <div className="absolute bottom-0 left-0 right-0 p-4">
                                     <div className="flex items-center gap-1.5 mb-1.5">
-                                      <span className={classNames('text-xs px-2 py-0.5 rounded-full font-medium', config.bgColor, config.color)}>{config.icon} {config.label}</span>
+                                      <span className={classNames('text-xs px-2 py-0.5 rounded-full font-medium', config2.bgColor, config2.color)}>{config2.icon} {config2.label}</span>
                                       {item.report_count > 0 && <span className="text-[11px] text-gray-400">{item.report_count} reports</span>}
                                     </div>
                                     <h3 className="font-semibold text-white text-base sm:text-lg line-clamp-1 group-hover/card:text-primary-300 transition-colors">{item.name}</h3>
@@ -984,13 +1151,16 @@ function ExploreBrowseMode() {
                       )}
                     </div>
 
-                    {/* Map Spotlight after first section */}
+                    {/* ─── 4. MAP SPOTLIGHT — after first feed section ─── */}
                     {sectionIndex === 0 && <MapSpotlightRow />}
                   </React.Fragment>
                 )
               })}
             </div>
           )}
+
+          {/* Map Spotlight fallback when no feed sections yet */}
+          {!feedLoading && feedSections.length === 0 && <MapSpotlightRow />}
 
           {feedLoading && (
             <div className="space-y-8">
