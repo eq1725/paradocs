@@ -595,26 +595,17 @@ function ExploreBrowseMode() {
     async function fetchCategoryData() {
       setLatestLoading(true)
       try {
-        // Category counts: group approved reports by category
-        var countRes = await supabase
-          .from('reports')
-          .select('category', { count: 'exact', head: false })
-          .eq('status', 'approved')
-        if (!countRes.error && countRes.data) {
-          var counts: Record<string, number> = {}
-          countRes.data.forEach(function(r: any) {
-            if (r.category) {
-              counts[r.category] = (counts[r.category] || 0) + 1
-            }
-          })
-          setCategoryCounts(counts)
-        }
-
-        // Latest report title per category (for hover preview)
-        var latestPerCat: Record<string, string> = {}
+        // Category counts + latest title per category — one query per category
+        // Using head:true count queries to avoid Supabase's default row limit
         var catKeys = Object.keys(CATEGORY_CONFIG)
-        // Fetch the single most recent report per category in parallel
-        var promises = catKeys.map(function(cat) {
+        var countPromises = catKeys.map(function(cat) {
+          return supabase
+            .from('reports')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'approved')
+            .eq('category', cat)
+        })
+        var latestPromises = catKeys.map(function(cat) {
           return supabase
             .from('reports')
             .select('title,category')
@@ -623,8 +614,17 @@ function ExploreBrowseMode() {
             .order('created_at', { ascending: false })
             .limit(1)
         })
-        var results = await Promise.all(promises)
-        results.forEach(function(res, idx) {
+        var countResults = await Promise.all(countPromises)
+        var latestResults = await Promise.all(latestPromises)
+        var counts: Record<string, number> = {}
+        var latestPerCat: Record<string, string> = {}
+        countResults.forEach(function(res, idx) {
+          if (!res.error && typeof res.count === 'number') {
+            counts[catKeys[idx]] = res.count
+          }
+        })
+        setCategoryCounts(counts)
+        latestResults.forEach(function(res, idx) {
           if (!res.error && res.data && res.data.length > 0) {
             latestPerCat[catKeys[idx]] = (res.data[0] as any).title
           }
@@ -997,7 +997,10 @@ function ExploreBrowseMode() {
 
           {/* ─── 2. BROWSE BY CATEGORY — redesigned with Lucide icons + live counts ─── */}
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-white mb-4">Browse by Category</h2>
+            <div className="flex items-center gap-2.5 mb-4">
+              <Grid3X3 className="w-5 h-5 text-primary-400" />
+              <h2 className="text-lg font-semibold text-white">Browse by Category</h2>
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {Object.entries(CATEGORY_CONFIG).map(function(entry) {
                 var key = entry[0]
