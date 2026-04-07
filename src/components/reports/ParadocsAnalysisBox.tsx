@@ -1,117 +1,25 @@
 /**
  * ParadocsAnalysisBox Component
  *
- * Displays the Paradocs Analysis for mass-ingested reports.
- * Narrative section: Paradocs editorial voice (NOT labeled as AI).
- * Assessment sections: credibility, mundane explanations, content type, similar phenomena.
- * Purple gradient styling matches the encyclopedia phenomena page Paradocs Analysis box.
+ * Displays the Paradocs editorial analysis for mass-ingested reports.
+ * Two sections:
+ *   1. Narrative — Paradocs editorial voice, clean readable prose
+ *   2. Assessment — credibility score, factors, alternative explanations, related phenomena
+ *
+ * Design principles:
+ *   - The narrative IS the content. No highlighting gimmicks, no pull-quotes.
+ *   - First paragraph styled as a lede for scanners.
+ *   - Credibility score and reasoning shown by default (most interesting to readers).
+ *   - Alternative explanations and related phenomena are expandable detail.
+ *   - Clean, confident typography that lets the editorial voice carry the experience.
  *
  * SWC compliant: var, function(){}, string concat, no template literals in JSX, unicode escapes.
  */
 
-import React, { useState, useMemo } from 'react'
-import { Lightbulb, Shield, AlertCircle, Tag, ChevronDown, ChevronUp } from 'lucide-react'
+import React, { useState } from 'react'
+import { Shield, Scale, Compass, ChevronDown, ChevronUp } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 import Link from 'next/link'
-
-/**
- * Narrative text highlighting for skimmer engagement.
- *
- * Philosophy: highlight CONCRETE FACTS only — data a skimmer would scan for.
- * No analytical jargon, no subjective adjective+noun combos.
- *
- * What gets highlighted:
- *  - "Key Takeaway" pull-quote: first sentence displayed prominently
- *  - Data points: times, distances, measurements, scores, dates
- *  - Named references: specific events, places, organizations, celestial objects
- *  - Quoted terms: witness or editorial emphasis the narrative already marks
- *
- * SWC compliant: var, function(){}, no arrow functions or template literals.
- */
-
-// --- NAMED REFERENCES: Specific events, places, organizations, objects ---
-// These are proper nouns and named things a skimmer would recognize/search for.
-var NAMED_REFS = /\b(Belgian wave|Rendlesham Forest|Phoenix Lights|Nimitz encounter|Tic[\s-]Tac|Hudson Valley|Roswell|Hessdalen lights?|NUFORC|MUFON|AARO|Project Blue Book|Iridium flare|Starlink|International Space Station|ISS|Comet \w+(?:\/\w+)?|FAA|NORAD|National Weather Service|NWS)\b/gi
-
-// --- DATA POINTS: Times, measurements, distances, scores, dates ---
-var DATA_PATTERN = /\b(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)|\d+(?:,\d{3})*\s*(?:feet|ft|meters?|m|miles?|mi|km|mph|km\/h|knots?|seconds?|sec|minutes?|min|hours?|hrs?|degrees?|\u00b0)|\d+\/100|\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}|(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4})\b/g
-
-// --- QUOTED TERMS: Editorial or witness emphasis the narrative already marks ---
-var QUOTED_PATTERN = /(\u201c[^"\u201d]{2,60}\u201d|\u2018[^'\u2019]{2,40}\u2019|"[^"]{2,60}")/g
-
-/**
- * Extract the first sentence from the full narrative for the key takeaway.
- */
-function extractFirstSentence(text) {
-  var cleaned = text.replace(/\n\n/g, ' ').trim()
-  var match = cleaned.match(/^(.+?[.!?])\s/)
-  if (match) return match[1]
-  return cleaned.length > 200 ? cleaned.substring(0, 200) + '\u2026' : cleaned
-}
-
-/**
- * Render text with subtle highlighted concrete facts.
- * Only two visual treatments — named refs and data get a soft pill,
- * quoted terms get italic emphasis. Nothing else is touched.
- */
-function renderHighlightedText(text) {
-  var segments = []
-  var lastIndex = 0
-  var allMatches = []
-  var m
-
-  // Named references (proper nouns, organizations, events)
-  NAMED_REFS.lastIndex = 0
-  while ((m = NAMED_REFS.exec(text)) !== null) {
-    allMatches.push({ start: m.index, end: m.index + m[0].length, text: m[0], type: 'named' })
-  }
-
-  // Data points (times, measurements, dates, scores)
-  DATA_PATTERN.lastIndex = 0
-  while ((m = DATA_PATTERN.exec(text)) !== null) {
-    allMatches.push({ start: m.index, end: m.index + m[0].length, text: m[0], type: 'data' })
-  }
-
-  // Quoted terms (editorial emphasis already in the narrative)
-  QUOTED_PATTERN.lastIndex = 0
-  while ((m = QUOTED_PATTERN.exec(text)) !== null) {
-    allMatches.push({ start: m.index, end: m.index + m[0].length, text: m[0], type: 'quote' })
-  }
-
-  // Sort by position; on overlap keep longer match
-  allMatches.sort(function(a, b) { return a.start - b.start || (b.end - b.start) - (a.end - a.start) })
-  var filtered = []
-  var maxEnd = 0
-  for (var i = 0; i < allMatches.length; i++) {
-    if (allMatches[i].start >= maxEnd) {
-      filtered.push(allMatches[i])
-      maxEnd = allMatches[i].end
-    }
-  }
-
-  // Two visual treatments: soft purple pill for facts, italic for quotes
-  var STYLES = {
-    named: { backgroundColor: 'rgba(168, 85, 247, 0.18)', color: '#e9d5ff', borderRadius: '3px', padding: '1px 5px', fontWeight: 600 },
-    data:  { backgroundColor: 'rgba(168, 85, 247, 0.18)', color: '#e9d5ff', borderRadius: '3px', padding: '1px 5px', fontWeight: 600 },
-    quote: { color: '#ddd6fe', fontStyle: 'italic' }
-  }
-
-  // Build segments
-  for (var j = 0; j < filtered.length; j++) {
-    var match = filtered[j]
-    if (match.start > lastIndex) {
-      segments.push(React.createElement('span', { key: 'plain-' + j }, text.substring(lastIndex, match.start)))
-    }
-    segments.push(React.createElement('span', { key: 'hl-' + j, style: STYLES[match.type] || STYLES.named }, match.text))
-    lastIndex = match.end
-  }
-
-  if (lastIndex < text.length) {
-    segments.push(React.createElement('span', { key: 'tail' }, text.substring(lastIndex)))
-  }
-
-  return segments.length > 0 ? segments : [text]
-}
 
 interface CredibilityFactor {
   name: string
@@ -134,6 +42,7 @@ export interface ParadocsAssessment {
   is_first_hand?: boolean
   confidence?: string
   similar_phenomena?: string[]
+  emotional_tone?: string
 }
 
 interface Props {
@@ -142,11 +51,28 @@ interface Props {
   className?: string
 }
 
+/**
+ * Credibility score label and color
+ */
+function getCredibilityLabel(score: number): { label: string; color: string; bgColor: string; barColor: string } {
+  if (score >= 80) return { label: 'Strong', color: 'text-emerald-400', bgColor: 'bg-emerald-500/15', barColor: 'bg-emerald-400' }
+  if (score >= 60) return { label: 'Moderate', color: 'text-sky-400', bgColor: 'bg-sky-500/15', barColor: 'bg-sky-400' }
+  if (score >= 40) return { label: 'Limited', color: 'text-amber-400', bgColor: 'bg-amber-500/15', barColor: 'bg-amber-400' }
+  return { label: 'Weak', color: 'text-red-400', bgColor: 'bg-red-500/15', barColor: 'bg-red-400' }
+}
+
+/**
+ * Likelihood badge colors
+ */
+function getLikelihoodStyle(likelihood: string): string {
+  if (likelihood === 'high') return 'bg-amber-500/15 text-amber-400 border-amber-500/25'
+  if (likelihood === 'medium') return 'bg-sky-500/15 text-sky-400 border-sky-500/25'
+  return 'bg-white/5 text-gray-500 border-white/10'
+}
+
 export default function ParadocsAnalysisBox({ narrative, assessment, className }: Props) {
   var _a = useState({
-    credibility: true,
-    mundane: false,
-    contentType: false,
+    explanations: false,
     phenomena: false
   })
   var expandedSections = _a[0]
@@ -160,25 +86,20 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
     })
   }
 
-  // Graceful fallback when narrative is not yet generated
+  // Graceful fallback when analysis hasn't been generated yet
   if (!narrative && !assessment) {
     return (
       <div className={classNames('relative rounded-xl overflow-hidden mb-8', className)}>
-        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/40 via-indigo-900/30 to-gray-900/40 rounded-xl" />
-        <div className="absolute inset-0 border border-purple-500/30 rounded-xl" />
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/30 via-gray-900/40 to-gray-900/50 rounded-xl" />
+        <div className="absolute inset-0 border border-purple-500/20 rounded-xl" />
         <div className="relative p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
-              <Lightbulb className="w-4 h-4 text-purple-400" />
+            <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center">
+              <Compass className="w-4 h-4 text-purple-400" />
             </div>
-            <div>
-              <h2 className="text-lg font-semibold text-white">Paradocs Analysis</h2>
-              <p className="text-xs text-purple-400 font-medium tracking-wider uppercase">
-                Contextual Analysis
-              </p>
-            </div>
+            <h2 className="text-lg font-semibold text-white">Paradocs Analysis</h2>
           </div>
-          <p className="text-gray-400 text-sm italic">
+          <p className="text-gray-500 text-sm">
             Analysis is being prepared for this report. Check back soon.
           </p>
         </div>
@@ -187,150 +108,98 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
   }
 
   var credScore = assessment ? assessment.credibility_score : null
-  var credColor = credScore != null
-    ? (credScore >= 70 ? 'text-green-400' : credScore >= 40 ? 'text-yellow-400' : 'text-red-400')
-    : 'text-gray-400'
-  var credBgColor = credScore != null
-    ? (credScore >= 70 ? 'bg-green-400' : credScore >= 40 ? 'bg-yellow-400' : 'bg-red-400')
-    : 'bg-gray-400'
+  var credInfo = credScore != null ? getCredibilityLabel(credScore) : null
+
+  // Split narrative into paragraphs
+  var paragraphs = narrative ? narrative.split('\n\n').filter(function(p) { return p.trim().length > 0 }) : []
 
   return (
     <div className={classNames('relative rounded-xl overflow-hidden mb-8', className)}>
-      {/* Purple gradient background — matches phenomena/[slug].tsx */}
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-900/40 via-indigo-900/30 to-gray-900/40 rounded-xl" />
-      <div className="absolute inset-0 border border-purple-500/30 rounded-xl" />
-      <div className="relative p-4 sm:p-6">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
-            <Lightbulb className="w-4 h-4 text-purple-400" />
-          </div>
-          <div>
+      {/* Background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-purple-900/25 via-gray-900/40 to-gray-900/50 rounded-xl" />
+      <div className="absolute inset-0 border border-purple-500/20 rounded-xl" />
+
+      <div className="relative">
+        {/* ── Header ── */}
+        <div className="px-5 pt-5 pb-0 sm:px-6 sm:pt-6">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center flex-shrink-0">
+              <Compass className="w-4 h-4 text-purple-400" />
+            </div>
             <h2 className="text-lg font-semibold text-white">Paradocs Analysis</h2>
-            <p className="text-xs text-purple-400 font-medium tracking-wider uppercase">
-              Contextual Analysis
-            </p>
           </div>
         </div>
 
-        {/* Key Takeaway — pull-quote for skimmers who won't read the full analysis */}
-        {narrative && (
-          <div className="mb-5 pl-4 border-l-2 border-purple-400/60">
-            <p className="text-sm font-medium text-purple-300/70 uppercase tracking-wider mb-1">Key Takeaway</p>
-            <p className="text-gray-100 leading-relaxed font-medium">
-              {extractFirstSentence(narrative)}
+        {/* ── Narrative ── */}
+        {paragraphs.length > 0 && (
+          <div className="px-5 pt-4 pb-2 sm:px-6">
+            {/* Lede paragraph — slightly larger, brighter */}
+            <p className="text-[15px] sm:text-base text-gray-200 leading-relaxed mb-4">
+              {paragraphs[0]}
             </p>
-          </div>
-        )}
 
-        {/* Full Narrative — with background-highlighted key phrases for scanning. */}
-        {narrative && (
-          <div className="prose prose-invert prose-purple max-w-none mb-0">
-            {narrative.split('\n\n').map(function(paragraph, i) {
-              return React.createElement('p', {
-                key: i,
-                className: 'text-gray-300 leading-relaxed mb-4 last:mb-0'
-              }, renderHighlightedText(paragraph))
+            {/* Remaining paragraphs — standard body */}
+            {paragraphs.slice(1).map(function(paragraph, i) {
+              return (
+                <p key={i} className="text-[14px] sm:text-[15px] text-gray-400 leading-relaxed mb-4 last:mb-0">
+                  {paragraph}
+                </p>
+              )
             })}
           </div>
         )}
 
-        {/* Assessment sections — collapsible */}
+        {/* ── Assessment ── */}
         {assessment && (
-          <div className="space-y-0">
-            {/* Credibility Assessment */}
-            {credScore != null && (
-              <div className="border-t border-purple-500/20 pt-4 mt-4">
-                <button
-                  onClick={function() { toggleSection('credibility') }}
-                  className="flex items-center justify-between w-full text-left gap-2"
-                >
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Shield className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    <span className="text-sm font-medium text-white">Credibility Assessment</span>
-                    <span className={classNames('text-sm font-bold', credColor)}>
-                      {credScore}/100
-                    </span>
-                    {/* Visual bar */}
-                    <div className="hidden sm:flex items-center gap-1.5 ml-1">
-                      <div className="w-16 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                        <div
-                          className={classNames('h-full rounded-full', credBgColor)}
-                          style={{ width: credScore + '%' }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  {(expandedSections as any).credibility ? (
-                    <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                  )}
-                </button>
+          <div className="px-5 pb-5 sm:px-6 sm:pb-6">
 
-                {(expandedSections as any).credibility && (
-                  <div className="mt-3 pb-1 space-y-3">
-                    {/* Credibility reasoning paragraph removed — shown in Credibility Rationale
-                        section below the info grid to avoid duplication. Bullets only here. */}
-                    {assessment.credibility_factors && assessment.credibility_factors.length > 0 && (
-                      <div className="space-y-2">
-                        {assessment.credibility_factors.map(function(factor, i) {
-                          return (
-                            <div key={i} className="flex items-start gap-2 text-sm">
-                              <span className={classNames(
-                                'w-2 h-2 rounded-full mt-1.5 flex-shrink-0',
-                                factor.impact === 'positive' ? 'bg-green-400' :
-                                  factor.impact === 'negative' ? 'bg-red-400' : 'bg-gray-400'
-                              )} />
-                              <div>
-                                <span className="text-white font-medium">{factor.name}:</span>{' '}
-                                <span className="text-gray-400">{factor.description}</span>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
+            {/* Credibility Score — always visible */}
+            {credScore != null && credInfo && (
+              <div className="border-t border-white/[0.06] pt-5 mt-2">
+                {/* Score bar */}
+                <div className="flex items-center gap-3 mb-3">
+                  <Shield className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                  <span className="text-sm font-medium text-gray-300">Credibility</span>
+                  <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                    <div
+                      className={classNames('h-full rounded-full transition-all', credInfo.barColor)}
+                      style={{ width: credScore + '%' }}
+                    />
                   </div>
+                  <span className={classNames('text-sm font-semibold tabular-nums', credInfo.color)}>
+                    {credScore}
+                  </span>
+                  <span className={classNames(
+                    'text-xs px-2 py-0.5 rounded-full font-medium',
+                    credInfo.bgColor, credInfo.color
+                  )}>
+                    {credInfo.label}
+                  </span>
+                </div>
+
+                {/* Credibility reasoning — always visible, the most interesting part */}
+                {assessment.credibility_reasoning && (
+                  <p className="text-sm text-gray-400 leading-relaxed mb-3 ml-7">
+                    {assessment.credibility_reasoning}
+                  </p>
                 )}
-              </div>
-            )}
 
-            {/* Mundane / Alternative Explanations */}
-            {assessment.mundane_explanations && assessment.mundane_explanations.length > 0 && (
-              <div className="border-t border-purple-500/20 pt-4 mt-4">
-                <button
-                  onClick={function() { toggleSection('mundane') }}
-                  className="flex items-center justify-between w-full text-left"
-                >
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm font-medium text-white">Alternative Explanations</span>
-                  </div>
-                  {(expandedSections as any).mundane ? (
-                    <ChevronUp className="w-4 h-4 text-gray-400" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 text-gray-400" />
-                  )}
-                </button>
-
-                {(expandedSections as any).mundane && (
-                  <div className="mt-3 pb-1 space-y-3">
-                    {assessment.mundane_explanations.map(function(exp, i) {
+                {/* Credibility factors — compact inline */}
+                {assessment.credibility_factors && assessment.credibility_factors.length > 0 && (
+                  <div className="ml-7 space-y-1.5">
+                    {assessment.credibility_factors.map(function(factor, i) {
                       return (
-                        <div key={i} className="bg-white/5 rounded-lg p-3">
-                          <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <span className="text-sm font-medium text-white break-words">{exp.explanation}</span>
-                            <span className={classNames(
-                              'text-xs px-2 py-0.5 rounded-full whitespace-nowrap',
-                              exp.likelihood === 'high' ? 'bg-yellow-500/20 text-yellow-400' :
-                                exp.likelihood === 'medium' ? 'bg-blue-500/20 text-blue-400' :
-                                  'bg-gray-500/20 text-gray-400'
-                            )}>
-                              {exp.likelihood}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-400 break-words">{exp.reasoning}</p>
+                        <div key={i} className="flex items-start gap-2 text-sm">
+                          <span className={classNames(
+                            'w-1.5 h-1.5 rounded-full mt-[7px] flex-shrink-0',
+                            factor.impact === 'positive' ? 'bg-emerald-400' :
+                              factor.impact === 'negative' ? 'bg-red-400' : 'bg-gray-500'
+                          )} />
+                          <span className="text-gray-500">
+                            <span className="text-gray-300 font-medium">{factor.name}</span>
+                            {' \u2014 '}
+                            {factor.description}
+                          </span>
                         </div>
                       )
                     })}
@@ -339,77 +208,84 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
               </div>
             )}
 
-            {/* Content Classification */}
-            {assessment.content_type && (
-              <div className="border-t border-purple-500/20 pt-4 mt-4">
+            {/* Alternative Explanations — expandable */}
+            {assessment.mundane_explanations && assessment.mundane_explanations.length > 0 && (
+              <div className="border-t border-white/[0.06] pt-4 mt-4">
                 <button
-                  onClick={function() { toggleSection('contentType') }}
-                  className="flex items-center justify-between w-full text-left"
+                  onClick={function() { toggleSection('explanations') }}
+                  className="flex items-center justify-between w-full text-left group"
                 >
                   <div className="flex items-center gap-2">
-                    <Tag className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm font-medium text-white">Content Classification</span>
+                    <Scale className="w-4 h-4 text-gray-500" />
+                    <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">
+                      Alternative Explanations
+                    </span>
+                    <span className="text-xs text-gray-600">
+                      {assessment.mundane_explanations.length}
+                    </span>
                   </div>
-                  {(expandedSections as any).contentType ? (
-                    <ChevronUp className="w-4 h-4 text-gray-400" />
+                  {(expandedSections as any).explanations ? (
+                    <ChevronUp className="w-4 h-4 text-gray-600 group-hover:text-gray-400 transition-colors" />
                   ) : (
-                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                    <ChevronDown className="w-4 h-4 text-gray-600 group-hover:text-gray-400 transition-colors" />
                   )}
                 </button>
 
-                {(expandedSections as any).contentType && (
-                  <div className="mt-3 pb-1 space-y-2">
-                    <div className="flex flex-wrap gap-2">
-                      <span className="px-3 py-1 rounded-full text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                        {(function() {
-                          var ct = assessment.content_type
-                          var typeStr = typeof ct === 'string' ? ct : (ct && typeof ct === 'object' ? (ct.suggested_type || 'unknown') : 'unknown')
-                          return typeStr.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase() })
-                        })()}
-                      </span>
-                      {(assessment.is_first_hand || (typeof assessment.content_type === 'object' && assessment.content_type && assessment.content_type.is_first_hand_account)) && (
-                        <span className="px-3 py-1 rounded-full text-xs bg-green-500/20 text-green-400 border border-green-500/30">
-                          First-hand Account
-                        </span>
-                      )}
-                      {(assessment.confidence || (typeof assessment.content_type === 'object' && assessment.content_type && assessment.content_type.confidence)) && (
-                        <span className="px-3 py-1 rounded-full text-xs bg-white/10 text-gray-400">
-                          {(assessment.confidence || (typeof assessment.content_type === 'object' && assessment.content_type ? assessment.content_type.confidence : '')) + ' confidence'}
-                        </span>
-                      )}
-                    </div>
+                {(expandedSections as any).explanations && (
+                  <div className="mt-3 space-y-2.5 ml-6">
+                    {assessment.mundane_explanations.map(function(exp, i) {
+                      return (
+                        <div key={i} className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-sm font-medium text-gray-300">{exp.explanation}</span>
+                            <span className={classNames(
+                              'text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide border',
+                              getLikelihoodStyle(exp.likelihood)
+                            )}>
+                              {exp.likelihood}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-500 leading-relaxed">{exp.reasoning}</p>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
             )}
 
-            {/* Related Phenomena */}
+            {/* Related Phenomena — expandable */}
             {assessment.similar_phenomena && assessment.similar_phenomena.length > 0 && (
-              <div className="border-t border-purple-500/20 pt-4 mt-4">
+              <div className="border-t border-white/[0.06] pt-4 mt-4">
                 <button
                   onClick={function() { toggleSection('phenomena') }}
-                  className="flex items-center justify-between w-full text-left"
+                  className="flex items-center justify-between w-full text-left group"
                 >
                   <div className="flex items-center gap-2">
-                    <Lightbulb className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm font-medium text-white">Related Phenomena</span>
+                    <Compass className="w-4 h-4 text-gray-500" />
+                    <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">
+                      Related Phenomena
+                    </span>
+                    <span className="text-xs text-gray-600">
+                      {assessment.similar_phenomena.length}
+                    </span>
                   </div>
                   {(expandedSections as any).phenomena ? (
-                    <ChevronUp className="w-4 h-4 text-gray-400" />
+                    <ChevronUp className="w-4 h-4 text-gray-600 group-hover:text-gray-400 transition-colors" />
                   ) : (
-                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                    <ChevronDown className="w-4 h-4 text-gray-600 group-hover:text-gray-400 transition-colors" />
                   )}
                 </button>
 
                 {(expandedSections as any).phenomena && (
-                  <div className="mt-3 pb-1 flex flex-wrap gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2 ml-6">
                     {assessment.similar_phenomena.map(function(phenomenon, i) {
                       var phenomenonSlug = phenomenon.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
                       return (
                         <Link
                           key={i}
                           href={'/phenomena/' + phenomenonSlug}
-                          className="px-3 py-1.5 rounded-full text-xs bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 border border-purple-500/20 hover:border-purple-500/40 transition-colors"
+                          className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-purple-300 bg-white/[0.03] hover:bg-purple-500/10 border border-white/[0.06] hover:border-purple-500/20 transition-all"
                         >
                           {phenomenon}
                         </Link>
