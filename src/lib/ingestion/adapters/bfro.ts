@@ -1,7 +1,7 @@
 // BFRO (Bigfoot Field Researchers Organization) Adapter
 // Fetches Bigfoot sighting reports from bfro.net
 
-import { SourceAdapter, AdapterResult, ScrapedReport, ScrapedMediaItem } from '../types';
+import { SourceAdapter, AdapterResult, ScrapedReport } from '../types';
 
 // US State mapping
 const STATE_MAP: Record<string, string> = {
@@ -173,61 +173,12 @@ function determineCountry(state: string): string {
   return 'United States';
 }
 
-// Extract media URLs from BFRO report page
-function extractMedia(html: string, baseUrl: string): ScrapedMediaItem[] {
-  const media: ScrapedMediaItem[] = [];
-  const seenUrls = new Set<string>();
-
-  // BFRO image patterns - they host images on their domain
-  // Common patterns: /GDB/image.asp?id=, direct .jpg/.gif/.png links
-  const imagePatterns = [
-    // Direct image links
-    /src=["']([^"']*\.(?:jpg|jpeg|png|gif|webp)(?:\?[^"']*)?)["']/gi,
-    // BFRO image viewer links
-    /href=["']([^"']*image\.asp[^"']*)["']/gi,
-    // Images in report content
-    /<img[^>]+src=["']([^"']+)["']/gi,
-  ];
-
-  for (const pattern of imagePatterns) {
-    let match;
-    while ((match = pattern.exec(html)) !== null) {
-      let url = match[1];
-
-      // Skip tiny icons, spacers, navigation images, and BFRO template/UI images
-      if (url.includes('spacer') || url.includes('icon') || url.includes('logo') ||
-          url.includes('button') || url.includes('nav') || url.includes('bullet') ||
-          url.includes('1x1') || url.includes('pixel') ||
-          url.includes('/images/templates/') ||   // BFRO nav buttons, outlines, logos
-          url.includes('BFRO_STORE') ||            // Store ad banner
-          url.includes('exped_') ||                // Expedition sidebar maps
-          url.includes('/db/img/') ||              // Database UI images
-          url.includes('Outline_') ||              // Template outlines
-          url.includes('LogoSpin')) {              // Animated logo
-        continue;
-      }
-
-      // Make relative URLs absolute
-      if (url.startsWith('/')) {
-        url = `${baseUrl}${url}`;
-      } else if (!url.startsWith('http')) {
-        url = `${baseUrl}/GDB/${url}`;
-      }
-
-      // Skip if already seen or if it's from a different domain (spam/ad)
-      if (seenUrls.has(url)) continue;
-      if (!url.includes('bfro.net') && !url.includes('localhost')) continue;
-
-      seenUrls.add(url);
-      media.push({
-        type: 'image',
-        url: url,
-        isPrimary: media.length === 0
-      });
-    }
-  }
-
-  return media;
+// Detect whether BFRO report page has actual report images (not template/UI).
+// We do NOT scrape or store BFRO images — we link to the source instead.
+// This matches NUFORC behavior: set has_photo_video flag + MediaMentionBanner.
+function hasReportImages(html: string): boolean {
+  // BFRO stores actual report photos in /gdb/reportimages/
+  return /\/gdb\/reportimages\//i.test(html);
 }
 
 // Fetch with retry and rate limiting
@@ -451,10 +402,10 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
 
     const country = determineCountry(state);
 
-    // Extract media from the report page
-    const mediaItems = extractMedia(html, baseUrl);
-    if (mediaItems.length > 0) {
-      console.log(`[BFRO] Found ${mediaItems.length} media items in report #${reportNumber}`);
+    // Detect if report has photos (we don't scrape them — link to source instead)
+    const hasMedia = hasReportImages(html);
+    if (hasMedia) {
+      console.log(`[BFRO] Report #${reportNumber} has photos on source page`);
     }
 
     // Determine event_date_precision based on date parsing
@@ -487,7 +438,7 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
 
     // Build comprehensive tags including environment data
     let allTags = extractTags(description, classification);
-    if (mediaItems.length > 0) allTags.push('has-media');
+    if (hasMedia) allTags.push('has-media');
     if (followUp) allTags.push('investigated');
     if (environment) {
       // Extract terrain tags from environment section
@@ -521,8 +472,8 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
       // New quality system fields
       source_label: 'BFRO Database',
       source_url: `${baseUrl}/GDB/show_report.asp?id=${reportNumber}`,
-      // Media extracted from the report
-      media: mediaItems.length > 0 ? mediaItems : undefined,
+      // No media stored — we link to source page instead (same as NUFORC approach)
+      has_photo_video: hasMedia,
       metadata: {
         bfroClass: classification,
         reportNumber,
