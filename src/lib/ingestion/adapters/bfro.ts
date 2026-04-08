@@ -173,12 +173,15 @@ function determineCountry(state: string): string {
   return 'United States';
 }
 
-// Detect whether BFRO report page has actual report images (not template/UI).
+// Detect whether BFRO report page has actual report images for THIS report.
 // We do NOT scrape or store BFRO images — we link to the source instead.
 // This matches NUFORC behavior: set has_photo_video flag + MediaMentionBanner.
-function hasReportImages(html: string): boolean {
-  // BFRO stores actual report photos in /gdb/reportimages/
-  return /\/gdb\/reportimages\//i.test(html);
+// BFRO stores report images as /gdb/reportimages/{reportNumber}{letter}.jpg
+// We check for this report's specific images to avoid false positives from
+// sidebar thumbnails or cross-linked images from other reports.
+function hasReportImages(html: string, reportNumber: string): boolean {
+  var pattern = new RegExp('\\/gdb\\/reportimages\\/' + reportNumber + '[a-zA-Z]', 'i');
+  return pattern.test(html);
 }
 
 // Fetch with retry and rate limiting
@@ -414,7 +417,7 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     const country = determineCountry(state);
 
     // Detect if report has photos (we don't scrape them — link to source instead)
-    const hasMedia = hasReportImages(html);
+    const hasMedia = hasReportImages(html, reportNumber);
     if (hasMedia) {
       console.log(`[BFRO] Report #${reportNumber} has photos on source page`);
     }
