@@ -38,6 +38,16 @@ export default async function handler(
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
+  // B1.5 kill switch — auto analysis disabled during QA/QC phase.
+  // Set INGESTION_ENABLED=true in env to re-enable for B2.
+  if (process.env.INGESTION_ENABLED !== 'true') {
+    console.log('[Pattern Analysis V2] Disabled (INGESTION_ENABLED != true). Skipping.')
+    return res.status(200).json({
+      skipped: true,
+      reason: 'Auto pattern analysis disabled during B1.5 QA/QC phase. Set INGESTION_ENABLED=true to re-enable.'
+    })
+  }
+
   try {
     console.log('[Pattern Analysis V2] Starting scheduled analysis...')
     const startTime = Date.now()

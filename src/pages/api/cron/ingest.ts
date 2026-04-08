@@ -32,6 +32,16 @@ export default async function handler(
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  // B1.5 kill switch — auto-ingestion disabled during QA/QC phase.
+  // Set INGESTION_ENABLED=true in env to re-enable for B2.
+  if (process.env.INGESTION_ENABLED !== 'true') {
+    console.log('[Cron] Ingestion disabled (INGESTION_ENABLED != true). Skipping.');
+    return res.status(200).json({
+      skipped: true,
+      reason: 'Auto-ingestion disabled during B1.5 QA/QC phase. Set INGESTION_ENABLED=true to re-enable.'
+    });
+  }
+
   try {
     console.log('[Cron] Starting scheduled ingestion...');
     const startTime = Date.now();
