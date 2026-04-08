@@ -27,6 +27,34 @@ var SITE_URL = 'https://beta.discoverparadocs.com';
 var VALID_ADAPTERS = ['nuforc', 'bfro', 'nderf', 'reddit-v2'];
 var PROTECTED_SOURCE_TYPES = ['curated', 'editorial'];
 
+// Default data_source configs — auto-provisioned if missing from DB
+var DEFAULT_SOURCE_CONFIGS: Record<string, { name: string; slug: string; adapter_type: string; scrape_config: Record<string, any> }> = {
+  'nuforc': {
+    name: 'NUFORC Database',
+    slug: 'nuforc',
+    adapter_type: 'nuforc',
+    scrape_config: { base_url: 'https://nuforc.org', rate_limit_ms: 500 }
+  },
+  'bfro': {
+    name: 'BFRO Database',
+    slug: 'bfro',
+    adapter_type: 'bfro',
+    scrape_config: { base_url: 'https://www.bfro.net', rate_limit_ms: 500, states: ['wa', 'or', 'ca', 'oh', 'fl'] }
+  },
+  'nderf': {
+    name: 'NDERF Database',
+    slug: 'nderf',
+    adapter_type: 'nderf',
+    scrape_config: { base_url: 'https://www.nderf.org', rate_limit_ms: 500 }
+  },
+  'reddit-v2': {
+    name: 'Reddit Paranormal',
+    slug: 'reddit-v2',
+    adapter_type: 'reddit-v2',
+    scrape_config: { subreddits: ['Paranormal', 'Ghosts', 'UFOs', 'Thetruthishere'], rate_limit_ms: 1000 }
+  }
+};
+
 function getSupabase() {
   var supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   var serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -147,16 +175,38 @@ async function runIngest(adapterType: string) {
   console.log('  ' + new Date().toISOString());
   console.log('='.repeat(60) + '\n');
 
-  // Look up data source
+  // Look up data source — auto-provision if missing
   var { data: source, error: srcErr } = await supabase
     .from('data_sources')
     .select('id, name, slug, adapter_type, is_active, scrape_config')
     .or('adapter_type.eq.' + adapterType + ',slug.eq.' + adapterType)
-    .eq('is_active', true)
     .single();
 
-  if (srcErr || !source) {
-    console.error('No active data_source found for "' + adapterType + '"');
+  // Auto-create if not found
+  if ((srcErr || !source) && DEFAULT_SOURCE_CONFIGS[adapterType]) {
+    var cfg = DEFAULT_SOURCE_CONFIGS[adapterType];
+    console.log('No data_source found for "' + adapterType + '" — auto-provisioning...');
+    var { data: newSource, error: insertErr } = await supabase
+      .from('data_sources')
+      .insert({
+        name: cfg.name,
+        slug: cfg.slug,
+        adapter_type: cfg.adapter_type,
+        is_active: true,
+        scrape_config: cfg.scrape_config
+      })
+      .select('id, name, slug, adapter_type, is_active, scrape_config')
+      .single();
+
+    if (insertErr || !newSource) {
+      console.error('Failed to auto-provision data_source for "' + adapterType + '"');
+      console.error('Error: ' + (insertErr?.message || 'insert failed'));
+      return;
+    }
+    source = newSource;
+    console.log('Auto-provisioned: ' + source.name + ' (ID: ' + source.id + ')');
+  } else if (srcErr || !source) {
+    console.error('No data_source found for "' + adapterType + '" and no default config available');
     console.error('Error: ' + (srcErr?.message || 'not found'));
 
     var { data: allSources } = await supabase
@@ -170,6 +220,13 @@ async function runIngest(adapterType: string) {
       }
     }
     return;
+  }
+
+  // Ensure source is active for this run
+  if (!source.is_active) {
+    console.log('Source "' + source.name + '" is inactive — activating for this test run...');
+    await supabase.from('data_sources').update({ is_active: true }).eq('id', source.id);
+    source.is_active = true;
   }
 
   console.log('Source: ' + source.name + ' (ID: ' + source.id + ')');
