@@ -19,12 +19,12 @@ const PHENOMENON_PATTERNS: Record<string, Array<{ pattern: RegExp; title: string
     { pattern: /\b(orb|ball\s*of\s*light|floating\s*light)\b/i, title: 'Orb Manifestation', priority: 8 },
     // Sounds
     { pattern: /\b(disembodied\s*voice|voice\s*with\s*no|heard\s*(a\s*)?(voice|whisper|someone))\b/i, title: 'Disembodied Voice', priority: 9 },
-    { pattern: /\b(footsteps?|walking|pacing)\s*(upstairs|downstairs|above|in\s*the)?\b/i, title: 'Phantom Footsteps', priority: 7 },
-    { pattern: /\b(knocking|banging|tapping)\s*(on|at|sound)?\b/i, title: 'Unexplained Knocking', priority: 7 },
-    // Feelings/presence
-    { pattern: /\b(watched|being\s*watched|eyes\s*on\s*me|someone\s*there)\b/i, title: 'Presence Felt', priority: 5 },
-    { pattern: /\b(touched|grabbed|pushed|pulled)\s*(by|me|my)?\b/i, title: 'Physical Contact', priority: 8 },
-    { pattern: /\b(sleep\s*paralysis|couldn\'t\s*move|paralyzed|frozen)\b/i, title: 'Sleep Paralysis Entity', priority: 9 },
+    { pattern: /\b(disembodied\s+footsteps?|footsteps?\s*(upstairs|downstairs|above|in\s+the\s+(hall|attic|basement))|heard\s+footsteps?\s+(but|and|when)\s+no\s*one)\b/i, title: 'Phantom Footsteps', priority: 7 },
+    { pattern: /\b(unexplained\s+(knocking|banging)|knocking\s+(on|at)\s+(the\s+)?(door|wall|window)\s*(with|but|and)\s+no\s*one)\b/i, title: 'Unexplained Knocking', priority: 7 },
+    // Feelings/presence — require paranormal context, not just common verbs
+    { pattern: /\b(being\s*watched|felt\s*(a\s*)?presence|eyes\s*on\s*me|someone\s*(was\s*)?there\s*(but|and)\s*no\s*one)\b/i, title: 'Presence Felt', priority: 5 },
+    { pattern: /\b((something|someone)\s*(invisible\s*)?(touched|grabbed|pushed|pulled)\s*(me|my)|felt\s+(a\s+)?hand)\b/i, title: 'Physical Contact', priority: 8 },
+    { pattern: /\b(sleep\s*paralysis|couldn\'t\s*move\s*(my\s+body|at\s+all)|paralyzed\s+in\s+(bed|my\s+bed))\b/i, title: 'Sleep Paralysis Entity', priority: 9 },
     // Location types
     { pattern: /\b(haunted\s*(house|home|building|hotel|hospital))\b/i, title: 'Haunted Location', priority: 6 },
     { pattern: /\b(cemetery|graveyard|grave)\b/i, title: 'Cemetery Encounter', priority: 7 },
@@ -43,9 +43,9 @@ const PHENOMENON_PATTERNS: Record<string, Array<{ pattern: RegExp; title: string
     { pattern: /\b(flash|flashing|pulsing|pulsating)\s*(light|object)?\b/i, title: 'Pulsating Lights', priority: 7 },
     { pattern: /\b(beam\s*of\s*light|light\s*beam|searchlight)\b/i, title: 'Light Beam Phenomenon', priority: 9 },
     { pattern: /\b(formation|multiple\s*(lights|objects|ufos))\b/i, title: 'UFO Formation', priority: 9 },
-    // Encounters
-    { pattern: /\b(abduct|taken|aboard|inside\s*(the|a)\s*(craft|ship))\b/i, title: 'Abduction Experience', priority: 10 },
-    { pattern: /\b(alien|grey|gray|being|entity|creature)\s*(encounter|contact|saw)?\b/i, title: 'Entity Encounter', priority: 9 },
+    // Encounters — patterns must be specific to avoid false matches on common words
+    { pattern: /\b(abduct(ed|ion|ee)|taken\s+(aboard|into\s+(the|a)\s*(craft|ship|object)))\b/i, title: 'Abduction Experience', priority: 10 },
+    { pattern: /\b(alien\s+(being|entity|encounter|contact)|grey\s+(alien|entity)|gray\s+(alien|entity)|non[\s-]?human\s+(entity|intelligence|being))\b/i, title: 'Entity Encounter', priority: 9 },
     { pattern: /\b(close\s*encounter|(it|craft|object|ufo)\s*landed)\b/i, title: 'Close Encounter', priority: 9 },
     { pattern: /\b(missing\s*time|lost\s*time|time\s*loss)\b/i, title: 'Missing Time Event', priority: 10 },
     // Behavior
@@ -227,13 +227,13 @@ function extractKeyDetails(description: string, category: string): {
   const featurePatterns = [
     { pattern: /\b(chased|followed|pursued)\b/i, feature: 'Pursuit' },
     { pattern: /\b(multiple witnesses|we all saw|group of us|family saw)\b/i, feature: 'Multiple Witnesses' },
-    { pattern: /\b(recurring|happened again|multiple times|keeps happening)\b/i, feature: 'Recurring' },
-    { pattern: /\b(childhood|as a (kid|child)|when I was young|grew up)\b/i, feature: 'Childhood' },
-    { pattern: /\b(family home|parents.?\s*house|grandparents?)\b/i, feature: 'Family Home' },
-    { pattern: /\b(camping|woods|forest|hiking|trail)\b/i, feature: 'in the Woods' },
-    { pattern: /\b(highway|road|driving|car)\b/i, feature: 'on the Road' },
-    { pattern: /\b(bedroom|bed|sleep|woke)\b/i, feature: 'Bedroom' },
-    { pattern: /\b(workplace|work|office|job)\b/i, feature: 'at Work' },
+    { pattern: /\b(recurring\s+(experience|encounter|sighting|event)|happened\s+(again\s+and\s+again|multiple\s+times)|keeps\s+happening)\b/i, feature: 'Recurring' },
+    { pattern: /\b(as a (kid|child)|when I was (young|\d+ years? old)|childhood\s+(experience|encounter|memory))\b/i, feature: 'Childhood' },
+    { pattern: /\b(family home|parents.?\s*house|grandparents?\s*(house|home))\b/i, feature: 'Family Home' },
+    { pattern: /\b(camping|deep\s+in\s+the\s+woods|forest\s+(trail|road|clearing)|hiking\s+(trail|path))\b/i, feature: 'in the Woods' },
+    { pattern: /\b(driving\s+(down|on|along)|on\s+the\s+(highway|freeway|interstate))\b/i, feature: 'on the Road' },
+    { pattern: /\b(in\s+(my|the|our)\s+bedroom|woke\s+up\s+(to|and)\s+(see|saw|find|found))\b/i, feature: 'Bedroom' },
+    { pattern: /\b(at\s+(my|the|our)\s+(workplace|office|job)|while\s+(at\s+)?work)\b/i, feature: 'at Work' },
   ];
 
   for (const { pattern, feature } of featurePatterns) {
