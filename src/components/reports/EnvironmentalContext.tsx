@@ -101,7 +101,7 @@ export default function EnvironmentalContext({ reportSlug, className, isExpanded
     )
   }
 
-  if (error || !data) {
+  if (error || !data || !(data as any).dataAvailable) {
     return null
   }
 
@@ -119,7 +119,7 @@ export default function EnvironmentalContext({ reportSlug, className, isExpanded
   const eventYear = eventDateLocal ? eventDateLocal.getFullYear() : null
 
   // Filter satellites by era — Starlink didn't exist before 2019, ISS before 1998
-  const relevantSatellites = data.possibleSatellites.filter(sat => {
+  const relevantSatellites = (data.possibleSatellites || []).filter(sat => {
     if (!eventYear) return true
     if (sat.name === 'Starlink' && eventYear < 2019) return false
     if (sat.name === 'ISS' && eventYear < 1998) return false
@@ -128,7 +128,7 @@ export default function EnvironmentalContext({ reportSlug, className, isExpanded
   })
 
   // Filter analysis notes — remove satellite note if pre-satellite era
-  const relevantNotes = data.analysisNotes.filter(note => {
+  const relevantNotes = (data.analysisNotes || []).filter(note => {
     if (eventYear && eventYear < 1957 && note.toLowerCase().includes('satellite')) return false
     return true
   })
