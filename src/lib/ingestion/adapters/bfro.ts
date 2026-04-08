@@ -104,7 +104,7 @@ function extractTags(description: string, classification: string): string[] {
     }
   }
 
-  return [...new Set(tags)];
+  return Array.from(new Set(tags));
 }
 
 function cleanText(text: string): string {
@@ -325,17 +325,28 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     const eventDate = parseDate(dateStr);
     const year = eventDate ? eventDate.substring(0, 4) : (dateStr.match(/\d{4}/)?.[0] || '');
 
-    // Description - look for the main report text
-    // BFRO typically has sections like "OBSERVED:", "DESCRIPTION:", "OTHER WITNESSES:", etc.
-    const observedMatch = html.match(/OBSERVED:?\s*([\s\S]*?)(?=(?:OTHER WITNESSES|ALSO NOTICED|TIME AND CONDITIONS|ENVIRONMENT|FOLLOW-UP|<\/td>|<\/div>|$))/i);
-    const descriptionMatch = html.match(/DESCRIPTION[^:]*:?\s*([\s\S]*?)(?=(?:OTHER|ALSO|TIME|ENVIRONMENT|FOLLOW|<\/td>|<\/div>|$))/i);
+    // ── Extract ALL structured sections from the BFRO report page ──
+    // BFRO pages have labeled sections: OBSERVED, ALSO NOTICED, OTHER WITNESSES,
+    // OTHER STORIES, TIME AND CONDITIONS, ENVIRONMENT, FOLLOW-UP INVESTIGATION, etc.
 
-    let description = '';
-    if (observedMatch) {
-      description = cleanText(observedMatch[1]);
-    } else if (descriptionMatch) {
-      description = cleanText(descriptionMatch[1]);
-    }
+    const extractSection = (sectionName: string): string => {
+      // Try multiple patterns since BFRO formatting varies across report eras
+      const patterns = [
+        new RegExp(sectionName + ':?\\s*([\\s\\S]*?)(?=(?:OBSERVED|ALSO NOTICED|OTHER WITNESSES|OTHER STORIES|TIME AND CONDITIONS|ENVIRONMENT|FOLLOW-UP|A REPORT BY|<\\/td>|<\\/div>))', 'i'),
+        new RegExp('<b>' + sectionName + '[^<]*<\\/b>\\s*:?\\s*([\\s\\S]*?)(?=<b>|<\\/td>|<\\/div>)', 'i'),
+      ];
+      for (const p of patterns) {
+        const m = html.match(p);
+        if (m && m[1]) {
+          const cleaned = cleanText(m[1]);
+          if (cleaned.length > 5) return cleaned;
+        }
+      }
+      return '';
+    };
+
+    // Primary narrative
+    let description = extractSection('OBSERVED') || extractSection('DESCRIPTION');
 
     // Fallback: try to get the main content area
     if (!description || description.length < 50) {
@@ -353,6 +364,75 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     // Truncate very long descriptions
     if (description.length > 5000) {
       description = description.substring(0, 5000) + '...';
+    }
+
+    // Additional structured sections
+    const alsoNoticed = extractSection('ALSO NOTICED');
+    const otherWitnesses = extractSection('OTHER WITNESSES');
+    const otherStories = extractSection('OTHER STORIES');
+    const timeAndConditions = extractSection('TIME AND CONDITIONS');
+    const environment = extractSection('ENVIRONMENT');
+
+    // Follow-up / investigator report (may use different labels)
+    const followUp = extractSection('FOLLOW-UP') || extractSection('FOLLOW UP')
+      || extractSection('A REPORT BY');
+
+    // Nearest town and road
+    const nearestTownPatterns = [
+      /Nearest\s*town:\s*([^<\n]+)/i,
+      /Nearest\s*town\s*<\/td>\s*<td[^>]*>\s*([^<\n]+)/i,
+      /<b>Nearest\s*town[^<]*<\/b>\s*:?\s*([^<\n]+)/i,
+    ];
+    let nearestTown = '';
+    for (const p of nearestTownPatterns) {
+      const m = html.match(p);
+      if (m && m[1].trim()) { nearestTown = cleanText(m[1]); break; }
+    }
+
+    const nearestRoadPatterns = [
+      /Nearest\s*road:\s*([^<\n]+)/i,
+      /Nearest\s*road\s*<\/td>\s*<td[^>]*>\s*([^<\n]+)/i,
+      /<b>Nearest\s*road[^<]*<\/b>\s*:?\s*([^<\n]+)/i,
+    ];
+    let nearestRoad = '';
+    for (const p of nearestRoadPatterns) {
+      const m = html.match(p);
+      if (m && m[1].trim()) { nearestRoad = cleanText(m[1]); break; }
+    }
+
+    // Parse witness count from OTHER WITNESSES section
+    let witnessCount: number | undefined;
+    if (otherWitnesses) {
+      // Look for explicit numbers: "2 other witnesses", "my wife and I" (=2), "group of 5", etc.
+      const numMatch = otherWitnesses.match(/(\d+)\s*(?:other\s*)?(?:witness|people|person|friend|companion)/i);
+      if (numMatch) {
+        witnessCount = parseInt(numMatch[1], 10) + 1; // +1 for the reporting witness
+      } else if (/\b(my\s+(?:wife|husband|partner|friend|brother|sister|son|daughter)\s+and\s+I|wife|husband)\b/i.test(otherWitnesses)) {
+        witnessCount = 2;
+      } else if (/\bnone\b/i.test(otherWitnesses)) {
+        witnessCount = 1;
+      }
+    }
+
+    // Parse time from TIME AND CONDITIONS section
+    let eventTime: string | undefined;
+    if (timeAndConditions) {
+      // Look for time patterns: "9:30 PM", "approximately 2am", "about midnight", "dusk"
+      const timeMatch = timeAndConditions.match(/(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm|a\.m\.|p\.m\.)?)/);
+      if (timeMatch) {
+        eventTime = timeMatch[1].trim();
+      } else {
+        const vagueTime = timeAndConditions.match(/\b(dawn|sunrise|morning|midday|noon|afternoon|dusk|sunset|evening|night|midnight)\b/i);
+        if (vagueTime) eventTime = vagueTime[1].toLowerCase();
+      }
+    }
+
+    // Append ALSO NOTICED to description for richer analysis context
+    if (alsoNoticed && alsoNoticed.length > 10) {
+      description = description + '\n\n' + alsoNoticed;
+      if (description.length > 5000) {
+        description = description.substring(0, 5000) + '...';
+      }
     }
 
     const country = determineCountry(state);
@@ -377,21 +457,53 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     }
 
     const locationState = state || fallbackState;
+
+    // Use nearest town for city field if available (more specific than county)
+    const cityValue = nearestTown || (county ? `${county} County` : undefined);
+
+    // Build richer location_name with nearest town when available
+    let locationName: string | undefined;
+    if (nearestTown && county && locationState) {
+      locationName = `Near ${nearestTown}, ${county} County, ${locationState}`;
+    } else if (county && locationState) {
+      locationName = `${county} County, ${locationState}`;
+    } else {
+      locationName = locationState || undefined;
+    }
+
+    // Build comprehensive tags including environment data
+    let allTags = extractTags(description, classification);
+    if (mediaItems.length > 0) allTags.push('has-media');
+    if (followUp) allTags.push('investigated');
+    if (environment) {
+      // Extract terrain tags from environment section
+      const envLower = environment.toLowerCase();
+      if (/\b(mountain|ridge|elevation)\b/.test(envLower)) allTags.push('mountainous');
+      if (/\b(swamp|marsh|bog|wetland)\b/.test(envLower)) allTags.push('swamp');
+      if (/\b(river|creek|stream|lake|pond)\b/.test(envLower)) allTags.push('near-water');
+      if (/\b(rural|remote|isolated)\b/.test(envLower)) allTags.push('remote');
+      if (/\b(residential|suburban|neighborhood)\b/.test(envLower)) allTags.push('residential');
+    }
+    allTags = Array.from(new Set(allTags));
+
     return {
       title: generateTitle(county, locationState, year, reportNumber),
       summary: generateSummary(description, classification),
       description: description,
       category: 'cryptids',
-      location_name: county ? `${county} County, ${locationState}` : (locationState || undefined),
+      location_name: locationName,
       country: country,
       state_province: locationState || undefined,
-      city: county ? `${county} County` : undefined,
+      city: cityValue,
       event_date: eventDate,
+      event_time: eventTime,
       event_date_precision: eventDatePrecision,
       credibility: getCredibility(classification),
+      witness_count: witnessCount,
+      has_official_report: !!followUp, // BFRO follow-up = investigated
       source_type: 'bfro',
       original_report_id: `bfro-${reportNumber}`,
-      tags: mediaItems.length > 0 ? [...extractTags(description, classification), 'has-media'] : extractTags(description, classification),
+      tags: allTags,
       // New quality system fields
       source_label: 'BFRO Database',
       source_url: `${baseUrl}/GDB/show_report.asp?id=${reportNumber}`,
@@ -399,7 +511,14 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
       media: mediaItems.length > 0 ? mediaItems : undefined,
       metadata: {
         bfroClass: classification,
-        reportNumber
+        reportNumber,
+        nearestTown: nearestTown || undefined,
+        nearestRoad: nearestRoad || undefined,
+        otherWitnesses: otherWitnesses || undefined,
+        otherStories: otherStories || undefined,
+        timeAndConditions: timeAndConditions || undefined,
+        environment: environment || undefined,
+        followUpInvestigation: followUp || undefined,
       }
     };
 
