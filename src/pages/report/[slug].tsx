@@ -314,7 +314,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     setIsSaved(false)
     setSavedId(null)
     setSidebarOpen(false)
-    setShowRationale(false)
     setParentCase(null)
     try {
       // Load report
@@ -573,7 +572,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   }
 
   const categoryConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
-  const credibilityConfig = CREDIBILITY_CONFIG[report.credibility]
+  const credibilityConfig = CREDIBILITY_CONFIG[report.credibility] || CREDIBILITY_CONFIG.unverified
   const contentTypeConfig = CONTENT_TYPE_CONFIG[(report as any).content_type as ContentType] || CONTENT_TYPE_CONFIG.experiencer_report
   const reportContentType = (report as any).content_type as ContentType | undefined
   const isNonExperiencer = reportContentType && reportContentType !== 'experiencer_report' && reportContentType !== 'historical_case'
