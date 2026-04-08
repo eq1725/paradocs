@@ -680,6 +680,17 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               }
             }
 
+            // Correct has_photo_video flag: only keep it true if actual media was inserted.
+            // Adapter flags (e.g. NUFORC's Y/N column) are unreliable — the source may
+            // claim media exists when it doesn't. Trust inserted media, not the flag.
+            if (report.has_photo_video && (!report.media || report.media.length === 0)) {
+              await supabase
+                .from('reports')
+                .update({ has_photo_video: false })
+                .eq('id', insertedReport.id);
+              console.log('[Ingestion] Corrected has_photo_video to false (no actual media) for ' + slug);
+            }
+
             // Generate AI content for approved reports.
             // Paradocs Analysis now generates hook + analysis + assessment in a single call
             // (replaces the separate feed_hook generation).

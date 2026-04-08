@@ -22,7 +22,7 @@ require('dotenv').config({ path: require('path').resolve(process.cwd(), '.env.lo
 
 import { createClient } from '@supabase/supabase-js';
 
-var REPORT_LIMIT = 5;
+var REPORT_LIMIT = parseInt(process.argv[4] || '5', 10) || 5;
 var SITE_URL = 'https://beta.discoverparadocs.com';
 var VALID_ADAPTERS = ['nuforc', 'bfro', 'nderf', 'reddit-v2'];
 var PROTECTED_SOURCE_TYPES = ['curated', 'editorial'];
@@ -322,8 +322,66 @@ async function runIngest(adapterType: string) {
 
   console.log('\nReview on the live site:');
   for (var r3 of reports) {
-    console.log('  ' + SITE_URL + '/reports/' + r3.slug);
+    console.log('  ' + SITE_URL + '/report/' + r3.slug);
   }
+
+  // ── Post-ingestion backfill: retry analysis for approved reports missing it ──
+  var missingAnalysis = reports.filter(function(rr: any) {
+    return rr.status === 'approved' && !rr.paradocs_narrative;
+  });
+
+  if (missingAnalysis.length > 0) {
+    console.log('\n--- BACKFILL: ' + missingAnalysis.length + ' approved reports missing analysis ---\n');
+    var { generateAndSaveParadocsAnalysis } = await import('../src/lib/services/paradocs-analysis.service');
+
+    var backfilled = 0;
+    var backfillFailed = 0;
+
+    for (var bi = 0; bi < missingAnalysis.length; bi++) {
+      var mr = missingAnalysis[bi];
+      console.log('[Backfill ' + (bi + 1) + '/' + missingAnalysis.length + '] ' + mr.title.substring(0, 50));
+
+      try {
+        // Brief pause between backfill calls
+        if (bi > 0) {
+          await new Promise(function(resolve) { setTimeout(resolve, 3000); });
+        }
+
+        var ok = await generateAndSaveParadocsAnalysis(mr.id);
+        if (ok) {
+          console.log('  -> SUCCESS');
+          backfilled++;
+        } else {
+          console.log('  -> FAILED (returned false)');
+          backfillFailed++;
+        }
+      } catch (bErr: any) {
+        console.log('  -> ERROR: ' + (bErr.message || bErr));
+        backfillFailed++;
+      }
+    }
+
+    console.log('\nBackfill results: ' + backfilled + ' succeeded, ' + backfillFailed + ' failed');
+  }
+
+  // ── Post-ingestion backfill: correct has_photo_video for reports with no actual media ──
+  var falseMedia = reports.filter(function(rr: any) { return rr.has_photo_video; });
+  if (falseMedia.length > 0 && media) {
+    var mediaReportIds = new Set((media || []).map(function(mm: any) { return mm.report_id; }));
+    var falseFlagReports = falseMedia.filter(function(rr: any) { return !mediaReportIds.has(rr.id); });
+
+    if (falseFlagReports.length > 0) {
+      console.log('\n--- CORRECTING ' + falseFlagReports.length + ' false has_photo_video flags ---');
+      for (var ff of falseFlagReports) {
+        await supabase
+          .from('reports')
+          .update({ has_photo_video: false })
+          .eq('id', ff.id);
+        console.log('  Corrected: ' + ff.title.substring(0, 50));
+      }
+    }
+  }
+
   console.log('');
 }
 
