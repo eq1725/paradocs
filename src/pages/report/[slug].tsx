@@ -131,7 +131,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const [isLogged, setIsLogged] = useState(false)
   const [parentCase, setParentCase] = useState<{ slug: string; title: string } | null>(null)
   const [showAllTags, setShowAllTags] = useState(false)
-  const [showRationale, setShowRationale] = useState(false)
+  // showRationale state removed — credibility_signal in info grid is self-explanatory
   const [panelsExpanded, setPanelsExpanded] = useState(false)
 
   // Load parent case report when this report belongs to a case group
@@ -1058,37 +1058,27 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             </div>
           </div>
 
-          {/* Credibility — uses Paradocs Assessment score for index reports,
+          {/* Credibility — uses credibility_signal for index reports,
               falls back to ingestion quality label for curated/editorial */}
           {(() => {
-            var assessScore = paradocsAssessment && typeof paradocsAssessment.credibility_score === 'number' ? paradocsAssessment.credibility_score : null
-            var useAssessment = isIndexReport && assessScore != null
-            var gridLabel = useAssessment
-              ? (assessScore >= 80 ? 'Strong' : assessScore >= 60 ? 'Moderate' : assessScore >= 40 ? 'Limited' : 'Weak')
-              : credibilityConfig.label
-            var gridColor = useAssessment
-              ? (assessScore >= 80 ? 'text-emerald-400' : assessScore >= 60 ? 'text-sky-400' : assessScore >= 40 ? 'text-amber-400' : 'text-red-400')
-              : credibilityConfig.color
+            var credSignal = paradocsAssessment ? (paradocsAssessment as any).credibility_signal : null
+            // Legacy fallback: build signal from old numeric score
+            if (!credSignal && paradocsAssessment && typeof paradocsAssessment.credibility_score === 'number') {
+              var s = paradocsAssessment.credibility_score
+              credSignal = s >= 80 ? 'Strong supporting evidence' : s >= 60 ? 'Moderate supporting detail' : s >= 40 ? 'Limited corroboration' : 'Single unverified account'
+            }
+            var useSignal = isIndexReport && credSignal
+            var gridLabel = useSignal ? credSignal : credibilityConfig.label
+            var gridColor = useSignal ? 'text-gray-300' : credibilityConfig.color
             return (
-              <button
-                className="glass-card p-3 sm:p-4 text-left w-full cursor-pointer hover:bg-white/[0.04] transition-colors"
-                onClick={() => setShowRationale(!showRationale)}
-                aria-expanded={showRationale}
-              >
-                <h4 className="text-[11px] text-gray-500 mb-1.5 uppercase tracking-wider flex items-center justify-between">
-                  <span>Credibility</span>
-                  <ChevronDown className={classNames(
-                    'w-3 h-3 text-gray-500 transition-transform duration-200',
-                    showRationale ? 'rotate-180' : ''
-                  )} />
+              <div className="glass-card p-3 sm:p-4">
+                <h4 className="text-[11px] text-gray-500 mb-1.5 uppercase tracking-wider">
+                  Credibility
                 </h4>
                 <div className={classNames('text-sm font-medium', gridColor)}>
                   {gridLabel}
-                  {useAssessment && (
-                    <span className="text-gray-500 font-normal ml-1.5">{assessScore}/100</span>
-                  )}
                 </div>
-              </button>
+              </div>
             )
           })()}
 
@@ -1109,35 +1099,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           </div>
         </div>
 
-        {/* Credibility Rationale — expandable explanation below the info grid */}
-        {showRationale && (() => {
-          var assessScore = paradocsAssessment && typeof paradocsAssessment.credibility_score === 'number' ? paradocsAssessment.credibility_score : null
-          var useAssessment = isIndexReport && assessScore != null
-          var rationaleLabel = useAssessment
-            ? (assessScore >= 80 ? 'Strong' : assessScore >= 60 ? 'Moderate' : assessScore >= 40 ? 'Limited' : 'Weak')
-            : credibilityConfig.label
-          var rationaleColor = useAssessment
-            ? (assessScore >= 80 ? 'text-emerald-400' : assessScore >= 60 ? 'text-sky-400' : assessScore >= 40 ? 'text-amber-400' : 'text-red-400')
-            : credibilityConfig.color
-          var rationaleText = useAssessment
-            ? (paradocsAssessment?.credibility_reasoning || credibilityConfig.description)
-            : ((report as any).credibility_rationale || ((report as any).paradocs_assessment && (report as any).paradocs_assessment.credibility_reasoning) || credibilityConfig.description)
-          return (
-            <div className="mb-6 sm:mb-8 -mt-2 sm:-mt-4 glass-card p-4 sm:p-5 border border-white/[0.08]">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className={classNames('w-4 h-4 mt-0.5 shrink-0', rationaleColor)} />
-                <div>
-                  <h4 className={classNames('text-sm font-medium mb-1.5', rationaleColor)}>
-                    Why {rationaleLabel}?
-                  </h4>
-                  <p className="text-sm text-gray-300 leading-relaxed">
-                    {rationaleText}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )
-        })()}
 
         {/* Further Reading — Amazon affiliate book recommendations (curated reports only) */}
         {isCurated && (

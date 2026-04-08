@@ -1,19 +1,18 @@
 /**
- * ParadocsAnalysisBox Component
+ * ParadocsAnalysisBox Component — Hybrid Architecture
  *
- * Displays the Paradocs editorial analysis for mass-ingested reports.
- * Two sections:
- *   1. Narrative — Paradocs editorial voice, clean readable prose
- *   2. Assessment — credibility score, factors, alternative explanations, related phenomena
+ * Renders the Paradocs Analysis for mass-ingested reports.
+ * New structure from single-call generation:
+ *   - pull_quote: the screenshot-worthy line (hero element)
+ *   - analysis: 4-6 sentence evidence-first editorial (paradocs_narrative)
+ *   - credibility_signal: 1 phrase, max 8 words (replaces numeric score)
+ *   - mundane_explanations: expandable alternative explanations
+ *   - similar_phenomena: expandable related phenomena links
  *
- * Design principles:
- *   - The narrative IS the content. No highlighting gimmicks, no pull-quotes.
- *   - First paragraph styled as a lede for scanners.
- *   - Credibility score and reasoning shown by default (most interesting to readers).
- *   - Alternative explanations and related phenomena are expandable detail.
- *   - Clean, confident typography that lets the editorial voice carry the experience.
+ * Backward compatible: reads legacy fields (credibility_score, credibility_reasoning,
+ * credibility_factors) from old reports that haven't been regenerated.
  *
- * SWC compliant: var, function(){}, string concat, no template literals in JSX, unicode escapes.
+ * SWC compliant: var, function(){}, string concat.
  */
 
 import React, { useState } from 'react'
@@ -21,49 +20,33 @@ import { Shield, Scale, Compass, ChevronDown, ChevronUp } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 import Link from 'next/link'
 
-interface CredibilityFactor {
-  name: string
-  impact: 'positive' | 'negative' | 'neutral'
-  description: string
-}
-
-interface MundaneExplanation {
-  explanation: string
-  likelihood: 'high' | 'medium' | 'low'
-  reasoning: string
-}
-
 export interface ParadocsAssessment {
-  credibility_score?: number
-  credibility_reasoning?: string
-  credibility_factors?: CredibilityFactor[]
-  mundane_explanations?: MundaneExplanation[]
-  content_type?: string | { suggested_type?: string; is_first_hand_account?: boolean; confidence?: string }
-  is_first_hand?: boolean
-  confidence?: string
+  // New hybrid fields
+  pull_quote?: string
+  credibility_signal?: string
+  mundane_explanations?: Array<{
+    explanation: string
+    likelihood: 'high' | 'medium' | 'low'
+    reasoning: string
+  }>
   similar_phenomena?: string[]
   emotional_tone?: string
+  // Legacy fields (still readable from old reports)
+  credibility_score?: number
+  credibility_reasoning?: string
+  credibility_factors?: Array<{
+    name: string
+    impact: 'positive' | 'negative' | 'neutral'
+    description: string
+  }>
 }
 
 interface Props {
-  narrative: string | null
+  narrative: string | null   // paradocs_narrative (analysis text)
   assessment: ParadocsAssessment | null
   className?: string
 }
 
-/**
- * Credibility score label and color
- */
-function getCredibilityLabel(score: number): { label: string; color: string; bgColor: string; barColor: string } {
-  if (score >= 80) return { label: 'Strong', color: 'text-emerald-400', bgColor: 'bg-emerald-500/15', barColor: 'bg-emerald-400' }
-  if (score >= 60) return { label: 'Moderate', color: 'text-sky-400', bgColor: 'bg-sky-500/15', barColor: 'bg-sky-400' }
-  if (score >= 40) return { label: 'Limited', color: 'text-amber-400', bgColor: 'bg-amber-500/15', barColor: 'bg-amber-400' }
-  return { label: 'Weak', color: 'text-red-400', bgColor: 'bg-red-500/15', barColor: 'bg-red-400' }
-}
-
-/**
- * Likelihood badge colors
- */
 function getLikelihoodStyle(likelihood: string): string {
   if (likelihood === 'high') return 'bg-amber-500/15 text-amber-400 border-amber-500/25'
   if (likelihood === 'medium') return 'bg-sky-500/15 text-sky-400 border-sky-500/25'
@@ -107,8 +90,18 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
     )
   }
 
-  var credScore = assessment ? assessment.credibility_score : null
-  var credInfo = credScore != null ? getCredibilityLabel(credScore) : null
+  // Extract fields — support both new hybrid and legacy format
+  var pullQuote = assessment ? assessment.pull_quote : null
+  var credSignal = assessment ? assessment.credibility_signal : null
+
+  // Legacy fallback: if no credibility_signal, build one from old score
+  if (!credSignal && assessment && typeof assessment.credibility_score === 'number') {
+    var score = assessment.credibility_score
+    if (score >= 80) credSignal = 'Strong supporting evidence'
+    else if (score >= 60) credSignal = 'Moderate supporting detail'
+    else if (score >= 40) credSignal = 'Limited corroboration'
+    else credSignal = 'Single unverified account'
+  }
 
   // Split narrative into paragraphs
   var paragraphs = narrative ? narrative.split('\n\n').filter(function(p) { return p.trim().length > 0 }) : []
@@ -122,26 +115,43 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
       <div className="relative">
         {/* ── Header ── */}
         <div className="px-5 pt-5 pb-0 sm:px-6 sm:pt-6">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center flex-shrink-0">
-              <Compass className="w-4 h-4 text-purple-400" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center flex-shrink-0">
+                <Compass className="w-4 h-4 text-purple-400" />
+              </div>
+              <h2 className="text-lg font-semibold text-white">Paradocs Analysis</h2>
             </div>
-            <h2 className="text-lg font-semibold text-white">Paradocs Analysis</h2>
+            {/* Credibility Signal — top right, always visible */}
+            {credSignal && (
+              <div className="flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5 text-gray-500" />
+                <span className="text-xs text-gray-400 font-medium">{credSignal}</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* ── Narrative ── */}
+        {/* ── Pull Quote — the hero element ── */}
+        {pullQuote && (
+          <div className="mx-5 mt-4 sm:mx-6 pl-4 border-l-2 border-purple-500/40">
+            <p className="text-[15px] sm:text-base text-gray-200 leading-relaxed font-medium italic">
+              {pullQuote}
+            </p>
+          </div>
+        )}
+
+        {/* ── Analysis ── */}
         {paragraphs.length > 0 && (
           <div className="px-5 pt-4 pb-2 sm:px-6">
-            {/* Lede paragraph — slightly larger, brighter */}
-            <p className="text-[15px] sm:text-base text-gray-200 leading-relaxed mb-4">
-              {paragraphs[0]}
-            </p>
-
-            {/* Remaining paragraphs — standard body */}
-            {paragraphs.slice(1).map(function(paragraph, i) {
+            {paragraphs.map(function(paragraph, i) {
               return (
-                <p key={i} className="text-[14px] sm:text-[15px] text-gray-400 leading-relaxed mb-4 last:mb-0">
+                <p key={i} className={classNames(
+                  'leading-relaxed mb-4 last:mb-0',
+                  i === 0
+                    ? 'text-[15px] sm:text-base text-gray-200'
+                    : 'text-[14px] sm:text-[15px] text-gray-400'
+                )}>
                   {paragraph}
                 </p>
               )
@@ -149,62 +159,25 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
           </div>
         )}
 
-        {/* ── Assessment ── */}
+        {/* ── Expandable Sections ── */}
         {assessment && (
           <div className="px-5 pb-5 sm:px-6 sm:pb-6">
 
-            {/* Credibility Score — always visible */}
-            {credScore != null && credInfo && (
-              <div className="border-t border-white/[0.06] pt-5 mt-2">
-                {/* Score bar */}
-                <div className="flex items-center gap-3 mb-3">
-                  <Shield className="w-4 h-4 text-gray-500 flex-shrink-0" />
+            {/* Legacy credibility reasoning — shown for old reports that have it */}
+            {!credSignal && assessment.credibility_reasoning && (
+              <div className="border-t border-white/[0.06] pt-4 mt-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <Shield className="w-4 h-4 text-gray-500" />
                   <span className="text-sm font-medium text-gray-300">Credibility</span>
-                  <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-                    <div
-                      className={classNames('h-full rounded-full transition-all', credInfo.barColor)}
-                      style={{ width: credScore + '%' }}
-                    />
-                  </div>
-                  <span className={classNames('text-sm font-semibold tabular-nums', credInfo.color)}>
-                    {credScore}
-                  </span>
-                  <span className={classNames(
-                    'text-xs px-2 py-0.5 rounded-full font-medium',
-                    credInfo.bgColor, credInfo.color
-                  )}>
-                    {credInfo.label}
-                  </span>
+                  {typeof assessment.credibility_score === 'number' && (
+                    <span className="text-sm text-gray-500 font-semibold tabular-nums">
+                      {assessment.credibility_score}/100
+                    </span>
+                  )}
                 </div>
-
-                {/* Credibility reasoning — always visible, the most interesting part */}
-                {assessment.credibility_reasoning && (
-                  <p className="text-sm text-gray-400 leading-relaxed mb-3 ml-7">
-                    {assessment.credibility_reasoning}
-                  </p>
-                )}
-
-                {/* Credibility factors — compact inline */}
-                {assessment.credibility_factors && assessment.credibility_factors.length > 0 && (
-                  <div className="ml-7 space-y-1.5">
-                    {assessment.credibility_factors.map(function(factor, i) {
-                      return (
-                        <div key={i} className="flex items-start gap-2 text-sm">
-                          <span className={classNames(
-                            'w-1.5 h-1.5 rounded-full mt-[7px] flex-shrink-0',
-                            factor.impact === 'positive' ? 'bg-emerald-400' :
-                              factor.impact === 'negative' ? 'bg-red-400' : 'bg-gray-500'
-                          )} />
-                          <span className="text-gray-500">
-                            <span className="text-gray-300 font-medium">{factor.name}</span>
-                            {' \u2014 '}
-                            {factor.description}
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+                <p className="text-sm text-gray-400 leading-relaxed ml-6">
+                  {assessment.credibility_reasoning}
+                </p>
               </div>
             )}
 

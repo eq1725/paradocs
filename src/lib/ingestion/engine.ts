@@ -680,24 +680,22 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               }
             }
 
-            // Generate AI content for approved reports (feed hook, analysis, embedding)
-            // Each service handles its own retries internally.
+            // Generate AI content for approved reports.
+            // Paradocs Analysis now generates hook + analysis + assessment in a single call
+            // (replaces the separate feed_hook generation).
             if (status === 'approved') {
-              // Feed hook
-              try {
-                await generateAndSaveFeedHook(insertedReport.id);
-              } catch (hookError) {
-                console.log('[Ingestion] Feed hook generation failed for ' + slug + ', continuing...');
-              }
-
-              // Brief pause between AI service calls to avoid rate-limiting
-              await new Promise(function(resolve) { setTimeout(resolve, 1500); });
-
-              // Paradocs Analysis (service has built-in retries with backoff)
+              // Paradocs Analysis — produces hook, analysis, pull_quote, credibility_signal
+              // Also writes feed_hook. Service has built-in retries with backoff.
               try {
                 var analysisSuccess = await generateAndSaveParadocsAnalysis(insertedReport.id);
                 if (!analysisSuccess) {
                   console.log('[Ingestion] Paradocs Analysis failed for ' + slug + ' after all retries — will need manual backfill');
+                  // Fallback: try generating just a feed hook via legacy service
+                  try {
+                    await generateAndSaveFeedHook(insertedReport.id);
+                  } catch (hookError) {
+                    console.log('[Ingestion] Fallback feed hook also failed for ' + slug);
+                  }
                 }
               } catch (analysisError) {
                 console.log('[Ingestion] Paradocs Analysis exception for ' + slug + ':', analysisError);
@@ -713,8 +711,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                 console.log('[Ingestion] Embedding failed for ' + slug + ', will catch in batch');
               }
 
-              // Inter-report cooldown: prevents hammering the Anthropic API
-              // when processing multiple reports in sequence
+              // Inter-report cooldown
               await new Promise(function(resolve) { setTimeout(resolve, 2000); });
             }
           } else {
