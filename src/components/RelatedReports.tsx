@@ -88,8 +88,11 @@ export default function RelatedReports({
         phenomenonTypeId
           ? supabase.from('reports').select('*, phenomenon_type:phenomenon_types(*)').eq('phenomenon_type_id', phenomenonTypeId).eq('status', 'approved').order('created_at', { ascending: false }).limit(5)
           : Promise.resolve({ data: null }),
-        // Tier 3b: Same category, different type
-        supabase.from('reports').select('*, phenomenon_type:phenomenon_types(*)').eq('category', category).eq('status', 'approved').neq('phenomenon_type_id', phenomenonTypeId || '').order('upvotes', { ascending: false }).limit(5),
+        // Tier 3b: Same category, different type (or all same-category if no phenomenon type)
+        (() => {
+          var q = supabase.from('reports').select('*, phenomenon_type:phenomenon_types(*)').eq('category', category).eq('status', 'approved').order('upvotes', { ascending: false }).limit(5)
+          return phenomenonTypeId ? q.neq('phenomenon_type_id', phenomenonTypeId) : q
+        })(),
         // Tier 3c: Same location
         location?.country
           ? supabase.from('reports').select('*, phenomenon_type:phenomenon_types(*)').eq('country', location.country).eq('status', 'approved').neq('category', category).order('event_date', { ascending: false }).limit(3)

@@ -49,25 +49,31 @@ export default function MediaMentionBanner({
   hasPhotoVideo,
   className
 }: Props) {
-  // Don't show if there's no description, or if the report already has media items
-  if (!description || hasMediaItems) return null
+  // Don't show if the report already has media items stored locally
+  if (hasMediaItems) return null
 
-  // If the source explicitly says NO photo/video, don't show the banner.
-  // Text-based detection is unreliable — witnesses often describe failed recording
-  // attempts ("recorded but it was pitch black", "Snapchat crashed", etc.)
-  // Only show the banner when the source confirms media exists (has_photo_video=true)
-  // or when we don't have that signal at all (hasPhotoVideo is undefined/null).
-  if (hasPhotoVideo === false) return null
+  // Two triggers for showing the banner:
+  // 1. Source confirms media exists (has_photo_video=true) — e.g. BFRO investigator
+  //    photos, NUFORC photo/video flag. Show even if description doesn't mention media.
+  // 2. Description mentions media and source doesn't explicitly deny it.
+  var sourceConfirmsMedia = hasPhotoVideo === true
+  var mentions = description ? detectMediaMentions(description) : { hasVideo: false, hasImage: false, hasPhoto: false }
+  var descMentionsMedia = mentions.hasVideo || mentions.hasImage || mentions.hasPhoto
 
-  var mentions = detectMediaMentions(description)
-  if (!mentions.hasVideo && !mentions.hasImage && !mentions.hasPhoto) return null
+  // If source explicitly says NO photo/video and description doesn't mention it, bail
+  if (!sourceConfirmsMedia && !descMentionsMedia) return null
+  if (hasPhotoVideo === false && !descMentionsMedia) return null
 
-  // Determine the primary media type mentioned
+  // Determine the primary media type for display
   var mediaType = mentions.hasVideo ? 'video' : (mentions.hasPhoto ? 'photo' : 'image')
-  var Icon = mentions.hasVideo ? Video : (mentions.hasPhoto ? Camera : Image)
+  // Source-confirmed media without description mention — use generic "photo" label
+  if (sourceConfirmsMedia && !descMentionsMedia) mediaType = 'photo'
+  var Icon = mediaType === 'video' ? Video : (mediaType === 'photo' ? Camera : Image)
 
-  var label = mentions.hasVideo ? 'Video referenced in this report'
-    : mentions.hasPhoto ? 'Photo referenced in this report'
+  var label = sourceConfirmsMedia && !descMentionsMedia
+    ? 'Photos available on source page'
+    : mediaType === 'video' ? 'Video referenced in this report'
+    : mediaType === 'photo' ? 'Photo referenced in this report'
     : 'Image referenced in this report'
 
   var actionText = sourceUrl
