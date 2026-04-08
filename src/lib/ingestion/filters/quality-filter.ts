@@ -556,12 +556,20 @@ export function assessQuality(
   // Get source-specific thresholds for minimum description length
   var thresholds = getSourceThresholds(report.source_type);
 
+  // Curated/institutional sources (BFRO, NUFORC, NDERF) are field research reports,
+  // not social media posts — skip meta-post and low-effort filters
+  var isCuratedSource = ['bfro', 'nuforc', 'nderf', 'iands', 'erowid'].indexOf(report.source_type) !== -1;
+
   // First run content filter with source-specific min length
   const filterResult = filterContent(
     report.title,
     report.description,
     report.source_type,
-    { minLength: thresholds.minDescLength }
+    {
+      minLength: thresholds.minDescLength,
+      checkMeta: !isCuratedSource,
+      checkLowEffort: !isCuratedSource
+    }
   );
 
   if (!filterResult.passed) {

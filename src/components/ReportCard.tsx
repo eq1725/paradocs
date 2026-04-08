@@ -78,7 +78,7 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
               {report.title}
             </h2>
             <p className="mt-2 text-gray-400 text-sm line-clamp-2">
-              {report.summary}
+              {(report as any).feed_hook || report.summary}
             </p>
             <div className="mt-4 flex items-center gap-4 text-sm text-gray-500">
               {report.location_name && (
@@ -157,7 +157,7 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
               </span>
             </div>
             <p className="mt-1 text-sm text-gray-400 line-clamp-2">
-              {report.summary}
+              {(report as any).feed_hook || report.summary}
             </p>
             <div className="mt-3 flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
               {credibilityConfig && (

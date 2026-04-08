@@ -634,7 +634,7 @@ function ExploreBrowseMode() {
         // Latest 4 reports across all categories
         var latestRes = await supabase
           .from('reports')
-          .select('id,title,slug,summary,category,country,city,state_province,event_date,credibility,upvotes,view_count,comment_count,created_at,location_name,source_type,source_label,has_photo_video,has_physical_evidence')
+          .select('id,title,slug,summary,feed_hook,category,country,city,state_province,event_date,credibility,upvotes,view_count,comment_count,created_at,location_name,source_type,source_label,has_photo_video,has_physical_evidence')
           .eq('status', 'approved')
           .order('created_at', { ascending: false })
           .limit(4)
@@ -733,7 +733,7 @@ function ExploreBrowseMode() {
         var reportIds = Array.from(new Set(linkRes.data.map(function(l: any) { return l.report_id })))
         var query = supabase
           .from('reports')
-          .select('id,title,slug,summary,category,country,city,state_province,event_date,credibility,upvotes,view_count,comment_count,has_photo_video,has_physical_evidence,featured,location_name,source_type,source_label,created_at')
+          .select('id,title,slug,summary,feed_hook,category,country,city,state_province,event_date,credibility,upvotes,view_count,comment_count,has_photo_video,has_physical_evidence,featured,location_name,source_type,source_label,created_at')
           .in('id', reportIds)
           .eq('status', 'approved')
         if (category !== 'all') query = query.eq('category', category)
@@ -769,7 +769,7 @@ function ExploreBrowseMode() {
       } else {
         var q2 = supabase
           .from('reports')
-          .select('id,title,slug,summary,category,country,city,state_province,event_date,credibility,upvotes,view_count,comment_count,has_photo_video,has_physical_evidence,featured,location_name,source_type,source_label,created_at')
+          .select('id,title,slug,summary,feed_hook,category,country,city,state_province,event_date,credibility,upvotes,view_count,comment_count,has_photo_video,has_physical_evidence,featured,location_name,source_type,source_label,created_at')
           .eq('status', 'approved')
         if (category !== 'all') q2 = q2.eq('category', category)
         if (selectedCategories.length > 0) q2 = q2.in('category', selectedCategories)
@@ -977,7 +977,7 @@ function ExploreBrowseMode() {
                           {report.source_label && <span className="text-[11px] text-gray-500 ml-auto truncate max-w-[80px]">{report.source_label}</span>}
                         </div>
                         <h3 className="font-medium text-white text-sm line-clamp-2 mb-2 group-hover/card:text-primary-300 transition-colors">{report.title}</h3>
-                        {report.summary && <p className="text-xs text-gray-500 line-clamp-2 mb-3 leading-relaxed">{report.summary}</p>}
+                        {((report as any).feed_hook || report.summary) && <p className="text-xs text-gray-500 line-clamp-2 mb-3 leading-relaxed">{(report as any).feed_hook || report.summary}</p>}
                         <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500 mt-auto pt-2 border-t border-white/5">
                           {locationStr && <span className="flex items-center gap-1 truncate max-w-[120px]"><MapPin className="w-3 h-3 flex-shrink-0" />{locationStr}</span>}
                           <span className="flex items-center gap-1"><Clock className="w-3 h-3 flex-shrink-0" />{timeAgo}</span>
@@ -1147,7 +1147,7 @@ function ExploreBrowseMode() {
                                     </div>
                                   </div>
                                   <h3 className="font-medium text-white text-sm line-clamp-2 mb-1.5 group-hover/card:text-primary-300 transition-colors">{report.title}</h3>
-                                  {report.summary && <p className="text-xs text-gray-500 line-clamp-2 mb-3 leading-relaxed">{report.summary}</p>}
+                                  {((report as any).feed_hook || report.summary) && <p className="text-xs text-gray-500 line-clamp-2 mb-3 leading-relaxed">{(report as any).feed_hook || report.summary}</p>}
                                   <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500 mt-auto pt-2 border-t border-white/5">
                                     {locationStr && <span className="flex items-center gap-1 truncate max-w-[140px]"><MapPin className="w-3 h-3 flex-shrink-0" />{locationStr}</span>}
                                     {report.event_date && <span className="flex items-center gap-1"><Clock className="w-3 h-3 flex-shrink-0" />{new Date(report.event_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>}
@@ -1644,7 +1644,7 @@ function ExploreSearchMode() {
                       <span className={classNames('text-xs px-2 py-0.5 rounded-full font-medium', config.bgColor, config.color)}>{config.label}</span>
                     </div>
                     <h3 className="font-medium text-white text-sm group-hover:text-primary-300 transition-colors line-clamp-2">{report.title}</h3>
-                    {report.summary && <p className="text-xs text-gray-500 line-clamp-2 mt-1">{report.summary}</p>}
+                    {((report as any).feed_hook || report.summary) && <p className="text-xs text-gray-500 line-clamp-2 mt-1">{(report as any).feed_hook || report.summary}</p>}
                     <div className="flex items-center gap-3 mt-2 text-[11px] text-gray-600">
                       {locationParts.length > 0 && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{locationParts.slice(0, 2).join(', ')}</span>}
                       {report.event_date && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(report.event_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>}

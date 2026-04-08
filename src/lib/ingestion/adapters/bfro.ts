@@ -194,10 +194,16 @@ function extractMedia(html: string, baseUrl: string): ScrapedMediaItem[] {
     while ((match = pattern.exec(html)) !== null) {
       let url = match[1];
 
-      // Skip tiny icons, spacers, and navigation images
+      // Skip tiny icons, spacers, navigation images, and BFRO template/UI images
       if (url.includes('spacer') || url.includes('icon') || url.includes('logo') ||
           url.includes('button') || url.includes('nav') || url.includes('bullet') ||
-          url.includes('1x1') || url.includes('pixel')) {
+          url.includes('1x1') || url.includes('pixel') ||
+          url.includes('/images/templates/') ||   // BFRO nav buttons, outlines, logos
+          url.includes('BFRO_STORE') ||            // Store ad banner
+          url.includes('exped_') ||                // Expedition sidebar maps
+          url.includes('/db/img/') ||              // Database UI images
+          url.includes('Outline_') ||              // Template outlines
+          url.includes('LogoSpin')) {              // Animated logo
         continue;
       }
 
@@ -281,47 +287,74 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     const classMatch = html.match(/Class[:\s]*(A|B|C)/i);
     const classification = classMatch ? `Class ${classMatch[1].toUpperCase()}` : 'Unknown';
 
-    // Location details — try multiple patterns since BFRO formatting varies
-    const countyPatterns = [
-      /County:\s*([^<\n]+)/i,
-      /County\s*<\/td>\s*<td[^>]*>\s*([^<\n]+)/i,
-      /County\s*<\/th>\s*<td[^>]*>\s*([^<\n]+)/i,
-      /<b>County[^<]*<\/b>\s*:?\s*([^<\n]+)/i,
-    ];
-    let county = '';
-    for (const p of countyPatterns) {
-      const m = html.match(p);
-      if (m && m[1].trim()) { county = cleanText(m[1]); break; }
-    }
+    // ── Helper: extract a labeled field from BFRO HTML ──
+    // BFRO uses varying HTML structures across report eras:
+    //   Plain text:  "County: Jackson"
+    //   HTML spans:  <span class="field">County:</span> <span>Jackson</span>
+    //   HTML tables: <td>County</td><td>Jackson</td>
+    //   Bold labels: <b>County:</b> Jackson
+    // This helper strips tags and tries all patterns.
+    const extractField = (fieldNames: string[]): string => {
+      for (const name of fieldNames) {
+        const patterns = [
+          // Plain text: "County: Value" or "County / Parish: Value"
+          new RegExp(name + '\\s*(?:\\/\\s*\\w+)?\\s*:?\\s*</(?:span|b|strong|font|td|th)>\\s*(?:<(?:span|td|th|font)[^>]*>\\s*)?([^<\\n]+)', 'i'),
+          // Label outside tag: "County: Value"
+          new RegExp(name + '\\s*(?:\\/\\s*\\w+)?\\s*:\\s*([^<\\n]+)', 'i'),
+          // Table pattern: <td>County</td><td>Value</td>
+          new RegExp(name + '\\s*</td>\\s*<td[^>]*>\\s*([^<\\n]+)', 'i'),
+          // Bold label: <b>County</b>: Value
+          new RegExp('<b[^>]*>' + name + '[^<]*</b>\\s*:?\\s*([^<\\n]+)', 'i'),
+        ];
+        for (const p of patterns) {
+          const m = html.match(p);
+          if (m && m[1] && m[1].trim().length > 0 && m[1].trim().length < 100) {
+            return cleanText(m[1]);
+          }
+        }
+      }
+      return '';
+    };
 
-    const statePatterns = [
-      /State(?:\/Province)?:\s*([^<\n]+)/i,
-      /Province:\s*([^<\n]+)/i,
-      /State\s*<\/td>\s*<td[^>]*>\s*([^<\n]+)/i,
-      /State\s*<\/th>\s*<td[^>]*>\s*([^<\n]+)/i,
-      /<b>State[^<]*<\/b>\s*:?\s*([^<\n]+)/i,
-    ];
-    let stateRaw = '';
-    for (const p of statePatterns) {
-      const m = html.match(p);
-      if (m && m[1].trim()) { stateRaw = cleanText(m[1]); break; }
-    }
+    // Location details
+    let county = extractField(['County', 'Parish']);
+    let stateRaw = extractField(['State', 'State/Province', 'Province']);
     const state = STATE_MAP[stateRaw] || stateRaw;
 
-    // If state is still empty, try to extract from the page title or URL
+    // If state is still empty, try the page title
     let fallbackState = state;
     if (!fallbackState) {
       const titleMatch = html.match(/<title[^>]*>([^<]+)/i);
       if (titleMatch) {
-        // BFRO titles often contain state info
         const stateInTitle = titleMatch[1].match(/(?:in|near)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
         if (stateInTitle) fallbackState = stateInTitle[1];
       }
     }
 
-    // Date
-    const dateMatch = html.match(/Date:\s*([^<\n]+)/i) || html.match(/Year:\s*(\d{4})/i);
-    const dateStr = dateMatch ? cleanText(dateMatch[1]) : '';
+    // If state is STILL empty, try the URL of the state listing page that linked here
+    // BFRO URLs like state_listing.asp?state=wa encode the state
+    if (!fallbackState) {
+      // Try to find the state in the page breadcrumbs or navigation links
+      const breadcrumbMatch = html.match(/state_listing\.asp\?state=(\w{2})/i);
+      if (breadcrumbMatch) {
+        const stateCode = breadcrumbMatch[1].toUpperCase();
+        fallbackState = STATE_MAP[stateCode] || '';
+      }
+    }
+
+    // Date — try multiple field names
+    let dateStr = extractField(['Date', 'Date of encounter', 'Date of observation']);
+    if (!dateStr) {
+      // Also try Year field
+      const yearMatch = html.match(/Year:\s*(\d{4})/i) || html.match(/>(\d{4})<\/(?:span|td)/i);
+      if (yearMatch) dateStr = yearMatch[1];
+    }
+    // Also try to find a date in the title: "Report 78322 (Class B)" doesn't help,
+    // but the BFRO summary sometimes has "(Month Year)" in the page title
+    if (!dateStr) {
+      const titleDateMatch = html.match(/<title[^>]*>[^<]*\((\w+\s+\d{4})\)/i);
+      if (titleDateMatch) dateStr = titleDateMatch[1];
+    }
     const eventDate = parseDate(dateStr);
     const year = eventDate ? eventDate.substring(0, 4) : (dateStr.match(/\d{4}/)?.[0] || '');
 
@@ -377,28 +410,9 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     const followUp = extractSection('FOLLOW-UP') || extractSection('FOLLOW UP')
       || extractSection('A REPORT BY');
 
-    // Nearest town and road
-    const nearestTownPatterns = [
-      /Nearest\s*town:\s*([^<\n]+)/i,
-      /Nearest\s*town\s*<\/td>\s*<td[^>]*>\s*([^<\n]+)/i,
-      /<b>Nearest\s*town[^<]*<\/b>\s*:?\s*([^<\n]+)/i,
-    ];
-    let nearestTown = '';
-    for (const p of nearestTownPatterns) {
-      const m = html.match(p);
-      if (m && m[1].trim()) { nearestTown = cleanText(m[1]); break; }
-    }
-
-    const nearestRoadPatterns = [
-      /Nearest\s*road:\s*([^<\n]+)/i,
-      /Nearest\s*road\s*<\/td>\s*<td[^>]*>\s*([^<\n]+)/i,
-      /<b>Nearest\s*road[^<]*<\/b>\s*:?\s*([^<\n]+)/i,
-    ];
-    let nearestRoad = '';
-    for (const p of nearestRoadPatterns) {
-      const m = html.match(p);
-      if (m && m[1].trim()) { nearestRoad = cleanText(m[1]); break; }
-    }
+    // Nearest town and road — use same robust extractField helper
+    let nearestTown = extractField(['Nearest town', 'Nearest city']);
+    let nearestRoad = extractField(['Nearest road', 'Nearest highway']);
 
     // Parse witness count from OTHER WITNESSES section
     let witnessCount: number | undefined;

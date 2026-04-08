@@ -361,7 +361,8 @@ export async function generateParadocsAnalysis(reportId: string): Promise<Parado
   console.log('[ParadocsAnalysis] Generating for: ' + reportId + ' (' + ((report as any).title || 'untitled').substring(0, 40) + ')')
 
   // Single call, temperature 0.4 for consistent quality
-  var response = await callClaude(SYSTEM_PROMPT, userPrompt, 500, 0.4)
+  // 1024 tokens needed — 500 was causing truncation mid-JSON for detailed reports
+  var response = await callClaude(SYSTEM_PROMPT, userPrompt, 1024, 0.4)
 
   if (response) {
     var result = parseAnalysisJson(response)
