@@ -130,7 +130,7 @@ async function runCleanup() {
   // 4. Delete reports in batches (FK cascades handle child rows)
   console.log('Deleting ' + toDelete.length + ' reports...');
   var deleteIds = toDelete.map(function(r: any) { return r.id; });
-  var batchSize = 50;
+  var batchSize = 10;
   var totalDeleted = 0;
 
   for (var i = 0; i < deleteIds.length; i += batchSize) {
@@ -422,19 +422,24 @@ async function runIngest(adapterType: string) {
   }
 
   // ── Post-ingestion backfill: correct has_photo_video for reports with no actual media ──
-  var falseMedia = reports.filter(function(rr: any) { return rr.has_photo_video; });
-  if (falseMedia.length > 0 && media) {
-    var mediaReportIds = new Set((media || []).map(function(mm: any) { return mm.report_id; }));
-    var falseFlagReports = falseMedia.filter(function(rr: any) { return !mediaReportIds.has(rr.id); });
+  // EXCEPTION: Link-only adapters (bfro, nuforc) intentionally set has_photo_video
+  // without storing media — they link to the source page instead. Don't override.
+  var LINK_ONLY_VALIDATE = ['bfro', 'nuforc'];
+  if (LINK_ONLY_VALIDATE.indexOf(adapterType) === -1) {
+    var falseMedia = reports.filter(function(rr: any) { return rr.has_photo_video; });
+    if (falseMedia.length > 0 && media) {
+      var mediaReportIds = new Set((media || []).map(function(mm: any) { return mm.report_id; }));
+      var falseFlagReports = falseMedia.filter(function(rr: any) { return !mediaReportIds.has(rr.id); });
 
-    if (falseFlagReports.length > 0) {
-      console.log('\n--- CORRECTING ' + falseFlagReports.length + ' false has_photo_video flags ---');
-      for (var ff of falseFlagReports) {
-        await supabase
-          .from('reports')
-          .update({ has_photo_video: false })
-          .eq('id', ff.id);
-        console.log('  Corrected: ' + ff.title.substring(0, 50));
+      if (falseFlagReports.length > 0) {
+        console.log('\n--- CORRECTING ' + falseFlagReports.length + ' false has_photo_video flags ---');
+        for (var ff of falseFlagReports) {
+          await supabase
+            .from('reports')
+            .update({ has_photo_video: false })
+            .eq('id', ff.id);
+          console.log('  Corrected: ' + ff.title.substring(0, 50));
+        }
       }
     }
   }
