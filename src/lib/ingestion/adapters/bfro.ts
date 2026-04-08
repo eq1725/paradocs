@@ -293,18 +293,29 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
       }
     }
 
-    // Date — try multiple field names
-    let dateStr = extractField(['Date', 'Date of encounter', 'Date of observation']);
+    // Date — try multiple field names used across BFRO report eras
+    let dateStr = extractField(['Date', 'Date of encounter', 'Date of observation',
+      'Date occurred', 'Date Occurred', 'Submitted', 'Date submitted',
+      'YEAR', 'Year', 'MONTH', 'Month', 'Season']);
     if (!dateStr) {
-      // Also try Year field
-      const yearMatch = html.match(/Year:\s*(\d{4})/i) || html.match(/>(\d{4})<\/(?:span|td)/i);
-      if (yearMatch) dateStr = yearMatch[1];
+      // Try standalone Year field patterns
+      const yearMatch = html.match(/Year:\s*(\d{4})/i)
+        || html.match(/>Year<\/\w+>\s*(?:<\w+[^>]*>)?\s*(\d{4})/i)
+        || html.match(/>(\d{4})<\/(?:span|td)/i);
+      if (yearMatch) dateStr = yearMatch[1] || yearMatch[2];
     }
-    // Also try to find a date in the title: "Report 78322 (Class B)" doesn't help,
-    // but the BFRO summary sometimes has "(Month Year)" in the page title
+    // BFRO page titles sometimes contain the date: "Report 78322 (August 2023)"
     if (!dateStr) {
       const titleDateMatch = html.match(/<title[^>]*>[^<]*\((\w+\s+\d{4})\)/i);
       if (titleDateMatch) dateStr = titleDateMatch[1];
+    }
+    // Last resort: find any 4-digit year in the structured data section (between County/State and OBSERVED)
+    if (!dateStr) {
+      const structuredSection = html.match(/(?:County|State|Province)[\s\S]{0,500}?OBSERVED/i);
+      if (structuredSection) {
+        const yearInSection = structuredSection[0].match(/\b(19\d{2}|20[0-2]\d)\b/);
+        if (yearInSection) dateStr = yearInSection[1];
+      }
     }
     const eventDate = parseDate(dateStr);
     const year = eventDate ? eventDate.substring(0, 4) : (dateStr.match(/\d{4}/)?.[0] || '');

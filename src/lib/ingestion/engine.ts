@@ -209,6 +209,10 @@ export interface IngestionResult {
   duration: number;
 }
 
+// Adapters that set has_photo_video flag + link to source instead of storing media.
+// These adapters intentionally return no media array — don't override their flag.
+var LINK_ONLY_SOURCES = ['bfro', 'nuforc'];
+
 // Generate a URL-safe slug from title with guaranteed uniqueness
 function generateSlug(title: string, originalReportId: string, sourceType: string): string {
   const baseSlug = title
@@ -406,9 +410,17 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               summary: report.summary,
               description: report.description,
               location_name: report.location_name,
+              city: report.city || null,
+              state_province: report.state_province || null,
+              country: report.country || null,
+              latitude: report.latitude || null,
+              longitude: report.longitude || null,
               event_date: report.event_date,
               event_date_precision: report.event_date_precision || 'unknown',
               credibility: report.credibility,
+              has_photo_video: report.has_photo_video || false,
+              witness_count: report.witness_count || null,
+              has_official_report: report.has_official_report || false,
               tags: report.tags,
               source_label: sourceLabel,
               source_url: report.source_url,
@@ -438,6 +450,19 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               }
             } catch (hookError) {
               console.log('[Ingestion] Hook/Analysis generation failed for updated report, continuing...');
+            }
+
+            // Clean stale media for link-only adapters that no longer return media arrays.
+            // These adapters (bfro, nuforc) set has_photo_video flag + link to source.
+            if (LINK_ONLY_SOURCES.indexOf(report.source_type) !== -1 && (!report.media || report.media.length === 0)) {
+              const { count: staleMediaCount } = await supabase
+                .from('report_media')
+                .select('*', { count: 'exact', head: true })
+                .eq('report_id', existing.id);
+              if (staleMediaCount && staleMediaCount > 0) {
+                await supabase.from('report_media').delete().eq('report_id', existing.id);
+                console.log('[Ingestion] Cleaned ' + staleMediaCount + ' stale media rows for link-only source ' + report.source_type);
+              }
             }
 
             // Update media for existing report if it has new media
@@ -681,9 +706,11 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
             }
 
             // Correct has_photo_video flag: only keep it true if actual media was inserted.
-            // Adapter flags (e.g. NUFORC's Y/N column) are unreliable — the source may
-            // claim media exists when it doesn't. Trust inserted media, not the flag.
-            if (report.has_photo_video && (!report.media || report.media.length === 0)) {
+            // EXCEPTION: Link-only adapters (bfro, nuforc) intentionally set
+            // has_photo_video without returning a media array — they link to source
+            // instead of storing images. Trust the adapter flag for those sources.
+            if (report.has_photo_video && (!report.media || report.media.length === 0)
+                && LINK_ONLY_SOURCES.indexOf(report.source_type) === -1) {
               await supabase
                 .from('reports')
                 .update({ has_photo_video: false })

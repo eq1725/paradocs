@@ -432,6 +432,7 @@ export function filterContent(
     checkFiction?: boolean;
     checkLowEffort?: boolean;
     checkSpam?: boolean;
+    checkNonExperience?: boolean;
     minLength?: number;
   }
 ): FilterResult {
@@ -440,6 +441,7 @@ export function filterContent(
     checkFiction: true,
     checkLowEffort: true,
     checkSpam: true,
+    checkNonExperience: true,
     minLength: 100,
     ...options
   };
@@ -488,8 +490,9 @@ export function filterContent(
     }
   }
 
-  // Check non-experience patterns (skip for comments that are clearly first-person experiences)
-  if (!isLikelyExperience) {
+  // Check non-experience patterns (skip for comments that are clearly first-person experiences,
+  // and skip for curated sources where "game" could mean "game trail" etc.)
+  if (opts.checkNonExperience && !isLikelyExperience) {
     for (const pattern of NON_EXPERIENCE_PATTERNS) {
       if (pattern.test(combinedText)) {
         return { passed: false, reason: `Non-experience content: ${pattern.source.substring(0, 30)}...` };
@@ -568,7 +571,8 @@ export function assessQuality(
     {
       minLength: thresholds.minDescLength,
       checkMeta: !isCuratedSource,
-      checkLowEffort: !isCuratedSource
+      checkLowEffort: !isCuratedSource,
+      checkNonExperience: !isCuratedSource
     }
   );
 
