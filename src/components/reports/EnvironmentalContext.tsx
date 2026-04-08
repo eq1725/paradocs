@@ -101,7 +101,123 @@ export default function EnvironmentalContext({ reportSlug, className, isExpanded
     )
   }
 
-  if (error || !data || !(data as any).dataAvailable) {
+  if (error || !data) {
+    return null
+  }
+
+  // Field context mode: no astronomical data, but terrain/habitat info from source
+  if (!(data as any).dataAvailable && (data as any).fieldContextAvailable) {
+    const fc = (data as any).fieldContext
+    const terrainLabels: Record<string, { emoji: string; label: string }> = {
+      'forest': { emoji: '🌲', label: 'Forest' },
+      'mountainous': { emoji: '⛰️', label: 'Mountain' },
+      'swamp': { emoji: '🌿', label: 'Wetland' },
+      'near-water': { emoji: '💧', label: 'Near Water' },
+      'remote': { emoji: '🏕️', label: 'Remote' },
+      'residential': { emoji: '🏘️', label: 'Residential' },
+      'rural': { emoji: '🌾', label: 'Rural' },
+    }
+    const activityLabels: Record<string, { emoji: string; label: string }> = {
+      'camping': { emoji: '⛺', label: 'Camping' },
+      'hunting': { emoji: '🎯', label: 'Hunting' },
+      'hiking': { emoji: '🥾', label: 'Hiking' },
+      'driving': { emoji: '🚗', label: 'Driving' },
+      'fishing': { emoji: '🎣', label: 'Fishing' },
+    }
+    const seasonEmoji: Record<string, string> = {
+      'Summer': '☀️', 'Winter': '❄️', 'Spring': '🌱', 'Fall': '🍂', 'Unknown': '🌍'
+    }
+    const timeEmoji: Record<string, string> = {
+      'Night': '🌙', 'Day': '☀️', 'Dusk/Evening': '🌅', 'Dawn/Morning': '🌄', 'Afternoon': '🌤️', 'Unknown': '🕐'
+    }
+
+    return (
+      <div className={classNames('glass-card overflow-hidden', className)}>
+        <div className="p-4 border-b border-white/10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CloudSun className="w-4 h-4 text-primary-400" />
+              <h4 className="text-sm font-medium text-white">Field Conditions</h4>
+            </div>
+            <button
+              onClick={() => { if (onToggleExpand) { onToggleExpand() } else { setInternalExpanded(prev => !prev) } }}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">Terrain and conditions at time of encounter</p>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-2 gap-px bg-white/5">
+          {/* Season */}
+          <div className="bg-gray-900/50 p-3 text-center">
+            <div className="text-2xl mb-1">{seasonEmoji[fc.season] || '🌍'}</div>
+            <div className="text-xs text-white font-medium">{fc.season !== 'Unknown' ? fc.season : 'Season Unknown'}</div>
+            <div className="text-xs text-gray-500">{fc.timeOfDay !== 'Unknown' ? fc.timeOfDay : 'Time unknown'}</div>
+          </div>
+
+          {/* Primary Terrain */}
+          <div className="bg-gray-900/50 p-3 text-center">
+            <div className="text-2xl mb-1">{fc.terrainTags.length > 0 ? (terrainLabels[fc.terrainTags[0]]?.emoji || '🌍') : '🌍'}</div>
+            <div className="text-xs text-white font-medium">{fc.terrainTags.length > 0 ? (terrainLabels[fc.terrainTags[0]]?.label || fc.terrainTags[0]) : 'Terrain Unknown'}</div>
+            <div className="text-xs text-gray-500">{fc.terrainTags.length > 1 ? (terrainLabels[fc.terrainTags[1]]?.label || fc.terrainTags[1]) : 'No secondary terrain'}</div>
+          </div>
+
+          {/* Activity */}
+          <div className="bg-gray-900/50 p-3 text-center">
+            <div className="text-2xl mb-1">{fc.activityTags.length > 0 ? (activityLabels[fc.activityTags[0]]?.emoji || '🏕️') : '👤'}</div>
+            <div className="text-xs text-white font-medium">{fc.activityTags.length > 0 ? (activityLabels[fc.activityTags[0]]?.label || fc.activityTags[0]) : 'Activity Unknown'}</div>
+            <div className="text-xs text-gray-500">Witness activity</div>
+          </div>
+
+          {/* Time of Day */}
+          <div className="bg-gray-900/50 p-3 text-center">
+            <div className="text-2xl mb-1">{timeEmoji[fc.timeOfDay] || '🕐'}</div>
+            <div className="text-xs text-white font-medium">{fc.timeOfDay !== 'Unknown' ? fc.timeOfDay : 'Time Unknown'}</div>
+            <div className="text-xs text-gray-500">Time of encounter</div>
+          </div>
+        </div>
+
+        {/* Expanded: Environment section from source */}
+        {expanded && (fc.environment || fc.timeAndConditions) && (
+          <div className="p-4 space-y-3 border-t border-white/10">
+            {fc.environment && (
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Moon className="w-3.5 h-3.5 text-gray-500" />
+                  <span className="text-xs font-medium text-gray-300">Environment</span>
+                </div>
+                <p className="text-sm text-gray-400 leading-relaxed pl-6">{fc.environment}</p>
+              </div>
+            )}
+            {fc.timeAndConditions && (
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock className="w-3.5 h-3.5 text-gray-500" />
+                  <span className="text-xs font-medium text-gray-300">Time & Conditions</span>
+                </div>
+                <p className="text-sm text-gray-400 leading-relaxed pl-6">{fc.timeAndConditions}</p>
+              </div>
+            )}
+            {fc.terrainTags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pl-6">
+                {fc.terrainTags.map((tag: string) => (
+                  <span key={tag} className="px-2 py-0.5 rounded-full text-xs bg-white/[0.06] text-gray-400">
+                    {terrainLabels[tag]?.emoji || ''} {terrainLabels[tag]?.label || tag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // No data at all — hide panel
+  if (!(data as any).dataAvailable) {
     return null
   }
 

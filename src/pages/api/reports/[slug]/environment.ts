@@ -25,10 +25,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Get report data
+    // Get report data including metadata for field-research sources
     const { data: report, error } = await supabase
       .from('reports')
-      .select('id, event_date, event_time, latitude, longitude')
+      .select('id, event_date, event_time, latitude, longitude, source_type, category, metadata, tags, description')
       .eq('slug', slug)
       .eq('status', 'approved')
       .single()
@@ -37,14 +37,65 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: 'Report not found' })
     }
 
-    // Only return environmental context if we have a valid event_date
+    // For reports without event_date, return terrain/field context from metadata
+    // instead of astronomical data. BFRO and similar field-research sources
+    // store ENVIRONMENT and TIME AND CONDITIONS sections in metadata.
     if (!report.event_date) {
+      const meta = (report as any).metadata || {}
+      const tags = (report as any).tags || []
+      const desc = ((report as any).description || '').toLowerCase()
+
+      // Extract terrain tags from the report's tag array
+      var terrainTags: string[] = []
+      var terrainKeywords = ['forest', 'mountainous', 'swamp', 'near-water', 'remote', 'residential', 'rural']
+      for (var i = 0; i < terrainKeywords.length; i++) {
+        if (tags.indexOf(terrainKeywords[i]) !== -1) terrainTags.push(terrainKeywords[i])
+      }
+
+      // Extract time-of-day from metadata or tags
+      var timeOfDay = 'Unknown'
+      if (tags.indexOf('night') !== -1) timeOfDay = 'Night'
+      else if (tags.indexOf('day') !== -1) timeOfDay = 'Day'
+      if (meta.timeAndConditions) {
+        var tcLower = meta.timeAndConditions.toLowerCase()
+        if (/\b(dusk|sunset|evening)\b/.test(tcLower)) timeOfDay = 'Dusk/Evening'
+        else if (/\b(dawn|sunrise|morning)\b/.test(tcLower)) timeOfDay = 'Dawn/Morning'
+        else if (/\b(night|midnight|dark)\b/.test(tcLower)) timeOfDay = 'Night'
+        else if (/\b(afternoon|midday|noon)\b/.test(tcLower)) timeOfDay = 'Afternoon'
+      }
+
+      // Extract season from description or time/conditions
+      var season = 'Unknown'
+      var seasonText = (meta.timeAndConditions || '') + ' ' + desc
+      if (/\b(summer|june|july|august)\b/i.test(seasonText)) season = 'Summer'
+      else if (/\b(winter|december|january|february|snow)\b/i.test(seasonText)) season = 'Winter'
+      else if (/\b(spring|march|april|may)\b/i.test(seasonText)) season = 'Spring'
+      else if (/\b(fall|autumn|september|october|november)\b/i.test(seasonText)) season = 'Fall'
+
+      // Determine activity context from description
+      var activityTags: string[] = []
+      var activityKeywords = ['camping', 'hunting', 'hiking', 'driving', 'fishing']
+      for (var j = 0; j < activityKeywords.length; j++) {
+        if (tags.indexOf(activityKeywords[j]) !== -1) activityTags.push(activityKeywords[j])
+      }
+
       return res.status(200).json({
         reportId: report.id,
         eventDate: null,
         eventTime: report.event_time,
         dataAvailable: false,
-        reason: 'No event date available for this report'
+        // Field context available even without a date
+        fieldContextAvailable: !!(meta.environment || meta.timeAndConditions || terrainTags.length > 0),
+        fieldContext: {
+          environment: meta.environment || null,
+          timeAndConditions: meta.timeAndConditions || null,
+          terrainTags: terrainTags,
+          activityTags: activityTags,
+          timeOfDay: timeOfDay,
+          season: season,
+          category: (report as any).category,
+        },
+        reason: 'No event date available — showing field context instead'
       })
     }
 
