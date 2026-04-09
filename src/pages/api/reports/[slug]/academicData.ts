@@ -333,34 +333,11 @@ function extractObservationDetails(report: any) {
     }
   }
 
-  // ---- Creature/Object count for cryptid reports ----
-  // Track both the count and whether it was explicitly stated vs inferred
+  // ---- Creature/Object count ----
+  // Only use count from structured source data (e.g. BFRO fields, curated data).
+  // Never infer creature count from NLP/description text — too unreliable.
   var detectedObjectCount: number | null = null
   var objectCountExact = false
-  // Look for patterns suggesting multiple creatures/entities
-  var multiplePatterns = [
-    /(\d+)\s*(?:creature|animal|being|entity|entities|figure|bigfoot|sasquatch)/i,
-    /(?:sounded like|seemed like|appeared to be|at least)\s*(?:multiple|several|many|a? ?few|two|three|four|2|3|4|5)\b/i,
-    /\b(multiple|several|two|three|four|five|a? ?group of|a? ?pair of)\s+(?:creature|animal|being|entity|entities|figure|individual|of them)\b/i,
-    /\b(two|three|four|five|2|3|4|5)\s+(?:sets? of|pairs? of)?\s*(?:footprint|track|vocalization|howl|knock|call|scream|whoop)/i
-  ]
-  for (var mpi = 0; mpi < multiplePatterns.length; mpi++) {
-    var mpMatch = descLower.match(multiplePatterns[mpi])
-    if (mpMatch) {
-      // Try to extract a number
-      var countWord = (mpMatch[1] || mpMatch[0]).toLowerCase()
-      if (/\btwo\b|^2$/.test(countWord)) { detectedObjectCount = 2; objectCountExact = true }
-      else if (/\bthree\b|^3$/.test(countWord)) { detectedObjectCount = 3; objectCountExact = true }
-      else if (/\bfour\b|^4$/.test(countWord)) { detectedObjectCount = 4; objectCountExact = true }
-      else if (/\bfive\b|^5$/.test(countWord)) { detectedObjectCount = 5; objectCountExact = true }
-      else if (/\b(multiple|several|many|few|group)\b/.test(countWord)) { detectedObjectCount = 2; objectCountExact = false }
-      else {
-        var numParsed = parseInt(countWord)
-        if (numParsed > 0 && numParsed < 50) { detectedObjectCount = numParsed; objectCountExact = true }
-      }
-      if (detectedObjectCount) break
-    }
-  }
 
   // ---- Location type inference for field-research reports ----
   var detectedLocationType: string | null = null
@@ -561,8 +538,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // Object Characteristics
       phenomenon: {
-        objectCount: academicData?.object_count || extracted.detectedObjectCount || 1,
-        objectCountExact: !!(academicData?.object_count) || extracted.objectCountExact || false,
+        objectCount: academicData?.object_count || null,
+        objectCountExact: !!(academicData?.object_count),
         shape: academicData?.object_shape || extracted.detectedShape,
         colors: academicData?.object_color || (meta.color ? [meta.color] : (extracted.detectedColors.length > 0 ? extracted.detectedColors : null)),
         brightness: academicData?.object_brightness || extracted.detectedBrightness,

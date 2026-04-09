@@ -43,7 +43,7 @@ interface AcademicData {
     emotionalState: string | null
   }
   phenomenon: {
-    objectCount: number
+    objectCount: number | null
     objectCountExact?: boolean
     shape: string | null
     colors: string[] | null
@@ -268,13 +268,11 @@ export default function AcademicObservationPanel({ reportSlug, className, isExpa
         </div>
         <div className="bg-gray-900/50 p-3 text-center">
           <div className="text-lg font-medium text-white">
-            {data.phenomenon.objectCount > 1 && !data.phenomenon.objectCountExact
-              ? 'Multiple'
-              : data.phenomenon.objectCount}
+            {data.phenomenon.objectCount != null ? data.phenomenon.objectCount : '—'}
           </div>
           <div className="text-[10px] text-gray-500">
-            {data.phenomenon.objectCount > 1 && !data.phenomenon.objectCountExact
-              ? (data.classification.phenomenonLabel || 'Object') + 's reported'
+            {data.phenomenon.objectCount != null
+              ? (data.classification.phenomenonLabel || 'Object') + '(s)'
               : (data.classification.phenomenonLabel || 'Object') + '(s)'}
           </div>
         </div>
