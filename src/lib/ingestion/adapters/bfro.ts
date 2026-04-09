@@ -140,6 +140,14 @@ function cleanText(text: string): string {
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&#39;/g, "'")
+    // Smart quotes and special chars — BFRO pages often use Windows-1252 encoding
+    // which produces replacement chars (U+FFFD) or mojibake when decoded as UTF-8
+    .replace(/\uFFFD/g, "'")           // Replacement character → apostrophe (most common case)
+    .replace(/[\u2018\u2019\u201A]/g, "'")  // Smart single quotes → ASCII apostrophe
+    .replace(/[\u201C\u201D\u201E]/g, '"')  // Smart double quotes → ASCII double quote
+    .replace(/\u2013/g, '-')           // En dash → hyphen
+    .replace(/\u2014/g, '--')          // Em dash → double hyphen
+    .replace(/\u2026/g, '...')         // Ellipsis → three dots
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -220,6 +228,21 @@ async function fetchWithRetry(url: string, retries: number = 3, delay: number = 
       });
 
       if (response.ok) {
+        // BFRO pages may use Windows-1252 encoding — decode with correct charset
+        // to avoid mojibake (smart quotes → replacement characters)
+        var contentType = response.headers.get('content-type') || '';
+        var charsetMatch = contentType.match(/charset=([^\s;]+)/i);
+        var charset = charsetMatch ? charsetMatch[1].trim().toLowerCase() : '';
+        if (charset && charset !== 'utf-8' && charset !== 'utf8') {
+          try {
+            var buf = await response.arrayBuffer();
+            var decoder = new TextDecoder(charset);
+            return decoder.decode(buf);
+          } catch (decodeErr) {
+            // If TextDecoder doesn't support the charset, fall back to .text()
+            console.log('[BFRO] TextDecoder failed for charset ' + charset + ', falling back to text()');
+          }
+        }
         return await response.text();
       }
 
@@ -395,7 +418,7 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     const extractSection = (sectionName: string): string => {
       // Try multiple patterns since BFRO formatting varies across report eras
       const patterns = [
-        new RegExp(sectionName + ':?\\s*([\\s\\S]*?)(?=(?:OBSERVED|ALSO NOTICED|OTHER WITNESSES|OTHER STORIES|TIME AND CONDITIONS|ENVIRONMENT|FOLLOW-UP|A REPORT BY|<\\/td>|<\\/div>))', 'i'),
+        new RegExp(sectionName + ':?\\s*([\\s\\S]*?)(?=(?:OBSERVED|ALSO NOTICED|OTHER WITNESSES|OTHER STORIES|TIME AND CONDITIONS|ENVIRONMENT|FOLLOW-UP|About BFRO|A REPORT BY|Submit a report|Explanation of the report|<\\/td>|<\\/div>))', 'i'),
         new RegExp('<b>' + sectionName + '[^<]*<\\/b>\\s*:?\\s*([\\s\\S]*?)(?=<b>|<\\/td>|<\\/div>)', 'i'),
       ];
       for (const p of patterns) {
@@ -491,8 +514,28 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     const alsoNoticed = extractSection('ALSO NOTICED');
     const otherWitnesses = extractSection('OTHER WITNESSES');
     const otherStories = extractSection('OTHER STORIES');
-    const timeAndConditions = extractSection('TIME AND CONDITIONS');
-    const environment = extractSection('ENVIRONMENT');
+    let timeAndConditions = extractSection('TIME AND CONDITIONS');
+    let environment = extractSection('ENVIRONMENT');
+
+    // Truncate metadata fields to reasonable display lengths
+    // Environment should be terrain/habitat description, not investigator bios
+    if (environment && environment.length > 500) {
+      // Try to cut at a sentence boundary
+      var cutPoint = environment.lastIndexOf('.', 500);
+      if (cutPoint > 200) {
+        environment = environment.substring(0, cutPoint + 1);
+      } else {
+        environment = environment.substring(0, 500).trim() + '...';
+      }
+    }
+    if (timeAndConditions && timeAndConditions.length > 500) {
+      var tcCut = timeAndConditions.lastIndexOf('.', 500);
+      if (tcCut > 200) {
+        timeAndConditions = timeAndConditions.substring(0, tcCut + 1);
+      } else {
+        timeAndConditions = timeAndConditions.substring(0, 500).trim() + '...';
+      }
+    }
 
     // Follow-up / investigator report (may use different labels)
     const followUp = extractSection('FOLLOW-UP') || extractSection('FOLLOW UP')
