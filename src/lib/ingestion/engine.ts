@@ -426,6 +426,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               source_label: sourceLabel,
               source_url: report.source_url,
               original_title: originalTitle,
+              metadata: report.metadata || {},
               updated_at: new Date().toISOString()
             })
             .eq('id', existing.id);
