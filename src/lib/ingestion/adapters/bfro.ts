@@ -52,23 +52,14 @@ const TAG_KEYWORDS: Record<string, string[]> = {
 function parseDate(dateStr: string): string | undefined {
   if (!dateStr) return undefined;
 
-  try {
-    // Handle various date formats from BFRO
-    const cleaned = dateStr.trim();
+  var MONTHS: Record<string, string> = {
+    'january': '01', 'february': '02', 'march': '03', 'april': '04',
+    'may': '05', 'june': '06', 'july': '07', 'august': '08',
+    'september': '09', 'october': '10', 'november': '11', 'december': '12'
+  };
 
-    // Format: "Month Year" (e.g., "August 2023")
-    const monthYearMatch = cleaned.match(/^(\w+)\s+(\d{4})$/);
-    if (monthYearMatch) {
-      const months: Record<string, string> = {
-        'January': '01', 'February': '02', 'March': '03', 'April': '04',
-        'May': '05', 'June': '06', 'July': '07', 'August': '08',
-        'September': '09', 'October': '10', 'November': '11', 'December': '12'
-      };
-      const month = months[monthYearMatch[1]];
-      if (month) {
-        return `${monthYearMatch[2]}-${month}-01`;
-      }
-    }
+  try {
+    var cleaned = dateStr.trim();
 
     // Format: "YYYY-MM-DD"
     if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
@@ -76,9 +67,42 @@ function parseDate(dateStr: string): string | undefined {
     }
 
     // Format: "MM/DD/YYYY"
-    const slashMatch = cleaned.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    var slashMatch = cleaned.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (slashMatch) {
-      return `${slashMatch[3]}-${slashMatch[1].padStart(2, '0')}-${slashMatch[2].padStart(2, '0')}`;
+      return slashMatch[3] + '-' + slashMatch[1].padStart(2, '0') + '-' + slashMatch[2].padStart(2, '0');
+    }
+
+    // Format: "Month DD, YYYY" or "Month DD YYYY" (e.g., "July 21, 2023")
+    var fullDateMatch = cleaned.match(/^(\w+)\s+(\d{1,2}),?\s+(\d{4})$/);
+    if (fullDateMatch) {
+      var m = MONTHS[fullDateMatch[1].toLowerCase()];
+      if (m) {
+        return fullDateMatch[3] + '-' + m + '-' + fullDateMatch[2].padStart(2, '0');
+      }
+    }
+
+    // Format: "DD Month YYYY" (e.g., "21 July 2023")
+    var dmyMatch = cleaned.match(/^(\d{1,2})\s+(\w+),?\s+(\d{4})$/);
+    if (dmyMatch) {
+      var m2 = MONTHS[dmyMatch[2].toLowerCase()];
+      if (m2) {
+        return dmyMatch[3] + '-' + m2 + '-' + dmyMatch[1].padStart(2, '0');
+      }
+    }
+
+    // Format: "Month Year" (e.g., "August 2023")
+    var monthYearMatch = cleaned.match(/^(\w+)\s+(\d{4})$/);
+    if (monthYearMatch) {
+      var m3 = MONTHS[monthYearMatch[1].toLowerCase()];
+      if (m3) {
+        return monthYearMatch[2] + '-' + m3 + '-01';
+      }
+    }
+
+    // Format: bare year "2023"
+    var bareYear = cleaned.match(/^(\d{4})$/);
+    if (bareYear) {
+      return bareYear[1] + '-01-01';
     }
 
   } catch (e) {
@@ -300,28 +324,61 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     let dateStr = extractField(['Date', 'Date of encounter', 'Date of observation',
       'Date occurred', 'Date Occurred', 'Submitted', 'Date submitted',
       'YEAR', 'Year', 'MONTH', 'Month', 'Season']);
+    if (dateStr) console.log('[BFRO] #' + reportNumber + ' date from extractField: "' + dateStr + '"');
+
     if (!dateStr) {
       // Try standalone Year field patterns
       const yearMatch = html.match(/Year:\s*(\d{4})/i)
         || html.match(/>Year<\/\w+>\s*(?:<\w+[^>]*>)?\s*(\d{4})/i)
         || html.match(/>(\d{4})<\/(?:span|td)/i);
-      if (yearMatch) dateStr = yearMatch[1] || yearMatch[2];
+      if (yearMatch) {
+        dateStr = yearMatch[1] || yearMatch[2];
+        console.log('[BFRO] #' + reportNumber + ' date from HTML year pattern: "' + dateStr + '"');
+      }
     }
     // BFRO page titles sometimes contain the date: "Report 78322 (August 2023)"
     if (!dateStr) {
       const titleDateMatch = html.match(/<title[^>]*>[^<]*\((\w+\s+\d{4})\)/i);
-      if (titleDateMatch) dateStr = titleDateMatch[1];
+      if (titleDateMatch) {
+        dateStr = titleDateMatch[1];
+        console.log('[BFRO] #' + reportNumber + ' date from title: "' + dateStr + '"');
+      }
     }
-    // Last resort: find any 4-digit year in the structured data section (between County/State and OBSERVED)
+    // Try to find "Submitted on YYYY-MM-DD" or similar submission date patterns
+    if (!dateStr) {
+      var submitPatterns = [
+        /[Ss]ubmitted\s+(?:on\s+)?(\d{4}-\d{2}-\d{2})/,
+        /[Ss]ubmitted\s+(?:on\s+)?(\d{1,2}\/\d{1,2}\/\d{4})/,
+        /[Ss]ubmitted\s+(?:on\s+)?(\w+\s+\d{1,2},?\s+\d{4})/,
+        /[Rr]eported\s+(?:on\s+)?(\d{4}-\d{2}-\d{2})/,
+        /[Rr]eport\s+(?:filed|received|dated)\s+(\d{4}-\d{2}-\d{2})/,
+      ];
+      for (var spi = 0; spi < submitPatterns.length; spi++) {
+        var spMatch = html.match(submitPatterns[spi]);
+        if (spMatch) {
+          dateStr = spMatch[1];
+          console.log('[BFRO] #' + reportNumber + ' date from submit pattern: "' + dateStr + '"');
+          break;
+        }
+      }
+    }
+    // Find any 4-digit year in the structured data section (between County/State and OBSERVED)
     if (!dateStr) {
       const structuredSection = html.match(/(?:County|State|Province)[\s\S]{0,500}?OBSERVED/i);
       if (structuredSection) {
         const yearInSection = structuredSection[0].match(/\b(19\d{2}|20[0-2]\d)\b/);
-        if (yearInSection) dateStr = yearInSection[1];
+        if (yearInSection) {
+          dateStr = yearInSection[1];
+          console.log('[BFRO] #' + reportNumber + ' date from structured section year: "' + dateStr + '"');
+        }
       }
     }
-    const eventDate = parseDate(dateStr);
-    const year = eventDate ? eventDate.substring(0, 4) : (dateStr.match(/\d{4}/)?.[0] || '');
+    if (!dateStr) {
+      console.log('[BFRO] #' + reportNumber + ' no date from HTML fields — will try description after extraction');
+    }
+    // eventDate and year will be set after description is extracted (see below)
+    var eventDate: string | undefined;
+    var year = '';
 
     // ── Extract ALL structured sections from the BFRO report page ──
     // BFRO pages have labeled sections: OBSERVED, ALSO NOTICED, OTHER WITNESSES,
@@ -363,6 +420,64 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     if (description.length > 5000) {
       description = description.substring(0, 5000) + '...';
     }
+
+    // Now try description-based date extraction if HTML fields didn't yield a date
+    if (!dateStr && description) {
+      // "July 21, 2023" or "July 21 2023" or "21 July 2023"
+      var fullDateMatch = description.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})\b/i)
+        || description.match(/\b(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December),?\s+(\d{4})\b/i);
+      if (fullDateMatch) {
+        dateStr = fullDateMatch[0];
+        console.log('[BFRO] #' + reportNumber + ' date from description (full date): "' + dateStr + '"');
+      }
+      // "Month Year" in description: "in July 2023", "during August 2024"
+      if (!dateStr) {
+        var monthYearDesc = description.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b/i);
+        if (monthYearDesc) {
+          dateStr = monthYearDesc[0];
+          console.log('[BFRO] #' + reportNumber + ' date from description (month year): "' + dateStr + '"');
+        }
+      }
+      // "Month DD" without year — common in BFRO ("It was Monday, July 21")
+      // Pair with most common 4-digit year found on the page
+      if (!dateStr) {
+        var monthDayDesc = description.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?:\b|,)/i);
+        if (monthDayDesc) {
+          var pageYears = html.match(/\b(20[0-2]\d)\b/g);
+          if (pageYears && pageYears.length > 0) {
+            var yearCounts: Record<string, number> = {};
+            for (var yi = 0; yi < pageYears.length; yi++) {
+              yearCounts[pageYears[yi]] = (yearCounts[pageYears[yi]] || 0) + 1;
+            }
+            var bestYear = Object.entries(yearCounts).sort(function(a, b) { return b[1] - a[1]; })[0][0];
+            dateStr = monthDayDesc[1] + ' ' + monthDayDesc[2] + ', ' + bestYear;
+            console.log('[BFRO] #' + reportNumber + ' date from description (month day) + page year: "' + dateStr + '"');
+          }
+        }
+      }
+      // Just a year in the description: "back in 2019", "this happened in 2022"
+      if (!dateStr) {
+        var yearDesc = description.match(/\b(19[89]\d|20[0-2]\d)\b/);
+        if (yearDesc) {
+          dateStr = yearDesc[1];
+          console.log('[BFRO] #' + reportNumber + ' date from description (year only): "' + dateStr + '"');
+        }
+      }
+    }
+    // Absolute last resort: any year on the page
+    if (!dateStr) {
+      var anyYear = html.match(/\b(20[0-2]\d)\b/);
+      if (anyYear) {
+        dateStr = anyYear[1];
+        console.log('[BFRO] #' + reportNumber + ' date from any page year: "' + dateStr + '"');
+      }
+    }
+    if (!dateStr) {
+      console.log('[BFRO] #' + reportNumber + ' WARNING: No date found anywhere');
+    }
+    // Now parse the date
+    eventDate = parseDate(dateStr);
+    year = eventDate ? eventDate.substring(0, 4) : (dateStr ? (dateStr.match(/\d{4}/)?.[0] || '') : '');
 
     // Additional structured sections
     const alsoNoticed = extractSection('ALSO NOTICED');
@@ -461,16 +576,28 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
       console.log(`[BFRO] Report #${reportNumber} has photos on source page`);
     }
 
-    // Determine event_date_precision based on date parsing
+    // Determine event_date_precision based on what we parsed from
     let eventDatePrecision: 'exact' | 'month' | 'year' | 'decade' | 'estimated' | 'unknown' = 'unknown';
-    if (eventDate) {
-      // Check if we have a full date (YYYY-MM-DD)
-      if (/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
-        eventDatePrecision = 'exact';
-      } else if (/^\d{4}-\d{2}/.test(eventDate)) {
-        eventDatePrecision = 'month';
-      } else if (/^\d{4}/.test(eventDate)) {
+    if (eventDate && dateStr) {
+      var dsClean = dateStr.trim();
+      // If dateStr was just a bare year (e.g., "2023")
+      if (/^\d{4}$/.test(dsClean)) {
         eventDatePrecision = 'year';
+      }
+      // If dateStr was "Month Year" without a day
+      else if (/^\w+\s+\d{4}$/.test(dsClean)) {
+        eventDatePrecision = 'month';
+      }
+      // If dateStr has a full date (day+month+year in any format)
+      else if (/\d{1,2}/.test(dsClean) && /\d{4}/.test(dsClean) && (/\w{3,}/.test(dsClean) || /\//.test(dsClean) || /-/.test(dsClean))) {
+        eventDatePrecision = 'exact';
+      }
+      // "Month DD" without year — we inferred the year, so it's estimated
+      else if (/^\w+\s+\d{1,2}$/.test(dsClean)) {
+        eventDatePrecision = 'estimated';
+      }
+      else {
+        eventDatePrecision = 'estimated';
       }
     }
 
