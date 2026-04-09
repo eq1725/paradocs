@@ -114,6 +114,12 @@ var SYSTEM_PROMPT = 'You are the editorial intelligence behind Paradocs, the wor
   + '- NEVER include precise clock times (e.g. "at 21:19"). Vague times are fine ("after midnight").\n\n'
   + 'ANALYSIS RULES:\n'
   + '- Lead with what is unusual about this report relative to its category.\n'
+  + '- CAPTURE SPECIFIC OBSERVATIONAL DETAILS: height estimates, build, coloring, limb proportions, '
+  + 'gait or movement patterns, sounds, smells, behavioral responses, distance, duration of sighting. '
+  + 'These physical and sensory details are the most valuable data in any report. If the report '
+  + 'describes a creature or object, your analysis MUST reference the key physical characteristics reported.\n'
+  + '- When a follow-up investigation is included, reference its findings: track measurements, '
+  + 'physical evidence found, terrain assessment, investigator conclusions.\n'
   + '- Place it in broader context: historical parallels, geographic patterns, similar accounts.\n'
   + '- Reference pattern context when available (e.g. "This corridor has produced 12 similar reports since 2019").\n'
   + '- If a single unverified account, say so honestly.\n'
@@ -193,6 +199,24 @@ function buildUserPrompt(report: any): string {
     parts.push('\nREPORT NARRATIVE:\n' + desc)
   } else if (report.summary) {
     parts.push('\nREPORT NARRATIVE:\n' + report.summary)
+  }
+
+  // Include metadata sections for richer analysis (follow-up investigation, environment, etc.)
+  var meta = report.metadata || {}
+  if (meta.followUpInvestigation) {
+    var followUp = meta.followUpInvestigation.length > 2000
+      ? meta.followUpInvestigation.substring(0, 2000) + '...'
+      : meta.followUpInvestigation
+    parts.push('\nFOLLOW-UP INVESTIGATION:\n' + followUp)
+  }
+  if (meta.environment) {
+    parts.push('\nENVIRONMENT: ' + meta.environment)
+  }
+  if (meta.timeAndConditions) {
+    parts.push('CONDITIONS: ' + meta.timeAndConditions)
+  }
+  if (meta.bfroClass) {
+    parts.push('CLASSIFICATION: ' + meta.bfroClass)
   }
 
   parts.push('\nReturn only the JSON object.')
@@ -352,7 +376,7 @@ export async function generateParadocsAnalysis(reportId: string): Promise<Parado
 
   var { data: report, error: fetchError } = await supabase
     .from('reports')
-    .select('id, title, summary, description, category, location_name, country, state_province, city, event_date, credibility, source_type, source_label, tags, latitude, longitude, has_photo_video, has_official_report, witness_count')
+    .select('id, title, summary, description, category, location_name, country, state_province, city, event_date, credibility, source_type, source_label, tags, latitude, longitude, has_photo_video, has_official_report, witness_count, metadata')
     .eq('id', reportId)
     .single()
 

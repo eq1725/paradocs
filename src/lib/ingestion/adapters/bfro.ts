@@ -152,18 +152,29 @@ function cleanText(text: string): string {
     .trim();
 }
 
-function generateTitle(county: string, state: string, year: string, reportNumber: string): string {
-  let location = '';
-  if (county && state) {
-    location = `${county} County, ${state}`;
-  } else if (state) {
-    location = state;
-  } else if (county) {
-    location = `${county} County`;
+function generateTitle(county: string, state: string, year: string, reportNumber: string, nearestTown?: string, classification?: string): string {
+  // Format: "BFRO Report #XXXXX: [Class X] Encounter Near [Town], [County] County, [State]"
+  // Falls back gracefully when fields are missing
+  var classTag = ''
+  if (classification && classification !== 'Unknown') {
+    classTag = classification + ' '
   }
-  const yearStr = year ? ` (${year})` : '';
-  const locationStr = location ? ` in ${location}` : '';
-  return `Bigfoot Sighting${locationStr}${yearStr} - Report #${reportNumber}`.substring(0, 200);
+
+  var locationParts: string[] = []
+  if (nearestTown) {
+    locationParts.push('Near ' + nearestTown)
+  }
+  if (county) {
+    locationParts.push(county + ' County')
+  }
+  if (state) {
+    locationParts.push(state)
+  }
+
+  var locationStr = locationParts.length > 0 ? ' ' + locationParts.join(', ') : ''
+  var yearStr = year ? ' (' + year + ')' : ''
+
+  return ('BFRO Report #' + reportNumber + ': ' + classTag + 'Encounter' + locationStr + yearStr).substring(0, 200)
 }
 
 function generateSummary(description: string, classification: string): string {
@@ -348,7 +359,13 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     let dateStr = '';
     var bfroYear = extractField(['YEAR', 'Year']);
     var bfroMonth = extractField(['MONTH', 'Month']);
-    var bfroDay = extractField(['DATE', 'Date']);
+    // Use only uppercase 'DATE' to avoid matching 'Date of encounter' etc.
+    var bfroDay = extractField(['DATE']);
+    // If DATE field returned a full date string or month name, it matched the wrong field
+    if (bfroDay && !/^\d{1,2}$/.test(bfroDay.trim())) {
+      console.log('[BFRO] #' + reportNumber + ' DATE field returned non-numeric: "' + bfroDay + '" — discarding');
+      bfroDay = '';
+    }
     if (bfroYear && /^\d{4}$/.test(bfroYear.trim())) {
       // We have a year — try to build a full date from separate fields
       if (bfroMonth && bfroDay && /^\d{1,2}$/.test(bfroDay.trim())) {
@@ -706,7 +723,7 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     allTags = Array.from(new Set(allTags));
 
     return {
-      title: generateTitle(county, locationState, year, reportNumber),
+      title: generateTitle(county, locationState, year, reportNumber, nearestTown, classification),
       summary: generateSummary(description, classification),
       description: description,
       category: 'cryptids',

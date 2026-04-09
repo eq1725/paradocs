@@ -420,9 +420,11 @@ export function TextReportCard(props: {
         <>
           <div className="h-px bg-white/[0.07] flex-shrink-0" />
 
-          {/* Summary */}
+          {/* Summary — use feed_hook for link-only sources to avoid showing raw source text */}
           <p className="text-sm text-gray-400 leading-relaxed font-sans">
-            {item.summary || 'No additional details available.'}
+            {(['bfro', 'nuforc'].indexOf(item.source_type || '') !== -1)
+              ? (item.feed_hook || 'View the full report for details.')
+              : (item.summary || 'No additional details available.')}
           </p>
 
           {/* Evidence & context strip */}
@@ -585,7 +587,9 @@ export function MediaReportCard(props: {
             </div>
           )}
           <p className="text-sm text-gray-400 leading-relaxed font-sans">
-            {item.summary || 'No additional details available.'}
+            {(['bfro', 'nuforc'].indexOf(item.source_type || '') !== -1)
+              ? (item.feed_hook || 'View the full report for details.')
+              : (item.summary || 'No additional details available.')}
           </p>
 
           {/* Evidence & context strip */}
