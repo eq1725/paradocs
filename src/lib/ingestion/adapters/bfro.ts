@@ -343,14 +343,37 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
       }
     }
 
-    // Date — try multiple field names used across BFRO report eras
-    let dateStr = extractField(['Date', 'Date of encounter', 'Date of observation',
-      'Date occurred', 'Date Occurred', 'Submitted', 'Date submitted',
-      'YEAR', 'Year', 'MONTH', 'Month', 'Season']);
+    // Date — BFRO pages use separate YEAR, MONTH, DATE fields.
+    // Try to combine them first before falling back to single-field extraction.
+    let dateStr = '';
+    var bfroYear = extractField(['YEAR', 'Year']);
+    var bfroMonth = extractField(['MONTH', 'Month']);
+    var bfroDay = extractField(['DATE', 'Date']);
+    if (bfroYear && /^\d{4}$/.test(bfroYear.trim())) {
+      // We have a year — try to build a full date from separate fields
+      if (bfroMonth && bfroDay && /^\d{1,2}$/.test(bfroDay.trim())) {
+        // Have all three: "February" + "28" + "2025" → "February 28, 2025"
+        dateStr = bfroMonth.trim() + ' ' + bfroDay.trim() + ', ' + bfroYear.trim();
+        console.log('[BFRO] #' + reportNumber + ' date from YEAR+MONTH+DATE fields: "' + dateStr + '"');
+      } else if (bfroMonth && /^[a-zA-Z]/.test(bfroMonth.trim())) {
+        // Have year + month: "February 2025"
+        dateStr = bfroMonth.trim() + ' ' + bfroYear.trim();
+        console.log('[BFRO] #' + reportNumber + ' date from YEAR+MONTH fields: "' + dateStr + '"');
+      } else {
+        dateStr = bfroYear.trim();
+        console.log('[BFRO] #' + reportNumber + ' date from YEAR field only: "' + dateStr + '"');
+      }
+    }
+    // Fallback: try combined date fields
+    if (!dateStr) {
+      dateStr = extractField(['Date of encounter', 'Date of observation',
+        'Date occurred', 'Date Occurred', 'Submitted', 'Date submitted']) || '';
+      if (dateStr) {
+        console.log('[BFRO] #' + reportNumber + ' date from extractField (raw): "' + dateStr + '"');
+      }
+    }
     if (dateStr) {
-      console.log('[BFRO] #' + reportNumber + ' date from extractField (raw): "' + dateStr + '"');
       // Validate: bare 1-2 digit numbers (just a day like "21") aren't usable dates
-      // Must contain a 4-digit year, a month name, or be a recognizable date format
       if (/^\d{1,2}$/.test(dateStr.trim())) {
         console.log('[BFRO] #' + reportNumber + ' extractField returned bare day number — discarding');
         dateStr = '';
