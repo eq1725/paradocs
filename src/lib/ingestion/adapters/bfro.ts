@@ -394,15 +394,54 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     }
 
     // Parse time from TIME AND CONDITIONS section
-    let eventTime: string | undefined;
+    // Store as 24-hour "HH:MM" so the front-end renderer handles AM/PM display
+    var eventTime: string | undefined;
     if (timeAndConditions) {
-      // Look for time patterns: "9:30 PM", "approximately 2am", "about midnight", "dusk"
-      const timeMatch = timeAndConditions.match(/(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm|a\.m\.|p\.m\.)?)/);
+      // Look for time patterns: "9:30 PM", "approximately 2am", "3:45. Partly sunny."
+      var timeMatch = timeAndConditions.match(/(\d{1,2}):(\d{2})\s*(AM|PM|am|pm|a\.m\.|p\.m\.)?/);
       if (timeMatch) {
-        eventTime = timeMatch[1].trim();
+        var hour = parseInt(timeMatch[1], 10);
+        var minute = timeMatch[2];
+        var meridiem = (timeMatch[3] || '').replace(/\./g, '').toLowerCase(); // "pm", "am", or ""
+
+        if (!meridiem) {
+          // No explicit AM/PM — infer from weather/light context clues in the conditions text
+          var tcLower = timeAndConditions.toLowerCase();
+          var dayIndicators = /\b(sunny|sun|daylight|clear sky|partly cloudy|overcast|bright|visibility)\b/i.test(tcLower);
+          var nightIndicators = /\b(dark|stars|moon|moonlight|pitch black|no visibility)\b/i.test(tcLower);
+
+          if (nightIndicators && !dayIndicators) {
+            // Night context: hours 1-6 stay AM, 7-11 become PM (evening)
+            if (hour >= 7 && hour <= 11) meridiem = 'pm';
+            else meridiem = 'am';
+          } else if (dayIndicators) {
+            // Day context: hours 1-6 likely PM (afternoon), 7-11 likely AM (morning)
+            if (hour >= 1 && hour <= 6) meridiem = 'pm';
+            else if (hour >= 7 && hour <= 11) meridiem = 'am';
+            // 12 stays as noon (12 PM)
+          }
+          // If still no meridiem and hour <= 6, default to PM (more sightings in afternoon/evening)
+          if (!meridiem && hour >= 1 && hour <= 6) meridiem = 'pm';
+        }
+
+        // Convert to 24-hour format
+        if (meridiem === 'pm' && hour < 12) hour = hour + 12;
+        else if (meridiem === 'am' && hour === 12) hour = 0;
+
+        eventTime = (hour < 10 ? '0' : '') + hour + ':' + minute;
       } else {
-        const vagueTime = timeAndConditions.match(/\b(dawn|sunrise|morning|midday|noon|afternoon|dusk|sunset|evening|night|midnight)\b/i);
-        if (vagueTime) eventTime = vagueTime[1].toLowerCase();
+        // Check for "2pm", "3am" style without colon
+        var simpleMatch = timeAndConditions.match(/\b(\d{1,2})\s*(AM|PM|am|pm|a\.m\.|p\.m\.)\b/);
+        if (simpleMatch) {
+          var sHour = parseInt(simpleMatch[1], 10);
+          var sMeridiem = simpleMatch[2].replace(/\./g, '').toLowerCase();
+          if (sMeridiem === 'pm' && sHour < 12) sHour = sHour + 12;
+          else if (sMeridiem === 'am' && sHour === 12) sHour = 0;
+          eventTime = (sHour < 10 ? '0' : '') + sHour + ':00';
+        } else {
+          var vagueTime = timeAndConditions.match(/\b(dawn|sunrise|morning|midday|noon|afternoon|dusk|sunset|evening|night|midnight)\b/i);
+          if (vagueTime) eventTime = vagueTime[1].toLowerCase();
+        }
       }
     }
 

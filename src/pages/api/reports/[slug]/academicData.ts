@@ -32,26 +32,50 @@ function extractObservationDetails(report: any) {
   var descLower = description.toLowerCase()
 
   // ---- Duration ----
+  // First try source metadata (NUFORC stores "5 minutes", "30 seconds" etc.)
   var durationSeconds: number | null = null
-  var durationMatch = descLower.match(/(\d+)\s*(second|minute|hour|min|sec|hr)s?/i)
-  if (durationMatch) {
-    var durValue = parseInt(durationMatch[1])
-    var durUnit = durationMatch[2].toLowerCase()
-    if (durUnit.startsWith('sec')) durationSeconds = durValue
-    else if (durUnit.startsWith('min')) durationSeconds = durValue * 60
-    else if (durUnit.startsWith('hour') || durUnit.startsWith('hr')) durationSeconds = durValue * 3600
+  var meta = (report as any).metadata || {}
+  var durationSource = meta.duration || ''
+  if (durationSource) {
+    var srcDurMatch = durationSource.match(/(\d+)\s*(second|minute|hour|min|sec|hr)s?/i)
+    if (srcDurMatch) {
+      var srcDurVal = parseInt(srcDurMatch[1])
+      var srcDurUnit = srcDurMatch[2].toLowerCase()
+      if (srcDurUnit.startsWith('sec')) durationSeconds = srcDurVal
+      else if (srcDurUnit.startsWith('min')) durationSeconds = srcDurVal * 60
+      else if (srcDurUnit.startsWith('hour') || srcDurUnit.startsWith('hr')) durationSeconds = srcDurVal * 3600
+    }
+  }
+  // Fallback: NLP extract from description
+  if (!durationSeconds) {
+    var durationMatch = descLower.match(/(\d+)\s*(second|minute|hour|min|sec|hr)s?/i)
+    if (durationMatch) {
+      var durValue = parseInt(durationMatch[1])
+      var durUnit = durationMatch[2].toLowerCase()
+      if (durUnit.startsWith('sec')) durationSeconds = durValue
+      else if (durUnit.startsWith('min')) durationSeconds = durValue * 60
+      else if (durUnit.startsWith('hour') || durUnit.startsWith('hr')) durationSeconds = durValue * 3600
+    }
   }
 
   // ---- Shape ----
-  var shapes = ['disc', 'saucer', 'triangle', 'triangular', 'sphere', 'spherical', 'orb', 'oval',
-    'cigar', 'cylinder', 'rectangular', 'diamond', 'chevron', 'boomerang', 'light', 'formation',
-    'disk', 'tic-tac', 'tic tac', 'fireball', 'star-like', 'cross', 'cube', 'ring', 'egg']
+  // First check source metadata (NUFORC stores shape as structured field)
   var detectedShape: string | null = null
-  for (var si = 0; si < shapes.length; si++) {
-    if (descLower.indexOf(shapes[si]) !== -1) {
-      var s = shapes[si]
-      detectedShape = s.charAt(0).toUpperCase() + s.slice(1)
-      break
+  if (meta.shape && typeof meta.shape === 'string' && meta.shape.trim()) {
+    var srcShape = meta.shape.trim()
+    detectedShape = srcShape.charAt(0).toUpperCase() + srcShape.slice(1).toLowerCase()
+  }
+  // Fallback: NLP extract from description
+  if (!detectedShape) {
+    var shapes = ['disc', 'saucer', 'triangle', 'triangular', 'sphere', 'spherical', 'orb', 'oval',
+      'cigar', 'cylinder', 'rectangular', 'diamond', 'chevron', 'boomerang', 'light', 'formation',
+      'disk', 'tic-tac', 'tic tac', 'fireball', 'star-like', 'cross', 'cube', 'ring', 'egg']
+    for (var si = 0; si < shapes.length; si++) {
+      if (descLower.indexOf(shapes[si]) !== -1) {
+        var s = shapes[si]
+        detectedShape = s.charAt(0).toUpperCase() + s.slice(1)
+        break
+      }
     }
   }
 
@@ -61,15 +85,23 @@ function extractObservationDetails(report: any) {
   var detectedColors = colors.filter(function(c) { return descLower.indexOf(c) !== -1 })
 
   // ---- Motion type ----
-  var motions = ['hovering', 'stationary', 'moving', 'fast', 'slow', 'erratic', 'zigzag',
+  // Both UFO and cryptid motion patterns
+  var motions = [
+    // Cryptid-specific (check first for BFRO accuracy)
+    'walking', 'running', 'bipedal', 'upright', 'crawling', 'crouching',
+    'standing', 'fleeing', 'charging', 'stalking', 'circling',
+    // UFO-specific
+    'hovering', 'stationary', 'moving', 'fast', 'slow', 'erratic', 'zigzag',
     'ascending', 'descending', 'disappeared', 'vanished', 'darting', 'gliding', 'pulsing',
-    'spinning', 'rotating', 'wobbling', 'accelerat']
+    'spinning', 'rotating', 'wobbling', 'accelerat'
+  ]
   var detectedMotion: string | null = null
   for (var mi = 0; mi < motions.length; mi++) {
     if (descLower.indexOf(motions[mi]) !== -1) {
       detectedMotion = motions[mi]
       // Normalize partial matches
       if (detectedMotion === 'accelerat') detectedMotion = 'accelerating'
+      if (detectedMotion === 'bipedal' || detectedMotion === 'upright') detectedMotion = 'bipedal/upright'
       break
     }
   }
@@ -162,6 +194,16 @@ function extractObservationDetails(report: any) {
   var sound: string | null = null
   if (descLower.indexOf('silent') !== -1 || descLower.indexOf('no sound') !== -1 || descLower.indexOf('no noise') !== -1 || descLower.indexOf('made no') !== -1) {
     sound = 'silent'
+  } else if (descLower.indexOf('howl') !== -1 || descLower.indexOf('howling') !== -1) {
+    sound = 'howling'
+  } else if (descLower.indexOf('scream') !== -1 || descLower.indexOf('shriek') !== -1 || descLower.indexOf('screech') !== -1) {
+    sound = 'screaming/shrieking'
+  } else if (descLower.indexOf('vocalization') !== -1 || descLower.indexOf('vocaliz') !== -1 || descLower.indexOf('whoop') !== -1 || descLower.indexOf('chatter') !== -1) {
+    sound = 'vocalization'
+  } else if (descLower.indexOf('wood knock') !== -1 || descLower.indexOf('tree knock') !== -1 || descLower.indexOf('knocking') !== -1 || descLower.indexOf('knock on') !== -1) {
+    sound = 'knocking/wood knock'
+  } else if (descLower.indexOf('growl') !== -1 || descLower.indexOf('grunt') !== -1 || descLower.indexOf('snarl') !== -1) {
+    sound = 'growling/grunting'
   } else if (descLower.indexOf('humming') !== -1 || descLower.indexOf(' hum ') !== -1 || descLower.indexOf('hum.') !== -1) {
     sound = 'humming'
   } else if (descLower.indexOf('buzzing') !== -1 || descLower.indexOf('buzz') !== -1) {
@@ -172,6 +214,8 @@ function extractObservationDetails(report: any) {
     sound = 'whirring'
   } else if (descLower.indexOf('clicking') !== -1 || descLower.indexOf('beep') !== -1) {
     sound = 'clicking/beeping'
+  } else if (descLower.indexOf('footstep') !== -1 || descLower.indexOf('foot step') !== -1 || descLower.indexOf('crashing through') !== -1 || descLower.indexOf('branch') !== -1 && descLower.indexOf('break') !== -1) {
+    sound = 'footsteps/movement'
   }
 
   // ---- Witness count (expanded patterns) ----
@@ -284,6 +328,54 @@ function extractObservationDetails(report: any) {
     }
   }
 
+  // ---- Creature/Object count for cryptid reports ----
+  var detectedObjectCount: number | null = null
+  // Look for patterns suggesting multiple creatures/entities
+  var multiplePatterns = [
+    /(\d+)\s*(?:creature|animal|being|entity|entities|figure|bigfoot|sasquatch)/i,
+    /(?:sounded like|seemed like|appeared to be|at least)\s*(?:multiple|several|many|a? ?few|two|three|four|2|3|4|5)\b/i,
+    /\b(multiple|several|two|three|four|five|a? ?group of|a? ?pair of)\s+(?:creature|animal|being|entity|entities|figure|individual|of them)\b/i,
+    /\b(two|three|four|five|2|3|4|5)\s+(?:sets? of|pairs? of)?\s*(?:footprint|track|vocalization|howl|knock|call|scream|whoop)/i
+  ]
+  for (var mpi = 0; mpi < multiplePatterns.length; mpi++) {
+    var mpMatch = descLower.match(multiplePatterns[mpi])
+    if (mpMatch) {
+      // Try to extract a number
+      var countWord = (mpMatch[1] || mpMatch[0]).toLowerCase()
+      if (/\btwo\b|^2$/.test(countWord)) detectedObjectCount = 2
+      else if (/\bthree\b|^3$/.test(countWord)) detectedObjectCount = 3
+      else if (/\bfour\b|^4$/.test(countWord)) detectedObjectCount = 4
+      else if (/\bfive\b|^5$/.test(countWord)) detectedObjectCount = 5
+      else if (/\b(multiple|several|many|few|group)\b/.test(countWord)) detectedObjectCount = 2 // minimum "multiple"
+      else {
+        var numParsed = parseInt(countWord)
+        if (numParsed > 0 && numParsed < 50) detectedObjectCount = numParsed
+      }
+      if (detectedObjectCount) break
+    }
+  }
+
+  // ---- Location type inference for field-research reports ----
+  var detectedLocationType: string | null = null
+  var locTypePatterns = [
+    { pattern: /\b(forest|woods|woodland|timber)\b/i, label: 'Forest/Woodland' },
+    { pattern: /\b(mountain|ridge|hill|summit|peak)\b/i, label: 'Mountain/Highland' },
+    { pattern: /\b(swamp|marsh|bog|wetland)\b/i, label: 'Wetland/Swamp' },
+    { pattern: /\b(lake|river|creek|stream|pond|waterway|shore|beach)\b/i, label: 'Near water' },
+    { pattern: /\b(trail|path|road|highway|interstate)\b/i, label: 'Trail/Road' },
+    { pattern: /\b(campsite|campground|camp)\b/i, label: 'Campground' },
+    { pattern: /\b(cabin|house|home|residential|property|yard|backyard)\b/i, label: 'Residential' },
+    { pattern: /\b(field|meadow|pasture|farmland|farm|ranch)\b/i, label: 'Rural/Agricultural' },
+    { pattern: /\b(park|state park|national park|preserve|refuge)\b/i, label: 'Park/Preserve' },
+    { pattern: /\b(desert|canyon|gorge|ravine)\b/i, label: 'Desert/Canyon' }
+  ]
+  for (var lti = 0; lti < locTypePatterns.length; lti++) {
+    if (locTypePatterns[lti].pattern.test(descLower)) {
+      detectedLocationType = locTypePatterns[lti].label
+      break
+    }
+  }
+
   return {
     durationSeconds: durationSeconds,
     detectedShape: detectedShape,
@@ -296,7 +388,9 @@ function extractObservationDetails(report: any) {
     detectedDirection: detectedDirection,
     detectedAltitude: detectedAltitude,
     detectedBrightness: detectedBrightness,
-    isOfficialReport: isOfficialReport
+    isOfficialReport: isOfficialReport,
+    detectedObjectCount: detectedObjectCount,
+    detectedLocationType: detectedLocationType
   }
 }
 
@@ -344,6 +438,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Source-specific metadata (NUFORC, BFRO, etc. store structured fields here)
     var meta = (report as any).metadata || {}
+
+    // Format event_time for display: "15:45" → "3:45 PM", pass through non-standard
+    var formattedEventTime: string | null = null
+    if (report.event_time) {
+      var etMatch = String(report.event_time).match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
+      if (etMatch) {
+        var h = parseInt(etMatch[1], 10)
+        var m = etMatch[2]
+        var period = h >= 12 ? 'PM' : 'AM'
+        var h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+        formattedEventTime = h12 + ':' + m + ' ' + period
+      } else {
+        formattedEventTime = report.event_time
+      }
+    }
+
+    // Infer location type from BFRO/field-research metadata
+    var inferredLocationType: string | null = null
+    if (meta.environment) {
+      var envLower = meta.environment.toLowerCase()
+      if (/\b(forest|woods|woodland|timber)\b/.test(envLower)) inferredLocationType = 'Forest/Woodland'
+      else if (/\b(mountain|ridge|hill)\b/.test(envLower)) inferredLocationType = 'Mountain/Highland'
+      else if (/\b(swamp|marsh|bog|wetland)\b/.test(envLower)) inferredLocationType = 'Wetland/Swamp'
+      else if (/\b(lake|river|creek|stream)\b/.test(envLower)) inferredLocationType = 'Near water'
+      else if (/\b(residential|suburban|neighborhood)\b/.test(envLower)) inferredLocationType = 'Residential'
+      else if (/\b(rural|farm|ranch|field|pasture)\b/.test(envLower)) inferredLocationType = 'Rural/Agricultural'
+      else if (/\b(park|preserve|refuge)\b/.test(envLower)) inferredLocationType = 'Park/Preserve'
+    }
 
     // Helper: get NUFORC metadata speed with unit inference
     // NUFORC "Estimated Speed" can be: "100+", "1000 - 2000 mph i guess, with distance in mind",
@@ -399,7 +521,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Temporal Data
       temporal: {
         eventDate: report.event_date,
-        eventTime: report.event_time || extracted.detectedEventTime || null,
+        eventTime: formattedEventTime || extracted.detectedEventTime || null,
         timeApproximate: !report.event_time && !!extracted.detectedEventTime,
         durationSeconds: academicData?.observation_duration_seconds || extracted.durationSeconds,
         durationText: null,
@@ -417,7 +539,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           longitude: report.longitude,
           precision: 'approximate' // Most reports use city-level coords
         } : null,
-        locationType: academicData?.observation_location_type || null
+        locationType: academicData?.observation_location_type || inferredLocationType || extracted.detectedLocationType || null
       },
 
       // Observer Information
@@ -431,7 +553,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // Object Characteristics
       phenomenon: {
-        objectCount: academicData?.object_count || 1,
+        objectCount: academicData?.object_count || extracted.detectedObjectCount || 1,
         shape: academicData?.object_shape || extracted.detectedShape,
         colors: academicData?.object_color || (meta.color ? [meta.color] : (extracted.detectedColors.length > 0 ? extracted.detectedColors : null)),
         brightness: academicData?.object_brightness || extracted.detectedBrightness,
@@ -455,10 +577,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // Environmental Conditions
       environment: {
-        weather: academicData?.weather_conditions || null,
+        weather: academicData?.weather_conditions || (meta.timeAndConditions ? meta.timeAndConditions : null),
         ambientLighting: academicData?.ambient_lighting || null,
         lightPollution: academicData?.urban_light_pollution || null,
-        terrain: academicData?.terrain_description || null
+        terrain: academicData?.terrain_description || (meta.environment ? meta.environment : null)
       },
 
       // Evidence & Documentation
@@ -493,6 +615,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Classification
       classification: {
         category: report.category,
+        phenomenonLabel: report.category === 'cryptids' ? 'Creature' : 'Object',
         tags: report.tags || []
       },
 

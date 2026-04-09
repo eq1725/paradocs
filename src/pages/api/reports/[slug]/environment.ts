@@ -52,16 +52,58 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (tags.indexOf(terrainKeywords[i]) !== -1) terrainTags.push(terrainKeywords[i])
       }
 
-      // Extract time-of-day from metadata or tags
+      // Extract time-of-day from event_time (24-hour DB field), metadata, or tags
       var timeOfDay = 'Unknown'
-      if (tags.indexOf('night') !== -1) timeOfDay = 'Night'
-      else if (tags.indexOf('day') !== -1) timeOfDay = 'Day'
-      if (meta.timeAndConditions) {
-        var tcLower = meta.timeAndConditions.toLowerCase()
-        if (/\b(dusk|sunset|evening)\b/.test(tcLower)) timeOfDay = 'Dusk/Evening'
-        else if (/\b(dawn|sunrise|morning)\b/.test(tcLower)) timeOfDay = 'Dawn/Morning'
-        else if (/\b(night|midnight|dark)\b/.test(tcLower)) timeOfDay = 'Night'
-        else if (/\b(afternoon|midday|noon)\b/.test(tcLower)) timeOfDay = 'Afternoon'
+
+      // First priority: use the stored event_time (24-hour format like "15:45")
+      if (report.event_time) {
+        var etMatch = report.event_time.match(/^(\d{1,2}):(\d{2})/)
+        if (etMatch) {
+          var etHour = parseInt(etMatch[1], 10)
+          if (etHour >= 5 && etHour < 8) timeOfDay = 'Dawn/Morning'
+          else if (etHour >= 8 && etHour < 12) timeOfDay = 'Morning'
+          else if (etHour >= 12 && etHour < 14) timeOfDay = 'Afternoon'
+          else if (etHour >= 14 && etHour < 17) timeOfDay = 'Afternoon'
+          else if (etHour >= 17 && etHour < 20) timeOfDay = 'Dusk/Evening'
+          else if (etHour >= 20 || etHour < 5) timeOfDay = 'Night'
+        }
+      }
+
+      // Fallback: check tags and metadata keywords
+      if (timeOfDay === 'Unknown') {
+        if (tags.indexOf('night') !== -1) timeOfDay = 'Night'
+        else if (tags.indexOf('day') !== -1) timeOfDay = 'Day'
+        if (meta.timeAndConditions) {
+          var tcLower = meta.timeAndConditions.toLowerCase()
+          // Try parsing a numeric time from conditions text
+          var tcTimeMatch = tcLower.match(/(\d{1,2}):(\d{2})\s*(am|pm|a\.m\.|p\.m\.)?/)
+          if (tcTimeMatch) {
+            var tcHour = parseInt(tcTimeMatch[1], 10)
+            var tcMeridiem = (tcTimeMatch[3] || '').replace(/\./g, '')
+            if (tcMeridiem === 'pm' && tcHour < 12) tcHour = tcHour + 12
+            else if (tcMeridiem === 'am' && tcHour === 12) tcHour = 0
+            else if (!tcMeridiem) {
+              // Infer from context: "sunny" = daytime, "dark" = night
+              var isDayCtx = /\b(sunny|daylight|clear sky|partly cloudy|overcast|bright)\b/.test(tcLower)
+              var isNightCtx = /\b(dark|stars|moon|pitch black)\b/.test(tcLower)
+              if (isDayCtx && tcHour >= 1 && tcHour <= 6) tcHour = tcHour + 12
+              else if (isNightCtx && tcHour >= 7 && tcHour <= 11) tcHour = tcHour + 12
+              else if (!isDayCtx && !isNightCtx && tcHour >= 1 && tcHour <= 6) tcHour = tcHour + 12
+            }
+            if (tcHour >= 5 && tcHour < 8) timeOfDay = 'Dawn/Morning'
+            else if (tcHour >= 8 && tcHour < 12) timeOfDay = 'Morning'
+            else if (tcHour >= 12 && tcHour < 17) timeOfDay = 'Afternoon'
+            else if (tcHour >= 17 && tcHour < 20) timeOfDay = 'Dusk/Evening'
+            else if (tcHour >= 20 || tcHour < 5) timeOfDay = 'Night'
+          }
+          // If still unknown, try keyword matching
+          if (timeOfDay === 'Unknown' || timeOfDay === 'Day') {
+            if (/\b(dusk|sunset|evening)\b/.test(tcLower)) timeOfDay = 'Dusk/Evening'
+            else if (/\b(dawn|sunrise|morning)\b/.test(tcLower)) timeOfDay = 'Dawn/Morning'
+            else if (/\b(night|midnight|dark)\b/.test(tcLower)) timeOfDay = 'Night'
+            else if (/\b(afternoon|midday|noon)\b/.test(tcLower)) timeOfDay = 'Afternoon'
+          }
+        }
       }
 
       // Extract season from description or time/conditions

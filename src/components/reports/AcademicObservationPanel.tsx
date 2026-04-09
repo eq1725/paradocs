@@ -88,6 +88,7 @@ interface AcademicData {
   }
   classification: {
     category: string
+    phenomenonLabel?: string
     tags: string[]
   }
   rawDescription: string
@@ -283,7 +284,7 @@ export default function AcademicObservationPanel({ reportSlug, className, isExpa
         </div>
         <div className="bg-gray-900/50 p-3 text-center">
           <div className="text-lg font-medium text-white">{data.phenomenon.objectCount}</div>
-          <div className="text-[10px] text-gray-500">Object(s)</div>
+          <div className="text-[10px] text-gray-500">{data.classification.phenomenonLabel || 'Object'}(s)</div>
         </div>
         <div className="bg-gray-900/50 p-3 text-center">
           <div className="text-lg font-medium text-white">
