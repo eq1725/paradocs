@@ -37,10 +37,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: 'Report not found' })
     }
 
-    // For reports without event_date, return terrain/field context from metadata
-    // instead of astronomical data. BFRO and similar field-research sources
-    // store ENVIRONMENT and TIME AND CONDITIONS sections in metadata.
-    if (!report.event_date) {
+    // For cryptid/field-research reports, return terrain/field context from metadata
+    // instead of astronomical data. BFRO and similar sources store ENVIRONMENT
+    // and TIME AND CONDITIONS sections in metadata. Also used when no event_date.
+    var isCryptidCategory = (report as any).category === 'cryptids'
+    var isFieldResearchSource = ['bfro'].indexOf((report as any).source_type) !== -1
+    if (!report.event_date || isCryptidCategory || isFieldResearchSource) {
       const meta = (report as any).metadata || {}
       const tags = (report as any).tags || []
       const desc = ((report as any).description || '').toLowerCase()

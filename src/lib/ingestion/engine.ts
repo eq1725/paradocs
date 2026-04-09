@@ -416,6 +416,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               latitude: report.latitude || null,
               longitude: report.longitude || null,
               event_date: report.event_date,
+              event_time: report.event_time || null,
               event_date_precision: report.event_date_precision || 'unknown',
               credibility: report.credibility,
               has_photo_video: report.has_photo_video || false,
