@@ -211,7 +211,7 @@ export interface IngestionResult {
 
 // Adapters that set has_photo_video flag + link to source instead of storing media.
 // These adapters intentionally return no media array — don't override their flag.
-var LINK_ONLY_SOURCES = ['bfro', 'nuforc'];
+var LINK_ONLY_SOURCES = ['bfro', 'nuforc', 'nderf'];
 
 // Generate a URL-safe slug from title with guaranteed uniqueness
 function generateSlug(title: string, originalReportId: string, sourceType: string): string {

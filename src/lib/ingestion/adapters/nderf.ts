@@ -508,27 +508,33 @@ function generateNDERFTitle(
 
 // Parse an individual experience page
 function parseExperiencePage(html: string, id: string, name: string): ScrapedReport | null {
-  // Extract the main content (usually in a specific div or article)
-  let content = '';
+  // --- TARGETED CONTENT EXTRACTION ---
+  // NDERF pages have a clear structure:
+  //   <span class="m108">Experience Description</span> ... narrative ... <span class="m108">Background Information:</span>
+  // We extract ONLY the narrative between these markers to avoid nav chrome.
 
-  // Try different content extraction patterns
-  const contentPatterns = [
-    /<div[^>]*class="[^"]*experience[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
-    /<article[^>]*>([\s\S]*?)<\/article>/i,
-    /<div[^>]*id="[^"]*content[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
-    /<p[^>]*>([\s\S]*?)<\/p>/gi,
-  ];
+  let narrativeHtml = '';
 
-  for (const pattern of contentPatterns) {
-    const matches = html.match(pattern);
-    if (matches) {
-      content = Array.isArray(matches) ? matches.join('\n\n') : matches[1];
-      if (content.length > 200) break;
+  // Primary: extract between "Experience Description" and "Background Information"
+  const narrativeMatch = html.match(
+    /Experience\s*Description<\/span>([\s\S]*?)(?:<span[^>]*class="m108"[^>]*>Background\s*Information|<span[^>]*class="m108"[^>]*>NDE\s*Elements)/i
+  );
+  if (narrativeMatch) {
+    narrativeHtml = narrativeMatch[1];
+    console.log(`[NDERF] ${id}: extracted narrative (${narrativeHtml.length} chars raw HTML)`);
+  }
+
+  // Fallback: try extracting from first <p> block if targeted extraction fails
+  if (!narrativeHtml || cleanText(narrativeHtml).length < 100) {
+    console.log(`[NDERF] ${id}: targeted extraction failed, using fallback`);
+    const pMatches = html.match(/<p[^>]*>([\s\S]*?)<\/p>/gi);
+    if (pMatches) {
+      narrativeHtml = pMatches.join('\n\n');
     }
   }
 
-  // Clean the content
-  content = cleanText(content);
+  // Clean the narrative content
+  let content = cleanText(narrativeHtml);
 
   // Skip if content is too short
   if (content.length < 100) {
@@ -536,9 +542,7 @@ function parseExperiencePage(html: string, id: string, name: string): ScrapedRep
     return null;
   }
 
-  // NDERF experience pages include questionnaire answers, sidebar HTML, etc.
-  // Real experiences can be 5K-15K chars after HTML stripping.
-  // Pages over 40K are almost certainly index/listing pages.
+  // Pages over 40K are almost certainly index/listing pages
   if (content.length > 40000) {
     console.log(`[NDERF] Skipping ${id}: content too long (${content.length} chars) — likely an index page`);
     return null;
@@ -548,6 +552,8 @@ function parseExperiencePage(html: string, id: string, name: string): ScrapedRep
   if (content.length > 15000) {
     content = content.substring(0, 15000) + '...';
   }
+
+  console.log(`[NDERF] ${id}: clean narrative ${content.length} chars, starts: "${content.substring(0, 80)}..."`);
 
   // Determine NDE type from page content or URL
   let ndeType = 'exceptional';
