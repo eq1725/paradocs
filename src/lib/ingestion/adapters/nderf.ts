@@ -207,12 +207,13 @@ async function parseArchiveIndex(html: string): Promise<Array<{ id: string; name
 
 // Extract a structured field value from NDERF questionnaire HTML
 // Fields use: <span class="m105">Label:</span> Value
+// Note: the colon is INSIDE the span tag, e.g. <span class="m105">Gender:</span>
 function extractField(html: string, fieldLabel: string): string | null {
-  // Build regex: <span class="m105">fieldLabel:</span> VALUE
-  // Value ends at next <br> or <span
+  // Build regex: <span class="m105">fieldLabel[:]?</span> VALUE
+  // The colon may be inside or outside the span; handle both
   const escaped = fieldLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(
-    '<span[^>]*class="m105"[^>]*>' + escaped + ':?</span>\\s*(.+?)(?:<br|<span)',
+    '<span[^>]*class="m105"[^>]*>' + escaped + ':?\\s*</span>\\s*:?\\s*(.+?)(?:<br|<span)',
     'i'
   );
   const match = html.match(pattern);
@@ -232,12 +233,30 @@ function extractNDEDate(html: string): { date: string | undefined; precision: 'e
   }
   console.log(`[NDERF] Raw Date of NDE: "${raw}"`);
 
-  // MM/DD/YYYY or M/D/YYYY
-  const mdyMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  // MM/DD/YYYY or M/D/YYYY (year can be 2 or 4 digits, e.g. "07/27/0023" means 2023)
+  const mdyMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if (mdyMatch) {
     const month = parseInt(mdyMatch[1], 10);
     const day = parseInt(mdyMatch[2], 10);
-    const year = parseInt(mdyMatch[3], 10);
+    let year = parseInt(mdyMatch[3], 10);
+
+    // Fix 2-digit or small years: 0023 → 2023, 85 → 1985, etc.
+    if (year < 100) {
+      year = year < 50 ? 2000 + year : 1900 + year;
+      console.log(`[NDERF] Corrected small year: ${mdyMatch[3]} → ${year}`);
+    }
+
+    // Both month and day are 0 — year-only precision
+    if (month === 0 && day === 0) {
+      console.log(`[NDERF] Parsed date: ${year} (year precision, month=00/day=00)`);
+      return { date: `${year}-01-01`, precision: 'year' };
+    }
+
+    // Month is 0 but day isn't (shouldn't happen, but handle gracefully)
+    if (month === 0) {
+      console.log(`[NDERF] Parsed date: ${year} (year precision, month=00)`);
+      return { date: `${year}-01-01`, precision: 'year' };
+    }
 
     if (day === 0) {
       // Unknown day — month precision
