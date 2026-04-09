@@ -360,41 +360,45 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     }
 
     // Date — BFRO pages use separate YEAR, MONTH, DATE fields.
-    // Try to combine them first before falling back to single-field extraction.
+    // Strategy: first try to grab the whole date block from the HTML as one chunk,
+    // then strip tags and parse YEAR/MONTH/DATE from the plain text.
+    // This is more reliable than field-by-field extraction since BFRO HTML varies a lot.
     let dateStr = '';
-    var bfroYear = extractField(['YEAR', 'Year']);
-    var bfroMonth = extractField(['MONTH', 'Month']);
-    // Use only uppercase 'DATE' to avoid matching 'Date of encounter' etc.
-    var bfroDay = extractField(['DATE']);
-    // If DATE field returned a full date string or month name, it matched the wrong field
-    if (bfroDay && !/^\d{1,2}$/.test(bfroDay.trim())) {
-      console.log('[BFRO] #' + reportNumber + ' DATE field returned non-numeric: "' + bfroDay + '" — discarding');
-      bfroDay = '';
+    var bfroYear = '';
+    var bfroMonth = '';
+    var bfroDay = '';
+
+    // Look for the date block: typically between SEASON/YEAR and NEAREST TOWN/STATE
+    var dateBlockMatch = html.match(/YEAR[\s\S]{0,500}?(?=(?:NEAREST|STATE|COUNTY|OBSERVED|<\/table))/i);
+    if (dateBlockMatch) {
+      var dateBlock = dateBlockMatch[0].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+      console.log('[BFRO] #' + reportNumber + ' date block text: "' + dateBlock.substring(0, 200) + '"');
+
+      // Extract from plain text block: "YEAR: 2025 SEASON: Spring MONTH: May DATE: 14"
+      var ym = dateBlock.match(/YEAR\s*:?\s*(\d{4})/i);
+      if (ym) bfroYear = ym[1];
+      var mm = dateBlock.match(/MONTH\s*:?\s*([A-Za-z]+)/i);
+      if (mm) bfroMonth = mm[1];
+      var dm = dateBlock.match(/\bDATE\s*:?\s*(\d{1,2})\b/);
+      if (dm) bfroDay = dm[1];
     }
-    // Fallback: try to extract day number directly from HTML near MONTH field
-    // BFRO pages often have: "MONTH: May</span>...<span>DATE: 14</span>"
-    // The generic extractField may miss this due to HTML structure variations
-    if (!bfroDay && bfroMonth) {
-      var dayPatterns = [
-        // "DATE</span>...<span>14" or "DATE:</span>...<span>14"
-        /DATE\s*:?\s*<\/[^>]+>\s*(?:<[^>]+>\s*)*(\d{1,2})\b/i,
-        // "DATE: 14" plain text after stripping tags
-        /\bDATE\s*:\s*(\d{1,2})\b/,
-        // Table: "<td>DATE</td><td>14</td>"
-        /DATE\s*<\/td>\s*<td[^>]*>\s*(\d{1,2})\s*</i,
-      ];
-      for (var dpi = 0; dpi < dayPatterns.length; dpi++) {
-        var dayMatch = html.match(dayPatterns[dpi]);
-        if (dayMatch && dayMatch[1]) {
-          var dayNum = parseInt(dayMatch[1], 10);
-          if (dayNum >= 1 && dayNum <= 31) {
-            bfroDay = dayMatch[1];
-            console.log('[BFRO] #' + reportNumber + ' DATE from fallback pattern ' + dpi + ': "' + bfroDay + '"');
-            break;
-          }
-        }
+
+    // Fallback to extractField if block approach didn't find year
+    if (!bfroYear) {
+      bfroYear = extractField(['YEAR', 'Year']);
+    }
+    if (!bfroMonth) {
+      bfroMonth = extractField(['MONTH', 'Month']);
+    }
+    if (!bfroDay) {
+      // Try extractField but validate numeric
+      var rawDay = extractField(['DATE']);
+      if (rawDay && /^\d{1,2}$/.test(rawDay.trim())) {
+        bfroDay = rawDay.trim();
       }
     }
+
+    console.log('[BFRO] #' + reportNumber + ' parsed date fields — YEAR: "' + bfroYear + '" MONTH: "' + bfroMonth + '" DATE: "' + bfroDay + '"');
     if (bfroYear && /^\d{4}$/.test(bfroYear.trim())) {
       // We have a year — try to build a full date from separate fields
       if (bfroMonth && bfroDay && /^\d{1,2}$/.test(bfroDay.trim())) {
@@ -613,6 +617,19 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     // Nearest town and road — use same robust extractField helper
     let nearestTown = extractField(['Nearest town', 'Nearest city']);
     let nearestRoad = extractField(['Nearest road', 'Nearest highway']);
+
+    // Clean up nearestTown:
+    // 1. Strip trailing state abbreviations: "Plain, WA" → "Plain", "Marienville, PA" → "Marienville"
+    // 2. Fix ALL CAPS: "PEMBROKE" → "Pembroke"
+    if (nearestTown) {
+      nearestTown = nearestTown.replace(/,?\s+[A-Z]{2}$/, '').trim();
+      // Title-case if all uppercase
+      if (nearestTown === nearestTown.toUpperCase() && nearestTown.length > 2) {
+        nearestTown = nearestTown.replace(/\w\S*/g, function(txt) {
+          return txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase();
+        });
+      }
+    }
 
     // Parse witness count from OTHER WITNESSES section
     let witnessCount: number | undefined;
