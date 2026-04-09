@@ -108,13 +108,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
-      // Extract season from description or time/conditions
+      // Extract season — prefer deriving from event_date when available
       var season = 'Unknown'
-      var seasonText = (meta.timeAndConditions || '') + ' ' + desc
-      if (/\b(summer|june|july|august)\b/i.test(seasonText)) season = 'Summer'
-      else if (/\b(winter|december|january|february|snow)\b/i.test(seasonText)) season = 'Winter'
-      else if (/\b(spring|march|april|may)\b/i.test(seasonText)) season = 'Spring'
-      else if (/\b(fall|autumn|september|october|november)\b/i.test(seasonText)) season = 'Fall'
+      if (report.event_date) {
+        var dateParts = (report.event_date as string).split('-')
+        var eventMonth = parseInt(dateParts[1], 10)
+        if (eventMonth >= 3 && eventMonth <= 5) season = 'Spring'
+        else if (eventMonth >= 6 && eventMonth <= 8) season = 'Summer'
+        else if (eventMonth >= 9 && eventMonth <= 11) season = 'Fall'
+        else season = 'Winter'
+      } else {
+        // Fallback: keyword matching from text
+        var seasonText = (meta.timeAndConditions || '') + ' ' + desc
+        if (/\b(summer|june|july|august)\b/i.test(seasonText)) season = 'Summer'
+        else if (/\b(winter|december|january|february|snow)\b/i.test(seasonText)) season = 'Winter'
+        else if (/\b(spring|march|april|may)\b/i.test(seasonText)) season = 'Spring'
+        else if (/\b(fall|autumn|september|october|november)\b/i.test(seasonText)) season = 'Fall'
+      }
 
       // Determine activity context from description
       var activityTags: string[] = []
