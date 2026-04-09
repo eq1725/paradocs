@@ -187,7 +187,7 @@ export default function EnvironmentalContext({ reportSlug, className, isExpanded
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <Moon className="w-3.5 h-3.5 text-gray-500" />
-                  <span className="text-xs font-medium text-gray-300">Environment</span>
+                  <span className="text-xs font-medium text-gray-300">Setting</span>
                 </div>
                 <p className="text-sm text-gray-400 leading-relaxed pl-6">{fc.environment}</p>
               </div>
@@ -196,7 +196,7 @@ export default function EnvironmentalContext({ reportSlug, className, isExpanded
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <Clock className="w-3.5 h-3.5 text-gray-500" />
-                  <span className="text-xs font-medium text-gray-300">Time & Conditions</span>
+                  <span className="text-xs font-medium text-gray-300">Conditions</span>
                 </div>
                 <p className="text-sm text-gray-400 leading-relaxed pl-6">{fc.timeAndConditions}</p>
               </div>

@@ -123,6 +123,111 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (tags.indexOf(activityKeywords[j]) !== -1) activityTags.push(activityKeywords[j])
       }
 
+      // --- Synthesize standardized environment description from raw metadata ---
+      // We never surface raw source text. Instead, extract structured attributes
+      // and build original descriptions from them.
+      var envSummary = null as string | null
+      if (meta.environment) {
+        var envLower = (meta.environment as string).toLowerCase()
+        var envParts: string[] = []
+
+        // Setting type
+        var isRoadside = /\b(road|highway|route|hwy|roadside|shoulder)\b/.test(envLower)
+        var isTrail = /\b(trail|path|footpath)\b/.test(envLower)
+        var isResidential = /\b(house|home|cabin|property|yard|driveway|neighborhood|subdivision)\b/.test(envLower)
+        var isWilderness = /\b(wilderness|backcountry|remote)\b/.test(envLower)
+        var isRiver = /\b(river|creek|stream|lake|pond|water)\b/.test(envLower)
+
+        if (isRoadside) envParts.push('Roadside location')
+        else if (isTrail) envParts.push('Trail or path setting')
+        else if (isResidential) envParts.push('Near residential area')
+        else if (isWilderness) envParts.push('Remote wilderness area')
+
+        // Terrain features
+        var isHilly = /\b(hill|slope|ridge|incline|elevation|steep)\b/.test(envLower)
+        var isFlat = /\b(flat|level|clearing|meadow|field)\b/.test(envLower)
+        var isWooded = /\b(wood|forest|tree|timber|brush|thicket|alder)\b/.test(envLower)
+        var isMountain = /\b(mountain|alpine|summit|peak)\b/.test(envLower)
+
+        if (isWooded && isHilly) envParts.push('wooded hillside terrain')
+        else if (isWooded) envParts.push('forested terrain')
+        else if (isHilly) envParts.push('hilly terrain')
+        else if (isMountain) envParts.push('mountainous terrain')
+        else if (isFlat) envParts.push('open or level ground')
+
+        if (isRiver) envParts.push('near water')
+
+        // Nearby structures
+        var hasStructures = /\b(building|structure|construction|fence|gate|bridge|sign)\b/.test(envLower)
+        if (hasStructures) envParts.push('human-made structures nearby')
+
+        if (envParts.length > 0) {
+          // Capitalize first part, join rest naturally
+          envSummary = envParts[0].charAt(0).toUpperCase() + envParts[0].slice(1)
+          if (envParts.length > 1) {
+            envSummary = envSummary + ' with ' + envParts.slice(1).join(', ')
+          }
+        } else {
+          // Fallback: generic from terrain tags
+          if (terrainTags.length > 0) {
+            var terrainLabel = terrainTags[0].charAt(0).toUpperCase() + terrainTags[0].slice(1)
+            envSummary = terrainLabel + ' setting'
+          }
+        }
+      }
+
+      // --- Synthesize standardized time/conditions description ---
+      var conditionsSummary = null as string | null
+      if (meta.timeAndConditions) {
+        var tcRaw = (meta.timeAndConditions as string).toLowerCase()
+        var condParts: string[] = []
+
+        // Weather
+        var isClear = /\b(clear|sunny|blue sk)/i.test(tcRaw)
+        var isOvercast = /\b(overcast|cloudy|cloud cover|grey|gray)\b/.test(tcRaw)
+        var isRainy = /\b(rain|drizzle|shower|downpour|wet)\b/.test(tcRaw)
+        var isSnowy = /\b(snow|sleet|ice|freezing)\b/.test(tcRaw)
+        var isFoggy = /\b(fog|mist|haze|hazy)\b/.test(tcRaw)
+        var isWindy = /\b(wind|windy|gusty|breezy)\b/.test(tcRaw)
+
+        if (isClear) condParts.push('Clear weather')
+        else if (isOvercast) condParts.push('Overcast skies')
+        else if (isRainy) condParts.push('Rainy conditions')
+        else if (isSnowy) condParts.push('Snow or ice present')
+        else if (isFoggy) condParts.push('Foggy or hazy conditions')
+
+        if (isWindy) condParts.push('windy')
+
+        // Visibility / Lighting
+        var goodVis = /\b(good|clear|bright|well.lit|good visibility|pretty good)\b/.test(tcRaw)
+        var poorVis = /\b(poor|low|limited|dim|dark|pitch black)\b/.test(tcRaw)
+        if (goodVis) condParts.push('good visibility')
+        else if (poorVis) condParts.push('limited visibility')
+
+        // Temperature cues
+        var isCold = /\b(cold|cool|chilly|freezing|frost)\b/.test(tcRaw)
+        var isWarm = /\b(warm|hot|humid|heat)\b/.test(tcRaw)
+        if (isCold) condParts.push('cool temperatures')
+        else if (isWarm) condParts.push('warm temperatures')
+
+        if (condParts.length > 0) {
+          conditionsSummary = condParts[0]
+          if (condParts.length > 1) {
+            conditionsSummary = conditionsSummary + ', ' + condParts.slice(1).join(', ')
+          }
+        }
+
+        // Append time of day context if we have a specific time
+        if (timeOfDay !== 'Unknown') {
+          var timeSuffix = timeOfDay.toLowerCase() + ' encounter'
+          if (conditionsSummary) {
+            conditionsSummary = conditionsSummary + '. ' + timeSuffix.charAt(0).toUpperCase() + timeSuffix.slice(1)
+          } else {
+            conditionsSummary = timeSuffix.charAt(0).toUpperCase() + timeSuffix.slice(1)
+          }
+        }
+      }
+
       return res.status(200).json({
         reportId: report.id,
         eventDate: null,
@@ -131,8 +236,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Field context available even without a date
         fieldContextAvailable: !!(meta.environment || meta.timeAndConditions || terrainTags.length > 0),
         fieldContext: {
-          environment: meta.environment || null,
-          timeAndConditions: meta.timeAndConditions || null,
+          environment: envSummary,
+          timeAndConditions: conditionsSummary,
           terrainTags: terrainTags,
           activityTags: activityTags,
           timeOfDay: timeOfDay,
