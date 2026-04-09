@@ -374,13 +374,68 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
       var dateBlock = dateBlockMatch[0].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
       console.log('[BFRO] #' + reportNumber + ' date block text: "' + dateBlock.substring(0, 200) + '"');
 
-      // Extract from plain text block: "YEAR: 2025 SEASON: Spring MONTH: May DATE: 14"
+      // Extract from plain text block. DATE field varies wildly:
+      // Simple: "DATE: 14"
+      // Full date: "DATE: 5/14/2025" or "DATE: 10/25/2022"
+      // Day name: "DATE: Tuesday, Nov 18"
+      // Ordinal: "DATE: Sunday, March 15th."
+      // Month+day: "DATE: December 6th"
       var ym = dateBlock.match(/YEAR\s*:?\s*(\d{4})/i);
       if (ym) bfroYear = ym[1];
       var mm = dateBlock.match(/MONTH\s*:?\s*([A-Za-z]+)/i);
       if (mm) bfroMonth = mm[1];
-      var dm = dateBlock.match(/\bDATE\s*:?\s*(\d{1,2})\b/);
-      if (dm) bfroDay = dm[1];
+
+      // Extract the raw DATE value first
+      var dateFieldMatch = dateBlock.match(/\bDATE\s*:?\s*([^\n]+?)(?=\s*$|\s*NEAREST|\s*STATE|\s*COUNTY)/i);
+      if (!dateFieldMatch) {
+        // Simpler: just grab everything after "DATE:" until next known label
+        dateFieldMatch = dateBlock.match(/\bDATE\s*:?\s*(.+)/i);
+      }
+      if (dateFieldMatch) {
+        var rawDateVal = dateFieldMatch[1].trim();
+        // Case 1: bare number "14"
+        if (/^\d{1,2}$/.test(rawDateVal)) {
+          bfroDay = rawDateVal;
+        }
+        // Case 2: full date "5/14/2025" or "10/25/2022" — extract month and day
+        else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(rawDateVal)) {
+          var slashParts = rawDateVal.split('/');
+          // MM/DD/YYYY format
+          var MONTH_NAMES = ['', 'January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December'];
+          var slashMonth = parseInt(slashParts[0], 10);
+          if (slashMonth >= 1 && slashMonth <= 12) {
+            bfroMonth = MONTH_NAMES[slashMonth];
+            bfroDay = slashParts[1];
+            bfroYear = slashParts[2];
+          }
+        }
+        // Case 3: "Tuesday, Nov 18" or "Sunday, March 15th." — extract day number
+        else {
+          var dayInText = rawDateVal.match(/(\d{1,2})(?:st|nd|rd|th)?[\.\s,]*$/);
+          if (!dayInText) {
+            dayInText = rawDateVal.match(/\b(\d{1,2})(?:st|nd|rd|th)?\b/);
+          }
+          if (dayInText) {
+            bfroDay = dayInText[1];
+          }
+          // If DATE contains a month name and we didn't get one from MONTH field
+          if (!bfroMonth || bfroMonth === 'SEASON') {
+            var monthInDate = rawDateVal.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b/i);
+            if (monthInDate) {
+              // Expand abbreviated month names
+              var MONTH_EXPAND: Record<string, string> = {
+                'jan': 'January', 'feb': 'February', 'mar': 'March', 'apr': 'April',
+                'may': 'May', 'jun': 'June', 'jul': 'July', 'aug': 'August',
+                'sep': 'September', 'oct': 'October', 'nov': 'November', 'dec': 'December'
+              };
+              var abbr = monthInDate[1].substring(0, 3).toLowerCase();
+              bfroMonth = MONTH_EXPAND[abbr] || monthInDate[1];
+            }
+          }
+        }
+        console.log('[BFRO] #' + reportNumber + ' raw DATE value: "' + rawDateVal + '" → day=' + bfroDay + ' month=' + bfroMonth);
+      }
     }
 
     // Fallback to extractField if block approach didn't find year
@@ -691,8 +746,17 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
           else if (sMeridiem === 'am' && sHour === 12) sHour = 0;
           eventTime = (sHour < 10 ? '0' : '') + sHour + ':00';
         } else {
+          // Convert vague time words to approximate HH:MM for the time column
           var vagueTime = timeAndConditions.match(/\b(dawn|sunrise|morning|midday|noon|afternoon|dusk|sunset|evening|night|midnight)\b/i);
-          if (vagueTime) eventTime = vagueTime[1].toLowerCase();
+          if (vagueTime) {
+            var VAGUE_TO_TIME: Record<string, string> = {
+              'dawn': '06:00', 'sunrise': '06:30', 'morning': '09:00',
+              'midday': '12:00', 'noon': '12:00', 'afternoon': '15:00',
+              'dusk': '18:30', 'sunset': '19:00', 'evening': '20:00',
+              'night': '22:00', 'midnight': '00:00'
+            };
+            eventTime = VAGUE_TO_TIME[vagueTime[1].toLowerCase()] || undefined;
+          }
         }
       }
     }
