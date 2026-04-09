@@ -213,6 +213,7 @@ export default function AcademicObservationPanel({ reportSlug, className, isExpa
 
   // Determine if phenomenon data was NLP-extracted vs structured
   const isExtracted = !data.metadata.hasStructuredData
+  const isCryptid = data.classification.category === 'cryptids'
 
   const DataRow = ({ label, value, icon, extracted }: { label: string; value: React.ReactNode; icon?: React.ReactNode; extracted?: boolean }) => (
     <div className="flex items-start gap-2 py-1.5 border-b border-white/5 last:border-0">
@@ -331,20 +332,23 @@ export default function AcademicObservationPanel({ reportSlug, className, isExpa
                 </div>
               </div>
 
-              {/* Phenomenon — flag extracted data */}
+              {/* Phenomenon — category-aware fields */}
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
                   <Sparkles className="w-3.5 h-3.5 text-gray-400" />
-                  <span className="text-xs text-white font-medium">Phenomenon Characteristics</span>
+                  <span className="text-xs text-white font-medium">
+                    {isCryptid ? 'Encounter Characteristics' : 'Phenomenon Characteristics'}
+                  </span>
                 </div>
                 <div className="pl-5 space-y-0.5">
-                  <DataRow label="Shape" value={data.phenomenon.shape} extracted={isExtracted} />
-                  <DataRow label="Colors" value={data.phenomenon.colors?.join(', ')} extracted={isExtracted} />
-                  <DataRow label="Brightness" value={data.phenomenon.brightness} />
+                  {!isCryptid && <DataRow label="Shape" value={data.phenomenon.shape} extracted={isExtracted} />}
+                  {!isCryptid && <DataRow label="Colors" value={data.phenomenon.colors?.join(', ')} extracted={isExtracted} />}
+                  {!isCryptid && <DataRow label="Brightness" value={data.phenomenon.brightness} />}
                   <DataRow label="Sound" value={data.phenomenon.sound} extracted={isExtracted} />
-                  <DataRow label="Motion" value={data.motion.type} extracted={isExtracted} />
-                  <DataRow label="Speed" value={data.motion.speedApparent} />
-                  <DataRow label="Altitude" value={data.motion.altitudeApparent} />
+                  <DataRow label={isCryptid ? 'Behavior' : 'Motion'} value={data.motion.type} extracted={isExtracted} />
+                  {!isCryptid && <DataRow label="Speed" value={data.motion.speedApparent} />}
+                  {!isCryptid && <DataRow label="Altitude" value={data.motion.altitudeApparent} />}
+                  {isCryptid && <DataRow label="Location Type" value={data.location.locationType} />}
                 </div>
               </div>
 

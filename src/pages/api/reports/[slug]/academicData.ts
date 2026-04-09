@@ -82,7 +82,12 @@ function extractObservationDetails(report: any) {
   // ---- Colors ----
   var colors = ['red', 'orange', 'yellow', 'green', 'blue', 'white', 'silver', 'metallic',
     'glowing', 'bright', 'dim', 'pulsating', 'multicolored', 'purple', 'golden', 'amber', 'crimson']
-  var detectedColors = colors.filter(function(c) { return descLower.indexOf(c) !== -1 })
+  // Use word-boundary regex to avoid substring matches (e.g. "red" in "disappeared")
+  var detectedColors: string[] = []
+  for (var cri = 0; cri < colors.length; cri++) {
+    var colorRegex = new RegExp('\\b' + colors[cri] + '\\b', 'i')
+    if (colorRegex.test(descLower)) detectedColors.push(colors[cri])
+  }
 
   // ---- Motion type ----
   // Both UFO and cryptid motion patterns
@@ -628,6 +633,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         hasStructuredData: !!academicData,
         lastUpdated: academicData?.last_updated_at || report.created_at,
         dataCollector: academicData?.data_collector_id || null
+      }
+    }
+
+    // Category-aware field suppression: remove UFO-specific fields from cryptid reports
+    // Shape (disc/triangle/orb), brightness (glowing), altitude, speed, angle of elevation
+    // are aerial-phenomenon concepts that don't apply to cryptid field reports.
+    // Colors are suppressed because current NLP picks up context words, not creature descriptions.
+    if (report.category === 'cryptids') {
+      structuredData.phenomenon.shape = null
+      structuredData.phenomenon.brightness = null
+      structuredData.phenomenon.speed = null
+      structuredData.phenomenon.colors = null
+      structuredData.motion.altitudeApparent = null
+      structuredData.motion.angleOfElevation = null
+      structuredData.motion.speedApparent = null
+
+      // Check if detected motion is actually describing the witness, not the creature
+      // e.g. "I was walking" should not produce motion: "walking" for the creature
+      if (extracted.detectedMotion) {
+        var motionWord = extracted.detectedMotion.toLowerCase()
+        if (motionWord === 'bipedal/upright') motionWord = 'bipedal'
+        var witnessMotionContexts = [
+          'i was ' + motionWord, 'i started ' + motionWord, 'we were ' + motionWord,
+          'while ' + motionWord, 'i went ' + motionWord, 'as i ' + motionWord,
+          'i had been ' + motionWord, 'we had been ' + motionWord
+        ]
+        var descCheck = (report.description || '').toLowerCase()
+        var isWitnessMotion = false
+        for (var wmi = 0; wmi < witnessMotionContexts.length; wmi++) {
+          if (descCheck.indexOf(witnessMotionContexts[wmi]) !== -1) {
+            isWitnessMotion = true
+            break
+          }
+        }
+        if (isWitnessMotion) {
+          structuredData.motion.type = null
+        }
       }
     }
 
