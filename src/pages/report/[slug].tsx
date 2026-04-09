@@ -820,8 +820,23 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             {report.location_name && (
               <span className="flex items-center gap-1.5">
                 <MapPin className="w-4 h-4" />
-                {report.location_name}
-                {report.country && `, ${report.country}`}
+                {(() => {
+                  var meta = (report as any).metadata || {}
+                  var locName = report.location_name as string
+                  var parts: string[] = []
+                  // Enrich with metadata when location_name is just a state/region
+                  if (meta.nearestTown) parts.push('Near ' + meta.nearestTown)
+                  if (meta.county) parts.push(meta.county + ' County')
+                  // Add location_name (usually state) — skip if already more specific
+                  if (parts.length > 0) {
+                    // Append state/region after the specific location
+                    parts.push(locName)
+                  } else {
+                    parts.push(locName)
+                  }
+                  if (report.country) parts.push(report.country as string)
+                  return parts.join(', ')
+                })()}
               </span>
             )}
             {report.event_date && (

@@ -209,10 +209,10 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
                     {assessment.mundane_explanations.map(function(exp, i) {
                       return (
                         <div key={i} className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3">
-                          <div className="flex items-center gap-2 mb-1.5">
+                          <div className="flex items-start justify-between gap-3 mb-1.5">
                             <span className="text-sm font-medium text-gray-300">{exp.explanation}</span>
                             <span className={classNames(
-                              'text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide border',
+                              'text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide border flex-shrink-0',
                               getLikelihoodStyle(exp.likelihood)
                             )}>
                               {exp.likelihood}
