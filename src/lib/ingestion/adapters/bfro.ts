@@ -152,29 +152,34 @@ function cleanText(text: string): string {
     .trim();
 }
 
-function generateTitle(county: string, state: string, year: string, reportNumber: string, nearestTown?: string, classification?: string): string {
-  // Format: "BFRO Report #XXXXX: [Class X] Encounter Near [Town], [County] County, [State]"
-  // Falls back gracefully when fields are missing
-  var classTag = ''
-  if (classification && classification !== 'Unknown') {
-    classTag = classification + ' '
-  }
-
+function generateTitle(county: string, state: string, year: string, reportNumber: string, nearestTown?: string): string {
+  // Visitor-friendly title: "Bigfoot Encounter Near [Town], [State] ([Year])"
+  // BFRO report number and classification are stored in metadata, not shown in title
   var locationParts: string[] = []
   if (nearestTown) {
+    // Avoid "Near Town, Town County" when town name matches county
     locationParts.push('Near ' + nearestTown)
-  }
-  if (county) {
+    if (county && county.toLowerCase() !== nearestTown.toLowerCase()) {
+      locationParts.push(county + ' County')
+    }
+  } else if (county) {
     locationParts.push(county + ' County')
   }
   if (state) {
-    locationParts.push(state)
+    // Avoid "Ohio, Ohio" — don't add state if it matches town or county
+    var stateLower = state.toLowerCase()
+    var alreadyHasState = locationParts.some(function(p) {
+      return p.toLowerCase().indexOf(stateLower) !== -1
+    })
+    if (!alreadyHasState) {
+      locationParts.push(state)
+    }
   }
 
   var locationStr = locationParts.length > 0 ? ' ' + locationParts.join(', ') : ''
   var yearStr = year ? ' (' + year + ')' : ''
 
-  return ('BFRO Report #' + reportNumber + ': ' + classTag + 'Encounter' + locationStr + yearStr).substring(0, 200)
+  return ('Bigfoot Encounter' + locationStr + yearStr).substring(0, 200)
 }
 
 function generateSummary(description: string, classification: string): string {
@@ -365,6 +370,30 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     if (bfroDay && !/^\d{1,2}$/.test(bfroDay.trim())) {
       console.log('[BFRO] #' + reportNumber + ' DATE field returned non-numeric: "' + bfroDay + '" — discarding');
       bfroDay = '';
+    }
+    // Fallback: try to extract day number directly from HTML near MONTH field
+    // BFRO pages often have: "MONTH: May</span>...<span>DATE: 14</span>"
+    // The generic extractField may miss this due to HTML structure variations
+    if (!bfroDay && bfroMonth) {
+      var dayPatterns = [
+        // "DATE</span>...<span>14" or "DATE:</span>...<span>14"
+        /DATE\s*:?\s*<\/[^>]+>\s*(?:<[^>]+>\s*)*(\d{1,2})\b/i,
+        // "DATE: 14" plain text after stripping tags
+        /\bDATE\s*:\s*(\d{1,2})\b/,
+        // Table: "<td>DATE</td><td>14</td>"
+        /DATE\s*<\/td>\s*<td[^>]*>\s*(\d{1,2})\s*</i,
+      ];
+      for (var dpi = 0; dpi < dayPatterns.length; dpi++) {
+        var dayMatch = html.match(dayPatterns[dpi]);
+        if (dayMatch && dayMatch[1]) {
+          var dayNum = parseInt(dayMatch[1], 10);
+          if (dayNum >= 1 && dayNum <= 31) {
+            bfroDay = dayMatch[1];
+            console.log('[BFRO] #' + reportNumber + ' DATE from fallback pattern ' + dpi + ': "' + bfroDay + '"');
+            break;
+          }
+        }
+      }
     }
     if (bfroYear && /^\d{4}$/.test(bfroYear.trim())) {
       // We have a year — try to build a full date from separate fields
@@ -723,7 +752,7 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     allTags = Array.from(new Set(allTags));
 
     return {
-      title: generateTitle(county, locationState, year, reportNumber, nearestTown, classification),
+      title: generateTitle(county, locationState, year, reportNumber, nearestTown),
       summary: generateSummary(description, classification),
       description: description,
       category: 'cryptids',
