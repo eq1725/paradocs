@@ -690,40 +690,107 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     let witnessCount: number | undefined;
     if (otherWitnesses) {
       var owLower = otherWitnesses.toLowerCase();
-      // Explicit solo witness indicators
-      if (/\bnone\b|\bn\/a\b|\bjust me\b|\bonly witness\b|\bonly person\b|\bby myself\b|\balone\b|\bno one\b|\bnobody\b|\bno other\b|\bi was the only\b|\bno,?\s+i was\b/.test(owLower)) {
-        witnessCount = 1;
-      }
-      // Look for explicit numbers: "2 other witnesses", "group of 5", etc.
-      else {
-        var numMatch = otherWitnesses.match(/(\d+)\s*(?:other\s*)?(?:witness|people|person|friend|companion|individual|observer)/i);
-        if (numMatch) {
-          witnessCount = parseInt(numMatch[1], 10) + 1; // +1 for the reporting witness
+
+      // Word-to-number map for written-out counts
+      var WORD_NUMS: Record<string, number> = {
+        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+        'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+        'eleven': 11, 'twelve': 12, 'a couple': 2, 'several': 3, 'a few': 3
+      };
+
+      // Helper: extract first number (digit or word) from text
+      function extractCount(text: string): number | null {
+        // Try digits first
+        var digitMatch = text.match(/(\d+)/);
+        if (digitMatch) return parseInt(digitMatch[1], 10);
+        // Try word numbers
+        var textLower = text.toLowerCase();
+        for (var word in WORD_NUMS) {
+          if (textLower.indexOf(word) !== -1) return WORD_NUMS[word];
         }
-        // "Yes, 1" or "Yes, 2" at start — bare count of other witnesses
-        else if (/^(?:yes[,.]?\s*)?(\d+)\b/.test(otherWitnesses.trim())) {
-          var bareNum = otherWitnesses.trim().match(/(\d+)/);
-          if (bareNum) {
-            witnessCount = parseInt(bareNum[1], 10) + 1;
+        return null;
+      }
+
+      // Step 1: Check for explicit solo witness indicators
+      var soloPattern = /\bnone\b|\bn\/a\b|\bjust me\b|\bonly witness\b|\bonly person\b|\bby myself\b|\balone\b|\bno one\b|\bnobody\b|\bno other\b|\bi was the only\b|\bno,?\s+i was\b/;
+      if (soloPattern.test(owLower)) {
+        witnessCount = 1;
+        console.log('[BFRO] #' + reportNumber + ' witness count: 1 (solo indicator)');
+      }
+      else {
+        // Step 2: Look for total group size patterns
+        // "Four people were in the tent" → 4 total
+        // "group of 5" → 5 total
+        // "there were 3 of us" → 3 total
+        var totalGroupMatch = otherWitnesses.match(/(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:people|persons|of us|total|in (?:the |our )?(?:group|party|car|truck|vehicle|tent|camp|cabin))/i);
+        if (totalGroupMatch) {
+          var totalCount = extractCount(totalGroupMatch[0]);
+          if (totalCount && totalCount >= 1) {
+            witnessCount = totalCount;
+            console.log('[BFRO] #' + reportNumber + ' witness count: ' + witnessCount + ' (total group: "' + totalGroupMatch[0] + '")');
           }
         }
-        // "my wife", "my husband", "my friend", "a friend", "my brother", etc. = 2
-        else if (/\b(my\s+(?:wife|husband|partner|friend|brother|sister|son|daughter|father|mother|girlfriend|boyfriend|fiance|fiancee|buddy|coworker|co-worker|neighbor))\b/i.test(otherWitnesses)) {
-          witnessCount = 2;
+        // "there were N of us" or "N of us were there"
+        if (!witnessCount) {
+          var ofUsMatch = otherWitnesses.match(/(\d+|two|three|four|five|six|seven|eight|nine|ten)\s+of\s+us/i);
+          if (ofUsMatch) {
+            var ofUsCount = extractCount(ofUsMatch[0]);
+            if (ofUsCount && ofUsCount >= 2) {
+              witnessCount = ofUsCount;
+              console.log('[BFRO] #' + reportNumber + ' witness count: ' + witnessCount + ' (N of us: "' + ofUsMatch[0] + '")');
+            }
+          }
         }
-        // "wife and I", "friend and I", "X and I" patterns = 2
-        else if (/\band\s+I\b/i.test(otherWitnesses)) {
-          witnessCount = 2;
+
+        // Step 3: "N other witnesses/people" → N + 1 (for reporter)
+        if (!witnessCount) {
+          var otherMatch = otherWitnesses.match(/(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:other\s+)?(?:witness|people|person|friend|companion|individual|observer|adult|kid|child|children)/i);
+          if (otherMatch) {
+            var otherCount = extractCount(otherMatch[0]);
+            if (otherCount) {
+              witnessCount = otherCount + 1; // +1 for the reporting witness
+              console.log('[BFRO] #' + reportNumber + ' witness count: ' + witnessCount + ' (N others + reporter: "' + otherMatch[0] + '")');
+            }
+          }
         }
-        // "1 other" or "one other" = 2
-        else if (/\b(1|one)\s+other\b/i.test(otherWitnesses)) {
-          witnessCount = 2;
+
+        // Step 4: "Yes, N" or bare number at start — count of other witnesses
+        if (!witnessCount) {
+          var bareStartMatch = otherWitnesses.trim().match(/^(?:yes[,.]?\s*)?(\d+)\b/);
+          if (bareStartMatch) {
+            witnessCount = parseInt(bareStartMatch[1], 10) + 1;
+            console.log('[BFRO] #' + reportNumber + ' witness count: ' + witnessCount + ' (bare number start)');
+          }
         }
-        // If there's meaningful text that doesn't indicate solo witness, assume at least 2
-        // (the section exists and names someone → reporter + at least 1 other)
-        else if (owLower.length > 5 && !/\bnone\b|\bno one\b|\bno other\b|\bnobody\b|\bjust me\b|\bonly witness\b|\bonly person\b|\bby myself\b|\balone\b|\bi was the only\b/.test(owLower)) {
+
+        // Step 5: Relationship patterns → 2
+        if (!witnessCount) {
+          if (/\b(?:my\s+)?(?:wife|husband|partner|friend|brother|sister|son|daughter|father|mother|girlfriend|boyfriend|fiance|fiancee|buddy|coworker|co-worker|neighbor|grandson|granddaughter)\b/i.test(otherWitnesses)) {
+            witnessCount = 2;
+            console.log('[BFRO] #' + reportNumber + ' witness count: 2 (relationship mention)');
+          }
+          else if (/\band\s+I\b/i.test(otherWitnesses)) {
+            witnessCount = 2;
+            console.log('[BFRO] #' + reportNumber + ' witness count: 2 (and I pattern)');
+          }
+        }
+
+        // Step 6: "me with X and the Y kids" — count named parties
+        if (!witnessCount) {
+          var meWithMatch = owLower.match(/me\s+with\s+/);
+          if (meWithMatch) {
+            // Count "and" conjunctions as additional people
+            var andCount = (owLower.match(/\band\b/g) || []).length;
+            var kidCount = extractCount(owLower.replace(/.*\b(\d+|two|three|four)\s+kids?\b.*/, '$1')) || 0;
+            witnessCount = 2 + andCount + (kidCount > 0 ? kidCount - 1 : 0); // "me with X and the two kids" = 4
+            console.log('[BFRO] #' + reportNumber + ' witness count: ' + witnessCount + ' (me with pattern)');
+          }
+        }
+
+        // Step 7: Fallback — content exists but unparseable, and not a solo indicator
+        if (!witnessCount && owLower.length > 5 && !soloPattern.test(owLower)) {
           witnessCount = 2;
-          console.log('[BFRO] #' + reportNumber + ' OTHER WITNESSES has content but count not parsed — defaulting to 2: "' + otherWitnesses.substring(0, 80) + '"');
+          console.log('[BFRO] #' + reportNumber + ' witness count: 2 (fallback — unparsed content: "' + otherWitnesses.substring(0, 80) + '")');
         }
       }
     }
