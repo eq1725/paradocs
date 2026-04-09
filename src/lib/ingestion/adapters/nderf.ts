@@ -13,12 +13,13 @@ function delay(ms: number): Promise<void> {
 }
 
 // NDE experience types on NDERF
-const NDE_TYPES = {
+const NDE_TYPES: Record<string, string> = {
   exceptional: 'Exceptional NDE',
   probable: 'Probable NDE',
   questionable: 'Questionable NDE',
   sde: 'Shared Death Experience',
   obe: 'Out of Body Experience',
+  ste: 'Spiritually Transformative Experience',
   fearde: 'Fear-Death Experience',
   other: 'Other Spiritually Transformative Experience'
 };
@@ -204,6 +205,288 @@ async function parseArchiveIndex(html: string): Promise<Array<{ id: string; name
   return experiences;
 }
 
+// Extract a structured field value from NDERF questionnaire HTML
+// Fields use: <span class="m105">Label:</span> Value
+function extractField(html: string, fieldLabel: string): string | null {
+  // Build regex: <span class="m105">fieldLabel:</span> VALUE
+  // Value ends at next <br> or <span
+  const escaped = fieldLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(
+    '<span[^>]*class="m105"[^>]*>' + escaped + ':?</span>\\s*(.+?)(?:<br|<span)',
+    'i'
+  );
+  const match = html.match(pattern);
+  if (match) {
+    return cleanText(match[1]).trim();
+  }
+  return null;
+}
+
+// Extract Date of NDE from NDERF page
+// Formats seen: "2/4/2014", "05/00/2010" (00=unknown day), "1930", etc.
+function extractNDEDate(html: string): { date: string | undefined; precision: 'exact' | 'month' | 'year' | 'unknown' } {
+  const raw = extractField(html, 'Date of NDE');
+  if (!raw) {
+    console.log(`[NDERF] No "Date of NDE" field found`);
+    return { date: undefined, precision: 'unknown' };
+  }
+  console.log(`[NDERF] Raw Date of NDE: "${raw}"`);
+
+  // MM/DD/YYYY or M/D/YYYY
+  const mdyMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mdyMatch) {
+    const month = parseInt(mdyMatch[1], 10);
+    const day = parseInt(mdyMatch[2], 10);
+    const year = parseInt(mdyMatch[3], 10);
+
+    if (day === 0) {
+      // Unknown day — month precision
+      const monthStr = String(month).padStart(2, '0');
+      console.log(`[NDERF] Parsed date: ${year}-${monthStr} (month precision, day=00)`);
+      return { date: `${year}-${monthStr}-01`, precision: 'month' };
+    }
+
+    const monthStr = String(month).padStart(2, '0');
+    const dayStr = String(day).padStart(2, '0');
+    console.log(`[NDERF] Parsed date: ${year}-${monthStr}-${dayStr} (exact)`);
+    return { date: `${year}-${monthStr}-${dayStr}`, precision: 'exact' };
+  }
+
+  // Just a year: "1930", "2010"
+  const yearMatch = raw.match(/^(\d{4})$/);
+  if (yearMatch) {
+    console.log(`[NDERF] Parsed date: ${yearMatch[1]} (year precision)`);
+    return { date: `${yearMatch[1]}-01-01`, precision: 'year' };
+  }
+
+  // Month/Year only: "05/2010"
+  const myMatch = raw.match(/^(\d{1,2})\/(\d{4})$/);
+  if (myMatch) {
+    const monthStr = String(parseInt(myMatch[1], 10)).padStart(2, '0');
+    console.log(`[NDERF] Parsed date: ${myMatch[2]}-${monthStr} (month precision)`);
+    return { date: `${myMatch[2]}-${monthStr}-01`, precision: 'month' };
+  }
+
+  console.log(`[NDERF] Could not parse date: "${raw}"`);
+  return { date: undefined, precision: 'unknown' };
+}
+
+// US state name-to-abbreviation map for location extraction
+const US_STATES: Record<string, string> = {
+  'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR',
+  'california': 'CA', 'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE',
+  'florida': 'FL', 'georgia': 'GA', 'hawaii': 'HI', 'idaho': 'ID',
+  'illinois': 'IL', 'indiana': 'IN', 'iowa': 'IA', 'kansas': 'KS',
+  'kentucky': 'KY', 'louisiana': 'LA', 'maine': 'ME', 'maryland': 'MD',
+  'massachusetts': 'MA', 'michigan': 'MI', 'minnesota': 'MN', 'mississippi': 'MS',
+  'missouri': 'MO', 'montana': 'MT', 'nebraska': 'NE', 'nevada': 'NV',
+  'new hampshire': 'NH', 'new jersey': 'NJ', 'new mexico': 'NM', 'new york': 'NY',
+  'north carolina': 'NC', 'north dakota': 'ND', 'ohio': 'OH', 'oklahoma': 'OK',
+  'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+  'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT',
+  'vermont': 'VT', 'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV',
+  'wisconsin': 'WI', 'wyoming': 'WY'
+};
+
+// Extract location from NDERF narrative text
+// NDERF has no structured location field — we must extract from the narrative
+function extractLocation(content: string, html: string): { location_name?: string; country?: string; state_province?: string; city?: string } {
+  const text = content;
+
+  // Try common patterns in NDE narratives:
+  // "in [City], [State]" or "in [City], [State/Province], [Country]"
+  // "at [Hospital Name] in [City]"
+  // "near [Place]"
+  // "off [Place]" (e.g. "off Vancouver Island")
+
+  // Pattern 1: "in [City], [Full State Name]" (US)
+  for (const [stateName, stateAbbr] of Object.entries(US_STATES)) {
+    const statePattern = new RegExp(
+      '(?:in|near|at|from)\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+)*),\\s*' + stateName,
+      'i'
+    );
+    const match = text.match(statePattern);
+    if (match) {
+      const city = match[1];
+      console.log(`[NDERF] Location from narrative: ${city}, ${stateName}`);
+      return {
+        location_name: `${city}, ${stateName}`,
+        country: 'United States',
+        state_province: stateName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+        city: city
+      };
+    }
+  }
+
+  // Pattern 2: "[City], [two-letter state abbreviation]"
+  const stateAbbrMatch = text.match(/(?:in|near|at|from)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s*([A-Z]{2})\b/);
+  if (stateAbbrMatch) {
+    const city = stateAbbrMatch[1];
+    const abbr = stateAbbrMatch[2];
+    // Verify it's a real state abbreviation
+    const fullState = Object.entries(US_STATES).find(([_, v]) => v === abbr);
+    if (fullState) {
+      const stateName = fullState[0].split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      console.log(`[NDERF] Location from state abbr: ${city}, ${stateName}`);
+      return {
+        location_name: `${city}, ${stateName}`,
+        country: 'United States',
+        state_province: stateName,
+        city: city
+      };
+    }
+  }
+
+  // Pattern 3: Known countries/regions (e.g. "in British Columbia", "in England", "off Vancouver Island")
+  const regionPatterns = [
+    { pattern: /(?:in|near|off|from)\s+([\w\s]+?),\s*(British Columbia|Alberta|Ontario|Quebec|Manitoba|Saskatchewan|Nova Scotia|Newfoundland)/i, country: 'Canada' },
+    { pattern: /(?:in|near|off|from)\s+([\w\s]+?),\s*(England|Scotland|Wales|Northern Ireland)/i, country: 'United Kingdom' },
+    { pattern: /(?:in|near|off|from)\s+([\w\s]+?),\s*(Australia|New Zealand|Germany|France|India|Mexico|Brazil|Japan|South Africa)/i, country: null },
+  ];
+
+  for (const { pattern, country } of regionPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const place = match[1].trim();
+      const region = match[2];
+      const resolvedCountry = country || region;
+      console.log(`[NDERF] Location from region: ${place}, ${region}`);
+      return {
+        location_name: `${place}, ${region}`,
+        country: resolvedCountry,
+        state_province: country ? region : undefined,
+        city: place
+      };
+    }
+  }
+
+  // Pattern 4: Just a country mention — "I was in [Country] when"
+  const countryMatch = text.match(/(?:I was in|happened in|occurred in|living in)\s+(United States|Canada|United Kingdom|England|Australia|Germany|France|India|Mexico|Brazil|Japan|South Africa|Ireland|New Zealand|Italy|Spain|Netherlands|Sweden|Norway|Israel|Philippines|Thailand|China|South Korea)/i);
+  if (countryMatch) {
+    console.log(`[NDERF] Location from country mention: ${countryMatch[1]}`);
+    return {
+      location_name: countryMatch[1],
+      country: countryMatch[1]
+    };
+  }
+
+  console.log(`[NDERF] No location extracted from narrative`);
+  return {};
+}
+
+// NDE type labels for titles (visitor-friendly)
+const NDE_TYPE_LABELS: Record<string, string> = {
+  'exceptional': 'Near-Death Experience',
+  'probable': 'Near-Death Experience',
+  'questionable': 'Near-Death Experience',
+  'sde': 'Shared Death Experience',
+  'obe': 'Out-of-Body Experience',
+  'fearde': 'Fear-Death Experience',
+  'ste': 'Spiritually Transformative Experience',
+  'other': 'Spiritually Transformative Experience'
+};
+
+// Generate a compelling, factual title from NDERF content
+// No person names. Uses: trigger event + location + year
+function generateNDERFTitle(
+  html: string,
+  content: string,
+  ndeType: string,
+  location: { location_name?: string; country?: string },
+  dateStr: string | undefined
+): string {
+  // 1. Get the experience type label
+  const typeLabel = NDE_TYPE_LABELS[ndeType] || 'Near-Death Experience';
+
+  // 2. Extract the trigger/cause from the questionnaire
+  let trigger = '';
+  const threatField = extractField(html, 'At the time of your experience, was there an associated life-threatening event');
+  if (threatField) {
+    // The answer is like "Yes<br>Drowning" — extract after Yes/No
+    const afterYes = threatField.replace(/^(Yes|No)\s*/i, '').trim();
+    if (afterYes && afterYes.length > 2 && afterYes.length < 60) {
+      trigger = afterYes;
+    }
+  }
+
+  // 3. If no trigger from questionnaire, try to detect from narrative
+  if (!trigger) {
+    const lowerContent = content.toLowerCase();
+    if (lowerContent.includes('cardiac arrest') || lowerContent.includes('heart attack')) trigger = 'Cardiac Arrest';
+    else if (lowerContent.includes('drowning') || lowerContent.includes('drowned')) trigger = 'Drowning';
+    else if (lowerContent.includes('car accident') || lowerContent.includes('car crash')) trigger = 'Car Accident';
+    else if (lowerContent.includes('surgery') || lowerContent.includes('operation')) trigger = 'Surgery';
+    else if (lowerContent.includes('overdose')) trigger = 'Overdose';
+    else if (lowerContent.includes('childbirth') || lowerContent.includes('giving birth')) trigger = 'Childbirth';
+    else if (lowerContent.includes('anaphylaxis') || lowerContent.includes('allergic')) trigger = 'Allergic Reaction';
+    else if (lowerContent.includes('suicide') || lowerContent.includes('took my own')) trigger = 'Suicide Attempt';
+    else if (lowerContent.includes('breathing session') || lowerContent.includes('breathwork')) trigger = 'Breathwork Session';
+    else if (lowerContent.includes('meditation')) trigger = 'Meditation';
+    else if (lowerContent.includes('coma')) trigger = 'Coma';
+    else if (lowerContent.includes('seizure') || lowerContent.includes('epilep')) trigger = 'Seizure';
+    else if (lowerContent.includes('stroke')) trigger = 'Stroke';
+    else if (lowerContent.includes('motorcycle')) trigger = 'Motorcycle Accident';
+    else if (lowerContent.includes('fell') || lowerContent.includes('falling')) trigger = 'Fall';
+    else if (lowerContent.includes('electrocuted') || lowerContent.includes('electric shock')) trigger = 'Electrocution';
+    else if (lowerContent.includes('gunshot') || lowerContent.includes('shot')) trigger = 'Gunshot';
+    else if (lowerContent.includes('stabbed') || lowerContent.includes('stabbing')) trigger = 'Stabbing';
+    else if (lowerContent.includes('pneumonia')) trigger = 'Pneumonia';
+    else if (lowerContent.includes('sepsis') || lowerContent.includes('infection')) trigger = 'Infection';
+    else if (lowerContent.includes('bleeding') || lowerContent.includes('hemorrhage')) trigger = 'Hemorrhage';
+    else if (lowerContent.includes('anesthesia')) trigger = 'Anesthesia';
+  }
+
+  // 4. Build the title
+  let titleParts: string[] = [typeLabel];
+
+  if (trigger) {
+    titleParts.push('During ' + trigger);
+  }
+
+  // Add location if available
+  if (location.location_name) {
+    titleParts.push(location.location_name);
+  }
+
+  // Add year if available
+  if (dateStr) {
+    const yearMatch = dateStr.match(/^(\d{4})/);
+    if (yearMatch) {
+      titleParts.push('(' + yearMatch[1] + ')');
+    }
+  }
+
+  // Join: "Near-Death Experience During Drowning, Vancouver Island (2010)"
+  // Use comma separation after the first "During X" part
+  let title = titleParts[0];
+  if (titleParts.length > 1) {
+    // "NDE During Drowning" or just "NDE" if no trigger
+    if (titleParts[1].startsWith('During ')) {
+      title += ' ' + titleParts[1];
+      // Append remaining parts with commas
+      for (let i = 2; i < titleParts.length; i++) {
+        if (titleParts[i].startsWith('(')) {
+          title += ' ' + titleParts[i];
+        } else {
+          title += ', ' + titleParts[i];
+        }
+      }
+    } else {
+      // No trigger, just location and year
+      for (let i = 1; i < titleParts.length; i++) {
+        if (titleParts[i].startsWith('(')) {
+          title += ' ' + titleParts[i];
+        } else {
+          title += ', ' + titleParts[i];
+        }
+      }
+    }
+  }
+
+  console.log(`[NDERF] Generated title: "${title}"`);
+  return title.substring(0, 200);
+}
+
 // Parse an individual experience page
 function parseExperiencePage(html: string, id: string, name: string): ScrapedReport | null {
   // Extract the main content (usually in a specific div or article)
@@ -250,12 +533,28 @@ function parseExperiencePage(html: string, id: string, name: string): ScrapedRep
   // Determine NDE type from page content or URL
   let ndeType = 'exceptional';
   const lowerHtml = html.toLowerCase();
-  if (lowerHtml.includes('probable nde')) ndeType = 'probable';
-  else if (lowerHtml.includes('shared death') || id.toLowerCase().includes('sde')) ndeType = 'sde';
-  else if (lowerHtml.includes('out of body') || id.toLowerCase().includes('obe')) ndeType = 'obe';
+  const idLower = id.toLowerCase();
+  if (lowerHtml.includes('probable nde') || idLower.includes('probable')) ndeType = 'probable';
+  else if (lowerHtml.includes('shared death') || idLower.includes('sde')) ndeType = 'sde';
+  else if (lowerHtml.includes('out of body') || idLower.includes('obe')) ndeType = 'obe';
+  else if (idLower.includes('ste')) ndeType = 'ste';
+  else if (lowerHtml.includes('fear-death') || idLower.includes('fearde')) ndeType = 'fearde';
 
-  // Generate title from name or first sentence
-  const title = name || content.substring(0, 80).split('.')[0] + '...';
+  // --- FIX 1: Extract date from "Date of NDE" questionnaire field ---
+  const { date: eventDate, precision: datePrecision } = extractNDEDate(html);
+
+  // --- FIX 2: Extract gender ---
+  const gender = extractField(html, 'Gender');
+  console.log(`[NDERF] ${id}: gender=${gender || 'unknown'}, date=${eventDate || 'none'}, precision=${datePrecision}`);
+
+  // --- FIX 3: Extract location from narrative ---
+  const location = extractLocation(content, html);
+  if (location.location_name) {
+    console.log(`[NDERF] ${id}: location="${location.location_name}"`);
+  }
+
+  // --- FIX 4: Generate compelling title (no person names) ---
+  const title = generateNDERFTitle(html, content, ndeType, location, eventDate);
 
   // Create summary
   const summary = content.length > 300 ? content.substring(0, 297) + '...' : content;
@@ -263,23 +562,34 @@ function parseExperiencePage(html: string, id: string, name: string): ScrapedRep
   // Generate tags
   const tags = generateTags(content, ndeType);
 
+  // Add gender tag
+  if (gender) {
+    tags.push('experiencer-' + gender.toLowerCase());
+  }
+
   return {
-    title: `Near-Death Experience: ${title}`.substring(0, 200),
+    title,
     summary,
     description: content,
     category: 'psychological_experiences',
-    event_date: undefined, // NDERF doesn't always include specific dates
-    event_date_precision: 'unknown',
+    location_name: location.location_name,
+    country: location.country,
+    state_province: location.state_province,
+    city: location.city,
+    event_date: eventDate,
+    event_date_precision: datePrecision,
     credibility: determineCredibility(content, ndeType),
     source_type: 'nderf',
     original_report_id: `nderf-${id}`,
-    tags,
+    tags: Array.from(new Set(tags)),
     source_label: 'NDERF',
     source_url: `https://www.nderf.org/Experiences/${id}.htm`,
     metadata: {
       ndeType: NDE_TYPES[ndeType as keyof typeof NDE_TYPES] || ndeType,
       characteristics: extractCharacteristics(content),
-      source: 'Near-Death Experience Research Foundation'
+      source: 'Near-Death Experience Research Foundation',
+      gender: gender || undefined,
+      triggerEvent: extractField(html, 'At the time of your experience, was there an associated life-threatening event') || undefined
     }
   };
 }
