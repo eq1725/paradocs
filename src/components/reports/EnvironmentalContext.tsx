@@ -11,6 +11,17 @@ import {
 } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 
+function formatEventTime(time24: string): string {
+  var parts = time24.match(/^(\d{1,2}):(\d{2})/)
+  if (!parts) return time24
+  var h = parseInt(parts[1], 10)
+  var m = parts[2]
+  var suffix = h >= 12 ? 'PM' : 'AM'
+  var h12 = h % 12
+  if (h12 === 0) h12 = 12
+  return h12 + ':' + m + ' ' + suffix
+}
+
 interface MeteorShower {
   name: string
   isActive: boolean
@@ -176,7 +187,7 @@ export default function EnvironmentalContext({ reportSlug, className, isExpanded
           <div className="bg-gray-900/50 p-3 text-center">
             <div className="text-2xl mb-1">{timeEmoji[fc.timeOfDay] || '🕐'}</div>
             <div className="text-xs text-white font-medium">{fc.timeOfDay !== 'Unknown' ? fc.timeOfDay : 'Time Unknown'}</div>
-            <div className="text-xs text-gray-500">Time of encounter</div>
+            <div className="text-xs text-gray-500">{(data as any).eventTime ? formatEventTime((data as any).eventTime) : 'Time of encounter'}</div>
           </div>
         </div>
 

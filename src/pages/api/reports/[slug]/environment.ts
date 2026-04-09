@@ -217,13 +217,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
 
-        // Append time of day context if we have a specific time
-        if (timeOfDay !== 'Unknown') {
-          var timeSuffix = timeOfDay.toLowerCase() + ' encounter'
+        // Append time context — use specific reported time if available
+        if (report.event_time) {
+          var etParts = report.event_time.match(/^(\d{1,2}):(\d{2})/)
+          if (etParts) {
+            var etH = parseInt(etParts[1], 10)
+            var etM = etParts[2]
+            var etSuffix = etH >= 12 ? 'PM' : 'AM'
+            var etH12 = etH % 12
+            if (etH12 === 0) etH12 = 12
+            var timeStr = 'Reported at ' + etH12 + ':' + etM + ' ' + etSuffix
+            if (conditionsSummary) {
+              conditionsSummary = conditionsSummary + '. ' + timeStr
+            } else {
+              conditionsSummary = timeStr
+            }
+          }
+        } else if (timeOfDay !== 'Unknown') {
+          var timeSuffix = timeOfDay.charAt(0).toUpperCase() + timeOfDay.slice(1).toLowerCase() + ' encounter'
           if (conditionsSummary) {
-            conditionsSummary = conditionsSummary + '. ' + timeSuffix.charAt(0).toUpperCase() + timeSuffix.slice(1)
+            conditionsSummary = conditionsSummary + '. ' + timeSuffix
           } else {
-            conditionsSummary = timeSuffix.charAt(0).toUpperCase() + timeSuffix.slice(1)
+            conditionsSummary = timeSuffix
           }
         }
       }

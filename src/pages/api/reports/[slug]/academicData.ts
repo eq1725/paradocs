@@ -334,7 +334,9 @@ function extractObservationDetails(report: any) {
   }
 
   // ---- Creature/Object count for cryptid reports ----
+  // Track both the count and whether it was explicitly stated vs inferred
   var detectedObjectCount: number | null = null
+  var objectCountExact = false
   // Look for patterns suggesting multiple creatures/entities
   var multiplePatterns = [
     /(\d+)\s*(?:creature|animal|being|entity|entities|figure|bigfoot|sasquatch)/i,
@@ -347,14 +349,14 @@ function extractObservationDetails(report: any) {
     if (mpMatch) {
       // Try to extract a number
       var countWord = (mpMatch[1] || mpMatch[0]).toLowerCase()
-      if (/\btwo\b|^2$/.test(countWord)) detectedObjectCount = 2
-      else if (/\bthree\b|^3$/.test(countWord)) detectedObjectCount = 3
-      else if (/\bfour\b|^4$/.test(countWord)) detectedObjectCount = 4
-      else if (/\bfive\b|^5$/.test(countWord)) detectedObjectCount = 5
-      else if (/\b(multiple|several|many|few|group)\b/.test(countWord)) detectedObjectCount = 2 // minimum "multiple"
+      if (/\btwo\b|^2$/.test(countWord)) { detectedObjectCount = 2; objectCountExact = true }
+      else if (/\bthree\b|^3$/.test(countWord)) { detectedObjectCount = 3; objectCountExact = true }
+      else if (/\bfour\b|^4$/.test(countWord)) { detectedObjectCount = 4; objectCountExact = true }
+      else if (/\bfive\b|^5$/.test(countWord)) { detectedObjectCount = 5; objectCountExact = true }
+      else if (/\b(multiple|several|many|few|group)\b/.test(countWord)) { detectedObjectCount = 2; objectCountExact = false }
       else {
         var numParsed = parseInt(countWord)
-        if (numParsed > 0 && numParsed < 50) detectedObjectCount = numParsed
+        if (numParsed > 0 && numParsed < 50) { detectedObjectCount = numParsed; objectCountExact = true }
       }
       if (detectedObjectCount) break
     }
@@ -395,6 +397,7 @@ function extractObservationDetails(report: any) {
     detectedBrightness: detectedBrightness,
     isOfficialReport: isOfficialReport,
     detectedObjectCount: detectedObjectCount,
+    objectCountExact: objectCountExact,
     detectedLocationType: detectedLocationType
   }
 }
@@ -559,6 +562,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Object Characteristics
       phenomenon: {
         objectCount: academicData?.object_count || extracted.detectedObjectCount || 1,
+        objectCountExact: !!(academicData?.object_count) || extracted.objectCountExact || false,
         shape: academicData?.object_shape || extracted.detectedShape,
         colors: academicData?.object_color || (meta.color ? [meta.color] : (extracted.detectedColors.length > 0 ? extracted.detectedColors : null)),
         brightness: academicData?.object_brightness || extracted.detectedBrightness,

@@ -10,7 +10,7 @@ import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
   BookOpen, Download, Copy, Check, ChevronDown, ChevronUp,
-  Clock, MapPin, Eye, Sparkles, FileText, AlertTriangle, Lock, Cpu
+  Clock, MapPin, Eye, Sparkles, FileText, AlertTriangle, Lock
 } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 import { useSubscription } from '@/lib/hooks/useSubscription'
@@ -44,6 +44,7 @@ interface AcademicData {
   }
   phenomenon: {
     objectCount: number
+    objectCountExact?: boolean
     shape: string | null
     colors: string[] | null
     brightness: string | null
@@ -211,22 +212,14 @@ export default function AcademicObservationPanel({ reportSlug, className, isExpa
     return null
   }
 
-  // Determine if phenomenon data was NLP-extracted vs structured
-  const isExtracted = !data.metadata.hasStructuredData
   const isCryptid = data.classification.category === 'cryptids'
 
-  const DataRow = ({ label, value, icon, extracted }: { label: string; value: React.ReactNode; icon?: React.ReactNode; extracted?: boolean }) => (
+  const DataRow = ({ label, value, icon }: { label: string; value: React.ReactNode; icon?: React.ReactNode }) => (
     <div className="flex items-start gap-2 py-1.5 border-b border-white/5 last:border-0">
       {icon && <span className="text-gray-500 mt-0.5 flex-shrink-0">{icon}</span>}
       <span className="text-xs text-gray-500 w-28 flex-shrink-0">{label}</span>
       <span className="text-xs text-gray-300 flex-1 min-w-0">
         {value || <span className="text-gray-600">—</span>}
-        {extracted && value && (
-          <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] text-amber-500/70" title="Auto-extracted from report text — may not be precise">
-            <Cpu className="w-2.5 h-2.5" />
-            extracted
-          </span>
-        )}
       </span>
     </div>
   )
@@ -244,16 +237,6 @@ export default function AcademicObservationPanel({ reportSlug, className, isExpa
           <div className="flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-primary-400" />
             <h4 className="text-sm font-medium text-white">Research Data Panel</h4>
-            {data.metadata.hasStructuredData ? (
-              <span className="px-1.5 py-0.5 text-[10px] bg-green-500/20 text-green-400 rounded">
-                Verified
-              </span>
-            ) : (
-              <span className="px-1.5 py-0.5 text-[10px] bg-amber-500/15 text-amber-500/70 rounded flex items-center gap-0.5">
-                <Cpu className="w-2.5 h-2.5" />
-                Auto-extracted
-              </span>
-            )}
           </div>
           <button
             onClick={() => { if (onToggleExpand) { onToggleExpand() } else { setInternalExpanded(prev => !prev) } }}
@@ -284,8 +267,16 @@ export default function AcademicObservationPanel({ reportSlug, className, isExpa
           </div>
         </div>
         <div className="bg-gray-900/50 p-3 text-center">
-          <div className="text-lg font-medium text-white">{data.phenomenon.objectCount}</div>
-          <div className="text-[10px] text-gray-500">{data.classification.phenomenonLabel || 'Object'}(s)</div>
+          <div className="text-lg font-medium text-white">
+            {data.phenomenon.objectCount > 1 && !data.phenomenon.objectCountExact
+              ? 'Multiple'
+              : data.phenomenon.objectCount}
+          </div>
+          <div className="text-[10px] text-gray-500">
+            {data.phenomenon.objectCount > 1 && !data.phenomenon.objectCountExact
+              ? (data.classification.phenomenonLabel || 'Object') + 's reported'
+              : (data.classification.phenomenonLabel || 'Object') + '(s)'}
+          </div>
         </div>
         <div className="bg-gray-900/50 p-3 text-center">
           <div className="text-lg font-medium text-white">
@@ -309,7 +300,7 @@ export default function AcademicObservationPanel({ reportSlug, className, isExpa
                 <div className="pl-5 space-y-0.5">
                   <DataRow label="Event Date" value={data.temporal.eventDate} />
                   <DataRow label="Event Time" value={data.temporal.eventTime || 'Not recorded'} />
-                  <DataRow label="Duration" value={formatDuration(data.temporal.durationSeconds)} extracted={isExtracted && !!data.temporal.durationSeconds} />
+                  <DataRow label="Duration" value={formatDuration(data.temporal.durationSeconds)} />
                   <DataRow label="Time Certainty" value={data.temporal.timeCertainty} />
                 </div>
               </div>
@@ -341,11 +332,11 @@ export default function AcademicObservationPanel({ reportSlug, className, isExpa
                   </span>
                 </div>
                 <div className="pl-5 space-y-0.5">
-                  {!isCryptid && <DataRow label="Shape" value={data.phenomenon.shape} extracted={isExtracted} />}
-                  {!isCryptid && <DataRow label="Colors" value={data.phenomenon.colors?.join(', ')} extracted={isExtracted} />}
+                  {!isCryptid && <DataRow label="Shape" value={data.phenomenon.shape} />}
+                  {!isCryptid && <DataRow label="Colors" value={data.phenomenon.colors?.join(', ')} />}
                   {!isCryptid && <DataRow label="Brightness" value={data.phenomenon.brightness} />}
-                  <DataRow label="Sound" value={data.phenomenon.sound} extracted={isExtracted} />
-                  <DataRow label={isCryptid ? 'Behavior' : 'Motion'} value={data.motion.type} extracted={isExtracted} />
+                  <DataRow label="Sound" value={data.phenomenon.sound} />
+                  <DataRow label={isCryptid ? 'Behavior' : 'Motion'} value={data.motion.type} />
                   {!isCryptid && <DataRow label="Speed" value={data.motion.speedApparent} />}
                   {!isCryptid && <DataRow label="Altitude" value={data.motion.altitudeApparent} />}
                   {isCryptid && <DataRow label="Location Type" value={data.location.locationType} />}
