@@ -689,14 +689,75 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     // Parse witness count from OTHER WITNESSES section
     let witnessCount: number | undefined;
     if (otherWitnesses) {
-      // Look for explicit numbers: "2 other witnesses", "my wife and I" (=2), "group of 5", etc.
-      const numMatch = otherWitnesses.match(/(\d+)\s*(?:other\s*)?(?:witness|people|person|friend|companion)/i);
-      if (numMatch) {
-        witnessCount = parseInt(numMatch[1], 10) + 1; // +1 for the reporting witness
-      } else if (/\b(my\s+(?:wife|husband|partner|friend|brother|sister|son|daughter)\s+and\s+I|wife|husband)\b/i.test(otherWitnesses)) {
-        witnessCount = 2;
-      } else if (/\bnone\b/i.test(otherWitnesses)) {
+      var owLower = otherWitnesses.toLowerCase();
+      // Explicit "none" or "no" → solo witness
+      if (/\bnone\b|\bno\b|\bn\/a\b/.test(owLower)) {
         witnessCount = 1;
+      }
+      // Look for explicit numbers: "2 other witnesses", "group of 5", etc.
+      else {
+        var numMatch = otherWitnesses.match(/(\d+)\s*(?:other\s*)?(?:witness|people|person|friend|companion|individual|observer)/i);
+        if (numMatch) {
+          witnessCount = parseInt(numMatch[1], 10) + 1; // +1 for the reporting witness
+        }
+        // "my wife", "my husband", "my friend", "a friend", "my brother", etc. = 2
+        else if (/\b(my\s+(?:wife|husband|partner|friend|brother|sister|son|daughter|father|mother|girlfriend|boyfriend|fiance|fiancee|buddy|coworker|co-worker|neighbor))\b/i.test(otherWitnesses)) {
+          witnessCount = 2;
+        }
+        // "wife and I", "friend and I", "X and I" patterns = 2
+        else if (/\band\s+I\b/i.test(otherWitnesses)) {
+          witnessCount = 2;
+        }
+        // "1 other" or "one other" = 2
+        else if (/\b(1|one)\s+other\b/i.test(otherWitnesses)) {
+          witnessCount = 2;
+        }
+        // If there's meaningful text that's not "none" and not parseable, assume at least 2
+        // (the section exists and names someone → reporter + at least 1 other)
+        else if (owLower.length > 5 && !/\bnone\b|\bno one\b|\bno other\b|\bnobody\b/.test(owLower)) {
+          witnessCount = 2;
+          console.log('[BFRO] #' + reportNumber + ' OTHER WITNESSES has content but count not parsed — defaulting to 2: "' + otherWitnesses.substring(0, 80) + '"');
+        }
+      }
+    }
+
+    // Extract GPS coordinates from BFRO page
+    // BFRO embeds coords in Google Maps links: maps.google.com/maps?q=43.003774,-78.456699
+    // Also sometimes in JavaScript or as data attributes
+    var reportLat: number | undefined;
+    var reportLng: number | undefined;
+    var gpsPatterns = [
+      // Google Maps link: ?q=lat,lng or ?ll=lat,lng
+      /maps\.google\.com[^"']*[?&](?:q|ll)=(-?\d+\.?\d*),\s*(-?\d+\.?\d*)/i,
+      // Direct coordinate pattern in structured data
+      /(?:latitude|lat)\s*[:=]\s*(-?\d+\.\d{3,})/i,
+      /(?:longitude|lng|lon|long)\s*[:=]\s*(-?\d+\.\d{3,})/i,
+      // Generic decimal coordinate pair near "location" or "coordinates"
+      /(?:location|coordinates?|position|gps)\s*[:=]?\s*(-?\d{1,3}\.\d{4,})\s*,\s*(-?\d{1,3}\.\d{4,})/i,
+    ];
+    // Try Google Maps link first (most reliable — has both coords)
+    var gmapMatch = html.match(/maps\.google\.com[^"']*[?&](?:q|ll)=(-?\d+\.?\d*),\s*(-?\d+\.?\d*)/i);
+    if (gmapMatch) {
+      var parsedLat = parseFloat(gmapMatch[1]);
+      var parsedLng = parseFloat(gmapMatch[2]);
+      if (parsedLat >= -90 && parsedLat <= 90 && parsedLng >= -180 && parsedLng <= 180 && parsedLat !== 0) {
+        reportLat = parsedLat;
+        reportLng = parsedLng;
+        console.log('[BFRO] #' + reportNumber + ' GPS from Google Maps link: ' + reportLat + ', ' + reportLng);
+      }
+    }
+    // Fallback: look for coordinate pair in any format
+    if (!reportLat) {
+      var coordPairMatch = html.match(/(-?\d{1,3}\.\d{4,})\s*,\s*(-?\d{1,3}\.\d{4,})/);
+      if (coordPairMatch) {
+        var cLat = parseFloat(coordPairMatch[1]);
+        var cLng = parseFloat(coordPairMatch[2]);
+        // Sanity check: lat between -90 and 90, lng between -180 and 180
+        if (cLat >= -90 && cLat <= 90 && cLng >= -180 && cLng <= 180 && Math.abs(cLat) > 1 && Math.abs(cLng) > 1) {
+          reportLat = cLat;
+          reportLng = cLng;
+          console.log('[BFRO] #' + reportNumber + ' GPS from coordinate pair: ' + reportLat + ', ' + reportLng);
+        }
       }
     }
 
@@ -841,6 +902,8 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
       country: country,
       state_province: locationState || undefined,
       city: cityValue,
+      latitude: reportLat,
+      longitude: reportLng,
       event_date: eventDate,
       event_time: eventTime,
       event_date_precision: eventDatePrecision,
