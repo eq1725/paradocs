@@ -690,8 +690,8 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     let witnessCount: number | undefined;
     if (otherWitnesses) {
       var owLower = otherWitnesses.toLowerCase();
-      // Explicit "none" or "no" → solo witness
-      if (/\bnone\b|\bno\b|\bn\/a\b/.test(owLower)) {
+      // Explicit solo witness indicators
+      if (/\bnone\b|\bn\/a\b|\bjust me\b|\bonly witness\b|\bonly person\b|\bby myself\b|\balone\b|\bno one\b|\bnobody\b|\bno other\b|\bi was the only\b|\bno,?\s+i was\b/.test(owLower)) {
         witnessCount = 1;
       }
       // Look for explicit numbers: "2 other witnesses", "group of 5", etc.
@@ -699,6 +699,13 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
         var numMatch = otherWitnesses.match(/(\d+)\s*(?:other\s*)?(?:witness|people|person|friend|companion|individual|observer)/i);
         if (numMatch) {
           witnessCount = parseInt(numMatch[1], 10) + 1; // +1 for the reporting witness
+        }
+        // "Yes, 1" or "Yes, 2" at start — bare count of other witnesses
+        else if (/^(?:yes[,.]?\s*)?(\d+)\b/.test(otherWitnesses.trim())) {
+          var bareNum = otherWitnesses.trim().match(/(\d+)/);
+          if (bareNum) {
+            witnessCount = parseInt(bareNum[1], 10) + 1;
+          }
         }
         // "my wife", "my husband", "my friend", "a friend", "my brother", etc. = 2
         else if (/\b(my\s+(?:wife|husband|partner|friend|brother|sister|son|daughter|father|mother|girlfriend|boyfriend|fiance|fiancee|buddy|coworker|co-worker|neighbor))\b/i.test(otherWitnesses)) {
@@ -712,9 +719,9 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
         else if (/\b(1|one)\s+other\b/i.test(otherWitnesses)) {
           witnessCount = 2;
         }
-        // If there's meaningful text that's not "none" and not parseable, assume at least 2
+        // If there's meaningful text that doesn't indicate solo witness, assume at least 2
         // (the section exists and names someone → reporter + at least 1 other)
-        else if (owLower.length > 5 && !/\bnone\b|\bno one\b|\bno other\b|\bnobody\b/.test(owLower)) {
+        else if (owLower.length > 5 && !/\bnone\b|\bno one\b|\bno other\b|\bnobody\b|\bjust me\b|\bonly witness\b|\bonly person\b|\bby myself\b|\balone\b|\bi was the only\b/.test(owLower)) {
           witnessCount = 2;
           console.log('[BFRO] #' + reportNumber + ' OTHER WITNESSES has content but count not parsed — defaulting to 2: "' + otherWitnesses.substring(0, 80) + '"');
         }
