@@ -324,7 +324,15 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     let dateStr = extractField(['Date', 'Date of encounter', 'Date of observation',
       'Date occurred', 'Date Occurred', 'Submitted', 'Date submitted',
       'YEAR', 'Year', 'MONTH', 'Month', 'Season']);
-    if (dateStr) console.log('[BFRO] #' + reportNumber + ' date from extractField: "' + dateStr + '"');
+    if (dateStr) {
+      console.log('[BFRO] #' + reportNumber + ' date from extractField (raw): "' + dateStr + '"');
+      // Validate: bare 1-2 digit numbers (just a day like "21") aren't usable dates
+      // Must contain a 4-digit year, a month name, or be a recognizable date format
+      if (/^\d{1,2}$/.test(dateStr.trim())) {
+        console.log('[BFRO] #' + reportNumber + ' extractField returned bare day number — discarding');
+        dateStr = '';
+      }
+    }
 
     if (!dateStr) {
       // Try standalone Year field patterns
