@@ -23,6 +23,7 @@ import ReadingProgress from '@/components/ReadingProgress'
 import ArticleTableOfContents from '@/components/ArticleTableOfContents'
 import ParadocsAnalysisBox from '@/components/reports/ParadocsAnalysisBox'
 import type { ParadocsAssessment } from '@/components/reports/ParadocsAnalysisBox'
+import { CaseProfileChips } from '@/components/discover/DiscoverCards'
 import SourceAttribution from '@/components/reports/SourceAttribution'
 import FeaturedMediaCard from '@/components/reports/FeaturedMediaCard'
 import MediaMentionBanner from '@/components/reports/MediaMentionBanner'
@@ -842,7 +843,12 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             {report.event_date && (
               <span className="flex items-center gap-1.5">
                 <Calendar className="w-4 h-4" />
-                {formatDate(report.event_date, 'MMMM d, yyyy')}
+                {(() => {
+                  const precision = (report as any).event_date_precision as string | undefined
+                  if (precision === 'year') return formatDate(report.event_date, 'yyyy')
+                  if (precision === 'month') return formatDate(report.event_date, 'MMMM yyyy')
+                  return formatDate(report.event_date, 'MMMM d, yyyy')
+                })()}
                 {report.event_date_approximate && ' (approximate)'}
               </span>
             )}
@@ -1016,6 +1022,13 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               assessment={paradocsAssessment}
             />
 
+            {/* NDERF Case Profile chip row — replaces Research Data Panel for NDERF */}
+            {report.source_type === 'nderf' && (report as any).metadata?.case_profile && (
+              <div className="mb-4">
+                <CaseProfileChips profile={(report as any).metadata.case_profile} />
+              </div>
+            )}
+
             {/* Source Attribution — legally required footnote */}
             {(report as any).source_url && (
               <SourceAttribution
@@ -1129,19 +1142,22 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           </div>
         )}
 
-        {/* Environmental Context & Academic Data — on mobile only (desktop shows in sidebar) */}
-        <div className="lg:hidden grid sm:grid-cols-2 gap-4 mb-6 sm:mb-8" data-tour-step="environmental-mobile">
-          <EnvironmentalContext
-            reportSlug={slug as string}
-            isExpanded={panelsExpanded}
-            onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
-          />
-          <AcademicObservationPanel
-            reportSlug={slug as string}
-            isExpanded={panelsExpanded}
-            onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
-          />
-        </div>
+        {/* Environmental Context & Academic Data — on mobile only (desktop shows in sidebar).
+            Hidden for NDERF reports — replaced by Case Profile chip row above. */}
+        {report.source_type !== 'nderf' && (
+          <div className="lg:hidden grid sm:grid-cols-2 gap-4 mb-6 sm:mb-8" data-tour-step="environmental-mobile">
+            <EnvironmentalContext
+              reportSlug={slug as string}
+              isExpanded={panelsExpanded}
+              onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
+            />
+            <AcademicObservationPanel
+              reportSlug={slug as string}
+              isExpanded={panelsExpanded}
+              onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
+            />
+          </div>
+        )}
 
         {/* Did You Know? Connection Cards — py-1 provides space for hover:scale effect */}
         <div className="py-1 -my-1">
@@ -1268,19 +1284,22 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               'lg:sticky lg:top-20 space-y-6',
               sidebarOpen ? 'block' : 'hidden lg:block'
             )}>
-              {/* Environmental Context & Research Data — desktop sidebar placement */}
-              <div className="hidden lg:block space-y-4" data-tour-step="environmental">
-                <EnvironmentalContext
-                  reportSlug={slug as string}
-                  isExpanded={panelsExpanded}
-                  onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
-                />
-                <AcademicObservationPanel
-                  reportSlug={slug as string}
-                  isExpanded={panelsExpanded}
-                  onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
-                />
-              </div>
+              {/* Environmental Context & Research Data — desktop sidebar placement.
+                  Hidden for NDERF reports — replaced by Case Profile chip row above. */}
+              {report.source_type !== 'nderf' && (
+                <div className="hidden lg:block space-y-4" data-tour-step="environmental">
+                  <EnvironmentalContext
+                    reportSlug={slug as string}
+                    isExpanded={panelsExpanded}
+                    onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
+                  />
+                  <AcademicObservationPanel
+                    reportSlug={slug as string}
+                    isExpanded={panelsExpanded}
+                    onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
+                  />
+                </div>
+              )}
 
               <RelatedReports
                 reportId={report.id}

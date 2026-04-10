@@ -66,6 +66,23 @@ export interface ReportMedia {
   caption: string | null
 }
 
+export interface NDERFCaseProfile {
+  ndeType?: string
+  trigger?: string
+  ageAtNDE?: string
+  gender?: string
+  consciousnessPeak?: string
+  tunnel?: 'yes' | 'no'
+  light?: 'yes' | 'no'
+  outOfBody?: 'yes' | 'no'
+  lifeReview?: 'yes' | 'no'
+  metBeings?: 'yes' | 'no'
+  boundary?: 'yes' | 'no'
+  alteredTime?: 'yes' | 'no'
+  emotions?: string
+  aftereffectsChangedLife?: 'yes' | 'no'
+}
+
 export interface ReportItem {
   item_type: 'report'
   id: string
@@ -73,11 +90,13 @@ export interface ReportItem {
   slug: string
   summary: string | null
   feed_hook: string | null
+  paradocs_narrative: string | null
   category: string
   country: string | null
   city: string | null
   state_province: string | null
   event_date: string | null
+  event_date_precision: string | null
   credibility: string | null
   upvotes: number
   view_count: number
@@ -93,9 +112,26 @@ export interface ReportItem {
   primary_media: ReportMedia | null
   associated_image_url: string | null
   associated_image_source: string | null
+  metadata: {
+    case_profile?: NDERFCaseProfile
+    [key: string]: any
+  } | null
 }
 
 export type FeedItemV2 = PhenomenonItem | ReportItem
+
+// =========================================================================
+//  Link-only source helper
+//  These adapters don't republish source narrative — their reports are
+//  rendered with Paradocs-generated hook + analysis plus "View Full Report".
+// =========================================================================
+
+var LINK_ONLY_SOURCES = ['bfro', 'nuforc', 'nderf']
+
+function isLinkOnly(sourceType: string | null): boolean {
+  if (!sourceType) return false
+  return LINK_ONLY_SOURCES.indexOf(sourceType) !== -1
+}
 
 // =========================================================================
 //  Category color map (hex values for accent stripe / inline color)
@@ -181,6 +217,67 @@ function BottomStatsBar(props: { left: string, right: string }) {
     <div className="flex items-center justify-between mt-auto">
       <span className="text-[10px] text-gray-600 font-sans">{props.left}</span>
       <span className="text-[10px] text-gray-700 font-sans">{props.right}</span>
+    </div>
+  )
+}
+
+// =========================================================================
+//  Shared: Format date respecting precision (exact / month / year)
+// =========================================================================
+
+function formatReportDate(dateStr: string | null, precision: string | null): string {
+  if (!dateStr) return ''
+  var d = new Date(dateStr)
+  if (isNaN(d.getTime())) return ''
+  if (precision === 'year') return d.getUTCFullYear().toString()
+  if (precision === 'month') return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', timeZone: 'UTC' })
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })
+}
+
+// =========================================================================
+//  Shared: NDERF Case Profile chip row
+//  Rendered on expansion for NDERF reports only. Replaces the generic
+//  Research Data Panel with density of actual case data.
+// =========================================================================
+
+export function CaseProfileChips(props: { profile: NDERFCaseProfile }) {
+  var p = props.profile
+  var chips: { label: string, value: string }[] = []
+
+  if (p.trigger) chips.push({ label: 'Trigger', value: p.trigger })
+  if (p.ndeType) chips.push({ label: 'Type', value: p.ndeType })
+  if (p.ageAtNDE) chips.push({ label: 'Age', value: p.ageAtNDE })
+  if (p.gender) chips.push({ label: 'Gender', value: p.gender })
+  if (p.outOfBody) chips.push({ label: 'Out of body', value: p.outOfBody === 'yes' ? 'Yes' : 'No' })
+  if (p.tunnel) chips.push({ label: 'Tunnel', value: p.tunnel === 'yes' ? 'Yes' : 'No' })
+  if (p.light) chips.push({ label: 'Light', value: p.light === 'yes' ? 'Yes' : 'No' })
+  if (p.metBeings) chips.push({ label: 'Met beings', value: p.metBeings === 'yes' ? 'Yes' : 'No' })
+  if (p.lifeReview) chips.push({ label: 'Life review', value: p.lifeReview === 'yes' ? 'Yes' : 'No' })
+  if (p.boundary) chips.push({ label: 'Boundary', value: p.boundary === 'yes' ? 'Yes' : 'No' })
+  if (p.alteredTime) chips.push({ label: 'Time shift', value: p.alteredTime === 'yes' ? 'Yes' : 'No' })
+
+  if (chips.length === 0) return null
+
+  return (
+    <div className="flex flex-col gap-2 py-3 px-3 rounded-lg bg-white/[0.02] border border-white/[0.06] flex-shrink-0">
+      <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Case Profile</span>
+      <div className="flex flex-wrap gap-1.5">
+        {chips.map(function (chip, i) {
+          return (
+            <span
+              key={i}
+              className="text-[10px] px-2 py-0.5 rounded-full border border-white/10 bg-white/[0.03] text-gray-300 font-sans"
+            >
+              <span className="text-gray-500">{chip.label}:</span>{' ' + chip.value}
+            </span>
+          )
+        })}
+      </div>
+      {p.emotions && (
+        <span className="text-[10px] text-gray-400 font-sans italic leading-relaxed">
+          {'Reported emotions: ' + p.emotions}
+        </span>
+      )}
     </div>
   )
 }
@@ -355,32 +452,41 @@ export function TextReportCard(props: {
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
   var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
 
-  // Badge parts
+  var hasLocation = !!(item.city || item.state_province || item.country || item.location_name)
+  var locationParts: string[] = []
+  if (item.city) locationParts.push(item.city)
+  if (item.state_province) locationParts.push(item.state_province)
+  if (item.country) locationParts.push(item.country)
+  var locationStr = locationParts.join(', ')
+
+  // Badge parts: category + year (if known)
   var badgeParts: string[] = []
   badgeParts.push(config?.label || item.category)
   if (item.event_date) {
     var yearMatch = item.event_date.match(/\d{4}/)
     if (yearMatch) badgeParts.push(yearMatch[0])
   }
-  var locationParts: string[] = []
-  if (item.city) locationParts.push(item.city)
-  if (item.state_province) locationParts.push(item.state_province)
-  if (item.country) locationParts.push(item.country)
-  var locationStr = locationParts.join(', ')
   if (locationStr) badgeParts.push(locationStr.length > 20 ? locationStr.substring(0, 18) + '\u2026' : locationStr)
 
-  // Credibility
+  // Meta strip now carries: location (or Unknown), formatted date, source label, type
+  var metaParts: string[] = []
+  metaParts.push(locationStr || 'Unknown location')
+  var prettyDate = formatReportDate(item.event_date, item.event_date_precision)
+  if (prettyDate) metaParts.push(prettyDate)
+  if (item.source_label) metaParts.push(item.source_label)
+  if (item.phenomenon_type) metaParts.push(item.phenomenon_type.name)
+
+  // Credibility pills
   var credSignals: string[] = []
   if (item.credibility === 'high') credSignals.push('High Credibility')
   if (item.has_physical_evidence) credSignals.push('Physical Evidence')
-  if (item.source_label) credSignals.push(item.source_label)
-  if (item.phenomenon_type) credSignals.push(item.phenomenon_type.name)
-
-  var tagLine = ''
-  if (item.source_type) tagLine = item.source_type
-  if (item.content_type) tagLine = tagLine ? tagLine + ' \u00B7 ' + item.content_type : item.content_type
 
   var displayText = item.feed_hook || item.summary || ''
+  var caseProfile = (item.metadata && item.metadata.case_profile) || null
+  var isNDERF = item.source_type === 'nderf'
+  // Expanded section text: paradocs_narrative (our own analytical take) is the goal.
+  // Falls back to summary only for legacy curated sources where narrative is intentionally null.
+  var expandedText = item.paradocs_narrative || (isLinkOnly(item.source_type) ? '' : item.summary) || ''
 
   // Stats
   var tensionItems: { value: string | number, label: string }[] = []
@@ -395,9 +501,9 @@ export function TextReportCard(props: {
         {(config?.icon || '') + ' ' + badgeParts.join(' \u00B7 ')}
       </span>
 
-      {/* Location */}
+      {/* Meta strip: location \u00B7 date \u00B7 source \u00B7 phenomenon */}
       <p className="text-[11px] md:text-xs text-gray-500 font-sans">
-        {(locationStr || 'Unknown location') + (tagLine ? ' \u00B7 ' + tagLine : '')}
+        {metaParts.join(' \u00B7 ')}
       </p>
 
       {/* Large bold opener */}
@@ -420,56 +526,20 @@ export function TextReportCard(props: {
         <>
           <div className="h-px bg-white/[0.07] flex-shrink-0" />
 
-          {/* Summary — use feed_hook for link-only sources to avoid showing raw source text */}
-          <p className="text-sm text-gray-400 leading-relaxed font-sans">
-            {(['bfro', 'nuforc', 'nderf'].indexOf(item.source_type || '') !== -1)
-              ? (item.feed_hook || 'View the full report for details.')
-              : (item.summary || 'No additional details available.')}
-          </p>
+          {/* Paradocs Analysis \u2014 our own longer analytical take */}
+          {expandedText ? (
+            <p className="text-sm text-gray-400 leading-relaxed font-sans">
+              {expandedText}
+            </p>
+          ) : (
+            <p className="text-sm text-gray-500 italic leading-relaxed font-sans">
+              {'Analysis coming soon. View the full report for source details.'}
+            </p>
+          )}
 
-          {/* Evidence & context strip */}
-          {(item.has_physical_evidence || item.credibility === 'high' || item.source_label || item.event_date || item.phenomenon_type) && (
-            <div className="flex flex-col gap-2 py-3 px-3 rounded-lg bg-white/[0.02] border border-white/[0.06] flex-shrink-0">
-              {/* Evidence indicators */}
-              {(item.has_physical_evidence || item.credibility === 'high') && (
-                <div className="flex items-center gap-3">
-                  {item.credibility === 'high' && (
-                    <span className="text-[10px] text-emerald-400 font-sans font-medium">{'\u2713 High credibility'}</span>
-                  )}
-                  {item.has_physical_evidence && (
-                    <span className="text-[10px] text-amber-400 font-sans font-medium">{'\u25C6 Physical evidence'}</span>
-                  )}
-                </div>
-              )}
-              {/* Details row */}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                {item.event_date && (
-                  <div className="flex flex-col">
-                    <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Date</span>
-                    <span className="text-xs text-gray-300 font-sans">{new Date(item.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
-                  </div>
-                )}
-                {item.source_label && (
-                  <div className="flex flex-col">
-                    <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Source</span>
-                    <span className="text-xs text-gray-300 font-sans">{item.source_label}</span>
-                  </div>
-                )}
-                {item.content_type && (
-                  <div className="flex flex-col">
-                    <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Type</span>
-                    <span className="text-xs text-gray-300 font-sans">{item.content_type.replace(/_/g, ' ')}</span>
-                  </div>
-                )}
-              </div>
-              {/* Connected phenomenon */}
-              {item.phenomenon_type && (
-                <div className="flex items-center gap-2 pt-1 border-t border-white/[0.04]">
-                  <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Linked to</span>
-                  <span className="text-[11px] text-primary-400 font-sans font-medium">{item.phenomenon_type.name}</span>
-                </div>
-              )}
-            </div>
+          {/* NDERF Case Profile chips \u2014 replaces generic Research Data Panel */}
+          {isNDERF && caseProfile && (
+            <CaseProfileChips profile={caseProfile} />
           )}
 
           <Link
@@ -511,26 +581,35 @@ export function MediaReportCard(props: {
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
   var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
 
+  var locationParts: string[] = []
+  if (item.city) locationParts.push(item.city)
+  if (item.state_province) locationParts.push(item.state_province)
+  if (item.country) locationParts.push(item.country)
+  var locationStr = locationParts.join(', ')
+
   var badgeParts: string[] = []
   badgeParts.push(config?.label || item.category)
   if (item.event_date) {
     var yearMatch = item.event_date.match(/\d{4}/)
     if (yearMatch) badgeParts.push(yearMatch[0])
   }
-  var locationParts: string[] = []
-  if (item.city) locationParts.push(item.city)
-  if (item.state_province) locationParts.push(item.state_province)
-  if (item.country) locationParts.push(item.country)
-  var locationStr = locationParts.join(', ')
   if (locationStr) badgeParts.push(locationStr.length > 20 ? locationStr.substring(0, 18) + '\u2026' : locationStr)
+
+  var metaParts: string[] = []
+  metaParts.push(locationStr || 'Unknown location')
+  var prettyDate = formatReportDate(item.event_date, item.event_date_precision)
+  if (prettyDate) metaParts.push(prettyDate)
+  if (item.source_label) metaParts.push(item.source_label)
 
   var credSignals: string[] = []
   if (item.has_photo_video) credSignals.push('Photo/Video Evidence')
   if (item.credibility === 'high') credSignals.push('High Credibility')
   if (item.has_physical_evidence) credSignals.push('Physical Evidence')
-  if (item.source_label) credSignals.push(item.source_label)
 
   var displayText = item.feed_hook || item.summary || ''
+  var caseProfile = (item.metadata && item.metadata.case_profile) || null
+  var isNDERF = item.source_type === 'nderf'
+  var expandedText = item.paradocs_narrative || (isLinkOnly(item.source_type) ? '' : item.summary) || ''
 
   var tensionItems: { value: string | number, label: string }[] = []
   if (item.upvotes > 0) tensionItems.push({ value: item.upvotes, label: 'upvotes' })
@@ -548,9 +627,9 @@ export function MediaReportCard(props: {
         </span>
       </div>
 
-      {/* Location */}
+      {/* Meta strip: location \u00B7 date \u00B7 source */}
       <p className="text-[11px] text-gray-500 font-sans">
-        {locationStr || 'Unknown location'}
+        {metaParts.join(' \u00B7 ')}
       </p>
 
       {/* Large bold opener */}
@@ -586,52 +665,21 @@ export function MediaReportCard(props: {
               )}
             </div>
           )}
-          <p className="text-sm text-gray-400 leading-relaxed font-sans">
-            {(['bfro', 'nuforc', 'nderf'].indexOf(item.source_type || '') !== -1)
-              ? (item.feed_hook || 'View the full report for details.')
-              : (item.summary || 'No additional details available.')}
-          </p>
 
-          {/* Evidence & context strip */}
-          {(item.has_physical_evidence || item.credibility === 'high' || item.source_label || item.event_date || item.phenomenon_type) && (
-            <div className="flex flex-col gap-2 py-3 px-3 rounded-lg bg-white/[0.02] border border-white/[0.06] flex-shrink-0">
-              {(item.has_physical_evidence || item.credibility === 'high') && (
-                <div className="flex items-center gap-3">
-                  {item.credibility === 'high' && (
-                    <span className="text-[10px] text-emerald-400 font-sans font-medium">{'\u2713 High credibility'}</span>
-                  )}
-                  {item.has_physical_evidence && (
-                    <span className="text-[10px] text-amber-400 font-sans font-medium">{'\u25C6 Physical evidence'}</span>
-                  )}
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                {item.event_date && (
-                  <div className="flex flex-col">
-                    <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Date</span>
-                    <span className="text-xs text-gray-300 font-sans">{new Date(item.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
-                  </div>
-                )}
-                {item.source_label && (
-                  <div className="flex flex-col">
-                    <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Source</span>
-                    <span className="text-xs text-gray-300 font-sans">{item.source_label}</span>
-                  </div>
-                )}
-                {item.content_type && (
-                  <div className="flex flex-col">
-                    <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Type</span>
-                    <span className="text-xs text-gray-300 font-sans">{item.content_type.replace(/_/g, ' ')}</span>
-                  </div>
-                )}
-              </div>
-              {item.phenomenon_type && (
-                <div className="flex items-center gap-2 pt-1 border-t border-white/[0.04]">
-                  <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Linked to</span>
-                  <span className="text-[11px] text-primary-400 font-sans font-medium">{item.phenomenon_type.name}</span>
-                </div>
-              )}
-            </div>
+          {/* Paradocs Analysis \u2014 our own longer analytical take */}
+          {expandedText ? (
+            <p className="text-sm text-gray-400 leading-relaxed font-sans">
+              {expandedText}
+            </p>
+          ) : (
+            <p className="text-sm text-gray-500 italic leading-relaxed font-sans">
+              {'Analysis coming soon. View the full report for source details.'}
+            </p>
+          )}
+
+          {/* NDERF Case Profile chips */}
+          {isNDERF && caseProfile && (
+            <CaseProfileChips profile={caseProfile} />
           )}
 
           <Link

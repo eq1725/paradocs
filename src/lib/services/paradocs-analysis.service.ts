@@ -163,9 +163,49 @@ var SYSTEM_PROMPT = 'You are the editorial intelligence behind Paradocs, the wor
 // Prompt Builder
 // ============================================
 
-function buildUserPrompt(report: any): string {
+// Count words in a string (simple whitespace split).
+function countWords(text: string): number {
+  if (!text) return 0
+  return text.trim().split(/\s+/).filter(function(w) { return w.length > 0 }).length
+}
+
+// Determine the max allowed analysis word count for a given source description.
+// Rule: analysis must NEVER be longer than the source material itself.
+// For typical reports, we cap at 120 words (our default structure).
+// For short source material, cap tighter so we don't over-editorialize.
+function computeAnalysisWordBudget(sourceText: string): number {
+  var sourceWords = countWords(sourceText)
+  if (sourceWords === 0) return 60 // Fallback minimum
+  // Never exceed source length. For safety, allow up to 90% of source or 120 words,
+  // whichever is smaller. Minimum floor is 40 words so we can still form coherent analysis.
+  var cap = Math.min(120, Math.floor(sourceWords * 0.9))
+  return Math.max(40, cap)
+}
+
+// Trim an analysis string to a maximum word count without breaking mid-sentence.
+function trimAnalysisToWords(analysis: string, maxWords: number): string {
+  if (!analysis) return analysis
+  var words = analysis.trim().split(/\s+/)
+  if (words.length <= maxWords) return analysis
+  // Find the last sentence ending within the budget
+  var truncated = words.slice(0, maxWords).join(' ')
+  var lastPeriod = Math.max(
+    truncated.lastIndexOf('.'),
+    truncated.lastIndexOf('!'),
+    truncated.lastIndexOf('?')
+  )
+  if (lastPeriod > truncated.length * 0.5) {
+    return truncated.substring(0, lastPeriod + 1)
+  }
+  return truncated + '.'
+}
+
+function buildUserPrompt(report: any, analysisWordBudget: number): string {
   var parts: string[] = []
   parts.push('Generate a Paradocs Analysis for the following report.\n')
+  parts.push('LENGTH LIMIT: Your "analysis" field must be AT MOST ' + analysisWordBudget + ' words. '
+    + 'This is a hard cap. Do not exceed it under any circumstances. '
+    + 'If the source material is brief, keep your analysis proportionally brief.')
 
   if (report.source_label || report.source_type) parts.push('SOURCE: ' + (report.source_label || report.source_type))
   if (report.category) parts.push('CATEGORY: ' + report.category)
@@ -385,7 +425,12 @@ export async function generateParadocsAnalysis(reportId: string): Promise<Parado
     return null
   }
 
-  var userPrompt = buildUserPrompt(report)
+  // Compute per-report length budget so analysis never exceeds source length.
+  var sourceText = (report as any).description || (report as any).summary || ''
+  var analysisWordBudget = computeAnalysisWordBudget(sourceText)
+  console.log('[ParadocsAnalysis] Report ' + reportId + ' sourceWords=' + countWords(sourceText) + ', analysisBudget=' + analysisWordBudget + ' words')
+
+  var userPrompt = buildUserPrompt(report, analysisWordBudget)
 
   console.log('[ParadocsAnalysis] Generating for: ' + reportId + ' (' + ((report as any).title || 'untitled').substring(0, 40) + ')')
 
@@ -396,6 +441,12 @@ export async function generateParadocsAnalysis(reportId: string): Promise<Parado
   if (response) {
     var result = parseAnalysisJson(response)
     if (result) {
+      // Enforce hard cap post-hoc in case the model overran the budget.
+      var trimmedAnalysis = trimAnalysisToWords(result.analysis, analysisWordBudget)
+      if (trimmedAnalysis !== result.analysis) {
+        console.log('[ParadocsAnalysis] Trimmed analysis from ' + countWords(result.analysis) + ' to ' + countWords(trimmedAnalysis) + ' words (budget: ' + analysisWordBudget + ')')
+        result.analysis = trimmedAnalysis
+      }
       console.log('[ParadocsAnalysis] Success for ' + reportId + ' (hook: ' + result.hook.length + ' chars, analysis: ' + result.analysis.length + ' chars)')
       return result
     }
@@ -412,6 +463,10 @@ export async function generateParadocsAnalysis(reportId: string): Promise<Parado
   if (retryResponse) {
     var retryResult = parseAnalysisJson(retryResponse)
     if (retryResult) {
+      var retryTrimmed = trimAnalysisToWords(retryResult.analysis, analysisWordBudget)
+      if (retryTrimmed !== retryResult.analysis) {
+        retryResult.analysis = retryTrimmed
+      }
       console.log('[ParadocsAnalysis] Retry success for ' + reportId)
       return retryResult
     }

@@ -206,14 +206,18 @@ async function parseArchiveIndex(html: string): Promise<Array<{ id: string; name
 }
 
 // Extract a structured field value from NDERF questionnaire HTML
-// Fields use: <span class="m105">Label:</span> Value
-// Note: the colon is INSIDE the span tag, e.g. <span class="m105">Gender:</span>
+// Fields use: <span class="m105">Label:</span> Value  (short-answer)
+//          or <span class="m105">Label?</span> Value  (yes/no question)
+// The trailing punctuation (colon or question mark) is INSIDE the span tag.
 function extractField(html: string, fieldLabel: string): string | null {
-  // Build regex: <span class="m105">fieldLabel[:]?</span> VALUE
-  // The colon may be inside or outside the span; handle both
-  const escaped = fieldLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Strip any trailing punctuation the caller supplied; we match it ourselves.
+  const cleanLabel = fieldLabel.replace(/[?:]+\s*$/, '');
+  const escaped = cleanLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Allow optional trailing ? or : inside the span, then an optional one outside too.
+  // Use [\s\S]+? not .+? because NDERF HTML uses CRLF line endings and `.` does not
+  // match \r or \n in JavaScript regex (without the /s flag).
   const pattern = new RegExp(
-    '<span[^>]*class="m105"[^>]*>' + escaped + ':?\\s*</span>\\s*:?\\s*(.+?)(?:<br|<span)',
+    '<span[^>]*class="m105"[^>]*>' + escaped + '[?:]?\\s*</span>\\s*[?:]?\\s*([\\s\\S]+?)(?:<br|<span)',
     'i'
   );
   const match = html.match(pattern);
@@ -221,6 +225,140 @@ function extractField(html: string, fieldLabel: string): string | null {
     return cleanText(match[1]).trim();
   }
   return null;
+}
+
+// Try a list of labels in order; return the first that matches.
+function extractFieldAny(html: string, labels: string[]): string | null {
+  for (const l of labels) {
+    const v = extractField(html, l);
+    if (v) return v;
+  }
+  return null;
+}
+
+// NDERF uses a multi-choice format, not simple yes/no. Answers are full descriptive
+// strings (e.g. "I lost awareness of my body", "A light clearly of mystical origin").
+// Only explicit negatives ("No", "I did not...", "I had no...") are "no"; anything
+// else descriptive is treated as an affirmative indicator. "Uncertain"/"Unsure"
+// return null so we don't fabricate a signal.
+function interpretNDERFAnswer(raw: string): 'yes' | 'no' | null {
+  const lower = raw.trim().toLowerCase();
+  if (!lower) return null;
+  if (lower.startsWith('uncertain') || lower.startsWith('unsure') || lower.startsWith('unknown') || lower.startsWith('n/a')) {
+    return null;
+  }
+  if (lower.startsWith('no ') || lower === 'no' || lower.startsWith('no,') || lower.startsWith('no.')) {
+    return 'no';
+  }
+  if (lower.startsWith('i did not') || lower.startsWith("i didn't") || lower.startsWith('i had no')) {
+    return 'no';
+  }
+  if (lower.startsWith('yes')) return 'yes';
+  // Descriptive multi-choice answers (e.g. "I lost awareness of my body") only
+  // appear when the experiencer selected an affirmative option in NDERF's form.
+  if (lower.length > 3) return 'yes';
+  return null;
+}
+
+function extractYesNoAny(html: string, labels: string[]): 'yes' | 'no' | null {
+  const raw = extractFieldAny(html, labels);
+  if (!raw) return null;
+  return interpretNDERFAnswer(raw);
+}
+
+// Build a structured Case Profile from NDERF questionnaire fields.
+// These are short, factual yes/no and short-string answers that can be rendered
+// as chips on a feed card. Only include fields we actually extracted — no fabrication.
+interface NDERFCaseProfile {
+  ndeType?: string;
+  trigger?: string;          // "Drowning", "Cardiac arrest", etc.
+  ageAtNDE?: string;
+  gender?: string;
+  consciousnessPeak?: string; // "During the experience" / "At time of cardiac arrest"
+  tunnel?: 'yes' | 'no';
+  light?: 'yes' | 'no';
+  outOfBody?: 'yes' | 'no';
+  lifeReview?: 'yes' | 'no';
+  metBeings?: 'yes' | 'no';
+  boundary?: 'yes' | 'no';
+  alteredTime?: 'yes' | 'no';
+  emotions?: string;          // Short extract of emotions field
+  aftereffectsChangedLife?: 'yes' | 'no';
+}
+
+function buildCaseProfile(html: string, ndeTypeLabel: string, trigger: string | undefined): NDERFCaseProfile {
+  const profile: NDERFCaseProfile = {};
+
+  if (ndeTypeLabel) profile.ndeType = ndeTypeLabel;
+  if (trigger) profile.trigger = trigger;
+
+  // NDERF has no explicit "age" field — skip.
+
+  const gender = extractField(html, 'Gender');
+  if (gender && gender.length < 30) profile.gender = gender;
+
+  const consciousness = extractFieldAny(html, [
+    'At what time during the experience were you at your highest level of consciousness',
+    'How did your highest level of consciousness and alertness during the experience compare to your normal',
+  ]);
+  if (consciousness && consciousness.length < 200) {
+    profile.consciousnessPeak = consciousness.split(/[.;]/)[0].trim().slice(0, 160);
+  }
+
+  const tunnel = extractYesNoAny(html, [
+    'Did you pass into or through a tunnel',
+  ]);
+  if (tunnel) profile.tunnel = tunnel;
+
+  // NDERF splits "light" into two questions; consider either a hit.
+  const light = extractYesNoAny(html, [
+    'Did you see an unearthly light',
+    'Did you see or feel surrounded by a brilliant light',
+  ]);
+  if (light) profile.light = light;
+
+  const oob = extractYesNoAny(html, [
+    'Did you feel separated from your body',
+  ]);
+  if (oob) profile.outOfBody = oob;
+
+  const review = extractYesNoAny(html, [
+    'Did scenes from your past come back',
+  ]);
+  if (review) profile.lifeReview = review;
+
+  const beings = extractYesNoAny(html, [
+    'Did you see any beings in your experience',
+    'Did you encounter or become aware of any deceased',
+  ]);
+  if (beings) profile.metBeings = beings;
+
+  // NDERF has two distinct boundary questions; treat either yes as yes.
+  const boundary = extractYesNoAny(html, [
+    'Did you come to a border or point of no return',
+    'Did you reach a boundary or limiting physical structure',
+  ]);
+  if (boundary) profile.boundary = boundary;
+
+  const timeShift = extractYesNoAny(html, [
+    'Did time seem to speed up or slow down',
+  ]);
+  if (timeShift) profile.alteredTime = timeShift;
+
+  const emotionsRaw = extractField(html, 'What emotions did you feel during the experience');
+  if (emotionsRaw) {
+    // Keep it short — just the first clause
+    const trimmed = emotionsRaw.split(/[.;]/)[0].trim();
+    const lowered = trimmed.toLowerCase();
+    const isPlaceholder = lowered === 'unsure' || lowered === 'uncertain' || lowered === 'unknown' || lowered === 'n/a' || lowered === 'none';
+    if (trimmed.length > 0 && trimmed.length < 140 && !isPlaceholder) {
+      profile.emotions = trimmed;
+    }
+  }
+
+  // NDERF has no "affected your relationships" yes/no; skip aftereffectsChangedLife for now.
+
+  return profile;
 }
 
 // Extract Date of NDE from NDERF page
@@ -412,21 +550,14 @@ function generateNDERFTitle(
   content: string,
   ndeType: string,
   location: { location_name?: string; country?: string },
-  dateStr: string | undefined
+  dateStr: string | undefined,
+  preExtractedTrigger: string | undefined
 ): string {
   // 1. Get the experience type label
   const typeLabel = NDE_TYPE_LABELS[ndeType] || 'Near-Death Experience';
 
-  // 2. Extract the trigger/cause from the questionnaire
-  let trigger = '';
-  const threatField = extractField(html, 'At the time of your experience, was there an associated life-threatening event');
-  if (threatField) {
-    // The answer is like "Yes<br>Drowning" — extract after Yes/No
-    const afterYes = threatField.replace(/^(Yes|No)\s*/i, '').trim();
-    if (afterYes && afterYes.length > 2 && afterYes.length < 60) {
-      trigger = afterYes;
-    }
-  }
+  // 2. Use the caller-provided trigger (already filtered for "Uncertain"/etc)
+  let trigger = preExtractedTrigger || '';
 
   // 3. If no trigger from questionnaire, try to detect from narrative
   if (!trigger) {
@@ -578,8 +709,25 @@ function parseExperiencePage(html: string, id: string, name: string): ScrapedRep
     console.log(`[NDERF] ${id}: location="${location.location_name}"`);
   }
 
+  // --- Extract trigger ONCE (used for both title and case profile) ---
+  let triggerEvent: string | undefined;
+  const threatField = extractField(html, 'At the time of your experience, was there an associated life-threatening event');
+  if (threatField) {
+    const afterYes = threatField.replace(/^(Yes|No|Uncertain)\s*/i, '').trim();
+    // Reject placeholder values that carry no factual signal
+    const lowered = afterYes.toLowerCase();
+    const isPlaceholder = !afterYes || lowered === 'uncertain' || lowered === 'unsure' || lowered === 'unknown' || lowered === 'n/a';
+    if (!isPlaceholder && afterYes.length > 2 && afterYes.length < 60) {
+      triggerEvent = afterYes;
+    }
+  }
+
   // --- FIX 4: Generate compelling title (no person names) ---
-  const title = generateNDERFTitle(html, content, ndeType, location, eventDate);
+  const title = generateNDERFTitle(html, content, ndeType, location, eventDate, triggerEvent);
+
+  // --- Build structured Case Profile from questionnaire fields ---
+  const ndeTypeLabel = NDE_TYPES[ndeType as keyof typeof NDE_TYPES] || ndeType;
+  const caseProfile = buildCaseProfile(html, ndeTypeLabel, triggerEvent);
 
   // Create summary
   const summary = content.length > 300 ? content.substring(0, 297) + '...' : content;
@@ -610,11 +758,12 @@ function parseExperiencePage(html: string, id: string, name: string): ScrapedRep
     source_label: 'NDERF',
     source_url: `https://www.nderf.org/Experiences/${id}.htm`,
     metadata: {
-      ndeType: NDE_TYPES[ndeType as keyof typeof NDE_TYPES] || ndeType,
+      ndeType: ndeTypeLabel,
       characteristics: extractCharacteristics(content),
       source: 'Near-Death Experience Research Foundation',
       gender: gender || undefined,
-      triggerEvent: extractField(html, 'At the time of your experience, was there an associated life-threatening event') || undefined
+      triggerEvent: triggerEvent,
+      case_profile: caseProfile
     }
   };
 }

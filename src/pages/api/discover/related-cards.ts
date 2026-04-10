@@ -86,7 +86,7 @@ async function getRelatedForPhenomenon(supabase: any, phenomenonId: string) {
   // 1. Reports tagged with this phenomenon
   var { data: taggedReports } = await supabase
     .from('reports')
-    .select('id, title, slug, summary, category, country, city, state_province, event_date, credibility, upvotes, view_count, comment_count, has_photo_video, has_physical_evidence, content_type, location_name, source_type, source_label, created_at, phenomenon_type_id, feed_hook')
+    .select('id, title, slug, summary, category, country, city, state_province, event_date, event_date_precision, credibility, upvotes, view_count, comment_count, has_photo_video, has_physical_evidence, content_type, location_name, source_type, source_label, created_at, phenomenon_type_id, feed_hook, paradocs_narrative, metadata')
     .eq('phenomenon_type_id', phenomenonId)
     .eq('status', 'approved')
     .not('summary', 'is', null)
@@ -123,6 +123,9 @@ async function getRelatedForPhenomenon(supabase: any, phenomenonId: string) {
         slug: r.slug,
         summary: r.summary,
         feed_hook: r.feed_hook || null,
+        paradocs_narrative: r.paradocs_narrative || null,
+        metadata: r.metadata || null,
+        event_date_precision: r.event_date_precision || null,
         category: r.category,
         country: r.country,
         city: r.city,
@@ -245,7 +248,7 @@ async function getRelatedForReport(supabase: any, reportId: string) {
     // 2. Other reports tagged with the same phenomenon
     var { data: siblingReports } = await supabase
       .from('reports')
-      .select('id, title, slug, summary, category, country, city, state_province, event_date, credibility, upvotes, view_count, comment_count, has_photo_video, has_physical_evidence, content_type, location_name, source_type, source_label, created_at, phenomenon_type_id, feed_hook')
+      .select('id, title, slug, summary, category, country, city, state_province, event_date, event_date_precision, credibility, upvotes, view_count, comment_count, has_photo_video, has_physical_evidence, content_type, location_name, source_type, source_label, created_at, phenomenon_type_id, feed_hook, paradocs_narrative, metadata')
       .eq('phenomenon_type_id', report.phenomenon_type_id)
       .eq('status', 'approved')
       .neq('id', reportId)
@@ -284,6 +287,9 @@ async function getRelatedForReport(supabase: any, reportId: string) {
           slug: r.slug,
           summary: r.summary,
           feed_hook: r.feed_hook || null,
+          paradocs_narrative: r.paradocs_narrative || null,
+          metadata: r.metadata || null,
+          event_date_precision: r.event_date_precision || null,
           category: r.category,
           country: r.country,
           city: r.city,
@@ -320,7 +326,7 @@ async function getRelatedForReport(supabase: any, reportId: string) {
     var excludeIds = Object.keys(seenIds)
     var { data: catReports } = await supabase
       .from('reports')
-      .select('id, title, slug, summary, category, country, city, state_province, event_date, credibility, upvotes, view_count, comment_count, has_photo_video, has_physical_evidence, content_type, location_name, source_type, source_label, created_at, phenomenon_type_id, feed_hook')
+      .select('id, title, slug, summary, category, country, city, state_province, event_date, event_date_precision, credibility, upvotes, view_count, comment_count, has_photo_video, has_physical_evidence, content_type, location_name, source_type, source_label, created_at, phenomenon_type_id, feed_hook, paradocs_narrative, metadata')
       .eq('category', report.category)
       .eq('status', 'approved')
       .not('id', 'in', '(' + excludeIds.join(',') + ')')
@@ -376,6 +382,9 @@ async function getRelatedForReport(supabase: any, reportId: string) {
           slug: r.slug,
           summary: r.summary,
           feed_hook: r.feed_hook || null,
+          paradocs_narrative: r.paradocs_narrative || null,
+          metadata: r.metadata || null,
+          event_date_precision: r.event_date_precision || null,
           category: r.category,
           country: r.country,
           city: r.city,

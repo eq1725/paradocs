@@ -363,9 +363,9 @@ export default async function handler(
     }
 
     if (reportIds.length > 0) {
-      var { data: fullReports } = await supabase
-        .from('reports')
-        .select('id, title, slug, summary, category, country, city, state_province, event_date, credibility, upvotes, view_count, comment_count, has_photo_video, has_physical_evidence, content_type, location_name, source_type, source_label, created_at, phenomenon_type_id, feed_hook')
+      var { data: fullReports } = await (supabase
+        .from('reports') as any)
+        .select('id, title, slug, summary, category, country, city, state_province, event_date, event_date_precision, credibility, upvotes, view_count, comment_count, has_photo_video, has_physical_evidence, content_type, location_name, source_type, source_label, created_at, phenomenon_type_id, feed_hook, paradocs_narrative, metadata')
         .in('id', reportIds);
 
       if (fullReports) {
@@ -504,11 +504,13 @@ export default async function handler(
           slug: r.slug,
           summary: r.summary,
           feed_hook: r.feed_hook || null,
+          paradocs_narrative: r.paradocs_narrative || null,
           category: r.category,
           country: r.country,
           city: r.city,
           state_province: r.state_province,
           event_date: r.event_date,
+          event_date_precision: r.event_date_precision || null,
           credibility: r.credibility,
           upvotes: r.upvotes,
           view_count: r.view_count,
@@ -524,6 +526,7 @@ export default async function handler(
           primary_media: r.primary_media || null,
           associated_image_url: r.associated_image_url || null,
           associated_image_source: r.associated_image_source || null,
+          metadata: r.metadata || null,
         };
       }
     }).filter(function (item) { return item !== null; });
