@@ -497,12 +497,22 @@ export default async function handler(
       } else {
         var r = reportMap[slot.id];
         if (!r) return null;
+        // For index reports (anything that isn't curated/editorial), the
+        // DB `summary` field may be a verbatim first-300-chars excerpt of
+        // the source narrative. We never ship that to the client — swap
+        // in an AI-generated alternative (paradocs_narrative / feed_hook).
+        var isCuratedRow = r.source_type === 'curated' || r.source_type === 'editorial';
+        var safeSummary = r.summary;
+        if (!isCuratedRow) {
+          var n = r.paradocs_narrative;
+          safeSummary = (n ? (n.length > 200 ? n.slice(0, 197).trim() + '...' : n) : null) || r.feed_hook || null;
+        }
         return {
           item_type: 'report',
           id: r.id,
           title: r.title,
           slug: r.slug,
-          summary: r.summary,
+          summary: safeSummary,
           feed_hook: r.feed_hook || null,
           paradocs_narrative: r.paradocs_narrative || null,
           category: r.category,

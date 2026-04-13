@@ -383,7 +383,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         .update({ view_count: reportData.view_count + 1 })
         .eq('id', reportData.id)
 
-      setReport({ ...reportData, view_count: reportData.view_count + 1 })
+      setReport({ ...scrubIndexReport(reportData), view_count: reportData.view_count + 1 })
       setComments(commentsData || [])
       setMedia(mediaData || [])
     } catch (error) {
@@ -640,12 +640,15 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     <>
       <Head>
         <title>{report.title} - Paradocs</title>
-        <meta name="description" content={report.summary || report.description?.slice(0, 160)} />
+        {/* Meta description uses AI-generated summary; description is
+            scrubbed for index reports to avoid republishing verbatim
+            source content. */}
+        <meta name="description" content={report.summary || ''} />
 
         {/* Open Graph */}
         <meta property="og:type" content="article" />
         <meta property="og:title" content={report.title} />
-        <meta property="og:description" content={report.summary || report.description?.slice(0, 160)} />
+        <meta property="og:description" content={report.summary || ''} />
         <meta property="og:site_name" content="Paradocs" />
         <meta property="og:url" content={`https://beta.discoverparadocs.com/report/${slug}`} />
         {media[0]?.url && <meta property="og:image" content={media[0].url} />}
@@ -653,7 +656,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         {/* Twitter Card */}
         <meta name="twitter:card" content={media[0]?.url ? 'summary_large_image' : 'summary'} />
         <meta name="twitter:title" content={report.title} />
-        <meta name="twitter:description" content={report.summary || report.description?.slice(0, 160)} />
+        <meta name="twitter:description" content={report.summary || ''} />
         {media[0]?.url && <meta name="twitter:image" content={media[0].url} />}
 
         {/* Article metadata */}
@@ -1401,6 +1404,36 @@ export async function getStaticPaths() {
   }
 }
 
+// Scrub verbatim source content from reports that were ingested from
+// third-party sources (NDERF, etc.). For those "index" reports we only
+// ship AI-generated content (paradocs_narrative, title, tags, structured
+// case_profile) to the client — never the experiencer's own prose.
+//
+// This is both a ToS posture (we don't republish under someone else's
+// copyright) and a product invariant (Index Model). The DB retains the
+// raw description for analysis regeneration; it just never leaves the
+// server for index reports.
+function scrubIndexReport(reportData: any): any {
+  if (!reportData) return reportData
+  const sourceType = reportData.source_type
+  const isCurated = sourceType === 'curated' || sourceType === 'editorial'
+  if (isCurated) return reportData
+
+  const narrative: string | null = reportData.paradocs_narrative || null
+  // Build a safe meta-description from the AI narrative (not the source).
+  const metaFromNarrative = narrative
+    ? (narrative.length > 200 ? narrative.slice(0, 197).trim() + '...' : narrative)
+    : null
+
+  return {
+    ...reportData,
+    description: null,
+    // Prefer AI narrative for any legacy consumer that reads `summary`.
+    // Fall back to feed_hook (also AI-generated) before giving up.
+    summary: metaFromNarrative || reportData.feed_hook || null,
+  }
+}
+
 export async function getStaticProps({ params }: { params: { slug: string } }) {
   try {
     const { createClient } = await import('@supabase/supabase-js')
@@ -1421,6 +1454,10 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
       return { notFound: true }
     }
 
+    // Strip verbatim source content for index reports before serializing
+    // to the client. DB keeps the raw data for analysis pipelines.
+    const safeReport = scrubIndexReport(reportData)
+
     // Fetch media
     const { data: mediaData } = await sb
       .from('report_media')
@@ -1439,7 +1476,7 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
     return {
       props: {
         slug: params.slug,
-        initialReport: reportData,
+        initialReport: safeReport,
         initialMedia: mediaData || [],
         initialComments: commentsData || [],
       },

@@ -66,6 +66,14 @@ export interface ReportMedia {
   caption: string | null
 }
 
+export type EmotionValence = 'positive' | 'transcendent' | 'ambivalent' | 'negative'
+
+export interface EmotionToken {
+  slug: string
+  label: string
+  valence: EmotionValence
+}
+
 export interface NDERFCaseProfile {
   ndeType?: string
   trigger?: string
@@ -79,7 +87,9 @@ export interface NDERFCaseProfile {
   metBeings?: 'yes' | 'no'
   boundary?: 'yes' | 'no'
   alteredTime?: 'yes' | 'no'
-  emotions?: string
+  // Controlled-vocabulary tokens. Legacy rows may still carry a raw
+  // string — the renderer ignores those.
+  emotions?: EmotionToken[] | string
   aftereffectsChangedLife?: 'yes' | 'no'
 }
 
@@ -240,6 +250,16 @@ function formatReportDate(dateStr: string | null, precision: string | null): str
 //  Research Data Panel with density of actual case data.
 // =========================================================================
 
+// Valence-tinted chip styling for emotion tokens. Subtle — these are
+// categorical tags, not mood-ring badges.
+function emotionChipClass(valence: EmotionValence): string {
+  if (valence === 'transcendent') return 'bg-indigo-500/[0.08] border-indigo-400/20 text-indigo-200'
+  if (valence === 'positive') return 'bg-emerald-500/[0.07] border-emerald-400/20 text-emerald-100'
+  if (valence === 'negative') return 'bg-rose-500/[0.07] border-rose-400/20 text-rose-100'
+  // ambivalent
+  return 'bg-amber-500/[0.06] border-amber-400/20 text-amber-100'
+}
+
 export function CaseProfileChips(props: { profile: NDERFCaseProfile, variant?: 'compact' | 'full' }) {
   var p = props.profile
   var variant = props.variant || 'compact'
@@ -264,7 +284,11 @@ export function CaseProfileChips(props: { profile: NDERFCaseProfile, variant?: '
   // Only show phenomena that were actually answered
   var answeredPhenomena = phenomena.filter(function (x) { return x.state !== 'unknown' })
 
-  if (identity.length === 0 && answeredPhenomena.length === 0 && !p.emotions) return null
+  // Emotions are always a token array now. Legacy string values are
+  // ignored — we don't render verbatim experiencer prose.
+  var emotionTokens: EmotionToken[] = Array.isArray(p.emotions) ? p.emotions : []
+
+  if (identity.length === 0 && answeredPhenomena.length === 0 && emotionTokens.length === 0) return null
 
   // Compact variant — used on the Discover feed (horizontal density priority)
   if (variant === 'compact') {
@@ -287,10 +311,25 @@ export function CaseProfileChips(props: { profile: NDERFCaseProfile, variant?: '
             )
           })}
         </div>
-        {p.emotions && (
-          <span className="text-[10px] text-gray-400 font-sans italic leading-relaxed">
-            {'Reported emotions: ' + p.emotions}
-          </span>
+        {emotionTokens.length > 0 && (
+          <div className="flex flex-wrap gap-1 items-center">
+            <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider mr-0.5">
+              Feelings
+            </span>
+            {emotionTokens.map(function (tok) {
+              return (
+                <span
+                  key={tok.slug}
+                  className={classNames(
+                    'text-[10px] px-1.5 py-0.5 rounded-full font-sans border',
+                    emotionChipClass(tok.valence)
+                  )}
+                >
+                  {tok.label}
+                </span>
+              )
+            })}
+          </div>
         )}
       </div>
     )
@@ -369,15 +408,27 @@ export function CaseProfileChips(props: { profile: NDERFCaseProfile, variant?: '
           </div>
         )}
 
-        {/* Reported emotions — pull quote style */}
-        {p.emotions && (
-          <div className="pt-1 border-t border-white/[0.06] pt-3">
-            <span className="text-[10px] font-sans uppercase tracking-wider text-gray-500 block mb-1">
-              Reported Emotions
+        {/* Reported feelings — categorical tokens, not verbatim prose */}
+        {emotionTokens.length > 0 && (
+          <div className="pt-3 border-t border-white/[0.06]">
+            <span className="text-[10px] font-sans uppercase tracking-wider text-gray-500 block mb-2">
+              Reported Feelings
             </span>
-            <p className="text-sm text-gray-300 font-serif italic leading-relaxed">
-              &ldquo;{p.emotions}&rdquo;
-            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {emotionTokens.map(function (tok) {
+                return (
+                  <span
+                    key={tok.slug}
+                    className={classNames(
+                      'text-xs px-2.5 py-1 rounded-full font-sans border',
+                      emotionChipClass(tok.valence)
+                    )}
+                  >
+                    {tok.label}
+                  </span>
+                )
+              })}
+            </div>
           </div>
         )}
       </div>

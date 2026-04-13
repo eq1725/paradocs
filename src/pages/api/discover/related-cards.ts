@@ -27,6 +27,18 @@ function getSupabase() {
   return createClient(supabaseUrl, supabaseServiceKey)
 }
 
+// For index reports (NDERF etc.), the DB `summary` field is a verbatim
+// first-300-chars excerpt of the source narrative. We don't republish
+// that to clients — swap in an AI-generated alternative
+// (paradocs_narrative excerpt, falling back to feed_hook).
+function safeSummaryForFeed(r: any): string | null {
+  var isCurated = r.source_type === 'curated' || r.source_type === 'editorial'
+  if (isCurated) return r.summary || null
+  var n = r.paradocs_narrative
+  var excerpt = n ? (n.length > 200 ? n.slice(0, 197).trim() + '...' : n) : null
+  return excerpt || r.feed_hook || null
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -121,7 +133,7 @@ async function getRelatedForPhenomenon(supabase: any, phenomenonId: string) {
         id: r.id,
         title: r.title,
         slug: r.slug,
-        summary: r.summary,
+        summary: safeSummaryForFeed(r),
         feed_hook: r.feed_hook || null,
         paradocs_narrative: r.paradocs_narrative || null,
         metadata: r.metadata || null,
@@ -285,7 +297,7 @@ async function getRelatedForReport(supabase: any, reportId: string) {
           id: r.id,
           title: r.title,
           slug: r.slug,
-          summary: r.summary,
+          summary: safeSummaryForFeed(r),
           feed_hook: r.feed_hook || null,
           paradocs_narrative: r.paradocs_narrative || null,
           metadata: r.metadata || null,
@@ -380,7 +392,7 @@ async function getRelatedForReport(supabase: any, reportId: string) {
           id: r.id,
           title: r.title,
           slug: r.slug,
-          summary: r.summary,
+          summary: safeSummaryForFeed(r),
           feed_hook: r.feed_hook || null,
           paradocs_narrative: r.paradocs_narrative || null,
           metadata: r.metadata || null,

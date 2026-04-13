@@ -6,6 +6,7 @@
 // experiences by category (exceptional, probable NDE, etc.)
 
 import { SourceAdapter, AdapterResult, ScrapedReport } from '../types';
+import { tokenizeEmotions, EmotionToken } from '../emotion-vocab';
 
 // Rate limiting helper
 function delay(ms: number): Promise<void> {
@@ -282,7 +283,11 @@ interface NDERFCaseProfile {
   metBeings?: 'yes' | 'no';
   boundary?: 'yes' | 'no';
   alteredTime?: 'yes' | 'no';
-  emotions?: string;          // Short extract of emotions field
+  // Emotions stored as a tokenized list against a controlled vocabulary
+  // (see emotion-vocab.ts). We never store the experiencer's verbatim
+  // answer — only matched emotion tokens. An older string form may exist
+  // in historical data; readers must accept either shape.
+  emotions?: EmotionToken[];
   aftereffectsChangedLife?: 'yes' | 'no';
 }
 
@@ -345,14 +350,15 @@ function buildCaseProfile(html: string, ndeTypeLabel: string, trigger: string | 
   ]);
   if (timeShift) profile.alteredTime = timeShift;
 
+  // Emotions: tokenize the questionnaire answer against our controlled
+  // vocabulary rather than storing the experiencer's verbatim prose.
+  // This turns free-text into structured, categorical data (fair-use
+  // safe) and renders cleanly as discrete chips. Cap at 6 tokens for UI.
   const emotionsRaw = extractField(html, 'What emotions did you feel during the experience');
   if (emotionsRaw) {
-    // Keep it short — just the first clause
-    const trimmed = emotionsRaw.split(/[.;]/)[0].trim();
-    const lowered = trimmed.toLowerCase();
-    const isPlaceholder = lowered === 'unsure' || lowered === 'uncertain' || lowered === 'unknown' || lowered === 'n/a' || lowered === 'none';
-    if (trimmed.length > 0 && trimmed.length < 140 && !isPlaceholder) {
-      profile.emotions = trimmed;
+    const tokens = tokenizeEmotions(emotionsRaw).slice(0, 6);
+    if (tokens.length > 0) {
+      profile.emotions = tokens;
     }
   }
 
