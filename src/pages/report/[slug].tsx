@@ -1016,18 +1016,21 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         {/* === INDEX MODEL MODE: Paradocs Analysis + Source Attribution + Research Hub Preview === */}
         {isIndexReport && (
           <>
+            {/* NDERF Case Profile — structured facts first, before analysis narrative */}
+            {report.source_type === 'nderf' && (report as any).metadata?.case_profile && (
+              <div className="mb-5">
+                <CaseProfileChips
+                  profile={(report as any).metadata.case_profile}
+                  variant="full"
+                />
+              </div>
+            )}
+
             {/* Paradocs Analysis Box — THE MAIN CONTENT for index reports */}
             <ParadocsAnalysisBox
               narrative={(report as any).paradocs_narrative || null}
               assessment={paradocsAssessment}
             />
-
-            {/* NDERF Case Profile chip row — replaces Research Data Panel for NDERF */}
-            {report.source_type === 'nderf' && (report as any).metadata?.case_profile && (
-              <div className="mb-4">
-                <CaseProfileChips profile={(report as any).metadata.case_profile} />
-              </div>
-            )}
 
             {/* Source Attribution — legally required footnote */}
             {(report as any).source_url && (

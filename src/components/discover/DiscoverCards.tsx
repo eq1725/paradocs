@@ -240,44 +240,147 @@ function formatReportDate(dateStr: string | null, precision: string | null): str
 //  Research Data Panel with density of actual case data.
 // =========================================================================
 
-export function CaseProfileChips(props: { profile: NDERFCaseProfile }) {
+export function CaseProfileChips(props: { profile: NDERFCaseProfile, variant?: 'compact' | 'full' }) {
   var p = props.profile
-  var chips: { label: string, value: string }[] = []
+  var variant = props.variant || 'compact'
 
-  if (p.trigger) chips.push({ label: 'Trigger', value: p.trigger })
-  if (p.ndeType) chips.push({ label: 'Type', value: p.ndeType })
-  if (p.ageAtNDE) chips.push({ label: 'Age', value: p.ageAtNDE })
-  if (p.gender) chips.push({ label: 'Gender', value: p.gender })
-  if (p.outOfBody) chips.push({ label: 'Out of body', value: p.outOfBody === 'yes' ? 'Yes' : 'No' })
-  if (p.tunnel) chips.push({ label: 'Tunnel', value: p.tunnel === 'yes' ? 'Yes' : 'No' })
-  if (p.light) chips.push({ label: 'Light', value: p.light === 'yes' ? 'Yes' : 'No' })
-  if (p.metBeings) chips.push({ label: 'Met beings', value: p.metBeings === 'yes' ? 'Yes' : 'No' })
-  if (p.lifeReview) chips.push({ label: 'Life review', value: p.lifeReview === 'yes' ? 'Yes' : 'No' })
-  if (p.boundary) chips.push({ label: 'Boundary', value: p.boundary === 'yes' ? 'Yes' : 'No' })
-  if (p.alteredTime) chips.push({ label: 'Time shift', value: p.alteredTime === 'yes' ? 'Yes' : 'No' })
+  // Primary identity facts — text-value chips shown prominently
+  var identity: { label: string, value: string }[] = []
+  if (p.ndeType) identity.push({ label: 'Type', value: p.ndeType })
+  if (p.trigger) identity.push({ label: 'Trigger', value: p.trigger })
+  if (p.gender) identity.push({ label: 'Gender', value: p.gender })
+  if (p.ageAtNDE) identity.push({ label: 'Age', value: p.ageAtNDE })
 
-  if (chips.length === 0) return null
+  // Phenomenon checklist — yes/no/unknown for each NDE feature
+  var phenomena: { label: string, state: 'yes' | 'no' | 'unknown' }[] = [
+    { label: 'Out-of-body', state: p.outOfBody || 'unknown' },
+    { label: 'Tunnel', state: p.tunnel || 'unknown' },
+    { label: 'Brilliant light', state: p.light || 'unknown' },
+    { label: 'Met beings', state: p.metBeings || 'unknown' },
+    { label: 'Life review', state: p.lifeReview || 'unknown' },
+    { label: 'Boundary', state: p.boundary || 'unknown' },
+    { label: 'Altered time', state: p.alteredTime || 'unknown' },
+  ]
+  // Only show phenomena that were actually answered
+  var answeredPhenomena = phenomena.filter(function (x) { return x.state !== 'unknown' })
 
-  return (
-    <div className="flex flex-col gap-2 py-3 px-3 rounded-lg bg-white/[0.02] border border-white/[0.06] flex-shrink-0">
-      <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Case Profile</span>
-      <div className="flex flex-wrap gap-1.5">
-        {chips.map(function (chip, i) {
-          return (
-            <span
-              key={i}
-              className="text-[10px] px-2 py-0.5 rounded-full border border-white/10 bg-white/[0.03] text-gray-300 font-sans"
-            >
-              <span className="text-gray-500">{chip.label}:</span>{' ' + chip.value}
-            </span>
-          )
-        })}
+  if (identity.length === 0 && answeredPhenomena.length === 0 && !p.emotions) return null
+
+  // Compact variant — used on the Discover feed (horizontal density priority)
+  if (variant === 'compact') {
+    var allChips: { label: string, value: string }[] = identity.slice()
+    answeredPhenomena.forEach(function (ph) {
+      allChips.push({ label: ph.label, value: ph.state === 'yes' ? 'Yes' : 'No' })
+    })
+    return (
+      <div className="flex flex-col gap-2 py-3 px-3 rounded-lg bg-white/[0.02] border border-white/[0.06] flex-shrink-0">
+        <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Case Profile</span>
+        <div className="flex flex-wrap gap-1.5">
+          {allChips.map(function (chip, i) {
+            return (
+              <span
+                key={i}
+                className="text-[10px] px-2 py-0.5 rounded-full border border-white/10 bg-white/[0.03] text-gray-300 font-sans"
+              >
+                <span className="text-gray-500">{chip.label}:</span>{' ' + chip.value}
+              </span>
+            )
+          })}
+        </div>
+        {p.emotions && (
+          <span className="text-[10px] text-gray-400 font-sans italic leading-relaxed">
+            {'Reported emotions: ' + p.emotions}
+          </span>
+        )}
       </div>
-      {p.emotions && (
-        <span className="text-[10px] text-gray-400 font-sans italic leading-relaxed">
-          {'Reported emotions: ' + p.emotions}
+    )
+  }
+
+  // Full variant — used on the detail page (structured, scannable)
+  return (
+    <div className="rounded-xl bg-gradient-to-b from-white/[0.04] to-white/[0.015] border border-white/[0.08] overflow-hidden">
+      {/* Header bar */}
+      <div className="flex items-center gap-2 px-4 py-2.5 bg-white/[0.02] border-b border-white/[0.06]">
+        <div className="h-1.5 w-1.5 rounded-full bg-indigo-400/70" />
+        <span className="text-[11px] font-sans uppercase tracking-[0.14em] text-gray-400 font-medium">
+          NDE Case Profile
         </span>
-      )}
+      </div>
+
+      <div className="px-4 py-4 space-y-4">
+        {/* Primary identity facts — labeled grid */}
+        {identity.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
+            {identity.map(function (fact, i) {
+              return (
+                <div key={i} className="flex flex-col gap-0.5 min-w-0">
+                  <span className="text-[10px] font-sans uppercase tracking-wider text-gray-500">
+                    {fact.label}
+                  </span>
+                  <span className="text-sm text-gray-100 font-sans font-medium truncate" title={fact.value}>
+                    {fact.value}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Divider between identity and phenomena */}
+        {identity.length > 0 && answeredPhenomena.length > 0 && (
+          <div className="h-px bg-white/[0.06]" />
+        )}
+
+        {/* Phenomenon checklist — check/cross chips */}
+        {answeredPhenomena.length > 0 && (
+          <div>
+            <span className="text-[10px] font-sans uppercase tracking-wider text-gray-500 mb-2 block">
+              Reported Phenomena
+            </span>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              {answeredPhenomena.map(function (ph, i) {
+                var isYes = ph.state === 'yes'
+                return (
+                  <div
+                    key={i}
+                    className={classNames(
+                      'flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-sans',
+                      isYes
+                        ? 'bg-emerald-500/[0.07] border border-emerald-500/20 text-emerald-100'
+                        : 'bg-white/[0.02] border border-white/[0.06] text-gray-500'
+                    )}
+                  >
+                    <span
+                      className={classNames(
+                        'flex-shrink-0 h-4 w-4 rounded-full flex items-center justify-center text-[10px] font-bold',
+                        isYes
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : 'bg-white/[0.05] text-gray-600'
+                      )}
+                      aria-hidden="true"
+                    >
+                      {isYes ? '\u2713' : '\u2013'}
+                    </span>
+                    <span className={isYes ? 'text-gray-100' : 'text-gray-500'}>{ph.label}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Reported emotions — pull quote style */}
+        {p.emotions && (
+          <div className="pt-1 border-t border-white/[0.06] pt-3">
+            <span className="text-[10px] font-sans uppercase tracking-wider text-gray-500 block mb-1">
+              Reported Emotions
+            </span>
+            <p className="text-sm text-gray-300 font-serif italic leading-relaxed">
+              &ldquo;{p.emotions}&rdquo;
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
