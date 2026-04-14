@@ -29,7 +29,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonType, PhenomenonCategory, CredibilityLevel, ContentType } from '@/lib/database.types'
-import { CATEGORY_CONFIG, CREDIBILITY_CONFIG, CONTENT_TYPE_CONFIG, COUNTRIES } from '@/lib/constants'
+import { CATEGORY_CONFIG, CONTENT_TYPE_CONFIG, COUNTRIES } from '@/lib/constants'
 import CategoryFilter from '@/components/CategoryFilter'
 import SubcategoryFilter from '@/components/SubcategoryFilter'
 import ReportCard from '@/components/ReportCard'
@@ -1139,7 +1139,7 @@ function ExploreBrowseMode() {
                           <div id={'feed-' + section.id} className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory pr-8">
                             {section.reports.map(function(report) {
                               var catConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
-                              var credConfig = report.credibility ? (CREDIBILITY_CONFIG as any)[report.credibility] : null
+                              // Credibility badge intentionally omitted (QA/QC Apr 14 2026)
                               var locationParts = [report.city || report.location_name, report.state_province, report.country].filter(Boolean)
                               var locationStr = locationParts.length > 0 ? locationParts.slice(0, 2).join(', ') : null
                               return (
@@ -1149,7 +1149,6 @@ function ExploreBrowseMode() {
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-1.5 flex-wrap">
                                         <span className={classNames('text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-medium', catConfig.bgColor, catConfig.color)}>{catConfig.label}</span>
-                                        {credConfig && <span className={classNames('text-[10px] sm:text-xs px-1.5 py-0.5 rounded font-medium', credConfig.bgColor, credConfig.color)}>{credConfig.label}</span>}
                                       </div>
                                     </div>
                                   </div>
@@ -1311,7 +1310,8 @@ function ExploreBrowseMode() {
               </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div><label className="block text-sm text-gray-400 mb-2">Country</label><select value={country} onChange={function(e: any) { setCountry(e.target.value); setPage(1) }} className="w-full"><option value="">All countries</option>{COUNTRIES.map(function(c: string) { return <option key={c} value={c}>{c}</option> })}</select></div>
-                <div><label className="block text-sm text-gray-400 mb-2">Credibility</label><select value={credibility} onChange={function(e: any) { setCredibility(e.target.value); setPage(1) }} className="w-full"><option value="">Any credibility</option>{Object.entries(CREDIBILITY_CONFIG).map(function(entry) { return <option key={entry[0]} value={entry[0]}>{(entry[1] as any).label}</option> })}</select></div>
+                {/* Credibility filter dropdown removed — we no longer surface
+                    the coarse Low/Medium/High bucketing to users (QA/QC Apr 14 2026). */}
                 <div><label className="block text-sm text-gray-400 mb-2">Date From</label><input type="date" value={dateFrom} onChange={function(e: any) { setDateFrom(e.target.value); setPage(1) }} className="w-full" /></div>
                 <div><label className="block text-sm text-gray-400 mb-2">Date To</label><input type="date" value={dateTo} onChange={function(e: any) { setDateTo(e.target.value); setPage(1) }} className="w-full" /></div>
               </div>

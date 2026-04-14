@@ -6,7 +6,7 @@
 import React from 'react'
 import Link from 'next/link'
 import { X, MapPin, Calendar, Users, ExternalLink, Shield } from 'lucide-react'
-import { CATEGORY_CONFIG, CREDIBILITY_CONFIG } from '@/lib/constants'
+import { CATEGORY_CONFIG } from '@/lib/constants'
 import { formatDate } from '@/lib/utils'
 import { ReportProperties, CATEGORY_ICONS } from './mapStyles'
 
@@ -18,7 +18,7 @@ interface MapReportCardProps {
 
 export default function MapReportCard({ report, onClose, compact = false }: MapReportCardProps) {
   const catConfig = CATEGORY_CONFIG[report.category]
-  const credConfig = CREDIBILITY_CONFIG[report.credibility as keyof typeof CREDIBILITY_CONFIG]
+  // Credibility badge intentionally omitted (QA/QC Apr 14 2026).
   const icon = CATEGORY_ICONS[report.category]
 
   return (
@@ -31,11 +31,6 @@ export default function MapReportCard({ report, onClose, compact = false }: MapR
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${catConfig?.bgColor} ${catConfig?.color}`}>
               {catConfig?.label}
             </span>
-            {credConfig && (
-              <span className={`text-xs font-medium ${credConfig.color}`}>
-                {credConfig.label}
-              </span>
-            )}
           </div>
           <h3 className="text-white font-semibold text-sm leading-tight line-clamp-2">
             {report.title}

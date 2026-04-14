@@ -19,7 +19,12 @@ interface ReportCardProps {
 
 export default function ReportCard({ report, variant = 'default' }: ReportCardProps) {
   const categoryConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
-  const credibilityConfig = CREDIBILITY_CONFIG[report.credibility]
+  // NOTE: Low/Medium/High credibility labels are intentionally NOT surfaced
+  // in the UI anymore. The score is retained in the database for internal
+  // ranking / filtering only — users find the coarse bucket too blunt and
+  // it biases interpretation. (QA/QC, Apr 14 2026.) The config import is
+  // kept in case we later want to gate more nuanced signals by score.
+  void CREDIBILITY_CONFIG
 
   if (variant === 'compact') {
     return (
@@ -96,13 +101,6 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
             </div>
             <div className="mt-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className={classNames(
-                  'px-2 py-0.5 rounded text-xs font-medium',
-                  credibilityConfig.bgColor,
-                  credibilityConfig.color
-                )}>
-                  {credibilityConfig.label}
-                </div>
                 {report.source_type && report.source_type !== 'user' && (
                   <SourceBadge
                     sourceType={report.source_type}
@@ -160,18 +158,6 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
               {(report as any).feed_hook || report.summary}
             </p>
             <div className="mt-3 flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-              {credibilityConfig && (
-                <span
-                  title={((report as any).paradocs_assessment && (report as any).paradocs_assessment.credibility_reasoning) || credibilityConfig.description}
-                  className={classNames(
-                    'px-2 py-0.5 rounded font-medium cursor-help',
-                    credibilityConfig.bgColor,
-                    credibilityConfig.color
-                  )}
-                >
-                  {credibilityConfig.label}
-                </span>
-              )}
               {report.location_name && (
                 <span className="flex items-center gap-1">
                   <MapPin className="w-3 h-3" />

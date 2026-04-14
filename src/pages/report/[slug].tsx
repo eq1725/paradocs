@@ -1096,8 +1096,11 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             </div>
           </div>
 
-          {/* Credibility — uses credibility_signal for index reports,
-              falls back to ingestion quality label for curated/editorial */}
+          {/* Credibility — only show the nuanced paradocs signal ("Strong
+              supporting evidence" / "Moderate supporting detail" / etc.).
+              The blunt Low/Medium/High buckets are intentionally not
+              rendered anywhere user-facing (QA/QC Apr 14 2026). If no
+              nuanced signal exists, the tile is simply omitted. */}
           {(() => {
             var credSignal = paradocsAssessment ? (paradocsAssessment as any).credibility_signal : null
             // Legacy fallback: build signal from old numeric score
@@ -1105,16 +1108,14 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               var s = paradocsAssessment.credibility_score
               credSignal = s >= 80 ? 'Strong supporting evidence' : s >= 60 ? 'Moderate supporting detail' : s >= 40 ? 'Limited corroboration' : 'Single unverified account'
             }
-            var useSignal = isIndexReport && credSignal
-            var gridLabel = useSignal ? credSignal : credibilityConfig.label
-            var gridColor = useSignal ? 'text-gray-300' : credibilityConfig.color
+            if (!credSignal) return null
             return (
               <div className="glass-card p-3 sm:p-4">
                 <h4 className="text-[11px] text-gray-500 mb-1.5 uppercase tracking-wider">
                   Credibility
                 </h4>
-                <div className={classNames('text-sm font-medium', gridColor)}>
-                  {gridLabel}
+                <div className="text-sm font-medium text-gray-300">
+                  {credSignal}
                 </div>
               </div>
             )

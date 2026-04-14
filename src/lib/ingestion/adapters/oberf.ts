@@ -181,7 +181,7 @@ function normalizeLabel(s: string): string {
     .trim();
 }
 
-function buildOBERFFieldMap(html: string): Map<string, string> {
+export function buildOBERFFieldMap(html: string): Map<string, string> {
   const map = new Map<string, string>();
 
   // Collect all green-span positions + their label text. The regex is
@@ -219,7 +219,7 @@ function buildOBERFFieldMap(html: string): Map<string, string> {
 // Resolver closure that looks up any of several candidate labels against an
 // already-built map. Shared with buildCaseProfile so OBERF gets structured
 // Yes/No and free-text answers identical in shape to NDERF's output.
-function oberfLabelResolver(fieldMap: Map<string, string>): LabelResolver {
+export function oberfLabelResolver(fieldMap: Map<string, string>): LabelResolver {
   return (labels: string[]) => {
     for (const label of labels) {
       const key = normalizeLabel(label);

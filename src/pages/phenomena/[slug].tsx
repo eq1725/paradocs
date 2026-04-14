@@ -26,7 +26,7 @@ import {
   Star,
   Globe2,
 } from 'lucide-react'
-import { CATEGORY_CONFIG, CREDIBILITY_CONFIG } from '@/lib/constants'
+import { CATEGORY_CONFIG } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
 import AskTheUnknown from '@/components/AskTheUnknown'
 import PhenomenonMiniMap from '@/components/PhenomenonMiniMap'
@@ -931,7 +931,6 @@ export default function PhenomenonPage() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {reports.map(report => {
-                    const credConfig = CREDIBILITY_CONFIG[report.credibility as keyof typeof CREDIBILITY_CONFIG]
                     return (
                       <Link
                         key={report.id}
@@ -950,9 +949,7 @@ export default function PhenomenonPage() {
                         <div className="flex items-center justify-between text-xs text-gray-500">
                           <span>{report.location_name || report.country || 'Unknown'}</span>
                           <div className="flex items-center gap-3">
-                            {credConfig && (
-                              <span className={credConfig.color}>{credConfig.label}</span>
-                            )}
+                            {/* Credibility badge intentionally omitted (QA/QC Apr 14 2026) */}
                             <span className="flex items-center gap-1">
                               <Eye className="w-3 h-3" />
                               {report.view_count}
