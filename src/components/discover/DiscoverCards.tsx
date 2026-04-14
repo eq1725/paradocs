@@ -136,7 +136,7 @@ export type FeedItemV2 = PhenomenonItem | ReportItem
 //  rendered with Paradocs-generated hook + analysis plus "View Full Report".
 // =========================================================================
 
-var LINK_ONLY_SOURCES = ['bfro', 'nuforc', 'nderf']
+var LINK_ONLY_SOURCES = ['bfro', 'nuforc', 'nderf', 'oberf']
 
 function isLinkOnly(sourceType: string | null): boolean {
   if (!sourceType) return false
@@ -637,7 +637,7 @@ export function TextReportCard(props: {
 
   var displayText = item.feed_hook || item.summary || ''
   var caseProfile = (item.metadata && item.metadata.case_profile) || null
-  var isNDERF = item.source_type === 'nderf'
+  var isNDERF = item.source_type === 'nderf' || item.source_type === 'oberf'
   // Expanded section text: paradocs_narrative (our own analytical take) is the goal.
   // Falls back to summary only for legacy curated sources where narrative is intentionally null.
   var expandedText = item.paradocs_narrative || (isLinkOnly(item.source_type) ? '' : item.summary) || ''
@@ -762,7 +762,7 @@ export function MediaReportCard(props: {
 
   var displayText = item.feed_hook || item.summary || ''
   var caseProfile = (item.metadata && item.metadata.case_profile) || null
-  var isNDERF = item.source_type === 'nderf'
+  var isNDERF = item.source_type === 'nderf' || item.source_type === 'oberf'
   var expandedText = item.paradocs_narrative || (isLinkOnly(item.source_type) ? '' : item.summary) || ''
 
   var tensionItems: { value: string | number, label: string }[] = []

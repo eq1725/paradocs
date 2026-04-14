@@ -8,6 +8,7 @@ import { ghostsOfAmericaAdapter } from './ghostsofamerica';
 import { redditAdapter } from './reddit';
 import { wikipediaAdapter } from './wikipedia';
 import { nderfAdapter } from './nderf';
+import { oberfAdapter } from './oberf';
 import { iandsAdapter } from './iands';
 // Session 10: New adapters for expanded source coverage
 import { redditV2Adapter } from './reddit-v2';
@@ -24,6 +25,7 @@ const adapters: Record<string, SourceAdapter> = {
   reddit: redditAdapter,
   wikipedia: wikipediaAdapter,
   nderf: nderfAdapter,
+  oberf: oberfAdapter,
   iands: iandsAdapter,
   // Session 10: Expanded adapters
   'reddit-v2': redditV2Adapter,
@@ -52,6 +54,7 @@ export {
   redditAdapter,
   wikipediaAdapter,
   nderfAdapter,
+  oberfAdapter,
   iandsAdapter,
   // Session 10
   redditV2Adapter,

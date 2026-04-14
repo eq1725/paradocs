@@ -3,9 +3,11 @@ const nextConfig = {
   reactStrictMode: true,
   async redirects() {
     return [
+      // /encyclopedia is a friendly alias for the phenomena directory.
+      // Both land on /phenomena* so users see the full encyclopedia browse.
       {
         source: '/encyclopedia',
-        destination: '/explore?mode=browse',
+        destination: '/phenomena',
         permanent: true,
       },
       {
@@ -80,11 +82,10 @@ const nextConfig = {
         destination: '/explore?mode=search',
         permanent: true,
       },
-      {
-        source: '/phenomena',
-        destination: '/explore?mode=browse',
-        permanent: true,
-      },
+      // /phenomena is the Encyclopedia directory (src/pages/phenomena/index.tsx).
+      // Previously 301'd to /explore in Session A2 Explore Consolidation, but
+      // restored in B1.5 so users can scan every encyclopedia entry. The
+      // Encyclopedia Spotlight card on /explore links to /phenomena.
       {
         source: '/analytics',
         destination: '/explore',

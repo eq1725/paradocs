@@ -13,17 +13,18 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// NDE experience types on NDERF
-const NDE_TYPES: Record<string, string> = {
-  exceptional: 'Exceptional NDE',
-  probable: 'Probable NDE',
-  questionable: 'Questionable NDE',
-  sde: 'Shared Death Experience',
-  obe: 'Out of Body Experience',
-  ste: 'Spiritually Transformative Experience',
-  fearde: 'Fear-Death Experience',
-  other: 'Other Spiritually Transformative Experience'
-};
+// NDERF evaluative tiers (internal only).
+// NDERF classifies reports with editorial quality tiers. We store the raw tier
+// in metadata.nderf_tier for our own quality scoring, but we never surface it
+// in user-facing fields (title, tags, case_profile.ndeType) — republishing
+// their evaluative judgment would be a ToS/copyright concern.
+// All three tiers map to the same neutral, phenomenological label publicly.
+// Note: the STE/OBE/SDE/FDE types that once lived on nderf.org have migrated
+// to oberf.org; they are handled by the OBERF adapter now. This dict is
+// intentionally NDE-only.
+const NDERF_TIERS = ['exceptional', 'probable', 'questionable'] as const;
+type NDERFTier = typeof NDERF_TIERS[number];
+const NEUTRAL_NDE_LABEL = 'Near-Death Experience';
 
 // Extract NDE characteristics from content
 function extractCharacteristics(content: string): string[] {
@@ -71,8 +72,10 @@ function extractCharacteristics(content: string): string[] {
   return characteristics;
 }
 
-// Determine credibility based on detail level
-function determineCredibility(content: string, ndeType: string): 'low' | 'medium' | 'high' {
+// Determine credibility based on detail level.
+// Uses the NDERF tier as an internal signal (still valuable: NDERF curators
+// hand-ranked these), but the tier itself is never displayed.
+function determineCredibility(content: string, nderfTier: NDERFTier): 'low' | 'medium' | 'high' {
   let score = 0;
 
   // Length-based scoring
@@ -80,9 +83,9 @@ function determineCredibility(content: string, ndeType: string): 'low' | 'medium
   if (content.length > 1500) score += 1;
   if (content.length > 3000) score += 1;
 
-  // Type-based scoring
-  if (ndeType === 'exceptional') score += 2;
-  else if (ndeType === 'probable') score += 1;
+  // Tier-based scoring (internal use of NDERF's curation)
+  if (nderfTier === 'exceptional') score += 2;
+  else if (nderfTier === 'probable') score += 1;
 
   // Detail indicators
   if (content.includes('date') || /\d{4}/.test(content)) score += 1;
@@ -93,12 +96,12 @@ function determineCredibility(content: string, ndeType: string): 'low' | 'medium
   return 'low';
 }
 
-// Generate tags from content
-function generateTags(content: string, ndeType: string): string[] {
+// Generate tags from content.
+// NOTE: we intentionally do NOT emit the NDERF evaluative tier as a tag.
+// Tags are user-visible filters; republishing "exceptional" / "probable"
+// / "questionable" as tags would expose NDERF's editorial judgment.
+function generateTags(content: string): string[] {
   const tags: string[] = ['nde', 'near-death-experience', 'nderf'];
-
-  // Add NDE type as tag
-  tags.push(ndeType.toLowerCase().replace(/\s+/g, '-'));
 
   // Add characteristics as tags
   const characteristics = extractCharacteristics(content);
@@ -206,11 +209,13 @@ async function parseArchiveIndex(html: string): Promise<Array<{ id: string; name
   return experiences;
 }
 
-// Extract a structured field value from NDERF questionnaire HTML
+// Extract a structured field value from NDERF-style questionnaire HTML.
+// OBERF uses the same questionnaire format, so this helper is exported and
+// reused by the OBERF adapter.
 // Fields use: <span class="m105">Label:</span> Value  (short-answer)
 //          or <span class="m105">Label?</span> Value  (yes/no question)
 // The trailing punctuation (colon or question mark) is INSIDE the span tag.
-function extractField(html: string, fieldLabel: string): string | null {
+export function extractField(html: string, fieldLabel: string): string | null {
   // Strip any trailing punctuation the caller supplied; we match it ourselves.
   const cleanLabel = fieldLabel.replace(/[?:]+\s*$/, '');
   const escaped = cleanLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -229,7 +234,7 @@ function extractField(html: string, fieldLabel: string): string | null {
 }
 
 // Try a list of labels in order; return the first that matches.
-function extractFieldAny(html: string, labels: string[]): string | null {
+export function extractFieldAny(html: string, labels: string[]): string | null {
   for (const l of labels) {
     const v = extractField(html, l);
     if (v) return v;
@@ -242,7 +247,7 @@ function extractFieldAny(html: string, labels: string[]): string | null {
 // Only explicit negatives ("No", "I did not...", "I had no...") are "no"; anything
 // else descriptive is treated as an affirmative indicator. "Uncertain"/"Unsure"
 // return null so we don't fabricate a signal.
-function interpretNDERFAnswer(raw: string): 'yes' | 'no' | null {
+export function interpretNDERFAnswer(raw: string): 'yes' | 'no' | null {
   const lower = raw.trim().toLowerCase();
   if (!lower) return null;
   if (lower.startsWith('uncertain') || lower.startsWith('unsure') || lower.startsWith('unknown') || lower.startsWith('n/a')) {
@@ -261,7 +266,7 @@ function interpretNDERFAnswer(raw: string): 'yes' | 'no' | null {
   return null;
 }
 
-function extractYesNoAny(html: string, labels: string[]): 'yes' | 'no' | null {
+export function extractYesNoAny(html: string, labels: string[]): 'yes' | 'no' | null {
   const raw = extractFieldAny(html, labels);
   if (!raw) return null;
   return interpretNDERFAnswer(raw);
@@ -270,7 +275,7 @@ function extractYesNoAny(html: string, labels: string[]): 'yes' | 'no' | null {
 // Build a structured Case Profile from NDERF questionnaire fields.
 // These are short, factual yes/no and short-string answers that can be rendered
 // as chips on a feed card. Only include fields we actually extracted — no fabrication.
-interface NDERFCaseProfile {
+export interface NDERFCaseProfile {
   ndeType?: string;
   trigger?: string;          // "Drowning", "Cardiac arrest", etc.
   ageAtNDE?: string;
@@ -291,7 +296,23 @@ interface NDERFCaseProfile {
   aftereffectsChangedLife?: 'yes' | 'no';
 }
 
-function buildCaseProfile(html: string, ndeTypeLabel: string, trigger: string | undefined): NDERFCaseProfile {
+// Label resolver shape — given a list of candidate labels (question-variants),
+// return the first matched answer string or null. Adapters supply their own
+// resolver so that buildCaseProfile works against any site markup:
+//   - NDERF: class="m105" span-based extraction (nderfLabelResolver)
+//   - OBERF: color:green → color:blue span pairs (see oberf.ts)
+export type LabelResolver = (labels: string[]) => string | null;
+
+// Default resolver for NDERF markup. Adapters can call this for convenience.
+export function nderfLabelResolver(html: string): LabelResolver {
+  return (labels: string[]) => extractFieldAny(html, labels);
+}
+
+export function buildCaseProfile(
+  getField: LabelResolver,
+  ndeTypeLabel: string,
+  trigger: string | undefined
+): NDERFCaseProfile {
   const profile: NDERFCaseProfile = {};
 
   if (ndeTypeLabel) profile.ndeType = ndeTypeLabel;
@@ -299,62 +320,75 @@ function buildCaseProfile(html: string, ndeTypeLabel: string, trigger: string | 
 
   // NDERF has no explicit "age" field — skip.
 
-  const gender = extractField(html, 'Gender');
+  const gender = getField(['Gender']);
   if (gender && gender.length < 30) profile.gender = gender;
 
-  const consciousness = extractFieldAny(html, [
+  const consciousness = getField([
     'At what time during the experience were you at your highest level of consciousness',
     'How did your highest level of consciousness and alertness during the experience compare to your normal',
+    // OBERF-phrased variant:
+    'What was your level of consciousness and alertness during the experience',
   ]);
   if (consciousness && consciousness.length < 200) {
     profile.consciousnessPeak = consciousness.split(/[.;]/)[0].trim().slice(0, 160);
   }
 
-  const tunnel = extractYesNoAny(html, [
+  const tunnel = interpretNDERFAnswer(getField([
     'Did you pass into or through a tunnel',
-  ]);
+  ]) || '');
   if (tunnel) profile.tunnel = tunnel;
 
   // NDERF splits "light" into two questions; consider either a hit.
-  const light = extractYesNoAny(html, [
+  // OBERF asks "Did you see a light?" which we also accept here.
+  const light = interpretNDERFAnswer(getField([
     'Did you see an unearthly light',
     'Did you see or feel surrounded by a brilliant light',
-  ]);
+    'Did you see a light',
+  ]) || '');
   if (light) profile.light = light;
 
-  const oob = extractYesNoAny(html, [
+  // OBERF phrasing: "Did you experience a separation of your consciousness
+  // from your body?" — NDERF uses "Did you feel separated from your body?"
+  const oob = interpretNDERFAnswer(getField([
     'Did you feel separated from your body',
-  ]);
+    'Did you experience a separation of your consciousness from your body',
+  ]) || '');
   if (oob) profile.outOfBody = oob;
 
-  const review = extractYesNoAny(html, [
+  const review = interpretNDERFAnswer(getField([
     'Did scenes from your past come back',
-  ]);
+  ]) || '');
   if (review) profile.lifeReview = review;
 
-  const beings = extractYesNoAny(html, [
+  // OBERF: "Did you meet or see any other beings?"
+  const beings = interpretNDERFAnswer(getField([
     'Did you see any beings in your experience',
     'Did you encounter or become aware of any deceased',
-  ]);
+    'Did you meet or see any other beings',
+  ]) || '');
   if (beings) profile.metBeings = beings;
 
-  // NDERF has two distinct boundary questions; treat either yes as yes.
-  const boundary = extractYesNoAny(html, [
+  // NDERF/OBERF both phrase the boundary question similarly.
+  const boundary = interpretNDERFAnswer(getField([
     'Did you come to a border or point of no return',
     'Did you reach a boundary or limiting physical structure',
-  ]);
+  ]) || '');
   if (boundary) profile.boundary = boundary;
 
-  const timeShift = extractYesNoAny(html, [
+  // OBERF: "Did you have any sense of altered space or time?"
+  const timeShift = interpretNDERFAnswer(getField([
     'Did time seem to speed up or slow down',
-  ]);
+    'Did you have any sense of altered space or time',
+  ]) || '');
   if (timeShift) profile.alteredTime = timeShift;
 
   // Emotions: tokenize the questionnaire answer against our controlled
   // vocabulary rather than storing the experiencer's verbatim prose.
   // This turns free-text into structured, categorical data (fair-use
   // safe) and renders cleanly as discrete chips. Cap at 6 tokens for UI.
-  const emotionsRaw = extractField(html, 'What emotions did you feel during the experience');
+  const emotionsRaw = getField([
+    'What emotions did you feel during the experience',
+  ]);
   if (emotionsRaw) {
     const tokens = tokenizeEmotions(emotionsRaw).slice(0, 6);
     if (tokens.length > 0) {
@@ -453,7 +487,7 @@ const US_STATES: Record<string, string> = {
 
 // Extract location from NDERF narrative text
 // NDERF has no structured location field — we must extract from the narrative
-function extractLocation(content: string, html: string): { location_name?: string; country?: string; state_province?: string; city?: string } {
+export function extractLocation(content: string, html: string): { location_name?: string; country?: string; state_province?: string; city?: string } {
   const text = content;
 
   // Try common patterns in NDE narratives:
@@ -537,30 +571,26 @@ function extractLocation(content: string, html: string): { location_name?: strin
   return {};
 }
 
-// NDE type labels for titles (visitor-friendly)
-const NDE_TYPE_LABELS: Record<string, string> = {
-  'exceptional': 'Near-Death Experience',
-  'probable': 'Near-Death Experience',
-  'questionable': 'Near-Death Experience',
-  'sde': 'Shared Death Experience',
-  'obe': 'Out-of-Body Experience',
-  'fearde': 'Fear-Death Experience',
-  'ste': 'Spiritually Transformative Experience',
-  'other': 'Spiritually Transformative Experience'
-};
+// NDE type labels for titles — always neutral (tier is never exposed).
+// Kept as a function instead of a dict so the intent is obvious: NDERF is
+// NDE-only; all three evaluative tiers collapse to the same public label.
+function nderfPublicLabel(_tier: NDERFTier): string {
+  return NEUTRAL_NDE_LABEL;
+}
 
-// Generate a compelling, factual title from NDERF content
-// No person names. Uses: trigger event + location + year
+// Generate a compelling, factual title from NDERF content.
+// No person names, no evaluative tier. Uses: neutral type label + trigger
+// event + location + year. The NDERF tier is intentionally not a title
+// component — all NDERF reports use the same public type label.
 function generateNDERFTitle(
   html: string,
   content: string,
-  ndeType: string,
   location: { location_name?: string; country?: string },
   dateStr: string | undefined,
   preExtractedTrigger: string | undefined
 ): string {
-  // 1. Get the experience type label
-  const typeLabel = NDE_TYPE_LABELS[ndeType] || 'Near-Death Experience';
+  // 1. Always use the neutral phenomenological label.
+  const typeLabel = NEUTRAL_NDE_LABEL;
 
   // 2. Use the caller-provided trigger (already filtered for "Uncertain"/etc)
   let trigger = preExtractedTrigger || '';
@@ -692,15 +722,15 @@ function parseExperiencePage(html: string, id: string, name: string): ScrapedRep
 
   console.log(`[NDERF] ${id}: clean narrative ${content.length} chars, starts: "${content.substring(0, 80)}..."`);
 
-  // Determine NDE type from page content or URL
-  let ndeType = 'exceptional';
+  // Determine NDERF evaluative tier from page content or URL.
+  // INTERNAL ONLY — used for credibility scoring; never surfaced in UI.
+  // Non-NDE experience types (OBE/STE/SDE/FDE) live on oberf.org and are
+  // handled by the OBERF adapter, so we no longer branch on those here.
+  let nderfTier: NDERFTier = 'exceptional';
   const lowerHtml = html.toLowerCase();
   const idLower = id.toLowerCase();
-  if (lowerHtml.includes('probable nde') || idLower.includes('probable')) ndeType = 'probable';
-  else if (lowerHtml.includes('shared death') || idLower.includes('sde')) ndeType = 'sde';
-  else if (lowerHtml.includes('out of body') || idLower.includes('obe')) ndeType = 'obe';
-  else if (idLower.includes('ste')) ndeType = 'ste';
-  else if (lowerHtml.includes('fear-death') || idLower.includes('fearde')) ndeType = 'fearde';
+  if (lowerHtml.includes('probable nde') || idLower.includes('probable')) nderfTier = 'probable';
+  else if (lowerHtml.includes('questionable') || idLower.includes('questionable')) nderfTier = 'questionable';
 
   // --- FIX 1: Extract date from "Date of NDE" questionnaire field ---
   const { date: eventDate, precision: datePrecision } = extractNDEDate(html);
@@ -728,18 +758,21 @@ function parseExperiencePage(html: string, id: string, name: string): ScrapedRep
     }
   }
 
-  // --- FIX 4: Generate compelling title (no person names) ---
-  const title = generateNDERFTitle(html, content, ndeType, location, eventDate, triggerEvent);
+  // --- FIX 4: Generate compelling title (no person names, no tier) ---
+  const title = generateNDERFTitle(html, content, location, eventDate, triggerEvent);
 
   // --- Build structured Case Profile from questionnaire fields ---
-  const ndeTypeLabel = NDE_TYPES[ndeType as keyof typeof NDE_TYPES] || ndeType;
-  const caseProfile = buildCaseProfile(html, ndeTypeLabel, triggerEvent);
+  // Always pass the neutral label. The raw NDERF tier is stored separately
+  // in metadata.nderf_tier (internal) and never appears in case_profile.
+  const publicLabel = nderfPublicLabel(nderfTier);
+  const caseProfile = buildCaseProfile(nderfLabelResolver(html), publicLabel, triggerEvent);
 
   // Create summary
   const summary = content.length > 300 ? content.substring(0, 297) + '...' : content;
 
-  // Generate tags
-  const tags = generateTags(content, ndeType);
+  // Generate tags — do NOT include the tier label. Tier leaks NDERF's
+  // editorial judgment and is intentionally withheld from public fields.
+  const tags = generateTags(content);
 
   // Add gender tag
   if (gender) {
@@ -757,14 +790,30 @@ function parseExperiencePage(html: string, id: string, name: string): ScrapedRep
     city: location.city,
     event_date: eventDate,
     event_date_precision: datePrecision,
-    credibility: determineCredibility(content, ndeType),
+    credibility: determineCredibility(content, nderfTier),
     source_type: 'nderf',
     original_report_id: `nderf-${id}`,
     tags: Array.from(new Set(tags)),
     source_label: 'NDERF',
     source_url: `https://www.nderf.org/Experiences/${id}.htm`,
     metadata: {
-      ndeType: ndeTypeLabel,
+      // Public label. Always neutral.
+      ndeType: publicLabel,
+      // Experience-type taxonomy fields used by the ingestion engine to
+      // resolve reports.phenomenon_type_id via phenomenon_types.slug lookup
+      // (see src/lib/ingestion/engine.ts — resolvePhenomenonTypeBySlug).
+      // `distressing-nde` wins over plain `near-death-experience` when the
+      // tag pipeline has already flagged the report as frightening.
+      experienceType: tags.includes('distressing-nde')
+        ? 'Distressing Near-Death Experience'
+        : 'Near-Death Experience',
+      experienceTypeSlug: tags.includes('distressing-nde')
+        ? 'distressing-nde'
+        : 'near-death-experience',
+      // Internal-only: NDERF's evaluative tier. Used for our own credibility
+      // ranking; never rendered in the UI. Replace/remove this field if we
+      // later decide we shouldn't retain it at all.
+      nderf_tier: nderfTier,
       characteristics: extractCharacteristics(content),
       source: 'Near-Death Experience Research Foundation',
       gender: gender || undefined,

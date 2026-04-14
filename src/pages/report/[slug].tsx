@@ -27,6 +27,8 @@ import { CaseProfileChips } from '@/components/discover/DiscoverCards'
 import SourceAttribution from '@/components/reports/SourceAttribution'
 import FeaturedMediaCard from '@/components/reports/FeaturedMediaCard'
 import MediaMentionBanner from '@/components/reports/MediaMentionBanner'
+import { SHOW_RESEARCH_PANELS } from '@/lib/features'
+import { shouldShowEnvironmentalContext } from '@/lib/reports/environmental-visibility'
 const LogToConstellation = dynamic(
   () => import('@/components/LogToConstellation'),
   { ssr: false }
@@ -1020,7 +1022,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         {isIndexReport && (
           <>
             {/* NDERF Case Profile — structured facts first, before analysis narrative */}
-            {report.source_type === 'nderf' && (report as any).metadata?.case_profile && (
+            {(report.source_type === 'nderf' || report.source_type === 'oberf') && (report as any).metadata?.case_profile && (
               <div className="mb-5">
                 <CaseProfileChips
                   profile={(report as any).metadata.case_profile}
@@ -1043,14 +1045,17 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               />
             )}
 
-            {/* Research Hub Preview — conversion carrot for free users */}
-            <ResearchHubPreview
-              reportId={report.id}
-              reportTitle={report.title}
-              reportCategory={report.category}
-              isSubscribed={!!(userProfile && (userProfile.role === 'admin' || userProfile.role === 'moderator' || userProfile.role === 'enterprise'))}
-              isAuthenticated={!!user}
-            />
+            {/* Research Hub Preview — conversion carrot for free users.
+                Feature-flagged off in B1.5 while we rethink research surfaces. */}
+            {SHOW_RESEARCH_PANELS && (
+              <ResearchHubPreview
+                reportId={report.id}
+                reportTitle={report.title}
+                reportCategory={report.category}
+                isSubscribed={!!(userProfile && (userProfile.role === 'admin' || userProfile.role === 'moderator' || userProfile.role === 'enterprise'))}
+                isAuthenticated={!!user}
+              />
+            )}
           </>
         )}
 
@@ -1141,27 +1146,34 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         {/* AI Analysis Section — curated reports only.
             Index reports use pre-generated Paradocs Analysis (rendered above).
             Never show on-demand ReportAIInsight for index reports — it could
-            expose raw description content, violating the index model. */}
-        {isCurated && (
+            expose raw description content, violating the index model.
+            Feature-flagged with the rest of the research data surfaces (paused
+            in Session B1.5). */}
+        {isCurated && SHOW_RESEARCH_PANELS && (
           <div data-tour-step="ai-insight">
             <ReportAIInsight reportSlug={slug as string} className="mb-8" />
           </div>
         )}
 
-        {/* Environmental Context & Academic Data — on mobile only (desktop shows in sidebar).
-            Hidden for NDERF reports — replaced by Case Profile chip row above. */}
-        {report.source_type !== 'nderf' && (
+        {/* Environmental Context & Academic Data — mobile placement (desktop shows in sidebar).
+            Environmental Context whitelist: cryptid/UFO/outdoor-ritual/outdoor-location reports only.
+            AcademicObservationPanel is feature-flagged with the other research panels. */}
+        {(shouldShowEnvironmentalContext(report as any) || SHOW_RESEARCH_PANELS) && (
           <div className="lg:hidden grid sm:grid-cols-2 gap-4 mb-6 sm:mb-8" data-tour-step="environmental-mobile">
-            <EnvironmentalContext
-              reportSlug={slug as string}
-              isExpanded={panelsExpanded}
-              onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
-            />
-            <AcademicObservationPanel
-              reportSlug={slug as string}
-              isExpanded={panelsExpanded}
-              onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
-            />
+            {shouldShowEnvironmentalContext(report as any) && (
+              <EnvironmentalContext
+                reportSlug={slug as string}
+                isExpanded={panelsExpanded}
+                onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
+              />
+            )}
+            {SHOW_RESEARCH_PANELS && (
+              <AcademicObservationPanel
+                reportSlug={slug as string}
+                isExpanded={panelsExpanded}
+                onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
+              />
+            )}
           </div>
         )}
 
@@ -1291,19 +1303,24 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               sidebarOpen ? 'block' : 'hidden lg:block'
             )}>
               {/* Environmental Context & Research Data — desktop sidebar placement.
-                  Hidden for NDERF reports — replaced by Case Profile chip row above. */}
-              {report.source_type !== 'nderf' && (
+                  Environmental Context whitelist: cryptid/UFO/outdoor-ritual/outdoor-location.
+                  AcademicObservationPanel is feature-flagged with the other research panels. */}
+              {(shouldShowEnvironmentalContext(report as any) || SHOW_RESEARCH_PANELS) && (
                 <div className="hidden lg:block space-y-4" data-tour-step="environmental">
-                  <EnvironmentalContext
-                    reportSlug={slug as string}
-                    isExpanded={panelsExpanded}
-                    onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
-                  />
-                  <AcademicObservationPanel
-                    reportSlug={slug as string}
-                    isExpanded={panelsExpanded}
-                    onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
-                  />
+                  {shouldShowEnvironmentalContext(report as any) && (
+                    <EnvironmentalContext
+                      reportSlug={slug as string}
+                      isExpanded={panelsExpanded}
+                      onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
+                    />
+                  )}
+                  {SHOW_RESEARCH_PANELS && (
+                    <AcademicObservationPanel
+                      reportSlug={slug as string}
+                      isExpanded={panelsExpanded}
+                      onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
+                    />
+                  )}
                 </div>
               )}
 

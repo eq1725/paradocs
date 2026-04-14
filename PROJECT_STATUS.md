@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** April 2, 2026
+**Last updated:** April 14, 2026
 **Project:** beta.discoverparadocs.com
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -158,7 +158,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO, color system, PWA | `HANDOFF_SEARCH_NAV.md` | COMPLETE — Homepage: 4 optimized sections (Hero, Four Pillars, Eyewitness Accounts, Get Started CTA). DiscoverPreview: 3 card formats (featured/dossier/compact), smart selection from pool of 20, quality-scored hook extraction with feed_hook integration + vivid language scoring. **March 28:** PullQuoteCard → DossierCard (case-file grid, no quote marks), `isQuote` → `hasHook`, all card text unified to bold editorial voice. PWA + color (#9000F0) + fulltext search + A/B testing all shipped. |
 | 8 | **Subscription & Monetization** | Stripe checkout, paywall, tier system, billing portal, cancellation | `HANDOFF_SUBSCRIPTION.md` | Not started |
 | 9 | **Email & Engagement** | Weekly digests, drip campaigns, smart alerts, winback, notifications | `HANDOFF_EMAIL.md` | Not started |
-| 10 | **Data Ingestion & Pipeline** | Source adapters, quality filters, dedup, bulk import, feed hooks, Paradocs Analysis, embedding integration | `HANDOFF_INGESTION.md` | Active — **April 2 (Session B1):** All 7 high-priority adapters audited and hardened. NUFORC scoping fix, Reddit V2 crosspost+content dedup, YouTube rewritten with comment extraction. BFRO/NDERF/IANDS/Erowid verified clean. Dry-run script created. **Next (Session B2):** Run dry-run locally, then mass ingest 50 → 500 → 2K → full per source. See B1 section for exact commands. |
+| 10 | **Data Ingestion & Pipeline** | Source adapters, quality filters, dedup, bulk import, feed hooks, Paradocs Analysis, embedding integration | `HANDOFF_INGESTION.md` | Active — **April 14 (Session B1.5):** Live smoke-test QA/QC pass underway. NDERF evaluative-tier neutralization verified. OBERF `case_profile` extraction rebuilt (LabelResolver closure, color-span field map, archive-type inference); 3-row smoke test passed across OBE/SOBE + narrative-only variants. **Remaining B1.5 work:** 5-per-category smoke tests across remaining 7 OBERF archives, then IANDS → BFRO → NUFORC → Reddit V2 → YouTube → Erowid. **Session B2 (mass ingest) blocked on B1.5 sign-off.** See B1.5 section below. |
 | 11 | **Admin & Operations** | Admin dashboard, batch operations, cron jobs, A/B testing, monitoring | `HANDOFF_ADMIN.md` | Not started |
 | 12 | **Foundation & Infrastructure** | Shared components, auth/RLS, database schema, deployment, performance, SEO | `HANDOFF_FOUNDATION.md` | Not started |
 | 13 | **Mobile-First Design System** | Cross-cutting mobile UX: bottom tabs, bottom sheets, design tokens, screen-by-screen redesign | `HANDOFF_MOBILE.md` | Active — Phase 1-2 + 3a + Nav Unification deployed. Screen-by-screen redesign next. |
@@ -167,6 +167,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | A1 | **Lab + Nav + Profile (UX Consolidation)** | New /lab page (4 tabs), new /profile page, MobileBottomTabs rewrite, 301 redirects, Layout.tsx nav update | N/A | **COMPLETE (April 1)** — See details below |
 | A2 | **Explore Consolidation** | Merge /explore, /map, /search, /phenomena listing into one page with Map/Browse/Search tabs | N/A | **COMPLETE (April 1)** — See details below |
 | B1 | **Ingestion Adapter Hardening** | Audit, fix, and dry-run all high-priority adapters; YouTube comment extraction; crosspost dedup; dry-run script | N/A | **COMPLETE (April 2)** — See details below |
+| B1.5 | **Ingestion Adapter QA/QC (Live Smoke Tests)** | 5-report-per-adapter smoke tests against live sources, row-level verification of case_profile / tier / enrichment fields, bug fixes before mass ingest | `B1_5_QA_QC_NOTES.md` | **IN PROGRESS (April 14)** — NDERF evaluative-tier neutralization + OBERF case_profile extraction complete. 3-row OBERF acceptance evidence captured. Remaining: re-verify NDERF+OBERF with 5 per category, then IANDS → BFRO → NUFORC → Reddit V2 → YouTube → Erowid. **No mass ingest until B1.5 is signed off.** |
 
 ---
 
@@ -398,6 +399,60 @@ curl -X POST https://beta.discoverparadocs.com/api/admin/ai/embed \
 - Session 6b (Report Experience) can now plan for YouTube comments as a report source type
 - Session 10 status updated — all 7 high-priority adapters are ready for mass ingestion
 - Session 2 (Explore) — more diverse source types will appear in feed once ingested
+
+---
+
+### Session B1.5: Ingestion Adapter QA/QC (Live Smoke Tests) — IN PROGRESS (April 14, 2026)
+
+**Purpose:** B1 audited adapters at the code level and built a dry-run script. B1.5 closes the gap by actually running each adapter against its live source, ingesting 5 reports per category, and verifying row-level output (titles, dates, locations, `case_profile`, `nderf_tier`, emotion/consciousness arrays, tags). **Session B2 mass ingestion is blocked until B1.5 signs off on every adapter.**
+
+**Detailed session doc:** `B1_5_QA_QC_NOTES.md`
+**Continuation prompt:** `B1_5_CONTINUATION_PROMPT.md` — use to resume B1.5 in a fresh session.
+
+**What B1.5 has completed so far (April 14):**
+
+1. **NDERF evaluative-tier neutralization verified.** Public `ndeType` field is always `"Near-Death Experience"` regardless of whether the source page classifies the report as General / Exceptional / Transcendental / etc. The curator tier is preserved internally in `case_profile.nderf_tier` for downstream filtering without leaking into public UI labels. Two stale pre-neutralization rows (`bill_c_nde_13460`, `kelly_g_nde_13461`) may still exist in DB — to be handled at B1.5 resumption.
+
+2. **`buildCaseProfile()` refactored to take a `LabelResolver` closure.** Previously hardcoded to NDERF's `class="m105"` span markup. Now accepts any `(labels: string[]) => string | null` function, decoupling case-profile extraction from source-specific markup. NDERF call site uses `nderfLabelResolver(html)`; OBERF uses `oberfLabelResolver(fieldMap)`.
+
+3. **OBERF `case_profile` extraction rebuilt.** Root cause of empty OBERF case_profiles diagnosed: OBERF questionnaires use inline-styled spans (`color:green` labels, `color:blue` values), not NDERF's class-based markup. Added `buildOBERFFieldMap()` — walks green spans sequentially, treats HTML between consecutive greens as the value region, normalizes labels and does prefix-match fallback for OBERF/NDERF phrasing variants.
+
+4. **Archive-type inference for OBE/SOBE archives.** For pages that are narrative-only or lack an OOB questionnaire item, `cp_oob` defaults to `"yes"` because the entire archive is, by curator definition, out-of-body. Preserves curator intent where the questionnaire is silent.
+
+5. **Date-parsing fallback from narrative.** `extractOBERFDate()` now scans narrative text for a 4-digit year (1950-2029) when the `Date of Experience` field is empty, returning precision `'year'`.
+
+6. **`ARCHIVE_BASENAMES` skip-set fix.** Closed a false-positive where `stories_obe.htm` (archive index) was matching the individual-experience pattern `*_obe.htm` and getting queued as a report.
+
+7. **3-row OBERF smoke test passed.** `violette_g_obes` (NDERF-style questionnaire, no OOB item → archive inference), `don_a_obe` (full OBERF questionnaire), `remata_j_obe` (narrative-only → archive inference). All three produce correctly-shaped `case_profile` rows matching their source data.
+
+**What B1.5 still needs to do:**
+
+| Priority | Adapter | Action |
+|---|---|---|
+| 0 | NDERF + OBERF | Re-verify with 5 reports per category. OBERF: pull 5 from each of the 7 remaining archive types (STE, DBV, NDE-like, Pre-Birth, Prayer, Dream, Other). NDERF: clean up stale pre-neutralization rows. |
+| 1 | IANDS | Check for NDERF-like tier concept; neutralize if present. Verify 5-report output. |
+| 2 | BFRO | Verify Class A/B/C classification and geo extraction on 5 reports. |
+| 3 | NUFORC | Verify all three parsing-strategy fallbacks on 5 reports. |
+| 4 | Reddit V2 | Arctic Shift API test; may require running locally if Cowork sandbox blocks it. |
+| 5 | YouTube | Confirm `yt-video-` vs `yt-comment-` ID prefix separation on 5 reports. |
+| 6 | Erowid | Confirm substance-to-category mapping and quality filter on 5 reports. |
+
+**Files modified in B1.5 (so far):**
+- `src/lib/ingestion/adapters/nderf.ts` — Exported `LabelResolver` type, added `nderfLabelResolver()`, refactored `buildCaseProfile()` to take a resolver closure, expanded label arrays with OBERF variants.
+- `src/lib/ingestion/adapters/oberf.ts` — Added `buildOBERFFieldMap()`, `oberfLabelResolver()`, `normalizeLabel()`. Rewired `parseOBERFExperiencePage()` to use field map + LabelResolver. Updated `extractOBERFDate()` with narrative-year fallback. Added archive-type inference tail-block. Populated `ARCHIVE_BASENAMES` skip-set.
+
+No changes to ingestion engine, admin endpoints, DB schema, or other adapters.
+
+**Ground rules for B1.5 + B2:**
+- **No date cutoff** on any adapter. Ingest every available report regardless of year. Undated rows are acceptable and simply won't surface in date-filtered searches. (Reversed an incorrect "Stop at 2019" cutoff that appeared in an earlier session summary — it was never Chase's direction.)
+- **No mass ingestion until B1.5 signs off on every adapter.** B2 runs in a fresh session, reading `B2_CONTINUATION_PROMPT.md` (to be authored at B1.5 close).
+- **Source UUIDs, not slugs** on every `/api/admin/ingest` call. OBERF UUID: `34f11cb9-e000-4242-b698-bae624024947`. NDERF/IANDS/BFRO/NUFORC/Reddit/YouTube/Erowid UUIDs to be resolved on each adapter's turn via `SELECT id, slug FROM data_sources`.
+- **Full desktop UA** when curl'ing OBERF/NDERF directly for page inspection — short UAs return 226-byte stubs.
+
+**Cross-session impacts:**
+- Session 6b unchanged — awaits B2.
+- Session 2 unchanged — awaits B2.
+- Session 10 status updated to reflect active B1.5 QA/QC work.
 
 ---
 
@@ -1030,6 +1085,7 @@ curl -X POST https://beta.discoverparadocs.com/api/admin/ai/embed \
 
 | Date | Source Session | Note | Affects |
 |------|--------------|------|---------|
+| 2026-04-14 | Ingestion B1.5 | **Session B1.5: Adapter QA/QC (Live Smoke Tests) OPENED.** NDERF evaluative-tier neutralization verified — public `ndeType` always "Near-Death Experience", tier preserved internally in `case_profile.nderf_tier`. OBERF `case_profile` extraction rebuilt: `buildCaseProfile()` refactored to accept a `LabelResolver` closure; new `buildOBERFFieldMap()` handles OBERF's inline `color:green`/`color:blue` span markup (vs. NDERF's class-based markup). Added archive-type inference (OBE/SOBE archives default `cp_oob=yes`) and narrative-year date fallback. 3-row OBERF smoke test passed across full/NDERF-style/narrative-only page variants. **B2 mass ingestion BLOCKED until B1.5 signs off on every adapter.** B1.5 protocol: 5 reports per category per adapter → row-level SELECT verification → fix bugs → move on. Priority order: NDERF+OBERF re-verify → IANDS → BFRO → NUFORC → Reddit V2 → YouTube → Erowid. Details in `B1_5_QA_QC_NOTES.md`. Continuation prompt: `B1_5_CONTINUATION_PROMPT.md`. **No date cutoff on any adapter** (reversed an incorrect "Stop at 2019" policy cited in an earlier session summary). | Session 10 (active B1.5 work), Session B2 (blocked on B1.5 sign-off), Session 6b + Session 2 (unchanged — await B2) |
 | 2026-04-02 | Ingestion B1 | **Session B1: Adapter Hardening COMPLETE.** All 7 high-priority adapters audited. NUFORC scoping fix, Reddit V2 crosspost+content dedup + Experiencers subreddit + minScore raised to 10, YouTube completely rewritten with experiencer comment extraction (videos + comments as separate reports). BFRO/NDERF/IANDS/Erowid verified clean. Dry-run script created at `scripts/dry-run-adapters.ts`. `.env.example` updated with YOUTUBE_API_KEY. Estimated first-wave yield: ~250K-310K reports across all 7 adapters. | Session 10 (all adapters now hardened), Session 6b (YouTube comments as new report source type), Session 2/Explore (more diverse source types in feed after ingestion), Session B2 (exact mass ingestion commands documented in B1 section) |
 | 2026-03-25 | Dashboard (5) | **Dashboard UX Overhaul (Parts 1-6 COMPLETE).** Part 1: New dashboard page flow with 5 new components (QuickActions, ActivitySummary, SuggestedNextSteps, RecentDiscoveries, EmptyState). Part 2: ConstellationProgress.tsx — 5-tier milestone messaging (0-4/5-9/10-24/25-49/50+ entries) with contextual guidance on constellation page. Part 3: Saved items polish — category filter pills, sort dropdown, EmptyState integration, horizontal-scroll tabs on mobile. Part 4: Settings — Subscription section with CTA to /dashboard/subscription, About section with version + legal links. Part 5: ProgressMilestones.tsx — localStorage-based achievement tracking (firstSave, firstCaseFile, constellationUnlocked, aiInsightsUnlocked) with dismissable celebration banners. Part 6: Mobile polish — 44px touch targets on pills/buttons/tabs, horizontal-scroll + touch-pan-x on filter rows, responsive header stacking, always-visible action overlays on mobile. 7 new components total, 4 pages modified. | Mobile Design (touch targets standardized), Search & Nav (QuickActions links to /search and /ask), Subscription (settings now links to /dashboard/subscription) |
 | 2026-03-20 | Search & Nav (7) | **PWA INSTALL PROMPT + SERVICE WORKER + APP ICON UPDATE.** Service worker deployed at `public/sw.js` (cache-first static, network-first pages, skip API/auth). Registered in `_app.tsx`. `useInstallPrompt` hook detects Android beforeinstallprompt, iOS Safari, standalone mode, desktop. `InstallPrompt` component shows mobile-only "Add to home screen" in homepage Get Started section. App icon SVG gradient updated from old purples to brand #9000F0 scale (#c084fc/#9000f0/#6500a8), all 8 PNG icons regenerated. | **ALL sessions (FOUNDATION-LEVEL: service worker now exists — all pages cached by SW)**, Session 13 (mobile PWA install experience), Foundation (_app.tsx modified, public/sw.js added, all icons regenerated) |

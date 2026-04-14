@@ -11,6 +11,7 @@ import {
   isObviouslyLowQuality,
 } from './filters';
 import { parseLocation } from './utils/location-parser';
+import { generateCompellingTitle } from '../services/compelling-title.service';
 import { checkForDuplicate, DedupCandidate } from './dedup';
 import * as readline from 'readline';
 import * as fs from 'fs';
@@ -684,15 +685,28 @@ async function processBatch(
 
       if (useAITitles) {
         try {
-          const titleResult = await improveTitleWithAI(
-            report.title,
-            report.description,
-            report.category,
-            report.location_name,
-            report.event_date
-          );
-          finalTitle = titleResult.title;
-          originalTitle = titleResult.wasImproved ? titleResult.originalTitle : undefined;
+          const compelling = await generateCompellingTitle({
+            phenomenonType: report.title,
+            category: report.category,
+            description: report.description,
+            summary: (report as any).summary,
+            locationName: report.location_name,
+            eventDate: report.event_date as any,
+          });
+          if (compelling.title) {
+            finalTitle = compelling.title;
+            if (compelling.title !== report.title) originalTitle = report.title;
+          } else {
+            const titleResult = await improveTitleWithAI(
+              report.title,
+              report.description,
+              report.category,
+              report.location_name,
+              report.event_date
+            );
+            finalTitle = titleResult.title;
+            originalTitle = titleResult.wasImproved ? titleResult.originalTitle : undefined;
+          }
         } catch (aiError) {
           // Fall back to original title on AI error
         }

@@ -559,9 +559,12 @@ export function assessQuality(
   // Get source-specific thresholds for minimum description length
   var thresholds = getSourceThresholds(report.source_type);
 
-  // Curated/institutional sources (BFRO, NUFORC, NDERF) are field research reports,
-  // not social media posts — skip meta-post and low-effort filters
-  var isCuratedSource = ['bfro', 'nuforc', 'nderf', 'iands', 'erowid'].indexOf(report.source_type) !== -1;
+  // Curated/institutional sources (BFRO, NUFORC, NDERF, OBERF, IANDS, Erowid) are
+  // field research reports, not social media posts — skip meta-post, low-effort,
+  // and non-experience filters. These Reddit-tuned patterns cause false positives
+  // on structured questionnaire content (e.g., NDERF/OBERF pages mention "survey"
+  // in page chrome, triggering the meta-post heuristic).
+  var isCuratedSource = ['bfro', 'nuforc', 'nderf', 'oberf', 'iands', 'erowid'].indexOf(report.source_type) !== -1;
 
   // First run content filter with source-specific min length
   const filterResult = filterContent(

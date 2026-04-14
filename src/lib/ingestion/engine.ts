@@ -13,6 +13,7 @@ import {
 } from './filters';
 import { generateAndSaveFeedHook } from '../services/feed-hook.service';
 import { generateAndSaveParadocsAnalysis } from '../services/paradocs-analysis.service';
+import { generateCompellingTitle } from '../services/compelling-title.service';
 import { embedReport } from '../services/embedding.service';
 import { enrichReport } from './enrichment/report-enricher';
 import { checkForDuplicate, DedupCandidate } from './dedup';
@@ -76,6 +77,61 @@ function isCategoryMatch(reportCategory: string, phenomenonCategory: string): bo
 
   return phenomenonKeys.some(key => reportCategoryLower.includes(key)) ||
          reportCategoryLower.includes(phenomenonCategory);
+}
+
+// Resolve reports.phenomenon_type_id deterministically from the adapter's
+// declared experienceTypeSlug (set by NDERF + OBERF adapters via
+// metadata.experienceTypeSlug). This is belt-and-suspenders alongside the
+// pattern matcher below: the matcher only fires if the narrative happens
+// to contain the encyclopedia entry's name or aliases, and sparse/narrative-
+// less rows would otherwise stay unclassified. This function runs first;
+// the pattern matcher can still create additional report_phenomena links.
+//
+// Returns the resolved phenomenon_type_id, or null if the slug is absent or
+// not registered in phenomenon_types (e.g. migration not yet applied).
+async function resolvePhenomenonTypeBySlug(
+  supabase: SupabaseClient,
+  slug: string | undefined | null,
+): Promise<string | null> {
+  if (!slug || typeof slug !== 'string') return null;
+  const { data, error } = await supabase
+    .from('phenomenon_types')
+    .select('id')
+    .eq('slug', slug)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data.id as string;
+}
+
+// Link a freshly inserted report to its canonical encyclopedia entry based on
+// experienceTypeSlug, so "related reports" on the encyclopedia page resolves
+// immediately — without waiting for the name/alias pattern matcher to fire.
+// Idempotent via the (report_id, phenomenon_id) unique constraint.
+async function linkReportToCanonicalPhenomenonBySlug(
+  supabase: SupabaseClient,
+  reportId: string,
+  slug: string | undefined | null,
+): Promise<boolean> {
+  if (!slug) return false;
+  const { data: phen, error } = await supabase
+    .from('phenomena')
+    .select('id')
+    .eq('slug', slug)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (error || !phen) return false;
+  const { error: upsertError } = await supabase
+    .from('report_phenomena')
+    .upsert(
+      {
+        report_id: reportId,
+        phenomenon_id: phen.id,
+        confidence: 0.95, // high — came from adapter's explicit type assignment
+        tagged_by: 'auto',
+      },
+      { onConflict: 'report_id,phenomenon_id', ignoreDuplicates: true },
+    );
+  return !upsertError;
 }
 
 // Pattern-match a single report to phenomena (lightweight, no AI)
@@ -378,17 +434,45 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           }
         }
 
-        // Improve title if needed (using AI for unique elements)
-        const titleResult = await improveTitleWithAI(
-          report.title,
-          report.description,
-          report.category,
-          report.location_name,
-          report.event_date
-        );
-
-        const finalTitle = titleResult.title;
-        const originalTitle = titleResult.wasImproved ? titleResult.originalTitle : undefined;
+        // Generate a compelling newspaper-style headline from the actual
+        // witness report. Falls back to the legacy pattern-based improver
+        // if the LLM call fails or returns an invalid title.
+        let finalTitle: string = report.title;
+        let originalTitle: string | undefined;
+        try {
+          const compelling = await generateCompellingTitle({
+            phenomenonType: (report as any).phenomenon_type || report.title,
+            category: report.category,
+            description: report.description,
+            summary: (report as any).summary,
+            locationName: report.location_name,
+            eventDate: report.event_date as any,
+          });
+          if (compelling.title) {
+            finalTitle = compelling.title;
+            if (compelling.title !== report.title) originalTitle = report.title;
+          } else {
+            const titleResult = await improveTitleWithAI(
+              report.title,
+              report.description,
+              report.category,
+              report.location_name,
+              report.event_date
+            );
+            finalTitle = titleResult.title;
+            originalTitle = titleResult.wasImproved ? titleResult.originalTitle : undefined;
+          }
+        } catch (e) {
+          const titleResult = await improveTitleWithAI(
+            report.title,
+            report.description,
+            report.category,
+            report.location_name,
+            report.event_date
+          );
+          finalTitle = titleResult.title;
+          originalTitle = titleResult.wasImproved ? titleResult.originalTitle : undefined;
+        }
 
         // Generate source label
         const sourceLabel = report.source_label || getSourceLabel(report.source_type);
@@ -515,6 +599,38 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                   console.log(`[Ingestion] Added ${mediaAdded} media items to existing report`);
                 }
               }
+            }
+
+            // Backfill deterministic taxonomy on re-ingest:
+            // If the adapter now attaches experienceTypeSlug (NDERF, OBERF) but
+            // an older version of the row lacks phenomenon_type_id or a
+            // canonical report_phenomena link, canonicalize it here. This
+            // keeps previously-ingested rows in sync with taxonomy migrations
+            // and adapter upgrades.
+            try {
+              const metadataForType = (report.metadata || {}) as Record<string, unknown>;
+              const experienceTypeSlug =
+                typeof metadataForType.experienceTypeSlug === 'string'
+                  ? metadataForType.experienceTypeSlug
+                  : undefined;
+              if (experienceTypeSlug) {
+                const typeId = await resolvePhenomenonTypeBySlug(supabase, experienceTypeSlug);
+                if (typeId) {
+                  await supabase
+                    .from('reports')
+                    .update({ phenomenon_type_id: typeId })
+                    .eq('id', existing.id)
+                    .is('phenomenon_type_id', null);
+                }
+                await linkReportToCanonicalPhenomenonBySlug(
+                  supabase,
+                  existing.id,
+                  experienceTypeSlug,
+                );
+              }
+            } catch (phenBackfillErr) {
+              // Non-fatal — taxonomy backfill failure shouldn't block update
+              console.log('[Ingestion] Taxonomy backfill failed for updated report, continuing...');
             }
           } else {
             skipped++;
@@ -644,6 +760,39 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
             // Auto-identify and link to phenomena (only for approved reports)
             if (status === 'approved') {
               try {
+                // 1) Deterministic pass: if the adapter declared an
+                //    experienceTypeSlug in metadata (NDERF, OBERF), resolve
+                //    reports.phenomenon_type_id directly and link the report
+                //    to the matching encyclopedia entry. This bypasses the
+                //    narrative-dependent pattern matcher for the NDE family.
+                const metadataForType = (report.metadata || {}) as Record<string, unknown>;
+                const experienceTypeSlug =
+                  typeof metadataForType.experienceTypeSlug === 'string'
+                    ? metadataForType.experienceTypeSlug
+                    : undefined;
+                if (experienceTypeSlug) {
+                  const typeId = await resolvePhenomenonTypeBySlug(supabase, experienceTypeSlug);
+                  if (typeId) {
+                    await supabase
+                      .from('reports')
+                      .update({ phenomenon_type_id: typeId })
+                      .eq('id', insertedReport.id)
+                      .is('phenomenon_type_id', null);
+                  }
+                  const linkedCanonical = await linkReportToCanonicalPhenomenonBySlug(
+                    supabase,
+                    insertedReport.id,
+                    experienceTypeSlug,
+                  );
+                  if (linkedCanonical) {
+                    phenomenaLinked += 1;
+                  }
+                }
+
+                // 2) Pattern-match pass: still run so reports can pick up
+                //    secondary encyclopedia links (e.g. an NDE report that
+                //    also mentions "tunnel of light" or "deceased relatives"
+                //    as distinct phenomena, once we add those).
                 const linked = await identifyPhenomenaForReport(
                   supabase,
                   insertedReport.id,
