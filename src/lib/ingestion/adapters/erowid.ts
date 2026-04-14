@@ -20,6 +20,44 @@ interface ParsedExperience {
   substance?: string;
   experienceType?: string;
   body: string;
+  profile?: ErowidCaseProfile;
+}
+
+/**
+ * Structured factual metadata surfaced on Erowid report headers.
+ *
+ * Every field below is extracted from the published dose table / byline
+ * row — never from the free-form narrative. We DO NOT paraphrase or
+ * summarise the witness prose here; we only record yes/no, numeric, or
+ * short factual labels that already appear on the source page.
+ *
+ * Added Apr 14 2026 as part of the cross-adapter detail-capture pass
+ * (QA/QC #3). See src/components/discover/DiscoverCards.tsx for the
+ * corresponding renderer.
+ */
+export interface ErowidCaseProfile {
+  /** Primary substance (canonical-cased, e.g. "Psilocybin mushrooms"). */
+  substance?: string;
+  /** Additional substances listed in the dose table (polysubstance use). */
+  coSubstances?: string[];
+  /** Route of administration: oral, inhaled, IV, insufflated, sublingual, etc. */
+  route?: string;
+  /** Total dose amount text as listed (e.g. "3 g", "250 mg", "2 hits"). */
+  doseAmount?: string;
+  /** Experiencer gender — "Male" | "Female" | other labels Erowid uses. */
+  gender?: string;
+  /** Experiencer age at the time of the experience, as a string ("19", "mid-20s"). */
+  ageAtExperience?: string;
+  /** Experiencer body weight, as listed (e.g. "150 lb"). */
+  bodyWeight?: string;
+  /** Year the experience occurred, if listed separately from publish date. */
+  experienceYear?: string;
+  /** Published date as listed on the page. */
+  publishedDate?: string;
+  /** Free-form "Setting" header value if present (e.g. "Home", "Forest"). */
+  setting?: string;
+  /** True if the header indicates a group/multi-person setting. */
+  isGroupContext?: 'yes' | 'no';
 }
 
 class ErowidAdapter implements SourceAdapter {
@@ -138,6 +176,11 @@ class ErowidAdapter implements SourceAdapter {
     // Determine experience type
     const experienceType = this.determineExperienceType(title, cleanedBody);
 
+    // Extract structured factual metadata from the Erowid report header
+    // (dose table + byline row). All values originate on the source page;
+    // we only record short factual tokens, never the narrative prose.
+    const profile = this.extractCaseProfile(html);
+
     // Quality filter: skip very short reports
     if (cleanedBody.length < 200) {
       return null;
@@ -150,7 +193,116 @@ class ErowidAdapter implements SourceAdapter {
       substance,
       experienceType,
       body: cleanedBody,
+      profile,
     };
+  }
+
+  /**
+   * Extract structured factual fields from the Erowid report header table.
+   *
+   * Erowid reports ship with two well-defined header blocks:
+   *   - A byline row carrying author handle, body weight, gender, age
+   *   - A dose table with one row per substance listing T+offset, route,
+   *     form, substance name, and amount
+   *
+   * We walk both structures defensively — any individual field may be
+   * absent — and produce only short factual tokens. We NEVER read free
+   * narrative text here; that remains in the report body and is the
+   * experiencer's own copyrighted prose.
+   */
+  private extractCaseProfile(html: string): ErowidCaseProfile {
+    const profile: ErowidCaseProfile = {};
+
+    // Byline / meta row — Erowid marks body-weight / gender / age with
+    // class hooks like "bodyweight-amount", "sex", "age". Pull them
+    // conservatively with forgiving regex that tolerates attribute
+    // ordering.
+    const weightMatch = html.match(/class="[^"]*bodyweight[-_]amount[^"]*"[^>]*>([^<]+)</i);
+    if (weightMatch) profile.bodyWeight = this.decodeHtmlEntities(weightMatch[1]).trim();
+
+    const genderMatch = html.match(/class="[^"]*sex[^"]*"[^>]*>([^<]+)</i);
+    if (genderMatch) {
+      const g = this.decodeHtmlEntities(genderMatch[1]).trim();
+      if (g.length > 0 && g.length < 20) profile.gender = g;
+    }
+
+    const ageMatch = html.match(/class="[^"]*age[^"]*"[^>]*>([^<]+)</i);
+    if (ageMatch) {
+      const a = this.decodeHtmlEntities(ageMatch[1]).trim();
+      if (a.length > 0 && a.length < 20) profile.ageAtExperience = a;
+    }
+
+    // Published / experience year footers — Erowid prints
+    // "Published: Mon dd, yyyy" and "Exp Year: yyyy" in a subfooter row.
+    const publishedMatch = html.match(/Published\s*:\s*([A-Za-z0-9,\s-]{3,40})/i);
+    if (publishedMatch) profile.publishedDate = publishedMatch[1].trim();
+
+    const expYearMatch = html.match(/Exp(?:erience)?\s*Year\s*:\s*(\d{4})/i);
+    if (expYearMatch) profile.experienceYear = expYearMatch[1];
+
+    // Dose table — <table class="dosechart"> with one row per substance.
+    // We extract the first substance row as the canonical one (the header
+    // of the table lists T+0:00 for the primary dose) and collect
+    // additional substance names as co-substances for polysubstance use.
+    const doseTableMatch = html.match(/<table[^>]*class="[^"]*dosechart[^"]*"[^>]*>([\s\S]*?)<\/table>/i);
+    if (doseTableMatch) {
+      const tbody = doseTableMatch[1];
+      const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+      const substances: string[] = [];
+      let routeCaptured = false;
+      let doseCaptured = false;
+      let rowMatch: RegExpExecArray | null;
+      while ((rowMatch = rowPattern.exec(tbody)) !== null) {
+        const row = rowMatch[1];
+        // Skip header rows (<th>...</th>)
+        if (/<th[\s>]/i.test(row)) continue;
+        const cellPattern = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+        const cells: string[] = [];
+        let cellMatch: RegExpExecArray | null;
+        while ((cellMatch = cellPattern.exec(row)) !== null) {
+          cells.push(this.decodeHtmlEntities(this.stripHtmlTags(cellMatch[1])).trim());
+        }
+        if (cells.length === 0) continue;
+        // Standard Erowid dose row: [T+offset, amount, route, form, substance]
+        // Column indices vary slightly by template; we identify by content.
+        const joined = cells.join(' | ').toLowerCase();
+        // Route detection — typical Erowid route tokens
+        if (!routeCaptured) {
+          const routeTokens = ['oral', 'insufflated', 'smoked', 'vaporized', 'sublingual', 'iv', 'im', 'intravenous', 'intramuscular', 'rectal', 'inhaled'];
+          for (const token of routeTokens) {
+            if (joined.indexOf(token) >= 0) {
+              profile.route = token === 'iv' ? 'intravenous' : token === 'im' ? 'intramuscular' : token;
+              routeCaptured = true;
+              break;
+            }
+          }
+        }
+        // Dose amount — look for numeric+unit pattern in cells
+        if (!doseCaptured) {
+          for (const c of cells) {
+            const m = c.match(/^\s*(\d+(?:\.\d+)?)\s*(g|mg|mcg|\u00b5g|ml|hits?|tabs?|caps?|drops?|capsule|tablet)s?\s*$/i);
+            if (m) {
+              profile.doseAmount = c.trim();
+              doseCaptured = true;
+              break;
+            }
+          }
+        }
+        // Substance name — last cell often carries the common substance name
+        const candidateSubstance = cells[cells.length - 1];
+        if (candidateSubstance && candidateSubstance.length > 0 && candidateSubstance.length < 80) {
+          if (substances.indexOf(candidateSubstance) === -1) {
+            substances.push(candidateSubstance);
+          }
+        }
+      }
+      if (substances.length > 0) {
+        profile.substance = substances[0];
+        if (substances.length > 1) profile.coSubstances = substances.slice(1);
+      }
+    }
+
+    return profile;
   }
 
   /**
@@ -457,6 +609,11 @@ class ErowidAdapter implements SourceAdapter {
               substance: parsed.substance,
               experienceType: parsed.experienceType,
               author: parsed.author,
+              // Structured factual header fields (dose table / byline).
+              // Added Apr 14 2026 — see ErowidCaseProfile interface above.
+              case_profile: parsed.profile && Object.keys(parsed.profile).length > 0
+                ? parsed.profile
+                : undefined,
             },
           };
 

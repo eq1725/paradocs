@@ -117,6 +117,44 @@ function validateTitle(title: string, input: CompellingTitleInput): string | nul
   if (/["\u201C\u201D]/.test(title)) return 'contains_quote'
   // Obvious preamble
   if (/^(here\s+is|here's|i\s+suggest|how\s+about)/i.test(title)) return 'contains_preamble'
+  // Name-like patterns — we treat these as evidence the title used the
+  // experiencer's name (which is banned by the system prompt).
+  // These are heuristics, not a perfect detector — they err on the side of
+  // rejecting so we'll retry the generator. The paradocs encyclopedia voice
+  // never attributes experiences to specific named individuals.
+  //
+  //   "Mudappallur G ..."      → Capitalized token followed by a standalone
+  //                              single-letter initial. Classic OBERF page-
+  //                              header pattern (first name + last initial).
+  //   "J.M. ..."               → Initials with periods.
+  //   "Mr. Smith Sees Orb"     → Honorific + surname.
+  //
+  // Generic job/role nouns are whitelisted so "Nurse Sees Orb" or
+  // "Rancher Discovers Debris" still pass.
+  var nameGuardPatterns = [
+    // Standalone single-letter initial in title (e.g., "Mudappallur G Survives")
+    //   \b[A-Z]\b anywhere except as a single-word acronym like "US" or "UFO"
+    /(^|\s)[A-Z]\.?\s+(?=[A-Z][a-z])/,
+    // Explicit initials pattern "J.M." or "J. M." or "KT"
+    /\b[A-Z]\.\s?[A-Z]\.?/,
+    // Honorific + capitalized word
+    /\b(Mr|Mrs|Ms|Mx|Dr|Sr|Fr|Rev)\.?\s+[A-Z][a-z]+/,
+  ]
+  var roleWhitelist = new Set([
+    'witness','witnesses','woman','man','girl','boy','child','teen','teenager',
+    'worker','nurse','doctor','driver','pilot','sailor','soldier','police','officer',
+    'hiker','rancher','farmer','fisherman','patient','mother','father','wife','husband',
+    'daughter','son','sister','brother','grandmother','grandfather','couple','family'
+  ])
+  for (var g = 0; g < nameGuardPatterns.length; g++) {
+    if (nameGuardPatterns[g].test(title)) {
+      // Check if the first "name-looking" word is actually a whitelisted role.
+      var firstCap = title.match(/\b([A-Z][a-z]+)\b/)
+      if (!firstCap || !roleWhitelist.has(firstCap[1].toLowerCase())) {
+        return 'contains_name'
+      }
+    }
+  }
   // Bare category fallback — user explicitly rejected these
   var barePatterns = [
     /^UFO Encounter$/i,
@@ -200,6 +238,18 @@ var SYSTEM_PROMPT = [
   '- Name the most distinctive concrete element: the creature, craft shape, setting, entity,',
   '  or pivotal action from the report',
   '- Never invent names, places, dates, numbers, or creatures that are not in the source',
+  '- NEVER include the experiencer\'s name, initials, username, or handle in the title, even',
+  '  if it appears in the source. This includes first names ("Sarah Sees Orb"), last names,',
+  '  initials ("J.M.", "K.T."), first-name-with-initial ("Mudappallur G"), reddit handles,',
+  '  and youtube channel names. Refer to them generically: "Woman", "Man", "Child", "Teen",',
+  '  "Witness", "Rancher", "Nurse", "Driver", "Patient", etc., choosing the term that best',
+  '  fits the role they played in the event.',
+  '- NAMED public figures (historical leaders, celebrities) and NAMED third parties the witness',
+  '  talks about are also out — keep the title about the event and the experiencer\'s role,',
+  '  not about any named person.',
+  '- Place names ARE allowed when concrete and present in the source (e.g., "Highway 101",',
+  '  "Yosemite Valley", "Lake Erie"), and so are named historical events, military unit names,',
+  '  and craft-shape labels (Triangle, Disc, Orb). Only personal names are banned.',
   '- No clickbait (no "You Won\'t Believe", no exclamation marks)',
   '- No ellipses, no quotation marks, no colons, no subtitles',
   '- Do not use the bare generic category as the full title (e.g., "UFO Encounter",',
@@ -211,6 +261,25 @@ var SYSTEM_PROMPT = [
   'Return ONLY the title. No quotes. No preamble. No trailing punctuation.'
 ].join('\n')
 
+// Strip known source-page-chrome prefixes that sometimes leak into the
+// stored description. These tokens carry the experiencer's identifying
+// handle (e.g., OBERF's "Mudappallur G Experience Home Page..." header),
+// which the title generator then picks up — so we remove them before the
+// LLM ever sees them.
+function stripSourcePageChrome(desc: string): string {
+  if (!desc) return desc
+  var s = desc
+  // OBERF pattern: "<NAME> Experience Home Page Share Experience New Experiences Experience description: <actual text>"
+  //   → strip through the "Experience description:" marker.
+  s = s.replace(/^[^.]*?Experience\s+Home\s+Page[\s\S]*?Experience\s+description:\s*/i, '')
+  //   Defensive variant without "Home Page" marker — still targets the
+  //   "Experience description:" splitter.
+  s = s.replace(/^[^.]{0,200}?Experience\s+description:\s*/i, '')
+  // NDERF case-entry header scraps: leading "Near Death Experience of <NAME>"
+  s = s.replace(/^(?:Near[-\s]Death\s+Experience|Out[-\s]of[-\s]Body\s+Experience|Deathbed\s+Vision)\s+of\s+[^\n.]{0,120}\./i, '')
+  return s.trim()
+}
+
 function buildUserPrompt(input: CompellingTitleInput): string {
   var parts: string[] = []
   if (input.phenomenonType) parts.push('Phenomenon type: ' + input.phenomenonType)
@@ -219,11 +288,11 @@ function buildUserPrompt(input: CompellingTitleInput): string {
   var dateStr = formatDateStr(input.eventDate)
   if (dateStr) parts.push('Date: ' + dateStr)
 
-  var desc = (input.description || '').trim()
+  var desc = stripSourcePageChrome((input.description || '').trim())
   // Cap at ~3500 chars so we keep enough of the report while keeping token usage low
   if (desc.length > 3500) desc = desc.substring(0, 3500) + ' [...truncated]'
   parts.push('')
-  parts.push('Witness report:')
+  parts.push('Witness report (do NOT use any personal names, handles, or initials that appear below — refer to the experiencer by their role only):')
   parts.push(desc)
   if (input.summary && input.summary.trim() && desc.indexOf(input.summary.trim()) === -1) {
     parts.push('')

@@ -91,6 +91,18 @@ export interface NDERFCaseProfile {
   // string — the renderer ignores those.
   emotions?: EmotionToken[] | string
   aftereffectsChangedLife?: 'yes' | 'no'
+  // Expanded phenomenology and interpretation (QA/QC #3, Apr 14 2026).
+  // All values derive from factual yes/no or multi-choice questionnaire
+  // answers — never from free-form narrative prose.
+  mysticalBeing?: 'yes' | 'no'
+  deceasedPresent?: 'yes' | 'no'
+  otherworldly?: 'yes' | 'no'
+  specialKnowledge?: 'yes' | 'no'
+  futureScenes?: 'yes' | 'no'
+  afterlifeAware?: 'yes' | 'no'
+  memoryAccuracy?: 'yes' | 'no'
+  realityBelief?: 'yes' | 'no'
+  lifeChanged?: 'yes' | 'no'
 }
 
 export interface ReportItem {
@@ -264,22 +276,37 @@ export function CaseProfileChips(props: { profile: NDERFCaseProfile, variant?: '
   var p = props.profile
   var variant = props.variant || 'compact'
 
-  // Primary identity facts — text-value chips shown prominently
+  // Primary identity facts — text-value chips shown prominently.
+  // NOTE: ndeType is intentionally NOT rendered here. The experience-type
+  // classification (e.g. "Other Experience", "Out-of-Body Experience") is
+  // kept in metadata for backend taxonomy / filtering only — surfacing it
+  // on the detail page creates redundant category labeling and a
+  // category-vs-classifier confusion for readers. (QA/QC #2, Apr 14 2026.)
   var identity: { label: string, value: string }[] = []
-  if (p.ndeType) identity.push({ label: 'Type', value: p.ndeType })
   if (p.trigger) identity.push({ label: 'Trigger', value: p.trigger })
   if (p.gender) identity.push({ label: 'Gender', value: p.gender })
   if (p.ageAtNDE) identity.push({ label: 'Age', value: p.ageAtNDE })
 
-  // Phenomenon checklist — yes/no/unknown for each NDE feature
+  // Phenomenon checklist — yes/no/unknown for each NDE feature.
+  // Ordered roughly core → peripheral → aftereffects so the most commonly
+  // answered features surface first in the chip grid.
   var phenomena: { label: string, state: 'yes' | 'no' | 'unknown' }[] = [
     { label: 'Out-of-body', state: p.outOfBody || 'unknown' },
     { label: 'Tunnel', state: p.tunnel || 'unknown' },
     { label: 'Brilliant light', state: p.light || 'unknown' },
     { label: 'Met beings', state: p.metBeings || 'unknown' },
+    { label: 'Mystical being', state: p.mysticalBeing || 'unknown' },
+    { label: 'Deceased present', state: p.deceasedPresent || 'unknown' },
+    { label: 'Other realm', state: p.otherworldly || 'unknown' },
     { label: 'Life review', state: p.lifeReview || 'unknown' },
+    { label: 'Special knowledge', state: p.specialKnowledge || 'unknown' },
+    { label: 'Future scenes', state: p.futureScenes || 'unknown' },
+    { label: 'Afterlife aware', state: p.afterlifeAware || 'unknown' },
     { label: 'Boundary', state: p.boundary || 'unknown' },
     { label: 'Altered time', state: p.alteredTime || 'unknown' },
+    { label: 'Vivid memory', state: p.memoryAccuracy || 'unknown' },
+    { label: 'Believes real', state: p.realityBelief || 'unknown' },
+    { label: 'Life changed', state: (p.lifeChanged || p.aftereffectsChangedLife) || 'unknown' },
   ]
   // Only show phenomena that were actually answered
   var answeredPhenomena = phenomena.filter(function (x) { return x.state !== 'unknown' })

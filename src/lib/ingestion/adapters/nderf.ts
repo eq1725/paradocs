@@ -275,12 +275,21 @@ export function extractYesNoAny(html: string, labels: string[]): 'yes' | 'no' | 
 // Build a structured Case Profile from NDERF questionnaire fields.
 // These are short, factual yes/no and short-string answers that can be rendered
 // as chips on a feed card. Only include fields we actually extracted — no fabrication.
+//
+// Schema note (Apr 14 2026, B1.5 QA #3):
+// Expanded from the original 7-binary core to a broader 14-field structured
+// phenomenon checklist. NDERF/OBERF questionnaires contain ~40 distinct
+// questions and we were only surfacing a small fraction. These added fields
+// are all either (a) short yes/no answers or (b) closed-choice multi-select
+// answers that we interpret into yes/no — they are FACTUAL questionnaire
+// outputs, not copyrighted prose. No free-text fields are stored here.
 export interface NDERFCaseProfile {
   ndeType?: string;
   trigger?: string;          // "Drowning", "Cardiac arrest", etc.
   ageAtNDE?: string;
   gender?: string;
   consciousnessPeak?: string; // "During the experience" / "At time of cardiac arrest"
+  // Core phenomenology (classical NDE elements)
   tunnel?: 'yes' | 'no';
   light?: 'yes' | 'no';
   outOfBody?: 'yes' | 'no';
@@ -288,6 +297,16 @@ export interface NDERFCaseProfile {
   metBeings?: 'yes' | 'no';
   boundary?: 'yes' | 'no';
   alteredTime?: 'yes' | 'no';
+  // Expanded phenomenology (added B1.5 — all from existing questionnaire)
+  mysticalBeing?: 'yes' | 'no';       // "Did you seem to encounter a mystical being or presence?"
+  deceasedPresent?: 'yes' | 'no';     // "Did you encounter or become aware of any deceased (or alive) beings?"
+  otherworldly?: 'yes' | 'no';        // "Did you seem to enter some other, unearthly world?"
+  specialKnowledge?: 'yes' | 'no';    // "Did you suddenly seem to understand everything?" or "sense of knowing special knowledge"
+  futureScenes?: 'yes' | 'no';        // "Did scenes from the future come to you?"
+  afterlifeAware?: 'yes' | 'no';      // "encountered information suggesting continued existence after earthly life"
+  memoryAccuracy?: 'yes' | 'no';      // "remember the experience as accurately as other life events"
+  realityBelief?: 'yes' | 'no';       // "experience was definitely real" (current belief)
+  lifeChanged?: 'yes' | 'no';         // "experience directly resulted in: large changes"
   // Emotions stored as a tokenized list against a controlled vocabulary
   // (see emotion-vocab.ts). We never store the experiencer's verbatim
   // answer — only matched emotion tokens. An older string form may exist
@@ -381,6 +400,86 @@ export function buildCaseProfile(
     'Did you have any sense of altered space or time',
   ]) || '');
   if (timeShift) profile.alteredTime = timeShift;
+
+  // --- Expanded phenomenology (B1.5 QA #3) ---
+  // Each of these is a direct questionnaire field on NDERF/OBERF. We only set
+  // the profile key when the answer is an affirmative or explicit negative —
+  // "uncertain" and missing fields stay undefined.
+
+  const mystical = interpretNDERFAnswer(getField([
+    'Did you seem to encounter a mystical being or presence',
+    'Did you seem to encounter a mystical being',
+  ]) || '');
+  if (mystical) profile.mysticalBeing = mystical;
+
+  const deceased = interpretNDERFAnswer(getField([
+    'Did you encounter or become aware of any deceased',
+    'Did you encounter or become aware of any deceased (or alive) beings',
+  ]) || '');
+  if (deceased) profile.deceasedPresent = deceased;
+
+  const other = interpretNDERFAnswer(getField([
+    'Did you seem to enter some other, unearthly world',
+    'Did you seem to enter some other unearthly world',
+  ]) || '');
+  if (other) profile.otherworldly = other;
+
+  // Special knowledge has two question variants; either affirmative means yes.
+  const knowledge1 = interpretNDERFAnswer(getField([
+    'Did you suddenly seem to understand everything',
+  ]) || '');
+  const knowledge2 = interpretNDERFAnswer(getField([
+    'Did you have a sense of knowing special knowledge or purpose',
+    'Did you have a sense of knowing special knowledge',
+  ]) || '');
+  if (knowledge1 === 'yes' || knowledge2 === 'yes') profile.specialKnowledge = 'yes';
+  else if (knowledge1 === 'no' && knowledge2 === 'no') profile.specialKnowledge = 'no';
+
+  const future = interpretNDERFAnswer(getField([
+    'Did scenes from the future come to you',
+    'Did scenes from your probable future come',
+  ]) || '');
+  if (future) profile.futureScenes = future;
+
+  const afterlife = interpretNDERFAnswer(getField([
+    'During your experience, did you encounter information suggesting continued existence after earthly life',
+    'Did you encounter information suggesting continued existence after earthly life',
+  ]) || '');
+  if (afterlife) profile.afterlifeAware = afterlife;
+
+  // Memory accuracy — multi-choice with "as accurately" / "less accurately" / "more accurately".
+  // We treat "as accurately" or "more accurately" as yes (high memory accuracy) and "less
+  // accurately" as no. Uncertain/missing → undefined.
+  const memoryRaw = (getField([
+    'How accurately do you remember the experience compared to other life events',
+    'How accurately do you remember the experience',
+  ]) || '').toLowerCase();
+  if (memoryRaw) {
+    if (memoryRaw.indexOf('less accurately') >= 0) profile.memoryAccuracy = 'no';
+    else if (memoryRaw.indexOf('as accurately') >= 0 || memoryRaw.indexOf('more accurately') >= 0) profile.memoryAccuracy = 'yes';
+  }
+
+  // Current-reality belief — multi-choice with "definitely real" / "probably real" /
+  // "definitely not real" / etc. We collapse to yes (believes real) vs no (doesn't).
+  const realityRaw = (getField([
+    'What do you believe about the reality of your experience at the current time',
+    'What do you believe about the reality of your experience currently',
+    'What do you believe about the reality currently',
+  ]) || '').toLowerCase();
+  if (realityRaw) {
+    if (realityRaw.indexOf('definitely real') >= 0 || realityRaw.indexOf('probably real') >= 0) profile.realityBelief = 'yes';
+    else if (realityRaw.indexOf('definitely not real') >= 0 || realityRaw.indexOf('probably not real') >= 0) profile.realityBelief = 'no';
+  }
+
+  // Life-change — multi-choice "Large changes" / "Moderate changes" / "Small changes" / "No changes".
+  const lifeRaw = (getField([
+    'My experience directly resulted in',
+    'My experience directly resulted',
+  ]) || '').toLowerCase();
+  if (lifeRaw) {
+    if (lifeRaw.indexOf('large changes') >= 0 || lifeRaw.indexOf('moderate changes') >= 0) profile.lifeChanged = 'yes';
+    else if (lifeRaw.indexOf('no changes') >= 0 || lifeRaw.indexOf('small changes') >= 0) profile.lifeChanged = 'no';
+  }
 
   // Emotions: tokenize the questionnaire answer against our controlled
   // vocabulary rather than storing the experiencer's verbatim prose.
