@@ -48,6 +48,32 @@ function cleanText(text: string): string {
     .trim();
 }
 
+// Strip the OBERF/NDERF page-header chrome that can leak into `content`
+// when the primary narrative regex fails and the <p>-join fallback fires.
+// On those pages the rendered text starts with some variant of:
+//   "<Name/Title prefix> Home Page Share Experience New Experiences
+//    Experience description:"
+// The exact prefix varies by page template:
+//   "Margaret B Experience Home Page Share Experience New Experiences ..."
+//   "Ramata J OBE Home Page Share Experience New Experiences ..."
+//   "Paul R Prayer Home Page Share Experience New Experiences ..."
+//   "Rebecca Experience Home Page Share Experience New Experiences ..."
+//   "Violette G Experiences Home Page Share Experience New Experiences ..."
+//   "b Alessa S Experience Home Page Share Experience ..." (stray bold-tag char)
+// The INVARIANT across every template is the terminal phrase
+//   "Home Page Share Experience New Experiences Experience description"
+// followed by an optional colon. We anchor on that invariant and strip
+// up to 120 chars of preceding header text. The 120-char cap ensures we
+// never accidentally clip a real narrative opener.
+//
+// Exported for the backfill script so historical rows can be cleaned.
+export function stripOBERFHeaderChrome(content: string): string {
+  if (!content) return content;
+  const headerRe = /^[^\n]{0,120}Home\s+Page\s+Share\s+Experience\s+New\s+Experiences\s+Experience\s+description:?\s*/i;
+  const cleaned = content.replace(headerRe, '').trim();
+  return cleaned || content;
+}
+
 async function fetchWithHeaders(url: string, retries: number = 3): Promise<string | null> {
   for (let i = 0; i < retries; i++) {
     try {
@@ -493,9 +519,18 @@ async function parseOBERFExperiencePage(
   archive: ArchiveConfig,
 ): Promise<ScrapedReport | null> {
   // Narrative extraction — same markers as NDERF (same questionnaire form).
+  //
+  // Previous terminator was hardcoded to "Background Information" or
+  // "NDE/OBE/Experience Elements". Some short-form OBERF pages (e.g.
+  // margaret_b_other.htm) omit both sections entirely, which caused the
+  // regex to fail and the fallback <p>-join path to grab the page's
+  // header nav ("<Name> Experience | Home Page | Share Experience | ...").
+  // The green `.m108` class is used for EVERY questionnaire section header,
+  // so any subsequent `<span class="m108">` after "Experience Description"
+  // is a valid terminator.
   let narrativeHtml = '';
   const narrativeMatch = html.match(
-    /Experience\s*(?:Description|description)<\/span>([\s\S]*?)(?:<span[^>]*class="m108"[^>]*>Background\s*Information|<span[^>]*class="m108"[^>]*>(?:NDE|OBE|Experience)\s*Elements)/i
+    /Experience\s*(?:Description|description)<\/span>([\s\S]*?)<span[^>]*class="m108"/i
   );
   if (narrativeMatch) narrativeHtml = narrativeMatch[1];
 
@@ -505,6 +540,13 @@ async function parseOBERFExperiencePage(
   }
 
   let content = cleanText(narrativeHtml);
+  // Defense-in-depth: strip the OBERF page header boilerplate if it leaked
+  // into `content` via the <p>-join fallback path. The header is always:
+  //   "<First> <LastInitial[.]> Experience Home Page Share Experience
+  //    New Experiences Experience description:"
+  // Anchored to the start, with very tight tolerances so we never strip a
+  // legitimate narrative opener.
+  content = stripOBERFHeaderChrome(content);
   if (content.length < 100) {
     console.log(`[OBERF] Skipping ${id}: content too short (${content.length} chars)`);
     return null;

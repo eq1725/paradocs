@@ -153,6 +153,12 @@ var SYSTEM_PROMPT = 'You are the editorial intelligence behind Paradocs, the wor
   + '- Never use: "bizarre", "terrifying", "shocking", "incredible", "unbelievable".\n'
   + '- Never use: "alleged", "claimed", "purported". Treat report content as data.\n'
   + '- NEVER reproduce or closely paraphrase the source text. Write original analysis.\n'
+  + '- NEVER name the experiencer. Do NOT use first names, last names, last initials, '
+  + 'nicknames, or constructions like "Margaret B", "John D.", "Sarah J reports". '
+  + 'The source text may contain the experiencer\'s name in a header row or byline — '
+  + 'ignore it. Refer to the subject generically: "the witness", "the experiencer", '
+  + '"the narrator", "the reporter", "she", "he", or "they". This rule applies to '
+  + 'EVERY field in the JSON output (hook, analysis, pull_quote, credibility_signal).\n'
   + '- Category tone:\n'
   + '  - UFOs/UAPs: Aerial-anomaly framing. Flight characteristics, instrumentation, witness response. '
   + 'Also note psi-adjacent patterns (contact-synchronicity, remote-viewing pre-cognition) when the '
@@ -250,6 +256,20 @@ function trimAnalysisToWords(analysis: string, maxWords: number): string {
   return truncated + '.'
 }
 
+// Strip OBERF/NDERF header chrome from source text before it reaches the
+// LLM. When this prefix ("<Name> Experience Home Page Share Experience
+// New Experiences Experience description:") leaks into a stored
+// description, the analysis model tends to echo the name as a byline.
+// Kept local to this service so it runs even on already-polluted rows
+// that haven't been backfilled yet.
+function scrubSourceHeaderChrome(text: string): string {
+  if (!text) return text
+  // Anchor on the invariant OBERF/NDERF header tail and strip up to 120
+  // chars of preceding prefix. Mirrors stripOBERFHeaderChrome.
+  var headerRe = /^[^\n]{0,120}Home\s+Page\s+Share\s+Experience\s+New\s+Experiences\s+Experience\s+description:?\s*/i
+  return text.replace(headerRe, '').trim() || text
+}
+
 function buildUserPrompt(report: any, analysisWordBudget: number): string {
   var parts: string[] = []
   parts.push('Generate a Paradocs Analysis for the following report.\n')
@@ -281,14 +301,17 @@ function buildUserPrompt(report: any, analysisWordBudget: number): string {
   if (report.witness_count && report.witness_count > 1) evidenceParts.push(report.witness_count + ' witnesses')
   parts.push('EVIDENCE ON FILE: ' + (evidenceParts.length > 0 ? evidenceParts.join(', ') : 'none'))
 
-  // Full description — truncate at ~3000 chars for cost
+  // Full description — truncate at ~3000 chars for cost. Scrub any
+  // OBERF/NDERF page-header chrome first so the model never sees the
+  // experiencer's name as a byline in the source material.
   if (report.description) {
-    var desc = report.description.length > 3000
-      ? report.description.substring(0, 3000) + '...'
-      : report.description
+    var scrubbed = scrubSourceHeaderChrome(report.description)
+    var desc = scrubbed.length > 3000
+      ? scrubbed.substring(0, 3000) + '...'
+      : scrubbed
     parts.push('\nREPORT NARRATIVE:\n' + desc)
   } else if (report.summary) {
-    parts.push('\nREPORT NARRATIVE:\n' + report.summary)
+    parts.push('\nREPORT NARRATIVE:\n' + scrubSourceHeaderChrome(report.summary))
   }
 
   // Include metadata sections for richer analysis (follow-up investigation, environment, etc.)
@@ -423,6 +446,46 @@ async function callClaude(
 // Parsing
 // ============================================
 
+// Strip any leaked experiencer-name construction from a single analysis
+// field. Catches patterns the model sometimes produces when the source
+// narrative leads with "<First> <LastInitial> Experience ...":
+//   "Margaret B reports ..." / "John D. describes ..." / "Sarah J's account ..."
+// Replaces the proper-noun byline with a neutral subject so the sentence
+// remains grammatical. Runs after the prompt-level rule as defense-in-depth.
+export function stripExperiencerNames(text: string): string {
+  if (!text) return text
+  // Pattern: start of string OR sentence, First (2-25 letters) + LastInitial + optional period
+  // + a verb OR possessive. Only matches at the START of sentences (after period/newline/^)
+  // to avoid clipping legitimate proper nouns mid-sentence.
+  var byline = /(^|[.!?]\s+)([A-Z][a-zA-Z'\-]{1,24})\s+([A-Z])\.?(?=\s+(?:reports|describes|recounts|narrates|shares|offers|recalls|presents|submits|provides|details|documents|writes|states|experiences|says|claims|notes|observes|remembers|awakens|awakes|encounters|witnesses|sees|hears|feels|describes|describes how|details how|explains|tells|says that|a |an |the )|\s*['\u2019]s\b)/g
+  var cleaned = text.replace(byline, function(_match, pre) {
+    return (pre || '') + 'The witness'
+  })
+  // Also catch "Margaret B's account" style possessives that didn't match above.
+  var possessive = /(^|[.!?]\s+)([A-Z][a-zA-Z'\-]{1,24})\s+([A-Z])\.?['\u2019]s\b/g
+  cleaned = cleaned.replace(possessive, function(_m, pre) {
+    return (pre || '') + 'The witness\u2019s'
+  })
+  return cleaned
+}
+
+function sanitizeAnalysisResult(r: ParadocsAnalysisResult): ParadocsAnalysisResult {
+  r.hook = stripExperiencerNames(r.hook)
+  r.analysis = stripExperiencerNames(r.analysis)
+  if (r.pull_quote) r.pull_quote = stripExperiencerNames(r.pull_quote)
+  if (r.credibility_signal) r.credibility_signal = stripExperiencerNames(r.credibility_signal)
+  if (Array.isArray(r.mundane_explanations)) {
+    r.mundane_explanations = r.mundane_explanations.map(function(me) {
+      return {
+        explanation: stripExperiencerNames(me.explanation || ''),
+        likelihood: me.likelihood,
+        reasoning: stripExperiencerNames(me.reasoning || ''),
+      }
+    })
+  }
+  return r
+}
+
 function parseAnalysisJson(text: string): ParadocsAnalysisResult | null {
   try {
     var cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
@@ -443,6 +506,10 @@ function parseAnalysisJson(text: string): ParadocsAnalysisResult | null {
     if (!parsed.credibility_signal) parsed.credibility_signal = 'Unverified account'
     if (!Array.isArray(parsed.mundane_explanations)) parsed.mundane_explanations = []
     if (!Array.isArray(parsed.similar_phenomena)) parsed.similar_phenomena = []
+
+    // Safety net: strip any experiencer-name bylines that slipped past the
+    // prompt-level rule. Runs on every generated analysis.
+    sanitizeAnalysisResult(parsed as ParadocsAnalysisResult)
 
     // Validate emotional_tone
     var validTones = ['frightening', 'awe_inspiring', 'ambiguous', 'clinical', 'unsettling', 'hopeful']

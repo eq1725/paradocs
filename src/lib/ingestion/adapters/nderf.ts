@@ -133,6 +133,19 @@ function cleanText(text: string): string {
     .trim();
 }
 
+// Strip the NDERF/OBERF page-header chrome that can leak into `content`
+// when the primary narrative regex fails and the <p>-join fallback fires.
+// See stripOBERFHeaderChrome for the full variant inventory — the two
+// sister sites share a header template. We anchor on the invariant terminal
+// phrase "Home Page Share Experience New Experiences Experience description"
+// and strip up to 120 chars of preceding header text.
+export function stripNDERFHeaderChrome(content: string): string {
+  if (!content) return content;
+  const headerRe = /^[^\n]{0,120}Home\s+Page\s+Share\s+Experience\s+New\s+Experiences\s+Experience\s+description:?\s*/i;
+  const cleaned = content.replace(headerRe, '').trim();
+  return cleaned || content;
+}
+
 // Fetch page with browser-like headers
 async function fetchWithHeaders(url: string, retries: number = 3): Promise<string | null> {
   for (let i = 0; i < retries; i++) {
@@ -903,9 +916,13 @@ async function parseExperiencePage(html: string, id: string, name: string): Prom
 
   let narrativeHtml = '';
 
-  // Primary: extract between "Experience Description" and "Background Information"
+  // Primary: extract between "Experience Description" and the NEXT
+  // `<span class="m108">` marker. The green `.m108` class is used for every
+  // questionnaire section header, so using it generically as the terminator
+  // correctly handles short-form pages that omit "Background Information"
+  // or "NDE Elements" headers.
   const narrativeMatch = html.match(
-    /Experience\s*Description<\/span>([\s\S]*?)(?:<span[^>]*class="m108"[^>]*>Background\s*Information|<span[^>]*class="m108"[^>]*>NDE\s*Elements)/i
+    /Experience\s*Description<\/span>([\s\S]*?)<span[^>]*class="m108"/i
   );
   if (narrativeMatch) {
     narrativeHtml = narrativeMatch[1];
@@ -923,6 +940,11 @@ async function parseExperiencePage(html: string, id: string, name: string): Prom
 
   // Clean the narrative content
   let content = cleanText(narrativeHtml);
+  // Defense-in-depth: the <p>-join fallback can pick up the page-header
+  // chrome on some NDERF pages in the same way OBERF pages do. Strip the
+  // known "<Name> Experience Home Page Share Experience New Experiences
+  // Experience description:" prefix if present.
+  content = stripNDERFHeaderChrome(content);
 
   // Skip if content is too short
   if (content.length < 100) {
