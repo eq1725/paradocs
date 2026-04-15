@@ -154,11 +154,13 @@ var SYSTEM_PROMPT = 'You are the editorial intelligence behind Paradocs, the wor
   + '- Never use: "alleged", "claimed", "purported". Treat report content as data.\n'
   + '- NEVER reproduce or closely paraphrase the source text. Write original analysis.\n'
   + '- NEVER name the experiencer. Do NOT use first names, last names, last initials, '
-  + 'nicknames, or constructions like "Margaret B", "John D.", "Sarah J reports". '
-  + 'The source text may contain the experiencer\'s name in a header row or byline — '
-  + 'ignore it. Refer to the subject generically: "the witness", "the experiencer", '
-  + '"the narrator", "the reporter", "she", "he", or "they". This rule applies to '
-  + 'EVERY field in the JSON output (hook, analysis, pull_quote, credibility_signal).\n'
+  + 'nicknames, or constructions like "Margaret B", "John D.", "Sarah J reports", '
+  + '"Katarina describes", "David recalls". Do NOT invent a plausible-sounding name '
+  + 'even if the source text does not contain one. The source text may contain the '
+  + 'experiencer\'s name in a header row, URL slug, or byline — ignore it. Refer to '
+  + 'the subject generically: "the witness", "the experiencer", "the narrator", '
+  + '"the reporter", "she", "he", or "they". This rule applies to EVERY field in the '
+  + 'JSON output (hook, analysis, pull_quote, credibility_signal).\n'
   + '- Category tone:\n'
   + '  - UFOs/UAPs: Aerial-anomaly framing. Flight characteristics, instrumentation, witness response. '
   + 'Also note psi-adjacent patterns (contact-synchronicity, remote-viewing pre-cognition) when the '
@@ -446,26 +448,114 @@ async function callClaude(
 // Parsing
 // ============================================
 
+// Capitalized tokens we must never rewrite as "the witness" — these are
+// legitimate sentence-initial words that the LLM routinely uses and are NOT
+// experiencer names. Kept conservative; better to miss a rare name than to
+// mangle grammatical prose.
+var NON_NAME_TOKENS: Record<string, true> = {
+  'The': true, 'This': true, 'That': true, 'These': true, 'Those': true,
+  'A': true, 'An': true, 'And': true, 'But': true, 'Or': true, 'So': true, 'Yet': true, 'For': true,
+  'He': true, 'She': true, 'They': true, 'It': true, 'We': true, 'You': true, 'I': true,
+  'His': true, 'Her': true, 'Their': true, 'Our': true, 'My': true, 'Your': true, 'Its': true,
+  'One': true, 'Two': true, 'Three': true, 'Four': true, 'Five': true, 'Six': true,
+  'Someone': true, 'Everyone': true, 'Anyone': true, 'Nobody': true, 'Somebody': true,
+  'Others': true, 'Several': true, 'Many': true, 'Most': true, 'Some': true, 'Few': true,
+  'Both': true, 'Neither': true, 'Either': true, 'Each': true, 'All': true, 'None': true,
+  'Witness': true, 'Witnesses': true, 'Reporter': true, 'Narrator': true,
+  'Experiencer': true, 'Experiencers': true, 'Observer': true, 'Observers': true,
+  'Subject': true, 'Subjects': true, 'Person': true, 'People': true, 'Respondent': true,
+  'Police': true, 'Officer': true, 'Officers': true, 'Deputy': true, 'Sheriff': true,
+  'Doctor': true, 'Doctors': true, 'Nurse': true, 'Nurses': true, 'Paramedic': true,
+  'Researcher': true, 'Researchers': true, 'Scientist': true, 'Scientists': true,
+  'Author': true, 'Writer': true, 'Editor': true,
+  'Dreamer': true, 'Sleeper': true, 'Meditator': true, 'Pilot': true, 'Driver': true,
+  'Man': true, 'Woman': true, 'Boy': true, 'Girl': true, 'Child': true, 'Children': true,
+  'Patient': true, 'Mother': true, 'Father': true, 'Son': true, 'Daughter': true,
+  'Husband': true, 'Wife': true, 'Brother': true, 'Sister': true, 'Friend': true, 'Neighbor': true,
+  'Uncle': true, 'Aunt': true, 'Grandmother': true, 'Grandfather': true, 'Grandma': true, 'Grandpa': true,
+  'Family': true, 'Group': true, 'Team': true, 'Couple': true, 'Pair': true,
+  'While': true, 'During': true, 'After': true, 'Before': true, 'When': true, 'Where': true, 'As': true,
+  'Although': true, 'Though': true, 'Because': true, 'Since': true, 'If': true, 'Unless': true, 'Until': true,
+  'Then': true, 'Now': true, 'Later': true, 'Today': true, 'Yesterday': true, 'Tomorrow': true,
+  'Once': true, 'Twice': true, 'Again': true, 'Earlier': true, 'Afterward': true,
+  'Also': true, 'Even': true, 'Still': true, 'However': true, 'Thus': true, 'Therefore': true,
+  'Meanwhile': true, 'Moreover': true, 'Nevertheless': true, 'Consequently': true,
+  'In': true, 'On': true, 'At': true, 'By': true, 'With': true, 'Without': true, 'Of': true, 'From': true, 'To': true,
+  'Under': true, 'Over': true, 'Above': true, 'Below': true, 'Near': true, 'Inside': true, 'Outside': true,
+  'Here': true, 'There': true, 'Nowhere': true, 'Somewhere': true, 'Anywhere': true, 'Elsewhere': true,
+  'Single': true, 'Multiple': true, 'Only': true, 'Just': true,
+  'What': true, 'Who': true, 'Whom': true, 'Whose': true, 'Which': true, 'Why': true, 'How': true,
+  // Common phenomenology / narrative words that read as sentence subjects
+  'Adult': true, 'Adults': true, 'Infant': true, 'Infants': true,
+  'Consciousness': true, 'Awareness': true, 'Perception': true, 'Memory': true, 'Memories': true,
+  'Vision': true, 'Visions': true, 'Dream': true, 'Dreams': true, 'Experience': true, 'Experiences': true,
+  'Event': true, 'Events': true, 'Incident': true, 'Case': true, 'Cases': true, 'Report': true, 'Reports': true,
+  'Account': true, 'Accounts': true, 'Narrative': true, 'Narratives': true, 'Story': true, 'Stories': true,
+  'Encounter': true, 'Encounters': true, 'Sighting': true, 'Sightings': true,
+}
+
+// Reporting verbs after which a leading capitalized token is almost certainly
+// a proper-noun byline ("Katarina reports ...", "Margaret B describes ...").
+var REPORTING_VERBS = [
+  'reports', 'describes', 'recounts', 'narrates', 'shares', 'offers', 'recalls',
+  'presents', 'submits', 'provides', 'details', 'documents', 'writes', 'states',
+  'experiences', 'experienced', 'says', 'claims', 'notes', 'observes',
+  'remembers', 'recollects', 'awakens', 'awakes', 'encounters', 'witnesses',
+  'sees', 'saw', 'hears', 'heard', 'feels', 'felt', 'explains', 'explained',
+  'tells', 'told', 'described', 'reported', 'recalled', 'mentions', 'mentioned',
+  'wakes', 'woke', 'reveals', 'revealed', 'relates', 'related',
+].join('|')
+
 // Strip any leaked experiencer-name construction from a single analysis
-// field. Catches patterns the model sometimes produces when the source
-// narrative leads with "<First> <LastInitial> Experience ...":
-//   "Margaret B reports ..." / "John D. describes ..." / "Sarah J's account ..."
+// field. Handles three shapes the model (and, rarely, the source material)
+// produces:
+//   1. "Margaret B reports ..." / "John D. describes ..."  (First + initial)
+//   2. "Katarina reports ..."                              (bare first name)
+//   3. "Margaret B's account ..." / "Katarina's account ..." (possessives)
 // Replaces the proper-noun byline with a neutral subject so the sentence
 // remains grammatical. Runs after the prompt-level rule as defense-in-depth.
+// NB: the bare-first-name pattern is gated on an explicit reporting verb +
+// a NON_NAME_TOKENS blacklist so it cannot mangle legitimate sentence-
+// initial words like "The", "Adults", "Memory", etc.
 export function stripExperiencerNames(text: string): string {
   if (!text) return text
-  // Pattern: start of string OR sentence, First (2-25 letters) + LastInitial + optional period
-  // + a verb OR possessive. Only matches at the START of sentences (after period/newline/^)
-  // to avoid clipping legitimate proper nouns mid-sentence.
-  var byline = /(^|[.!?]\s+)([A-Z][a-zA-Z'\-]{1,24})\s+([A-Z])\.?(?=\s+(?:reports|describes|recounts|narrates|shares|offers|recalls|presents|submits|provides|details|documents|writes|states|experiences|says|claims|notes|observes|remembers|awakens|awakes|encounters|witnesses|sees|hears|feels|describes|describes how|details how|explains|tells|says that|a |an |the )|\s*['\u2019]s\b)/g
-  var cleaned = text.replace(byline, function(_match, pre) {
+
+  // 1) First + LastInitial byline — verb OR possessive (existing behaviour).
+  var byline = new RegExp(
+    '(^|[.!?\\n]\\s+)([A-Z][a-zA-Z\'\\-]{1,24})\\s+([A-Z])\\.?' +
+    '(?=\\s+(?:' + REPORTING_VERBS + '|a |an |the )|\\s*[\'\u2019]s\\b)',
+    'g'
+  )
+  var cleaned = text.replace(byline, function (_match, pre) {
     return (pre || '') + 'The witness'
   })
-  // Also catch "Margaret B's account" style possessives that didn't match above.
-  var possessive = /(^|[.!?]\s+)([A-Z][a-zA-Z'\-]{1,24})\s+([A-Z])\.?['\u2019]s\b/g
-  cleaned = cleaned.replace(possessive, function(_m, pre) {
+
+  // 2) Bare first-name byline at sentence start, followed by a reporting
+  //    verb — "Katarina reports her earliest memory ..."
+  var bareByline = new RegExp(
+    '(^|[.!?\\n]\\s+)([A-Z][a-z][a-zA-Z\'\\-]{1,23})(?=\\s+(?:' + REPORTING_VERBS + ')\\b)',
+    'g'
+  )
+  cleaned = cleaned.replace(bareByline, function (_match, pre, name) {
+    if (NON_NAME_TOKENS[name]) return _match
+    return (pre || '') + 'The witness'
+  })
+
+  // 3) Possessive forms — "Margaret B's account", "Katarina's account".
+  //    The first variant is already handled by (1) when the possessive
+  //    follows the initial; this extra pass covers cases where the initial
+  //    is absent or separated oddly.
+  var initialPossessive = /(^|[.!?\n]\s+)([A-Z][a-zA-Z'\-]{1,24})\s+([A-Z])\.?['\u2019]s\b/g
+  cleaned = cleaned.replace(initialPossessive, function (_m, pre) {
     return (pre || '') + 'The witness\u2019s'
   })
+
+  var bareFirstPossessive = /(^|[.!?\n]\s+)([A-Z][a-z][a-zA-Z'\-]{1,23})['\u2019]s\b/g
+  cleaned = cleaned.replace(bareFirstPossessive, function (_m, pre, name) {
+    if (NON_NAME_TOKENS[name]) return _m
+    return (pre || '') + 'The witness\u2019s'
+  })
+
   return cleaned
 }
 
