@@ -658,9 +658,10 @@ export function TextReportCard(props: {
   if (item.source_label) metaParts.push(item.source_label)
   if (item.phenomenon_type) metaParts.push(item.phenomenon_type.name)
 
-  // Credibility pills
+  // Credibility pills (Low/Medium/High credibility labels are intentionally
+  // NOT surfaced in the UI anymore — QA/QC Apr 15 2026. See ReportCard.tsx
+  // for the same decision on the list-style card.)
   var credSignals: string[] = []
-  if (item.credibility === 'high') credSignals.push('High Credibility')
   if (item.has_physical_evidence) credSignals.push('Physical Evidence')
 
   var displayText = item.feed_hook || item.summary || ''
@@ -794,9 +795,11 @@ export function MediaReportCard(props: {
   if (prettyDate) metaParts.push(prettyDate)
   if (item.source_label) metaParts.push(item.source_label)
 
+  // Low/Medium/High credibility labels are intentionally NOT surfaced in the
+  // UI anymore (QA/QC Apr 15 2026). Evidence flags are still shown because
+  // they are concrete, verifiable signals rather than coarse bucketing.
   var credSignals: string[] = []
   if (item.has_photo_video) credSignals.push('Photo/Video Evidence')
-  if (item.credibility === 'high') credSignals.push('High Credibility')
   if (item.has_physical_evidence) credSignals.push('Physical Evidence')
 
   var displayText = item.feed_hook || item.summary || ''

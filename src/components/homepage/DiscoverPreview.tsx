@@ -276,9 +276,13 @@ function ReportCard(props: { item: PreviewReport }) {
             <span className="text-[10px] font-semibold uppercase tracking-widest font-sans" style={{ color: catColor }}>
               {(config?.icon || '') + ' ' + (config?.label || item.category)}
             </span>
-            {(item.has_photo_video || item.credibility === 'high') && (
-              <span className="text-[9px] px-2 py-0.5 rounded-full font-medium font-sans" style={{ background: item.has_photo_video ? 'rgba(251,191,36,0.12)' : 'rgba(52,211,153,0.12)', color: item.has_photo_video ? '#fbbf24' : '#34d399' }}>
-                {item.has_photo_video ? 'Evidence' : 'Verified'}
+            {/* "Verified" pill (driven by credibility === 'high') intentionally
+                removed — QA/QC Apr 15 2026. We no longer surface the coarse
+                Low/Medium/High credibility bucketing to users. The concrete
+                "Evidence" flag stays because it's grounded in real media. */}
+            {item.has_photo_video && (
+              <span className="text-[9px] px-2 py-0.5 rounded-full font-medium font-sans" style={{ background: 'rgba(251,191,36,0.12)', color: '#fbbf24' }}>
+                {'Evidence'}
               </span>
             )}
           </div>

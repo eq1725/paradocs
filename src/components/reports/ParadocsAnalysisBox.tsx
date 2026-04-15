@@ -15,10 +15,15 @@
  * SWC compliant: var, function(){}, string concat.
  */
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Shield, Scale, Compass, ChevronDown, ChevronUp } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 import Link from 'next/link'
+
+// Resolver cache keyed by phrase — survives dropdown open/close and
+// navigation between reports that reference the same related phenomena.
+type ResolvedMatch = { slug: string; name: string; category: string | null } | null
+var _resolverCache: Record<string, ResolvedMatch> = {}
 
 export interface ParadocsAssessment {
   // New hybrid fields
@@ -61,6 +66,19 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
   var expandedSections = _a[0]
   var setExpandedSections = _a[1]
 
+  // Lazy phenomenon resolution. Seed from module cache so we avoid
+  // re-fetching whenever the user re-opens the dropdown.
+  var _r = useState<Record<string, ResolvedMatch>>(function () {
+    var seed: Record<string, ResolvedMatch> = {}
+    var names = (assessment && assessment.similar_phenomena) || []
+    for (var i = 0; i < names.length; i++) {
+      if (_resolverCache.hasOwnProperty(names[i])) seed[names[i]] = _resolverCache[names[i]]
+    }
+    return seed
+  })
+  var resolved = _r[0]
+  var setResolved = _r[1]
+
   function toggleSection(section: string) {
     setExpandedSections(function(prev) {
       var next = Object.assign({}, prev) as any
@@ -68,6 +86,57 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
       return next
     })
   }
+
+  // Resolve similar_phenomena the first time the dropdown is opened, so that
+  // clicking "yogic siddhis and body-related phenomena" lands on the actual
+  // phenomenon page ("Siddhi" / "Siddhis") rather than a dead slug that
+  // redirects to the encyclopedia index. (QA/QC Apr 15 2026.)
+  useEffect(function () {
+    if (!(expandedSections as any).phenomena) return
+    var names = (assessment && assessment.similar_phenomena) || []
+    var need = names.filter(function (n) { return !resolved.hasOwnProperty(n) })
+    if (need.length === 0) return
+
+    var cancelled = false
+    fetch('/api/phenomena/resolve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ names: need }),
+    })
+      .then(function (r) { return r.ok ? r.json() : { matches: {} } })
+      .then(function (data) {
+        if (cancelled) return
+        var m = (data && data.matches) || {}
+        // Cache at module scope so subsequent renders short-circuit.
+        for (var k in m) {
+          if (Object.prototype.hasOwnProperty.call(m, k)) _resolverCache[k] = m[k]
+        }
+        setResolved(function (prev) {
+          var next = Object.assign({}, prev)
+          for (var k2 in m) {
+            if (Object.prototype.hasOwnProperty.call(m, k2)) (next as any)[k2] = m[k2]
+          }
+          // Negative-cache anything that came back missing so we don't refetch.
+          for (var i = 0; i < need.length; i++) {
+            if (!Object.prototype.hasOwnProperty.call(m, need[i])) {
+              (next as any)[need[i]] = null
+              _resolverCache[need[i]] = null
+            }
+          }
+          return next
+        })
+      })
+      .catch(function () {
+        if (cancelled) return
+        // On failure, negative-cache so we don't spam retries.
+        setResolved(function (prev) {
+          var next = Object.assign({}, prev)
+          for (var i = 0; i < need.length; i++) (next as any)[need[i]] = null
+          return next
+        })
+      })
+    return function () { cancelled = true }
+  }, [expandedSections, assessment])
 
   // Graceful fallback when analysis hasn't been generated yet
   if (!narrative && !assessment) {
@@ -253,14 +322,26 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
                 {(expandedSections as any).phenomena && (
                   <div className="mt-3 flex flex-wrap gap-2 ml-6">
                     {assessment.similar_phenomena.map(function(phenomenon, i) {
-                      var phenomenonSlug = phenomenon.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+                      // Preferred: the resolver returned an actual encyclopedia
+                      // entry — use its real slug and (optionally) show the
+                      // canonical name so "yogic siddhis and body-related
+                      // phenomena" gracefully becomes the Siddhi entry.
+                      // Fallback: an encyclopedia search URL, which always
+                      // lands somewhere useful instead of redirecting to the
+                      // index.
+                      var match = resolved[phenomenon]
+                      var href = match
+                        ? '/phenomena/' + match.slug
+                        : '/phenomena?search=' + encodeURIComponent(phenomenon)
+                      var label = match && match.name ? match.name : phenomenon
                       return (
                         <Link
                           key={i}
-                          href={'/phenomena/' + phenomenonSlug}
+                          href={href}
                           className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-purple-300 bg-white/[0.03] hover:bg-purple-500/10 border border-white/[0.06] hover:border-purple-500/20 transition-all"
+                          title={match ? ('View ' + label) : ('Search encyclopedia for "' + phenomenon + '"')}
                         >
-                          {phenomenon}
+                          {label}
                         </Link>
                       )
                     })}

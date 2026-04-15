@@ -503,7 +503,8 @@ export default function DiscoverPage() {
         tag = rep.source_type || ''
         headline = rep.feed_hook || rep.summary || rep.title
         summary = rep.summary || ''
-        if (rep.credibility === 'high') credibility.push('High Credibility')
+        // Low/Medium/High credibility labels are intentionally NOT surfaced
+        // in the UI anymore (QA/QC Apr 15 2026).
         if (rep.has_photo_video) credibility.push('Photo/Video')
         if (rep.has_physical_evidence) credibility.push('Physical Evidence')
       }
