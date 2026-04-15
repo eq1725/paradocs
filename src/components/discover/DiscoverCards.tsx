@@ -272,9 +272,27 @@ function emotionChipClass(valence: EmotionValence): string {
   return 'bg-amber-500/[0.06] border-amber-400/20 text-amber-100'
 }
 
+// Pick a neutral header label based on the experience type stored on the
+// case profile. NDERF reports are all NDEs, but OBERF covers a range
+// (OBE, UFO encounter, mystical experience, STE…) and calling those
+// "NDE Case Profile" is factually wrong. When no specific type is
+// available we fall back to the generic "Case Profile".
+function caseProfileHeaderLabel(p: NDERFCaseProfile): string {
+  var t = (p.ndeType || '').trim()
+  if (!t) return 'Case Profile'
+  var lower = t.toLowerCase()
+  // Accept any variant that explicitly mentions NDE / near-death; otherwise
+  // use "{Type} Case Profile" so e.g. "UFO Encounter" → "UFO Encounter Case Profile".
+  if (lower.indexOf('near-death') !== -1 || lower.indexOf('near death') !== -1 || /\bnde\b/.test(lower)) {
+    return 'NDE Case Profile'
+  }
+  return t + ' Case Profile'
+}
+
 export function CaseProfileChips(props: { profile: NDERFCaseProfile, variant?: 'compact' | 'full' }) {
   var p = props.profile
   var variant = props.variant || 'compact'
+  var headerLabel = caseProfileHeaderLabel(p)
 
   // Primary identity facts — text-value chips shown prominently.
   // NOTE: ndeType is intentionally NOT rendered here. The experience-type
@@ -369,7 +387,7 @@ export function CaseProfileChips(props: { profile: NDERFCaseProfile, variant?: '
       <div className="flex items-center gap-2 px-4 py-2.5 bg-white/[0.02] border-b border-white/[0.06]">
         <div className="h-1.5 w-1.5 rounded-full bg-indigo-400/70" />
         <span className="text-[11px] font-sans uppercase tracking-[0.14em] text-gray-400 font-medium">
-          NDE Case Profile
+          {headerLabel}
         </span>
       </div>
 

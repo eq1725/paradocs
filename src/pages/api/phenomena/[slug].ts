@@ -30,18 +30,58 @@ export default async function handler(
 
       var phenomenon = await getPhenomenonBySlug(slug);
 
+      // Admin client (re-used by both the encyclopedia-entry and the
+      // tag-fallback branch).
+      var supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Tag-fallback branch.
+      // If no encyclopedia entry exists for this slug, we still want the
+      // "Related Phenomena" links from Paradocs Analysis to land somewhere
+      // useful. We return a lightweight "tag view" — any reports whose
+      // tags array contains the slug, plus a synthesized phenomenon stub
+      // the page can use to render a title. See /pages/phenomena/[slug].tsx
+      // for the fallback render branch.
       if (!phenomenon) {
-        return res.status(404).json({ error: 'Phenomenon not found' });
+        // Try tag match + a secondary free-text title match so we still
+        // surface something even if nothing is explicitly tagged.
+        var humanized = slug.replace(/-/g, ' ').replace(/\b\w/g, function (c: string) {
+          return c.toUpperCase();
+        });
+        var { data: taggedReports } = await supabaseAdmin
+          .from('reports')
+          .select('id, title, slug, summary, category, location_name, country, event_date, credibility, view_count, status, tags')
+          .eq('status', 'approved')
+          .contains('tags', [slug])
+          .order('view_count', { ascending: false, nullsFirst: false })
+          .limit(25);
+
+        var tagMatches = taggedReports || [];
+        if (tagMatches.length === 0) {
+          return res.status(404).json({ error: 'Phenomenon not found' });
+        }
+
+        return res.status(200).json({
+          phenomenon: {
+            id: null,
+            slug: slug,
+            name: humanized,
+            category: null,
+            is_tag_fallback: true,
+          },
+          reports: tagMatches,
+          media: [],
+          needsContent: false,
+          is_tag_fallback: true,
+        });
       }
 
       // Get related reports
       var reports = await getPhenomenonReports(phenomenon.id, 20);
 
       // Get approved media from phenomena_media table
-      var supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_ROLE_KEY
-      );
       var { data: mediaItems } = await supabaseAdmin
         .from('phenomena_media')
         .select('id, media_type, original_url, stored_url, thumbnail_url, caption, source, source_url, license, is_profile, tags, sort_order')

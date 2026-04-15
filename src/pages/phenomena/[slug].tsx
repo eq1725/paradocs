@@ -111,10 +111,11 @@ export default function PhenomenonPage() {
   const router = useRouter()
   const { slug } = router.query
 
-  const [phenomenon, setPhenomenon] = useState<Phenomenon | null>(null)
+  const [phenomenon, setPhenomenon] = useState<Phenomenon | any | null>(null)
   const [reports, setReports] = useState<RelatedReport[]>([])
   const [media, setMedia] = useState<MediaItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [isTagFallback, setIsTagFallback] = useState(false)
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'media' | 'reports'>('overview')
   const [lightboxImage, setLightboxImage] = useState<{ url: string; caption?: string; source?: string } | null>(null)
 
@@ -150,6 +151,7 @@ export default function PhenomenonPage() {
       setPhenomenon(data.phenomenon)
       setReports(data.reports || [])
       setMedia(data.media || [])
+      setIsTagFallback(!!data.is_tag_fallback)
 
       // Track view for constellation map (non-blocking)
       supabase.auth.getSession().then(({ data: { session } }) => {
@@ -190,6 +192,71 @@ export default function PhenomenonPage() {
           </Link>
         </div>
       </div>
+    )
+  }
+
+  // Tag-fallback view: no encyclopedia entry exists for this slug, but we
+  // found reports tagged with it. Render a lightweight "Reports tagged with
+  // X" page so Related-Phenomena links from analysis always land somewhere
+  // useful instead of redirecting to the encyclopedia index.
+  if (isTagFallback) {
+    return (
+      <>
+        <Head>
+          <title>{phenomenon.name} Reports - Paradocs</title>
+          <meta name="description" content={`Reports tagged with ${phenomenon.name} on Paradocs.`} />
+        </Head>
+        <div className="min-h-screen bg-gray-950">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+            <button
+              onClick={() => { router.back() }}
+              className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-6"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </button>
+
+            <div className="mb-6">
+              <p className="text-[11px] uppercase tracking-[0.14em] text-purple-400/80 mb-2">Reports tagged with</p>
+              <h1 className="text-3xl sm:text-4xl font-display font-bold text-white mb-3">{phenomenon.name}</h1>
+              <p className="text-sm text-gray-500">
+                {reports.length} {reports.length === 1 ? 'report' : 'reports'} • No encyclopedia entry yet for this phenomenon.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {reports.map((report) => (
+                <Link
+                  key={report.id}
+                  href={`/report/${report.slug}`}
+                  className="block rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-purple-500/30 transition-all p-4"
+                >
+                  <h3 className="text-[15px] font-semibold text-white leading-snug mb-1.5 line-clamp-2">
+                    {report.title}
+                  </h3>
+                  {report.summary && (
+                    <p className="text-xs text-gray-400 leading-relaxed line-clamp-3 mb-2">
+                      {report.summary}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-3 text-[11px] text-gray-500">
+                    {report.location_name && <span>{report.location_name}</span>}
+                    {report.event_date && (
+                      <span>{(report.event_date.match(/\d{4}/) || [''])[0]}</span>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            <div className="mt-10 text-center">
+              <Link href="/phenomena" className="text-xs text-gray-500 hover:text-purple-300">
+                Browse the full encyclopedia →
+              </Link>
+            </div>
+          </div>
+        </div>
+      </>
     )
   }
 

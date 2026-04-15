@@ -666,6 +666,29 @@ export function extractLocation(content: string, html: string): { location_name?
     };
   }
 
+  // Pattern 5: US state only — e.g. "home in Kansas", "lived in Oregon", "from California".
+  // Looser than Pattern 1 because no city is required. Runs late so more
+  // specific "City, State" matches always win. We require a preceding verb
+  // or preposition so we don't match stray occurrences of the state name
+  // inside unrelated prose (e.g. "New York Times").
+  for (const [stateName, stateAbbr] of Object.entries(US_STATES)) {
+    const nameTitle = stateName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    // Word-boundary-matched state name preceded by a locational verb/preposition.
+    // Using stateName raw (case-insensitive flag) keeps the regex concise.
+    const stateOnlyPattern = new RegExp(
+      '\\b(?:in|near|from|to|of|at|across|throughout|around|back in|live in|lived in|living in|home in|house in|moved to|raised in|grew up in|born in)\\s+' + stateName + '\\b',
+      'i'
+    );
+    if (stateOnlyPattern.test(text)) {
+      console.log(`[NDERF] Location from state-only mention: ${nameTitle}`);
+      return {
+        location_name: nameTitle,
+        country: 'United States',
+        state_province: nameTitle
+      };
+    }
+  }
+
   console.log(`[NDERF] No location extracted from narrative`);
   return {};
 }
