@@ -510,7 +510,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               source_label: sourceLabel,
               source_url: report.source_url,
               original_title: originalTitle,
-              metadata: report.metadata || {},
+              metadata: Object.assign({}, report.metadata || {}, report.location_precision ? { location_precision: report.location_precision } : {}),
               updated_at: new Date().toISOString()
             })
             .eq('id', existing.id);
@@ -722,8 +722,12 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           if (report.event_time) insertData.event_time = report.event_time;
           if (report.has_official_report) insertData.has_official_report = true;
           if (report.has_photo_video) insertData.has_photo_video = true;
-          // Store adapter metadata as JSON if present
-          if (report.metadata) insertData.metadata = report.metadata;
+          // Store adapter metadata as JSON if present. Fold location_precision
+          // into metadata here (no dedicated column) so the map can style
+          // fuzzy pins differently from city-accurate ones.
+          const mergedMeta = Object.assign({}, report.metadata || {});
+          if (report.location_precision) mergedMeta.location_precision = report.location_precision;
+          if (Object.keys(mergedMeta).length > 0) insertData.metadata = mergedMeta;
 
           const { data: insertedReport, error: insertError } = await supabase
             .from('reports')

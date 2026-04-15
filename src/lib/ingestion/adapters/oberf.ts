@@ -600,6 +600,7 @@ function parseOBERFExperiencePage(
     country: location.country,
     state_province: location.state_province,
     city: location.city,
+    location_precision: location.precision,
     event_date: eventDate,
     event_date_precision: datePrecision,
     credibility: determineCredibility(content),

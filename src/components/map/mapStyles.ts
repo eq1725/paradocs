@@ -111,6 +111,8 @@ export interface ReportProperties {
   witness_count: number | null
   has_physical_evidence: boolean
   has_photo_video: boolean
+  // 'exact' | 'city' | 'state' | 'country' | null — drives fuzzy-pin styling
+  location_precision: string | null
 }
 
 export interface ClusterProperties {

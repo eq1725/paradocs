@@ -79,7 +79,7 @@ export function useViewportData(
         const { data, error: dbError } = await supabase
           .from('reports')
           .select(
-            'id,title,slug,summary,category,latitude,longitude,location_name,country,event_date,credibility,witness_count,has_physical_evidence,has_photo_video'
+            'id,title,slug,summary,category,latitude,longitude,location_name,country,event_date,credibility,witness_count,has_physical_evidence,has_photo_video,metadata'
           )
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)
@@ -112,6 +112,7 @@ export function useViewportData(
               witness_count: r.witness_count,
               has_physical_evidence: r.has_physical_evidence || false,
               has_photo_video: r.has_photo_video || false,
+              location_precision: (r.metadata && r.metadata.location_precision) || null,
             }
             reportMap.set(r.id, props)
             return {

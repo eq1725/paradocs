@@ -77,6 +77,13 @@ export interface ScrapedReport {
   media?: ScrapedMediaItem[];
   // Event date precision for On This Date feature
   event_date_precision?: 'exact' | 'month' | 'year' | 'decade' | 'estimated' | 'unknown';
+  // Location precision — how accurate the coordinates are, if we have any.
+  //   exact   = adapter supplied a GPS-accurate pair (BFRO, NUFORC some cases)
+  //   city    = geocoded from "City, State"
+  //   state   = geocoded from state centroid only (inherently fuzzy)
+  //   country = geocoded from a bare country mention (very fuzzy)
+  // Null when we have no coordinates at all.
+  location_precision?: 'exact' | 'city' | 'state' | 'country';
   // Structured observation fields (populated from source metadata)
   witness_count?: number;
   event_time?: string;

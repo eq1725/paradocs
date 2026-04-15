@@ -216,7 +216,7 @@ export default function MapContainer({
       style={{ width: '100%', height: '100%' }}
       minZoom={MAP_BOUNDS.minZoom}
       maxZoom={MAP_BOUNDS.maxZoom}
-      interactiveLayerIds={['clusters', 'unclustered-point']}
+      interactiveLayerIds={['clusters', 'unclustered-point', 'unclustered-point-fuzzy']}
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -314,11 +314,16 @@ export default function MapContainer({
           }}
         />
 
-        {/* ─── Individual report markers ─── */}
+        {/* ─── Individual report markers (city-accurate and better) ─── */}
         <Layer
           id="unclustered-point"
           type="circle"
-          filter={['!', ['has', 'point_count']]}
+          filter={[
+            'all',
+            ['!', ['has', 'point_count']],
+            ['!=', ['get', 'location_precision'], 'state'],
+            ['!=', ['get', 'location_precision'], 'country'],
+          ] as any}
           paint={{
             'circle-color': categoryColorExpr,
             'circle-radius': [
@@ -340,6 +345,63 @@ export default function MapContainer({
               'rgba(255,255,255,0.3)',
             ] as any,
             'circle-opacity': heatmapActive ? 0.4 : 0.9,
+          }}
+        />
+
+        {/* ─── Fuzzy markers (state-centroid / country-centroid) ─── */}
+        {/* These pins are intentionally softer and larger — they sit at a
+            state or country centroid, not a precise spot. We use a hollow-
+            ish fill, a halo ring, and lower opacity so they read as
+            "somewhere in this area" rather than "exactly here". */}
+        <Layer
+          id="unclustered-point-fuzzy-halo"
+          type="circle"
+          filter={[
+            'all',
+            ['!', ['has', 'point_count']],
+            ['any',
+              ['==', ['get', 'location_precision'], 'state'],
+              ['==', ['get', 'location_precision'], 'country'],
+            ],
+          ] as any}
+          paint={{
+            'circle-color': categoryColorExpr,
+            'circle-radius': [
+              'case',
+              ['==', ['get', 'location_precision'], 'country'], 22,
+              16,
+            ] as any,
+            'circle-opacity': 0.10,
+            'circle-stroke-width': 0,
+          }}
+        />
+        <Layer
+          id="unclustered-point-fuzzy"
+          type="circle"
+          filter={[
+            'all',
+            ['!', ['has', 'point_count']],
+            ['any',
+              ['==', ['get', 'location_precision'], 'state'],
+              ['==', ['get', 'location_precision'], 'country'],
+            ],
+          ] as any}
+          paint={{
+            'circle-color': categoryColorExpr,
+            'circle-radius': [
+              'case',
+              ['==', ['get', 'id'], selectedReportId || ''],
+              9,
+              5,
+            ] as any,
+            'circle-opacity': heatmapActive ? 0.3 : 0.55,
+            'circle-stroke-width': [
+              'case',
+              ['==', ['get', 'id'], selectedReportId || ''],
+              2.5,
+              1,
+            ] as any,
+            'circle-stroke-color': 'rgba(255,255,255,0.55)',
           }}
         />
       </Source>

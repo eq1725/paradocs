@@ -48,15 +48,16 @@ async function fetchHtml(url: string): Promise<string | null> {
 async function main() {
   console.log(`Backfill location. limit=${limit} source=${source || 'oberf,nderf'}${onlySlug ? ' slug=' + onlySlug : ''}`);
 
+  const selectCols = 'id, slug, source_type, source_url, description, location_name, latitude, longitude, country, state_province, city, metadata';
   let q = supabase
     .from('reports')
-    .select('id, slug, source_type, source_url, description, location_name, latitude, longitude, country, state_province, city')
+    .select(selectCols)
     .in('source_type', source ? [source] : ['oberf', 'nderf'])
     .is('location_name', null)
     .limit(limit);
   if (onlySlug) q = supabase
     .from('reports')
-    .select('id, slug, source_type, source_url, description, location_name, latitude, longitude, country, state_province, city')
+    .select(selectCols)
     .eq('slug', onlySlug);
 
   const { data, error } = await q;
@@ -111,6 +112,14 @@ async function main() {
         } catch (e) {
           console.log(`  geocode error: ${(e as Error).message}`);
         }
+      }
+    }
+
+    // Stamp location_precision into metadata so the map can style fuzzy pins.
+    if (loc.precision) {
+      const existingMeta = r.metadata || {};
+      if (existingMeta.location_precision !== loc.precision) {
+        update.metadata = Object.assign({}, existingMeta, { location_precision: loc.precision });
       }
     }
 

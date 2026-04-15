@@ -24,6 +24,7 @@ import ArticleTableOfContents from '@/components/ArticleTableOfContents'
 import ParadocsAnalysisBox from '@/components/reports/ParadocsAnalysisBox'
 import type { ParadocsAssessment } from '@/components/reports/ParadocsAnalysisBox'
 import { CaseProfileChips } from '@/components/discover/DiscoverCards'
+import { deriveCaseProfile } from '@/lib/caseProfile'
 import SourceAttribution from '@/components/reports/SourceAttribution'
 import FeaturedMediaCard from '@/components/reports/FeaturedMediaCard'
 import MediaMentionBanner from '@/components/reports/MediaMentionBanner'
@@ -841,7 +842,23 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                     parts.push(locName)
                   }
                   if (report.country) parts.push(report.country as string)
-                  return parts.join(', ')
+                  var precision = meta.location_precision as string | undefined
+                  var precisionNote: string | null = null
+                  if (precision === 'state') precisionNote = 'state-level only'
+                  else if (precision === 'country') precisionNote = 'country-level only'
+                  return (
+                    <>
+                      {parts.join(', ')}
+                      {precisionNote && (
+                        <span
+                          className="ml-1 text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-gray-500 font-sans uppercase tracking-wider"
+                          title="The source did not provide a specific city — the map pin is placed at the regional centroid"
+                        >
+                          {precisionNote}
+                        </span>
+                      )}
+                    </>
+                  )
                 })()}
               </span>
             )}
@@ -1021,15 +1038,33 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         {/* === INDEX MODEL MODE: Paradocs Analysis + Source Attribution + Research Hub Preview === */}
         {isIndexReport && (
           <>
-            {/* NDERF Case Profile — structured facts first, before analysis narrative */}
-            {(report.source_type === 'nderf' || report.source_type === 'oberf') && (report as any).metadata?.case_profile && (
-              <div className="mb-5">
-                <CaseProfileChips
-                  profile={(report as any).metadata.case_profile}
-                  variant="full"
-                />
-              </div>
-            )}
+            {/* Universal Case Profile \u2014 structured facts for every adapter.
+                NDERF/OBERF gets the full NDE questionnaire; BFRO, NUFORC,
+                Erowid, Reddit, IANDS, Ghosts of America, etc. each get a
+                source-appropriate profile derived from their metadata. */}
+            {(function () {
+              var unified = deriveCaseProfile({
+                source_type: (report as any).source_type,
+                metadata: (report as any).metadata,
+                category: (report as any).category,
+                witness_count: (report as any).witness_count,
+                has_photo_video: (report as any).has_photo_video,
+                has_physical_evidence: (report as any).has_physical_evidence,
+                event_date: (report as any).event_date,
+                event_date_precision: (report as any).event_date_precision,
+                credibility: (report as any).credibility,
+              })
+              if (!unified) return null
+              return (
+                <div className="mb-5">
+                  <CaseProfileChips
+                    profile={unified}
+                    variant="full"
+                    sourceType={(report as any).source_type}
+                  />
+                </div>
+              )
+            })()}
 
             {/* Paradocs Analysis Box — THE MAIN CONTENT for index reports */}
             <ParadocsAnalysisBox

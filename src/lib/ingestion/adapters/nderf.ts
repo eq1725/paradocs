@@ -586,7 +586,7 @@ const US_STATES: Record<string, string> = {
 
 // Extract location from NDERF narrative text
 // NDERF has no structured location field — we must extract from the narrative
-export function extractLocation(content: string, html: string): { location_name?: string; country?: string; state_province?: string; city?: string } {
+export function extractLocation(content: string, html: string): { location_name?: string; country?: string; state_province?: string; city?: string; precision?: 'city' | 'state' | 'country' } {
   const text = content;
 
   // Try common patterns in NDE narratives:
@@ -609,7 +609,8 @@ export function extractLocation(content: string, html: string): { location_name?
         location_name: `${city}, ${stateName}`,
         country: 'United States',
         state_province: stateName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-        city: city
+        city: city,
+        precision: 'city',
       };
     }
   }
@@ -628,7 +629,8 @@ export function extractLocation(content: string, html: string): { location_name?
         location_name: `${city}, ${stateName}`,
         country: 'United States',
         state_province: stateName,
-        city: city
+        city: city,
+        precision: 'city',
       };
     }
   }
@@ -651,7 +653,8 @@ export function extractLocation(content: string, html: string): { location_name?
         location_name: `${place}, ${region}`,
         country: resolvedCountry,
         state_province: country ? region : undefined,
-        city: place
+        city: place,
+        precision: 'city',
       };
     }
   }
@@ -662,30 +665,63 @@ export function extractLocation(content: string, html: string): { location_name?
     console.log(`[NDERF] Location from country mention: ${countryMatch[1]}`);
     return {
       location_name: countryMatch[1],
-      country: countryMatch[1]
+      country: countryMatch[1],
+      precision: 'country',
     };
   }
 
-  // Pattern 5: US state only — e.g. "home in Kansas", "lived in Oregon", "from California".
-  // Looser than Pattern 1 because no city is required. Runs late so more
-  // specific "City, State" matches always win. We require a preceding verb
-  // or preposition so we don't match stray occurrences of the state name
-  // inside unrelated prose (e.g. "New York Times").
-  for (const [stateName, stateAbbr] of Object.entries(US_STATES)) {
-    const nameTitle = stateName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-    // Word-boundary-matched state name preceded by a locational verb/preposition.
-    // Using stateName raw (case-insensitive flag) keeps the regex concise.
-    const stateOnlyPattern = new RegExp(
-      '\\b(?:in|near|from|to|of|at|across|throughout|around|back in|live in|lived in|living in|home in|house in|moved to|raised in|grew up in|born in)\\s+' + stateName + '\\b',
-      'i'
-    );
-    if (stateOnlyPattern.test(text)) {
-      console.log(`[NDERF] Location from state-only mention: ${nameTitle}`);
-      return {
-        location_name: nameTitle,
-        country: 'United States',
-        state_province: nameTitle
-      };
+  // Pattern 5: US state only — e.g. "home in Kansas", "lived in Oregon".
+  // Strict by design. The earlier iteration (which accepted bare "in/at/of
+  // [State]") false-positived on referential mentions like "coast of
+  // California" or "back to Kansas in my memory". We now require phrasing
+  // that unambiguously places the experiencer physically at the state
+  // around the time of the experience. If OP doesn't plainly say so, we
+  // return nothing — a null location is far less harmful than a wrong map
+  // pin. (QA/QC #3 round 2, Apr 15 2026.)
+  //
+  // Accepted phrasings:
+  //   - "[my|our|a] (home|house|place|apartment|cabin|farm|ranch|property) in [State]"
+  //   - "(I|we|he|she) (was|were|am|is) (in|at) [State]"
+  //   - "(I|we) (live|lived|living|had lived|had been living) in [State]"
+  //   - "(I|we) moved to [State]"
+  //   - "(I|we) grew up in [State]" / "born in [State]" / "raised in [State]"
+  //   - "happened|occurred|took place in [State]"
+  //   - "experience(d) (happened|took place|was) in [State]"
+  //   - "on (a|our) (vacation|trip|holiday|visit) (in|to) [State]"
+  const presenceSubject = '(?:I|we|he|she|they|my|our)';
+  const personalVerbs = '(?:was|were|am|is|have been|had been|live|lived|living|had lived|had been living|moved|travel(?:l?ed)?|stayed|drove|flew|went|came|returned|arrived)';
+  const presenceVerbs = '(?:happened|occurred|took place|takes place|experience(?:d)?)';
+  const homeNouns = '(?:home|house|place|apartment|residence|cabin|farm|ranch|condo|property|homestead)';
+  const tripNouns = '(?:vacation|trip|holiday|visit|business trip|road trip|camping trip|family trip)';
+  const originVerbs = '(?:grew up|raised|born)';
+
+  const stateNames = Object.keys(US_STATES);
+  const stateUnion = stateNames.map(n => n.replace(/ /g, '\\s+')).join('|');
+
+  const patterns: RegExp[] = [
+    new RegExp(`\\b(?:my|our|a|the)\\s+${homeNouns}\\s+(?:in|near)\\s+(${stateUnion})\\b`, 'i'),
+    new RegExp(`\\bat\\s+(?:my|our|a|the)\\s+${homeNouns}\\s+(?:in|near)\\s+(${stateUnion})\\b`, 'i'),
+    new RegExp(`\\b${presenceSubject}\\s+(?:was|were|am|is)\\s+(?:in|at|near)\\s+(${stateUnion})\\b`, 'i'),
+    new RegExp(`\\b${presenceSubject}\\s+${personalVerbs}\\s+(?:in|to|from|near)\\s+(${stateUnion})\\b`, 'i'),
+    new RegExp(`\\b${presenceSubject}\\s+${originVerbs}\\s+in\\s+(${stateUnion})\\b`, 'i'),
+    new RegExp(`\\b${presenceVerbs}\\s+(?:in|near|at)\\s+(${stateUnion})\\b`, 'i'),
+    new RegExp(`\\b(?:on|during)\\s+(?:a|our|my)\\s+${tripNouns}\\s+(?:in|to)\\s+(${stateUnion})\\b`, 'i'),
+  ];
+
+  for (const pat of patterns) {
+    const m = text.match(pat);
+    if (m) {
+      const raw = m[1].replace(/\s+/g, ' ').toLowerCase();
+      if (US_STATES[raw]) {
+        const title = raw.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        console.log(`[NDERF] Location from state-only mention: ${title}`);
+        return {
+          location_name: title,
+          country: 'United States',
+          state_province: title,
+          precision: 'state',
+        };
+      }
     }
   }
 
@@ -910,6 +946,7 @@ function parseExperiencePage(html: string, id: string, name: string): ScrapedRep
     country: location.country,
     state_province: location.state_province,
     city: location.city,
+    location_precision: location.precision,
     event_date: eventDate,
     event_date_precision: datePrecision,
     credibility: determineCredibility(content, nderfTier),

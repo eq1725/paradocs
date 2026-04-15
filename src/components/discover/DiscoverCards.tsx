@@ -24,6 +24,7 @@ import Link from 'next/link'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
 import { Constellation } from './Constellation'
+import { deriveCaseProfile, nderfToCaseProfile, type CaseProfile } from '@/lib/caseProfile'
 
 // =========================================================================
 //  Shared types
@@ -289,49 +290,31 @@ function caseProfileHeaderLabel(p: NDERFCaseProfile): string {
   return t + ' Case Profile'
 }
 
-export function CaseProfileChips(props: { profile: NDERFCaseProfile, variant?: 'compact' | 'full' }) {
-  var p = props.profile
+// Accept either a legacy NDERFCaseProfile (for NDERF/OBERF back-compat)
+// or a unified CaseProfile. Callers increasingly derive a unified profile
+// via `deriveCaseProfile(report)` and pass that in directly, so every
+// adapter (BFRO, NUFORC, Erowid, Reddit, etc.) gets the same profile box.
+export function CaseProfileChips(props: {
+  profile: NDERFCaseProfile | CaseProfile,
+  variant?: 'compact' | 'full',
+  sourceType?: string | null,
+}) {
   var variant = props.variant || 'compact'
-  var headerLabel = caseProfileHeaderLabel(p)
 
-  // Primary identity facts — text-value chips shown prominently.
-  // NOTE: ndeType is intentionally NOT rendered here. The experience-type
-  // classification (e.g. "Other Experience", "Out-of-Body Experience") is
-  // kept in metadata for backend taxonomy / filtering only — surfacing it
-  // on the detail page creates redundant category labeling and a
-  // category-vs-classifier confusion for readers. (QA/QC #2, Apr 14 2026.)
-  var identity: { label: string, value: string }[] = []
-  if (p.trigger) identity.push({ label: 'Trigger', value: p.trigger })
-  if (p.gender) identity.push({ label: 'Gender', value: p.gender })
-  if (p.ageAtNDE) identity.push({ label: 'Age', value: p.ageAtNDE })
+  // Normalise to unified shape. The `kind` + `headerLabel` fields identify
+  // a unified CaseProfile; anything else we treat as legacy NDERF.
+  var unified: CaseProfile
+  var pAny = props.profile as any
+  if (pAny && typeof pAny === 'object' && 'kind' in pAny && 'headerLabel' in pAny) {
+    unified = pAny as CaseProfile
+  } else {
+    unified = nderfToCaseProfile(pAny as NDERFCaseProfile, props.sourceType || null)
+  }
 
-  // Phenomenon checklist — yes/no/unknown for each NDE feature.
-  // Ordered roughly core → peripheral → aftereffects so the most commonly
-  // answered features surface first in the chip grid.
-  var phenomena: { label: string, state: 'yes' | 'no' | 'unknown' }[] = [
-    { label: 'Out-of-body', state: p.outOfBody || 'unknown' },
-    { label: 'Tunnel', state: p.tunnel || 'unknown' },
-    { label: 'Brilliant light', state: p.light || 'unknown' },
-    { label: 'Met beings', state: p.metBeings || 'unknown' },
-    { label: 'Mystical being', state: p.mysticalBeing || 'unknown' },
-    { label: 'Deceased present', state: p.deceasedPresent || 'unknown' },
-    { label: 'Other realm', state: p.otherworldly || 'unknown' },
-    { label: 'Life review', state: p.lifeReview || 'unknown' },
-    { label: 'Special knowledge', state: p.specialKnowledge || 'unknown' },
-    { label: 'Future scenes', state: p.futureScenes || 'unknown' },
-    { label: 'Afterlife aware', state: p.afterlifeAware || 'unknown' },
-    { label: 'Boundary', state: p.boundary || 'unknown' },
-    { label: 'Altered time', state: p.alteredTime || 'unknown' },
-    { label: 'Vivid memory', state: p.memoryAccuracy || 'unknown' },
-    { label: 'Believes real', state: p.realityBelief || 'unknown' },
-    { label: 'Life changed', state: (p.lifeChanged || p.aftereffectsChangedLife) || 'unknown' },
-  ]
-  // Only show phenomena that were actually answered
-  var answeredPhenomena = phenomena.filter(function (x) { return x.state !== 'unknown' })
-
-  // Emotions are always a token array now. Legacy string values are
-  // ignored — we don't render verbatim experiencer prose.
-  var emotionTokens: EmotionToken[] = Array.isArray(p.emotions) ? p.emotions : []
+  var headerLabel = unified.headerLabel
+  var identity = unified.facts
+  var answeredPhenomena = unified.phenomena.filter(function (x) { return x.state !== 'unknown' })
+  var emotionTokens = unified.emotions
 
   if (identity.length === 0 && answeredPhenomena.length === 0 && emotionTokens.length === 0) return null
 
@@ -343,7 +326,7 @@ export function CaseProfileChips(props: { profile: NDERFCaseProfile, variant?: '
     })
     return (
       <div className="flex flex-col gap-2 py-3 px-3 rounded-lg bg-white/[0.02] border border-white/[0.06] flex-shrink-0">
-        <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Case Profile</span>
+        <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">{headerLabel}</span>
         <div className="flex flex-wrap gap-1.5">
           {allChips.map(function (chip, i) {
             return (
@@ -681,8 +664,19 @@ export function TextReportCard(props: {
   if (item.has_physical_evidence) credSignals.push('Physical Evidence')
 
   var displayText = item.feed_hook || item.summary || ''
-  var caseProfile = (item.metadata && item.metadata.case_profile) || null
-  var isNDERF = item.source_type === 'nderf' || item.source_type === 'oberf'
+  // Universal case profile — falls back across every adapter (NDERF, OBERF,
+  // BFRO, NUFORC, Erowid, Reddit, IANDS, Ghosts, …). Returns null when the
+  // underlying metadata is too thin to render anything useful.
+  var unifiedProfile = deriveCaseProfile({
+    source_type: item.source_type,
+    metadata: item.metadata,
+    category: item.category,
+    has_photo_video: item.has_photo_video,
+    has_physical_evidence: item.has_physical_evidence,
+    event_date: item.event_date,
+    event_date_precision: item.event_date_precision,
+    credibility: item.credibility,
+  })
   // Expanded section text: paradocs_narrative (our own analytical take) is the goal.
   // Falls back to summary only for legacy curated sources where narrative is intentionally null.
   var expandedText = item.paradocs_narrative || (isLinkOnly(item.source_type) ? '' : item.summary) || ''
@@ -736,9 +730,9 @@ export function TextReportCard(props: {
             </p>
           )}
 
-          {/* NDERF Case Profile chips \u2014 replaces generic Research Data Panel */}
-          {isNDERF && caseProfile && (
-            <CaseProfileChips profile={caseProfile} />
+          {/* Universal Case Profile chips \u2014 replaces generic Research Data Panel */}
+          {unifiedProfile && (
+            <CaseProfileChips profile={unifiedProfile} sourceType={item.source_type} />
           )}
 
           <Link
@@ -806,8 +800,16 @@ export function MediaReportCard(props: {
   if (item.has_physical_evidence) credSignals.push('Physical Evidence')
 
   var displayText = item.feed_hook || item.summary || ''
-  var caseProfile = (item.metadata && item.metadata.case_profile) || null
-  var isNDERF = item.source_type === 'nderf' || item.source_type === 'oberf'
+  var unifiedProfile = deriveCaseProfile({
+    source_type: item.source_type,
+    metadata: item.metadata,
+    category: item.category,
+    has_photo_video: item.has_photo_video,
+    has_physical_evidence: item.has_physical_evidence,
+    event_date: item.event_date,
+    event_date_precision: item.event_date_precision,
+    credibility: item.credibility,
+  })
   var expandedText = item.paradocs_narrative || (isLinkOnly(item.source_type) ? '' : item.summary) || ''
 
   var tensionItems: { value: string | number, label: string }[] = []
@@ -876,9 +878,9 @@ export function MediaReportCard(props: {
             </p>
           )}
 
-          {/* NDERF Case Profile chips */}
-          {isNDERF && caseProfile && (
-            <CaseProfileChips profile={caseProfile} />
+          {/* Universal Case Profile chips */}
+          {unifiedProfile && (
+            <CaseProfileChips profile={unifiedProfile} sourceType={item.source_type} />
           )}
 
           <Link

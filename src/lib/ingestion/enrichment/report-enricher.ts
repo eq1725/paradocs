@@ -437,6 +437,16 @@ export async function enrichReport(report: ScrapedReport, options?: { skipGeocod
     }
   }
 
+  // --- 5. LOCATION PRECISION ---
+  // Infer precision from the fields we ended up with. Adapters that set
+  // this explicitly are preserved. Used by the map to render fuzzy pins
+  // (state-centroid / country-centroid) distinctly from city-accurate ones.
+  if (!report.location_precision && (report.latitude != null || report.location_name)) {
+    if (report.city) report.location_precision = 'city';
+    else if (report.state_province) report.location_precision = 'state';
+    else if (report.country) report.location_precision = 'country';
+  }
+
   return { report: report, enrichments: log };
 }
 
