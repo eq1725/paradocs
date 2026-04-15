@@ -13,7 +13,7 @@
  */
 import 'dotenv/config';
 import * as dotenv from 'dotenv';
-dotenv.config({ path: '.env.local' });
+dotenv.config({ path: '.env.local', override: true });
 
 import { createClient } from '@supabase/supabase-js';
 

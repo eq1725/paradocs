@@ -25,6 +25,7 @@
 import { SourceAdapter, AdapterResult, ScrapedReport } from '../types';
 import {
   extractLocation,
+  extractLocationSmart,
   buildCaseProfile,
   NDERFCaseProfile,
   LabelResolver,
@@ -486,11 +487,11 @@ function subtypeDreamArchive(content: string): Subtype | null {
 // ---------------------------------------------------------------------------
 // Individual experience-page parser
 // ---------------------------------------------------------------------------
-function parseOBERFExperiencePage(
+async function parseOBERFExperiencePage(
   html: string,
   id: string,
   archive: ArchiveConfig,
-): ScrapedReport | null {
+): Promise<ScrapedReport | null> {
   // Narrative extraction — same markers as NDERF (same questionnaire form).
   let narrativeHtml = '';
   const narrativeMatch = html.match(
@@ -520,7 +521,10 @@ function parseOBERFExperiencePage(
 
   const { date: eventDate, precision: datePrecision } = extractOBERFDate(getField, content);
   const gender = getField(['Gender']) || undefined;
-  const location = extractLocation(content, html);
+  // LLM-first event-location extraction so multi-location narratives
+  // resolve to where the experience actually happened, not where the
+  // experiencer lived. Falls back to regex if Claude is unavailable.
+  const location = await extractLocationSmart(content, html, archive.typeLabel);
 
   // OBE reports rarely have a "life-threatening event" trigger; try anyway
   // in case the experiencer filled it in. OBERF uses "At the time of this
@@ -678,7 +682,7 @@ export const oberfAdapter: SourceAdapter = {
             continue;
           }
 
-          const report = parseOBERFExperiencePage(expHtml, exp.id, archive);
+          const report = await parseOBERFExperiencePage(expHtml, exp.id, archive);
           if (report) {
             reports.push(report);
             if (reports.length % 20 === 0) {

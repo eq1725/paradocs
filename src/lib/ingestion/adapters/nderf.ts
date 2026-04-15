@@ -729,6 +729,69 @@ export function extractLocation(content: string, html: string): { location_name?
   return {};
 }
 
+/**
+ * LLM-first event-location extraction.
+ *
+ * Narratives often mention multiple locations (where the narrator lived,
+ * grew up, travelled to), and the regex extractor above returns whichever
+ * phrase it matches first — which silently mis-pins reports. Example:
+ *   "I lived in Beaumont, TX at the time but saw the light in Cheyenne, WY
+ *    when on vacation."
+ * Regex picks up "in Beaumont, TX" first. Correct answer: Cheyenne, WY.
+ *
+ * This wrapper asks Claude for the EVENT location specifically, with the
+ * regex extraction as fallback. The LLM is instructed to return null when
+ * the narrative doesn't plainly name an event location, which is safer
+ * than guessing.
+ */
+export async function extractLocationSmart(
+  content: string,
+  html: string,
+  eventTypeLabel?: string | null
+): Promise<{ location_name?: string; country?: string; state_province?: string; city?: string; precision?: 'city' | 'state' | 'country' }> {
+  // Regex fallback first so we always have something to fall back on if
+  // the LLM call fails or returns confidence=none.
+  const regexOut = extractLocation(content, html);
+
+  // Dynamically import to avoid pulling the Anthropic service into any
+  // call path that only wants the offline regex extractor.
+  try {
+    const mod = await import('../../services/event-location.service');
+    const result = await mod.extractEventLocation({
+      narrative: content,
+      hintCity: regexOut.city || null,
+      hintState: regexOut.state_province || null,
+      hintCountry: regexOut.country || null,
+      eventTypeLabel: eventTypeLabel || null,
+    });
+
+    const loc = result.location;
+    if (loc && mod.isUsableEventLocation(loc) && (loc.confidence === 'high' || loc.confidence === 'medium')) {
+      const parts: string[] = [];
+      if (loc.city) parts.push(loc.city);
+      if (loc.state) parts.push(loc.state);
+      if (!loc.state && loc.country) parts.push(loc.country);
+      console.log(`[NDERF] LLM event location: ${parts.join(', ')} (${loc.confidence}) — ${loc.reasoning.substring(0, 140)}`);
+      return {
+        location_name: parts.join(', '),
+        country: loc.country || (loc.state ? 'United States' : undefined),
+        state_province: loc.state || undefined,
+        city: loc.city || undefined,
+        precision: loc.precision || undefined,
+      };
+    }
+    if (loc) {
+      console.log(`[NDERF] LLM confidence=${loc.confidence}; falling back to regex. Reason: ${loc.reasoning.substring(0, 140)}`);
+    } else if (result.fallbackReason) {
+      console.log(`[NDERF] LLM extraction unavailable: ${result.fallbackReason}; falling back to regex`);
+    }
+  } catch (e: any) {
+    console.log(`[NDERF] LLM event location error: ${e && e.message ? e.message : String(e)}; falling back to regex`);
+  }
+
+  return regexOut;
+}
+
 // NDE type labels for titles — always neutral (tier is never exposed).
 // Kept as a function instead of a dict so the intent is obvious: NDERF is
 // NDE-only; all three evaluative tiers collapse to the same public label.
@@ -832,7 +895,7 @@ function generateNDERFTitle(
 }
 
 // Parse an individual experience page
-function parseExperiencePage(html: string, id: string, name: string): ScrapedReport | null {
+async function parseExperiencePage(html: string, id: string, name: string): Promise<ScrapedReport | null> {
   // --- TARGETED CONTENT EXTRACTION ---
   // NDERF pages have a clear structure:
   //   <span class="m108">Experience Description</span> ... narrative ... <span class="m108">Background Information:</span>
@@ -897,10 +960,15 @@ function parseExperiencePage(html: string, id: string, name: string): ScrapedRep
   const gender = extractField(html, 'Gender');
   console.log(`[NDERF] ${id}: gender=${gender || 'unknown'}, date=${eventDate || 'none'}, precision=${datePrecision}`);
 
-  // --- FIX 3: Extract location from narrative ---
-  const location = extractLocation(content, html);
+  // --- FIX 3: Extract location from narrative (LLM-first) ---
+  // `extractLocationSmart` calls Claude with an event-location-specific
+  // prompt so multi-location narratives ("lived in Beaumont but saw it in
+  // Cheyenne") resolve to the event location, not whichever place is
+  // mentioned first. Falls back to the strict regex extractor if the LLM
+  // is unavailable or returns low confidence.
+  const location = await extractLocationSmart(content, html, NEUTRAL_NDE_LABEL);
   if (location.location_name) {
-    console.log(`[NDERF] ${id}: location="${location.location_name}"`);
+    console.log(`[NDERF] ${id}: location="${location.location_name}" precision=${location.precision || 'unknown'}`);
   }
 
   // --- Extract trigger ONCE (used for both title and case profile) ---
@@ -1029,7 +1097,7 @@ export const nderfAdapter: SourceAdapter = {
             continue;
           }
 
-          const report = parseExperiencePage(expHtml, exp.id, exp.name);
+          const report = await parseExperiencePage(expHtml, exp.id, exp.name);
           if (report) {
             reports.push(report);
 

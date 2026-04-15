@@ -13,10 +13,10 @@
  */
 import 'dotenv/config';
 import * as dotenv from 'dotenv';
-dotenv.config({ path: '.env.local' });
+dotenv.config({ path: '.env.local', override: true });
 
 import { createClient } from '@supabase/supabase-js';
-import { extractLocation } from '../src/lib/ingestion/adapters/nderf';
+import { extractLocation, extractLocationSmart } from '../src/lib/ingestion/adapters/nderf';
 import { geocodeLocation, buildLocationQuery } from '../src/lib/services/geocoding.service';
 
 const supabase = createClient(
@@ -32,6 +32,10 @@ function arg(name: string): string | undefined {
 const limit = parseInt(arg('limit') || '2000', 10);
 const source = arg('source');
 const onlySlug = arg('slug');
+// Default to LLM-first extraction so multi-location narratives resolve
+// to the event location instead of whichever city is mentioned first.
+// Pass --regex to force pure regex extraction (faster, no API calls).
+const useLLM = !argv.includes('--regex');
 
 async function fetchHtml(url: string): Promise<string | null> {
   try {
@@ -78,7 +82,9 @@ async function main() {
     if (content.length < 400 && r.source_url) {
       html = await fetchHtml(r.source_url) || '';
     }
-    const loc = extractLocation(content, html);
+    const loc = useLLM
+      ? await extractLocationSmart(content, html)
+      : extractLocation(content, html);
     if (!loc.location_name) {
       console.log('  no location extracted');
       unchanged++;
