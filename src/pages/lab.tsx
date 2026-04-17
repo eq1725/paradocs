@@ -439,7 +439,16 @@ function MapTab() {
   var [loading, setLoading] = useState(true)
   var [selectedEntry, setSelectedEntry] = useState<EntryNode | null>(null)
   var [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  var [isImmersive, setIsImmersive] = useState(false)
   var [refreshKey, setRefreshKey] = useState(0)
+
+  // Prevent body scroll while the map is in immersive fullscreen mode.
+  useEffect(function() {
+    if (!isImmersive) return
+    var prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return function() { document.body.style.overflow = prev }
+  }, [isImmersive])
 
   // Load / reload the user-map payload. Exposed via refreshKey so the paste-URL
   // flow in Phase B can trigger a re-fetch after saving a new artifact.
@@ -525,40 +534,74 @@ function MapTab() {
       </div>
 
       {/*
-        Layout: canvas on top/left, sidebar below/right.
-        Mobile (<md): stacked, canvas first. Desktop (md+): two columns.
-        The map container stays relative so NodeDetailPanel anchors correctly.
+        Map is the hero now. On desktop the sidebar floats over the canvas
+        (top-left) via the overlay slot. On mobile we render a pill strip
+        below the map so the canvas stays unobstructed.
       */}
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_260px] gap-3">
-        <div className="relative bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden">
-          <ConstellationMapV2
-            userMapData={normalizedMapData}
-            onSelectEntry={setSelectedEntry}
-            selectedEntryId={selectedEntry?.id}
-          />
-
-          {selectedEntry && (
-            <NodeDetailPanel
-              entry={selectedEntry}
-              userMapData={normalizedMapData}
-              onClose={function() { setSelectedEntry(null) }}
-              onTagClick={function() { setSelectedEntry(null) }}
-              onEntryClick={function(entryId: string) {
-                var entry = normalizedMapData?.entryNodes.find(function(e) { return e.id === entryId })
-                if (entry) setSelectedEntry(entry)
-              }}
-            />
-          )}
-        </div>
-
-        {/* Sidebar — desktop: right column, mobile: stacked below */}
-        <div className="min-h-[260px] max-h-[60vh] md:max-h-none md:h-auto">
+      <ConstellationMapV2
+        userMapData={normalizedMapData}
+        onSelectEntry={setSelectedEntry}
+        selectedEntryId={selectedEntry?.id}
+        selectedCategory={selectedCategory}
+        isImmersive={isImmersive}
+        onToggleImmersive={function() { setIsImmersive(function(v) { return !v }) }}
+        overlay={
           <ConstellationSidebar
             userMapData={normalizedMapData}
             selectedCategory={selectedCategory}
             onCategoryClick={setSelectedCategory}
+            layout="panel"
           />
-        </div>
+        }
+      />
+
+      {/* NodeDetailPanel lives outside the map so it can overlay the entire
+          MapTab on mobile without getting clipped by the canvas container. */}
+      {selectedEntry && !isImmersive && (
+        <NodeDetailPanelWrapper
+          entry={selectedEntry}
+          userMapData={normalizedMapData}
+          onClose={function() { setSelectedEntry(null) }}
+          onEntryClick={function(entryId: string) {
+            var entry = normalizedMapData?.entryNodes.find(function(e) { return e.id === entryId })
+            if (entry) setSelectedEntry(entry)
+          }}
+        />
+      )}
+
+      {/* Mobile pill strip — sm breakpoint and below */}
+      <div className="sm:hidden mt-3">
+        <ConstellationSidebar
+          userMapData={normalizedMapData}
+          selectedCategory={selectedCategory}
+          onCategoryClick={setSelectedCategory}
+          layout="pill"
+        />
+      </div>
+    </div>
+  )
+}
+
+// Small wrapper so the detail panel gets a fresh positioning context and
+// works over either the inline map or (conceptually) the full page. The
+// panel itself uses `absolute inset` + `sm:fixed-ish` positioning; wrapping
+// it in a relative div here keeps behavior predictable inside the Lab tab.
+function NodeDetailPanelWrapper(props: {
+  entry: EntryNode
+  userMapData: UserMapData | null
+  onClose: () => void
+  onEntryClick: (id: string) => void
+}) {
+  return (
+    <div className="fixed inset-0 z-40 pointer-events-none">
+      <div className="absolute inset-0 pointer-events-auto">
+        <NodeDetailPanel
+          entry={props.entry}
+          userMapData={props.userMapData}
+          onClose={props.onClose}
+          onTagClick={function() {}}
+          onEntryClick={props.onEntryClick}
+        />
       </div>
     </div>
   )

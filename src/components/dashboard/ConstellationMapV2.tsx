@@ -1,44 +1,99 @@
 'use client'
 
 /**
- * ConstellationMapV2 — Interactive, content-driven star map.
+ * ConstellationMapV2 — Cosmic-web star map.
  *
- * Each logged report is a star node. Stars cluster into nebulae by category.
- * Connections form from shared tags and user-drawn links.
- * Fully zoomable, pannable, and touch-friendly.
+ * Renders the user's research universe as an organic network of glowing
+ * nodes connected by filaments (cosmic-web / neural-net aesthetic).
+ *
+ * Key features:
+ *   - Teaser-galaxy blend for users with <5 real saves (so the canvas never
+ *     looks empty)
+ *   - Category filter dimming (non-matching stars fade)
+ *   - Fullscreen immersive mode (takes over the viewport, hides all chrome)
+ *   - Neural-impulse animation when a node is selected (pulses travel along
+ *     filaments to all connected nodes)
+ *   - prefers-reduced-motion support — disables all ambient motion
  */
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
-import { ZoomIn, ZoomOut, Maximize2, Sparkles, Compass, Star } from 'lucide-react'
+import { ZoomIn, ZoomOut, Maximize2, Sparkles, Compass, Maximize, Minimize } from 'lucide-react'
 import Link from 'next/link'
 import { useForceSimulation, SimNode } from '@/lib/hooks/useForceSimulation'
 import { useCanvasRenderer, RenderState } from '@/lib/hooks/useCanvasRenderer'
 import { useMapInteractions, Transform } from '@/lib/hooks/useMapInteractions'
 import type { EntryNode, UserMapData } from '@/lib/constellation-types'
+import {
+  getTeaserGhosts,
+  getTeaserTagConnections,
+  TEASER_THRESHOLD,
+} from '@/lib/constellation-teaser'
 
 interface ConstellationMapV2Props {
   userMapData: UserMapData | null
   onSelectEntry: (entry: EntryNode | null) => void
   selectedEntryId?: string | null
+  /** Category filter — if set, dims non-matching stars + filaments */
+  selectedCategory?: string | null
+  /** Fullscreen immersive mode */
+  isImmersive?: boolean
+  onToggleImmersive?: () => void
+  /**
+   * Arbitrary overlay content rendered absolutely at the top-right of the
+   * canvas container — used for the desktop sidebar. Hidden automatically
+   * below the sm breakpoint so mobile can show a dedicated pill strip.
+   */
+  overlay?: React.ReactNode
 }
 
 export default function ConstellationMapV2({
   userMapData,
   onSelectEntry,
   selectedEntryId,
+  selectedCategory = null,
+  isImmersive = false,
+  onToggleImmersive,
+  overlay,
 }: ConstellationMapV2Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animFrameRef = useRef<number>(0)
-  const timeRef = useRef(0)
 
   const [dimensions, setDimensions] = useState({ width: 800, height: 500 })
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, k: 1 })
   const [hoveredNode, setHoveredNode] = useState<SimNode | null>(null)
-  const [highlightedTag, setHighlightedTag] = useState<string | null>(null)
+  const [highlightedTag] = useState<string | null>(null)
+  const [reducedMotion, setReducedMotion] = useState(false)
 
-  const entries = userMapData?.entryNodes || []
-  const tagConnections = userMapData?.tagConnections || []
+  // ── Detect prefers-reduced-motion ──
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    setReducedMotion(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches)
+    mq.addEventListener?.('change', handler)
+    return () => mq.removeEventListener?.('change', handler)
+  }, [])
+
+  // ── Blend real entries with teaser ghosts when the user has <5 saves ──
+  const realEntries = userMapData?.entryNodes || []
+  const realTagConnections = userMapData?.tagConnections || []
+  const realCount = realEntries.length
+  const shouldTeaser = realCount < TEASER_THRESHOLD
+
+  const { entries, tagConnections } = useMemo(() => {
+    if (!shouldTeaser) {
+      return { entries: realEntries, tagConnections: realTagConnections }
+    }
+    // Ghosts go first (drawn behind), real stars layer on top
+    const ghosts = getTeaserGhosts()
+    const ghostTags = getTeaserTagConnections()
+    return {
+      entries: [...ghosts, ...realEntries],
+      tagConnections: [...ghostTags, ...realTagConnections],
+    }
+  }, [realEntries, realTagConnections, shouldTeaser])
+
   const userConnections = useMemo(() =>
     (userMapData?.userConnections || []).map(c => ({
       id: c.id,
@@ -54,24 +109,24 @@ export default function ConstellationMapV2({
     const container = containerRef.current
     if (!container) return
 
-    const ro = new ResizeObserver(entries => {
-      const { width, height } = entries[0].contentRect
+    const ro = new ResizeObserver(rEntries => {
+      const { width, height } = rEntries[0].contentRect
       if (width > 0 && height > 0) {
         setDimensions({ width, height })
       }
     })
     ro.observe(container)
     return () => ro.disconnect()
-  }, [])
+  }, [isImmersive])
 
   // ── Force simulation ──
-  const { nodes, edges, centers, simulation, reheat } = useForceSimulation({
+  const { nodes, edges, centers } = useForceSimulation({
     entries,
     tagConnections,
     userConnections,
     width: dimensions.width,
     height: dimensions.height,
-    onTick: () => {}, // rendering handled in animation loop
+    onTick: () => {},
   })
 
   // ── Canvas renderer ──
@@ -81,9 +136,7 @@ export default function ConstellationMapV2({
   })
 
   // ── Interactions ──
-  const handleTransformChange = useCallback((t: Transform) => {
-    setTransform(t)
-  }, [])
+  const handleTransformChange = useCallback((t: Transform) => { setTransform(t) }, [])
 
   const handleNodeClick = useCallback((worldX: number, worldY: number) => {
     const hit = hitTest(worldX, worldY, nodes.current, transform.k)
@@ -98,17 +151,14 @@ export default function ConstellationMapV2({
   const handleNodeHover = useCallback((worldX: number, worldY: number) => {
     const hit = hitTest(worldX, worldY, nodes.current, transform.k)
     setHoveredNode(hit)
-    // Change cursor
     if (canvasRef.current) {
       canvasRef.current.style.cursor = hit ? 'pointer' : 'grab'
     }
   }, [hitTest, nodes, transform.k])
 
-  const handleBackgroundClick = useCallback(() => {
-    onSelectEntry(null)
-  }, [onSelectEntry])
+  const handleBackgroundClick = useCallback(() => { onSelectEntry(null) }, [onSelectEntry])
 
-  const { zoomIn, zoomOut, resetZoom, centerOn } = useMapInteractions({
+  const { zoomIn, zoomOut, resetZoom } = useMapInteractions({
     canvasRef,
     width: dimensions.width,
     height: dimensions.height,
@@ -118,7 +168,7 @@ export default function ConstellationMapV2({
     onBackgroundClick: handleBackgroundClick,
   })
 
-  // ── Canvas sizing (handle DPR) ──
+  // ── Canvas sizing (DPR-aware) ──
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -127,23 +177,37 @@ export default function ConstellationMapV2({
     canvas.height = dimensions.height * dpr
     canvas.style.width = `${dimensions.width}px`
     canvas.style.height = `${dimensions.height}px`
-  }, [dimensions, entries.length])
+  }, [dimensions])
 
-  // Keep refs in sync with state for the animation loop (avoids restarting the loop on every change)
+  // ── Neural impulse animation — spawn when the user picks a node ──
+  // impulseOriginId is the node that "fired"; impulseStartMs is the wall-clock
+  // time it started. The renderer draws pulses traveling outward for ~850ms.
+  const [impulse, setImpulse] = useState<{ originId: string | null; startMs: number }>({ originId: null, startMs: 0 })
+  useEffect(() => {
+    if (!selectedEntryId) return
+    setImpulse({ originId: selectedEntryId, startMs: performance.now() })
+  }, [selectedEntryId])
+
+  // ── Refs for stable animation loop ──
   const transformRef = useRef(transform)
-  const hoveredNodeRef = useRef(hoveredNode)
-  const selectedEntryIdRef = useRef(selectedEntryId)
-  const highlightedTagRef = useRef(highlightedTag)
+  const hoveredNodeRef = useRef<SimNode | null>(hoveredNode)
+  const selectedEntryIdRef = useRef<string | null | undefined>(selectedEntryId)
+  const highlightedTagRef = useRef<string | null>(highlightedTag)
+  const selectedCategoryRef = useRef<string | null>(selectedCategory)
+  const impulseRef = useRef(impulse)
+  const reducedMotionRef = useRef(reducedMotion)
   useEffect(() => { transformRef.current = transform }, [transform])
   useEffect(() => { hoveredNodeRef.current = hoveredNode }, [hoveredNode])
   useEffect(() => { selectedEntryIdRef.current = selectedEntryId }, [selectedEntryId])
   useEffect(() => { highlightedTagRef.current = highlightedTag }, [highlightedTag])
+  useEffect(() => { selectedCategoryRef.current = selectedCategory }, [selectedCategory])
+  useEffect(() => { impulseRef.current = impulse }, [impulse])
+  useEffect(() => { reducedMotionRef.current = reducedMotion }, [reducedMotion])
 
-  // ── Animation loop (runs once, reads from refs) ──
+  // ── Animation loop ──
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
@@ -151,14 +215,18 @@ export default function ConstellationMapV2({
 
     const animate = () => {
       if (!running) return
-      timeRef.current++
+      const nowMs = performance.now()
 
       const state: RenderState = {
         transform: transformRef.current,
         hoveredNodeId: hoveredNodeRef.current?.id || null,
         selectedNodeId: selectedEntryIdRef.current || null,
         highlightedTag: highlightedTagRef.current,
-        time: timeRef.current,
+        selectedCategory: selectedCategoryRef.current,
+        time: nowMs,
+        impulseOriginId: impulseRef.current.originId,
+        impulseStartMs: impulseRef.current.startMs,
+        reducedMotion: reducedMotionRef.current,
       }
 
       draw(ctx, nodes.current, edges.current, centers.current, state)
@@ -166,158 +234,147 @@ export default function ConstellationMapV2({
     }
 
     animate()
-
     return () => {
       running = false
       cancelAnimationFrame(animFrameRef.current)
     }
   }, [draw, entries.length])
 
-  // ── Empty state ──
-  if (entries.length === 0) {
-    return (
-      <div ref={containerRef} className="w-full relative" style={{ height: 'clamp(320px, 55vh, 600px)' }}>
-        <div className="absolute inset-0 bg-gradient-to-b from-gray-950 via-[#0d0d24] to-gray-950 rounded-2xl overflow-hidden">
-          {/* Placeholder star field */}
-          <div className="absolute inset-0 overflow-hidden">
-            {Array.from({ length: 80 }).map((_, i) => (
-              <div
-                key={i}
-                className="absolute rounded-full bg-white animate-pulse"
-                style={{
-                  left: `${Math.random() * 100}%`,
-                  top: `${Math.random() * 100}%`,
-                  width: `${Math.random() * 2 + 0.5}px`,
-                  height: `${Math.random() * 2 + 0.5}px`,
-                  opacity: Math.random() * 0.5 + 0.1,
-                  animationDelay: `${Math.random() * 3}s`,
-                  animationDuration: `${2 + Math.random() * 3}s`,
-                }}
-              />
-            ))}
-          </div>
+  // ── Escape key exits immersive ──
+  useEffect(() => {
+    if (!isImmersive || !onToggleImmersive) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onToggleImmersive()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [isImmersive, onToggleImmersive])
 
-          {/* Empty state CTA */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center z-10 p-6">
-            <div className="text-5xl mb-4">🔭</div>
-            <h3 className="text-white font-semibold text-lg mb-2">Your Constellation Awaits</h3>
-            <p className="text-gray-400 text-sm text-center max-w-md mb-6">
-              Start exploring reports and logging them to your constellation.
-              Each report becomes a star, and patterns will emerge as your research grows.
-            </p>
-            <div className="flex gap-3">
-              <Link
-                href="/explore"
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-500 text-white rounded-lg text-sm font-medium transition-colors"
-              >
-                <Sparkles className="w-4 h-4" />
-                Browse Reports
-              </Link>
-              <Link
-                href="/discover"
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm font-medium transition-colors"
-              >
-                <Compass className="w-4 h-4" />
-                Discover
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // ── Truly empty state (0 real saves, teaser still renders in canvas) ──
+  // We still render the canvas + ghost galaxy but overlay a strong CTA on top.
+  const showTeaserCTA = shouldTeaser
+  const savesRemaining = Math.max(0, TEASER_THRESHOLD - realCount)
 
-  // ── Main map ──
+  // ── Container styling ──
+  const containerClass = isImmersive
+    ? 'fixed inset-0 z-50 bg-black'
+    : 'relative w-full rounded-2xl overflow-hidden'
+  const containerStyle: React.CSSProperties = isImmersive
+    ? {}
+    : { height: 'clamp(360px, 62vh, 720px)' }
+
   return (
-    <div ref={containerRef} className="w-full relative" style={{ height: 'clamp(320px, 55vh, 600px)' }}>
+    <div ref={containerRef} className={containerClass} style={containerStyle}>
       <canvas
         ref={canvasRef}
-        className="w-full h-full rounded-2xl"
+        className={isImmersive ? 'block w-full h-full' : 'block w-full h-full rounded-2xl'}
         style={{ touchAction: 'none' }}
       />
 
-      {/* Zoom controls */}
-      <div className="absolute top-3 right-3 flex flex-col gap-1 z-10">
+      {/* Zoom controls — stacked top-right */}
+      <div className="absolute top-3 right-3 flex flex-col gap-1 z-20">
         <button
           onClick={zoomIn}
-          className="w-8 h-8 bg-gray-900/80 backdrop-blur-sm border border-gray-700 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:border-gray-500 transition-all"
+          className="w-9 h-9 bg-black/55 backdrop-blur-md border border-white/10 rounded-lg flex items-center justify-center text-gray-300 hover:text-white hover:border-white/20 transition-all"
           title="Zoom in"
         >
           <ZoomIn className="w-4 h-4" />
         </button>
         <button
           onClick={zoomOut}
-          className="w-8 h-8 bg-gray-900/80 backdrop-blur-sm border border-gray-700 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:border-gray-500 transition-all"
+          className="w-9 h-9 bg-black/55 backdrop-blur-md border border-white/10 rounded-lg flex items-center justify-center text-gray-300 hover:text-white hover:border-white/20 transition-all"
           title="Zoom out"
         >
           <ZoomOut className="w-4 h-4" />
         </button>
         <button
           onClick={resetZoom}
-          className="w-8 h-8 bg-gray-900/80 backdrop-blur-sm border border-gray-700 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:border-gray-500 transition-all"
+          className="w-9 h-9 bg-black/55 backdrop-blur-md border border-white/10 rounded-lg flex items-center justify-center text-gray-300 hover:text-white hover:border-white/20 transition-all"
           title="Reset view"
         >
           <Maximize2 className="w-4 h-4" />
         </button>
+        {/* Fullscreen toggle */}
+        {onToggleImmersive && (
+          <button
+            onClick={onToggleImmersive}
+            className="w-9 h-9 bg-black/55 backdrop-blur-md border border-white/10 rounded-lg flex items-center justify-center text-gray-300 hover:text-white hover:border-white/20 transition-all"
+            title={isImmersive ? 'Exit fullscreen' : 'Fullscreen galaxy view'}
+          >
+            {isImmersive ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+          </button>
+        )}
       </div>
 
-      {/* Hover tooltip */}
-      {hoveredNode && !selectedEntryId && (
+      {/* Overlay slot — sidebar, legends, etc. Hidden on mobile (sm and down).
+          Anchored top-left so zoom controls (top-right) have room to breathe. */}
+      {overlay && (
+        <div className="hidden sm:block absolute top-3 left-3 z-20">
+          {overlay}
+        </div>
+      )}
+
+      {/* Hover tooltip (skipped for ghosts because ghosts can't be hovered) */}
+      {hoveredNode && !selectedEntryId && !hoveredNode.isGhost && (
         <div
-          className="absolute pointer-events-none z-20 bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg px-3 py-2 text-xs max-w-[200px]"
+          className="absolute pointer-events-none z-30 bg-black/75 backdrop-blur-md border border-white/10 rounded-lg px-3 py-1.5 text-xs max-w-[220px]"
           style={{
             left: Math.min(
-              dimensions.width - 210,
-              Math.max(10, hoveredNode.x! * transform.k + transform.x + 15)
+              dimensions.width - 230,
+              Math.max(10, hoveredNode.x! * transform.k + transform.x + 16)
             ),
             top: Math.min(
-              dimensions.height - 60,
+              dimensions.height - 48,
               Math.max(10, hoveredNode.y! * transform.k + transform.y - 10)
             ),
           }}
         >
-          <div className="text-white font-medium truncate">{hoveredNode.name}</div>
-          <div className="text-gray-400 mt-0.5">
-            {VERDICT_LABELS[hoveredNode.verdict] || 'Logged'} · {hoveredNode.tags.length} tags
+          <div className="text-white font-medium truncate leading-tight">{hoveredNode.name}</div>
+          {hoveredNode.tags.length > 0 && (
+            <div className="text-gray-400 text-[10px] mt-0.5">
+              {hoveredNode.tags.slice(0, 3).map(t => '#' + t).join(' · ')}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Teaser CTA overlay — floats over the ghost galaxy */}
+      {showTeaserCTA && !isImmersive && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <div className="pointer-events-auto bg-black/60 backdrop-blur-md border border-white/10 rounded-2xl px-5 py-4 max-w-[340px] text-center">
+            <div className="text-3xl mb-2">🌌</div>
+            <h3 className="text-white font-semibold text-sm mb-1">
+              {realCount === 0 ? 'A preview of your universe' : 'Keep building'}
+            </h3>
+            <p className="text-gray-400 text-xs leading-relaxed mb-3">
+              {realCount === 0
+                ? 'Save reports or paste links to start lighting up real stars. Right now you\'re seeing ghost constellations — yours will replace them.'
+                : `Save ${savesRemaining} more ${savesRemaining === 1 ? 'source' : 'sources'} to claim the full galaxy.`}
+            </p>
+            <div className="flex gap-2 justify-center">
+              <Link
+                href="/discover"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-primary-600 hover:bg-primary-500 transition-colors"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Browse feed
+              </Link>
+              <Link
+                href="/explore"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-300 bg-white/5 hover:bg-white/10 transition-colors"
+              >
+                <Compass className="w-3.5 h-3.5" />
+                Explore
+              </Link>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Legend */}
-      <div className="absolute bottom-2 left-2 sm:bottom-3 sm:left-3 bg-gray-900/80 backdrop-blur-sm border border-gray-800 rounded-lg px-2.5 py-2 text-[10px] sm:text-xs space-y-1 z-10">
-        <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.6)]" />
-          <span className="text-gray-300">Compelling</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-blue-400 shadow-[0_0_4px_rgba(96,165,250,0.6)]" />
-          <span className="text-gray-300">Inconclusive</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-gray-400" />
-          <span className="text-gray-400">Skeptical</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-purple-400" />
-          <span className="text-gray-400">Need More Info</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-px bg-green-400/60" />
-          <span className="text-gray-500">Connection</span>
-        </div>
-      </div>
-
-      {/* Node count */}
-      <div className="absolute bottom-2 right-2 sm:bottom-3 sm:right-3 text-[10px] text-gray-600 z-10">
-        {entries.length} {entries.length === 1 ? 'star' : 'stars'} · {transform.k.toFixed(1)}x
+      {/* Bottom-left meter — stars + zoom indicator. Compact for mobile. */}
+      <div className="absolute bottom-3 left-3 bg-black/50 backdrop-blur-md border border-white/5 rounded-md px-2 py-1 text-[10px] text-gray-400 z-10">
+        {realCount} {realCount === 1 ? 'star' : 'stars'} · {transform.k.toFixed(1)}x
       </div>
     </div>
   )
-}
-
-const VERDICT_LABELS: Record<string, string> = {
-  compelling: '⭐ Compelling',
-  inconclusive: '🔵 Inconclusive',
-  skeptical: '⚪ Skeptical',
-  needs_info: '🟣 Needs Info',
 }

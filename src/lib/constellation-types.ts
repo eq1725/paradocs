@@ -34,6 +34,10 @@ export interface EntryNode {
   // constellation_artifacts.metadata_json. Used by NodeDetailPanel for
   // platform-specific rendering (embedded players, summary text, etc.).
   sourceMetadata?: Record<string, any> | null
+  // True for preview / teaser nodes rendered when the user has <5 real
+  // saves. The canvas dims these and the hit-tester skips them so taps
+  // on a ghost don't open a detail panel.
+  isGhost?: boolean
 }
 
 /** A user-drawn connection between two entries. */

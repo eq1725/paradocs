@@ -1,12 +1,19 @@
 /**
- * useForceSimulation — D3 force simulation for the constellation star map.
+ * useForceSimulation — Organic cosmic-web force simulation for the
+ * constellation map.
  *
- * Entry nodes are attracted to their category's gravity well (center point).
- * Same-category nodes repel each other slightly to spread into a "nebula."
- * Cross-category edges (shared tags, user connections) pull linked nodes together.
+ * Each entry is a star node. Each star has a "home" category with a soft
+ * gravity well at a hand-placed normalized position (from CONSTELLATION_NODES).
+ * Tag and user connections create link forces that can pull cross-tagged
+ * stars into bridge positions between categories — this is how the
+ * "cosmic filament" topology emerges.
+ *
+ * Design principle: nothing about a star's position is pinned. The layout is
+ * emergent from the interaction of gravity wells, link pulls, and repulsion.
+ * When the user adds a new connection, the graph visibly reorganizes.
  */
 
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import * as d3 from 'd3'
 import { CONSTELLATION_NODES } from '@/lib/constellation-data'
 import type { EntryNode } from '@/lib/constellation-types'
@@ -31,6 +38,8 @@ export interface SimNode extends d3.SimulationNodeDatum {
   // 'paradocs_report' for Paradocs-curated entries.
   sourceType?: string
   externalUrl?: string | null
+  /** True for teaser-galaxy ghost nodes — dimmed + untappable */
+  isGhost?: boolean
   // Simulation fields
   x: number
   y: number
@@ -38,21 +47,20 @@ export interface SimNode extends d3.SimulationNodeDatum {
   vy?: number
   fx?: number | null
   fy?: number | null
-  // Ring-layout targets — stable per-node position inside its category arc.
-  // d3.forceX/forceY pull toward these so stars stay strictly inside their
-  // segment while collision + charge forces spread them apart visually.
-  targetX: number
-  targetY: number
   // Computed
   radius: number
+  // Number of filaments touching this node (tag + user connections combined).
+  // The renderer uses this for size/brightness hierarchy — well-connected stars
+  // are larger and brighter, creating natural visual focal points.
+  connectionCount: number
 }
 
 export interface SimEdge {
   source: string
   target: string
   type: 'tag' | 'user' | 'ai'
-  label?: string // tag name or annotation
-  strength: number // 0-1
+  label?: string
+  strength: number
 }
 
 export interface CategoryCenter {
@@ -63,12 +71,6 @@ export interface CategoryCenter {
   glowColor: string
   x: number
   y: number
-  // Polar ring metadata — used by the canvas renderer to paint arc segments
-  angleRad: number      // angular position on the ring (radians, 0 = right, CCW)
-  arcWidthRad: number   // angular width of this category's arc
-  ringRadius: number    // distance from canvas center to category center
-  ringOuterRadius: number  // outer edge of the colored ring
-  ringInnerRadius: number  // inner edge of the colored ring
   entryCount: number
 }
 
@@ -81,45 +83,12 @@ interface UseForceSimulationProps {
   onTick?: () => void
 }
 
-// ── Ring Layout ──
-// The Wikipedia Science Communities-style layout puts 11 category arcs around
-// a ring. Order is tuned for color coherence (blue → violet → purple → pink →
-// orange → amber → green → teal → cyan → slate → back to blue) so adjacent
-// arcs don't clash and the wheel reads as a continuous spectrum.
-const RING_ORDER: string[] = [
-  'psychic_phenomena',        // blue          (12 o'clock / top)
-  'consciousness_practices',  // violet
-  'esoteric_practices',       // indigo
-  'ghosts_hauntings',         // purple
-  'psychological_experiences',// pink
-  'religion_mythology',       // orange        (6 o'clock / bottom)
-  'cryptids',                 // amber
-  'ufos_aliens',              // green
-  'biological_factors',       // teal
-  'perception_sensory',       // cyan
-  'combination',              // slate         (wraps back to blue)
-]
+// ── Geometry helpers ──
 
 /**
- * Compute the polar ring geometry for the current canvas size.
- * The ring "radius" refers to where category centers live (where stars orbit).
- * The outer/inner ring radii bound the colored arc band on screen.
- */
-function ringGeometry(width: number, height: number) {
-  const cx = width / 2
-  const cy = height / 2
-  const minDim = Math.min(width, height)
-  // Stars orbit at ~30% of the canvas radius
-  const ringRadius = minDim * 0.30
-  // Colored ring band sits further out, ~40% of canvas radius
-  const ringOuterRadius = minDim * 0.46
-  const ringInnerRadius = minDim * 0.40
-  return { cx, cy, ringRadius, ringOuterRadius, ringInnerRadius }
-}
-
-/**
- * Build category centers in polar ring order.
- * Starts at -π/2 (12 o'clock) and distributes 11 slots clockwise.
+ * Convert the hand-placed normalized (0-1) positions in CONSTELLATION_NODES
+ * into canvas pixel coordinates. Uses padding so category wells never sit on
+ * the viewport edge (which would make their nebula clouds clip awkwardly).
  */
 function buildCategoryCenters(width: number, height: number, entries: EntryNode[]): CategoryCenter[] {
   const categoryCounts: Record<string, number> = {}
@@ -127,69 +96,68 @@ function buildCategoryCenters(width: number, height: number, entries: EntryNode[
     categoryCounts[e.category] = (categoryCounts[e.category] || 0) + 1
   })
 
-  const { cx, cy, ringRadius, ringOuterRadius, ringInnerRadius } = ringGeometry(width, height)
-  const arcWidthRad = (Math.PI * 2) / RING_ORDER.length
+  const pad = Math.min(width, height) * 0.14
 
-  return RING_ORDER.map((catId, i) => {
-    const node = CONSTELLATION_NODES.find(n => n.id === catId)
-    if (!node) {
-      // Should never happen, but fail soft
-      return null
-    }
-    // Start at -π/2 (top of canvas) and go clockwise
-    const angleRad = -Math.PI / 2 + i * arcWidthRad
-    return {
-      id: node.id,
-      label: node.label,
-      icon: node.icon,
-      color: node.color,
-      glowColor: node.glowColor,
-      x: cx + Math.cos(angleRad) * ringRadius,
-      y: cy + Math.sin(angleRad) * ringRadius,
-      angleRad,
-      arcWidthRad,
-      ringRadius,
-      ringOuterRadius,
-      ringInnerRadius,
-      entryCount: categoryCounts[catId] || 0,
-    }
-  }).filter(Boolean) as CategoryCenter[]
+  return CONSTELLATION_NODES.map(node => ({
+    id: node.id,
+    label: node.label,
+    icon: node.icon,
+    color: node.color,
+    glowColor: node.glowColor,
+    x: pad + node.x * (width - 2 * pad),
+    y: pad + node.y * (height - 2 * pad),
+    entryCount: categoryCounts[node.id] || 0,
+  }))
+}
+
+function getNodeRadius(entry: EntryNode, connectionCount: number): number {
+  // Base size + modest bump for compelling verdict + scaled bump for connections.
+  // Capped so super-connected stars don't crowd out the field.
+  let r = 4.5
+  if (entry.verdict === 'compelling') r += 1
+  r += Math.min(connectionCount * 0.4, 3.5)
+  return r
 }
 
 /**
- * Convert EntryNode[] to SimNode[] with initial positions inside their
- * category's arc segment. Each star gets a small angular jitter (so they
- * don't all stack on the radial line) and a small radial jitter (so they
- * don't sit on a perfect circle).
+ * Build the sim nodes. Initial positions are jittered around each star's
+ * category gravity well — a consistent starting point prevents the wild
+ * "explosion" animation that happens if nodes start at (0,0) or at random.
  */
-function buildSimNodes(entries: EntryNode[], centers: CategoryCenter[], width: number, height: number): SimNode[] {
+function buildSimNodes(
+  entries: EntryNode[],
+  centers: CategoryCenter[],
+  edges: SimEdge[],
+  width: number,
+  height: number
+): SimNode[] {
   const centerMap = new Map(centers.map(c => [c.id, c]))
-  const { cx, cy, ringRadius } = ringGeometry(width, height)
+  const fallback = centerMap.get('combination')
 
-  return entries.map((entry) => {
-    const center = centerMap.get(entry.category)
-    // Fallback for unmapped categories (e.g., 'external' from legacy data):
-    // place them in the "combination" wedge so nothing floats in the void.
-    const fallback = centerMap.get('combination')
-    const resolved = center || fallback
+  // Count connections per node so we can size/weight them for rendering.
+  const connCount = new Map<string, number>()
+  for (const e of edges) {
+    connCount.set(e.source, (connCount.get(e.source) || 0) + 1)
+    connCount.set(e.target, (connCount.get(e.target) || 0) + 1)
+  }
 
-    const a = resolved?.angleRad ?? 0
-    const w = resolved?.arcWidthRad ?? 0.5
-    // Keep jitter to 75% of the arc so nodes don't kiss the segment boundary
-    const angleJitter = (Math.random() - 0.5) * w * 0.75
-    // Radial jitter: keep stars mostly around ringRadius with some depth variation
-    const radialJitter = (Math.random() - 0.4) * ringRadius * 0.5
-    const r = (resolved?.ringRadius ?? ringRadius) + radialJitter
+  return entries.map((entry, i) => {
+    const resolved = centerMap.get(entry.category) || fallback
+    const cx = resolved?.x ?? width / 2
+    const cy = resolved?.y ?? height / 2
+    // Golden-angle scatter so nodes from the same category don't start
+    // stacked on the same radial line.
+    const angle = i * 2.399963 // golden angle in radians
+    const dist = 20 + Math.random() * 60
 
-    const tx = cx + Math.cos(a + angleJitter) * r
-    const ty = cy + Math.sin(a + angleJitter) * r
+    const connections = connCount.get(entry.id) || 0
 
     return {
       id: entry.id,
       reportId: entry.reportId,
       name: entry.name,
       slug: entry.slug,
-      category: resolved ? entry.category : 'combination',
+      category: entry.category,
       imageUrl: entry.imageUrl,
       locationName: entry.locationName,
       eventDate: entry.eventDate,
@@ -200,24 +168,20 @@ function buildSimNodes(entries: EntryNode[], centers: CategoryCenter[], width: n
       loggedAt: entry.loggedAt,
       sourceType: entry.sourceType,
       externalUrl: entry.externalUrl,
-      x: tx,
-      y: ty,
-      targetX: tx,
-      targetY: ty,
-      radius: getNodeRadius(entry),
+      isGhost: entry.isGhost,
+      x: cx + Math.cos(angle) * dist,
+      y: cy + Math.sin(angle) * dist,
+      radius: getNodeRadius(entry, connections),
+      connectionCount: connections,
     }
   })
 }
 
-function getNodeRadius(entry: EntryNode): number {
-  // Base size + boost for more tags/connections
-  let r = 5
-  if (entry.tags.length > 2) r += 1
-  if (entry.verdict === 'compelling') r += 1
-  return r
-}
-
-// Build edges from tag connections and user-drawn connections
+/**
+ * Build edges from tag groups and user-drawn connections. Tag-based edges
+ * get a weaker strength so they don't overwhelm the layout; user-drawn
+ * connections pull strongly because they reflect an intentional relationship.
+ */
 function buildSimEdges(
   tagConns: Array<{ tag: string; entryIds: string[] }>,
   userConns: Array<{ id: string; entryAId: string; entryBId: string; annotation?: string }>
@@ -225,8 +189,11 @@ function buildSimEdges(
   const edges: SimEdge[] = []
   const seen = new Set<string>()
 
-  // Tag-based connections (all pairs within each tag group)
+  // Tag edges: connect every pair of entries sharing a tag.
+  // Skip hyper-common tags (> 8 entries) to avoid a dense clump that drags
+  // everything to the center.
   tagConns.forEach(tc => {
+    if (tc.entryIds.length > 8) return
     for (let i = 0; i < tc.entryIds.length; i++) {
       for (let j = i + 1; j < tc.entryIds.length; j++) {
         const key = [tc.entryIds[i], tc.entryIds[j]].sort().join('--')
@@ -237,22 +204,23 @@ function buildSimEdges(
             target: tc.entryIds[j],
             type: 'tag',
             label: tc.tag,
-            strength: 0.3,
+            strength: 0.4,
           })
         }
       }
     }
   })
 
-  // User-drawn connections (prioritize over tag connections)
+  // User-drawn edges take precedence over any tag edge for the same pair.
   userConns.forEach(uc => {
     const key = [uc.entryAId, uc.entryBId].sort().join('--')
-    // Remove any existing tag edge for this pair so the user connection takes precedence
-    const existingIdx = seen.has(key) ? edges.findIndex(e => {
-      const s = typeof e.source === 'string' ? e.source : (e.source as any).id
-      const t = typeof e.target === 'string' ? e.target : (e.target as any).id
-      return [s, t].sort().join('--') === key
-    }) : -1
+    const existingIdx = seen.has(key)
+      ? edges.findIndex(e => {
+          const s = typeof e.source === 'string' ? e.source : (e.source as any).id
+          const t = typeof e.target === 'string' ? e.target : (e.target as any).id
+          return [s, t].sort().join('--') === key
+        })
+      : -1
     if (existingIdx >= 0) edges.splice(existingIdx, 1)
     seen.add(key)
     edges.push({
@@ -260,12 +228,14 @@ function buildSimEdges(
       target: uc.entryBId,
       type: 'user',
       label: uc.annotation,
-      strength: 0.7,
+      strength: 0.85,
     })
   })
 
   return edges
 }
+
+// ── Hook ──
 
 export function useForceSimulation({
   entries,
@@ -281,85 +251,95 @@ export function useForceSimulation({
   const centersRef = useRef<CategoryCenter[]>([])
   const [settled, setSettled] = useState(false)
 
-  // Rebuild simulation when data or dimensions change
+  // Memoize the edges build so we can feed it to buildSimNodes without
+  // rebuilding twice.
+  const edges = useMemo(
+    () => buildSimEdges(tagConnections, userConnections),
+    [tagConnections, userConnections]
+  )
+
   useEffect(() => {
     if (width < 10 || height < 10) return
 
     const centers = buildCategoryCenters(width, height, entries)
-    const nodes = buildSimNodes(entries, centers, width, height)
-    const edges = buildSimEdges(tagConnections, userConnections)
+    const nodes = buildSimNodes(entries, centers, edges, width, height)
 
     centersRef.current = centers
     nodesRef.current = nodes
     edgesRef.current = edges
 
-    // Kill previous simulation
     if (simulationRef.current) {
       simulationRef.current.stop()
     }
 
     const centerMap = new Map(centers.map(c => [c.id, c]))
-    const { cx: canvasCx, cy: canvasCy, ringInnerRadius } = ringGeometry(width, height)
+    const cx = width / 2
+    const cy = height / 2
+    const maxR = Math.min(width, height) * 0.48
+    // Viewport padding — keep nodes from drifting off the canvas edge.
+    const pad = Math.min(width, height) * 0.04
 
     const simulation = d3.forceSimulation<SimNode>(nodes)
-      // Anchor each star to its per-node target inside the category arc.
-      // High strength keeps stars in their segments — the key to the
-      // "strict polar segments" layout.
-      .force('targetX', d3.forceX<SimNode>(d => d.targetX).strength(0.35))
-      .force('targetY', d3.forceY<SimNode>(d => d.targetY).strength(0.35))
-      // Light charge for visual breathing room — targets do most of the work.
-      .force('charge', d3.forceManyBody<SimNode>().strength(-18).distanceMax(140))
-      // Collision detection prevents overlap with neighbours in the same arc.
-      .force('collide', d3.forceCollide<SimNode>(d => d.radius + 3).strength(0.85))
-      // Link force is weak so cross-category edges can't yank stars out of
-      // their segment. Users still see the connection line drawn by the renderer.
+      // Soft category gravity wells — weak pull so link forces can still
+      // deform the layout. This is what creates "filament bridges" between
+      // categories where cross-tagged stars live.
+      .force('categoryX', d3.forceX<SimNode>(d => centerMap.get(d.category)?.x || cx).strength(0.045))
+      .force('categoryY', d3.forceY<SimNode>(d => centerMap.get(d.category)?.y || cy).strength(0.045))
+      // Repel nodes so clusters spread into a nebula-shaped cloud rather
+      // than a tight clump. distanceMax capped so distant nodes don't
+      // influence each other and drag the whole graph to the center.
+      .force('charge', d3.forceManyBody<SimNode>().strength(-60).distanceMax(220))
+      // Collision detection — stars don't overlap. Slightly larger radius
+      // than the visual radius so the glow aura has breathing room.
+      .force('collide', d3.forceCollide<SimNode>(d => d.radius + 5).strength(0.9))
+      // Link force — the key mechanic. Strong enough to visibly drag
+      // cross-tagged stars into bridges between categories.
       .force('link', d3.forceLink<SimNode, SimEdge>(edges as any)
         .id(d => d.id)
-        .distance(110)
-        .strength(d => (d as SimEdge).strength * 0.04)
+        .distance(d => (d as SimEdge).type === 'user' ? 85 : 110)
+        .strength(d => {
+          const e = d as SimEdge
+          // User-drawn edges pull harder; tag edges are suggestion-strength.
+          return e.type === 'user' ? 0.3 : 0.15
+        })
       )
-      // Radial cap: never let a star escape inside the colored ring band.
-      // This is what makes the ring read as a clean boundary, not a suggestion.
-      .force('ringCap', () => {
-        const cap = ringInnerRadius - 6 // small padding so stars don't kiss the ring
+      // Radial cap — circular viewport boundary. Softer than a rectangle
+      // because the cosmic-web reads as circular.
+      .force('bounds', () => {
         nodes.forEach(node => {
-          const dx = node.x! - canvasCx
-          const dy = node.y! - canvasCy
-          const dist = Math.sqrt(dx * dx + dy * dy)
-          if (dist > cap) {
-            const scale = cap / dist
-            node.x = canvasCx + dx * scale
-            node.y = canvasCy + dy * scale
-            // Also dampen outward velocity so the cap doesn't feel like a wall
+          const dx = node.x! - cx
+          const dy = node.y! - cy
+          const d = Math.sqrt(dx * dx + dy * dy)
+          if (d > maxR) {
+            const s = maxR / d
+            node.x = cx + dx * s
+            node.y = cy + dy * s
             if (node.vx != null) node.vx *= 0.5
             if (node.vy != null) node.vy *= 0.5
           }
+          // Rectangle pad as a second-line defense for extreme aspect ratios.
+          if (node.x! < pad) node.x = pad
+          if (node.x! > width - pad) node.x = width - pad
+          if (node.y! < pad) node.y = pad
+          if (node.y! > height - pad) node.y = height - pad
         })
       })
-      .alphaDecay(0.025)
-      .velocityDecay(0.45)
-      .on('tick', () => {
-        onTick?.()
-      })
-      .on('end', () => {
-        setSettled(true)
-      })
+      .alphaDecay(0.018)
+      .velocityDecay(0.5)
+      .on('tick', () => { onTick?.() })
+      .on('end', () => { setSettled(true) })
 
     simulationRef.current = simulation
     setSettled(false)
 
-    return () => {
-      simulation.stop()
-    }
-  }, [entries, tagConnections, userConnections, width, height])
+    return () => { simulation.stop() }
+  }, [entries, edges, width, height])
 
-  // Reheat simulation (e.g/, after drag)
   const reheat = useCallback((alpha = 0.3) => {
     simulationRef.current?.alpha(alpha).restart()
     setSettled(false)
   }, [])
 
-  // Fix a node position (for dragging)
   const fixNode = useCallback((nodeId: string, x: number, y: number) => {
     const node = nodesRef.current.find(n => n.id === nodeId)
     if (node) {
@@ -368,7 +348,6 @@ export function useForceSimulation({
     }
   }, [])
 
-  // Release a fixed node
   const releaseNode = useCallback((nodeId: string) => {
     const node = nodesRef.current.find(n => n.id === nodeId)
     if (node) {

@@ -1,20 +1,40 @@
 /**
- * useCanvasRenderer — Canvas drawing logic for the constellation star map.
+ * useCanvasRenderer — Cosmic-web renderer for the constellation map.
  *
- * Renders background stars, dust patches, category nebulae, entry star nodes,
- * connection lines, and category labels. Drawing detail scales with zoom level.
+ * Visual model: a deep-space network where nodes are galaxies/neurons and
+ * connections are cosmic filaments / synaptic pathways. Heavy use of
+ * additive blending (`globalCompositeOperation = 'lighter'`) so overlapping
+ * glows blossom into bright cores — the technique that separates "OK glow"
+ * from "actual light."
+ *
+ * Layer order (back to front):
+ *   1. Deep-space gradient background
+ *   2. Far parallax dust (slow drift, large dim gas clouds)
+ *   3. Fixed background starfield (twinkling)
+ *   4. Near parallax dust (fast drift, small bright specks)
+ *   5. Category nebulae (soft diffuse glows at each gravity well)
+ *   6. Filaments (bezier curves, glow aura + bright core, additive)
+ *   7. Node glow auras (largest, softest, additive)
+ *   8. Node mid halos (category-tinted, additive)
+ *   9. Node cores (verdict-colored)
+ *  10. Node center highlights (white)
+ *  11. Neural impulses traveling along filaments (additive, time-limited)
+ *  12. Diffraction spikes (compelling + active stars only)
+ *  13. Hover/selection labels
+ *
+ * Respects prefers-reduced-motion — all ambient animation pauses.
  */
 
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import type { SimNode, SimEdge, CategoryCenter } from './useForceSimulation'
 
-// ── Color Constants ──
+// ── Color palette ──
 
 const VERDICT_COLORS: Record<string, string> = {
-  compelling: '#fbbf24',   // amber-400
-  inconclusive: '#60a5fa', // blue-400
-  skeptical: '#9ca3af',    // gray-400
-  needs_info: '#a78bfa',   // purple-400
+  compelling: '#fbbf24',    // amber
+  inconclusive: '#60a5fa',  // blue
+  skeptical: '#9ca3af',     // gray
+  needs_info: '#a78bfa',    // purple
 }
 
 const CATEGORY_GLOW: Record<string, string> = {
@@ -31,7 +51,38 @@ const CATEGORY_GLOW: Record<string, string> = {
   combination: '#64748b',
 }
 
-// ── Background Stars ──
+// ── Dust particle system ──
+//
+// Two parallax layers create depth: far dust drifts slowly with low alpha,
+// near dust drifts faster with higher alpha. Both wrap around the canvas
+// edges so the field feels infinite.
+
+interface DustParticle {
+  x: number
+  y: number
+  vx: number
+  vy: number
+  size: number
+  alpha: number
+  hue: string
+}
+
+function generateDust(count: number, fast: boolean): DustParticle[] {
+  const speed = fast ? 0.12 : 0.035
+  return Array.from({ length: count }, () => ({
+    x: Math.random(),
+    y: Math.random(),
+    vx: (Math.random() - 0.5) * speed,
+    vy: (Math.random() - 0.5) * speed,
+    size: fast ? 0.8 + Math.random() * 1.2 : 0.4 + Math.random() * 1.0,
+    alpha: fast ? 0.25 + Math.random() * 0.3 : 0.08 + Math.random() * 0.15,
+    hue: Math.random() < 0.5
+      ? 'rgba(168, 139, 255, {a})'       // violet
+      : 'rgba(120, 175, 255, {a})',      // blue
+  }))
+}
+
+// ── Background starfield (fixed positions, only twinkle) ──
 
 interface BgStar {
   x: number
@@ -43,48 +94,37 @@ interface BgStar {
 }
 
 function generateBgStars(count: number): BgStar[] {
-  const smallCount = Math.floor(count * 0.75)
-  const largeCount = count - smallCount
-
-  const smallStars: BgStar[] = Array.from({ length: smallCount }, () => ({
+  return Array.from({ length: count }, () => ({
     x: Math.random(),
     y: Math.random(),
     size: Math.random() * 1.2 + 0.3,
-    alpha: Math.random() * 0.5 + 0.15,
-    twinkleSpeed: Math.random() * 0.025 + 0.008,
+    alpha: Math.random() * 0.45 + 0.15,
+    twinkleSpeed: Math.random() * 0.0015 + 0.0005,
     twinklePhase: Math.random() * Math.PI * 2,
   }))
-
-  const largeStars: BgStar[] = Array.from({ length: largeCount }, () => ({
-    x: Math.random(),
-    y: Math.random(),
-    size: Math.random() * 1.5 + 1.5,
-    alpha: Math.random() * 0.3 + 0.3,
-    twinkleSpeed: Math.random() * 0.015 + 0.005,
-    twinklePhase: Math.random() * Math.PI * 2,
-  }))
-
-  return [...smallStars, ...largeStars]
 }
 
-// ── Dust Patches (fixed positions, very subtle background nebula) ──
-
-const DUST_PATCHES = [
-  { x: 0.2, y: 0.3, color: '#8b5cf6', baseAlpha: 0.015 },
-  { x: 0.7, y: 0.15, color: '#3b82f6', baseAlpha: 0.012 },
-  { x: 0.15, y: 0.75, color: '#ec4899', baseAlpha: 0.01 },
-  { x: 0.85, y: 0.6, color: '#06b6d4', baseAlpha: 0.012 },
-  { x: 0.5, y: 0.5, color: '#f97316', baseAlpha: 0.008 },
-]
-
-// ── Types ──
+// ── Render state ──
 
 export interface RenderState {
-  transform: { x: number; y: number; k: number } // d3 zoom transform
+  transform: { x: number; y: number; k: number }
   hoveredNodeId: string | null
   selectedNodeId: string | null
   highlightedTag: string | null
-  time: number // animation frame count
+  /** Category filter — if set, non-matching nodes + filaments dim to ~12% alpha */
+  selectedCategory: string | null
+  /** Wall-clock ms, used for all time-based animation (prefers stable across framerate) */
+  time: number
+  /**
+   * Neural impulse state. Set by the caller when selectedNodeId changes.
+   * impulseStartMs is the wall-clock time the impulse was spawned;
+   * impulseOriginId is the node the impulse radiates out from. The renderer
+   * computes traveling pulses for each filament touching that node.
+   */
+  impulseOriginId: string | null
+  impulseStartMs: number
+  /** Respect prefers-reduced-motion — disables all ambient motion */
+  reducedMotion: boolean
 }
 
 interface UseCanvasRendererProps {
@@ -92,9 +132,52 @@ interface UseCanvasRendererProps {
   height: number
 }
 
+// ── Helpers ──
+
+function hexToRGBA(hex: string, alpha: number): string {
+  if (!hex || hex.length < 4) return `rgba(128, 128, 128, ${alpha})`
+  if (hex.length === 4) hex = '#' + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3]
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+function hashString(str: string): number {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i)
+    hash = hash & hash
+  }
+  return Math.abs(hash)
+}
+
+/** Smooth ease-in-out curve for impulse animations */
+function easeInOut(t: number): number {
+  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+}
+
+// ── Hook ──
+
 export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
-  const bgStarsRef = useRef<BgStar[]>(generateBgStars(380))
+  // Particle counts scale with viewport area — fewer on mobile.
+  // Kept in refs so the arrays survive re-renders; re-generated only when
+  // the viewport crosses a size threshold.
+  const isMobile = width < 640
+  const bgStarsRef = useRef<BgStar[]>(generateBgStars(isMobile ? 120 : 260))
+  const farDustRef = useRef<DustParticle[]>(generateDust(isMobile ? 60 : 130, false))
+  const nearDustRef = useRef<DustParticle[]>(generateDust(isMobile ? 25 : 55, true))
   const dprRef = useRef(typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1)
+  const lastFrameRef = useRef<number>(0)
+
+  // Regen particles if the viewport size moved across the mobile threshold.
+  // Avoids the mobile density persisting into a desktop session and vice versa.
+  useEffect(() => {
+    const nowMobile = width < 640
+    bgStarsRef.current = generateBgStars(nowMobile ? 120 : 260)
+    farDustRef.current = generateDust(nowMobile ? 60 : 130, false)
+    nearDustRef.current = generateDust(nowMobile ? 25 : 55, true)
+  }, [width < 640]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const draw = useCallback((
     ctx: CanvasRenderingContext2D,
@@ -103,315 +186,225 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
     centers: CategoryCenter[],
     state: RenderState
   ) => {
-    const { transform, hoveredNodeId, selectedNodeId, highlightedTag, time } = state
+    const {
+      transform, hoveredNodeId, selectedNodeId, highlightedTag,
+      selectedCategory, time, impulseOriginId, impulseStartMs, reducedMotion,
+    } = state
     const dpr = dprRef.current
     const zoom = transform.k
 
-    // Clear
+    // Compute animation time delta. If the renderer is running at stable fps,
+    // this is just the ms since the last frame; used to advance dust positions.
+    const dt = lastFrameRef.current > 0 ? Math.min(time - lastFrameRef.current, 64) : 16
+    lastFrameRef.current = time
+    const dtScale = reducedMotion ? 0 : dt / 16.67  // normalized to "frames at 60fps"
+
+    // ── 1. Clear + gradient background ──
     ctx.save()
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, width, height)
 
-    // Background gradient
-    const bgGrad = ctx.createLinearGradient(0, 0, 0, height)
-    bgGrad.addColorStop(0, '#0a0a1a')
-    bgGrad.addColorStop(0.5, '#0d0d24')
-    bgGrad.addColorStop(1, '#080818')
+    const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, Math.max(width, height) * 0.75)
+    bgGrad.addColorStop(0, '#0a0a1f')
+    bgGrad.addColorStop(0.5, '#07071a')
+    bgGrad.addColorStop(1, '#030308')
     ctx.fillStyle = bgGrad
     ctx.fillRect(0, 0, width, height)
 
-    // Background stars + dust patches (fixed, don't move with zoom)
-    drawBackgroundStars(ctx, width, height, time)
+    // ── 2. Far parallax dust (behind everything) ──
+    drawDust(ctx, farDustRef.current, dtScale, width, height)
 
-    // Apply zoom transform for all world-space content
+    // ── 3. Fixed background starfield with twinkle ──
+    drawBgStars(ctx, bgStarsRef.current, width, height, time, reducedMotion)
+
+    // ── 4. Near parallax dust (on top of stars for depth) ──
+    drawDust(ctx, nearDustRef.current, dtScale, width, height)
+
+    // World-space transform applied for everything below (zoom/pan)
     ctx.save()
     ctx.translate(transform.x, transform.y)
     ctx.scale(zoom, zoom)
 
-    // Color ring: 11 category arcs around the outer edge. Replaces the old
-    // "floating emoji clouds" — the ring is now the primary category affordance.
-    drawCategoryRing(ctx, centers, zoom, time)
+    // ── 5. Category nebulae (soft glows at each gravity well) ──
+    drawNebulae(ctx, centers, time, reducedMotion, selectedCategory)
 
-    // Subtle brand glyph at the center of the ring, behind everything else.
-    drawCenterGlyph(ctx, width, height, zoom)
+    // ── 6. Filaments (ADDITIVE BLEND) ──
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    drawFilaments(ctx, nodes, edges, zoom, time, selectedNodeId, selectedCategory, highlightedTag)
+    ctx.restore()
 
-    // Tag connection edges (subtle, drawn behind nodes)
-    drawEdges(ctx, nodes, edges, zoom, highlightedTag, selectedNodeId, 'tag')
+    // ── 7–10. Nodes (multi-layer glow + core) ──
+    drawNodes(ctx, nodes, zoom, time, hoveredNodeId, selectedNodeId, highlightedTag, selectedCategory)
 
-    // Entry star nodes
-    drawNodes(ctx, nodes, zoom, time, hoveredNodeId, selectedNodeId, highlightedTag)
+    // ── 11. Neural impulses along filaments (ADDITIVE BLEND, time-bounded) ──
+    if (!reducedMotion && impulseOriginId) {
+      ctx.save()
+      ctx.globalCompositeOperation = 'lighter'
+      drawImpulses(ctx, nodes, edges, impulseOriginId, impulseStartMs, time, zoom)
+      ctx.restore()
+    }
 
-    // User connection edges (prominent, drawn on top of nodes so they're always visible)
-    drawEdges(ctx, nodes, edges, zoom, highlightedTag, selectedNodeId, 'user')
+    // ── 13. Hover / selection labels ──
+    drawLabels(ctx, nodes, zoom, hoveredNodeId, selectedNodeId)
 
     ctx.restore()
     ctx.restore()
   }, [width, height])
 
-  // ── Drawing Functions ──
+  // ── Drawing primitives ──
 
-  function drawBackgroundStars(ctx: CanvasRenderingContext2D, w: number, h: number, time: number) {
-    // Subtle dust nebula patches (very low alpha, slow breathing)
-    DUST_PATCHES.forEach(patch => {
-      const x = patch.x * w
-      const y = patch.y * h
-      const radius = 150 + Math.sin(time * 0.001) * 20
+  function drawDust(
+    ctx: CanvasRenderingContext2D,
+    particles: DustParticle[],
+    dtScale: number,
+    w: number,
+    h: number
+  ) {
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    for (const p of particles) {
+      // Advance position & wrap. Coordinates are normalized 0-1 so they
+      // scale cleanly with canvas resizes.
+      p.x += (p.vx * dtScale) / Math.max(w, 1)
+      p.y += (p.vy * dtScale) / Math.max(h, 1)
+      if (p.x < 0) p.x += 1
+      if (p.x > 1) p.x -= 1
+      if (p.y < 0) p.y += 1
+      if (p.y > 1) p.y -= 1
 
-      const grad = ctx.createRadialGradient(x, y, 0, x, y, radius)
-      const alpha = patch.baseAlpha * (0.8 + 0.2 * Math.sin(time * 0.0008))
-      grad.addColorStop(0, hexToRGBA(patch.color, alpha * 2))
-      grad.addColorStop(0.5, hexToRGBA(patch.color, alpha))
-      grad.addColorStop(1, hexToRGBA(patch.color, 0))
-
-      ctx.fillStyle = grad
+      ctx.fillStyle = p.hue.replace('{a}', String(p.alpha))
       ctx.beginPath()
-      ctx.arc(x, y, radius, 0, Math.PI * 2)
+      ctx.arc(p.x * w, p.y * h, p.size, 0, Math.PI * 2)
       ctx.fill()
-    })
+    }
+    ctx.restore()
+  }
 
-    // Individual background stars
-    const stars = bgStarsRef.current
-    stars.forEach(star => {
-      const twinkle = Math.sin(time * star.twinkleSpeed + star.twinklePhase)
+  function drawBgStars(
+    ctx: CanvasRenderingContext2D,
+    stars: BgStar[],
+    w: number,
+    h: number,
+    time: number,
+    reducedMotion: boolean
+  ) {
+    for (const star of stars) {
+      const twinkle = reducedMotion
+        ? 0
+        : Math.sin(time * star.twinkleSpeed + star.twinklePhase)
       const alpha = star.alpha * (0.6 + 0.4 * twinkle)
       ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`
       ctx.beginPath()
       ctx.arc(star.x * w, star.y * h, star.size, 0, Math.PI * 2)
       ctx.fill()
-    })
+    }
   }
 
-  /**
-   * Paint the outer color ring — 11 arcs, one per phenomena category.
-   * Replaces the old scattered nebula clouds. Each arc is tinted with the
-   * category's CATEGORY_GLOW color. Category labels render inside the arc
-   * following its curvature (like a clock face with words instead of numbers).
-   *
-   * Segments with zero logged entries render at reduced saturation so the
-   * ring visually encodes "where the user has investigated" vs. empty territory.
-   */
-  function drawCategoryRing(
+  function drawNebulae(
     ctx: CanvasRenderingContext2D,
     centers: CategoryCenter[],
-    zoom: number,
-    time: number
+    time: number,
+    reducedMotion: boolean,
+    selectedCategory: string | null
   ) {
-    if (centers.length === 0) return
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    for (const c of centers) {
+      if (c.entryCount === 0) continue
+      const selected = !selectedCategory || selectedCategory === c.id
+      const color = CATEGORY_GLOW[c.id] || '#666'
+      // Nebula radius scales gently with entry count.
+      const baseR = 90 + Math.min(c.entryCount * 22, 170)
+      // Ambient breathing — 4% amplitude, period ~8s.
+      const breathing = reducedMotion ? 0 : 0.04 * Math.sin(time * 0.0008 + hashString(c.id))
+      const r = baseR * (1 + breathing)
+      // Max alpha tuned so nebulae are visible but never opaque.
+      const maxAlpha = Math.min(0.10 + c.entryCount * 0.012, 0.18) * (selected ? 1 : 0.25)
 
-    // All centers share the same ring geometry — pull from the first entry.
-    const first = centers[0]
-    const cx = first.x - Math.cos(first.angleRad) * first.ringRadius
-    const cy = first.y - Math.sin(first.angleRad) * first.ringRadius
-    const rOuter = first.ringOuterRadius
-    const rInner = first.ringInnerRadius
-    const rMid = (rOuter + rInner) / 2
-    const bandWidth = rOuter - rInner
-
-    centers.forEach(center => {
-      const color = CATEGORY_GLOW[center.id] || '#666666'
-      const isActive = center.entryCount > 0
-
-      // Arc bounds (start/end angles). Subtract a hair from each side so
-      // segments don't quite touch — creates thin divider lines naturally.
-      const halfArc = center.arcWidthRad / 2
-      const gap = 0.004 // ~0.23° gap
-      const startA = center.angleRad - halfArc + gap
-      const endA = center.angleRad + halfArc - gap
-
-      // Band alpha: saturated for active categories, faint for empty ones.
-      // Active categories also get a subtle pulse synced to time.
-      const baseAlpha = isActive ? 0.55 : 0.12
-      const pulse = isActive ? 0.1 * Math.sin(time * 0.006) : 0
-      const bandAlpha = Math.max(0.08, Math.min(0.75, baseAlpha + pulse))
-
-      // Build a radial gradient from inner→outer so the ring has depth.
-      const grad = ctx.createRadialGradient(cx, cy, rInner, cx, cy, rOuter)
-      grad.addColorStop(0.0, hexToRGBA(color, bandAlpha * 0.5))
-      grad.addColorStop(0.5, hexToRGBA(color, bandAlpha))
-      grad.addColorStop(1.0, hexToRGBA(color, bandAlpha * 0.6))
-
-      // Draw the arc segment as a donut wedge
+      const grad = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r)
+      grad.addColorStop(0, hexToRGBA(color, maxAlpha * 1.4))
+      grad.addColorStop(0.4, hexToRGBA(color, maxAlpha * 0.5))
+      grad.addColorStop(1, hexToRGBA(color, 0))
       ctx.fillStyle = grad
       ctx.beginPath()
-      ctx.arc(cx, cy, rOuter, startA, endA)
-      ctx.arc(cx, cy, rInner, endA, startA, true)
-      ctx.closePath()
+      ctx.arc(c.x, c.y, r, 0, Math.PI * 2)
       ctx.fill()
-
-      // Inner rim highlight — a thin bright line on the inner edge of the arc
-      // makes the ring look like it's illuminating the field inside.
-      ctx.strokeStyle = hexToRGBA(color, isActive ? 0.75 : 0.18)
-      ctx.lineWidth = Math.max(1.5, 2 / zoom)
-      ctx.beginPath()
-      ctx.arc(cx, cy, rInner, startA, endA)
-      ctx.stroke()
-    })
-
-    // Category labels — text follows the arc's curvature, centered in each segment.
-    // Only render when zoomed in enough to be legible (avoid clutter at low zoom).
-    if (zoom < 0.55) return
-
-    centers.forEach(center => {
-      const label = center.label
-      const isActive = center.entryCount > 0
-      const textAlpha = isActive ? 0.95 : 0.35
-
-      // Position text at ring mid-radius, following the arc.
-      const fontSize = Math.max(9, Math.min(12, 11 / zoom))
-      ctx.font = `600 ${fontSize}px 'Space Grotesk', Inter, system-ui, sans-serif`
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-
-      // Text curves along the arc. Compute arc length of the label and
-      // space characters proportionally.
-      const a = center.angleRad
-      // For labels on the bottom half of the ring (angle between 0 and π),
-      // we flip the text so it's not upside-down.
-      const flip = a > 0 && a < Math.PI
-      const labelR = flip ? rMid - bandWidth * 0.12 : rMid + bandWidth * 0.12
-
-      ctx.save()
-      ctx.translate(cx + Math.cos(a) * labelR, cy + Math.sin(a) * labelR)
-      ctx.rotate(a + (flip ? -Math.PI / 2 : Math.PI / 2))
-      // Text shadow for readability
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
-      ctx.fillText(label, 0.5, 0.5)
-      ctx.fillStyle = `rgba(255, 255, 255, ${textAlpha})`
-      ctx.fillText(label, 0, 0)
-      ctx.restore()
-
-      // Entry count badge just inside the ring, on the node-facing edge.
-      if (isActive) {
-        const countR = rInner - bandWidth * 0.4
-        const countFont = Math.max(8, Math.min(10, 9 / zoom))
-        ctx.font = `500 ${countFont}px Inter, system-ui, sans-serif`
-        ctx.fillStyle = `rgba(255, 255, 255, ${textAlpha * 0.65})`
-        ctx.fillText(
-          String(center.entryCount),
-          cx + Math.cos(a) * countR,
-          cy + Math.sin(a) * countR
-        )
-      }
-    })
-  }
-
-  /**
-   * Subtle Paradocs brand glyph at the ring's center — acts as a visual
-   * anchor (like the grey "W" in Wikipedia's Science Communities vis).
-   * Kept very low-opacity so it fades into the background without competing
-   * with the stars.
-   */
-  function drawCenterGlyph(
-    ctx: CanvasRenderingContext2D,
-    w: number,
-    h: number,
-    zoom: number
-  ) {
-    const cx = w / 2
-    const cy = h / 2
-    const minDim = Math.min(w, h)
-    const size = minDim * 0.14
-
-    // Soft glow disc
-    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 1.2)
-    glow.addColorStop(0, 'rgba(139, 92, 246, 0.08)') // violet
-    glow.addColorStop(1, 'rgba(139, 92, 246, 0)')
-    ctx.fillStyle = glow
-    ctx.beginPath()
-    ctx.arc(cx, cy, size * 1.2, 0, Math.PI * 2)
-    ctx.fill()
-
-    // Paradocs-style star glyph: two crossed soft diamonds forming a compass rose.
-    // Rendered at low opacity so it reads as a watermark, not a focal point.
-    ctx.save()
-    ctx.globalAlpha = 0.22
-    ctx.fillStyle = '#a78bfa' // violet-300
-
-    // Vertical diamond
-    ctx.beginPath()
-    ctx.moveTo(cx, cy - size)
-    ctx.lineTo(cx + size * 0.18, cy)
-    ctx.lineTo(cx, cy + size)
-    ctx.lineTo(cx - size * 0.18, cy)
-    ctx.closePath()
-    ctx.fill()
-
-    // Horizontal diamond
-    ctx.beginPath()
-    ctx.moveTo(cx - size, cy)
-    ctx.lineTo(cx, cy - size * 0.18)
-    ctx.lineTo(cx + size, cy)
-    ctx.lineTo(cx, cy + size * 0.18)
-    ctx.closePath()
-    ctx.fill()
-
-    // Center dot
-    ctx.globalAlpha = 0.5
-    ctx.fillStyle = '#ffffff'
-    ctx.beginPath()
-    ctx.arc(cx, cy, Math.max(1.5, size * 0.06), 0, Math.PI * 2)
-    ctx.fill()
+    }
     ctx.restore()
   }
 
-  function drawEdges(
+  function drawFilaments(
     ctx: CanvasRenderingContext2D,
     nodes: SimNode[],
     edges: SimEdge[],
     zoom: number,
-    highlightedTag: string | null,
+    time: number,
     selectedNodeId: string | null,
-    typeFilter?: 'tag' | 'user'
+    selectedCategory: string | null,
+    highlightedTag: string | null
   ) {
-    // Skip edges at very low zoom (too cluttered)
-    if (zoom < 0.4) return
-
+    if (zoom < 0.35) return // too cluttered at extreme zoom-out
     const nodeMap = new Map(nodes.map(n => [n.id, n]))
 
-    edges.forEach(edge => {
-      // Filter by type if specified
-      if (typeFilter && edge.type !== typeFilter) return
-      const source = nodeMap.get(typeof edge.source === 'string' ? edge.source : (edge.source as any).id)
-      const target = nodeMap.get(typeof edge.target === 'string' ? edge.target : (edge.target as any).id)
-      if (!source || !target) return
+    for (const edge of edges) {
+      const src = nodeMap.get(typeof edge.source === 'string' ? edge.source : (edge.source as any).id)
+      const tgt = nodeMap.get(typeof edge.target === 'string' ? edge.target : (edge.target as any).id)
+      if (!src || !tgt) continue
 
       const isHighlighted = (
-        (highlightedTag && edge.type === 'tag' && edge.label === highlightedTag) ||
-        (selectedNodeId && (source.id === selectedNodeId || target.id === selectedNodeId))
+        (selectedNodeId && (src.id === selectedNodeId || tgt.id === selectedNodeId)) ||
+        (highlightedTag && edge.type === 'tag' && edge.label === highlightedTag)
       )
 
-      let alpha: number
-      let lineWidth: number
-      let color: string
+      // Dimmed if selectedCategory is set and neither endpoint matches.
+      const catDim = !!selectedCategory && src.category !== selectedCategory && tgt.category !== selectedCategory
 
-      if (edge.type === 'user') {
-        // User-drawn connections: prominent green with glow aura
-        alpha = isHighlighted ? 0.9 : 0.55
-        lineWidth = isHighlighted ? 3 : 2
-        color = '#22c55e' // green
+      // Base color: user-drawn filaments are saturated green; tag filaments
+      // take on the source's category color (softens cross-category clutter).
+      const baseColor = edge.type === 'user'
+        ? '#22c55e'
+        : (CATEGORY_GLOW[src.category] || '#8ea2b8')
 
-        // Glow aura behind user connections
-        ctx.strokeStyle = hexToRGBA(color, isHighlighted ? 0.35 : 0.2)
-        ctx.lineWidth = (lineWidth * 3.5) / zoom
-        ctx.beginPath()
-        ctx.moveTo(source.x!, source.y!)
-        ctx.lineTo(target.x!, target.y!)
-        ctx.stroke()
-      } else {
-        // Tag connections: subtle, more visible when highlighted
-        alpha = isHighlighted ? 0.6 : 0.08
-        lineWidth = isHighlighted ? 1.5 : 0.5
-        const sourceColor = CATEGORY_GLOW[source.category] || '#888888'
-        color = source.category === target.category ? sourceColor : '#888888'
-      }
+      // Opacity: highlighted edges pop, everything else recedes.
+      const baseAlpha = edge.type === 'user' ? 0.45 : 0.13
+      const activeAlpha = edge.type === 'user' ? 0.85 : 0.55
+      let alpha = isHighlighted ? activeAlpha : baseAlpha
+      if (catDim && !isHighlighted) alpha *= 0.15
 
-      ctx.strokeStyle = hexToRGBA(color, alpha)
-      ctx.lineWidth = lineWidth / zoom
+      // Bezier curvature: midpoint offset perpendicular to the edge vector
+      // by a small amount — makes filaments feel organic, never crossing as
+      // straight lines.
+      const mx = (src.x + tgt.x) / 2
+      const my = (src.y + tgt.y) / 2
+      const dx = tgt.x - src.x
+      const dy = tgt.y - src.y
+      const len = Math.sqrt(dx * dx + dy * dy) || 1
+      // Curve strength: 0-12% of edge length, varied by a deterministic hash
+      const curveSeed = hashString(src.id + tgt.id) % 100
+      const curveScale = ((curveSeed - 50) / 50) * 0.1
+      const cx = mx - (dy / len) * len * curveScale
+      const cy = my + (dx / len) * len * curveScale
+
+      // Glow pass: wider, softer stroke.
+      const glowWidth = (edge.type === 'user' ? 4.5 : 2.5) / Math.max(zoom, 0.5)
+      ctx.strokeStyle = hexToRGBA(baseColor, alpha * 0.5)
+      ctx.lineWidth = glowWidth
+      ctx.lineCap = 'round'
       ctx.beginPath()
-      ctx.moveTo(source.x!, source.y!)
-      ctx.lineTo(target.x!, target.y!)
+      ctx.moveTo(src.x, src.y)
+      ctx.quadraticCurveTo(cx, cy, tgt.x, tgt.y)
       ctx.stroke()
-    })
+
+      // Core pass: thin bright line.
+      const coreWidth = (edge.type === 'user' ? 1.3 : 0.6) / Math.max(zoom, 0.5)
+      ctx.strokeStyle = hexToRGBA(baseColor, Math.min(alpha * 1.5, 0.95))
+      ctx.lineWidth = coreWidth
+      ctx.beginPath()
+      ctx.moveTo(src.x, src.y)
+      ctx.quadraticCurveTo(cx, cy, tgt.x, tgt.y)
+      ctx.stroke()
+    }
   }
 
   function drawNodes(
@@ -421,288 +414,278 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
     time: number,
     hoveredId: string | null,
     selectedId: string | null,
-    highlightedTag: string | null
+    highlightedTag: string | null,
+    selectedCategory: string | null
   ) {
-    nodes.forEach(node => {
-      const x = node.x!
-      const y = node.y!
-      // External (user-added) stars render smaller and dimmer than Paradocs
-      // reports — a visual hint that this is Layer 2 content.
-      const isExternal = !!node.sourceType && node.sourceType !== 'paradocs_report'
-      const externalScale = isExternal ? 0.75 : 1.0
-      const r = (node.radius * externalScale) / Math.max(zoom, 0.5)
+    // Split draw into additive glow pass + normal core pass so cores read
+    // crisply over the glow.
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    for (const node of nodes) {
+      drawNodeGlow(ctx, node, zoom, time, hoveredId, selectedId, highlightedTag, selectedCategory)
+    }
+    ctx.restore()
 
-      const isHovered = node.id === hoveredId
-      const isSelected = node.id === selectedId
-      const isTagHighlighted = highlightedTag && node.tags.includes(highlightedTag)
-      const isActive = isHovered || isSelected || isTagHighlighted
-
-      const verdictColor = VERDICT_COLORS[node.verdict] || '#9ca3af'
-      const catGlow = CATEGORY_GLOW[node.category] || '#666666'
-
-      // Glow effect for active nodes
-      if (isActive) {
-        const glowR = r * 5
-        const glow = ctx.createRadialGradient(x, y, 0, x, y, glowR)
-        glow.addColorStop(0, hexToRGBA(verdictColor, 0.5))
-        glow.addColorStop(0.5, hexToRGBA(verdictColor, 0.15))
-        glow.addColorStop(1, hexToRGBA(verdictColor, 0))
-        ctx.fillStyle = glow
-        ctx.beginPath()
-        ctx.arc(x, y, glowR, 0, Math.PI * 2)
-        ctx.fill()
-      }
-
-      // Pulse animation for selected node
-      let displayR = r
-      if (isSelected) {
-        displayR = r * (1 + 0.15 * Math.sin(time * 0.06))
-      }
-
-      // External artifacts render at reduced alpha so the eye immediately
-      // distinguishes user-sourced content (Layer 2) from Paradocs-curated
-      // content (Layer 1). Active/hover states still go full brightness.
-      if (isExternal && !isActive) {
-        ctx.save()
-        ctx.globalAlpha = 0.65
-      }
-
-      // Draw enhanced star with multi-layer glow, diffraction spikes, and twinkle
-      drawEnhancedStar(ctx, x, y, displayR, verdictColor, catGlow, !!isActive, time, node.verdict, node.id)
-
-      if (isExternal && !isActive) {
-        ctx.restore()
-      }
-
-      // Hover-only label: show name only when hovered or selected
-      if (isActive) {
-        const fontSize = Math.max(10, Math.min(13, 12 / zoom))
-        ctx.font = `600 ${fontSize}px 'Space Grotesk', Inter, system-ui, sans-serif`
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'top'
-
-        const label = node.name.length > 28 ? node.name.slice(0, 26) + '…' : node.name
-        const textY = y + displayR + 6 / zoom
-
-        // Text shadow for readability
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
-        ctx.fillText(label, x + 0.5 / zoom, textY + 0.5 / zoom)
-
-        // Label text
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
-        ctx.fillText(label, x, textY)
-      }
-    })
+    // Normal-blend core pass
+    for (const node of nodes) {
+      drawNodeCore(ctx, node, zoom, time, hoveredId, selectedId, highlightedTag, selectedCategory)
+    }
   }
 
-  // (drawCategoryLabels removed — labels now render as part of the ring above.
-  // The old floating emoji + text at each category center was the thing that
-  // made the map feel like a Slack thread. Ring labels replaced it.)
+  function drawNodeGlow(
+    ctx: CanvasRenderingContext2D,
+    node: SimNode,
+    zoom: number,
+    time: number,
+    hoveredId: string | null,
+    selectedId: string | null,
+    highlightedTag: string | null,
+    selectedCategory: string | null
+  ) {
+    const x = node.x!
+    const y = node.y!
+    const isExternal = !!node.sourceType && node.sourceType !== 'paradocs_report'
+    const externalScale = isExternal ? 0.78 : 1
+    const isHovered = node.id === hoveredId
+    const isSelected = node.id === selectedId
+    const isTagHL = highlightedTag && node.tags.includes(highlightedTag)
+    const isActive = isHovered || isSelected || isTagHL
 
-  // Hit-test: find which node is at the given world coordinates
-  const hitTest = useCallback((
-    worldX: number,
-    worldY: number,
-    nodes: SimNode[],
-    zoom: number
-  ): SimNode | null => {
-    // Check in reverse order (top-most drawn last)
-    const hitRadius = Math.max(12, 20 / zoom) // generous tap target
-    for (let i = nodes.length - 1; i >= 0; i--) {
-      const node = nodes[i]
-      const dx = worldX - node.x!
-      const dy = worldY - node.y!
-      if (dx * dx + dy * dy < hitRadius * hitRadius) {
-        return node
-      }
+    const catDim = !!selectedCategory && node.category !== selectedCategory
+    const ghostFactor = node.isGhost ? 0.5 : 1
+    const dimFactor = (catDim && !isActive ? 0.15 : 1) * ghostFactor
+
+    const r = (node.radius * externalScale) / Math.max(zoom, 0.5)
+    const verdictColor = VERDICT_COLORS[node.verdict] || '#9ca3af'
+    const catColor = CATEGORY_GLOW[node.category] || '#666'
+
+    // Per-node deterministic twinkle phase so stars don't breathe in unison.
+    const phase = (hashString(node.id) % 1000) / 1000 * Math.PI * 2
+    const twinkle = 0.75 + 0.25 * Math.sin(time * 0.002 + phase)
+    const activeBoost = isActive ? 1.6 : 1
+
+    // Layer 1: outer halo (category-tinted, very soft, very large)
+    const haloR = r * 6 * activeBoost
+    const haloGrad = ctx.createRadialGradient(x, y, 0, x, y, haloR)
+    haloGrad.addColorStop(0, hexToRGBA(catColor, 0.12 * twinkle * dimFactor))
+    haloGrad.addColorStop(0.4, hexToRGBA(catColor, 0.03 * dimFactor))
+    haloGrad.addColorStop(1, hexToRGBA(catColor, 0))
+    ctx.fillStyle = haloGrad
+    ctx.beginPath()
+    ctx.arc(x, y, haloR, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Layer 2: mid aura (verdict-tinted, brighter)
+    const auraR = r * 3.0 * activeBoost
+    const auraGrad = ctx.createRadialGradient(x, y, 0, x, y, auraR)
+    auraGrad.addColorStop(0, hexToRGBA(verdictColor, 0.35 * twinkle * dimFactor))
+    auraGrad.addColorStop(0.6, hexToRGBA(verdictColor, 0.08 * dimFactor))
+    auraGrad.addColorStop(1, hexToRGBA(verdictColor, 0))
+    ctx.fillStyle = auraGrad
+    ctx.beginPath()
+    ctx.arc(x, y, auraR, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  function drawNodeCore(
+    ctx: CanvasRenderingContext2D,
+    node: SimNode,
+    zoom: number,
+    time: number,
+    hoveredId: string | null,
+    selectedId: string | null,
+    highlightedTag: string | null,
+    selectedCategory: string | null
+  ) {
+    const x = node.x!
+    const y = node.y!
+    const isExternal = !!node.sourceType && node.sourceType !== 'paradocs_report'
+    const externalScale = isExternal ? 0.78 : 1
+    const isHovered = node.id === hoveredId
+    const isSelected = node.id === selectedId
+    const isTagHL = highlightedTag && node.tags.includes(highlightedTag)
+    const isActive = isHovered || isSelected || isTagHL
+    const catDim = !!selectedCategory && node.category !== selectedCategory
+    const ghostFactor = node.isGhost ? 0.5 : 1
+    const dimFactor = (catDim && !isActive ? 0.15 : 1) * ghostFactor
+
+    let r = (node.radius * externalScale) / Math.max(zoom, 0.5)
+    if (isSelected) r *= 1 + 0.12 * Math.sin(time * 0.008)
+
+    const verdictColor = VERDICT_COLORS[node.verdict] || '#9ca3af'
+    const phase = (hashString(node.id) % 1000) / 1000 * Math.PI * 2
+    const twinkle = 0.8 + 0.2 * Math.sin(time * 0.002 + phase)
+
+    // Slight alpha wash for externals so they read as dimmer content.
+    const externalAlpha = isExternal && !isActive ? 0.78 : 1
+
+    // Core disc (verdict color)
+    ctx.fillStyle = hexToRGBA(verdictColor, 0.9 * twinkle * externalAlpha * dimFactor)
+    ctx.beginPath()
+    ctx.arc(x, y, r, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Diffraction spikes — only for compelling verdict or active state.
+    if ((isActive || node.verdict === 'compelling') && dimFactor === 1) {
+      drawDiffractionSpikes(ctx, x, y, r, !!isActive, twinkle)
     }
-    return null
-  }, [])
 
-  return { draw, hitTest }
-}
+    // Center highlight dot
+    ctx.fillStyle = `rgba(255, 255, 255, ${(0.75 + 0.15 * twinkle) * externalAlpha * dimFactor})`
+    ctx.beginPath()
+    ctx.arc(x, y, r * 0.35, 0, Math.PI * 2)
+    ctx.fill()
+  }
 
-// ── Enhanced Star Rendering ──
-
-/**
- * Draw a realistic star node with diffraction spikes, multi-layer glow, and twinkle.
- *
- * Rendering order (back to front):
- * 1. Very soft outer halo (largest, very transparent)
- * 2. Medium glow layer (category color)
- * 3. Bright core body (verdict color with twinkle)
- * 4. Diffraction spikes (compelling/active stars only)
- * 5. Center highlight (white)
- */
-function drawEnhancedStar(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  baseRadius: number,
-  verdictColor: string,
-  catGlow: string,
-  isActive: boolean,
-  time: number,
-  verdict: string,
-  nodeId: string
-) {
-  // Per-star twinkle: deterministic phase from node ID
-  const phase = (hashString(nodeId) % 1000) / 1000 * Math.PI * 2
-  const twinkle = Math.sin(time * 0.04 + phase) * 0.25 + 0.75 // 0.5 to 1.0
-
-  // Layer 1: Outer halo (very soft, large)
-  const outerHaloR = baseRadius * 3.5
-  const outerGrad = ctx.createRadialGradient(x, y, 0, x, y, outerHaloR)
-  outerGrad.addColorStop(0, hexToRGBA(verdictColor, 0.08 * twinkle))
-  outerGrad.addColorStop(0.5, hexToRGBA(verdictColor, 0.02))
-  outerGrad.addColorStop(1, hexToRGBA(verdictColor, 0))
-  ctx.fillStyle = outerGrad
-  ctx.beginPath()
-  ctx.arc(x, y, outerHaloR, 0, Math.PI * 2)
-  ctx.fill()
-
-  // Layer 2: Medium glow (category color)
-  const medGlowR = baseRadius * 2.2
-  const medGrad = ctx.createRadialGradient(x, y, baseRadius * 0.7, x, y, medGlowR)
-  medGrad.addColorStop(0, hexToRGBA(catGlow, 0.2 * twinkle))
-  medGrad.addColorStop(0.6, hexToRGBA(catGlow, 0.05))
-  medGrad.addColorStop(1, hexToRGBA(catGlow, 0))
-  ctx.fillStyle = medGrad
-  ctx.beginPath()
-  ctx.arc(x, y, medGlowR, 0, Math.PI * 2)
-  ctx.fill()
-
-  // Layer 3: Bright core (verdict color with twinkle)
-  const coreAlpha = 0.85 * twinkle
-  ctx.fillStyle = hexToRGBA(verdictColor, coreAlpha)
-  ctx.beginPath()
-  ctx.arc(x, y, baseRadius, 0, Math.PI * 2)
-  ctx.fill()
-
-  // Layer 4: Diffraction spikes (compelling stars or active nodes)
-  if (isActive || verdict === 'compelling') {
-    const spikeLen = baseRadius * (isActive ? 3.0 : 2.5)
-    const spikeW = baseRadius * 0.2
-    const spikeAlpha = (isActive ? 0.6 : 0.4) * twinkle
-
+  function drawDiffractionSpikes(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    r: number,
+    isActive: boolean,
+    twinkle: number
+  ) {
+    const spikeLen = r * (isActive ? 3.2 : 2.4)
+    const spikeW = r * 0.22
+    const alpha = (isActive ? 0.55 : 0.35) * twinkle
     ctx.save()
-    ctx.globalAlpha = spikeAlpha
+    ctx.globalAlpha = alpha
     ctx.fillStyle = '#ffffff'
 
-    // Horizontal spike (tapered)
     ctx.beginPath()
     ctx.moveTo(x - spikeLen, y)
-    ctx.lineTo(x - spikeW, y - spikeW * 0.5)
-    ctx.lineTo(x + spikeW, y - spikeW * 0.5)
+    ctx.lineTo(x - spikeW, y - spikeW * 0.4)
+    ctx.lineTo(x + spikeW, y - spikeW * 0.4)
     ctx.lineTo(x + spikeLen, y)
-    ctx.lineTo(x + spikeW, y + spikeW * 0.5)
-    ctx.lineTo(x - spikeW, y + spikeW * 0.5)
+    ctx.lineTo(x + spikeW, y + spikeW * 0.4)
+    ctx.lineTo(x - spikeW, y + spikeW * 0.4)
     ctx.closePath()
     ctx.fill()
 
-    // Vertical spike (tapered)
     ctx.beginPath()
     ctx.moveTo(x, y - spikeLen)
-    ctx.lineTo(x - spikeW * 0.5, y - spikeW)
-    ctx.lineTo(x - spikeW * 0.5, y + spikeW)
+    ctx.lineTo(x - spikeW * 0.4, y - spikeW)
+    ctx.lineTo(x - spikeW * 0.4, y + spikeW)
     ctx.lineTo(x, y + spikeLen)
-    ctx.lineTo(x + spikeW * 0.5, y + spikeW)
-    ctx.lineTo(x + spikeW * 0.5, y - spikeW)
+    ctx.lineTo(x + spikeW * 0.4, y + spikeW)
+    ctx.lineTo(x + spikeW * 0.4, y - spikeW)
     ctx.closePath()
     ctx.fill()
 
     ctx.restore()
   }
 
-  // Layer 5: Bright center dot
-  const centerAlpha = (0.7 + 0.2 * twinkle) * (isActive ? 1.0 : 0.8)
-  ctx.fillStyle = `rgba(255, 255, 255, ${centerAlpha})`
-  ctx.beginPath()
-  ctx.arc(x, y, baseRadius * 0.35, 0, Math.PI * 2)
-  ctx.fill()
-}
+  function drawImpulses(
+    ctx: CanvasRenderingContext2D,
+    nodes: SimNode[],
+    edges: SimEdge[],
+    originId: string,
+    startMs: number,
+    currentMs: number,
+    zoom: number
+  ) {
+    const duration = 850  // ms end-to-end
+    const elapsed = currentMs - startMs
+    if (elapsed > duration + 150) return // animation complete
+    const t = Math.min(1, elapsed / duration)
+    const eased = easeInOut(t)
 
-// ── Utility Functions ──
+    const nodeMap = new Map(nodes.map(n => [n.id, n]))
+    const origin = nodeMap.get(originId)
+    if (!origin) return
 
-function hexToRGBA(hex: string, alpha: number): string {
-  if (!hex || hex.length < 4) return 'rgba(128, 128, 128, ' + alpha + ')'
-  // Support 3-char hex (#abc -> #aabbcc)
-  if (hex.length === 4) {
-    hex = '#' + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3]
-  }
-  var r = parseInt(hex.slice(1, 3), 16)
-  var g = parseInt(hex.slice(3, 5), 16)
-  var b = parseInt(hex.slice(5, 7), 16)
-  if (isNaN(r)) r = 128
-  if (isNaN(g)) g = 128
-  if (isNaN(b)) b = 128
-  return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + alpha + ')'
-}
+    // Find all edges touching the origin.
+    for (const edge of edges) {
+      const sId = typeof edge.source === 'string' ? edge.source : (edge.source as any).id
+      const tId = typeof edge.target === 'string' ? edge.target : (edge.target as any).id
+      if (sId !== originId && tId !== originId) continue
+      const otherId = sId === originId ? tId : sId
+      const other = nodeMap.get(otherId)
+      if (!other) continue
 
-/** Deterministic hash for per-node twinkle phase */
-function hashString(str: string): number {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash
-  }
-  return Math.abs(hash)
-}
+      // Position of the impulse along the (curved) filament.
+      const dx = other.x! - origin.x!
+      const dy = other.y! - origin.y!
+      const len = Math.sqrt(dx * dx + dy * dy) || 1
+      const curveSeed = hashString(origin.id + other.id) % 100
+      const curveScale = ((curveSeed - 50) / 50) * 0.1
+      const mx = (origin.x! + other.x!) / 2 - (dy / len) * len * curveScale
+      const my = (origin.y! + other.y!) / 2 + (dx / len) * len * curveScale
 
-/** Shift hue of a hex color by degrees (for nebula color variation) */
-function shiftHue(hex: string, degrees: number): string {
-  const r = parseInt(hex.slice(1, 3), 16) / 255
-  const g = parseInt(hex.slice(3, 5), 16) / 255
-  const b = parseInt(hex.slice(5, 7), 16) / 255
+      // Quadratic bezier parametric evaluation
+      const b = 1 - eased
+      const px = b * b * origin.x! + 2 * b * eased * mx + eased * eased * other.x!
+      const py = b * b * origin.y! + 2 * b * eased * my + eased * eased * other.y!
 
-  const max = Math.max(r, g, b)
-  const min = Math.min(r, g, b)
-  let h = 0, s = 0
-  const l = (max + min) / 2
+      // Fade out the pulse near the end for a graceful arrival.
+      const pulseAlpha = t < 0.85 ? 1 : 1 - ((t - 0.85) / 0.15)
+      const color = edge.type === 'user' ? '#22c55e' : '#8ec5ff'
 
-  if (max !== min) {
-    const d = max - min
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-    switch (max) {
-      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break
-      case g: h = ((b - r) / d + 2) / 6; break
-      case b: h = ((r - g) / d + 4) / 6; break
+      // Bright core + outer glow
+      const coreR = 3.5 / Math.max(zoom, 0.5)
+      const auraR = coreR * 4
+      const grad = ctx.createRadialGradient(px, py, 0, px, py, auraR)
+      grad.addColorStop(0, hexToRGBA(color, 0.95 * pulseAlpha))
+      grad.addColorStop(0.5, hexToRGBA(color, 0.4 * pulseAlpha))
+      grad.addColorStop(1, hexToRGBA(color, 0))
+      ctx.fillStyle = grad
+      ctx.beginPath()
+      ctx.arc(px, py, auraR, 0, Math.PI * 2)
+      ctx.fill()
+
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.9 * pulseAlpha})`
+      ctx.beginPath()
+      ctx.arc(px, py, coreR, 0, Math.PI * 2)
+      ctx.fill()
     }
   }
 
-  h = ((h * 360 + degrees) % 360) / 360
-
-  const hue2rgb = (p: number, q: number, t: number) => {
-    if (t < 0) t += 1
-    if (t > 1) t -= 1
-    if (t < 1 / 6) return p + (q - p) * 6 * t
-    if (t < 1 / 2) return q
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
-    return p
+  function drawLabels(
+    ctx: CanvasRenderingContext2D,
+    nodes: SimNode[],
+    zoom: number,
+    hoveredId: string | null,
+    selectedId: string | null
+  ) {
+    for (const node of nodes) {
+      if (node.isGhost) continue
+      const active = node.id === hoveredId || node.id === selectedId
+      if (!active) continue
+      const x = node.x!
+      const y = node.y!
+      const r = node.radius / Math.max(zoom, 0.5)
+      const fontSize = Math.max(10, Math.min(13, 12 / zoom))
+      ctx.font = `600 ${fontSize}px 'Space Grotesk', Inter, system-ui, sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'top'
+      const raw = node.name || ''
+      const label = raw.length > 30 ? raw.slice(0, 28) + '…' : raw
+      const ty = y + r + 8 / zoom
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
+      ctx.fillText(label, x + 0.5 / zoom, ty + 0.5 / zoom)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
+      ctx.fillText(label, x, ty)
+    }
   }
 
-  const q2 = l < 0.5 ? l * (1 + s) : l + s - l * s
-  const p2 = 2 * l - q2
-  const rr = Math.round(hue2rgb(p2, q2, h + 1 / 3) * 255)
-  const gg = Math.round(hue2rgb(p2, q2, h) * 255)
-  const bb = Math.round(hue2rgb(p2, q2, h - 1 / 3) * 255)
+  // ── Hit test ──
 
-  return '#' + [rr, gg, bb].map(x => x.toString(16).padStart(2, '0')).join('')
-}
+  const hitTest = useCallback((
+    worldX: number,
+    worldY: number,
+    nodes: SimNode[],
+    zoom: number
+  ): SimNode | null => {
+    const hitRadius = Math.max(14, 22 / zoom)
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const node = nodes[i]
+      if (node.isGhost) continue // ghosts are never tappable
+      const dx = worldX - node.x!
+      const dy = worldY - node.y!
+      if (dx * dx + dy * dy < hitRadius * hitRadius) return node
+    }
+    return null
+  }, [])
 
-/** Linear interpolation between two hex colors */
-function lerpColor(hex1: string, hex2: string, t: number): string {
-  const r1 = parseInt(hex1.slice(1, 3), 16)
-  const g1 = parseInt(hex1.slice(3, 5), 16)
-  const b1 = parseInt(hex1.slice(5, 7), 16)
-  const r2 = parseInt(hex2.slice(1, 3), 16)
-  const g2 = parseInt(hex2.slice(3, 5), 16)
-  const b2 = parseInt(hex2.slice(5, 7), 16)
-
-  const r = Math.round(r1 + (r2 - r1) * t)
-  const g = Math.round(g1 + (g2 - g1) * t)
-  const b = Math.round(b1 + (b2 - b1) * t)
-
-  return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('')
+  return { draw, hitTest }
 }
