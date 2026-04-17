@@ -38,6 +38,27 @@ export interface EntryNode {
   // saves. The canvas dims these and the hit-tester skips them so taps
   // on a ghost don't open a detail panel.
   isGhost?: boolean
+  // For external artifacts this is the constellation_artifacts row id —
+  // required for case file linkage. Paradocs-report entries don't expose
+  // this yet (follow-up: unify the save flow).
+  artifactId?: string
+  /** Case files this entry belongs to, by id. Empty array if none. */
+  caseFileIds?: string[]
+  /** Count of OTHER researchers who saved the same URL (externals only). */
+  communitySaveCount?: number
+}
+
+/** A user-created case file — the "folder" primitive for investigations. */
+export interface CaseFile {
+  id: string
+  title: string
+  description: string | null
+  cover_color: string
+  icon: string
+  sort_order: number
+  artifact_count: number
+  created_at: string
+  updated_at: string
 }
 
 /** A user-drawn connection between two entries. */
@@ -64,6 +85,7 @@ export interface TheoryData {
 /** Full payload returned by GET /api/constellation/user-map. */
 export interface UserMapData {
   entryNodes: EntryNode[]
+  caseFiles?: CaseFile[]
   categoryStats: Record<string, { entries: number; verdicts: Record<string, number> }>
   tagConnections: Array<{ tag: string; entryIds: string[] }>
   trail: Array<{ entryId: string; reportId: string; category: string; timestamp: string }>

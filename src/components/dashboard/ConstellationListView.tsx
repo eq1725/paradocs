@@ -16,7 +16,7 @@
 
 import React, { useMemo } from 'react'
 import {
-  ExternalLink, MapPin, Calendar, Sparkles, ChevronRight, Link2, Bookmark, FileText,
+  ExternalLink, MapPin, Calendar, Sparkles, ChevronRight, Link2, Bookmark, FileText, Users,
 } from 'lucide-react'
 import type { EntryNode, UserMapData } from '@/lib/constellation-types'
 import type { Insight } from '@/lib/constellation-data'
@@ -49,6 +49,8 @@ interface ConstellationListViewProps {
   aiConnections: Array<{ source: string; target: string; strength: number; reasons: string[] }>
   insights: Insight[]
   selectedCategory: string | null
+  /** Optional case file filter — only show entries in this case file */
+  selectedCaseFileId?: string | null
   selectedEntryId?: string | null
   onSelectEntry: (entry: EntryNode | null) => void
   onHighlight: (entryIds: string[]) => void
@@ -62,17 +64,21 @@ export default function ConstellationListView({
   aiConnections,
   insights,
   selectedCategory,
+  selectedCaseFileId,
   selectedEntryId,
   onSelectEntry,
   onHighlight,
 }: ConstellationListViewProps) {
-  // Filter by category if one is selected. Ghost entries are NOT rendered in
-  // the list view — this is reading material, not atmosphere.
+  // Filter by category AND case file (both optional). Ghost entries never
+  // show up in list view — this is reading material, not atmosphere.
   const entries = useMemo(() => {
-    const raw = (userMapData?.entryNodes || []).filter(e => !e.isGhost)
-    if (!selectedCategory) return raw
-    return raw.filter(e => e.category === selectedCategory)
-  }, [userMapData, selectedCategory])
+    let raw = (userMapData?.entryNodes || []).filter(e => !e.isGhost)
+    if (selectedCategory) raw = raw.filter(e => e.category === selectedCategory)
+    if (selectedCaseFileId) {
+      raw = raw.filter(e => (e.caseFileIds || []).includes(selectedCaseFileId))
+    }
+    return raw
+  }, [userMapData, selectedCategory, selectedCaseFileId])
 
   // Count AI patterns per entry — shows as a small badge on each card so
   // users can spot the "richest" items at a glance.
@@ -195,7 +201,7 @@ export default function ConstellationListView({
                 )}
               </div>
 
-              {/* Verdict + patterns row */}
+              {/* Verdict + patterns + community row */}
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className={classNames(
                   'inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded',
@@ -208,6 +214,15 @@ export default function ConstellationListView({
                   <span className="inline-flex items-center gap-1 text-[10px] font-medium text-cyan-300/90 bg-cyan-500/10 border border-cyan-500/20 rounded px-1.5 py-0.5">
                     <Sparkles className="w-2.5 h-2.5" />
                     {patternCount} pattern{patternCount === 1 ? '' : 's'}
+                  </span>
+                )}
+                {typeof entry.communitySaveCount === 'number' && entry.communitySaveCount > 0 && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[10px] font-medium text-sky-300/90 bg-sky-500/10 border border-sky-500/20 rounded px-1.5 py-0.5"
+                    title="Other researchers have also saved this URL"
+                  >
+                    <Users className="w-2.5 h-2.5" />
+                    {entry.communitySaveCount} other{entry.communitySaveCount === 1 ? '' : 's'}
                   </span>
                 )}
               </div>

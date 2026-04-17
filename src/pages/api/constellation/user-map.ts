@@ -28,8 +28,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Invalid token' })
     }
 
-    // Parallel fetch: constellation entries, total phenomena count, streak, connections, theories, research hub artifacts
-    const [entriesResult, totalResult, streakResult, connectionsResult, theoriesResult, artifactsResult] = await Promise.all([
+    // Parallel fetch: constellation entries, total phenomena count, streak, connections, theories, research hub artifacts, case file memberships
+    const [entriesResult, totalResult, streakResult, connectionsResult, theoriesResult, artifactsResult, caseFileLinksResult, caseFilesListResult] = await Promise.all([
       // User's logged constellation entries with report details
       supabase
         .from('constellation_entries')
@@ -76,10 +76,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Research Hub artifacts (external URLs not linked to reports)
       supabase
         .from('constellation_artifacts')
-        .select('id, source_type, source_platform, external_url, title, thumbnail_url, user_note, verdict, tags, metadata_json, created_at, updated_at')
+        .select('id, source_type, source_platform, external_url, external_url_hash, title, thumbnail_url, user_note, verdict, tags, metadata_json, created_at, updated_at')
         .eq('user_id', user.id)
         .neq('source_type', 'paradocs_report')
         .order('created_at', { ascending: false }),
+
+      // Case file memberships: every (case_file_id, artifact_id) pair for
+      // case files owned by this user.
+      supabase
+        .from('constellation_case_file_artifacts')
+        .select('case_file_id, artifact_id, case_file:constellation_case_files!inner(user_id)')
+        .eq('case_file.user_id', user.id),
+
+      // Case files list — lets the client render the CaseFileBar without a
+      // second round-trip on initial load.
+      supabase
+        .from('constellation_case_files')
+        .select('id, title, description, cover_color, icon, sort_order, created_at, updated_at')
+        .eq('user_id', user.id)
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true }),
     ])
 
     const entries = entriesResult.data || []
@@ -88,6 +104,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const userConnections = (connectionsResult as any).data || []
     const userTheories = (theoriesResult as any).data || []
     const externalArtifacts = (artifactsResult as any).data || []
+    const caseFileLinks = (caseFileLinksResult as any).data || []
+    const caseFilesList = (caseFilesListResult as any).data || []
+
+    // Index (artifact_id → case_file_ids[]) for fast lookup when building nodes.
+    const caseFileIdsByArtifact: Record<string, string[]> = {}
+    for (const link of caseFileLinks) {
+      if (!caseFileIdsByArtifact[link.artifact_id]) caseFileIdsByArtifact[link.artifact_id] = []
+      caseFileIdsByArtifact[link.artifact_id].push(link.case_file_id)
+    }
+
+    // Community convergence: look up save counts across ALL users for each
+    // hash we see. Aggregated and anonymized via the signals table.
+    const urlHashes = externalArtifacts
+      .map((a: any) => a.external_url_hash)
+      .filter((h: any) => typeof h === 'string' && h.length > 0) as string[]
+
+    const signalsByHash: Record<string, number> = {}
+    if (urlHashes.length > 0) {
+      const { data: signals } = await supabase
+        .from('constellation_external_url_signals')
+        .select('url_hash, save_count')
+        .in('url_hash', urlHashes)
+      if (signals) {
+        for (const sig of signals) {
+          signalsByHash[sig.url_hash] = sig.save_count || 0
+        }
+      }
+    }
 
     // Build category engagement from logged entries
     const categoryMap: Record<string, {
@@ -215,6 +259,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       return {
         id: a.id,
+        artifactId: a.id,  // external artifacts are their own artifact row
         reportId: '',
         name: a.title || 'External Source',
         slug: '',
@@ -232,14 +277,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         sourcePlatform: a.source_platform || null,
         externalUrl: a.external_url,
         sourceMetadata: a.metadata_json || null,
+        caseFileIds: caseFileIdsByArtifact[a.id] || [],
+        // Subtract 1 so the badge counts OTHER researchers who saved the
+        // same URL, not including this user.
+        communitySaveCount: a.external_url_hash ? Math.max(0, (signalsByHash[a.external_url_hash] || 1) - 1) : 0,
       }
     })
 
     // Merge all entry nodes
     var allEntryNodes = entryNodes.concat(externalEntryNodes)
 
+    // Build per-case-file artifact counts for the CaseFileBar.
+    const artifactCountByCaseFile: Record<string, number> = {}
+    for (const link of caseFileLinks) {
+      artifactCountByCaseFile[link.case_file_id] = (artifactCountByCaseFile[link.case_file_id] || 0) + 1
+    }
+    const caseFiles = caseFilesList.map((cf: any) => ({
+      id: cf.id,
+      title: cf.title,
+      description: cf.description,
+      cover_color: cf.cover_color,
+      icon: cf.icon,
+      sort_order: cf.sort_order,
+      artifact_count: artifactCountByCaseFile[cf.id] || 0,
+      created_at: cf.created_at,
+      updated_at: cf.updated_at,
+    }))
+
     return res.status(200).json({
       entryNodes: allEntryNodes,
+      caseFiles,
       categoryStats,
       tagConnections,
       trail,
@@ -282,6 +349,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Return empty data on error (table might not exist yet)
     return res.status(200).json({
       entryNodes: [],
+      caseFiles: [],
       categoryStats: {},
       tagConnections: [],
       trail: [],

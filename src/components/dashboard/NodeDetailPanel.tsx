@@ -7,7 +7,7 @@
  * and links to the full report page.
  */
 
-import React from 'react'
+import React, { useState } from 'react'
 import Link from 'next/link'
 import {
   X as XIcon,
@@ -22,8 +22,13 @@ import {
   Lightbulb,
   BookOpen,
   Sparkles,
+  FolderOpen,
+  Plus,
+  Check,
+  Loader2,
 } from 'lucide-react'
-import type { EntryNode, UserMapData } from '@/lib/constellation-types'
+import type { EntryNode, UserMapData, CaseFile } from '@/lib/constellation-types'
+import { supabase } from '@/lib/supabase'
 
 // Category display config
 const CATEGORY_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
@@ -60,18 +65,24 @@ interface NodeDetailPanelProps {
   userMapData: UserMapData | null
   /** AI-detected connections for the whole library (filtered inside). Optional. */
   aiConnections?: AiConnection[]
+  /** Parent-level list of case files (same payload as userMapData.caseFiles). */
+  caseFiles?: CaseFile[]
   onClose: () => void
   onTagClick: (tag: string) => void
   onEntryClick: (entryId: string) => void
+  /** Called after case-file linkage changes so the parent can refetch. */
+  onCaseFilesChanged?: () => void
 }
 
 export default function NodeDetailPanel({
   entry,
   userMapData,
   aiConnections = [],
+  caseFiles = [],
   onClose,
   onTagClick,
   onEntryClick,
+  onCaseFilesChanged,
 }: NodeDetailPanelProps) {
   if (!entry) return null
 
@@ -183,6 +194,18 @@ export default function NodeDetailPanel({
           <span>{verdict.icon}</span>
           <span className={`text-sm font-medium ${verdict.color}`}>{verdict.label}</span>
         </div>
+
+        {/* Case files — only supported on external artifacts for now
+            (Paradocs-report entries don't expose artifactId yet). Shows
+            chips for every case file this entry is in + a "+ Add" button. */}
+        {entry.artifactId && (
+          <CaseFilesSection
+            artifactId={entry.artifactId}
+            memberIds={entry.caseFileIds || []}
+            allCaseFiles={caseFiles}
+            onChanged={onCaseFilesChanged}
+          />
+        )}
 
         {/* User note */}
         {entry.note && (
@@ -457,6 +480,133 @@ function ExternalSourcePreview({ entry }: ExternalSourcePreviewProps) {
           <p className="text-gray-400 text-xs leading-relaxed line-clamp-4">{description}</p>
         )}
       </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Case file membership section
+// ─────────────────────────────────────────────────────────────────
+
+interface CaseFilesSectionProps {
+  artifactId: string
+  memberIds: string[]
+  allCaseFiles: CaseFile[]
+  onChanged?: () => void
+}
+
+function CaseFilesSection({ artifactId, memberIds, allCaseFiles, onChanged }: CaseFilesSectionProps) {
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pendingId, setPendingId] = useState<string | null>(null) // id being added/removed
+  const currentMemberIds = new Set(memberIds)
+  const memberFiles = allCaseFiles.filter(cf => currentMemberIds.has(cf.id))
+  const availableFiles = allCaseFiles.filter(cf => !currentMemberIds.has(cf.id))
+
+  const toggleMembership = async (caseFileId: string, shouldAdd: boolean) => {
+    setPendingId(caseFileId)
+    try {
+      const sess = await supabase.auth.getSession()
+      const token = sess.data.session?.access_token
+      if (!token) return
+      const url = `/api/constellation/case-files/${caseFileId}/artifacts`
+      if (shouldAdd) {
+        await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ artifact_id: artifactId }),
+        })
+      } else {
+        await fetch(url + '?aid=' + encodeURIComponent(artifactId), {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      }
+      onChanged?.()
+    } catch (err) {
+      console.error('[detail-panel:case-file-toggle]', err)
+    } finally {
+      setPendingId(null)
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 text-gray-500 text-[10px] font-medium uppercase tracking-wider mb-2">
+        <FolderOpen className="w-3 h-3" />
+        Case files ({memberFiles.length})
+      </div>
+
+      {/* Chips of current memberships */}
+      {memberFiles.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {memberFiles.map(cf => (
+            <button
+              key={cf.id}
+              onClick={() => toggleMembership(cf.id, false)}
+              disabled={pendingId === cf.id}
+              className="group inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/5 border border-white/10 text-xs text-gray-200 hover:bg-white/10 transition-colors disabled:opacity-50"
+              title="Remove from this case file"
+            >
+              <span
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ backgroundColor: cf.cover_color }}
+              />
+              <span className="truncate max-w-[140px]">{cf.title}</span>
+              {pendingId === cf.id
+                ? <Loader2 className="w-3 h-3 animate-spin text-gray-500" />
+                : <XIcon className="w-3 h-3 text-gray-500 group-hover:text-red-400 transition-colors" />}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Add-to-case-file picker */}
+      {allCaseFiles.length === 0 ? (
+        <p className="text-[10px] text-gray-600">
+          Create a case file from the Map tab header to organize this.
+        </p>
+      ) : !pickerOpen ? (
+        availableFiles.length > 0 && (
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="inline-flex items-center gap-1.5 text-[11px] text-primary-300 hover:text-primary-200 transition-colors"
+          >
+            <Plus className="w-3 h-3" />
+            Add to case file
+          </button>
+        )
+      ) : (
+        <div className="bg-black/40 border border-white/10 rounded-lg p-2 space-y-0.5">
+          {availableFiles.length === 0 ? (
+            <p className="text-[10px] text-gray-500 px-2 py-1">Already in every case file.</p>
+          ) : availableFiles.map(cf => (
+            <button
+              key={cf.id}
+              onClick={async () => {
+                await toggleMembership(cf.id, true)
+                setPickerOpen(false)
+              }}
+              disabled={pendingId === cf.id}
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-left transition-colors disabled:opacity-50"
+            >
+              <span
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ backgroundColor: cf.cover_color }}
+              />
+              <span className="text-xs text-gray-200 truncate flex-1">{cf.title}</span>
+              {pendingId === cf.id
+                ? <Loader2 className="w-3 h-3 animate-spin text-gray-500" />
+                : <Check className="w-3 h-3 text-gray-500" />}
+            </button>
+          ))}
+          <button
+            onClick={() => setPickerOpen(false)}
+            className="w-full px-2 py-1 text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            Done
+          </button>
+        </div>
+      )}
     </div>
   )
 }

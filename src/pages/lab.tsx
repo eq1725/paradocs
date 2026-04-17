@@ -33,6 +33,7 @@ import {
   PlusCircle,
   Lock,
   Sparkles,
+  Sparkles as SparklesIcon,
   ChevronDown,
   Search,
   Filter,
@@ -41,24 +42,25 @@ import {
   ChevronRight,
   LogIn,
   Telescope,
+  ArrowDown,
 } from 'lucide-react'
 import Layout from '@/components/Layout'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
-import ConstellationMapV2, { type ConstellationMapHandle } from '@/components/dashboard/ConstellationMapV2'
 import NodeDetailPanel from '@/components/dashboard/NodeDetailPanel'
 import ConstellationSidebar from '@/components/dashboard/ConstellationSidebar'
 import ConstellationListView from '@/components/dashboard/ConstellationListView'
-import InsightsPanel from '@/components/dashboard/InsightsPanel'
+import { InsightCardInline } from '@/components/dashboard/InsightsPanel'
 import PasteUrlButton from '@/components/dashboard/PasteUrlButton'
-import type { EntryNode, UserMapData } from '@/lib/constellation-types'
+import CaseFileBar from '@/components/dashboard/CaseFileBar'
+import LabProgressTracker from '@/components/dashboard/LabProgressTracker'
+import type { EntryNode, UserMapData, CaseFile } from '@/lib/constellation-types'
 import {
   inferCategoryFromTags,
   CONSTELLATION_NODES,
   detectEmergentConnections,
   detectInsights,
 } from '@/lib/constellation-data'
-import { Orbit, ListOrdered } from 'lucide-react'
 
 // Tab definitions
 var TAB_KEYS = ['saves', 'cases', 'map', 'notes'] as const
@@ -447,30 +449,22 @@ function MapTab() {
   var [loading, setLoading] = useState(true)
   var [selectedEntry, setSelectedEntry] = useState<EntryNode | null>(null)
   var [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  var [isImmersive, setIsImmersive] = useState(false)
-  var [viewMode, setViewMode] = useState<'galaxy' | 'list'>('galaxy')
+  var [selectedCaseFileId, setSelectedCaseFileId] = useState<string | null>(null)
   var [refreshKey, setRefreshKey] = useState(0)
-  var mapHandleRef = useRef<ConstellationMapHandle | null>(null)
 
-  // Restore view preference from localStorage (reading research-book mode
-  // vs. exploring-galaxy mode is a preference per user, so we remember it).
+  // "New since last visit" tracking — we read the stored timestamp once on
+  // mount (so the strip shows what's new), then write the current time so
+  // the NEXT visit computes from this moment. Per-browser via localStorage.
+  var [lastVisitMs, setLastVisitMs] = useState<number | null>(null)
   useEffect(function() {
     try {
-      var saved = localStorage.getItem('paradocs_map_view')
-      if (saved === 'list' || saved === 'galaxy') setViewMode(saved)
+      var raw = localStorage.getItem('paradocs_lab_last_visit_ms')
+      var prev = raw ? parseInt(raw, 10) : NaN
+      if (!isNaN(prev)) setLastVisitMs(prev)
+      // Stamp "now" as the visit time so the next session compares from here.
+      localStorage.setItem('paradocs_lab_last_visit_ms', String(Date.now()))
     } catch (_err) { /* localStorage unavailable, fine */ }
   }, [])
-  useEffect(function() {
-    try { localStorage.setItem('paradocs_map_view', viewMode) } catch (_err) {}
-  }, [viewMode])
-
-  // Prevent body scroll while the map is in immersive fullscreen mode.
-  useEffect(function() {
-    if (!isImmersive) return
-    var prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return function() { document.body.style.overflow = prev }
-  }, [isImmersive])
 
   // Load / reload the user-map payload. Exposed via refreshKey so the paste-URL
   // flow in Phase B can trigger a re-fetch after saving a new artifact.
@@ -563,18 +557,35 @@ function MapTab() {
     }))
   }, [normalizedMapData])
 
-  // When the user clicks "Highlight on galaxy" from an insight card:
-  //   - if we're in list mode, flip to galaxy first
-  //   - then ask the imperative handle to pan + pulse the referenced stars
+  // "Highlight" action on insight cards — in list-only mode this means:
+  // open the first referenced entry's detail panel (so users see the actual
+  // evidence behind the pattern, not just the number).
   var handleHighlight = useCallback(function(entryIds: string[]) {
-    if (viewMode === 'list') {
-      setViewMode('galaxy')
-      // Defer the pan until after the canvas re-mounts / gets its ref.
-      setTimeout(function() { mapHandleRef.current?.highlightEntries(entryIds) }, 150)
-    } else {
-      mapHandleRef.current?.highlightEntries(entryIds)
+    if (entryIds.length === 0 || !normalizedMapData) return
+    var first = normalizedMapData.entryNodes.find(function(e) { return e.id === entryIds[0] })
+    if (first) setSelectedEntry(first)
+  }, [normalizedMapData])
+
+  // "New since last visit" — insights whose referenced entries include at
+  // least one that was logged after the stored timestamp.
+  var newInsights = useMemo(function() {
+    if (!lastVisitMs || !normalizedMapData) return []
+    var entryById: Record<string, EntryNode> = {}
+    for (var i = 0; i < normalizedMapData.entryNodes.length; i++) {
+      var n = normalizedMapData.entryNodes[i]
+      entryById[n.id] = n
     }
-  }, [viewMode])
+    return insights.filter(function(ins) {
+      return ins.entryIds.some(function(id: string) {
+        var e = entryById[id]
+        if (!e) return false
+        var t = new Date(e.loggedAt).getTime()
+        return !isNaN(t) && t > (lastVisitMs as number)
+      })
+    })
+  }, [insights, normalizedMapData, lastVisitMs])
+
+  var caseFiles: CaseFile[] = (normalizedMapData as any)?.caseFiles || []
 
   if (loading && !userMapData) {
     return (
@@ -587,130 +598,128 @@ function MapTab() {
   var entryCount = normalizedMapData?.entryNodes.length || 0
   var categoriesCount = normalizedMapData ? Object.keys(normalizedMapData.categoryStats).length : 0
 
+  var listRef = useRef<HTMLDivElement | null>(null)
+  var scrollToList = useCallback(function() {
+    listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
   return (
-    <div>
-      {/* Header strip: context + view toggle + add-source */}
-      <div className="flex items-center justify-between gap-2 mb-3 px-1">
+    <div className="space-y-4">
+      {/* ── Header row: count + Add-source action ── */}
+      <div className="flex items-center justify-between gap-2 px-1">
         <div className="flex items-center gap-2 text-gray-500 min-w-0 text-xs">
           <MapIcon className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-          <span className="truncate hidden sm:inline">
+          <span className="truncate">
             {entryCount === 0
-              ? 'No stars yet — log reports or paste a URL to light up your map'
-              : entryCount + ' ' + (entryCount === 1 ? 'star' : 'stars') + ' across ' + categoriesCount + ' ' + (categoriesCount === 1 ? 'category' : 'categories')}
+              ? 'No saves yet — save reports or paste URLs to start building'
+              : entryCount + ' ' + (entryCount === 1 ? 'save' : 'saves')
+                + (categoriesCount > 0 ? ' · ' + categoriesCount + ' ' + (categoriesCount === 1 ? 'category' : 'categories') : '')}
           </span>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Galaxy / List segmented toggle */}
-          <div className="inline-flex items-center rounded-lg bg-white/[0.04] border border-white/10 p-0.5">
-            <button
-              onClick={function() { setViewMode('galaxy') }}
-              className={classNames(
-                'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors',
-                viewMode === 'galaxy'
-                  ? 'bg-white/10 text-white'
-                  : 'text-gray-400 hover:text-gray-200'
-              )}
-              title="Galaxy view — explore as a cosmic web"
-            >
-              <Orbit className="w-3 h-3" />
-              <span>Galaxy</span>
-            </button>
-            <button
-              onClick={function() { setViewMode('list') }}
-              className={classNames(
-                'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors',
-                viewMode === 'list'
-                  ? 'bg-white/10 text-white'
-                  : 'text-gray-400 hover:text-gray-200'
-              )}
-              title="List view — read your library as cards"
-            >
-              <ListOrdered className="w-3 h-3" />
-              <span>List</span>
-            </button>
-          </div>
-          <PasteUrlButton onArtifactSaved={function() { setRefreshKey(function(k) { return k + 1 }) }} />
-        </div>
+        <PasteUrlButton onArtifactSaved={function() { setRefreshKey(function(k) { return k + 1 }) }} />
       </div>
 
-      {/*
-        View switch: the Galaxy canvas or the List view. Both share the
-        selectedEntry, selectedCategory, and detail panel, so toggling is
-        just a presentation flip — no state loss.
-      */}
-      {viewMode === 'galaxy' ? (
-        <ConstellationMapV2
-          ref={mapHandleRef}
-          userMapData={normalizedMapData}
-          onSelectEntry={setSelectedEntry}
-          selectedEntryId={selectedEntry?.id}
-          selectedCategory={selectedCategory}
-          isImmersive={isImmersive}
-          onToggleImmersive={function() { setIsImmersive(function(v) { return !v }) }}
-          aiConnections={aiConnections}
-          overlay={
-            <ConstellationSidebar
-              userMapData={normalizedMapData}
-              selectedCategory={selectedCategory}
-              onCategoryClick={setSelectedCategory}
-              layout="panel"
-            />
-          }
+      {/* ── Progress tracker — reason to come back tomorrow ── */}
+      {normalizedMapData && entryCount > 0 && (
+        <LabProgressTracker entries={normalizedMapData.entryNodes} />
+      )}
+
+      {/* ── "New since last visit" strip — recurring-value loop ── */}
+      {newInsights.length > 0 && (
+        <button
+          onClick={scrollToList}
+          className="w-full flex items-center justify-between gap-2 px-3 sm:px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500/15 via-cyan-500/10 to-transparent border border-cyan-500/30 hover:border-cyan-500/50 text-left transition-colors"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-1.5 rounded-md bg-cyan-500/20 flex-shrink-0">
+              <SparklesIcon className="w-3.5 h-3.5 text-cyan-300" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-white leading-tight">
+                Since you were last here: {newInsights.length} new pattern{newInsights.length === 1 ? '' : 's'}
+              </div>
+              <div className="text-[10px] text-cyan-300/80 leading-tight mt-0.5 truncate">
+                {newInsights[0].title}{newInsights.length > 1 ? ' · and more' : ''}
+              </div>
+            </div>
+          </div>
+          <ArrowDown className="w-4 h-4 text-cyan-300 flex-shrink-0" />
+        </button>
+      )}
+
+      {/* ── Case Files bar — the tree primitive ── */}
+      {caseFiles.length > 0 || entryCount > 0 ? (
+        <CaseFileBar
+          caseFiles={caseFiles}
+          selectedCaseFileId={selectedCaseFileId}
+          onSelectCaseFile={setSelectedCaseFileId}
+          onMutate={function() { setRefreshKey(function(k) { return k + 1 }) }}
         />
-      ) : (
+      ) : null}
+
+      {/* ── Category filter row — mobile-first pill strip ── */}
+      {entryCount > 0 && (
+        <ConstellationSidebar
+          userMapData={normalizedMapData}
+          selectedCategory={selectedCategory}
+          onCategoryClick={setSelectedCategory}
+          layout="pill"
+        />
+      )}
+
+      {/* ── AI insights — top-of-list so patterns surface first.
+           Top 3 shown inline as cards; the rest interleave into the feed. ── */}
+      {insights.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-2 px-1">
+            <SparklesIcon className="w-3 h-3 text-cyan-300" />
+            AI insights ({insights.length})
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {insights.slice(0, 3).map(function(ins) {
+              return (
+                <InsightCardInline
+                  key={ins.id}
+                  insight={ins}
+                  onHighlight={handleHighlight}
+                />
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── The list ── */}
+      <div ref={listRef}>
         <ConstellationListView
           userMapData={normalizedMapData}
           aiConnections={aiConnections}
           insights={insights}
           selectedCategory={selectedCategory}
+          selectedCaseFileId={selectedCaseFileId}
           selectedEntryId={selectedEntry?.id || null}
           onSelectEntry={setSelectedEntry}
           onHighlight={handleHighlight}
         />
-      )}
+      </div>
 
-      {/* Desktop insights panel — floats bottom-right of the page.
-          On the galaxy view it overlays the canvas; on the list view it
-          sits alongside the cards. Hidden on mobile (drawer below takes over). */}
-      {insights.length > 0 && viewMode === 'galaxy' && !isImmersive && (
-        <div className="hidden sm:block fixed bottom-20 right-6 z-30">
-          <InsightsPanel insights={insights} onHighlight={handleHighlight} layout="panel" />
-        </div>
-      )}
-
-      {/* Mobile insights drawer — pull-up from bottom */}
-      {insights.length > 0 && !isImmersive && (
-        <InsightsPanel insights={insights} onHighlight={handleHighlight} layout="drawer" />
-      )}
-
-      {/* NodeDetailPanel uses fixed positioning so it floats over the viewport
-          without being clipped. Carries aiConnections so the "Patterns" section
-          can list every AI-detected link touching this star. */}
-      {selectedEntry && !isImmersive && (
+      {/* NodeDetailPanel floats over the viewport with fixed positioning.
+          Carries aiConnections for the "Patterns" section and caseFiles so
+          users can add/remove the current entry from any case file. */}
+      {selectedEntry && (
         <NodeDetailPanel
           entry={selectedEntry}
           userMapData={normalizedMapData}
           aiConnections={aiConnections}
+          caseFiles={caseFiles}
           onClose={function() { setSelectedEntry(null) }}
           onTagClick={function() {}}
           onEntryClick={function(entryId: string) {
             var entry = normalizedMapData?.entryNodes.find(function(e) { return e.id === entryId })
             if (entry) setSelectedEntry(entry)
           }}
+          onCaseFilesChanged={function() { setRefreshKey(function(k) { return k + 1 }) }}
         />
-      )}
-
-      {/* Mobile category pill strip — only meaningful in galaxy mode; list
-          view already has its own filter affordance via the sidebar-less layout. */}
-      {viewMode === 'galaxy' && (
-        <div className="sm:hidden mt-3">
-          <ConstellationSidebar
-            userMapData={normalizedMapData}
-            selectedCategory={selectedCategory}
-            onCategoryClick={setSelectedCategory}
-            layout="pill"
-          />
-        </div>
       )}
     </div>
   )

@@ -20,7 +20,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import dynamic from 'next/dynamic'
 import {
   FileText,
   AlertCircle,
@@ -46,15 +45,11 @@ import ActivitySummary from '@/components/dashboard/ActivitySummary'
 import SuggestedNextSteps from '@/components/dashboard/SuggestedNextSteps'
 import EmptyState from '@/components/dashboard/EmptyState'
 import { useProgressMilestones } from '@/components/dashboard/ProgressMilestones'
-var ConstellationMapV2 = dynamic(
-  function() { return import('@/components/dashboard/ConstellationMapV2') },
-  { ssr: false }
-)
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
 import type { TierName } from '@/lib/subscription'
-import type { UserMapData, EntryNode } from './constellation'
+import type { UserMapData, EntryNode } from '@/lib/constellation-types'
 
 interface DashboardStats {
   profile: {
@@ -571,33 +566,25 @@ export default function DashboardPage() {
         </div>
       ) : null}
 
-      {/* ── 7. Constellation Preview ── */}
-      {hasEntries && userMapData ? (
-        <div className="mb-5 rounded-xl overflow-hidden border border-gray-800 relative">
-          <div className="dashboard-constellation-wrap">
-            <ConstellationMapV2
-              userMapData={userMapData}
-              onSelectEntry={handleSelectEntry}
-              selectedEntryId={null}
-            />
+      {/* ── 7. Research Library Preview — replaces the old canvas preview ── */}
+      {hasEntries ? (
+        <Link
+          href="/lab?tab=map"
+          className="mb-5 rounded-xl overflow-hidden border border-gray-800 bg-gray-900 hover:bg-gray-900/80 hover:border-gray-700 transition-colors p-4 flex items-center gap-3"
+        >
+          <div className="p-2 bg-purple-500/10 rounded-lg flex-shrink-0">
+            <Star className="w-5 h-5 text-purple-400" />
           </div>
-          <div className="absolute bottom-0 left-0 right-0 sm:left-auto bg-gradient-to-l from-gray-950 via-gray-950/90 to-transparent pl-3 sm:pl-10 pr-3 py-2.5 rounded-bl-lg pointer-events-none">
-            <div className="flex items-center gap-2 sm:gap-3 pointer-events-auto flex-wrap justify-end">
-              <span className="text-lg">{stats && stats.constellation ? stats.constellation.rankIcon : ''}</span>
-              <span className="text-xs sm:text-sm font-medium text-white truncate">{stats && stats.constellation ? stats.constellation.rank : ''}</span>
-              <span className="text-xs text-gray-500 hidden sm:inline">
-                {'\u00B7 ' + (stats && stats.constellation ? stats.constellation.totalEntries : 0) + ' ' + ((stats && stats.constellation ? stats.constellation.totalEntries : 0) === 1 ? 'star' : 'stars')}
-              </span>
-              <Link
-                href="/dashboard/constellation"
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium rounded-lg transition-colors"
-              >
-                {'View Map '}
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white truncate">
+              {stats && stats.constellation ? stats.constellation.rank : 'Your research library'}
+            </p>
+            <p className="text-xs text-gray-500 truncate">
+              {(stats && stats.constellation ? stats.constellation.totalEntries : 0) + ' saves · open your Lab to read and find patterns'}
+            </p>
           </div>
-        </div>
+          <ArrowRight className="w-4 h-4 text-gray-500 flex-shrink-0" />
+        </Link>
       ) : !hasEntries ? (
         <div className="mb-5 p-4 bg-gray-900 border border-gray-800 rounded-xl">
           <div className="flex items-center gap-3">
