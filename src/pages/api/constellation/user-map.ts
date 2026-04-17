@@ -82,7 +82,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .order('created_at', { ascending: false }),
 
       // Case file memberships: every (case_file_id, artifact_id) pair for
-      // case files owned by this user.
+      // case files owned by this user. Shared-case-file junction rows are
+      // fetched separately below because we're using the service-role client
+      // (which bypasses RLS) and need to manually scope.
       supabase
         .from('constellation_case_file_artifacts')
         .select('case_file_id, artifact_id, case_file:constellation_case_files!inner(user_id)')
@@ -92,7 +94,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // second round-trip on initial load.
       supabase
         .from('constellation_case_files')
-        .select('id, title, description, cover_color, icon, sort_order, public_slug, created_at, updated_at')
+        .select('id, title, description, cover_color, icon, sort_order, public_slug, user_id, created_at, updated_at')
         .eq('user_id', user.id)
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true }),
@@ -124,9 +126,62 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const caseFilesList = (caseFilesListResult as any).data || []
     const savedReportsRows = (savedReportsResult as any).data || []
 
+    // ── Shared-with-me case files ──
+    // Case files where the current user is an ACCEPTED collaborator (not just
+    // pending). We fetch these separately and tag them in the response so the
+    // UI can render a "Shared with me" section distinct from "My case files."
+    const { data: sharedRows } = await supabase
+      .from('constellation_case_file_collaborators')
+      .select(`
+        role,
+        accepted_at,
+        case_file:constellation_case_files(
+          id, title, description, cover_color, icon, sort_order, public_slug, user_id, created_at, updated_at
+        ),
+        owner:profiles!constellation_case_files_user_id_fkey(
+          display_name, username, avatar_url
+        )
+      `)
+      .eq('user_id', user.id)
+      .not('accepted_at', 'is', null)
+    const sharedCaseFiles = (sharedRows || [])
+      .filter((r: any) => r.case_file)
+      .map((r: any) => ({ ...r.case_file, _sharedRole: r.role, _sharedOwner: r.owner || null }))
+
+    // Fetch junction rows for shared case files so the UI can show their
+    // artifact counts + filter artifacts by shared-case-file id. We scope
+    // manually because we're using the service-role client.
+    const sharedCaseFileIds = sharedCaseFiles.map((cf: any) => cf.id)
+    let sharedJunctionRows: Array<{ case_file_id: string; artifact_id: string }> = []
+    if (sharedCaseFileIds.length > 0) {
+      const { data: sharedJuncData } = await supabase
+        .from('constellation_case_file_artifacts')
+        .select('case_file_id, artifact_id')
+        .in('case_file_id', sharedCaseFileIds)
+      sharedJunctionRows = (sharedJuncData as any) || []
+    }
+    const allJunctionRows = caseFileLinks.concat(sharedJunctionRows)
+
+    // Fetch COLLABORATOR artifacts — artifacts owned by other users that
+    // belong to case files shared with the current user. Without this, the
+    // user sees the case file but none of the co-investigators' contributions.
+    const myArtifactIds = new Set((externalArtifacts || []).map((a: any) => a.id as string))
+    const collaboratorArtifactIds = sharedJunctionRows
+      .map(r => r.artifact_id)
+      .filter(id => !myArtifactIds.has(id))
+    let collaboratorArtifacts: any[] = []
+    if (collaboratorArtifactIds.length > 0) {
+      const { data } = await supabase
+        .from('constellation_artifacts')
+        .select('id, user_id, source_type, source_platform, external_url, external_url_hash, title, thumbnail_url, user_note, verdict, tags, metadata_json, created_at, updated_at')
+        .in('id', collaboratorArtifactIds)
+      collaboratorArtifacts = (data as any) || []
+    }
+
     // Index (artifact_id → case_file_ids[]) for fast lookup when building nodes.
+    // Covers owned + shared case files.
     const caseFileIdsByArtifact: Record<string, string[]> = {}
-    for (const link of caseFileLinks) {
+    for (const link of allJunctionRows) {
       if (!caseFileIdsByArtifact[link.artifact_id]) caseFileIdsByArtifact[link.artifact_id] = []
       caseFileIdsByArtifact[link.artifact_id].push(link.case_file_id)
     }
@@ -308,7 +363,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }))
 
     // Include external artifacts (YouTube, Reddit, etc.) from Research Hub
-    const externalEntryNodes = externalArtifacts.map(function(a: any) {
+    // PLUS artifacts from shared case files owned by collaborators.
+    const combinedExternalArtifacts = (externalArtifacts || []).concat(collaboratorArtifacts)
+    const externalEntryNodes = combinedExternalArtifacts.map(function(a: any) {
       // Count external artifact tags in the tag system too
       var artifactTags = a.tags || []
       for (var i = 0; i < artifactTags.length; i++) {
@@ -349,8 +406,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     var allEntryNodes = entryNodes.concat(savedOnlyNodes).concat(externalEntryNodes)
 
     // Build per-case-file artifact counts for the CaseFileBar.
+    // Covers owned + shared case files.
     const artifactCountByCaseFile: Record<string, number> = {}
-    for (const link of caseFileLinks) {
+    for (const link of allJunctionRows) {
       artifactCountByCaseFile[link.case_file_id] = (artifactCountByCaseFile[link.case_file_id] || 0) + 1
     }
     const caseFiles = caseFilesList.map((cf: any) => ({
@@ -364,7 +422,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       artifact_count: artifactCountByCaseFile[cf.id] || 0,
       created_at: cf.created_at,
       updated_at: cf.updated_at,
-    }))
+      is_shared_with_me: false,
+      role: 'owner' as const,
+      owner: null as null | { displayName: string | null; username: string | null; avatarUrl: string | null },
+    })).concat(sharedCaseFiles.map((cf: any) => ({
+      id: cf.id,
+      title: cf.title,
+      description: cf.description,
+      cover_color: cf.cover_color,
+      icon: cf.icon,
+      sort_order: cf.sort_order,
+      public_slug: cf.public_slug || null,
+      // Artifact count for shared case files — count how many junction rows
+      // reference this case file id, regardless of owner. RLS ensures we
+      // only see counts for case files we have access to.
+      artifact_count: artifactCountByCaseFile[cf.id] || 0,
+      created_at: cf.created_at,
+      updated_at: cf.updated_at,
+      is_shared_with_me: true,
+      role: cf._sharedRole as 'editor' | 'viewer',
+      owner: cf._sharedOwner ? {
+        displayName: cf._sharedOwner.display_name,
+        username: cf._sharedOwner.username,
+        avatarUrl: cf._sharedOwner.avatar_url,
+      } : null,
+    })))
 
     return res.status(200).json({
       entryNodes: allEntryNodes,

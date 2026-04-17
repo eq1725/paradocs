@@ -71,6 +71,16 @@ export interface CaseFile {
   updated_at: string
   /** When non-null, this case file is publicly viewable at /cases/public/{slug}. */
   public_slug?: string | null
+  /** True when the user is a collaborator, not the owner, of this case file. */
+  is_shared_with_me?: boolean
+  /** Role the current user has on this case file. */
+  role?: 'owner' | 'editor' | 'viewer'
+  /** Owner profile info — only populated for shared case files. */
+  owner?: {
+    displayName: string | null
+    username: string | null
+    avatarUrl: string | null
+  } | null
 }
 
 /** A user-drawn connection between two entries. */

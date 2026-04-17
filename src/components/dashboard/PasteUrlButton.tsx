@@ -90,6 +90,9 @@ function PasteUrlModal({ onClose, onSaved }: PasteUrlModalProps) {
   const [saveError, setSaveError] = useState<string | null>(null)
   /** Duplicate-detection: non-null when the pasted URL already exists in the user's library. */
   const [duplicate, setDuplicate] = useState<{ id: string; title: string } | null>(null)
+  /** Claude-suggested tags+summary — surfaced as an accept/override prompt */
+  const [aiSuggestion, setAiSuggestion] = useState<{ tags: string[]; summary: string | null } | null>(null)
+  const [autoTagging, setAutoTagging] = useState(false)
 
   // Editable form fields (seeded from extract, then user can override)
   const [title, setTitle] = useState('')
@@ -180,6 +183,30 @@ function PasteUrlModal({ onClose, onSaved }: PasteUrlModalProps) {
       // Infer category from suggested tags client-side
       const inferred = inferCategoryFromTags(data.suggested_tags)
       setCategory(inferred)
+
+      // Kick off Claude auto-tag in the background — the user can fill out
+      // the rest of the form while this runs. When it returns, the
+      // suggestion surfaces below the thumbnail as a one-tap accept.
+      setAutoTagging(true)
+      setAiSuggestion(null)
+      fetch('/api/constellation/artifacts/auto-tag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          title: data.title,
+          description: data.description,
+          source_platform: data.source_platform,
+          url: candidate,
+        }),
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(json => {
+          if (!json || !json.enriched) return
+          if ((json.tags || []).length === 0 && !json.summary) return
+          setAiSuggestion({ tags: json.tags || [], summary: json.summary || null })
+        })
+        .catch(() => {/* silent — existing keyword tags are a fine fallback */})
+        .finally(() => setAutoTagging(false))
     } catch (err: any) {
       setExtractError(err?.message || 'Network error extracting metadata')
     } finally {
@@ -369,6 +396,68 @@ function PasteUrlModal({ onClose, onSaved }: PasteUrlModalProps) {
                   )}
                 </div>
               </div>
+
+              {/* AI-suggested tags + summary (surfaces once Claude returns) */}
+              {autoTagging && (
+                <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>Paradocs is reading this source...</span>
+                </div>
+              )}
+              {aiSuggestion && (aiSuggestion.tags.length > 0 || aiSuggestion.summary) && (
+                <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-2.5 space-y-2">
+                  <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-cyan-300">
+                    <LinkIcon className="w-3 h-3" />
+                    Paradocs suggests
+                  </div>
+                  {aiSuggestion.summary && (
+                    <p className="text-xs text-gray-300 leading-snug">{aiSuggestion.summary}</p>
+                  )}
+                  {aiSuggestion.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {aiSuggestion.tags.map(t => (
+                        <span
+                          key={t}
+                          className="inline-flex items-center gap-1 text-[10px] text-cyan-200 bg-cyan-500/10 border border-cyan-500/20 rounded px-1.5 py-0.5"
+                        >
+                          #{t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Merge AI tags with whatever the user has typed
+                        const existing = tagsInput
+                          .split(',').map(t => t.trim().toLowerCase()).filter(Boolean)
+                        const merged = Array.from(new Set([...aiSuggestion.tags, ...existing])).slice(0, 20)
+                        setTagsInput(merged.join(', '))
+                        // Re-infer category from the enriched tag set
+                        setCategory(inferCategoryFromTags(merged))
+                        // If the user hasn't written a note yet, seed the
+                        // summary so they have something to edit instead of
+                        // a blank box.
+                        if (!note.trim() && aiSuggestion.summary) {
+                          setNote(aiSuggestion.summary)
+                        }
+                        setAiSuggestion(null)
+                      }}
+                      className="text-[10px] font-medium text-white bg-cyan-600 hover:bg-cyan-500 transition-colors rounded px-2 py-1"
+                    >
+                      Use these
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAiSuggestion(null)}
+                      className="text-[10px] font-medium text-gray-400 hover:text-white transition-colors px-2 py-1"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Title (editable) */}
               <div>

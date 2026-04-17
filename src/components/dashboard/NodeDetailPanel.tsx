@@ -32,6 +32,7 @@ import type { EntryNode, UserMapData, CaseFile } from '@/lib/constellation-types
 import { supabase } from '@/lib/supabase'
 import { renderMarkdown, normalizeWikilinkKey, extractWikilinkTargets } from '@/lib/markdown-lite'
 import NoteEditorModal from './NoteEditorModal'
+import ReaderView from './ReaderView'
 
 // Category display config
 const CATEGORY_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
@@ -88,6 +89,7 @@ export default function NodeDetailPanel({
   onCaseFilesChanged,
 }: NodeDetailPanelProps) {
   const [noteEditorOpen, setNoteEditorOpen] = useState(false)
+  const [readerMode, setReaderMode] = useState<'preview' | 'reader'>('preview')
   if (!entry) return null
 
   const cat = CATEGORY_CONFIG[entry.category] || CATEGORY_CONFIG.combination
@@ -175,9 +177,43 @@ export default function NodeDetailPanel({
       </div>
 
       <div className="px-4 py-4 space-y-4 pb-6 sm:pb-4">
-        {/* Source-type-aware preview */}
+        {/* Source-type-aware preview with optional Reader View tab.
+            Reader mode is only offered for external artifacts whose source
+            supports article extraction (news, blogs, Wikipedia, Substack,
+            Medium). Video / social platforms stay in Preview. */}
         {isExternal ? (
-          <ExternalSourcePreview entry={entry} />
+          <>
+            {readerModeApplicable(entry) && entry.externalUrl && (
+              <div className="inline-flex items-center rounded-lg bg-white/[0.04] border border-white/10 p-0.5 text-[11px]" role="group" aria-label="View mode">
+                <button
+                  onClick={() => setReaderMode('preview')}
+                  aria-pressed={readerMode === 'preview'}
+                  className={[
+                    'px-2.5 py-1 rounded-md transition-colors',
+                    readerMode === 'preview' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-gray-200'
+                  ].join(' ')}
+                >
+                  Preview
+                </button>
+                <button
+                  onClick={() => setReaderMode('reader')}
+                  aria-pressed={readerMode === 'reader'}
+                  className={[
+                    'px-2.5 py-1 rounded-md transition-colors flex items-center gap-1',
+                    readerMode === 'reader' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-gray-200'
+                  ].join(' ')}
+                >
+                  <BookOpen className="w-3 h-3" />
+                  Reader
+                </button>
+              </div>
+            )}
+            {readerMode === 'reader' && entry.externalUrl ? (
+              <ReaderView url={entry.externalUrl} sourcePlatform={entry.sourcePlatform} />
+            ) : (
+              <ExternalSourcePreview entry={entry} />
+            )}
+          </>
         ) : (
           entry.imageUrl && (
             <div className="relative rounded-xl overflow-hidden">
@@ -462,6 +498,20 @@ export default function NodeDetailPanel({
       )}
     </div>
   )
+}
+
+/**
+ * Is reader-view extraction likely to produce a useful result for this
+ * artifact? Text-first sources (news, blogs, Wikipedia, Substack, Medium)
+ * get a Reader tab. Video / social / image-first sources don't — the
+ * existing Preview is what users actually want for those.
+ */
+function readerModeApplicable(entry: EntryNode): boolean {
+  const readerSources = new Set([
+    'news', 'website', 'substack', 'medium', 'wikipedia', 'archive',
+    'mufon', 'nuforc', 'blackvault', 'coasttocoast',
+  ])
+  return !!entry.sourceType && readerSources.has(entry.sourceType)
 }
 
 // ─────────────────────────────────────────────────────────────────

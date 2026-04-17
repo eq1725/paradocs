@@ -13,12 +13,12 @@
  *      edit / delete actions, case-file-scoped insights.
  */
 
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft, Plus, FolderOpen, MoreHorizontal, Edit3, Trash2,
   Compass, Sparkles as SparklesIcon, Loader2, X as XIcon, Check,
-  Share2, Globe, Lock, Copy,
+  Share2, Globe, Lock, Copy, Users, Mail, Crown,
 } from 'lucide-react'
 import type { EntryNode, UserMapData, CaseFile } from '@/lib/constellation-types'
 import type { EmergentConnection, Insight } from '@/lib/constellation-data'
@@ -106,21 +106,60 @@ export default function LabCasesTab({
         />
       )}
 
-      {/* Case file cards */}
+      {/* Case file cards — grouped into "My case files" and "Shared with me" */}
       {caseFiles.length === 0 ? (
         <CasesEmptyState onCreate={onRefresh} />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {caseFiles.map(cf => (
-            <CaseFileCard
-              key={cf.id}
-              caseFile={cf}
-              userMapData={userMapData}
-              onClick={() => setSelectedCaseFileId(cf.id)}
-              onEdit={() => setEditingCaseFile(cf)}
-            />
-          ))}
-        </div>
+        <>
+          {(() => {
+            const owned = caseFiles.filter(cf => !cf.is_shared_with_me)
+            const shared = caseFiles.filter(cf => cf.is_shared_with_me)
+            return (
+              <>
+                {owned.length > 0 && (
+                  <div>
+                    {shared.length > 0 && (
+                      <div className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-2">
+                        My case files ({owned.length})
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {owned.map(cf => (
+                        <CaseFileCard
+                          key={cf.id}
+                          caseFile={cf}
+                          userMapData={userMapData}
+                          onClick={() => setSelectedCaseFileId(cf.id)}
+                          onEdit={() => setEditingCaseFile(cf)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {shared.length > 0 && (
+                  <div className={owned.length > 0 ? 'mt-5' : ''}>
+                    <div className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-2 flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      Shared with me ({shared.length})
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {shared.map(cf => (
+                        <CaseFileCard
+                          key={cf.id}
+                          caseFile={cf}
+                          userMapData={userMapData}
+                          onClick={() => setSelectedCaseFileId(cf.id)}
+                          onEdit={() => {/* non-owners don't get edit access */}}
+                          readOnly
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )
+          })()}
+        </>
       )}
 
       {/* Edit modal */}
@@ -150,11 +189,13 @@ function CaseFileCard({
   userMapData,
   onClick,
   onEdit,
+  readOnly,
 }: {
   caseFile: CaseFile
   userMapData: UserMapData | null
   onClick: () => void
   onEdit: () => void
+  readOnly?: boolean
 }) {
   // Preview thumbnails — first 3 artifacts in this case file with images.
   const previews = useMemo(() => {
@@ -206,23 +247,46 @@ function CaseFileCard({
           <h3 className="text-sm font-semibold text-white leading-snug line-clamp-2 flex-1 group-hover:text-primary-200 transition-colors">
             {caseFile.title}
           </h3>
-          <button
-            onClick={e => { e.stopPropagation(); onEdit() }}
-            className="p-1 rounded-md text-gray-500 hover:text-white hover:bg-gray-800 transition-colors flex-shrink-0"
-            title="Edit case file"
-            aria-label="Edit case file"
-          >
-            <MoreHorizontal className="w-3.5 h-3.5" />
-          </button>
+          {!readOnly && (
+            <button
+              onClick={e => { e.stopPropagation(); onEdit() }}
+              className="p-1 rounded-md text-gray-500 hover:text-white hover:bg-gray-800 transition-colors flex-shrink-0"
+              title="Edit case file"
+              aria-label="Edit case file"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
         {caseFile.description && (
           <p className="text-xs text-gray-400 line-clamp-2 leading-snug">
             {caseFile.description}
           </p>
         )}
-        <div className="flex items-center gap-2 text-[10px] text-gray-500">
-          <span className="tabular-nums">{caseFile.artifact_count}</span>
-          <span>{caseFile.artifact_count === 1 ? 'save' : 'saves'}</span>
+        <div className="flex items-center justify-between gap-2 text-[10px] text-gray-500">
+          <div className="flex items-center gap-1">
+            <span className="tabular-nums">{caseFile.artifact_count}</span>
+            <span>{caseFile.artifact_count === 1 ? 'save' : 'saves'}</span>
+            {caseFile.role && caseFile.role !== 'owner' && (
+              <span className="ml-1 text-[9px] uppercase tracking-wider text-gray-600">· {caseFile.role}</span>
+            )}
+          </div>
+          {caseFile.is_shared_with_me && caseFile.owner && (
+            <span className="flex items-center gap-1 truncate text-gray-400">
+              {caseFile.owner.avatarUrl ? (
+                <img
+                  src={caseFile.owner.avatarUrl}
+                  alt=""
+                  className="w-3.5 h-3.5 rounded-full object-cover"
+                />
+              ) : (
+                <Crown className="w-3 h-3" />
+              )}
+              <span className="truncate max-w-[80px]">
+                {caseFile.owner.displayName || caseFile.owner.username || 'owner'}
+              </span>
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -674,6 +738,15 @@ function EditCaseFileModal({
             </div>
           </div>
 
+          {/* Collaborators section */}
+          <div className="pt-2 border-t border-white/5">
+            <label className="text-[10px] font-medium uppercase tracking-wider text-gray-500 mb-1.5 block flex items-center gap-1">
+              <Users className="w-3 h-3" />
+              Collaborators
+            </label>
+            <CollaboratorsSection caseFileId={caseFile.id} />
+          </div>
+
           {/* Public sharing section */}
           <div className="pt-2 border-t border-white/5">
             <label className="text-[10px] font-medium uppercase tracking-wider text-gray-500 mb-1.5 block flex items-center gap-1">
@@ -773,6 +846,231 @@ function EditCaseFileModal({
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Collaborators section (inside EditCaseFileModal)
+// ─────────────────────────────────────────────────────────────────
+
+interface Collaborator {
+  id: string
+  role: 'owner' | 'editor' | 'viewer'
+  status: 'accepted' | 'pending'
+  pendingEmail: string | null
+  user: {
+    id: string
+    displayName: string | null
+    username: string | null
+    avatarUrl: string | null
+  } | null
+}
+
+function CollaboratorsSection({ caseFileId }: { caseFileId: string }) {
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([])
+  const [loading, setLoading] = useState(true)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('viewer')
+  const [inviting, setInviting] = useState(false)
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null)
+  const [acceptLink, setAcceptLink] = useState<string | null>(null)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const sess = await supabase.auth.getSession()
+      const token = sess.data.session?.access_token
+      if (!token) return
+      const res = await fetch('/api/constellation/case-files/' + caseFileId + '/collaborators', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setCollaborators(data.collaborators || [])
+      }
+    } catch (err) {
+      console.error('[collaborators:load]', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [caseFileId])
+
+  const handleInvite = async () => {
+    const email = inviteEmail.trim().toLowerCase()
+    if (!email) return
+    setInviting(true); setInviteError(null); setInviteSuccess(null); setAcceptLink(null)
+    try {
+      const sess = await supabase.auth.getSession()
+      const token = sess.data.session?.access_token
+      if (!token) throw new Error('Sign in expired')
+      const res = await fetch('/api/constellation/case-files/' + caseFileId + '/collaborators', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ email, role: inviteRole }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Invite failed' }))
+        throw new Error(err.error || 'Invite failed')
+      }
+      const data = await res.json()
+      setInviteEmail('')
+      if (data.emailStatus === 'sent') {
+        setInviteSuccess('Invite emailed to ' + email)
+      } else if (data.emailStatus === 'skipped_no_resend') {
+        setInviteSuccess('Invite created. Email not sent (Resend not configured).')
+        if (data.acceptUrl) setAcceptLink(data.acceptUrl)
+      } else {
+        setInviteSuccess('Invite created, but email delivery failed.')
+        if (data.acceptUrl) setAcceptLink(data.acceptUrl)
+      }
+      await load()
+    } catch (err: any) {
+      setInviteError(err?.message || 'Something went wrong')
+    } finally {
+      setInviting(false)
+    }
+  }
+
+  const handleRemove = async (cid: string) => {
+    try {
+      const sess = await supabase.auth.getSession()
+      const token = sess.data.session?.access_token
+      if (!token) return
+      await fetch(
+        '/api/constellation/case-files/' + caseFileId + '/collaborators?cid=' + cid,
+        { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }
+      )
+      await load()
+    } catch (err) {
+      console.error('[collaborators:remove]', err)
+    }
+  }
+
+  const handleRoleChange = async (cid: string, role: 'editor' | 'viewer') => {
+    try {
+      const sess = await supabase.auth.getSession()
+      const token = sess.data.session?.access_token
+      if (!token) return
+      await fetch(
+        '/api/constellation/case-files/' + caseFileId + '/collaborators?cid=' + cid,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ role }),
+        }
+      )
+      await load()
+    } catch (err) {
+      console.error('[collaborators:role]', err)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      {/* Existing collaborators */}
+      {loading ? (
+        <div className="flex items-center gap-2 text-[11px] text-gray-500">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Loading collaborators...
+        </div>
+      ) : collaborators.length === 0 ? (
+        <p className="text-[11px] text-gray-500 italic">
+          No collaborators yet. Invite someone to co-investigate this case file.
+        </p>
+      ) : (
+        <ul className="space-y-1">
+          {collaborators.map(c => (
+            <li key={c.id} className="flex items-center gap-2 p-2 rounded-md bg-white/[0.03] border border-white/5">
+              <div className="flex-shrink-0">
+                {c.user?.avatarUrl ? (
+                  <img src={c.user.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center">
+                    <Mail className="w-3 h-3 text-gray-500" />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs text-white truncate">
+                  {c.user?.displayName || c.user?.username || c.pendingEmail}
+                </div>
+                <div className="text-[10px] text-gray-500">
+                  {c.status === 'pending' ? 'Pending · ' : ''}{c.role}
+                </div>
+              </div>
+              <select
+                value={c.role}
+                onChange={e => handleRoleChange(c.id, e.target.value as 'editor' | 'viewer')}
+                disabled={c.role === 'owner'}
+                className="text-[10px] bg-gray-900 border border-gray-800 rounded px-1.5 py-0.5 text-gray-300 focus:outline-none focus:border-primary-500/50 disabled:opacity-40"
+                aria-label="Change role"
+              >
+                <option value="viewer">Viewer</option>
+                <option value="editor">Editor</option>
+              </select>
+              <button
+                onClick={() => handleRemove(c.id)}
+                className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors flex-shrink-0"
+                title="Remove collaborator"
+                aria-label="Remove collaborator"
+              >
+                <XIcon className="w-3 h-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Invite by email */}
+      <div className="flex items-center gap-1.5 mt-2">
+        <input
+          type="email"
+          value={inviteEmail}
+          onChange={e => setInviteEmail(e.target.value)}
+          placeholder="collaborator@example.com"
+          className="flex-1 px-2 py-1.5 bg-gray-900 border border-gray-800 rounded-md text-xs text-white placeholder-gray-600 focus:outline-none focus:border-primary-500/50"
+        />
+        <select
+          value={inviteRole}
+          onChange={e => setInviteRole(e.target.value as 'editor' | 'viewer')}
+          className="text-[11px] bg-gray-900 border border-gray-800 rounded-md px-1.5 py-1.5 text-gray-300 focus:outline-none focus:border-primary-500/50"
+        >
+          <option value="viewer">Viewer</option>
+          <option value="editor">Editor</option>
+        </select>
+        <button
+          type="button"
+          onClick={handleInvite}
+          disabled={inviting || !inviteEmail.trim()}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-white bg-primary-600 hover:bg-primary-500 transition-colors disabled:opacity-40"
+        >
+          {inviting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+          Invite
+        </button>
+      </div>
+      {inviteError && <p className="text-[10px] text-red-400">{inviteError}</p>}
+      {inviteSuccess && <p className="text-[10px] text-emerald-400">{inviteSuccess}</p>}
+      {acceptLink && (
+        <div className="flex items-center gap-1.5 p-1.5 rounded bg-black/40 border border-white/5">
+          <input
+            readOnly
+            value={acceptLink}
+            onFocus={e => e.currentTarget.select()}
+            className="flex-1 bg-transparent text-[10px] text-gray-300 font-mono focus:outline-none truncate"
+          />
+          <button
+            type="button"
+            onClick={() => { navigator.clipboard?.writeText(acceptLink); setAcceptLink(null) }}
+            className="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] bg-white/5 text-gray-300 hover:bg-white/10"
+          >
+            Copy
+          </button>
+        </div>
+      )}
     </div>
   )
 }
