@@ -535,6 +535,46 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     }).catch(function() {})
   }
 
+  // These useEffects were previously placed AFTER the loading/!report early
+  // returns below, which triggered react-hooks/rules-of-hooks. Moved up so
+  // they run every render; they no-op internally when `report` isn't loaded.
+  //
+  // Session 2 integration stubs — behavioral event firing. Fire case_view on page load.
+  useEffect(function() {
+    if (!report || !report.id) return
+    try {
+      // Check gate status for free users (stub for useGateStatus)
+      // When Session 2 builds CaseViewGate + useGateStatus, wire here.
+    } catch (e) {
+      // Non-critical
+    }
+  }, [report?.id])
+
+  // Scroll depth tracking stub for Session 2
+  useEffect(function() {
+    if (!report || !report.id) return
+    var _report = report
+    var _isCurated = (_report as any).source_type === 'curated' || (_report as any).source_type === 'editorial'
+    if (_isCurated) return
+    var milestones = [25, 50, 75, 100]
+    var firedMilestones: Record<number, boolean> = {}
+
+    function handleScroll() {
+      var scrollHeight = document.documentElement.scrollHeight - window.innerHeight
+      if (scrollHeight <= 0) return
+      var scrollPercent = Math.round((window.scrollY / scrollHeight) * 100)
+      milestones.forEach(function(milestone) {
+        if (scrollPercent >= milestone && !firedMilestones[milestone]) {
+          firedMilestones[milestone] = true
+          // Stub: fire scroll_depth event when Session 2's useFeedEvents hook exists.
+        }
+      })
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return function() { window.removeEventListener('scroll', handleScroll) }
+  }, [report?.id])
+
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
@@ -596,48 +636,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
       paradocsAssessment = null
     }
   }
-
-  // Session 2 integration stubs — behavioral event firing
-  // TODO: Replace with useFeedEvents hook when Session 2 builds it
-  // Fire case_view on page load
-  useEffect(function() {
-    if (!report || !report.id) return
-    // Stub: fire case_view event for algorithmic feed ranking
-    // When Session 2's useFeedEvents hook exists, replace with:
-    // feedEvents.trackCaseView(report.id, report.category)
-    try {
-      // Check gate status for free users (stub for useGateStatus)
-      // When Session 2 builds CaseViewGate + useGateStatus, wire here:
-      // var gateStatus = useGateStatus()
-      // if (gateStatus.isGated) { show CaseViewGate component }
-    } catch (e) {
-      // Non-critical
-    }
-  }, [report?.id])
-
-  // Scroll depth tracking stub for Session 2
-  useEffect(function() {
-    if (!report || !report.id || isCurated) return
-    var milestones = [25, 50, 75, 100]
-    var firedMilestones: Record<number, boolean> = {}
-
-    function handleScroll() {
-      var scrollHeight = document.documentElement.scrollHeight - window.innerHeight
-      if (scrollHeight <= 0) return
-      var scrollPercent = Math.round((window.scrollY / scrollHeight) * 100)
-      milestones.forEach(function(milestone) {
-        if (scrollPercent >= milestone && !firedMilestones[milestone]) {
-          firedMilestones[milestone] = true
-          // Stub: fire scroll_depth event
-          // When Session 2's useFeedEvents hook exists, replace with:
-          // feedEvents.trackScrollDepth(report.id, milestone)
-        }
-      })
-    }
-
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return function() { window.removeEventListener('scroll', handleScroll) }
-  }, [report?.id, isCurated])
 
   return (
     <>

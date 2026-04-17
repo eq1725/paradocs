@@ -96,6 +96,14 @@ interface UsePersonalizationReturn extends PersonalizationState {
   updateInterests: (categories: PhenomenonCategory[]) => Promise<{ success: boolean; error?: string }>
   updateAll: (data: Partial<UserPersonalization>) => Promise<{ success: boolean; error?: string }>
   clearLocation: () => Promise<{ success: boolean; error?: string }>
+  /**
+   * Async helper (not a React hook, despite the historical name) that
+   * requests the browser's geolocation and updates the user's stored
+   * location preferences. Renamed from useCurrentLocation so the
+   * react-hooks lint rule doesn't flag it as a misused hook.
+   */
+  getCurrentLocation: () => Promise<{ success: boolean; error?: string }>
+  /** @deprecated — alias for getCurrentLocation; kept temporarily for callers. */
   useCurrentLocation: () => Promise<{ success: boolean; error?: string }>
   refresh: () => Promise<void>
   refreshInsights: () => Promise<void>
@@ -461,7 +469,8 @@ export function usePersonalization(): UsePersonalizationReturn {
     updateInterests,
     updateAll,
     clearLocation,
-    useCurrentLocation,
+    getCurrentLocation: useCurrentLocation,
+    useCurrentLocation, // deprecated alias — callers should migrate to getCurrentLocation
     refresh: fetchPersonalization,
     refreshInsights: fetchInsights
   }

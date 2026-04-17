@@ -5,13 +5,16 @@
  * Used for weekly digests, notifications, and other automated emails.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// Intentional dynamic require so the service stays optional even when the
+// Resend package isn't present in every environment.
+/* eslint-disable */
 let ResendClass: any = null
 try {
   ResendClass = require('resend').Resend
 } catch {
   // Resend not installed — will throw at runtime if used
 }
+/* eslint-enable */
 
 // Initialize Resend client (lazy - only when needed)
 let resendClient: any = null

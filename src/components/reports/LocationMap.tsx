@@ -109,6 +109,33 @@ export default function LocationMap({
     }
   }
 
+  // Hooks must run every render — these map callbacks live above any
+  // conditional return to satisfy react-hooks/rules-of-hooks.
+  const handleMapClick = useCallback((e: any) => {
+    const features = e.features
+    if (!features || features.length === 0) return
+    const feature = features[0]
+    if (feature.properties?.slug) {
+      window.location.href = `/report/${feature.properties.slug}`
+    }
+  }, [])
+
+  const handleMouseEnter = useCallback(() => {
+    const map = mapRef.current
+    if (map) {
+      const canvas = map.getMap?.()?.getCanvas?.() || map.getCanvas?.()
+      if (canvas) canvas.style.cursor = 'pointer'
+    }
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
+    const map = mapRef.current
+    if (map) {
+      const canvas = map.getMap?.()?.getCanvas?.() || map.getCanvas?.()
+      if (canvas) canvas.style.cursor = ''
+    }
+  }, [])
+
   // Don't render if no coordinates
   if (!latitude || !longitude) {
     return null
@@ -174,31 +201,6 @@ export default function LocationMap({
     'esoteric_practices', '#8b5cf6',
     '#9ca3af', // fallback
   ] as any
-
-  const handleMapClick = useCallback((e: any) => {
-    const features = e.features
-    if (!features || features.length === 0) return
-    const feature = features[0]
-    if (feature.properties?.slug) {
-      window.location.href = `/report/${feature.properties.slug}`
-    }
-  }, [])
-
-  const handleMouseEnter = useCallback(() => {
-    const map = mapRef.current
-    if (map) {
-      const canvas = map.getMap?.()?.getCanvas?.() || map.getCanvas?.()
-      if (canvas) canvas.style.cursor = 'pointer'
-    }
-  }, [])
-
-  const handleMouseLeave = useCallback(() => {
-    const map = mapRef.current
-    if (map) {
-      const canvas = map.getMap?.()?.getCanvas?.() || map.getCanvas?.()
-      if (canvas) canvas.style.cursor = ''
-    }
-  }, [])
 
   return (
     <div className={classNames('glass-card overflow-hidden', className)} style={{ overflowX: 'hidden' }}>

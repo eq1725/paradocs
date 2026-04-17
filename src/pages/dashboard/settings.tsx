@@ -148,7 +148,7 @@ export default function SettingsPage() {
     loading: personalizationLoading,
     saving: personalizationSaving,
     updateAll: updatePersonalization,
-    useCurrentLocation,
+    getCurrentLocation,
     clearLocation
   } = usePersonalization()
 
@@ -296,7 +296,7 @@ export default function SettingsPage() {
     setError(null)
 
     try {
-      const result = await useCurrentLocation()
+      const result = await getCurrentLocation()
       if (!result.success) {
         throw new Error(result.error || 'Failed to get location')
       }
