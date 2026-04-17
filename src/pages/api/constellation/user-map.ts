@@ -28,8 +28,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Invalid token' })
     }
 
-    // Parallel fetch: constellation entries, total phenomena count, streak, connections, theories, research hub artifacts, case file memberships
-    const [entriesResult, totalResult, streakResult, connectionsResult, theoriesResult, artifactsResult, caseFileLinksResult, caseFilesListResult] = await Promise.all([
+    // Parallel fetch: constellation entries, total phenomena count, streak, connections, theories, research hub artifacts, case file memberships, case files list, legacy saved_reports
+    const [entriesResult, totalResult, streakResult, connectionsResult, theoriesResult, artifactsResult, caseFileLinksResult, caseFilesListResult, savedReportsResult] = await Promise.all([
       // User's logged constellation entries with report details
       supabase
         .from('constellation_entries')
@@ -41,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           tags,
           created_at,
           updated_at,
-          report:reports(id, title, slug, category, location_name, event_date, summary, report_media(url, media_type, is_primary))
+          report:reports(id, title, slug, category, location_name, event_date, summary, latitude, longitude, report_media(url, media_type, is_primary))
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false }),
@@ -96,6 +96,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .eq('user_id', user.id)
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true }),
+
+      // Legacy "Save" button bookmarks — saved_reports. These existed before
+      // the constellation flow and aren't automatically mirrored into
+      // constellation_entries. We fold them into the unified feed so
+      // nothing the user has saved is invisible.
+      supabase
+        .from('saved_reports')
+        .select(`
+          id,
+          report_id,
+          collection_name,
+          created_at,
+          report:reports(id, title, slug, category, location_name, event_date, summary, latitude, longitude, report_media(url, media_type, is_primary))
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false }),
     ])
 
     const entries = entriesResult.data || []
@@ -106,6 +122,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const externalArtifacts = (artifactsResult as any).data || []
     const caseFileLinks = (caseFileLinksResult as any).data || []
     const caseFilesList = (caseFilesListResult as any).data || []
+    const savedReportsRows = (savedReportsResult as any).data || []
 
     // Index (artifact_id → case_file_ids[]) for fast lookup when building nodes.
     const caseFileIdsByArtifact: Record<string, string[]> = {}
@@ -178,6 +195,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         category: cat,
         imageUrl: primaryImage?.url || null,
         locationName: report?.location_name || null,
+        latitude: report?.latitude ?? null,
+        longitude: report?.longitude ?? null,
         eventDate: report?.event_date || null,
         summary: report?.summary || null,
         note: entry.note || '',
@@ -187,6 +206,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         updatedAt: entry.updated_at,
       }
     })
+
+    // ── Fold in legacy saved_reports that don't already have a constellation
+    // entry. These are the user's raw bookmarks — no verdict, no tags, no
+    // note — but they still belong in the unified feed so the user's "saves"
+    // count matches what they'd expect.
+    const constellationReportIds = new Set(entries.map((e: any) => e.report_id).filter(Boolean))
+    const savedOnlyNodes = savedReportsRows
+      .filter((s: any) => s.report_id && !constellationReportIds.has(s.report_id))
+      .map(function(s: any) {
+        const report = s.report
+        const cat = report?.category || 'combination'
+        if (!categoryMap[cat]) categoryMap[cat] = { entries: 0, verdicts: {}, reportIds: [] }
+        categoryMap[cat].entries++
+        categoryMap[cat].verdicts['needs_info'] = (categoryMap[cat].verdicts['needs_info'] || 0) + 1
+        categoryMap[cat].reportIds.push(s.report_id)
+
+        const media = report?.report_media || []
+        const images = media.filter((m: any) => m.media_type === 'image' || m.url?.match(/\.(jpg|jpeg|png|webp|gif)/i))
+        const primaryImage = images.find((m: any) => m.is_primary) || images[0]
+
+        return {
+          id: 'saved:' + s.id, // namespace to avoid collision with constellation_entry ids
+          reportId: s.report_id,
+          name: report?.title || 'Saved report',
+          slug: report?.slug || '',
+          category: cat,
+          imageUrl: primaryImage?.url || null,
+          locationName: report?.location_name || null,
+          latitude: report?.latitude ?? null,
+          longitude: report?.longitude ?? null,
+          eventDate: report?.event_date || null,
+          summary: report?.summary || null,
+          note: '',
+          verdict: 'needs_info',
+          tags: [] as string[],
+          loggedAt: s.created_at,
+          updatedAt: s.created_at,
+          // Flag so the UI can optionally show a "bookmarked" badge and
+          // invite users to upgrade to a richer logged entry.
+          isLegacyBookmark: true,
+        }
+      })
 
     // Build tag-based connections (entries that share tags)
     const tagConnections: Array<{
@@ -284,8 +345,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     })
 
-    // Merge all entry nodes
-    var allEntryNodes = entryNodes.concat(externalEntryNodes)
+    // Merge all entry nodes: constellation logs + legacy bookmarks + external artifacts.
+    var allEntryNodes = entryNodes.concat(savedOnlyNodes).concat(externalEntryNodes)
 
     // Build per-case-file artifact counts for the CaseFileBar.
     const artifactCountByCaseFile: Record<string, number> = {}

@@ -19,7 +19,7 @@
  * SWC: Uses var + function(){} for compatibility with MobileBottomTabs imports.
  */
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
@@ -32,35 +32,20 @@ import {
   Bell,
   PlusCircle,
   Lock,
-  Sparkles,
-  Sparkles as SparklesIcon,
-  ChevronDown,
   Search,
-  Filter,
   Plus,
   ChevronLeft,
   ChevronRight,
   LogIn,
   Telescope,
-  ArrowDown,
 } from 'lucide-react'
 import Layout from '@/components/Layout'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
-import NodeDetailPanel from '@/components/dashboard/NodeDetailPanel'
-import ConstellationSidebar from '@/components/dashboard/ConstellationSidebar'
-import ConstellationListView from '@/components/dashboard/ConstellationListView'
-import { InsightCardInline } from '@/components/dashboard/InsightsPanel'
-import PasteUrlButton from '@/components/dashboard/PasteUrlButton'
-import CaseFileBar from '@/components/dashboard/CaseFileBar'
-import LabProgressTracker from '@/components/dashboard/LabProgressTracker'
-import type { EntryNode, UserMapData, CaseFile } from '@/lib/constellation-types'
-import {
-  inferCategoryFromTags,
-  CONSTELLATION_NODES,
-  detectEmergentConnections,
-  detectInsights,
-} from '@/lib/constellation-data'
+import LabSavesTab from '@/components/dashboard/LabSavesTab'
+import LabCasesTab from '@/components/dashboard/LabCasesTab'
+import LabMapTab from '@/components/dashboard/LabMapTab'
+import { useLabData } from '@/lib/hooks/useLabData'
 
 // Tab definitions
 var TAB_KEYS = ['saves', 'cases', 'map', 'notes'] as const
@@ -79,6 +64,11 @@ export default function LabPage() {
   var [isLoggedIn, setIsLoggedIn] = useState(false)
   var [userProfile, setUserProfile] = useState<any>(null)
   var [loading, setLoading] = useState(true)
+
+  // Centralized Lab data — one fetch powers Saves / Cases / Map.
+  // useLabData must be called unconditionally every render; it short-circuits
+  // internally when the user isn't authenticated.
+  var lab = useLabData()
 
   // Read tab from URL query
   useEffect(function() {
@@ -206,11 +196,37 @@ export default function LabPage() {
             <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
-          /* Tab content */
+          /* Tab content — Saves / Cases / Map share lab data; Notes is standalone */
           <div>
-            {activeTab === 'saves' && <SavesTab />}
-            {activeTab === 'cases' && <CasesTab />}
-            {activeTab === 'map' && <MapTab />}
+            {activeTab === 'saves' && (
+              <LabSavesTab
+                loading={lab.loading}
+                userMapData={lab.userMapData}
+                aiConnections={lab.aiConnections}
+                insights={lab.insights}
+                newInsights={lab.newInsights}
+                caseFiles={lab.caseFiles}
+                onRefresh={lab.refresh}
+              />
+            )}
+            {activeTab === 'cases' && (
+              <LabCasesTab
+                loading={lab.loading}
+                userMapData={lab.userMapData}
+                caseFiles={lab.caseFiles}
+                aiConnections={lab.aiConnections}
+                onRefresh={lab.refresh}
+              />
+            )}
+            {activeTab === 'map' && (
+              <LabMapTab
+                loading={lab.loading}
+                userMapData={lab.userMapData}
+                aiConnections={lab.aiConnections}
+                caseFiles={lab.caseFiles}
+                onRefresh={lab.refresh}
+              />
+            )}
             {activeTab === 'notes' && <NotesTab />}
           </div>
         )}
@@ -243,491 +259,6 @@ function UnauthenticatedPrompt() {
     </div>
   )
 }
-
-
-// ─────────────────────────────────────────────────────────────────
-// SAVES TAB — grid of saved reports with filter by category
-// Placeholder for inline AI insight cards
-// ─────────────────────────────────────────────────────────────────
-
-function SavesTab() {
-  var [savedReports, setSavedReports] = useState<any[]>([])
-  var [loading, setLoading] = useState(true)
-  var [filterCategory, setFilterCategory] = useState<string>('All')
-  var [total, setTotal] = useState(0)
-  var [page, setPage] = useState(1)
-  var limit = 12
-
-  var categories = ['All', 'UFO/UAP', 'Cryptid', 'Ghost', 'NDE', 'Psychic', 'Unexplained']
-
-  var fetchSaved = useCallback(async function() {
-    setLoading(true)
-    var sessionResult = await supabase.auth.getSession()
-    var token = sessionResult.data.session?.access_token
-    if (!token) { setLoading(false); return }
-
-    try {
-      var url = '/api/user/saved?page=' + page + '&limit=' + limit
-      if (filterCategory && filterCategory !== 'All') {
-        url += '&category=' + encodeURIComponent(filterCategory)
-      }
-      var res = await fetch(url, {
-        headers: { Authorization: 'Bearer ' + token }
-      })
-      if (res.ok) {
-        var data = await res.json()
-        setSavedReports(data.saved || [])
-        setTotal(data.total || 0)
-      }
-    } catch (err) {
-      console.error('Error fetching saved:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [page, filterCategory])
-
-  useEffect(function() {
-    fetchSaved()
-  }, [fetchSaved])
-
-  var totalPages = Math.ceil(total / limit)
-
-  return (
-    <div>
-      {/* AI Insight card placeholder */}
-      <div className="mb-6 p-4 bg-gradient-to-r from-primary-900/30 to-purple-900/20 border border-primary-700/30 rounded-xl">
-        <div className="flex items-start gap-3">
-          <Sparkles className="w-5 h-5 text-primary-400 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-white">AI Insights</p>
-            <p className="text-xs text-gray-400 mt-1">
-              Save 10+ reports and our AI will start detecting patterns in your collection.
-              Hypothesis suggestions will appear here.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Category filter pills */}
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
-        {categories.map(function(cat) {
-          return (
-            <button
-              key={cat}
-              onClick={function() { setFilterCategory(cat); setPage(1) }}
-              className={classNames(
-                'px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors',
-                filterCategory === cat
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-300'
-              )}
-            >
-              {cat}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Content */}
-      {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : savedReports.length === 0 ? (
-        <div className="text-center py-16">
-          <Bookmark className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-white mb-2">No saved reports yet</h3>
-          <p className="text-sm text-gray-400 max-w-sm mx-auto mb-6">
-            Browse the Feed and save reports that interest you. Your collection will grow here.
-          </p>
-          <Link
-            href="/discover"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-primary-400 bg-primary-600/10 border border-primary-600/20 hover:bg-primary-600/20 transition-colors"
-          >
-            Browse the Feed
-          </Link>
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {savedReports.map(function(item: any) {
-              var report = item.report || item
-              return (
-                <Link
-                  key={report.id || item.id}
-                  href={'/report/' + (report.slug || report.id)}
-                  className="group block p-4 bg-gray-900/80 border border-gray-800 rounded-xl hover:border-primary-600/40 hover:bg-gray-900 transition-all"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary-600/20 text-primary-400">
-                      {report.category || 'Unknown'}
-                    </span>
-                    <Bookmark className="w-4 h-4 text-primary-400" />
-                  </div>
-                  <h3 className="text-sm font-semibold text-white group-hover:text-primary-300 transition-colors line-clamp-2 mb-1">
-                    {report.title || 'Untitled Report'}
-                  </h3>
-                  {report.location && (
-                    <p className="text-xs text-gray-500">{report.location}</p>
-                  )}
-                  {report.feed_hook && (
-                    <p className="text-xs text-gray-400 mt-2 line-clamp-2">{report.feed_hook}</p>
-                  )}
-                </Link>
-              )
-            })}
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-6">
-              <button
-                onClick={function() { setPage(Math.max(1, page - 1)) }}
-                disabled={page <= 1}
-                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-sm text-gray-400">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                onClick={function() { setPage(Math.min(totalPages, page + 1)) }}
-                disabled={page >= totalPages}
-                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
-
-// ─────────────────────────────────────────────────────────────────
-// CASES TAB — Case files + submitted reports (Coming soon for Core+)
-// ─────────────────────────────────────────────────────────────────
-
-function CasesTab() {
-  return (
-    <div className="text-center py-16 sm:py-24">
-      <div className="p-4 bg-blue-600/10 rounded-full mx-auto w-fit mb-6">
-        <FolderOpen className="w-10 h-10 text-blue-400" />
-      </div>
-      <h3 className="text-lg sm:text-xl font-bold text-white mb-3">
-        Case Files & Research Hub
-      </h3>
-      <p className="text-sm text-gray-400 max-w-md mx-auto mb-4">
-        Build detailed case files, organize artifacts, and manage your submitted reports.
-        Cross-reference evidence across multiple sightings.
-      </p>
-      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600/10 border border-blue-600/20 text-blue-400 text-sm font-medium">
-        <Lock className="w-4 h-4" />
-        Coming soon for Core+ subscribers
-      </div>
-    </div>
-  )
-}
-
-
-// ─────────────────────────────────────────────────────────────────
-// MAP TAB — Interactive constellation ring map for logged entries
-// ─────────────────────────────────────────────────────────────────
-// Wikipedia Science Communities-style visualization: 11 category arcs around
-// a color ring, stars positioned inside their category's arc. External
-// artifacts (YouTube, Reddit, etc.) get categorized via client-side tag
-// inference and render as dimmer stars inside the matching segment.
-//
-// Desktop layout: map canvas + sidebar (category list + counts) side-by-side.
-// Mobile layout: map canvas on top, sidebar stacked below.
-
-function MapTab() {
-  var [userMapData, setUserMapData] = useState<UserMapData | null>(null)
-  var [loading, setLoading] = useState(true)
-  var [selectedEntry, setSelectedEntry] = useState<EntryNode | null>(null)
-  var [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  var [selectedCaseFileId, setSelectedCaseFileId] = useState<string | null>(null)
-  var [refreshKey, setRefreshKey] = useState(0)
-
-  // "New since last visit" tracking — we read the stored timestamp once on
-  // mount (so the strip shows what's new), then write the current time so
-  // the NEXT visit computes from this moment. Per-browser via localStorage.
-  var [lastVisitMs, setLastVisitMs] = useState<number | null>(null)
-  useEffect(function() {
-    try {
-      var raw = localStorage.getItem('paradocs_lab_last_visit_ms')
-      var prev = raw ? parseInt(raw, 10) : NaN
-      if (!isNaN(prev)) setLastVisitMs(prev)
-      // Stamp "now" as the visit time so the next session compares from here.
-      localStorage.setItem('paradocs_lab_last_visit_ms', String(Date.now()))
-    } catch (_err) { /* localStorage unavailable, fine */ }
-  }, [])
-
-  // Load / reload the user-map payload. Exposed via refreshKey so the paste-URL
-  // flow in Phase B can trigger a re-fetch after saving a new artifact.
-  useEffect(function() {
-    var cancelled = false
-    async function loadMap() {
-      setLoading(true)
-      try {
-        var sessionResult = await supabase.auth.getSession()
-        var token = sessionResult.data.session?.access_token
-        if (!token) {
-          if (!cancelled) setLoading(false)
-          return
-        }
-        var res = await fetch('/api/constellation/user-map', {
-          headers: { Authorization: 'Bearer ' + token },
-        })
-        if (res.ok) {
-          var data = await res.json()
-          if (!cancelled) setUserMapData(data)
-        }
-      } catch (err) {
-        console.error('Error fetching constellation map:', err)
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    loadMap()
-    return function() { cancelled = true }
-  }, [refreshKey])
-
-  // Normalize the payload so external artifacts (which come back from the
-  // API with category: 'external') land in their inferred phenomena segment.
-  // Paradocs reports already carry their real category, so they pass through.
-  var normalizedMapData = useMemo<UserMapData | null>(function() {
-    if (!userMapData) return null
-    var validCategoryIds = new Set(CONSTELLATION_NODES.map(function(n) { return n.id as string }))
-    var normalizedNodes = userMapData.entryNodes.map(function(entry) {
-      if (validCategoryIds.has(entry.category)) return entry
-      var inferred = inferCategoryFromTags(entry.tags)
-      return Object.assign({}, entry, { category: inferred })
-    })
-
-    // Recompute categoryStats so the sidebar counts match the normalized data.
-    var stats: Record<string, { entries: number; verdicts: Record<string, number> }> = {}
-    for (var i = 0; i < normalizedNodes.length; i++) {
-      var node = normalizedNodes[i]
-      if (!stats[node.category]) stats[node.category] = { entries: 0, verdicts: {} }
-      stats[node.category].entries++
-      stats[node.category].verdicts[node.verdict] = (stats[node.category].verdicts[node.verdict] || 0) + 1
-    }
-
-    return Object.assign({}, userMapData, {
-      entryNodes: normalizedNodes,
-      categoryStats: stats,
-    })
-  }, [userMapData])
-
-  // AI-detected emergent connections + library-wide insights. Computed once
-  // in the parent against real entries (teaser ghosts excluded) and passed
-  // down to both the canvas (for filament rendering) and the panels (for
-  // readable pattern cards + the node detail "Patterns" section).
-  var aiConnections = useMemo(function() {
-    if (!normalizedMapData) return []
-    var real = normalizedMapData.entryNodes.filter(function(e) { return !e.isGhost })
-    return detectEmergentConnections(real.map(function(e) {
-      return {
-        id: e.id,
-        category: e.category,
-        verdict: e.verdict,
-        tags: e.tags || [],
-        eventDate: e.eventDate,
-        locationName: e.locationName,
-      }
-    }))
-  }, [normalizedMapData])
-
-  var insights = useMemo(function() {
-    if (!normalizedMapData) return []
-    var real = normalizedMapData.entryNodes.filter(function(e) { return !e.isGhost })
-    return detectInsights(real.map(function(e) {
-      return {
-        id: e.id,
-        category: e.category,
-        verdict: e.verdict,
-        tags: e.tags || [],
-        eventDate: e.eventDate,
-        locationName: e.locationName,
-      }
-    }))
-  }, [normalizedMapData])
-
-  // "Highlight" action on insight cards — in list-only mode this means:
-  // open the first referenced entry's detail panel (so users see the actual
-  // evidence behind the pattern, not just the number).
-  var handleHighlight = useCallback(function(entryIds: string[]) {
-    if (entryIds.length === 0 || !normalizedMapData) return
-    var first = normalizedMapData.entryNodes.find(function(e) { return e.id === entryIds[0] })
-    if (first) setSelectedEntry(first)
-  }, [normalizedMapData])
-
-  // "New since last visit" — insights whose referenced entries include at
-  // least one that was logged after the stored timestamp.
-  var newInsights = useMemo(function() {
-    if (!lastVisitMs || !normalizedMapData) return []
-    var entryById: Record<string, EntryNode> = {}
-    for (var i = 0; i < normalizedMapData.entryNodes.length; i++) {
-      var n = normalizedMapData.entryNodes[i]
-      entryById[n.id] = n
-    }
-    return insights.filter(function(ins) {
-      return ins.entryIds.some(function(id: string) {
-        var e = entryById[id]
-        if (!e) return false
-        var t = new Date(e.loggedAt).getTime()
-        return !isNaN(t) && t > (lastVisitMs as number)
-      })
-    })
-  }, [insights, normalizedMapData, lastVisitMs])
-
-  var caseFiles: CaseFile[] = (normalizedMapData as any)?.caseFiles || []
-
-  // Hooks must run every render, so listRef / scrollToList live above any
-  // conditional return. Moving them below the loading-spinner early-return
-  // causes a hooks-rules violation and a client-side crash.
-  var listRef = useRef<HTMLDivElement | null>(null)
-  var scrollToList = useCallback(function() {
-    listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [])
-
-  if (loading && !userMapData) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
-  }
-
-  var entryCount = normalizedMapData?.entryNodes.length || 0
-  var categoriesCount = normalizedMapData ? Object.keys(normalizedMapData.categoryStats).length : 0
-
-  return (
-    <div className="space-y-4">
-      {/* ── Header row: count + Add-source action ── */}
-      <div className="flex items-center justify-between gap-2 px-1">
-        <div className="flex items-center gap-2 text-gray-500 min-w-0 text-xs">
-          <MapIcon className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-          <span className="truncate">
-            {entryCount === 0
-              ? 'No saves yet — save reports or paste URLs to start building'
-              : entryCount + ' ' + (entryCount === 1 ? 'save' : 'saves')
-                + (categoriesCount > 0 ? ' · ' + categoriesCount + ' ' + (categoriesCount === 1 ? 'category' : 'categories') : '')}
-          </span>
-        </div>
-        <PasteUrlButton onArtifactSaved={function() { setRefreshKey(function(k) { return k + 1 }) }} />
-      </div>
-
-      {/* ── Progress tracker — reason to come back tomorrow ── */}
-      {normalizedMapData && entryCount > 0 && (
-        <LabProgressTracker entries={normalizedMapData.entryNodes} />
-      )}
-
-      {/* ── "New since last visit" strip — recurring-value loop ── */}
-      {newInsights.length > 0 && (
-        <button
-          onClick={scrollToList}
-          className="w-full flex items-center justify-between gap-2 px-3 sm:px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500/15 via-cyan-500/10 to-transparent border border-cyan-500/30 hover:border-cyan-500/50 text-left transition-colors"
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="p-1.5 rounded-md bg-cyan-500/20 flex-shrink-0">
-              <SparklesIcon className="w-3.5 h-3.5 text-cyan-300" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-semibold text-white leading-tight">
-                Since you were last here: {newInsights.length} new pattern{newInsights.length === 1 ? '' : 's'}
-              </div>
-              <div className="text-[10px] text-cyan-300/80 leading-tight mt-0.5 truncate">
-                {newInsights[0].title}{newInsights.length > 1 ? ' · and more' : ''}
-              </div>
-            </div>
-          </div>
-          <ArrowDown className="w-4 h-4 text-cyan-300 flex-shrink-0" />
-        </button>
-      )}
-
-      {/* ── Case Files bar — the tree primitive ── */}
-      {caseFiles.length > 0 || entryCount > 0 ? (
-        <CaseFileBar
-          caseFiles={caseFiles}
-          selectedCaseFileId={selectedCaseFileId}
-          onSelectCaseFile={setSelectedCaseFileId}
-          onMutate={function() { setRefreshKey(function(k) { return k + 1 }) }}
-        />
-      ) : null}
-
-      {/* ── Category filter row — mobile-first pill strip ── */}
-      {entryCount > 0 && (
-        <ConstellationSidebar
-          userMapData={normalizedMapData}
-          selectedCategory={selectedCategory}
-          onCategoryClick={setSelectedCategory}
-          layout="pill"
-        />
-      )}
-
-      {/* ── AI insights — top-of-list so patterns surface first.
-           Top 3 shown inline as cards; the rest interleave into the feed. ── */}
-      {insights.length > 0 && (
-        <div>
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-2 px-1">
-            <SparklesIcon className="w-3 h-3 text-cyan-300" />
-            AI insights ({insights.length})
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {insights.slice(0, 3).map(function(ins) {
-              return (
-                <InsightCardInline
-                  key={ins.id}
-                  insight={ins}
-                  onHighlight={handleHighlight}
-                />
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── The list ── */}
-      <div ref={listRef}>
-        <ConstellationListView
-          userMapData={normalizedMapData}
-          aiConnections={aiConnections}
-          insights={insights}
-          selectedCategory={selectedCategory}
-          selectedCaseFileId={selectedCaseFileId}
-          selectedEntryId={selectedEntry?.id || null}
-          onSelectEntry={setSelectedEntry}
-          onHighlight={handleHighlight}
-        />
-      </div>
-
-      {/* NodeDetailPanel floats over the viewport with fixed positioning.
-          Carries aiConnections for the "Patterns" section and caseFiles so
-          users can add/remove the current entry from any case file. */}
-      {selectedEntry && (
-        <NodeDetailPanel
-          entry={selectedEntry}
-          userMapData={normalizedMapData}
-          aiConnections={aiConnections}
-          caseFiles={caseFiles}
-          onClose={function() { setSelectedEntry(null) }}
-          onTagClick={function() {}}
-          onEntryClick={function(entryId: string) {
-            var entry = normalizedMapData?.entryNodes.find(function(e) { return e.id === entryId })
-            if (entry) setSelectedEntry(entry)
-          }}
-          onCaseFilesChanged={function() { setRefreshKey(function(k) { return k + 1 }) }}
-        />
-      )}
-    </div>
-  )
-}
-
 
 
 // ─────────────────────────────────────────────────────────────────

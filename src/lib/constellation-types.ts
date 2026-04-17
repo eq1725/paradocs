@@ -46,6 +46,16 @@ export interface EntryNode {
   caseFileIds?: string[]
   /** Count of OTHER researchers who saved the same URL (externals only). */
   communitySaveCount?: number
+  /**
+   * True when this node was folded in from the legacy saved_reports table
+   * (the old "bookmark" button) and doesn't have a constellation_entry yet.
+   * Surfaces as a "Bookmarked" badge in the UI — users can upgrade to a
+   * richer logged entry by adding a verdict / note / tags.
+   */
+  isLegacyBookmark?: boolean
+  /** Optional geo coordinates (from reports.latitude / longitude). Used by LabGeoMap for pins. */
+  latitude?: number | null
+  longitude?: number | null
 }
 
 /** A user-created case file — the "folder" primitive for investigations. */
