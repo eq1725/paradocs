@@ -56,3 +56,6 @@ sql_chunks/
 sql_small_chunks/
 Adlet-profile.png
 research-hub-files.tar.gz
+
+# Allow supabase migrations despite the *.sql blanket ignore above
+!supabase/migrations/*.sql
