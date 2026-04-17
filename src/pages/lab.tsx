@@ -587,6 +587,14 @@ function MapTab() {
 
   var caseFiles: CaseFile[] = (normalizedMapData as any)?.caseFiles || []
 
+  // Hooks must run every render, so listRef / scrollToList live above any
+  // conditional return. Moving them below the loading-spinner early-return
+  // causes a hooks-rules violation and a client-side crash.
+  var listRef = useRef<HTMLDivElement | null>(null)
+  var scrollToList = useCallback(function() {
+    listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
   if (loading && !userMapData) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -597,11 +605,6 @@ function MapTab() {
 
   var entryCount = normalizedMapData?.entryNodes.length || 0
   var categoriesCount = normalizedMapData ? Object.keys(normalizedMapData.categoryStats).length : 0
-
-  var listRef = useRef<HTMLDivElement | null>(null)
-  var scrollToList = useCallback(function() {
-    listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [])
 
   return (
     <div className="space-y-4">
