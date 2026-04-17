@@ -9,7 +9,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import * as d3 from 'd3'
 import { CONSTELLATION_NODES } from '@/lib/constellation-data'
-import type { EntryNode } from '@/pages/dashboard/constellation'
+import type { EntryNode } from '@/lib/constellation-types'
 
 // ── Types ──
 

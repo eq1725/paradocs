@@ -45,6 +45,9 @@ import {
 import Layout from '@/components/Layout'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
+import ConstellationMapV2 from '@/components/dashboard/ConstellationMapV2'
+import NodeDetailPanel from '@/components/dashboard/NodeDetailPanel'
+import type { EntryNode, UserMapData } from '@/lib/constellation-types'
 
 // Tab definitions
 var TAB_KEYS = ['saves', 'cases', 'map', 'notes'] as const
@@ -418,25 +421,92 @@ function CasesTab() {
 
 
 // ─────────────────────────────────────────────────────────────────
-// MAP TAB — Constellation mind-map (Coming soon for Pro)
+// MAP TAB — Interactive constellation star-field for logged entries
 // ─────────────────────────────────────────────────────────────────
+// Fetches /api/constellation/user-map (existing endpoint that powers the
+// legacy /dashboard/constellation page) and feeds the canvas renderer.
+// Node detail slides out from the bottom (mobile) or right (desktop) on tap.
 
 function MapTab() {
-  return (
-    <div className="text-center py-16 sm:py-24">
-      <div className="p-4 bg-purple-600/10 rounded-full mx-auto w-fit mb-6">
-        <MapIcon className="w-10 h-10 text-purple-400" />
+  var [userMapData, setUserMapData] = useState<UserMapData | null>(null)
+  var [loading, setLoading] = useState(true)
+  var [selectedEntry, setSelectedEntry] = useState<EntryNode | null>(null)
+
+  useEffect(function() {
+    var cancelled = false
+    async function loadMap() {
+      try {
+        var sessionResult = await supabase.auth.getSession()
+        var token = sessionResult.data.session?.access_token
+        if (!token) {
+          if (!cancelled) setLoading(false)
+          return
+        }
+        var res = await fetch('/api/constellation/user-map', {
+          headers: { Authorization: 'Bearer ' + token },
+        })
+        if (res.ok) {
+          var data = await res.json()
+          if (!cancelled) setUserMapData(data)
+        }
+      } catch (err) {
+        console.error('Error fetching constellation map:', err)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    loadMap()
+    return function() { cancelled = true }
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
       </div>
-      <h3 className="text-lg sm:text-xl font-bold text-white mb-3">
-        Constellation Map
-      </h3>
-      <p className="text-sm text-gray-400 max-w-md mx-auto mb-4">
-        Visualize your research as an interactive star map. Each saved report becomes a star,
-        connected by shared tags, themes, and AI-detected patterns.
-      </p>
-      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600/10 border border-purple-600/20 text-purple-400 text-sm font-medium">
-        <Lock className="w-4 h-4" />
-        Coming soon for Pro subscribers
+    )
+  }
+
+  var entryCount = userMapData?.entryNodes.length || 0
+
+  return (
+    <div>
+      {/* Compact header strip — subtle context, no rank banner */}
+      <div className="flex items-center justify-between gap-2 mb-3 px-1 text-xs text-gray-500">
+        <div className="flex items-center gap-2">
+          <MapIcon className="w-3.5 h-3.5 text-purple-400" />
+          <span>
+            {entryCount === 0
+              ? 'No stars yet — log reports from the feed to light up your map'
+              : entryCount + ' ' + (entryCount === 1 ? 'star' : 'stars') + ' across ' + (userMapData?.stats.categoriesExplored || 0) + ' ' + ((userMapData?.stats.categoriesExplored || 0) === 1 ? 'category' : 'categories')}
+          </span>
+        </div>
+        <span className="hidden sm:inline text-[10px] text-gray-600">
+          Tap a star for details · Drag or pinch to explore
+        </span>
+      </div>
+
+      {/* Map container — must be relative so the NodeDetailPanel's
+          absolute positioning anchors to the canvas, not the viewport. */}
+      <div className="relative bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden">
+        <ConstellationMapV2
+          userMapData={userMapData}
+          onSelectEntry={setSelectedEntry}
+          selectedEntryId={selectedEntry?.id}
+        />
+
+        {selectedEntry && (
+          <NodeDetailPanel
+            entry={selectedEntry}
+            userMapData={userMapData}
+            onClose={function() { setSelectedEntry(null) }}
+            onTagClick={function() { setSelectedEntry(null) }}
+            onEntryClick={function(entryId: string) {
+              var entry = userMapData?.entryNodes.find(function(e) { return e.id === entryId })
+              if (entry) setSelectedEntry(entry)
+            }}
+          />
+        )}
       </div>
     </div>
   )

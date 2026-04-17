@@ -1,24 +1,15 @@
 import React, { useState } from 'react'
 import { X, Lightbulb, Plus, Check, Trash2, ChevronDown, ChevronRight, Globe, Lock, Edit3 } from 'lucide-react'
-import { EntryNode } from '@/pages/dashboard/constellation'
-import { ConnectionData } from './ConnectionDrawer'
+import type { EntryNode, ConnectionData, TheoryData } from '@/lib/constellation-types'
+
+// Re-exported for callers that still import TheoryData from this module.
+export type { TheoryData } from '@/lib/constellation-types'
 
 const VERDICT_ICONS: Record<string, { icon: string; color: string }> = {
   compelling: { icon: '✦', color: 'text-amber-400' },
   inconclusive: { icon: '◐', color: 'text-blue-400' },
   skeptical: { icon: '⊘', color: 'text-gray-400' },
   needs_info: { icon: '?', color: 'text-purple-400' },
-}
-
-export interface TheoryData {
-  id: string
-  title: string
-  thesis: string
-  entry_ids: string[]
-  connection_ids: string[]
-  is_public: boolean
-  created_at: string
-  updated_at: string
 }
 
 interface TheoryPanelProps {

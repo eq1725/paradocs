@@ -13,7 +13,7 @@ import {
 } from '@/lib/constellation-data'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
-import type { UserMapData, EntryNode } from '@/pages/dashboard/constellation'
+import type { UserMapData, EntryNode } from '@/lib/constellation-types'
 
 // Verdict display config
 const VERDICT_CONFIG: Record<string, { icon: string; color: string; label: string }> = {

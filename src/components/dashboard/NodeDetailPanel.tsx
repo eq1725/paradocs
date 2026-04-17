@@ -22,7 +22,7 @@ import {
   Lightbulb,
   BookOpen,
 } from 'lucide-react'
-import type { EntryNode, UserMapData } from '@/pages/dashboard/constellation'
+import type { EntryNode, UserMapData } from '@/lib/constellation-types'
 
 // Category display config
 const CATEGORY_CONFIG: Record<string, { label: string; icon: string; color: string }> = {

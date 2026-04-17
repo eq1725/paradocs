@@ -14,7 +14,7 @@ import Link from 'next/link'
 import { useForceSimulation, SimNode } from '@/lib/hooks/useForceSimulation'
 import { useCanvasRenderer, RenderState } from '@/lib/hooks/useCanvasRenderer'
 import { useMapInteractions, Transform } from '@/lib/hooks/useMapInteractions'
-import type { EntryNode, UserMapData } from '@/pages/dashboard/constellation'
+import type { EntryNode, UserMapData } from '@/lib/constellation-types'
 
 interface ConstellationMapV2Props {
   userMapData: UserMapData | null

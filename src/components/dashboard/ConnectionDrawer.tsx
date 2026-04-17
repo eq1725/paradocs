@@ -1,20 +1,15 @@
 import React, { useState } from 'react'
 import { X, Link2, ArrowRight, Check, Trash2 } from 'lucide-react'
-import { EntryNode } from '@/pages/dashboard/constellation'
+import type { EntryNode, ConnectionData } from '@/lib/constellation-types'
+
+// Re-exported for callers that still import ConnectionData from this module.
+export type { ConnectionData } from '@/lib/constellation-types'
 
 const VERDICT_ICONS: Record<string, { icon: string; color: string }> = {
   compelling: { icon: '✦', color: 'text-amber-400' },
   inconclusive: { icon: '◐', color: 'text-blue-400' },
   skeptical: { icon: '⊘', color: 'text-gray-400' },
   needs_info: { icon: '?', color: 'text-purple-400' },
-}
-
-export interface ConnectionData {
-  id: string
-  entryAId: string
-  entryBId: string
-  annotation: string
-  createdAt?: string
 }
 
 interface ConnectionDrawerProps {

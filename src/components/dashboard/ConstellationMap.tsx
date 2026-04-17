@@ -11,7 +11,7 @@ import {
   ConstellationStats,
 } from '@/lib/constellation-data'
 import { PhenomenonCategory } from '@/lib/database.types'
-import type { UserMapData, EntryNode } from '@/pages/dashboard/constellation'
+import type { UserMapData, EntryNode } from '@/lib/constellation-types'
 
 // Verdict → color mapping for star rendering
 const VERDICT_COLORS: Record<string, string> = {
