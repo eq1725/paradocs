@@ -13,7 +13,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, Link as LinkIcon, X as XIcon, Loader2, ExternalLink, Check, AlertCircle } from 'lucide-react'
+import { Plus, Link as LinkIcon, X as XIcon, Loader2, ExternalLink, Check, AlertCircle, Sparkles } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
 import { CONSTELLATION_NODES, inferCategoryFromTags } from '@/lib/constellation-data'
@@ -397,61 +397,71 @@ function PasteUrlModal({ onClose, onSaved }: PasteUrlModalProps) {
                 </div>
               </div>
 
-              {/* AI-suggested tags + summary (surfaces once Claude returns) */}
+              {/* AI-suggested tags + summary — distinct from the OG preview card
+                  above. Uses Sparkles iconography + an "AI" chip + accent border
+                  so users immediately recognize this is a suggestion generated
+                  from reading the source, not metadata pulled from the page. */}
               {autoTagging && (
-                <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                <div className="inline-flex items-center gap-2 text-[10px] text-cyan-300/80 bg-cyan-500/5 border border-cyan-500/20 rounded-md px-2 py-1">
                   <Loader2 className="w-3 h-3 animate-spin" />
-                  <span>Paradocs is reading this source...</span>
+                  <Sparkles className="w-3 h-3" />
+                  <span>Paradocs AI is reading the source...</span>
                 </div>
               )}
               {aiSuggestion && (aiSuggestion.tags.length > 0 || aiSuggestion.summary) && (
-                <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-2.5 space-y-2">
-                  <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-cyan-300">
-                    <LinkIcon className="w-3 h-3" />
-                    Paradocs suggests
-                  </div>
+                <div className="relative rounded-xl border-2 border-cyan-500/40 bg-gradient-to-br from-cyan-500/10 to-transparent p-3 space-y-2.5 shadow-[0_0_16px_rgba(34,211,238,0.08)]">
+                  {/* AI chip — absolutely positioned at top-right like a
+                      "AI generated" badge so it reads as meta-signal, not content */}
+                  <span className="absolute -top-2 right-3 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-cyan-950 bg-cyan-300 rounded px-1.5 py-0.5">
+                    <Sparkles className="w-2.5 h-2.5" />
+                    AI suggestion
+                  </span>
                   {aiSuggestion.summary && (
-                    <p className="text-xs text-gray-300 leading-snug">{aiSuggestion.summary}</p>
-                  )}
-                  {aiSuggestion.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {aiSuggestion.tags.map(t => (
-                        <span
-                          key={t}
-                          className="inline-flex items-center gap-1 text-[10px] text-cyan-200 bg-cyan-500/10 border border-cyan-500/20 rounded px-1.5 py-0.5"
-                        >
-                          #{t}
-                        </span>
-                      ))}
+                    <div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-cyan-300 mb-1">
+                        Paradocs read it so you don&apos;t have to
+                      </div>
+                      <p className="text-xs text-white leading-relaxed">{aiSuggestion.summary}</p>
                     </div>
                   )}
-                  <div className="flex items-center gap-1.5">
+                  {aiSuggestion.tags.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-cyan-300 mb-1">
+                        Suggested tags
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {aiSuggestion.tags.map(t => (
+                          <span
+                            key={t}
+                            className="inline-flex items-center text-[10px] font-medium text-cyan-100 bg-cyan-500/20 border border-cyan-400/30 rounded px-1.5 py-0.5"
+                          >
+                            #{t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1.5 pt-1">
                     <button
                       type="button"
                       onClick={() => {
-                        // Merge AI tags with whatever the user has typed
                         const existing = tagsInput
                           .split(',').map(t => t.trim().toLowerCase()).filter(Boolean)
                         const merged = Array.from(new Set([...aiSuggestion.tags, ...existing])).slice(0, 20)
                         setTagsInput(merged.join(', '))
-                        // Re-infer category from the enriched tag set
                         setCategory(inferCategoryFromTags(merged))
-                        // If the user hasn't written a note yet, seed the
-                        // summary so they have something to edit instead of
-                        // a blank box.
-                        if (!note.trim() && aiSuggestion.summary) {
-                          setNote(aiSuggestion.summary)
-                        }
+                        if (!note.trim() && aiSuggestion.summary) setNote(aiSuggestion.summary)
                         setAiSuggestion(null)
                       }}
-                      className="text-[10px] font-medium text-white bg-cyan-600 hover:bg-cyan-500 transition-colors rounded px-2 py-1"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-cyan-950 bg-cyan-300 hover:bg-cyan-200 transition-colors rounded px-2.5 py-1"
                     >
-                      Use these
+                      <Check className="w-3 h-3" />
+                      Use AI suggestion
                     </button>
                     <button
                       type="button"
                       onClick={() => setAiSuggestion(null)}
-                      className="text-[10px] font-medium text-gray-400 hover:text-white transition-colors px-2 py-1"
+                      className="text-[11px] font-medium text-gray-400 hover:text-white transition-colors px-2 py-1"
                     >
                       Dismiss
                     </button>

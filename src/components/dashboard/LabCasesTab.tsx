@@ -28,7 +28,7 @@ import { classNames } from '@/lib/utils'
 import ConstellationListView from './ConstellationListView'
 import NodeDetailPanel from './NodeDetailPanel'
 import { InsightCardInline } from './InsightsPanel'
-import CaseFileBar from './CaseFileBar'
+import CaseFileBar, { CreateCaseFileModal } from './CaseFileBar'
 import LabToolbar, { type LabViewMode, type LabSortMode } from './LabToolbar'
 
 const COLOR_PRESETS = [
@@ -54,6 +54,7 @@ export default function LabCasesTab({
   const [selectedCaseFileId, setSelectedCaseFileId] = useState<string | null>(null)
   const [selectedEntry, setSelectedEntry] = useState<EntryNode | null>(null)
   const [editingCaseFile, setEditingCaseFile] = useState<CaseFile | null>(null)
+  const [createModalOpen, setCreateModalOpen] = useState(false)
 
   if (loading && !userMapData) {
     return <CasesSkeleton />
@@ -85,18 +86,29 @@ export default function LabCasesTab({
   // GRID view
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {/* Header — always shows a "+ New case file" CTA, regardless of whether
+          the user has any case files yet. This is the primary entry point
+          for creating a first case file. */}
       <div className="flex items-center justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-lg font-bold text-white">Case Files</h2>
           <p className="text-xs text-gray-500 hidden sm:block">
             Organize your research into focused investigations.
           </p>
         </div>
+        <button
+          onClick={() => setCreateModalOpen(true)}
+          className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-primary-600 hover:bg-primary-500 transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">New case file</span>
+          <span className="sm:hidden">New</span>
+        </button>
       </div>
 
-      {/* CaseFileBar handles the create flow — reuse it here so the "new"
-          affordance is consistent with the Saves tab filter. */}
+      {/* CaseFileBar — horizontal filter strip, only shown when there's
+          something to filter. The primary "+ New" button lives in the header
+          above so empty-state users can always create. */}
       {caseFiles.length > 0 && (
         <CaseFileBar
           caseFiles={caseFiles}
@@ -108,7 +120,7 @@ export default function LabCasesTab({
 
       {/* Case file cards — grouped into "My case files" and "Shared with me" */}
       {caseFiles.length === 0 ? (
-        <CasesEmptyState onCreate={onRefresh} />
+        <CasesEmptyState onCreate={() => setCreateModalOpen(true)} />
       ) : (
         <>
           {(() => {
@@ -160,6 +172,17 @@ export default function LabCasesTab({
             )
           })()}
         </>
+      )}
+
+      {/* Create modal — opens from the header button OR the empty state */}
+      {createModalOpen && (
+        <CreateCaseFileModal
+          onClose={() => setCreateModalOpen(false)}
+          onCreated={() => {
+            setCreateModalOpen(false)
+            onRefresh()
+          }}
+        />
       )}
 
       {/* Edit modal */}
@@ -506,7 +529,7 @@ function CaseFileDetail({
 
 // ── Empty states ──
 
-function CasesEmptyState({ onCreate: _onCreate }: { onCreate: () => void }) {
+function CasesEmptyState({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="rounded-2xl border border-gray-800 bg-gray-950 p-8 sm:p-12 text-center">
       <div className="inline-flex p-3 bg-primary-500/10 rounded-full mb-3">
@@ -515,14 +538,17 @@ function CasesEmptyState({ onCreate: _onCreate }: { onCreate: () => void }) {
       <h3 className="text-base font-semibold text-white mb-1">
         No case files yet
       </h3>
-      <p className="text-sm text-gray-400 max-w-sm mx-auto mb-4 leading-relaxed">
-        Case files let you group saves into focused investigations — "Skinwalker Ranch,"
-        "Arizona Wave," or whatever thread you're pulling.
+      <p className="text-sm text-gray-400 max-w-sm mx-auto mb-5 leading-relaxed">
+        Case files let you group saves into focused investigations — &ldquo;Skinwalker Ranch,&rdquo;
+        &ldquo;Arizona Wave,&rdquo; or whatever thread you&apos;re pulling. Invite collaborators to co-investigate.
       </p>
-      <p className="text-xs text-gray-500">
-        Create your first case file from the <span className="text-gray-300">+ New case file</span> button
-        on the Saves tab, or from any saved source's detail view.
-      </p>
+      <button
+        onClick={onCreate}
+        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-600 hover:bg-primary-500 transition-colors"
+      >
+        <Plus className="w-4 h-4" />
+        Create your first case file
+      </button>
     </div>
   )
 }

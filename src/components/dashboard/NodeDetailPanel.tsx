@@ -706,7 +706,7 @@ function CaseFilesSection({ artifactId, memberIds, allCaseFiles, onChanged }: Ca
       {/* Add-to-case-file picker */}
       {allCaseFiles.length === 0 ? (
         <p className="text-[10px] text-gray-600">
-          Create a case file from the Map tab header to organize this.
+          Create a case file from the <Link href="/lab?tab=cases" className="text-primary-300 hover:text-primary-200 underline">Cases tab</Link> to organize this save.
         </p>
       ) : !pickerOpen ? (
         availableFiles.length > 0 && (

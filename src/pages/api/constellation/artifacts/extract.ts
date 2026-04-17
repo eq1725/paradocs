@@ -96,8 +96,10 @@ function detectPlatform(url: URL): { source_type: string; platform: string } {
     return { source_type: 'podcast', platform: platformLabelForPodcast(host) }
   }
 
-  // News heuristic: if TLD is .com/.org/.co and path looks like an article
-  if (/\/(article|story|news|\d{4}\/\d{2})\//.test(url.pathname)) {
+  // News/blog heuristic: path shape commonly used by news CMSes, Wix, WordPress,
+  // Blogger, Ghost, Substack-on-domain, etc. Catches both `/article/foo` and
+  // `/post/foo` and dated permalinks like `/2026/04/…`.
+  if (/\/(article|story|news|post|posts|blog|p)\/|\/\d{4}\/\d{2}\//.test(url.pathname)) {
     return { source_type: 'news', platform: humanHost(host) }
   }
 

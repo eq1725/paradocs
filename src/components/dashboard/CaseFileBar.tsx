@@ -115,7 +115,7 @@ interface CreateCaseFileModalProps {
   onCreated: () => void
 }
 
-function CreateCaseFileModal({ onClose, onCreated }: CreateCaseFileModalProps) {
+export function CreateCaseFileModal({ onClose, onCreated }: CreateCaseFileModalProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [coverColor, setCoverColor] = useState<string>(COLOR_PRESETS[0])
