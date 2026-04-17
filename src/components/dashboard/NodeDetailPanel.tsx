@@ -65,6 +65,7 @@ export default function NodeDetailPanel({
 
   const cat = CATEGORY_CONFIG[entry.category] || CATEGORY_CONFIG.combination
   const verdict = VERDICT_CONFIG[entry.verdict] || VERDICT_CONFIG.needs_info
+  const isExternal = !!entry.sourceType && entry.sourceType !== 'paradocs_report'
 
   // Find connected entries
   const connectedEntries: Array<{ entry: EntryNode; type: 'tag' | 'user'; label: string }> = []
@@ -124,27 +125,42 @@ export default function NodeDetailPanel({
       </div>
 
       <div className="px-4 py-4 space-y-4 pb-6 sm:pb-4">
-        {/* Report image */}
-        {entry.imageUrl && (
-          <div className="relative rounded-xl overflow-hidden">
-            <img
-              src={entry.imageUrl}
-              alt={entry.name}
-              className="w-full h-40 object-cover"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-            />
-          </div>
+        {/* Source-type-aware preview */}
+        {isExternal ? (
+          <ExternalSourcePreview entry={entry} />
+        ) : (
+          entry.imageUrl && (
+            <div className="relative rounded-xl overflow-hidden">
+              <img
+                src={entry.imageUrl}
+                alt={entry.name}
+                className="w-full h-40 object-cover"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+              />
+            </div>
+          )
         )}
 
-        {/* Title + link */}
+        {/* Title + link (Paradocs report link vs. external link) */}
         <div>
           <h3 className="text-white font-semibold text-base leading-tight">{entry.name}</h3>
-          <Link
-            href={`/report/${entry.slug}`}
-            className="inline-flex items-center gap-1 text-primary-400 hover:text-primary-300 text-xs mt-1.5 transition-colors"
-          >
-            View full report <ExternalLink className="w-3 h-3" />
-          </Link>
+          {isExternal && entry.externalUrl ? (
+            <a
+              href={entry.externalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-primary-400 hover:text-primary-300 text-xs mt-1.5 transition-colors"
+            >
+              Open on {entry.sourcePlatform || 'source'} <ExternalLink className="w-3 h-3" />
+            </a>
+          ) : entry.slug ? (
+            <Link
+              href={`/report/${entry.slug}`}
+              className="inline-flex items-center gap-1 text-primary-400 hover:text-primary-300 text-xs mt-1.5 transition-colors"
+            >
+              View full report <ExternalLink className="w-3 h-3" />
+            </Link>
+          ) : null}
         </div>
 
         {/* Verdict badge */}
@@ -253,9 +269,124 @@ export default function NodeDetailPanel({
         {/* Summary if available */}
         {entry.summary && (
           <div>
-            <div className="text-gray-500 text-[10px] font-medium uppercase tracking-wider mb-1.5">Report Summary</div>
+            <div className="text-gray-500 text-[10px] font-medium uppercase tracking-wider mb-1.5">
+              {isExternal ? 'Source summary' : 'Report Summary'}
+            </div>
             <p className="text-gray-400 text-xs leading-relaxed line-clamp-4">{entry.summary}</p>
           </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Platform-specific preview for external sources
+// ─────────────────────────────────────────────────────────────────
+//
+// Rendering policy: we deep-link to the source and preview metadata (thumbnail,
+// title, short excerpt). We do NOT host the full source content. This matches
+// the same link-preview pattern Twitter/LinkedIn/Discord use, and it's what
+// lets us stay inside fair use / EU "very short extract" allowances.
+
+interface ExternalSourcePreviewProps {
+  entry: EntryNode
+}
+
+function youtubeVideoId(url: string): string | null {
+  try {
+    const u = new URL(url)
+    const host = u.hostname.replace(/^www\./, '').toLowerCase()
+    if (host === 'youtu.be') {
+      return u.pathname.slice(1).split('/')[0] || null
+    }
+    if (host === 'youtube.com' || host === 'm.youtube.com') {
+      const v = u.searchParams.get('v')
+      if (v) return v
+      const shorts = u.pathname.match(/^\/shorts\/([^/]+)/)
+      if (shorts) return shorts[1]
+    }
+  } catch {/* fall through */}
+  return null
+}
+
+function ExternalSourcePreview({ entry }: ExternalSourcePreviewProps) {
+  const sourceType = entry.sourceType || 'website'
+  const url = entry.externalUrl || ''
+  const platform = entry.sourcePlatform || 'source'
+  const thumbnail = entry.imageUrl
+  const description = entry.sourceMetadata?.description as string | undefined
+
+  // YouTube embed: privacy-enhanced youtube-nocookie host. Lightweight —
+  // we don't autoplay, just render the player at first interaction.
+  if (sourceType === 'youtube') {
+    const vid = youtubeVideoId(url)
+    if (vid) {
+      return (
+        <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
+          <iframe
+            src={`https://www.youtube-nocookie.com/embed/${vid}`}
+            title={entry.name}
+            className="absolute inset-0 w-full h-full"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            referrerPolicy="strict-origin-when-cross-origin"
+            allowFullScreen
+          />
+        </div>
+      )
+    }
+    // Fall through to thumbnail card if we can't parse the video ID.
+  }
+
+  // Wikipedia: show the REST summary with a subtle attribution.
+  if (sourceType === 'wikipedia' && description) {
+    return (
+      <div className="rounded-xl overflow-hidden border border-gray-800">
+        {thumbnail && (
+          <div className="relative w-full aspect-video bg-gray-900">
+            <img
+              src={thumbnail}
+              alt={entry.name}
+              className="absolute inset-0 w-full h-full object-cover"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+            />
+          </div>
+        )}
+        <div className="p-3 bg-gray-900/60">
+          <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1.5">
+            Wikipedia summary
+          </div>
+          <p className="text-gray-300 text-sm leading-relaxed line-clamp-6">{description}</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Generic link preview card: thumbnail + platform badge + description.
+  // Used for Reddit, news, podcasts, everything else.
+  return (
+    <div className="rounded-xl overflow-hidden border border-gray-800 bg-gray-900/40">
+      {thumbnail && (
+        <div className="relative w-full aspect-video bg-gray-900">
+          <img
+            src={thumbnail}
+            alt={entry.name}
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+          />
+        </div>
+      )}
+      <div className="p-3 space-y-2">
+        <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+          <span className="px-1.5 py-0.5 rounded bg-gray-800 text-primary-300 font-medium">
+            {platform}
+          </span>
+          {entry.sourceMetadata?.author && typeof entry.sourceMetadata.author === 'string' && (
+            <span className="truncate">{entry.sourceMetadata.author}</span>
+          )}
+        </div>
+        {description && (
+          <p className="text-gray-400 text-xs leading-relaxed line-clamp-4">{description}</p>
         )}
       </div>
     </div>

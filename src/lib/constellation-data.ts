@@ -404,6 +404,105 @@ export function getSuggestedExplorations(
     .slice(0, maxSuggestions)
 }
 
+// ── Keyword → Category Inference ──
+// Used to place external artifacts (YouTube videos, Reddit posts, etc.) into
+// the appropriate ring segment when the user hasn't manually picked a category.
+// Tuned conservatively: ambiguous tags fall through to 'combination' instead
+// of forcing a bad fit.
+
+const CATEGORY_KEYWORDS: Record<PhenomenonCategory, string[]> = {
+  ufos_aliens: [
+    'ufo', 'uap', 'uaps', 'ufos', 'alien', 'aliens', 'extraterrestrial', 'et',
+    'abduction', 'abducted', 'craft', 'saucer', 'disk', 'flying-saucer',
+    'nuforc', 'mufon', 'nhi', 'non-human', 'roswell', 'triangle',
+  ],
+  cryptids: [
+    'bigfoot', 'sasquatch', 'cryptid', 'cryptids', 'mothman', 'chupacabra',
+    'yeti', 'loch-ness', 'nessie', 'dogman', 'skinwalker', 'jersey-devil',
+    'bfro', 'squatch',
+  ],
+  ghosts_hauntings: [
+    'ghost', 'ghosts', 'haunted', 'haunting', 'poltergeist', 'apparition',
+    'spirit', 'spirits', 'spectral', 'paranormal', 'ema', 'evp', 'residual',
+    'entity',
+  ],
+  psychic_phenomena: [
+    'psychic', 'esp', 'telepathy', 'precognition', 'remote-viewing',
+    'clairvoyance', 'telekinesis', 'pk', 'psychokinesis', 'medium',
+    'mediumship', 'premonition',
+  ],
+  consciousness_practices: [
+    'meditation', 'astral', 'astral-projection', 'lucid-dream', 'lucid-dreaming',
+    'altered-state', 'consciousness', 'oobe', 'out-of-body', 'obe',
+    'kundalini', 'third-eye', 'mindfulness',
+  ],
+  psychological_experiences: [
+    'nde', 'near-death', 'sleep-paralysis', 'deja-vu', 'dissociation',
+    'derealization', 'jamais-vu', 'depersonalization', 'hypnagogic',
+    'hypnopompic',
+  ],
+  biological_factors: [
+    'electromagnetic', 'emf', 'infrasound', 'bioelectric', 'neurology',
+    'brain-chemistry', 'dmt', 'pineal', 'electrosensitivity',
+  ],
+  perception_sensory: [
+    'synesthesia', 'visual-anomaly', 'auditory-anomaly', 'perception',
+    'sensory', 'hallucination', 'illusion',
+  ],
+  religion_mythology: [
+    'vision', 'miracle', 'divine', 'angel', 'angels', 'demon', 'religious',
+    'prophecy', 'prophet', 'marian', 'fatima', 'stigmata', 'myth',
+    'mythology', 'folklore',
+  ],
+  esoteric_practices: [
+    'occult', 'ritual', 'magick', 'magic', 'divination', 'hermetic', 'tarot',
+    'scrying', 'ouija', 'sigil', 'chaos-magic', 'thelema', 'kabbalah',
+  ],
+  combination: [], // fallback category — matches nothing explicitly
+}
+
+/**
+ * Infer the most likely phenomena category for an artifact based on its tags.
+ * Returns 'combination' if no strong match is found.
+ *
+ * Matching rules:
+ * - Tags are normalized to lowercase with spaces → hyphens for lookup.
+ * - A match in any CATEGORY_KEYWORDS list scores that category by 1.
+ * - Category with the highest score wins. Ties → earliest in CATEGORY_KEYWORDS.
+ * - No matches → 'combination'.
+ */
+export function inferCategoryFromTags(tags: string[]): PhenomenonCategory {
+  if (!tags || tags.length === 0) return 'combination'
+
+  const normalized = tags.map(t => t.toLowerCase().trim().replace(/\s+/g, '-'))
+  const scores: Partial<Record<PhenomenonCategory, number>> = {}
+
+  for (const tag of normalized) {
+    for (const [cat, keywords] of Object.entries(CATEGORY_KEYWORDS) as Array<
+      [PhenomenonCategory, string[]]
+    >) {
+      for (const kw of keywords) {
+        if (tag === kw || tag.includes(kw)) {
+          scores[cat] = (scores[cat] || 0) + 1
+          break
+        }
+      }
+    }
+  }
+
+  let bestCat: PhenomenonCategory = 'combination'
+  let bestScore = 0
+  for (const [cat, score] of Object.entries(scores) as Array<
+    [PhenomenonCategory, number]
+  >) {
+    if (score > bestScore) {
+      bestScore = score
+      bestCat = cat
+    }
+  }
+  return bestCat
+}
+
 /**
  * Generate background stars for decorative effect
  */

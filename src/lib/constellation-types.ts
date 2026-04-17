@@ -23,6 +23,17 @@ export interface EntryNode {
   tags: string[]
   loggedAt: string
   updatedAt: string
+  // Optional: only set on user-added external artifacts (YouTube, Reddit, etc.).
+  // Absent for Paradocs-curated report entries. Empty string / null at the
+  // API level for externals where we have no report_id / slug.
+  sourceType?: string
+  sourcePlatform?: string | null
+  externalUrl?: string | null
+  // Everything the extract endpoint captured at save time — description,
+  // oembed_html, author, published_date, and anything else stashed in
+  // constellation_artifacts.metadata_json. Used by NodeDetailPanel for
+  // platform-specific rendering (embedded players, summary text, etc.).
+  sourceMetadata?: Record<string, any> | null
 }
 
 /** A user-drawn connection between two entries. */

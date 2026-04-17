@@ -27,6 +27,10 @@ export interface SimNode extends d3.SimulationNodeDatum {
   verdict: string
   tags: string[]
   loggedAt: string
+  // Source-type for external artifacts (youtube, reddit, etc.). Undefined or
+  // 'paradocs_report' for Paradocs-curated entries.
+  sourceType?: string
+  externalUrl?: string | null
   // Simulation fields
   x: number
   y: number
@@ -34,6 +38,11 @@ export interface SimNode extends d3.SimulationNodeDatum {
   vy?: number
   fx?: number | null
   fy?: number | null
+  // Ring-layout targets — stable per-node position inside its category arc.
+  // d3.forceX/forceY pull toward these so stars stay strictly inside their
+  // segment while collision + charge forces spread them apart visually.
+  targetX: number
+  targetY: number
   // Computed
   radius: number
 }
@@ -54,6 +63,12 @@ export interface CategoryCenter {
   glowColor: string
   x: number
   y: number
+  // Polar ring metadata — used by the canvas renderer to paint arc segments
+  angleRad: number      // angular position on the ring (radians, 0 = right, CCW)
+  arcWidthRad: number   // angular width of this category's arc
+  ringRadius: number    // distance from canvas center to category center
+  ringOuterRadius: number  // outer edge of the colored ring
+  ringInnerRadius: number  // inner edge of the colored ring
   entryCount: number
 }
 
@@ -66,41 +81,115 @@ interface UseForceSimulationProps {
   onTick?: () => void
 }
 
-// Build category center positions mapped to pixel coordinates
+// ── Ring Layout ──
+// The Wikipedia Science Communities-style layout puts 11 category arcs around
+// a ring. Order is tuned for color coherence (blue → violet → purple → pink →
+// orange → amber → green → teal → cyan → slate → back to blue) so adjacent
+// arcs don't clash and the wheel reads as a continuous spectrum.
+const RING_ORDER: string[] = [
+  'psychic_phenomena',        // blue          (12 o'clock / top)
+  'consciousness_practices',  // violet
+  'esoteric_practices',       // indigo
+  'ghosts_hauntings',         // purple
+  'psychological_experiences',// pink
+  'religion_mythology',       // orange        (6 o'clock / bottom)
+  'cryptids',                 // amber
+  'ufos_aliens',              // green
+  'biological_factors',       // teal
+  'perception_sensory',       // cyan
+  'combination',              // slate         (wraps back to blue)
+]
+
+/**
+ * Compute the polar ring geometry for the current canvas size.
+ * The ring "radius" refers to where category centers live (where stars orbit).
+ * The outer/inner ring radii bound the colored arc band on screen.
+ */
+function ringGeometry(width: number, height: number) {
+  const cx = width / 2
+  const cy = height / 2
+  const minDim = Math.min(width, height)
+  // Stars orbit at ~30% of the canvas radius
+  const ringRadius = minDim * 0.30
+  // Colored ring band sits further out, ~40% of canvas radius
+  const ringOuterRadius = minDim * 0.46
+  const ringInnerRadius = minDim * 0.40
+  return { cx, cy, ringRadius, ringOuterRadius, ringInnerRadius }
+}
+
+/**
+ * Build category centers in polar ring order.
+ * Starts at -π/2 (12 o'clock) and distributes 11 slots clockwise.
+ */
 function buildCategoryCenters(width: number, height: number, entries: EntryNode[]): CategoryCenter[] {
   const categoryCounts: Record<string, number> = {}
   entries.forEach(e => {
     categoryCounts[e.category] = (categoryCounts[e.category] || 0) + 1
   })
 
-  return CONSTELLATION_NODES.map(node => ({
-    id: node.id,
-    label: node.label,
-    icon: node.icon,
-    color: node.color,
-    glowColor: node.glowColor,
-    x: node.x * width,
-    y: node.y * height,
-    entryCount: categoryCounts[node.id] || 0,
-  }))
+  const { cx, cy, ringRadius, ringOuterRadius, ringInnerRadius } = ringGeometry(width, height)
+  const arcWidthRad = (Math.PI * 2) / RING_ORDER.length
+
+  return RING_ORDER.map((catId, i) => {
+    const node = CONSTELLATION_NODES.find(n => n.id === catId)
+    if (!node) {
+      // Should never happen, but fail soft
+      return null
+    }
+    // Start at -π/2 (top of canvas) and go clockwise
+    const angleRad = -Math.PI / 2 + i * arcWidthRad
+    return {
+      id: node.id,
+      label: node.label,
+      icon: node.icon,
+      color: node.color,
+      glowColor: node.glowColor,
+      x: cx + Math.cos(angleRad) * ringRadius,
+      y: cy + Math.sin(angleRad) * ringRadius,
+      angleRad,
+      arcWidthRad,
+      ringRadius,
+      ringOuterRadius,
+      ringInnerRadius,
+      entryCount: categoryCounts[catId] || 0,
+    }
+  }).filter(Boolean) as CategoryCenter[]
 }
 
-// Convert EntryNode[] to SimNode[] with initial positions near their category center
-function buildSimNodes(entries: EntryNode[], centers: CategoryCenter[]): SimNode[] {
+/**
+ * Convert EntryNode[] to SimNode[] with initial positions inside their
+ * category's arc segment. Each star gets a small angular jitter (so they
+ * don't all stack on the radial line) and a small radial jitter (so they
+ * don't sit on a perfect circle).
+ */
+function buildSimNodes(entries: EntryNode[], centers: CategoryCenter[], width: number, height: number): SimNode[] {
   const centerMap = new Map(centers.map(c => [c.id, c]))
+  const { cx, cy, ringRadius } = ringGeometry(width, height)
 
-  return entries.map((entry, i) => {
+  return entries.map((entry) => {
     const center = centerMap.get(entry.category)
-    // Scatter around category center with some randomness
-    const angle = (i / Math.max(entries.length, 1)) * Math.PI * 2 + Math.random() * 0.5
-    const spread = 85 + Math.random() * 70
+    // Fallback for unmapped categories (e.g., 'external' from legacy data):
+    // place them in the "combination" wedge so nothing floats in the void.
+    const fallback = centerMap.get('combination')
+    const resolved = center || fallback
+
+    const a = resolved?.angleRad ?? 0
+    const w = resolved?.arcWidthRad ?? 0.5
+    // Keep jitter to 75% of the arc so nodes don't kiss the segment boundary
+    const angleJitter = (Math.random() - 0.5) * w * 0.75
+    // Radial jitter: keep stars mostly around ringRadius with some depth variation
+    const radialJitter = (Math.random() - 0.4) * ringRadius * 0.5
+    const r = (resolved?.ringRadius ?? ringRadius) + radialJitter
+
+    const tx = cx + Math.cos(a + angleJitter) * r
+    const ty = cy + Math.sin(a + angleJitter) * r
 
     return {
       id: entry.id,
       reportId: entry.reportId,
       name: entry.name,
       slug: entry.slug,
-      category: entry.category,
+      category: resolved ? entry.category : 'combination',
       imageUrl: entry.imageUrl,
       locationName: entry.locationName,
       eventDate: entry.eventDate,
@@ -109,8 +198,12 @@ function buildSimNodes(entries: EntryNode[], centers: CategoryCenter[]): SimNode
       verdict: entry.verdict,
       tags: entry.tags,
       loggedAt: entry.loggedAt,
-      x: (center?.x || 400) + Math.cos(angle) * spread,
-      y: (center?.y || 300) + Math.sin(angle) * spread,
+      sourceType: entry.sourceType,
+      externalUrl: entry.externalUrl,
+      x: tx,
+      y: ty,
+      targetX: tx,
+      targetY: ty,
       radius: getNodeRadius(entry),
     }
   })
@@ -193,7 +286,7 @@ export function useForceSimulation({
     if (width < 10 || height < 10) return
 
     const centers = buildCategoryCenters(width, height, entries)
-    const nodes = buildSimNodes(entries, centers)
+    const nodes = buildSimNodes(entries, centers, width, height)
     const edges = buildSimEdges(tagConnections, userConnections)
 
     centersRef.current = centers
@@ -206,49 +299,45 @@ export function useForceSimulation({
     }
 
     const centerMap = new Map(centers.map(c => [c.id, c]))
-
-    // Repel nodes from category center points so they don't sit on the icon/label
-    const labelRepulsionRadius = 75 // minimum distance from center label
-    const labelRepulsionStrength = 1.0
+    const { cx: canvasCx, cy: canvasCy, ringInnerRadius } = ringGeometry(width, height)
 
     const simulation = d3.forceSimulation<SimNode>(nodes)
-      .force('categoryX', d3.forceX<SimNode>(d => centerMap.get(d.category)?.x || width / 2).strength(0.15))
-      .force('categoryY', d3.forceY<SimNode>(d => centerMap.get(d.category)?.y || height / 2).strength(0.15))
-      // Push nodes away from their category's label center (creates orbital ring)
-      .force('labelRepel', () => {
+      // Anchor each star to its per-node target inside the category arc.
+      // High strength keeps stars in their segments — the key to the
+      // "strict polar segments" layout.
+      .force('targetX', d3.forceX<SimNode>(d => d.targetX).strength(0.35))
+      .force('targetY', d3.forceY<SimNode>(d => d.targetY).strength(0.35))
+      // Light charge for visual breathing room — targets do most of the work.
+      .force('charge', d3.forceManyBody<SimNode>().strength(-18).distanceMax(140))
+      // Collision detection prevents overlap with neighbours in the same arc.
+      .force('collide', d3.forceCollide<SimNode>(d => d.radius + 3).strength(0.85))
+      // Link force is weak so cross-category edges can't yank stars out of
+      // their segment. Users still see the connection line drawn by the renderer.
+      .force('link', d3.forceLink<SimNode, SimEdge>(edges as any)
+        .id(d => d.id)
+        .distance(110)
+        .strength(d => (d as SimEdge).strength * 0.04)
+      )
+      // Radial cap: never let a star escape inside the colored ring band.
+      // This is what makes the ring read as a clean boundary, not a suggestion.
+      .force('ringCap', () => {
+        const cap = ringInnerRadius - 6 // small padding so stars don't kiss the ring
         nodes.forEach(node => {
-          const center = centerMap.get(node.category)
-          if (!center) return
-          const dx = node.x! - center.x
-          const dy = node.y! - center.y
-          const dist = Math.sqrt(dx * dx + dy * dy) || 1
-          if (dist < labelRepulsionRadius) {
-            const push = (labelRepulsionRadius - dist) / labelRepulsionRadius * labelRepulsionStrength
-            node.vx! += (dx / dist) * push * 2
-            node.vy! += (dy / dist) * push * 2
+          const dx = node.x! - canvasCx
+          const dy = node.y! - canvasCy
+          const dist = Math.sqrt(dx * dx + dy * dy)
+          if (dist > cap) {
+            const scale = cap / dist
+            node.x = canvasCx + dx * scale
+            node.y = canvasCy + dy * scale
+            // Also dampen outward velocity so the cap doesn't feel like a wall
+            if (node.vx != null) node.vx *= 0.5
+            if (node.vy != null) node.vy *= 0.5
           }
         })
       })
-      // Repel nodes from each other (prevents overlap, creates spread)
-      .force('charge', d3.forceManyBody<SimNode>().strength(-50).distanceMax(250))
-      // Collision detection
-      .force('collide', d3.forceCollide<SimNode>(d => d.radius + 3).strength(0.8))
-      // Link force for edges (connected nodes pull together)
-      .force('link', d3.forceLink<SimNode, SimEdge>(edges as any)
-        .id(d => d.id)
-        .distance(80)
-        .strength(d => (d as SimEdge).strength * 0.1)
-      )
-      // Keep nodes within bounds
-      .force('bounds', () => {
-        nodes.forEach(node => {
-          const pad = 20
-          node.x = Math.max(pad, Math.min(width - pad, node.x!))
-          node.y = Math.max(pad, Math.min(height - pad, node.y!))
-        })
-      })
-      .alphaDecay(0.02)
-      .velocityDecay(0.4)
+      .alphaDecay(0.025)
+      .velocityDecay(0.45)
       .on('tick', () => {
         onTick?.()
       })

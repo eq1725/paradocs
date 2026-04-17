@@ -19,7 +19,7 @@
  * SWC: Uses var + function(){} for compatibility with MobileBottomTabs imports.
  */
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
@@ -47,7 +47,10 @@ import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
 import ConstellationMapV2 from '@/components/dashboard/ConstellationMapV2'
 import NodeDetailPanel from '@/components/dashboard/NodeDetailPanel'
+import ConstellationSidebar from '@/components/dashboard/ConstellationSidebar'
+import PasteUrlButton from '@/components/dashboard/PasteUrlButton'
 import type { EntryNode, UserMapData } from '@/lib/constellation-types'
+import { inferCategoryFromTags, CONSTELLATION_NODES } from '@/lib/constellation-data'
 
 // Tab definitions
 var TAB_KEYS = ['saves', 'cases', 'map', 'notes'] as const
@@ -421,20 +424,29 @@ function CasesTab() {
 
 
 // ─────────────────────────────────────────────────────────────────
-// MAP TAB — Interactive constellation star-field for logged entries
+// MAP TAB — Interactive constellation ring map for logged entries
 // ─────────────────────────────────────────────────────────────────
-// Fetches /api/constellation/user-map (existing endpoint that powers the
-// legacy /dashboard/constellation page) and feeds the canvas renderer.
-// Node detail slides out from the bottom (mobile) or right (desktop) on tap.
+// Wikipedia Science Communities-style visualization: 11 category arcs around
+// a color ring, stars positioned inside their category's arc. External
+// artifacts (YouTube, Reddit, etc.) get categorized via client-side tag
+// inference and render as dimmer stars inside the matching segment.
+//
+// Desktop layout: map canvas + sidebar (category list + counts) side-by-side.
+// Mobile layout: map canvas on top, sidebar stacked below.
 
 function MapTab() {
   var [userMapData, setUserMapData] = useState<UserMapData | null>(null)
   var [loading, setLoading] = useState(true)
   var [selectedEntry, setSelectedEntry] = useState<EntryNode | null>(null)
+  var [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  var [refreshKey, setRefreshKey] = useState(0)
 
+  // Load / reload the user-map payload. Exposed via refreshKey so the paste-URL
+  // flow in Phase B can trigger a re-fetch after saving a new artifact.
   useEffect(function() {
     var cancelled = false
     async function loadMap() {
+      setLoading(true)
       try {
         var sessionResult = await supabase.auth.getSession()
         var token = sessionResult.data.session?.access_token
@@ -457,9 +469,36 @@ function MapTab() {
     }
     loadMap()
     return function() { cancelled = true }
-  }, [])
+  }, [refreshKey])
 
-  if (loading) {
+  // Normalize the payload so external artifacts (which come back from the
+  // API with category: 'external') land in their inferred phenomena segment.
+  // Paradocs reports already carry their real category, so they pass through.
+  var normalizedMapData = useMemo<UserMapData | null>(function() {
+    if (!userMapData) return null
+    var validCategoryIds = new Set(CONSTELLATION_NODES.map(function(n) { return n.id as string }))
+    var normalizedNodes = userMapData.entryNodes.map(function(entry) {
+      if (validCategoryIds.has(entry.category)) return entry
+      var inferred = inferCategoryFromTags(entry.tags)
+      return Object.assign({}, entry, { category: inferred })
+    })
+
+    // Recompute categoryStats so the sidebar counts match the normalized data.
+    var stats: Record<string, { entries: number; verdicts: Record<string, number> }> = {}
+    for (var i = 0; i < normalizedNodes.length; i++) {
+      var node = normalizedNodes[i]
+      if (!stats[node.category]) stats[node.category] = { entries: 0, verdicts: {} }
+      stats[node.category].entries++
+      stats[node.category].verdicts[node.verdict] = (stats[node.category].verdicts[node.verdict] || 0) + 1
+    }
+
+    return Object.assign({}, userMapData, {
+      entryNodes: normalizedNodes,
+      categoryStats: stats,
+    })
+  }, [userMapData])
+
+  if (loading && !userMapData) {
     return (
       <div className="flex items-center justify-center py-24">
         <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
@@ -467,46 +506,59 @@ function MapTab() {
     )
   }
 
-  var entryCount = userMapData?.entryNodes.length || 0
+  var entryCount = normalizedMapData?.entryNodes.length || 0
+  var categoriesCount = normalizedMapData ? Object.keys(normalizedMapData.categoryStats).length : 0
 
   return (
     <div>
-      {/* Compact header strip — subtle context, no rank banner */}
-      <div className="flex items-center justify-between gap-2 mb-3 px-1 text-xs text-gray-500">
-        <div className="flex items-center gap-2">
-          <MapIcon className="w-3.5 h-3.5 text-purple-400" />
-          <span>
+      {/* Compact header strip + Add-source action */}
+      <div className="flex items-center justify-between gap-2 mb-3 px-1 text-xs">
+        <div className="flex items-center gap-2 text-gray-500 min-w-0">
+          <MapIcon className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+          <span className="truncate">
             {entryCount === 0
-              ? 'No stars yet — log reports from the feed to light up your map'
-              : entryCount + ' ' + (entryCount === 1 ? 'star' : 'stars') + ' across ' + (userMapData?.stats.categoriesExplored || 0) + ' ' + ((userMapData?.stats.categoriesExplored || 0) === 1 ? 'category' : 'categories')}
+              ? 'No stars yet — log reports or paste a URL to light up your map'
+              : entryCount + ' ' + (entryCount === 1 ? 'star' : 'stars') + ' across ' + categoriesCount + ' ' + (categoriesCount === 1 ? 'category' : 'categories')}
           </span>
         </div>
-        <span className="hidden sm:inline text-[10px] text-gray-600">
-          Tap a star for details · Drag or pinch to explore
-        </span>
+        <PasteUrlButton onArtifactSaved={function() { setRefreshKey(function(k) { return k + 1 }) }} />
       </div>
 
-      {/* Map container — must be relative so the NodeDetailPanel's
-          absolute positioning anchors to the canvas, not the viewport. */}
-      <div className="relative bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden">
-        <ConstellationMapV2
-          userMapData={userMapData}
-          onSelectEntry={setSelectedEntry}
-          selectedEntryId={selectedEntry?.id}
-        />
-
-        {selectedEntry && (
-          <NodeDetailPanel
-            entry={selectedEntry}
-            userMapData={userMapData}
-            onClose={function() { setSelectedEntry(null) }}
-            onTagClick={function() { setSelectedEntry(null) }}
-            onEntryClick={function(entryId: string) {
-              var entry = userMapData?.entryNodes.find(function(e) { return e.id === entryId })
-              if (entry) setSelectedEntry(entry)
-            }}
+      {/*
+        Layout: canvas on top/left, sidebar below/right.
+        Mobile (<md): stacked, canvas first. Desktop (md+): two columns.
+        The map container stays relative so NodeDetailPanel anchors correctly.
+      */}
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_260px] gap-3">
+        <div className="relative bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden">
+          <ConstellationMapV2
+            userMapData={normalizedMapData}
+            onSelectEntry={setSelectedEntry}
+            selectedEntryId={selectedEntry?.id}
           />
-        )}
+
+          {selectedEntry && (
+            <NodeDetailPanel
+              entry={selectedEntry}
+              userMapData={normalizedMapData}
+              onClose={function() { setSelectedEntry(null) }}
+              onTagClick={function() { setSelectedEntry(null) }}
+              onEntryClick={function(entryId: string) {
+                var entry = normalizedMapData?.entryNodes.find(function(e) { return e.id === entryId })
+                if (entry) setSelectedEntry(entry)
+              }}
+            />
+          )}
+        </div>
+
+        {/* Sidebar — desktop: right column, mobile: stacked below */}
+        <div className="min-h-[260px] max-h-[60vh] md:max-h-none md:h-auto">
+          <ConstellationSidebar
+            userMapData={normalizedMapData}
+            selectedCategory={selectedCategory}
+            onCategoryClick={setSelectedCategory}
+          />
+        </div>
       </div>
     </div>
   )

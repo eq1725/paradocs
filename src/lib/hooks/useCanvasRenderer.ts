@@ -128,8 +128,12 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
     ctx.translate(transform.x, transform.y)
     ctx.scale(zoom, zoom)
 
-    // Nebulae (category region glows)
-    drawNebulae(ctx, centers, zoom, nodes)
+    // Color ring: 11 category arcs around the outer edge. Replaces the old
+    // "floating emoji clouds" — the ring is now the primary category affordance.
+    drawCategoryRing(ctx, centers, zoom, time)
+
+    // Subtle brand glyph at the center of the ring, behind everything else.
+    drawCenterGlyph(ctx, width, height, zoom)
 
     // Tag connection edges (subtle, drawn behind nodes)
     drawEdges(ctx, nodes, edges, zoom, highlightedTag, selectedNodeId, 'tag')
@@ -139,9 +143,6 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
 
     // User connection edges (prominent, drawn on top of nodes so they're always visible)
     drawEdges(ctx, nodes, edges, zoom, highlightedTag, selectedNodeId, 'user')
-
-    // Category labels
-    drawCategoryLabels(ctx, centers, zoom)
 
     ctx.restore()
     ctx.restore()
@@ -180,56 +181,177 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
     })
   }
 
-  function drawNebulae(ctx: CanvasRenderingContext2D, centers: CategoryCenter[], zoom: number, nodes: SimNode[]) {
+  /**
+   * Paint the outer color ring — 11 arcs, one per phenomena category.
+   * Replaces the old scattered nebula clouds. Each arc is tinted with the
+   * category's CATEGORY_GLOW color. Category labels render inside the arc
+   * following its curvature (like a clock face with words instead of numbers).
+   *
+   * Segments with zero logged entries render at reduced saturation so the
+   * ring visually encodes "where the user has investigated" vs. empty territory.
+   */
+  function drawCategoryRing(
+    ctx: CanvasRenderingContext2D,
+    centers: CategoryCenter[],
+    zoom: number,
+    time: number
+  ) {
+    if (centers.length === 0) return
+
+    // All centers share the same ring geometry — pull from the first entry.
+    const first = centers[0]
+    const cx = first.x - Math.cos(first.angleRad) * first.ringRadius
+    const cy = first.y - Math.sin(first.angleRad) * first.ringRadius
+    const rOuter = first.ringOuterRadius
+    const rInner = first.ringInnerRadius
+    const rMid = (rOuter + rInner) / 2
+    const bandWidth = rOuter - rInner
+
     centers.forEach(center => {
-      if (center.entryCount === 0) return
+      const color = CATEGORY_GLOW[center.id] || '#666666'
+      const isActive = center.entryCount > 0
 
-      const glowColor = CATEGORY_GLOW[center.id] || '#666666'
-      const baseRadius = 100 + Math.min(center.entryCount * 25, 200)
-      const maxAlpha = Math.min(0.12 + center.entryCount * 0.02, 0.2)
+      // Arc bounds (start/end angles). Subtract a hair from each side so
+      // segments don't quite touch — creates thin divider lines naturally.
+      const halfArc = center.arcWidthRad / 2
+      const gap = 0.004 // ~0.23° gap
+      const startA = center.angleRad - halfArc + gap
+      const endA = center.angleRad + halfArc - gap
 
-      // Layer 1: Large outer nebula (lightest, offset)
-      const outerRadius = baseRadius * 1.3
-      const outerGrad = ctx.createRadialGradient(
-        center.x - 15, center.y - 15, 0,
-        center.x - 15, center.y - 15, outerRadius
-      )
-      outerGrad.addColorStop(0, hexToRGBA(glowColor, maxAlpha * 0.4))
-      outerGrad.addColorStop(0.5, hexToRGBA(glowColor, maxAlpha * 0.15))
-      outerGrad.addColorStop(1, hexToRGBA(glowColor, 0))
-      ctx.fillStyle = outerGrad
+      // Band alpha: saturated for active categories, faint for empty ones.
+      // Active categories also get a subtle pulse synced to time.
+      const baseAlpha = isActive ? 0.55 : 0.12
+      const pulse = isActive ? 0.1 * Math.sin(time * 0.006) : 0
+      const bandAlpha = Math.max(0.08, Math.min(0.75, baseAlpha + pulse))
+
+      // Build a radial gradient from inner→outer so the ring has depth.
+      const grad = ctx.createRadialGradient(cx, cy, rInner, cx, cy, rOuter)
+      grad.addColorStop(0.0, hexToRGBA(color, bandAlpha * 0.5))
+      grad.addColorStop(0.5, hexToRGBA(color, bandAlpha))
+      grad.addColorStop(1.0, hexToRGBA(color, bandAlpha * 0.6))
+
+      // Draw the arc segment as a donut wedge
+      ctx.fillStyle = grad
       ctx.beginPath()
-      ctx.arc(center.x - 15, center.y - 15, outerRadius, 0, Math.PI * 2)
+      ctx.arc(cx, cy, rOuter, startA, endA)
+      ctx.arc(cx, cy, rInner, endA, startA, true)
+      ctx.closePath()
       ctx.fill()
 
-      // Layer 2: Medium nebula (offset, slight hue shift for color variation)
-      const midColor = lerpColor(glowColor, shiftHue(glowColor, 15), 0.15)
-      const midRadius = baseRadius * 1.1
-      const midGrad = ctx.createRadialGradient(
-        center.x + 12, center.y - 8, 0,
-        center.x + 12, center.y - 8, midRadius
-      )
-      midGrad.addColorStop(0, hexToRGBA(midColor, maxAlpha * 0.6))
-      midGrad.addColorStop(0.5, hexToRGBA(midColor, maxAlpha * 0.2))
-      midGrad.addColorStop(1, hexToRGBA(midColor, 0))
-      ctx.fillStyle = midGrad
+      // Inner rim highlight — a thin bright line on the inner edge of the arc
+      // makes the ring look like it's illuminating the field inside.
+      ctx.strokeStyle = hexToRGBA(color, isActive ? 0.75 : 0.18)
+      ctx.lineWidth = Math.max(1.5, 2 / zoom)
       ctx.beginPath()
-      ctx.arc(center.x + 12, center.y - 8, midRadius, 0, Math.PI * 2)
-      ctx.fill()
-
-      // Layer 3: Core nebula (brightest, centered)
-      const innerGrad = ctx.createRadialGradient(
-        center.x, center.y, 0,
-        center.x, center.y, baseRadius
-      )
-      innerGrad.addColorStop(0, hexToRGBA(glowColor, maxAlpha * 1.2))
-      innerGrad.addColorStop(0.4, hexToRGBA(glowColor, maxAlpha * 0.5))
-      innerGrad.addColorStop(1, hexToRGBA(glowColor, 0))
-      ctx.fillStyle = innerGrad
-      ctx.beginPath()
-      ctx.arc(center.x, center.y, baseRadius, 0, Math.PI * 2)
-      ctx.fill()
+      ctx.arc(cx, cy, rInner, startA, endA)
+      ctx.stroke()
     })
+
+    // Category labels — text follows the arc's curvature, centered in each segment.
+    // Only render when zoomed in enough to be legible (avoid clutter at low zoom).
+    if (zoom < 0.55) return
+
+    centers.forEach(center => {
+      const label = center.label
+      const isActive = center.entryCount > 0
+      const textAlpha = isActive ? 0.95 : 0.35
+
+      // Position text at ring mid-radius, following the arc.
+      const fontSize = Math.max(9, Math.min(12, 11 / zoom))
+      ctx.font = `600 ${fontSize}px 'Space Grotesk', Inter, system-ui, sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+
+      // Text curves along the arc. Compute arc length of the label and
+      // space characters proportionally.
+      const a = center.angleRad
+      // For labels on the bottom half of the ring (angle between 0 and π),
+      // we flip the text so it's not upside-down.
+      const flip = a > 0 && a < Math.PI
+      const labelR = flip ? rMid - bandWidth * 0.12 : rMid + bandWidth * 0.12
+
+      ctx.save()
+      ctx.translate(cx + Math.cos(a) * labelR, cy + Math.sin(a) * labelR)
+      ctx.rotate(a + (flip ? -Math.PI / 2 : Math.PI / 2))
+      // Text shadow for readability
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
+      ctx.fillText(label, 0.5, 0.5)
+      ctx.fillStyle = `rgba(255, 255, 255, ${textAlpha})`
+      ctx.fillText(label, 0, 0)
+      ctx.restore()
+
+      // Entry count badge just inside the ring, on the node-facing edge.
+      if (isActive) {
+        const countR = rInner - bandWidth * 0.4
+        const countFont = Math.max(8, Math.min(10, 9 / zoom))
+        ctx.font = `500 ${countFont}px Inter, system-ui, sans-serif`
+        ctx.fillStyle = `rgba(255, 255, 255, ${textAlpha * 0.65})`
+        ctx.fillText(
+          String(center.entryCount),
+          cx + Math.cos(a) * countR,
+          cy + Math.sin(a) * countR
+        )
+      }
+    })
+  }
+
+  /**
+   * Subtle Paradocs brand glyph at the ring's center — acts as a visual
+   * anchor (like the grey "W" in Wikipedia's Science Communities vis).
+   * Kept very low-opacity so it fades into the background without competing
+   * with the stars.
+   */
+  function drawCenterGlyph(
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    h: number,
+    zoom: number
+  ) {
+    const cx = w / 2
+    const cy = h / 2
+    const minDim = Math.min(w, h)
+    const size = minDim * 0.14
+
+    // Soft glow disc
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 1.2)
+    glow.addColorStop(0, 'rgba(139, 92, 246, 0.08)') // violet
+    glow.addColorStop(1, 'rgba(139, 92, 246, 0)')
+    ctx.fillStyle = glow
+    ctx.beginPath()
+    ctx.arc(cx, cy, size * 1.2, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Paradocs-style star glyph: two crossed soft diamonds forming a compass rose.
+    // Rendered at low opacity so it reads as a watermark, not a focal point.
+    ctx.save()
+    ctx.globalAlpha = 0.22
+    ctx.fillStyle = '#a78bfa' // violet-300
+
+    // Vertical diamond
+    ctx.beginPath()
+    ctx.moveTo(cx, cy - size)
+    ctx.lineTo(cx + size * 0.18, cy)
+    ctx.lineTo(cx, cy + size)
+    ctx.lineTo(cx - size * 0.18, cy)
+    ctx.closePath()
+    ctx.fill()
+
+    // Horizontal diamond
+    ctx.beginPath()
+    ctx.moveTo(cx - size, cy)
+    ctx.lineTo(cx, cy - size * 0.18)
+    ctx.lineTo(cx + size, cy)
+    ctx.lineTo(cx, cy + size * 0.18)
+    ctx.closePath()
+    ctx.fill()
+
+    // Center dot
+    ctx.globalAlpha = 0.5
+    ctx.fillStyle = '#ffffff'
+    ctx.beginPath()
+    ctx.arc(cx, cy, Math.max(1.5, size * 0.06), 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
   }
 
   function drawEdges(
@@ -304,7 +426,11 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
     nodes.forEach(node => {
       const x = node.x!
       const y = node.y!
-      const r = node.radius / Math.max(zoom, 0.5)
+      // External (user-added) stars render smaller and dimmer than Paradocs
+      // reports — a visual hint that this is Layer 2 content.
+      const isExternal = !!node.sourceType && node.sourceType !== 'paradocs_report'
+      const externalScale = isExternal ? 0.75 : 1.0
+      const r = (node.radius * externalScale) / Math.max(zoom, 0.5)
 
       const isHovered = node.id === hoveredId
       const isSelected = node.id === selectedId
@@ -333,8 +459,20 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
         displayR = r * (1 + 0.15 * Math.sin(time * 0.06))
       }
 
+      // External artifacts render at reduced alpha so the eye immediately
+      // distinguishes user-sourced content (Layer 2) from Paradocs-curated
+      // content (Layer 1). Active/hover states still go full brightness.
+      if (isExternal && !isActive) {
+        ctx.save()
+        ctx.globalAlpha = 0.65
+      }
+
       // Draw enhanced star with multi-layer glow, diffraction spikes, and twinkle
       drawEnhancedStar(ctx, x, y, displayR, verdictColor, catGlow, !!isActive, time, node.verdict, node.id)
+
+      if (isExternal && !isActive) {
+        ctx.restore()
+      }
 
       // Hover-only label: show name only when hovered or selected
       if (isActive) {
@@ -357,40 +495,9 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
     })
   }
 
-  function drawCategoryLabels(ctx: CanvasRenderingContext2D, centers: CategoryCenter[], zoom: number) {
-    centers.forEach(center => {
-      // Smooth fade: full opacity below 1.5x, fade out between 1.5x-3x, gone above 3x
-      let zoomFade = 1
-      if (zoom > 1.5) {
-        zoomFade = Math.max(0, 1 - (zoom - 1.5) / 1.5)
-      }
-      if (zoomFade <= 0.01) return
-
-      const baseAlpha = center.entryCount > 0 ? 0.7 : 0.3
-      const alpha = baseAlpha * zoomFade
-      const fontSize = Math.max(11, Math.min(14, 13 / zoom))
-
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-
-      // Icon above label
-      ctx.font = `${fontSize * 1.5}px sans-serif`
-      ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`
-      ctx.fillText(center.icon, center.x, center.y - fontSize * 1.2)
-
-      // Label
-      ctx.font = `600 ${fontSize}px 'Space Grotesk', Inter, system-ui, sans-serif`
-      ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`
-      ctx.fillText(center.label, center.x, center.y + fontSize * 0.4)
-
-      // Entry count badge
-      if (center.entryCount > 0) {
-        ctx.font = `400 ${fontSize * 0.75}px Inter, system-ui, sans-serif`
-        ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.5})`
-        ctx.fillText(`${center.entryCount} logged`, center.x, center.y + fontSize * 1.5)
-      }
-    })
-  }
+  // (drawCategoryLabels removed — labels now render as part of the ring above.
+  // The old floating emoji + text at each category center was the thing that
+  // made the map feel like a Slack thread. Ring labels replaced it.)
 
   // Hit-test: find which node is at the given world coordinates
   const hitTest = useCallback((

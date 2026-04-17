@@ -76,7 +76,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Research Hub artifacts (external URLs not linked to reports)
       supabase
         .from('constellation_artifacts')
-        .select('id, source_type, external_url, title, thumbnail_url, user_note, verdict, tags, created_at, updated_at')
+        .select('id, source_type, source_platform, external_url, title, thumbnail_url, user_note, verdict, tags, metadata_json, created_at, updated_at')
         .eq('user_id', user.id)
         .neq('source_type', 'paradocs_report')
         .order('created_at', { ascending: false }),
@@ -215,21 +215,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       return {
         id: a.id,
-        reportId: null,
+        reportId: '',
         name: a.title || 'External Source',
-        slug: null,
+        slug: '',
         category: 'external',
         imageUrl: a.thumbnail_url || null,
         locationName: null,
         eventDate: null,
-        summary: null,
+        summary: (a.metadata_json && a.metadata_json.description) || null,
         note: a.user_note || '',
         verdict: a.verdict || 'needs_info',
         tags: artifactTags,
         loggedAt: a.created_at,
         updatedAt: a.updated_at,
         sourceType: a.source_type,
+        sourcePlatform: a.source_platform || null,
         externalUrl: a.external_url,
+        sourceMetadata: a.metadata_json || null,
       }
     })
 
