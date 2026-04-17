@@ -69,6 +69,8 @@ export interface CaseFile {
   artifact_count: number
   created_at: string
   updated_at: string
+  /** When non-null, this case file is publicly viewable at /cases/public/{slug}. */
+  public_slug?: string | null
 }
 
 /** A user-drawn connection between two entries. */

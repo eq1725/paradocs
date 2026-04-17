@@ -92,7 +92,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // second round-trip on initial load.
       supabase
         .from('constellation_case_files')
-        .select('id, title, description, cover_color, icon, sort_order, created_at, updated_at')
+        .select('id, title, description, cover_color, icon, sort_order, public_slug, created_at, updated_at')
         .eq('user_id', user.id)
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true }),
@@ -360,6 +360,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       cover_color: cf.cover_color,
       icon: cf.icon,
       sort_order: cf.sort_order,
+      public_slug: cf.public_slug || null,
       artifact_count: artifactCountByCaseFile[cf.id] || 0,
       created_at: cf.created_at,
       updated_at: cf.updated_at,

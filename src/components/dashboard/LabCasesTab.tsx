@@ -18,6 +18,7 @@ import Link from 'next/link'
 import {
   ArrowLeft, Plus, FolderOpen, MoreHorizontal, Edit3, Trash2,
   Compass, Sparkles as SparklesIcon, Loader2, X as XIcon, Check,
+  Share2, Globe, Lock, Copy,
 } from 'lucide-react'
 import type { EntryNode, UserMapData, CaseFile } from '@/lib/constellation-types'
 import type { EmergentConnection, Insight } from '@/lib/constellation-data'
@@ -28,6 +29,7 @@ import ConstellationListView from './ConstellationListView'
 import NodeDetailPanel from './NodeDetailPanel'
 import { InsightCardInline } from './InsightsPanel'
 import CaseFileBar from './CaseFileBar'
+import LabToolbar, { type LabViewMode, type LabSortMode } from './LabToolbar'
 
 const COLOR_PRESETS = [
   '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b',
@@ -250,11 +252,48 @@ function CaseFileDetail({
   onRefresh: () => void
   onEdit: () => void
 }) {
+  // Toolbar state — scoped to this case file detail view.
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<LabSortMode>('newest')
+  const [viewMode, setViewMode] = useState<LabViewMode>('grid')
+
   // Entries in this case file
-  const entries = useMemo(() => {
+  const caseEntries = useMemo(() => {
     return (userMapData?.entryNodes || [])
       .filter(e => (e.caseFileIds || []).includes(caseFile.id))
   }, [userMapData, caseFile.id])
+
+  // Apply search + sort locally.
+  const entries = useMemo(() => {
+    let list = caseEntries
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      list = list.filter(e =>
+        (e.name && e.name.toLowerCase().includes(q)) ||
+        (e.note && e.note.toLowerCase().includes(q)) ||
+        (e.summary && e.summary.toLowerCase().includes(q)) ||
+        (e.locationName && e.locationName.toLowerCase().includes(q)) ||
+        (e.tags || []).some(t => t.toLowerCase().includes(q))
+      )
+    }
+    const sorted = [...list]
+    sorted.sort((a, b) => {
+      switch (sort) {
+        case 'oldest': return new Date(a.loggedAt).getTime() - new Date(b.loggedAt).getTime()
+        case 'alphabetical': return (a.name || '').localeCompare(b.name || '')
+        case 'compelling': {
+          const av = a.verdict === 'compelling' ? 0 : a.verdict === 'inconclusive' ? 1 : a.verdict === 'needs_info' ? 2 : 3
+          const bv = b.verdict === 'compelling' ? 0 : b.verdict === 'inconclusive' ? 1 : b.verdict === 'needs_info' ? 2 : 3
+          if (av !== bv) return av - bv
+          return new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime()
+        }
+        case 'newest':
+        default:
+          return new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime()
+      }
+    })
+    return sorted
+  }, [caseEntries, search, sort])
 
   // Case-file-scoped insights
   const scopedInsights = useMemo<Insight[]>(() => {
@@ -338,9 +377,30 @@ function CaseFileDetail({
         </div>
       )}
 
+      {/* Toolbar (only if there are entries to filter) */}
+      {caseEntries.length > 0 && (
+        <LabToolbar
+          search={search}
+          onSearchChange={setSearch}
+          sort={sort}
+          onSortChange={setSort}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          searchPlaceholder={'Search within "' + caseFile.title + '"...'}
+          totalCount={caseEntries.length}
+          filteredCount={entries.length}
+        />
+      )}
+
       {/* Entry list */}
-      {entries.length === 0 ? (
+      {caseEntries.length === 0 ? (
         <CaseFileEmptyState caseFile={caseFile} />
+      ) : entries.length === 0 ? (
+        <div className="rounded-xl border border-gray-800 bg-gray-950 p-6 text-center">
+          <p className="text-sm text-gray-400">
+            No saves match &ldquo;{search}&rdquo; in this case file.
+          </p>
+        </div>
       ) : (
         <ConstellationListView
           userMapData={scopedMapData}
@@ -354,6 +414,9 @@ function CaseFileDetail({
             const e = entries.find(en => en.id === ids[0])
             if (e) onSelectEntry(e)
           }}
+          entriesOverride={entries}
+          viewMode={viewMode}
+          hideInterleavedInsights
         />
       )}
 
@@ -462,10 +525,30 @@ function EditCaseFileModal({
   const [title, setTitle] = useState(caseFile.title)
   const [description, setDescription] = useState(caseFile.description || '')
   const [color, setColor] = useState(caseFile.cover_color)
+  // Track public state locally so the toggle feels instant, but treat the
+  // slug as server-owned (we only know the slug after save).
+  const [isPublic, setIsPublic] = useState<boolean>(!!caseFile.public_slug)
+  const [publicSlug, setPublicSlug] = useState<string | null>(caseFile.public_slug || null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const publicUrl = publicSlug
+    ? (typeof window !== 'undefined' ? window.location.origin : 'https://beta.discoverparadocs.com') + '/cases/public/' + publicSlug
+    : null
+
+  const handleCopyLink = async () => {
+    if (!publicUrl) return
+    try {
+      await navigator.clipboard.writeText(publicUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
 
   const handleSave = async () => {
     const t = title.trim()
@@ -475,14 +558,27 @@ function EditCaseFileModal({
       const sess = await supabase.auth.getSession()
       const token = sess.data.session?.access_token
       if (!token) throw new Error('Sign in expired')
+      // Only send make_public when it's actually changed from the stored state —
+      // avoids regenerating the slug every time the modal is saved.
+      const body: Record<string, unknown> = {
+        title: t,
+        description: description.trim(),
+        cover_color: color,
+      }
+      const wasPublic = !!caseFile.public_slug
+      if (isPublic !== wasPublic) body.make_public = isPublic
       const res = await fetch('/api/constellation/case-files/' + caseFile.id, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ title: t, description: description.trim(), cover_color: color }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Update failed' }))
         throw new Error(err.error || 'Update failed')
+      }
+      const data = await res.json().catch(() => ({}))
+      if (data?.case_file?.public_slug !== undefined) {
+        setPublicSlug(data.case_file.public_slug || null)
       }
       onSaved()
     } catch (err: any) {
@@ -576,6 +672,68 @@ function EditCaseFileModal({
                 )
               })}
             </div>
+          </div>
+
+          {/* Public sharing section */}
+          <div className="pt-2 border-t border-white/5">
+            <label className="text-[10px] font-medium uppercase tracking-wider text-gray-500 mb-1.5 block flex items-center gap-1">
+              <Share2 className="w-3 h-3" />
+              Sharing
+            </label>
+            <button
+              type="button"
+              onClick={() => setIsPublic(v => !v)}
+              className={classNames(
+                'w-full flex items-start gap-2 p-3 rounded-lg border text-left transition-colors',
+                isPublic
+                  ? 'bg-primary-500/10 border-primary-500/30'
+                  : 'bg-white/[0.03] border-white/10 hover:border-white/20'
+              )}
+              aria-pressed={isPublic}
+            >
+              <div className={classNames(
+                'w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center mt-0.5 transition-colors',
+                isPublic ? 'bg-primary-500 border-primary-500' : 'border-white/20'
+              )}>
+                {isPublic && <Check className="w-3 h-3 text-white" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-white">
+                  {isPublic ? <Globe className="w-3 h-3 text-primary-300" /> : <Lock className="w-3 h-3 text-gray-500" />}
+                  <span>{isPublic ? 'Share publicly' : 'Keep private'}</span>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-0.5 leading-snug">
+                  {isPublic
+                    ? 'Anyone with the link can view this case file, its saves, and your descriptions. Your private notes stay hidden.'
+                    : 'Only you can see this case file. Toggle on to get a shareable link.'}
+                </p>
+              </div>
+            </button>
+
+            {/* Copy-link affordance appears once the slug is live on the server */}
+            {publicUrl && isPublic && (
+              <div className="mt-2 flex items-center gap-1.5 p-2 rounded-lg bg-black/40 border border-white/5">
+                <input
+                  readOnly
+                  value={publicUrl}
+                  onFocus={e => e.currentTarget.select()}
+                  className="flex-1 bg-transparent text-[11px] text-gray-300 font-mono focus:outline-none truncate"
+                  aria-label="Public link"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className={classNames(
+                    'flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors',
+                    copied ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/5 text-gray-300 hover:bg-white/10'
+                  )}
+                  aria-label="Copy public link"
+                >
+                  {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

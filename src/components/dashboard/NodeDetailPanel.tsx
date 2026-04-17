@@ -29,6 +29,7 @@ import {
 } from 'lucide-react'
 import type { EntryNode, UserMapData, CaseFile } from '@/lib/constellation-types'
 import { supabase } from '@/lib/supabase'
+import { renderMarkdown, normalizeWikilinkKey, extractWikilinkTargets } from '@/lib/markdown-lite'
 
 // Category display config
 const CATEGORY_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
@@ -89,6 +90,26 @@ export default function NodeDetailPanel({
   const cat = CATEGORY_CONFIG[entry.category] || CATEGORY_CONFIG.combination
   const verdict = VERDICT_CONFIG[entry.verdict] || VERDICT_CONFIG.needs_info
   const isExternal = !!entry.sourceType && entry.sourceType !== 'paradocs_report'
+
+  // Wikilinks resolver — maps normalized title → {id, displayLabel} so
+  // [[Some Title]] inside a note can link to another save.
+  const wikilinkMap = new Map<string, { id: string; displayLabel: string }>()
+  for (const n of (userMapData?.entryNodes || [])) {
+    if (!n.name) continue
+    wikilinkMap.set(normalizeWikilinkKey(n.name), { id: n.id, displayLabel: n.name })
+  }
+
+  // Backlinks: scan every other user note for [[this entry's title]] references.
+  // O(N) over entries, cheap for reasonable libraries.
+  const backlinks: EntryNode[] = []
+  if (entry.name) {
+    const myKey = normalizeWikilinkKey(entry.name)
+    for (const n of (userMapData?.entryNodes || [])) {
+      if (n.id === entry.id || !n.note) continue
+      const targets = extractWikilinkTargets(n.note).map(normalizeWikilinkKey)
+      if (targets.includes(myKey)) backlinks.push(n)
+    }
+  }
 
   // Find connected entries
   const connectedEntries: Array<{ entry: EntryNode; type: 'tag' | 'user'; label: string }> = []
@@ -207,11 +228,17 @@ export default function NodeDetailPanel({
           />
         )}
 
-        {/* User note */}
+        {/* User note — rendered as markdown with inline [[Wikilinks]] that
+            navigate to other saves. Pattern borrowed from Obsidian. */}
         {entry.note && (
           <div className="bg-gray-800/50 rounded-lg px-3 py-2.5">
             <div className="text-gray-500 text-[10px] font-medium uppercase tracking-wider mb-1">Your Notes</div>
-            <p className="text-gray-300 text-sm leading-relaxed">{entry.note}</p>
+            <div className="text-sm leading-relaxed">
+              {renderMarkdown(entry.note, {
+                wikilinks: wikilinkMap,
+                onWikilinkClick: onEntryClick,
+              })}
+            </div>
           </div>
         )}
 
@@ -334,6 +361,37 @@ export default function NodeDetailPanel({
             </div>
           )
         })()}
+
+        {/* Backlinks — other saves whose notes reference this one via
+            [[Wikilink]]. Obsidian-style "mentioned in..." navigation aid. */}
+        {backlinks.length > 0 && (
+          <div>
+            <div className="flex items-center gap-1.5 text-gray-500 text-[10px] font-medium uppercase tracking-wider mb-2">
+              <Link2 className="w-3 h-3 text-primary-300" />
+              Mentioned in {backlinks.length} {backlinks.length === 1 ? 'save' : 'saves'}
+            </div>
+            <div className="space-y-1.5">
+              {backlinks.slice(0, 6).map(bl => {
+                const blCat = CATEGORY_CONFIG[bl.category] || CATEGORY_CONFIG.combination
+                return (
+                  <button
+                    key={bl.id}
+                    onClick={() => onEntryClick(bl.id)}
+                    className="w-full flex items-center gap-2 px-2.5 py-2 bg-primary-500/5 border border-primary-500/15 hover:bg-primary-500/10 hover:border-primary-500/30 rounded-lg text-left transition-colors group"
+                  >
+                    <span className="text-sm">{blCat.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-gray-200 text-xs font-medium truncate group-hover:text-white transition-colors">
+                        {bl.name}
+                      </div>
+                    </div>
+                    <ChevronRight className="w-3 h-3 text-gray-600 group-hover:text-primary-300 shrink-0" />
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Associated theories */}
         {theories.length > 0 && (

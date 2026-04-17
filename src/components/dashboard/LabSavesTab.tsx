@@ -16,7 +16,7 @@
  * don't trigger refetches.
  */
 
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Map as MapIcon, Sparkles as SparklesIcon, ArrowDown, Bookmark } from 'lucide-react'
 import type { EntryNode, UserMapData, CaseFile } from '@/lib/constellation-types'
 import type { EmergentConnection, Insight } from '@/lib/constellation-data'
@@ -27,6 +27,7 @@ import CaseFileBar from './CaseFileBar'
 import LabProgressTracker from './LabProgressTracker'
 import PasteUrlButton from './PasteUrlButton'
 import { InsightCardInline } from './InsightsPanel'
+import LabToolbar, { type LabViewMode, type LabSortMode } from './LabToolbar'
 import Link from 'next/link'
 
 interface LabSavesTabProps {
@@ -52,6 +53,26 @@ export default function LabSavesTab({
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [selectedCaseFileId, setSelectedCaseFileId] = useState<string | null>(null)
 
+  // Toolbar state — persisted to localStorage so preferences stick.
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<LabSortMode>('newest')
+  const [viewMode, setViewMode] = useState<LabViewMode>('grid')
+
+  useEffect(() => {
+    try {
+      const rawSort = localStorage.getItem('paradocs_lab_sort') as LabSortMode | null
+      const rawView = localStorage.getItem('paradocs_lab_view') as LabViewMode | null
+      if (rawSort && ['newest','oldest','patterns','connections','compelling','alphabetical'].includes(rawSort)) {
+        setSort(rawSort)
+      }
+      if (rawView && ['grid','list','compact'].includes(rawView)) {
+        setViewMode(rawView)
+      }
+    } catch { /* localStorage unavailable, fine */ }
+  }, [])
+  useEffect(() => { try { localStorage.setItem('paradocs_lab_sort', sort) } catch {} }, [sort])
+  useEffect(() => { try { localStorage.setItem('paradocs_lab_view', viewMode) } catch {} }, [viewMode])
+
   const listRef = useRef<HTMLDivElement | null>(null)
   const scrollToList = useCallback(() => {
     listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -62,6 +83,57 @@ export default function LabSavesTab({
     const first = userMapData.entryNodes.find(e => e.id === entryIds[0])
     if (first) setSelectedEntry(first)
   }, [userMapData])
+
+  // ── Filter + sort pipeline (single source of truth for what renders) ──
+  // Count AI patterns + connections per entry so we can sort by them.
+  const patternsByEntry = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const c of aiConnections) {
+      counts[c.source] = (counts[c.source] || 0) + 1
+      counts[c.target] = (counts[c.target] || 0) + 1
+    }
+    return counts
+  }, [aiConnections])
+
+  const filteredEntries = useMemo(() => {
+    let list = (userMapData?.entryNodes || []).filter(e => !e.isGhost)
+    if (selectedCategory) list = list.filter(e => e.category === selectedCategory)
+    if (selectedCaseFileId) list = list.filter(e => (e.caseFileIds || []).includes(selectedCaseFileId))
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      list = list.filter(e =>
+        (e.name && e.name.toLowerCase().includes(q)) ||
+        (e.note && e.note.toLowerCase().includes(q)) ||
+        (e.summary && e.summary.toLowerCase().includes(q)) ||
+        (e.locationName && e.locationName.toLowerCase().includes(q)) ||
+        (e.tags || []).some(t => t.toLowerCase().includes(q))
+      )
+    }
+    // Sort — stable-ish (we always have loggedAt as tiebreaker).
+    const sorted = [...list]
+    sorted.sort((a, b) => {
+      switch (sort) {
+        case 'oldest':
+          return new Date(a.loggedAt).getTime() - new Date(b.loggedAt).getTime()
+        case 'patterns':
+          return (patternsByEntry[b.id] || 0) - (patternsByEntry[a.id] || 0)
+        case 'connections':
+          return (patternsByEntry[b.id] || 0) - (patternsByEntry[a.id] || 0)
+        case 'compelling': {
+          const aVal = a.verdict === 'compelling' ? 0 : a.verdict === 'inconclusive' ? 1 : a.verdict === 'needs_info' ? 2 : 3
+          const bVal = b.verdict === 'compelling' ? 0 : b.verdict === 'inconclusive' ? 1 : b.verdict === 'needs_info' ? 2 : 3
+          if (aVal !== bVal) return aVal - bVal
+          return new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime()
+        }
+        case 'alphabetical':
+          return (a.name || '').localeCompare(b.name || '')
+        case 'newest':
+        default:
+          return new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime()
+      }
+    })
+    return sorted
+  }, [userMapData, selectedCategory, selectedCaseFileId, search, sort, patternsByEntry])
 
   // Loading skeleton replaces raw spinner.
   if (loading && !userMapData) {
@@ -136,6 +208,21 @@ export default function LabSavesTab({
         />
       )}
 
+      {/* Toolbar: search / sort / view mode */}
+      {entryCount > 0 && (
+        <LabToolbar
+          search={search}
+          onSearchChange={setSearch}
+          sort={sort}
+          onSortChange={setSort}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          searchPlaceholder="Search your saves..."
+          totalCount={entryCount}
+          filteredCount={filteredEntries.length}
+        />
+      )}
+
       {/* Top insights */}
       {insights.length > 0 && (
         <div>
@@ -151,10 +238,12 @@ export default function LabSavesTab({
         </div>
       )}
 
-      {/* The feed */}
+      {/* The feed — filtered + sorted by the toolbar controls */}
       <div ref={listRef}>
         {entryCount === 0 ? (
           <SavesEmptyState />
+        ) : filteredEntries.length === 0 ? (
+          <SearchEmptyState query={search} onClear={() => setSearch('')} />
         ) : (
           <ConstellationListView
             userMapData={userMapData}
@@ -165,6 +254,9 @@ export default function LabSavesTab({
             selectedEntryId={selectedEntry?.id || null}
             onSelectEntry={setSelectedEntry}
             onHighlight={handleHighlight}
+            entriesOverride={filteredEntries}
+            viewMode={viewMode}
+            hideInterleavedInsights={!!search.trim()}
           />
         )}
       </div>
@@ -185,6 +277,22 @@ export default function LabSavesTab({
           onCaseFilesChanged={onRefresh}
         />
       )}
+    </div>
+  )
+}
+
+function SearchEmptyState({ query, onClear }: { query: string; onClear: () => void }) {
+  return (
+    <div className="rounded-2xl border border-gray-800 bg-gray-950 p-8 text-center">
+      <p className="text-sm text-gray-400">
+        No saves match <span className="text-white font-medium">&ldquo;{query}&rdquo;</span>
+      </p>
+      <button
+        onClick={onClear}
+        className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-300 bg-white/5 hover:bg-white/10 transition-colors"
+      >
+        Clear search
+      </button>
     </div>
   )
 }
