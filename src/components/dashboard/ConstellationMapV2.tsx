@@ -20,9 +20,10 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { ZoomIn, ZoomOut, Maximize2, Sparkles, Compass, Maximize, Minimize } from 'lucide-react'
 import Link from 'next/link'
 import { useForceSimulation, SimNode } from '@/lib/hooks/useForceSimulation'
-import { useCanvasRenderer, RenderState } from '@/lib/hooks/useCanvasRenderer'
+import { useCanvasRenderer, RenderState, Impulse } from '@/lib/hooks/useCanvasRenderer'
 import { useMapInteractions, Transform } from '@/lib/hooks/useMapInteractions'
 import type { EntryNode, UserMapData } from '@/lib/constellation-types'
+import { detectEmergentConnections } from '@/lib/constellation-data'
 import {
   getTeaserGhosts,
   getTeaserTagConnections,
@@ -104,6 +105,23 @@ export default function ConstellationMapV2({
     [userMapData?.userConnections]
   )
 
+  // ── Emergent/AI connection detection ──
+  // Runs client-side over the blended entries (real + ghosts if teaser).
+  // Detects patterns in tag overlap, temporal proximity, shared location, and
+  // compelling-verdict co-occurrence. Rendered as cyan dashed filaments so
+  // users see patterns they'd never notice manually.
+  const aiConnections = useMemo(() => {
+    const input = entries.map(e => ({
+      id: e.id,
+      category: e.category,
+      verdict: e.verdict,
+      tags: e.tags || [],
+      eventDate: e.eventDate,
+      locationName: e.locationName,
+    }))
+    return detectEmergentConnections(input)
+  }, [entries])
+
   // ── Responsive sizing ──
   useEffect(() => {
     const container = containerRef.current
@@ -124,6 +142,7 @@ export default function ConstellationMapV2({
     entries,
     tagConnections,
     userConnections,
+    aiConnections,
     width: dimensions.width,
     height: dimensions.height,
     onTick: () => {},
@@ -179,14 +198,62 @@ export default function ConstellationMapV2({
     canvas.style.height = `${dimensions.height}px`
   }, [dimensions])
 
-  // ── Neural impulse animation — spawn when the user picks a node ──
-  // impulseOriginId is the node that "fired"; impulseStartMs is the wall-clock
-  // time it started. The renderer draws pulses traveling outward for ~850ms.
-  const [impulse, setImpulse] = useState<{ originId: string | null; startMs: number }>({ originId: null, startMs: 0 })
+  // ── Neural impulse queue ──
+  // Three sources spawn impulses:
+  //   - selectedEntryId change → strong impulse (intensity 1.0, 850ms)
+  //   - hoveredNode change   → light impulse (intensity 0.4, 550ms)
+  //   - ambient cycle        → faint random impulse (intensity 0.3, 700ms)
+  // All three can coexist on the same frame. Expired impulses prune every
+  // ~300ms so the array stays short.
+  const impulsesRef = useRef<Impulse[]>([])
+
+  const pushImpulse = useCallback((originId: string, intensity: number, duration: number) => {
+    // Avoid stacking duplicate impulses on the same node within the same
+    // animation window — the repeated overlap looks glitchy.
+    const now = performance.now()
+    const existing = impulsesRef.current.find(i => i.originId === originId && now - i.startMs < 200)
+    if (existing) return
+    impulsesRef.current = [
+      ...impulsesRef.current.filter(i => now - i.startMs < i.duration + 100),
+      { originId, intensity, duration, startMs: now },
+    ]
+  }, [])
+
+  // Select impulse
   useEffect(() => {
     if (!selectedEntryId) return
-    setImpulse({ originId: selectedEntryId, startMs: performance.now() })
-  }, [selectedEntryId])
+    pushImpulse(selectedEntryId, 1.0, 850)
+  }, [selectedEntryId, pushImpulse])
+
+  // Hover impulse — only for real (non-ghost) nodes. Skipped when the user
+  // has reduced-motion on.
+  useEffect(() => {
+    if (!hoveredNode || hoveredNode.isGhost || reducedMotion) return
+    pushImpulse(hoveredNode.id, 0.4, 550)
+  }, [hoveredNode, pushImpulse, reducedMotion])
+
+  // Ambient impulse cycle — every 8–12s pick a random node (real or ghost
+  // in teaser mode) and fire a faint pulse. Gives the galaxy a "thinking"
+  // feel without the user having to interact.
+  useEffect(() => {
+    if (reducedMotion) return
+    let cancelled = false
+    const scheduleNext = () => {
+      if (cancelled) return
+      const delay = 8000 + Math.random() * 4000
+      setTimeout(() => {
+        if (cancelled) return
+        const pool = nodes.current
+        if (pool.length > 0) {
+          const pick = pool[Math.floor(Math.random() * pool.length)]
+          pushImpulse(pick.id, 0.3, 700)
+        }
+        scheduleNext()
+      }, delay)
+    }
+    scheduleNext()
+    return () => { cancelled = true }
+  }, [reducedMotion, nodes, pushImpulse])
 
   // ── Refs for stable animation loop ──
   const transformRef = useRef(transform)
@@ -194,14 +261,12 @@ export default function ConstellationMapV2({
   const selectedEntryIdRef = useRef<string | null | undefined>(selectedEntryId)
   const highlightedTagRef = useRef<string | null>(highlightedTag)
   const selectedCategoryRef = useRef<string | null>(selectedCategory)
-  const impulseRef = useRef(impulse)
   const reducedMotionRef = useRef(reducedMotion)
   useEffect(() => { transformRef.current = transform }, [transform])
   useEffect(() => { hoveredNodeRef.current = hoveredNode }, [hoveredNode])
   useEffect(() => { selectedEntryIdRef.current = selectedEntryId }, [selectedEntryId])
   useEffect(() => { highlightedTagRef.current = highlightedTag }, [highlightedTag])
   useEffect(() => { selectedCategoryRef.current = selectedCategory }, [selectedCategory])
-  useEffect(() => { impulseRef.current = impulse }, [impulse])
   useEffect(() => { reducedMotionRef.current = reducedMotion }, [reducedMotion])
 
   // ── Animation loop ──
@@ -217,6 +282,13 @@ export default function ConstellationMapV2({
       if (!running) return
       const nowMs = performance.now()
 
+      // Prune expired impulses once per frame so the array stays short.
+      if (impulsesRef.current.length > 0) {
+        impulsesRef.current = impulsesRef.current.filter(
+          i => nowMs - i.startMs < i.duration + 100
+        )
+      }
+
       const state: RenderState = {
         transform: transformRef.current,
         hoveredNodeId: hoveredNodeRef.current?.id || null,
@@ -224,8 +296,7 @@ export default function ConstellationMapV2({
         highlightedTag: highlightedTagRef.current,
         selectedCategory: selectedCategoryRef.current,
         time: nowMs,
-        impulseOriginId: impulseRef.current.originId,
-        impulseStartMs: impulseRef.current.startMs,
+        impulses: impulsesRef.current,
         reducedMotion: reducedMotionRef.current,
       }
 

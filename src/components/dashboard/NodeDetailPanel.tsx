@@ -101,9 +101,12 @@ export default function NodeDetailPanel({
 
   return (
     <div className={[
-      'absolute z-30 bg-gray-900/95 backdrop-blur-md overflow-y-auto transition-transform duration-300',
-      'bottom-0 left-0 right-0 max-h-[80vh] rounded-t-2xl border-t border-gray-800',
-      'sm:top-0 sm:right-0 sm:left-auto sm:bottom-0 sm:max-h-none sm:rounded-none sm:border-t-0 sm:border-l sm:w-[340px]',
+      // Fixed positioning (viewport-anchored) so the panel escapes the canvas
+      // container's height/clipping. Only intercepts clicks within its own
+      // bounds — taps on the uncovered canvas area still select new stars.
+      'fixed z-40 bg-gray-900/95 backdrop-blur-md overflow-y-auto transition-transform duration-300 shadow-2xl',
+      'bottom-0 left-0 right-0 max-h-[70vh] rounded-t-2xl border-t border-gray-800',
+      'sm:top-[8%] sm:right-4 sm:left-auto sm:bottom-4 sm:max-h-none sm:rounded-2xl sm:border sm:border-gray-800 sm:w-[360px]',
     ].join(' ')}>
       {/* Mobile drag handle */}
       <div className="flex justify-center pt-2 pb-1 sm:hidden">

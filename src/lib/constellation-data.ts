@@ -503,6 +503,124 @@ export function inferCategoryFromTags(tags: string[]): PhenomenonCategory {
   return bestCat
 }
 
+// ── Emergent Pattern Detector ──
+//
+// Analyzes the user's entries and surfaces likely-meaningful connections
+// without requiring them to draw anything manually. The detector combines
+// four signals: tag similarity (Jaccard), temporal proximity, shared
+// location name, and category+verdict alignment. Pairs that score above
+// the threshold get rendered as dashed cyan filaments.
+//
+// Design intent: users shouldn't need to study their own evidence to find
+// patterns — the map should do it for them. This is the "Ancestry.com
+// automatically suggests branches" experience, transplanted to the paranormal
+// research context.
+
+export interface EmergentConnection {
+  /** source entry ID */
+  source: string
+  /** target entry ID */
+  target: string
+  /** normalized strength 0-1 (higher = stronger pattern signal) */
+  strength: number
+  /** human-readable reasons the detector matched this pair */
+  reasons: string[]
+}
+
+interface DetectorEntry {
+  id: string
+  category: string
+  verdict: string
+  tags: string[]
+  eventDate: string | null
+  locationName: string | null
+}
+
+const TEMPORAL_WINDOW_DAYS = 30
+const MIN_JACCARD = 0.25
+const MIN_SCORE = 0.45
+
+/**
+ * Returns all pairs of entries with enough combined signal to merit showing
+ * a connection. Runs in O(n²) over entries — fine for user collections up
+ * to a few hundred entries. Above that we'd want to bucket by category or
+ * tag index first.
+ */
+export function detectEmergentConnections(entries: DetectorEntry[]): EmergentConnection[] {
+  const out: EmergentConnection[] = []
+
+  for (let i = 0; i < entries.length; i++) {
+    for (let j = i + 1; j < entries.length; j++) {
+      const a = entries[i]
+      const b = entries[j]
+
+      // Skip self-connections and entries with no signal at all.
+      if (!a.tags?.length && !b.tags?.length && !a.eventDate && !b.eventDate) continue
+
+      let score = 0
+      const reasons: string[] = []
+
+      // ── Tag similarity (Jaccard) ──
+      if (a.tags?.length && b.tags?.length) {
+        const setA = new Set(a.tags.map(t => t.toLowerCase()))
+        const setB = new Set(b.tags.map(t => t.toLowerCase()))
+        const sharedArr = Array.from(setA).filter(t => setB.has(t))
+        const union = new Set([...Array.from(setA), ...Array.from(setB)])
+        const jaccard = sharedArr.length / Math.max(union.size, 1)
+        if (jaccard >= MIN_JACCARD && sharedArr.length >= 1) {
+          score += jaccard * 0.6
+          reasons.push(`${sharedArr.length} shared tag${sharedArr.length === 1 ? '' : 's'}`)
+        }
+      }
+
+      // ── Temporal proximity ──
+      if (a.eventDate && b.eventDate) {
+        const da = new Date(a.eventDate).getTime()
+        const db = new Date(b.eventDate).getTime()
+        if (!isNaN(da) && !isNaN(db)) {
+          const days = Math.abs(da - db) / 86400000
+          if (days < TEMPORAL_WINDOW_DAYS) {
+            const proximity = 1 - days / TEMPORAL_WINDOW_DAYS
+            score += proximity * 0.35
+            if (days < 1) reasons.push('same day')
+            else if (days < 7) reasons.push(`${Math.round(days)} days apart`)
+            else reasons.push(`within ${Math.round(days)} days`)
+          }
+        }
+      }
+
+      // ── Same location (text match, case-insensitive) ──
+      if (
+        a.locationName && b.locationName &&
+        a.locationName.trim().toLowerCase() === b.locationName.trim().toLowerCase()
+      ) {
+        score += 0.45
+        reasons.push(`same location (${a.locationName})`)
+      }
+
+      // ── Category + both-compelling ──
+      if (
+        a.category === b.category &&
+        a.verdict === 'compelling' && b.verdict === 'compelling'
+      ) {
+        score += 0.25
+        reasons.push('both compelling · same category')
+      }
+
+      if (score >= MIN_SCORE) {
+        out.push({
+          source: a.id,
+          target: b.id,
+          strength: Math.min(1, score),
+          reasons,
+        })
+      }
+    }
+  }
+
+  return out
+}
+
 /**
  * Generate background stars for decorative effect
  */

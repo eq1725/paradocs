@@ -106,6 +106,20 @@ function generateBgStars(count: number): BgStar[] {
 
 // ── Render state ──
 
+/**
+ * A single neural impulse animation. Many can be active at once — hover
+ * fires short light impulses, select fires a big one, an ambient cycle
+ * fires slow gentle ones. Each decays independently.
+ */
+export interface Impulse {
+  originId: string
+  startMs: number
+  /** 0-1 brightness multiplier. Hover ≈ 0.4, select ≈ 1.0, ambient ≈ 0.3 */
+  intensity: number
+  /** ms; renderer fades the pulse over this window */
+  duration: number
+}
+
 export interface RenderState {
   transform: { x: number; y: number; k: number }
   hoveredNodeId: string | null
@@ -115,14 +129,8 @@ export interface RenderState {
   selectedCategory: string | null
   /** Wall-clock ms, used for all time-based animation (prefers stable across framerate) */
   time: number
-  /**
-   * Neural impulse state. Set by the caller when selectedNodeId changes.
-   * impulseStartMs is the wall-clock time the impulse was spawned;
-   * impulseOriginId is the node the impulse radiates out from. The renderer
-   * computes traveling pulses for each filament touching that node.
-   */
-  impulseOriginId: string | null
-  impulseStartMs: number
+  /** All active neural impulses. Renderer skips expired ones automatically. */
+  impulses: Impulse[]
   /** Respect prefers-reduced-motion — disables all ambient motion */
   reducedMotion: boolean
 }
@@ -188,7 +196,7 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
   ) => {
     const {
       transform, hoveredNodeId, selectedNodeId, highlightedTag,
-      selectedCategory, time, impulseOriginId, impulseStartMs, reducedMotion,
+      selectedCategory, time, impulses, reducedMotion,
     } = state
     const dpr = dprRef.current
     const zoom = transform.k
@@ -226,22 +234,24 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
     ctx.scale(zoom, zoom)
 
     // ── 5. Category nebulae (soft glows at each gravity well) ──
-    drawNebulae(ctx, centers, time, reducedMotion, selectedCategory)
+    drawNebulae(ctx, centers, time, reducedMotion, selectedCategory, zoom)
 
     // ── 6. Filaments (ADDITIVE BLEND) ──
     ctx.save()
     ctx.globalCompositeOperation = 'lighter'
-    drawFilaments(ctx, nodes, edges, zoom, time, selectedNodeId, selectedCategory, highlightedTag)
+    drawFilaments(ctx, nodes, edges, zoom, time, selectedNodeId, selectedCategory, highlightedTag, reducedMotion)
     ctx.restore()
 
     // ── 7–10. Nodes (multi-layer glow + core) ──
     drawNodes(ctx, nodes, zoom, time, hoveredNodeId, selectedNodeId, highlightedTag, selectedCategory)
 
     // ── 11. Neural impulses along filaments (ADDITIVE BLEND, time-bounded) ──
-    if (!reducedMotion && impulseOriginId) {
+    if (!reducedMotion && impulses.length > 0) {
       ctx.save()
       ctx.globalCompositeOperation = 'lighter'
-      drawImpulses(ctx, nodes, edges, impulseOriginId, impulseStartMs, time, zoom)
+      for (const imp of impulses) {
+        drawImpulses(ctx, nodes, edges, imp, time, zoom)
+      }
       ctx.restore()
     }
 
@@ -306,20 +316,19 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
     centers: CategoryCenter[],
     time: number,
     reducedMotion: boolean,
-    selectedCategory: string | null
+    selectedCategory: string | null,
+    zoom: number
   ) {
+    // ── Glow pass (additive) ──
     ctx.save()
     ctx.globalCompositeOperation = 'lighter'
     for (const c of centers) {
       if (c.entryCount === 0) continue
       const selected = !selectedCategory || selectedCategory === c.id
       const color = CATEGORY_GLOW[c.id] || '#666'
-      // Nebula radius scales gently with entry count.
       const baseR = 90 + Math.min(c.entryCount * 22, 170)
-      // Ambient breathing — 4% amplitude, period ~8s.
       const breathing = reducedMotion ? 0 : 0.04 * Math.sin(time * 0.0008 + hashString(c.id))
       const r = baseR * (1 + breathing)
-      // Max alpha tuned so nebulae are visible but never opaque.
       const maxAlpha = Math.min(0.10 + c.entryCount * 0.012, 0.18) * (selected ? 1 : 0.25)
 
       const grad = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r)
@@ -332,6 +341,50 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
       ctx.fill()
     }
     ctx.restore()
+
+    // ── Label pass (normal blend) ──
+    // Labels appear when zoomed out to help users orient, then fade as they
+    // zoom in to see individual stars and the labels would become clutter.
+    // Full opacity below zoom 0.7, linearly fades to 0 between 0.7 and 1.2.
+    let labelAlpha = 1
+    if (zoom >= 1.2) labelAlpha = 0
+    else if (zoom > 0.7) labelAlpha = 1 - (zoom - 0.7) / 0.5
+    if (labelAlpha <= 0.02) return
+
+    for (const c of centers) {
+      if (c.entryCount === 0) continue
+      const selected = !selectedCategory || selectedCategory === c.id
+      const a = labelAlpha * (selected ? 1 : 0.35)
+
+      // Typography scales with zoom so labels stay readable even at tiny zoom.
+      const iconSize = Math.max(14, Math.min(24, 20 / zoom))
+      const nameSize = Math.max(10, Math.min(14, 12 / zoom))
+      const countSize = Math.max(8, Math.min(11, 10 / zoom))
+
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+
+      // Icon
+      ctx.font = `${iconSize}px sans-serif`
+      ctx.fillStyle = `rgba(255, 255, 255, ${a * 0.85})`
+      ctx.fillText(c.icon, c.x, c.y - iconSize * 0.6)
+
+      // Name — soft shadow for legibility over bright nebulae
+      ctx.font = `600 ${nameSize}px 'Space Grotesk', Inter, system-ui, sans-serif`
+      ctx.fillStyle = `rgba(0, 0, 0, ${a * 0.55})`
+      ctx.fillText(c.label, c.x + 1, c.y + iconSize * 0.4 + 1)
+      ctx.fillStyle = `rgba(255, 255, 255, ${a * 0.85})`
+      ctx.fillText(c.label, c.x, c.y + iconSize * 0.4)
+
+      // Count badge
+      ctx.font = `500 ${countSize}px Inter, system-ui, sans-serif`
+      ctx.fillStyle = `rgba(255, 255, 255, ${a * 0.5})`
+      ctx.fillText(
+        `${c.entryCount} ${c.entryCount === 1 ? 'star' : 'stars'}`,
+        c.x,
+        c.y + iconSize * 0.4 + nameSize * 1.2
+      )
+    }
   }
 
   function drawFilaments(
@@ -342,7 +395,8 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
     time: number,
     selectedNodeId: string | null,
     selectedCategory: string | null,
-    highlightedTag: string | null
+    highlightedTag: string | null,
+    reducedMotion: boolean
   ) {
     if (zoom < 0.35) return // too cluttered at extreme zoom-out
     const nodeMap = new Map(nodes.map(n => [n.id, n]))
@@ -360,34 +414,59 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
       // Dimmed if selectedCategory is set and neither endpoint matches.
       const catDim = !!selectedCategory && src.category !== selectedCategory && tgt.category !== selectedCategory
 
-      // Base color: user-drawn filaments are saturated green; tag filaments
-      // take on the source's category color (softens cross-category clutter).
-      const baseColor = edge.type === 'user'
-        ? '#22c55e'
-        : (CATEGORY_GLOW[src.category] || '#8ea2b8')
+      // Strength modulates opacity: a strong connection reads as a brighter
+      // thread. Clamped so the weakest edges still faintly exist.
+      const strengthBoost = 0.5 + edge.strength * 0.6
 
-      // Opacity: highlighted edges pop, everything else recedes.
-      const baseAlpha = edge.type === 'user' ? 0.45 : 0.13
-      const activeAlpha = edge.type === 'user' ? 0.85 : 0.55
-      let alpha = isHighlighted ? activeAlpha : baseAlpha
+      // Style per edge type:
+      //   user  → saturated green, thick, solid
+      //   ai    → cyan, dashed (visually "suggested by AI"), slow pulse
+      //   tag   → category-colored, thin, solid, most subtle
+      const isUser = edge.type === 'user'
+      const isAI = edge.type === 'ai'
+      const baseColor = isUser
+        ? '#22c55e'
+        : isAI
+          ? '#67e8f9'
+          : (CATEGORY_GLOW[src.category] || '#8ea2b8')
+
+      // Baseline opacity per type, then weight by strength and highlight state.
+      const baseByType = isUser ? 0.55 : isAI ? 0.42 : 0.15
+      const activeByType = isUser ? 0.9 : isAI ? 0.85 : 0.6
+      let alpha = (isHighlighted ? activeByType : baseByType) * strengthBoost
       if (catDim && !isHighlighted) alpha *= 0.15
 
-      // Bezier curvature: midpoint offset perpendicular to the edge vector
-      // by a small amount — makes filaments feel organic, never crossing as
-      // straight lines.
+      // AI edges pulse subtly so users notice them emerging over time.
+      // Phase offset by the edge's node pair so pulses don't all sync.
+      if (isAI && !reducedMotion) {
+        const pulsePhase = hashString(src.id + tgt.id) % 1000 / 1000 * Math.PI * 2
+        const pulse = 0.15 * Math.sin(time * 0.002 + pulsePhase)
+        alpha = Math.max(0.08, alpha + pulse)
+      }
+
+      // Bezier curvature: midpoint offset perpendicular — organic, never
+      // colliding as straight lines.
       const mx = (src.x + tgt.x) / 2
       const my = (src.y + tgt.y) / 2
       const dx = tgt.x - src.x
       const dy = tgt.y - src.y
       const len = Math.sqrt(dx * dx + dy * dy) || 1
-      // Curve strength: 0-12% of edge length, varied by a deterministic hash
       const curveSeed = hashString(src.id + tgt.id) % 100
       const curveScale = ((curveSeed - 50) / 50) * 0.1
       const cx = mx - (dy / len) * len * curveScale
       const cy = my + (dx / len) * len * curveScale
 
-      // Glow pass: wider, softer stroke.
-      const glowWidth = (edge.type === 'user' ? 4.5 : 2.5) / Math.max(zoom, 0.5)
+      // Apply dash pattern for AI edges — visually flags "this is inferred,
+      // not user-confirmed." Animate the dash offset for a gentle flow effect.
+      if (isAI) {
+        ctx.setLineDash([6 / Math.max(zoom, 0.5), 5 / Math.max(zoom, 0.5)])
+        ctx.lineDashOffset = reducedMotion ? 0 : -(time * 0.015) % 1000
+      } else {
+        ctx.setLineDash([])
+      }
+
+      // Glow pass (wider, softer)
+      const glowWidth = (isUser ? 4.5 : isAI ? 3.2 : 2.5) / Math.max(zoom, 0.5)
       ctx.strokeStyle = hexToRGBA(baseColor, alpha * 0.5)
       ctx.lineWidth = glowWidth
       ctx.lineCap = 'round'
@@ -396,8 +475,8 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
       ctx.quadraticCurveTo(cx, cy, tgt.x, tgt.y)
       ctx.stroke()
 
-      // Core pass: thin bright line.
-      const coreWidth = (edge.type === 'user' ? 1.3 : 0.6) / Math.max(zoom, 0.5)
+      // Core pass (thin, bright)
+      const coreWidth = (isUser ? 1.3 : isAI ? 1.0 : 0.6) / Math.max(zoom, 0.5)
       ctx.strokeStyle = hexToRGBA(baseColor, Math.min(alpha * 1.5, 0.95))
       ctx.lineWidth = coreWidth
       ctx.beginPath()
@@ -405,6 +484,9 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
       ctx.quadraticCurveTo(cx, cy, tgt.x, tgt.y)
       ctx.stroke()
     }
+
+    // Clean up dash pattern for subsequent draws
+    ctx.setLineDash([])
   }
 
   function drawNodes(
@@ -579,31 +661,27 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
     ctx: CanvasRenderingContext2D,
     nodes: SimNode[],
     edges: SimEdge[],
-    originId: string,
-    startMs: number,
+    imp: Impulse,
     currentMs: number,
     zoom: number
   ) {
-    const duration = 850  // ms end-to-end
-    const elapsed = currentMs - startMs
-    if (elapsed > duration + 150) return // animation complete
-    const t = Math.min(1, elapsed / duration)
+    const elapsed = currentMs - imp.startMs
+    if (elapsed > imp.duration + 80) return // animation complete; renderer will prune
+    const t = Math.min(1, elapsed / imp.duration)
     const eased = easeInOut(t)
 
     const nodeMap = new Map(nodes.map(n => [n.id, n]))
-    const origin = nodeMap.get(originId)
+    const origin = nodeMap.get(imp.originId)
     if (!origin) return
 
-    // Find all edges touching the origin.
     for (const edge of edges) {
       const sId = typeof edge.source === 'string' ? edge.source : (edge.source as any).id
       const tId = typeof edge.target === 'string' ? edge.target : (edge.target as any).id
-      if (sId !== originId && tId !== originId) continue
-      const otherId = sId === originId ? tId : sId
+      if (sId !== imp.originId && tId !== imp.originId) continue
+      const otherId = sId === imp.originId ? tId : sId
       const other = nodeMap.get(otherId)
       if (!other) continue
 
-      // Position of the impulse along the (curved) filament.
       const dx = other.x! - origin.x!
       const dy = other.y! - origin.y!
       const len = Math.sqrt(dx * dx + dy * dy) || 1
@@ -612,17 +690,16 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
       const mx = (origin.x! + other.x!) / 2 - (dy / len) * len * curveScale
       const my = (origin.y! + other.y!) / 2 + (dx / len) * len * curveScale
 
-      // Quadratic bezier parametric evaluation
       const b = 1 - eased
       const px = b * b * origin.x! + 2 * b * eased * mx + eased * eased * other.x!
       const py = b * b * origin.y! + 2 * b * eased * my + eased * eased * other.y!
 
-      // Fade out the pulse near the end for a graceful arrival.
-      const pulseAlpha = t < 0.85 ? 1 : 1 - ((t - 0.85) / 0.15)
-      const color = edge.type === 'user' ? '#22c55e' : '#8ec5ff'
+      const fadeT = t < 0.85 ? 1 : 1 - ((t - 0.85) / 0.15)
+      const pulseAlpha = fadeT * imp.intensity
+      const color = edge.type === 'user' ? '#22c55e' : edge.type === 'ai' ? '#67e8f9' : '#8ec5ff'
 
-      // Bright core + outer glow
-      const coreR = 3.5 / Math.max(zoom, 0.5)
+      // Scale the pulse size with intensity so hover pulses are subtler
+      const coreR = (2.5 + 2 * imp.intensity) / Math.max(zoom, 0.5)
       const auraR = coreR * 4
       const grad = ctx.createRadialGradient(px, py, 0, px, py, auraR)
       grad.addColorStop(0, hexToRGBA(color, 0.95 * pulseAlpha))

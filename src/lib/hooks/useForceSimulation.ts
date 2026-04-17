@@ -78,6 +78,11 @@ interface UseForceSimulationProps {
   entries: EntryNode[]
   tagConnections: Array<{ tag: string; entryIds: string[] }>
   userConnections: Array<{ id: string; entryAId: string; entryBId: string; annotation?: string }>
+  /**
+   * AI / emergent connections surfaced by the pattern detector. These render
+   * as cyan dashed filaments and don't require any user action.
+   */
+  aiConnections?: Array<{ source: string; target: string; strength: number; reasons: string[] }>
   width: number
   height: number
   onTick?: () => void
@@ -178,58 +183,79 @@ function buildSimNodes(
 }
 
 /**
- * Build edges from tag groups and user-drawn connections. Tag-based edges
- * get a weaker strength so they don't overwhelm the layout; user-drawn
- * connections pull strongly because they reflect an intentional relationship.
+ * Build edges from tag groups, AI-detected patterns, and user-drawn
+ * connections. Deduped across types with a precedence order:
+ *   user-drawn > ai > tag
+ * (user-drawn is most intentional; tag is weakest signal so it loses ties).
  */
 function buildSimEdges(
   tagConns: Array<{ tag: string; entryIds: string[] }>,
-  userConns: Array<{ id: string; entryAId: string; entryBId: string; annotation?: string }>
+  userConns: Array<{ id: string; entryAId: string; entryBId: string; annotation?: string }>,
+  aiConns: Array<{ source: string; target: string; strength: number; reasons: string[] }>
 ): SimEdge[] {
   const edges: SimEdge[] = []
-  const seen = new Set<string>()
+  const seen = new Map<string, number>() // pair key → index in edges[]
 
-  // Tag edges: connect every pair of entries sharing a tag.
-  // Skip hyper-common tags (> 8 entries) to avoid a dense clump that drags
-  // everything to the center.
+  const pairKey = (a: string, b: string) => [a, b].sort().join('--')
+
+  // Tag edges first (lowest precedence).
   tagConns.forEach(tc => {
     if (tc.entryIds.length > 8) return
+    // Strength proportional to how "exclusive" the tag is — rare shared
+    // tags signal tighter bonds than super-common ones.
+    const strength = Math.max(0.25, 0.7 - tc.entryIds.length * 0.06)
     for (let i = 0; i < tc.entryIds.length; i++) {
       for (let j = i + 1; j < tc.entryIds.length; j++) {
-        const key = [tc.entryIds[i], tc.entryIds[j]].sort().join('--')
-        if (!seen.has(key)) {
-          seen.add(key)
-          edges.push({
-            source: tc.entryIds[i],
-            target: tc.entryIds[j],
-            type: 'tag',
-            label: tc.tag,
-            strength: 0.4,
-          })
-        }
+        const key = pairKey(tc.entryIds[i], tc.entryIds[j])
+        if (seen.has(key)) continue
+        seen.set(key, edges.length)
+        edges.push({
+          source: tc.entryIds[i],
+          target: tc.entryIds[j],
+          type: 'tag',
+          label: tc.tag,
+          strength,
+        })
       }
     }
   })
 
-  // User-drawn edges take precedence over any tag edge for the same pair.
+  // AI edges (higher precedence than tag). Replace tag edge if same pair.
+  aiConns.forEach(ai => {
+    const key = pairKey(ai.source, ai.target)
+    const existingIdx = seen.get(key)
+    const newEdge: SimEdge = {
+      source: ai.source,
+      target: ai.target,
+      type: 'ai',
+      label: ai.reasons.join(' · '),
+      strength: ai.strength,
+    }
+    if (existingIdx !== undefined) {
+      edges[existingIdx] = newEdge
+    } else {
+      seen.set(key, edges.length)
+      edges.push(newEdge)
+    }
+  })
+
+  // User-drawn edges (highest precedence). Replace anything else for same pair.
   userConns.forEach(uc => {
-    const key = [uc.entryAId, uc.entryBId].sort().join('--')
-    const existingIdx = seen.has(key)
-      ? edges.findIndex(e => {
-          const s = typeof e.source === 'string' ? e.source : (e.source as any).id
-          const t = typeof e.target === 'string' ? e.target : (e.target as any).id
-          return [s, t].sort().join('--') === key
-        })
-      : -1
-    if (existingIdx >= 0) edges.splice(existingIdx, 1)
-    seen.add(key)
-    edges.push({
+    const key = pairKey(uc.entryAId, uc.entryBId)
+    const existingIdx = seen.get(key)
+    const newEdge: SimEdge = {
       source: uc.entryAId,
       target: uc.entryBId,
       type: 'user',
       label: uc.annotation,
-      strength: 0.85,
-    })
+      strength: 0.95,
+    }
+    if (existingIdx !== undefined) {
+      edges[existingIdx] = newEdge
+    } else {
+      seen.set(key, edges.length)
+      edges.push(newEdge)
+    }
   })
 
   return edges
@@ -241,6 +267,7 @@ export function useForceSimulation({
   entries,
   tagConnections,
   userConnections,
+  aiConnections = [],
   width,
   height,
   onTick,
@@ -254,8 +281,8 @@ export function useForceSimulation({
   // Memoize the edges build so we can feed it to buildSimNodes without
   // rebuilding twice.
   const edges = useMemo(
-    () => buildSimEdges(tagConnections, userConnections),
-    [tagConnections, userConnections]
+    () => buildSimEdges(tagConnections, userConnections, aiConnections),
+    [tagConnections, userConnections, aiConnections]
   )
 
   useEffect(() => {
@@ -296,11 +323,17 @@ export function useForceSimulation({
       // cross-tagged stars into bridges between categories.
       .force('link', d3.forceLink<SimNode, SimEdge>(edges as any)
         .id(d => d.id)
-        .distance(d => (d as SimEdge).type === 'user' ? 85 : 110)
+        .distance(d => {
+          const e = d as SimEdge
+          return e.type === 'user' ? 80 : e.type === 'ai' ? 95 : 115
+        })
         .strength(d => {
           const e = d as SimEdge
-          // User-drawn edges pull harder; tag edges are suggestion-strength.
-          return e.type === 'user' ? 0.3 : 0.15
+          // Hierarchy: user-drawn is intentional (strong), AI is inferred
+          // (medium), tag is weak signal.
+          if (e.type === 'user') return 0.3
+          if (e.type === 'ai')   return 0.22 * e.strength
+          return 0.12 * e.strength
         })
       )
       // Radial cap — circular viewport boundary. Softer than a rectangle

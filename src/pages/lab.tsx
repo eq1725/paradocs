@@ -555,13 +555,16 @@ function MapTab() {
         }
       />
 
-      {/* NodeDetailPanel lives outside the map so it can overlay the entire
-          MapTab on mobile without getting clipped by the canvas container. */}
+      {/* NodeDetailPanel uses fixed positioning so it floats over the viewport
+          without being clipped by the map canvas container. It only blocks
+          clicks within its own footprint, so tapping the canvas outside the
+          panel still selects new stars or closes the selection. */}
       {selectedEntry && !isImmersive && (
-        <NodeDetailPanelWrapper
+        <NodeDetailPanel
           entry={selectedEntry}
           userMapData={normalizedMapData}
           onClose={function() { setSelectedEntry(null) }}
+          onTagClick={function() {}}
           onEntryClick={function(entryId: string) {
             var entry = normalizedMapData?.entryNodes.find(function(e) { return e.id === entryId })
             if (entry) setSelectedEntry(entry)
@@ -582,30 +585,6 @@ function MapTab() {
   )
 }
 
-// Small wrapper so the detail panel gets a fresh positioning context and
-// works over either the inline map or (conceptually) the full page. The
-// panel itself uses `absolute inset` + `sm:fixed-ish` positioning; wrapping
-// it in a relative div here keeps behavior predictable inside the Lab tab.
-function NodeDetailPanelWrapper(props: {
-  entry: EntryNode
-  userMapData: UserMapData | null
-  onClose: () => void
-  onEntryClick: (id: string) => void
-}) {
-  return (
-    <div className="fixed inset-0 z-40 pointer-events-none">
-      <div className="absolute inset-0 pointer-events-auto">
-        <NodeDetailPanel
-          entry={props.entry}
-          userMapData={props.userMapData}
-          onClose={props.onClose}
-          onTagClick={function() {}}
-          onEntryClick={props.onEntryClick}
-        />
-      </div>
-    </div>
-  )
-}
 
 
 // ─────────────────────────────────────────────────────────────────
