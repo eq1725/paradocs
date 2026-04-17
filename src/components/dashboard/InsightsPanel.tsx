@@ -6,7 +6,8 @@
  * This is where the constellation stops being a visualization and starts
  * being a research tool. Each card summarizes an AI-detected pattern in
  * plain text ("5 of your saves share #military") and exposes a "Highlight"
- * action that tells the parent to pan the galaxy to the referenced stars.
+ * action that tells the parent to open the first matching save for the
+ * pattern so the user can investigate the concrete evidence.
  *
  * Two layouts:
  *   - `panel` (desktop): floating bottom-right of the map, compact vertical
@@ -136,7 +137,7 @@ function InsightCard({ insight, onHighlight }: { insight: Insight; onHighlight: 
             className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-medium text-cyan-300/90 hover:text-cyan-200 transition-colors"
           >
             <Crosshair className="w-3 h-3" />
-            Highlight on galaxy
+            Show matching saves
           </button>
         </div>
       </div>
@@ -178,7 +179,7 @@ export function InsightCardInline({ insight, onHighlight }: { insight: Insight; 
             className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-cyan-300 hover:text-cyan-200 transition-colors"
           >
             <Crosshair className="w-3 h-3" />
-            Highlight on galaxy
+            Show matching saves
           </button>
         </div>
       </div>

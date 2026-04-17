@@ -118,7 +118,7 @@ export default function LabPage() {
     <Layout>
       <Head>
         <title>Lab | Paradocs</title>
-        <meta name="description" content="Your personal research lab — saves, cases, constellation map, and notes." />
+        <meta name="description" content="Your personal research lab — saves, case files, geographic map, and notes." />
       </Head>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
@@ -247,7 +247,7 @@ function UnauthenticatedPrompt() {
       </h2>
       <p className="text-gray-400 max-w-md mb-8 text-sm sm:text-base">
         Your Lab is your personal research workspace. Save reports, build case files,
-        explore your constellation map, and keep investigation notes — all in one place.
+        explore your evidence on a geographic map, and keep investigation notes — all in one place.
       </p>
       <Link
         href="/login"

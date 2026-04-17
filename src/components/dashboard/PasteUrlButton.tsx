@@ -88,6 +88,8 @@ function PasteUrlModal({ onClose, onSaved }: PasteUrlModalProps) {
   const [metadata, setMetadata] = useState<ExtractedMetadata | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  /** Duplicate-detection: non-null when the pasted URL already exists in the user's library. */
+  const [duplicate, setDuplicate] = useState<{ id: string; title: string } | null>(null)
 
   // Editable form fields (seeded from extract, then user can override)
   const [title, setTitle] = useState('')
@@ -133,6 +135,7 @@ function PasteUrlModal({ onClose, onSaved }: PasteUrlModalProps) {
     setExtracting(true)
     setExtractError(null)
     setMetadata(null)
+    setDuplicate(null)
 
     try {
       const sess = await supabase.auth.getSession()
@@ -143,23 +146,34 @@ function PasteUrlModal({ onClose, onSaved }: PasteUrlModalProps) {
         return
       }
 
-      const res = await fetch('/api/constellation/artifacts/extract', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ url: candidate }),
-      })
+      // Duplicate check runs in parallel with the extract. If this URL is
+      // already saved, we surface that to the user before they waste time
+      // filling out a second copy. The check is cheap — one hash lookup.
+      const [dupRes, extractRes] = await Promise.all([
+        fetch('/api/constellation/artifacts/check-dup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ url: candidate }),
+        }).then(r => r.json()).catch(() => ({ exists: false })),
+        fetch('/api/constellation/artifacts/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ url: candidate }),
+        }),
+      ])
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Failed to extract metadata' }))
+      if (dupRes?.exists && dupRes?.artifact) {
+        setDuplicate({ id: dupRes.artifact.id, title: dupRes.artifact.title })
+      }
+
+      if (!extractRes.ok) {
+        const err = await extractRes.json().catch(() => ({ error: 'Failed to extract metadata' }))
         setExtractError(err.error || 'Failed to extract metadata')
         setExtracting(false)
         return
       }
 
-      const data = (await res.json()) as ExtractedMetadata
+      const data = (await extractRes.json()) as ExtractedMetadata
       setMetadata(data)
       setTitle(data.title)
       setTagsInput(data.suggested_tags.join(', '))
@@ -310,6 +324,16 @@ function PasteUrlModal({ onClose, onSaved }: PasteUrlModalProps) {
                 <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                 <span>{extractError}</span>
               </p>
+            )}
+            {duplicate && (
+              <div className="mt-2 flex items-start gap-1.5 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-amber-300" />
+                <div className="text-xs text-amber-200 flex-1 min-w-0">
+                  <span>You&apos;ve already saved this URL as </span>
+                  <span className="font-medium truncate">&ldquo;{duplicate.title}&rdquo;</span>
+                  <span>. Saving again will create a duplicate.</span>
+                </div>
+              </div>
             )}
             {!extractError && !metadata && !extracting && url.length > 0 && (
               <p className="mt-2 text-[10px] text-gray-600">

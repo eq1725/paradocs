@@ -26,10 +26,12 @@ import {
   Plus,
   Check,
   Loader2,
+  Edit3,
 } from 'lucide-react'
 import type { EntryNode, UserMapData, CaseFile } from '@/lib/constellation-types'
 import { supabase } from '@/lib/supabase'
 import { renderMarkdown, normalizeWikilinkKey, extractWikilinkTargets } from '@/lib/markdown-lite'
+import NoteEditorModal from './NoteEditorModal'
 
 // Category display config
 const CATEGORY_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
@@ -85,6 +87,7 @@ export default function NodeDetailPanel({
   onEntryClick,
   onCaseFilesChanged,
 }: NodeDetailPanelProps) {
+  const [noteEditorOpen, setNoteEditorOpen] = useState(false)
   if (!entry) return null
 
   const cat = CATEGORY_CONFIG[entry.category] || CATEGORY_CONFIG.combination
@@ -229,18 +232,34 @@ export default function NodeDetailPanel({
         )}
 
         {/* User note — rendered as markdown with inline [[Wikilinks]] that
-            navigate to other saves. Pattern borrowed from Obsidian. */}
-        {entry.note && (
-          <div className="bg-gray-800/50 rounded-lg px-3 py-2.5">
-            <div className="text-gray-500 text-[10px] font-medium uppercase tracking-wider mb-1">Your Notes</div>
+            navigate to other saves. Pattern borrowed from Obsidian.
+            An Edit button opens NoteEditorModal; for entries without a note,
+            the section collapses to a single CTA. */}
+        <div className="bg-gray-800/50 rounded-lg px-3 py-2.5">
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-gray-500 text-[10px] font-medium uppercase tracking-wider">Your notes</div>
+            <button
+              onClick={() => setNoteEditorOpen(true)}
+              className="inline-flex items-center gap-1 text-[10px] text-primary-300 hover:text-primary-200 transition-colors"
+              title="Edit these notes"
+            >
+              <Edit3 className="w-3 h-3" />
+              {entry.note ? 'Edit' : 'Add'}
+            </button>
+          </div>
+          {entry.note ? (
             <div className="text-sm leading-relaxed">
               {renderMarkdown(entry.note, {
                 wikilinks: wikilinkMap,
                 onWikilinkClick: onEntryClick,
               })}
             </div>
-          </div>
-        )}
+          ) : (
+            <p className="text-[11px] text-gray-500 italic leading-relaxed">
+              No notes yet. Capture what stood out, link to other saves with <span className="font-mono text-cyan-300/80">[[Wikilinks]]</span>, and build your case.
+            </p>
+          )}
+        </div>
 
         {/* Meta info */}
         <div className="flex flex-wrap gap-3 text-xs text-gray-500">
@@ -425,6 +444,22 @@ export default function NodeDetailPanel({
           </div>
         )}
       </div>
+
+      {/* Note editor modal — renders over the entire viewport via its own
+          fixed overlay. Only mounted when the user clicks Edit/Add notes. */}
+      {noteEditorOpen && (
+        <NoteEditorModal
+          entry={entry}
+          allEntries={userMapData?.entryNodes || []}
+          onClose={() => setNoteEditorOpen(false)}
+          onSaved={() => {
+            setNoteEditorOpen(false)
+            // Reuse the existing "case files changed" callback as a generic
+            // data-refresh trigger. The parent refetches user-map either way.
+            onCaseFilesChanged?.()
+          }}
+        />
+      )}
     </div>
   )
 }
