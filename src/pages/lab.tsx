@@ -19,7 +19,7 @@
  * SWC: Uses var + function(){} for compatibility with MobileBottomTabs imports.
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
@@ -45,12 +45,20 @@ import {
 import Layout from '@/components/Layout'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
-import ConstellationMapV2 from '@/components/dashboard/ConstellationMapV2'
+import ConstellationMapV2, { type ConstellationMapHandle } from '@/components/dashboard/ConstellationMapV2'
 import NodeDetailPanel from '@/components/dashboard/NodeDetailPanel'
 import ConstellationSidebar from '@/components/dashboard/ConstellationSidebar'
+import ConstellationListView from '@/components/dashboard/ConstellationListView'
+import InsightsPanel from '@/components/dashboard/InsightsPanel'
 import PasteUrlButton from '@/components/dashboard/PasteUrlButton'
 import type { EntryNode, UserMapData } from '@/lib/constellation-types'
-import { inferCategoryFromTags, CONSTELLATION_NODES } from '@/lib/constellation-data'
+import {
+  inferCategoryFromTags,
+  CONSTELLATION_NODES,
+  detectEmergentConnections,
+  detectInsights,
+} from '@/lib/constellation-data'
+import { Orbit, ListOrdered } from 'lucide-react'
 
 // Tab definitions
 var TAB_KEYS = ['saves', 'cases', 'map', 'notes'] as const
@@ -440,7 +448,21 @@ function MapTab() {
   var [selectedEntry, setSelectedEntry] = useState<EntryNode | null>(null)
   var [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   var [isImmersive, setIsImmersive] = useState(false)
+  var [viewMode, setViewMode] = useState<'galaxy' | 'list'>('galaxy')
   var [refreshKey, setRefreshKey] = useState(0)
+  var mapHandleRef = useRef<ConstellationMapHandle | null>(null)
+
+  // Restore view preference from localStorage (reading research-book mode
+  // vs. exploring-galaxy mode is a preference per user, so we remember it).
+  useEffect(function() {
+    try {
+      var saved = localStorage.getItem('paradocs_map_view')
+      if (saved === 'list' || saved === 'galaxy') setViewMode(saved)
+    } catch (_err) { /* localStorage unavailable, fine */ }
+  }, [])
+  useEffect(function() {
+    try { localStorage.setItem('paradocs_map_view', viewMode) } catch (_err) {}
+  }, [viewMode])
 
   // Prevent body scroll while the map is in immersive fullscreen mode.
   useEffect(function() {
@@ -507,6 +529,53 @@ function MapTab() {
     })
   }, [userMapData])
 
+  // AI-detected emergent connections + library-wide insights. Computed once
+  // in the parent against real entries (teaser ghosts excluded) and passed
+  // down to both the canvas (for filament rendering) and the panels (for
+  // readable pattern cards + the node detail "Patterns" section).
+  var aiConnections = useMemo(function() {
+    if (!normalizedMapData) return []
+    var real = normalizedMapData.entryNodes.filter(function(e) { return !e.isGhost })
+    return detectEmergentConnections(real.map(function(e) {
+      return {
+        id: e.id,
+        category: e.category,
+        verdict: e.verdict,
+        tags: e.tags || [],
+        eventDate: e.eventDate,
+        locationName: e.locationName,
+      }
+    }))
+  }, [normalizedMapData])
+
+  var insights = useMemo(function() {
+    if (!normalizedMapData) return []
+    var real = normalizedMapData.entryNodes.filter(function(e) { return !e.isGhost })
+    return detectInsights(real.map(function(e) {
+      return {
+        id: e.id,
+        category: e.category,
+        verdict: e.verdict,
+        tags: e.tags || [],
+        eventDate: e.eventDate,
+        locationName: e.locationName,
+      }
+    }))
+  }, [normalizedMapData])
+
+  // When the user clicks "Highlight on galaxy" from an insight card:
+  //   - if we're in list mode, flip to galaxy first
+  //   - then ask the imperative handle to pan + pulse the referenced stars
+  var handleHighlight = useCallback(function(entryIds: string[]) {
+    if (viewMode === 'list') {
+      setViewMode('galaxy')
+      // Defer the pan until after the canvas re-mounts / gets its ref.
+      setTimeout(function() { mapHandleRef.current?.highlightEntries(entryIds) }, 150)
+    } else {
+      mapHandleRef.current?.highlightEntries(entryIds)
+    }
+  }, [viewMode])
+
   if (loading && !userMapData) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -520,49 +589,108 @@ function MapTab() {
 
   return (
     <div>
-      {/* Compact header strip + Add-source action */}
-      <div className="flex items-center justify-between gap-2 mb-3 px-1 text-xs">
-        <div className="flex items-center gap-2 text-gray-500 min-w-0">
+      {/* Header strip: context + view toggle + add-source */}
+      <div className="flex items-center justify-between gap-2 mb-3 px-1">
+        <div className="flex items-center gap-2 text-gray-500 min-w-0 text-xs">
           <MapIcon className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-          <span className="truncate">
+          <span className="truncate hidden sm:inline">
             {entryCount === 0
               ? 'No stars yet — log reports or paste a URL to light up your map'
               : entryCount + ' ' + (entryCount === 1 ? 'star' : 'stars') + ' across ' + categoriesCount + ' ' + (categoriesCount === 1 ? 'category' : 'categories')}
           </span>
         </div>
-        <PasteUrlButton onArtifactSaved={function() { setRefreshKey(function(k) { return k + 1 }) }} />
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Galaxy / List segmented toggle */}
+          <div className="inline-flex items-center rounded-lg bg-white/[0.04] border border-white/10 p-0.5">
+            <button
+              onClick={function() { setViewMode('galaxy') }}
+              className={classNames(
+                'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors',
+                viewMode === 'galaxy'
+                  ? 'bg-white/10 text-white'
+                  : 'text-gray-400 hover:text-gray-200'
+              )}
+              title="Galaxy view — explore as a cosmic web"
+            >
+              <Orbit className="w-3 h-3" />
+              <span>Galaxy</span>
+            </button>
+            <button
+              onClick={function() { setViewMode('list') }}
+              className={classNames(
+                'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors',
+                viewMode === 'list'
+                  ? 'bg-white/10 text-white'
+                  : 'text-gray-400 hover:text-gray-200'
+              )}
+              title="List view — read your library as cards"
+            >
+              <ListOrdered className="w-3 h-3" />
+              <span>List</span>
+            </button>
+          </div>
+          <PasteUrlButton onArtifactSaved={function() { setRefreshKey(function(k) { return k + 1 }) }} />
+        </div>
       </div>
 
       {/*
-        Map is the hero now. On desktop the sidebar floats over the canvas
-        (top-left) via the overlay slot. On mobile we render a pill strip
-        below the map so the canvas stays unobstructed.
+        View switch: the Galaxy canvas or the List view. Both share the
+        selectedEntry, selectedCategory, and detail panel, so toggling is
+        just a presentation flip — no state loss.
       */}
-      <ConstellationMapV2
-        userMapData={normalizedMapData}
-        onSelectEntry={setSelectedEntry}
-        selectedEntryId={selectedEntry?.id}
-        selectedCategory={selectedCategory}
-        isImmersive={isImmersive}
-        onToggleImmersive={function() { setIsImmersive(function(v) { return !v }) }}
-        overlay={
-          <ConstellationSidebar
-            userMapData={normalizedMapData}
-            selectedCategory={selectedCategory}
-            onCategoryClick={setSelectedCategory}
-            layout="panel"
-          />
-        }
-      />
+      {viewMode === 'galaxy' ? (
+        <ConstellationMapV2
+          ref={mapHandleRef}
+          userMapData={normalizedMapData}
+          onSelectEntry={setSelectedEntry}
+          selectedEntryId={selectedEntry?.id}
+          selectedCategory={selectedCategory}
+          isImmersive={isImmersive}
+          onToggleImmersive={function() { setIsImmersive(function(v) { return !v }) }}
+          aiConnections={aiConnections}
+          overlay={
+            <ConstellationSidebar
+              userMapData={normalizedMapData}
+              selectedCategory={selectedCategory}
+              onCategoryClick={setSelectedCategory}
+              layout="panel"
+            />
+          }
+        />
+      ) : (
+        <ConstellationListView
+          userMapData={normalizedMapData}
+          aiConnections={aiConnections}
+          insights={insights}
+          selectedCategory={selectedCategory}
+          selectedEntryId={selectedEntry?.id || null}
+          onSelectEntry={setSelectedEntry}
+          onHighlight={handleHighlight}
+        />
+      )}
+
+      {/* Desktop insights panel — floats bottom-right of the page.
+          On the galaxy view it overlays the canvas; on the list view it
+          sits alongside the cards. Hidden on mobile (drawer below takes over). */}
+      {insights.length > 0 && viewMode === 'galaxy' && !isImmersive && (
+        <div className="hidden sm:block fixed bottom-20 right-6 z-30">
+          <InsightsPanel insights={insights} onHighlight={handleHighlight} layout="panel" />
+        </div>
+      )}
+
+      {/* Mobile insights drawer — pull-up from bottom */}
+      {insights.length > 0 && !isImmersive && (
+        <InsightsPanel insights={insights} onHighlight={handleHighlight} layout="drawer" />
+      )}
 
       {/* NodeDetailPanel uses fixed positioning so it floats over the viewport
-          without being clipped by the map canvas container. It only blocks
-          clicks within its own footprint, so tapping the canvas outside the
-          panel still selects new stars or closes the selection. */}
+          without being clipped. Carries aiConnections so the "Patterns" section
+          can list every AI-detected link touching this star. */}
       {selectedEntry && !isImmersive && (
         <NodeDetailPanel
           entry={selectedEntry}
           userMapData={normalizedMapData}
+          aiConnections={aiConnections}
           onClose={function() { setSelectedEntry(null) }}
           onTagClick={function() {}}
           onEntryClick={function(entryId: string) {
@@ -572,15 +700,18 @@ function MapTab() {
         />
       )}
 
-      {/* Mobile pill strip — sm breakpoint and below */}
-      <div className="sm:hidden mt-3">
-        <ConstellationSidebar
-          userMapData={normalizedMapData}
-          selectedCategory={selectedCategory}
-          onCategoryClick={setSelectedCategory}
-          layout="pill"
-        />
-      </div>
+      {/* Mobile category pill strip — only meaningful in galaxy mode; list
+          view already has its own filter affordance via the sidebar-less layout. */}
+      {viewMode === 'galaxy' && (
+        <div className="sm:hidden mt-3">
+          <ConstellationSidebar
+            userMapData={normalizedMapData}
+            selectedCategory={selectedCategory}
+            onCategoryClick={setSelectedCategory}
+            layout="pill"
+          />
+        </div>
+      )}
     </div>
   )
 }

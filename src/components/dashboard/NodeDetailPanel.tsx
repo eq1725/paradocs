@@ -21,6 +21,7 @@ import {
   Stars,
   Lightbulb,
   BookOpen,
+  Sparkles,
 } from 'lucide-react'
 import type { EntryNode, UserMapData } from '@/lib/constellation-types'
 
@@ -46,9 +47,19 @@ const VERDICT_CONFIG: Record<string, { label: string; icon: string; color: strin
   needs_info: { label: 'Need More Info', icon: '🟣', color: 'text-purple-400', bgColor: 'bg-purple-500/15' },
 }
 
+/** AI-detected emergent connection — narrow shape the panel actually needs */
+export interface AiConnection {
+  source: string
+  target: string
+  strength: number
+  reasons: string[]
+}
+
 interface NodeDetailPanelProps {
   entry: EntryNode | null
   userMapData: UserMapData | null
+  /** AI-detected connections for the whole library (filtered inside). Optional. */
+  aiConnections?: AiConnection[]
   onClose: () => void
   onTagClick: (tag: string) => void
   onEntryClick: (entryId: string) => void
@@ -57,6 +68,7 @@ interface NodeDetailPanelProps {
 export default function NodeDetailPanel({
   entry,
   userMapData,
+  aiConnections = [],
   onClose,
   onTagClick,
   onEntryClick,
@@ -246,6 +258,59 @@ export default function NodeDetailPanel({
             </div>
           </div>
         )}
+
+        {/* AI-detected patterns — every ambient cyan filament touching this
+            star becomes a readable row here, with the reasons that triggered
+            the match. Tap → switch selection to the matched star. */}
+        {(() => {
+          const relevant = aiConnections.filter(
+            c => c.source === entry.id || c.target === entry.id
+          )
+          if (relevant.length === 0) return null
+          // Sort by strength descending, cap at 6 to prevent the panel from
+          // becoming a scroll-hell on well-connected stars.
+          relevant.sort((a, b) => b.strength - a.strength)
+          const shown = relevant.slice(0, 6)
+          return (
+            <div>
+              <div className="flex items-center gap-1.5 text-gray-500 text-[10px] font-medium uppercase tracking-wider mb-2">
+                <Sparkles className="w-3 h-3 text-cyan-400" />
+                AI-detected patterns ({relevant.length})
+              </div>
+              <div className="space-y-1.5">
+                {shown.map(conn => {
+                  const otherId = conn.source === entry.id ? conn.target : conn.source
+                  const other = userMapData?.entryNodes.find(n => n.id === otherId)
+                  if (!other) return null
+                  const otherCat = CATEGORY_CONFIG[other.category] || CATEGORY_CONFIG.combination
+                  return (
+                    <button
+                      key={otherId}
+                      onClick={() => onEntryClick(otherId)}
+                      className="w-full flex items-start gap-2 px-2.5 py-2 bg-cyan-500/5 border border-cyan-500/15 hover:bg-cyan-500/10 hover:border-cyan-500/30 rounded-lg text-left transition-colors group"
+                    >
+                      <span className="text-sm mt-0.5">{otherCat.icon}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-gray-200 text-xs font-medium truncate group-hover:text-white transition-colors">
+                          {other.name}
+                        </div>
+                        <div className="text-cyan-300/80 text-[10px] mt-0.5 leading-snug">
+                          {conn.reasons.join(' · ')}
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3 h-3 text-gray-600 group-hover:text-cyan-300 shrink-0 mt-1" />
+                    </button>
+                  )
+                })}
+              </div>
+              {relevant.length > shown.length && (
+                <div className="text-[10px] text-gray-600 mt-1.5 pl-1">
+                  {relevant.length - shown.length} more pattern{relevant.length - shown.length === 1 ? '' : 's'} on this star
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Associated theories */}
         {theories.length > 0 && (

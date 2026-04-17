@@ -419,29 +419,31 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
       const strengthBoost = 0.5 + edge.strength * 0.6
 
       // Style per edge type:
-      //   user  → saturated green, thick, solid
-      //   ai    → cyan, dashed (visually "suggested by AI"), slow pulse
-      //   tag   → category-colored, thin, solid, most subtle
+      //   user  → saturated green, thick, solid — intentional bond, shout it
+      //   ai    → muted teal, thin solid (dash removed), subtle pulse — present
+      //           but never louder than the stars themselves
+      //   tag   → category-colored, thinnest, solid, most subtle
       const isUser = edge.type === 'user'
       const isAI = edge.type === 'ai'
       const baseColor = isUser
         ? '#22c55e'
         : isAI
-          ? '#67e8f9'
+          ? '#5eb8c4'  // desaturated teal — less "neon cyan" than #67e8f9
           : (CATEGORY_GLOW[src.category] || '#8ea2b8')
 
-      // Baseline opacity per type, then weight by strength and highlight state.
-      const baseByType = isUser ? 0.55 : isAI ? 0.42 : 0.15
-      const activeByType = isUser ? 0.9 : isAI ? 0.85 : 0.6
+      // Baseline opacity per type. AI pulled back from 0.42 → 0.22 so it no
+      // longer dominates the composition; still readable when scanned for.
+      const baseByType = isUser ? 0.55 : isAI ? 0.22 : 0.14
+      const activeByType = isUser ? 0.9 : isAI ? 0.7 : 0.55
       let alpha = (isHighlighted ? activeByType : baseByType) * strengthBoost
       if (catDim && !isHighlighted) alpha *= 0.15
 
-      // AI edges pulse subtly so users notice them emerging over time.
-      // Phase offset by the edge's node pair so pulses don't all sync.
+      // AI edges pulse barely — 5% amplitude. Gives a sign of life without
+      // "look at me" flashing. Phase-varied per edge so pulses aren't synced.
       if (isAI && !reducedMotion) {
         const pulsePhase = hashString(src.id + tgt.id) % 1000 / 1000 * Math.PI * 2
-        const pulse = 0.15 * Math.sin(time * 0.002 + pulsePhase)
-        alpha = Math.max(0.08, alpha + pulse)
+        const pulse = 0.05 * Math.sin(time * 0.0015 + pulsePhase)
+        alpha = Math.max(0.06, alpha + pulse)
       }
 
       // Bezier curvature: midpoint offset perpendicular — organic, never
@@ -456,17 +458,13 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
       const cx = mx - (dy / len) * len * curveScale
       const cy = my + (dx / len) * len * curveScale
 
-      // Apply dash pattern for AI edges — visually flags "this is inferred,
-      // not user-confirmed." Animate the dash offset for a gentle flow effect.
-      if (isAI) {
-        ctx.setLineDash([6 / Math.max(zoom, 0.5), 5 / Math.max(zoom, 0.5)])
-        ctx.lineDashOffset = reducedMotion ? 0 : -(time * 0.015) % 1000
-      } else {
-        ctx.setLineDash([])
-      }
+      // AI edges render solid now, not dashed. The hierarchy (hue + weight +
+      // alpha) already tells users these are inferred; dashes were adding
+      // visual noise without extra information value.
+      ctx.setLineDash([])
 
-      // Glow pass (wider, softer)
-      const glowWidth = (isUser ? 4.5 : isAI ? 3.2 : 2.5) / Math.max(zoom, 0.5)
+      // Glow pass (wider, softer). AI glow is subtle — 2.4 instead of 3.2.
+      const glowWidth = (isUser ? 4.5 : isAI ? 2.4 : 2.5) / Math.max(zoom, 0.5)
       ctx.strokeStyle = hexToRGBA(baseColor, alpha * 0.5)
       ctx.lineWidth = glowWidth
       ctx.lineCap = 'round'
@@ -475,18 +473,16 @@ export function useCanvasRenderer({ width, height }: UseCanvasRendererProps) {
       ctx.quadraticCurveTo(cx, cy, tgt.x, tgt.y)
       ctx.stroke()
 
-      // Core pass (thin, bright)
-      const coreWidth = (isUser ? 1.3 : isAI ? 1.0 : 0.6) / Math.max(zoom, 0.5)
-      ctx.strokeStyle = hexToRGBA(baseColor, Math.min(alpha * 1.5, 0.95))
+      // Core pass (thin, bright). AI core slimmed to 0.8 — it reads as
+      // "also present" instead of "primary visual element."
+      const coreWidth = (isUser ? 1.3 : isAI ? 0.8 : 0.6) / Math.max(zoom, 0.5)
+      ctx.strokeStyle = hexToRGBA(baseColor, Math.min(alpha * 1.4, 0.85))
       ctx.lineWidth = coreWidth
       ctx.beginPath()
       ctx.moveTo(src.x, src.y)
       ctx.quadraticCurveTo(cx, cy, tgt.x, tgt.y)
       ctx.stroke()
     }
-
-    // Clean up dash pattern for subsequent draws
-    ctx.setLineDash([])
   }
 
   function drawNodes(

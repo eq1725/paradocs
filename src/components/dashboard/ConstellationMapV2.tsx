@@ -16,14 +16,13 @@
  *   - prefers-reduced-motion support — disables all ambient motion
  */
 
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useRef, useState, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react'
 import { ZoomIn, ZoomOut, Maximize2, Sparkles, Compass, Maximize, Minimize } from 'lucide-react'
 import Link from 'next/link'
 import { useForceSimulation, SimNode } from '@/lib/hooks/useForceSimulation'
 import { useCanvasRenderer, RenderState, Impulse } from '@/lib/hooks/useCanvasRenderer'
 import { useMapInteractions, Transform } from '@/lib/hooks/useMapInteractions'
 import type { EntryNode, UserMapData } from '@/lib/constellation-types'
-import { detectEmergentConnections } from '@/lib/constellation-data'
 import {
   getTeaserGhosts,
   getTeaserTagConnections,
@@ -45,9 +44,18 @@ interface ConstellationMapV2Props {
    * below the sm breakpoint so mobile can show a dedicated pill strip.
    */
   overlay?: React.ReactNode
+  /** Precomputed AI connections so parent + child share the same detection. */
+  aiConnections?: Array<{ source: string; target: string; strength: number; reasons: string[] }>
+  /** Called when the insights panel wants to pan the camera — returns via ref instead. */
 }
 
-export default function ConstellationMapV2({
+/** Imperative handle exposed to parents for pan/highlight control. */
+export interface ConstellationMapHandle {
+  /** Pan + zoom to fit the given entries, pulse each one visibly */
+  highlightEntries: (entryIds: string[]) => void
+}
+
+function ConstellationMapV2Inner({
   userMapData,
   onSelectEntry,
   selectedEntryId,
@@ -55,7 +63,8 @@ export default function ConstellationMapV2({
   isImmersive = false,
   onToggleImmersive,
   overlay,
-}: ConstellationMapV2Props) {
+  aiConnections: aiConnectionsProp = [],
+}: ConstellationMapV2Props, ref: React.Ref<ConstellationMapHandle>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animFrameRef = useRef<number>(0)
@@ -105,22 +114,10 @@ export default function ConstellationMapV2({
     [userMapData?.userConnections]
   )
 
-  // ── Emergent/AI connection detection ──
-  // Runs client-side over the blended entries (real + ghosts if teaser).
-  // Detects patterns in tag overlap, temporal proximity, shared location, and
-  // compelling-verdict co-occurrence. Rendered as cyan dashed filaments so
-  // users see patterns they'd never notice manually.
-  const aiConnections = useMemo(() => {
-    const input = entries.map(e => ({
-      id: e.id,
-      category: e.category,
-      verdict: e.verdict,
-      tags: e.tags || [],
-      eventDate: e.eventDate,
-      locationName: e.locationName,
-    }))
-    return detectEmergentConnections(input)
-  }, [entries])
+  // AI connections are computed in the parent (MapTab) against the real
+  // entries only — teaser ghosts don't generate pattern insights. Passed
+  // down here so the force simulation and renderer can draw them.
+  const aiConnections = aiConnectionsProp
 
   // ── Responsive sizing ──
   useEffect(() => {
@@ -177,7 +174,7 @@ export default function ConstellationMapV2({
 
   const handleBackgroundClick = useCallback(() => { onSelectEntry(null) }, [onSelectEntry])
 
-  const { zoomIn, zoomOut, resetZoom } = useMapInteractions({
+  const { zoomIn, zoomOut, resetZoom, centerOn } = useMapInteractions({
     canvasRef,
     width: dimensions.width,
     height: dimensions.height,
@@ -224,6 +221,44 @@ export default function ConstellationMapV2({
     if (!selectedEntryId) return
     pushImpulse(selectedEntryId, 1.0, 850)
   }, [selectedEntryId, pushImpulse])
+
+  // Imperative handle — lets the InsightsPanel pan the camera to a group of
+  // stars and pulse them. Implementation: compute the bounding box of the
+  // matching nodes, call centerOn with a scale chosen to fit with padding,
+  // then push a strong impulse on each so they visibly "wake up."
+  useImperativeHandle(ref, () => ({
+    highlightEntries(entryIds: string[]) {
+      if (!entryIds.length) return
+      const matching = nodes.current.filter(n => entryIds.includes(n.id))
+      if (matching.length === 0) return
+
+      // Bounding box in world space
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+      for (const n of matching) {
+        const nx = n.x!, ny = n.y!
+        if (nx < minX) minX = nx
+        if (nx > maxX) maxX = nx
+        if (ny < minY) minY = ny
+        if (ny > maxY) maxY = ny
+      }
+      const cxBox = (minX + maxX) / 2
+      const cyBox = (minY + maxY) / 2
+      const w = Math.max(maxX - minX, 120)
+      const h = Math.max(maxY - minY, 120)
+      // Scale so the bbox fits in ~60% of the viewport (padding for breathing room)
+      const sx = (dimensions.width * 0.6) / w
+      const sy = (dimensions.height * 0.6) / h
+      const scale = Math.max(0.6, Math.min(2.5, Math.min(sx, sy)))
+
+      centerOn(cxBox, cyBox, scale, 600)
+
+      // Fire a strong impulse on each highlighted star after a short delay
+      // so the pulse lands mid-pan (maxes out attention).
+      setTimeout(() => {
+        matching.forEach(n => pushImpulse(n.id, 1.0, 900))
+      }, 250)
+    },
+  }), [nodes, dimensions.width, dimensions.height, centerOn, pushImpulse])
 
   // Hover impulse — only for real (non-ghost) nodes. Skipped when the user
   // has reduced-motion on.
@@ -449,3 +484,8 @@ export default function ConstellationMapV2({
     </div>
   )
 }
+
+// Wrap in forwardRef so callers can grab the imperative handle for pan-to-highlight.
+const ConstellationMapV2 = forwardRef<ConstellationMapHandle, ConstellationMapV2Props>(ConstellationMapV2Inner)
+ConstellationMapV2.displayName = 'ConstellationMapV2'
+export default ConstellationMapV2

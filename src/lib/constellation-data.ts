@@ -621,6 +621,159 @@ export function detectEmergentConnections(entries: DetectorEntry[]): EmergentCon
   return out
 }
 
+// ── Library-wide Insight Aggregator ──
+//
+// While detectEmergentConnections returns pairwise links between stars,
+// detectInsights rolls patterns up to library level — the kind of
+// observations a research assistant would write in a margin note:
+//
+//   "5 of your saves share the tag 'military' — mostly compelling UFO reports."
+//   "3 reports cluster in Arizona between May and July 2024."
+//   "You have 4 compelling ghost-hauntings in the last 6 months."
+//
+// These are what surface in the Insights panel as text cards, and what
+// interleave between entry rows in the List view.
+
+export interface Insight {
+  id: string
+  type: 'tag_cluster' | 'location_cluster' | 'temporal_cluster' | 'category_compelling' | 'cross_category'
+  title: string
+  body: string
+  /** IDs of entries this insight references — used to pan/highlight the canvas */
+  entryIds: string[]
+  /** 0-1 significance — controls sort order and card prominence */
+  strength: number
+  /** Optional category id for color-coding */
+  category?: string
+}
+
+interface InsightEntry {
+  id: string
+  category: string
+  verdict: string
+  tags: string[]
+  eventDate: string | null
+  locationName: string | null
+}
+
+const TAG_CLUSTER_MIN = 3
+const LOCATION_CLUSTER_MIN = 2
+const TEMPORAL_WINDOW_DAYS_INSIGHT = 60
+const TEMPORAL_CLUSTER_MIN = 3
+const CATEGORY_COMPELLING_MIN = 3
+
+export function detectInsights(entries: InsightEntry[]): Insight[] {
+  if (entries.length < 2) return []
+  const out: Insight[] = []
+
+  // ── Tag clusters ──
+  const byTag: Record<string, string[]> = {}
+  for (const e of entries) {
+    for (const raw of e.tags || []) {
+      const t = raw.trim().toLowerCase()
+      if (!t) continue
+      if (!byTag[t]) byTag[t] = []
+      byTag[t].push(e.id)
+    }
+  }
+  for (const [tag, ids] of Object.entries(byTag)) {
+    if (ids.length < TAG_CLUSTER_MIN) continue
+    // Strength rises with cluster size but caps so super-common tags don't
+    // dominate the insight feed.
+    const strength = Math.min(0.9, 0.4 + ids.length * 0.08)
+    out.push({
+      id: `tag:${tag}`,
+      type: 'tag_cluster',
+      title: `${ids.length} saves share #${tag}`,
+      body: `You've tagged ${ids.length} sources with "${tag}". Tap to highlight them on the galaxy.`,
+      entryIds: ids,
+      strength,
+    })
+  }
+
+  // ── Location clusters ──
+  const byLocation: Record<string, string[]> = {}
+  for (const e of entries) {
+    if (!e.locationName) continue
+    const key = e.locationName.trim().toLowerCase()
+    if (!key) continue
+    if (!byLocation[key]) byLocation[key] = []
+    byLocation[key].push(e.id)
+  }
+  for (const [loc, ids] of Object.entries(byLocation)) {
+    if (ids.length < LOCATION_CLUSTER_MIN) continue
+    // Pretty-print location from the first entry that used it
+    const label = entries.find(e => e.locationName?.trim().toLowerCase() === loc)?.locationName || loc
+    const strength = Math.min(0.9, 0.55 + ids.length * 0.1)
+    out.push({
+      id: `loc:${loc}`,
+      type: 'location_cluster',
+      title: `${ids.length} reports from ${label}`,
+      body: `Geographic cluster — ${ids.length} of your sources reference ${label}.`,
+      entryIds: ids,
+      strength,
+    })
+  }
+
+  // ── Temporal clusters (60-day rolling window) ──
+  const dated = entries
+    .filter(e => e.eventDate)
+    .map(e => ({ id: e.id, t: new Date(e.eventDate!).getTime() }))
+    .filter(e => !isNaN(e.t))
+    .sort((a, b) => a.t - b.t)
+  const seenTemporalIds = new Set<string>()
+  for (let i = 0; i < dated.length; i++) {
+    const windowStart = dated[i].t
+    const windowEnd = windowStart + TEMPORAL_WINDOW_DAYS_INSIGHT * 86400000
+    const group: string[] = [dated[i].id]
+    for (let j = i + 1; j < dated.length; j++) {
+      if (dated[j].t <= windowEnd) group.push(dated[j].id)
+      else break
+    }
+    if (group.length >= TEMPORAL_CLUSTER_MIN && !group.every(id => seenTemporalIds.has(id))) {
+      group.forEach(id => seenTemporalIds.add(id))
+      const start = new Date(windowStart).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+      const end = new Date(Math.min(windowEnd, dated[i + group.length - 1]?.t ?? windowEnd))
+        .toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+      const strength = Math.min(0.85, 0.5 + group.length * 0.06)
+      out.push({
+        id: `time:${windowStart}`,
+        type: 'temporal_cluster',
+        title: `${group.length} events, ${start}${start !== end ? '–' + end : ''}`,
+        body: `A burst of ${group.length} events within a ${TEMPORAL_WINDOW_DAYS_INSIGHT}-day window. Often a sign of a wave or investigation thread.`,
+        entryIds: group,
+        strength,
+      })
+    }
+  }
+
+  // ── Category-compelling clusters ──
+  const compellingByCat: Record<string, string[]> = {}
+  for (const e of entries) {
+    if (e.verdict !== 'compelling') continue
+    if (!compellingByCat[e.category]) compellingByCat[e.category] = []
+    compellingByCat[e.category].push(e.id)
+  }
+  for (const [cat, ids] of Object.entries(compellingByCat)) {
+    if (ids.length < CATEGORY_COMPELLING_MIN) continue
+    const node = CONSTELLATION_NODES.find(n => n.id === cat)
+    const catLabel = node?.label || cat
+    const strength = Math.min(0.95, 0.6 + ids.length * 0.08)
+    out.push({
+      id: `compelling:${cat}`,
+      type: 'category_compelling',
+      title: `${ids.length} compelling ${catLabel} sources`,
+      body: `${ids.length} of your ${catLabel} saves are marked compelling — your strongest evidence concentration in this category.`,
+      entryIds: ids,
+      strength,
+      category: cat,
+    })
+  }
+
+  // Sort by strength descending, cap at 20 for sanity
+  return out.sort((a, b) => b.strength - a.strength).slice(0, 20)
+}
+
 /**
  * Generate background stars for decorative effect
  */
