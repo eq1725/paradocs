@@ -198,10 +198,15 @@ export default function LabGeoMap({
   }
 
   return (
-    <div className="w-full h-[60vh] sm:h-[70vh] rounded-2xl overflow-hidden border border-gray-800 bg-gray-950">
+    <div className="relative w-full h-[60vh] sm:h-[70vh] rounded-2xl overflow-hidden border border-gray-800 bg-gray-950">
+      {/* Small overlay chip so we can sanity-check how many saves have
+          coords — useful for diagnosing "map is blank" reports. */}
+      <div className="absolute top-3 right-3 z-[500] px-2 py-1 rounded-md bg-black/70 border border-white/10 text-[10px] font-medium text-sky-200 backdrop-blur-sm pointer-events-none">
+        {points.length} pin{points.length === 1 ? '' : 's'}
+      </div>
       <MapContainer
         center={[points[0].lat, points[0].lng] as [number, number]}
-        zoom={3}
+        zoom={4}
         scrollWheelZoom
         className="w-full h-full"
         attributionControl={false}
@@ -212,6 +217,7 @@ export default function LabGeoMap({
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
         />
+        <FitToPoints points={points} />
         <ClusteredMarkers
           L={leaflet!}
           points={points}
@@ -220,6 +226,37 @@ export default function LabGeoMap({
       </MapContainer>
     </div>
   )
+}
+
+/**
+ * FitToPoints — once the map mounts, fit the viewport to the bounding box
+ * of all pins so they're always visible. Previously we used a static zoom
+ * and the map could open in an area with no pins, giving the impression
+ * that the map was empty when it wasn't.
+ */
+function FitToPoints({ points }: { points: Array<{ lat: number; lng: number }> }) {
+  const map = useMap()
+  const hasFit = useRef(false)
+  useEffect(() => {
+    if (hasFit.current) return
+    if (points.length === 0) return
+    if (points.length === 1) {
+      map.setView([points[0].lat, points[0].lng], 6, { animate: false })
+    } else {
+      const lats = points.map(p => p.lat)
+      const lngs = points.map(p => p.lng)
+      const south = Math.min(...lats)
+      const north = Math.max(...lats)
+      const west = Math.min(...lngs)
+      const east = Math.max(...lngs)
+      map.fitBounds(
+        [[south, west], [north, east]] as any,
+        { padding: [40, 40], maxZoom: 7, animate: false },
+      )
+    }
+    hasFit.current = true
+  }, [map, points])
+  return null
 }
 
 // ── Clustered marker renderer ──
