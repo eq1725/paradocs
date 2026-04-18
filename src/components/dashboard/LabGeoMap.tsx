@@ -322,7 +322,10 @@ export default function LabGeoMap({
           </Source>
         )}
 
-        {/* ── Global-context backdrop (all Paradocs reports as faint dots) ── */}
+        {/* ── Global-context backdrop (all Paradocs reports as faint dots) ──
+            Subtle but visible — bumped from radius 2 / 0.3 opacity to
+            radius 3 / 0.55 with a thin white stroke so the backdrop
+            actually reads on the dark basemap. */}
         {globalContext && <GlobalContextLoader onData={setGlobalGeoJSON} />}
         {globalContext && globalGeoJSON && (
           <Source id="lab-global" type="geojson" data={globalGeoJSON}>
@@ -330,10 +333,16 @@ export default function LabGeoMap({
               id="lab-global-points"
               type="circle"
               paint={{
-                'circle-color': '#64748b',
-                'circle-radius': 2,
-                'circle-opacity': heatmapActive ? 0 : 0.3,
-                'circle-stroke-width': 0,
+                'circle-color': '#94a3b8',
+                'circle-radius': [
+                  'interpolate', ['linear'], ['zoom'],
+                  0, 2.5,
+                  5, 3,
+                  10, 4,
+                ] as any,
+                'circle-opacity': heatmapActive ? 0.15 : 0.55,
+                'circle-stroke-color': 'rgba(255,255,255,0.35)',
+                'circle-stroke-width': 0.5,
               }}
             />
           </Source>
@@ -521,7 +530,9 @@ function MapControls({
   yearRangeAvailable, timelineRange, onTimelineChange,
   pinCount, waveCount,
 }: MapControlsProps) {
-  const [expanded, setExpanded] = useState(false)
+  // Default the layers panel to expanded so users can see the controls
+  // immediately rather than having to discover the collapsed pill.
+  const [expanded, setExpanded] = useState(true)
 
   const hasTimeline = !!yearRangeAvailable && yearRangeAvailable[0] !== yearRangeAvailable[1]
 

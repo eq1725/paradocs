@@ -236,30 +236,32 @@ export default function NodeDetailPanel({
           )
         )}
 
-        {/* Source link — title already lives in the sticky header, so this
-            just needs the "open source" CTA. */}
-        {isExternal && entry.externalUrl ? (
-          <a
-            href={entry.externalUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-primary-400 hover:text-primary-300 text-xs transition-colors"
-          >
-            Open on {entry.sourcePlatform || 'source'} <ExternalLink className="w-3 h-3" />
-          </a>
-        ) : entry.slug ? (
-          <Link
-            href={`/report/${entry.slug}`}
-            className="inline-flex items-center gap-1 text-primary-400 hover:text-primary-300 text-xs transition-colors"
-          >
-            View full report <ExternalLink className="w-3 h-3" />
-          </Link>
-        ) : null}
+        {/* Source link + verdict badge on a shared row with an explicit gap
+            so the two don't crowd each other (they used to sit as siblings
+            under space-y-4, which doesn't separate inline-flex elements). */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          {isExternal && entry.externalUrl ? (
+            <a
+              href={entry.externalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-primary-400 hover:text-primary-300 text-xs transition-colors"
+            >
+              Open on {entry.sourcePlatform || 'source'} <ExternalLink className="w-3 h-3" />
+            </a>
+          ) : entry.slug ? (
+            <Link
+              href={`/report/${entry.slug}`}
+              className="inline-flex items-center gap-1 text-primary-400 hover:text-primary-300 text-xs transition-colors"
+            >
+              View full report <ExternalLink className="w-3 h-3" />
+            </Link>
+          ) : null}
 
-        {/* Verdict badge */}
-        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${verdict.bgColor}`}>
-          <span>{verdict.icon}</span>
-          <span className={`text-sm font-medium ${verdict.color}`}>{verdict.label}</span>
+          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${verdict.bgColor}`}>
+            <span>{verdict.icon}</span>
+            <span className={`text-sm font-medium ${verdict.color}`}>{verdict.label}</span>
+          </div>
         </div>
 
         {/* Case files — only supported on external artifacts for now
