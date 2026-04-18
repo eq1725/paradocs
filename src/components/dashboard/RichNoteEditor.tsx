@@ -62,6 +62,14 @@ function getMarkdownSafe(editor: Editor | null): string {
 const WIKILINK_REGEX = /\[\[([^\[\]\n]+?)\]\]/g
 const wikilinkPluginKey = new PluginKey('paradocs-wikilink-deco')
 
+/**
+ * The regex match is split into three decoration ranges so we can style
+ * the [[ and ]] markers differently from the title between them. The
+ * brackets get a CSS class that makes them zero-width / invisible, while
+ * the title gets the visible cyan chip treatment. The underlying text
+ * is untouched — the user can still backspace through the markers, and
+ * markdown roundtrip stays identical. It's purely a view-layer swap.
+ */
 const WikilinkDecorationExtension = Extension.create({
   name: 'wikilinkDecoration',
   addProseMirrorPlugins() {
@@ -77,12 +85,24 @@ const WikilinkDecorationExtension = Extension.create({
               let m: RegExpExecArray | null
               WIKILINK_REGEX.lastIndex = 0
               while ((m = WIKILINK_REGEX.exec(text)) !== null) {
-                const from = pos + m.index
-                const to = from + m[0].length
+                const fullStart = pos + m.index
+                const titleStart = fullStart + 2   // skip `[[`
+                const titleEnd = titleStart + m[1].length
+                const fullEnd = fullStart + m[0].length
                 decorations.push(
-                  Decoration.inline(from, to, {
+                  Decoration.inline(fullStart, titleStart, {
+                    class: 'paradocs-wikilink-bracket',
+                  }),
+                )
+                decorations.push(
+                  Decoration.inline(titleStart, titleEnd, {
                     class: 'paradocs-wikilink-chip',
                     'data-wikilink-title': m[1],
+                  }),
+                )
+                decorations.push(
+                  Decoration.inline(titleEnd, fullEnd, {
+                    class: 'paradocs-wikilink-bracket',
                   }),
                 )
               }

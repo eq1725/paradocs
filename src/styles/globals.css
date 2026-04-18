@@ -546,3 +546,13 @@ body.sheet-open {
   background: rgba(103, 232, 249, 0.18);
   border-color: rgba(103, 232, 249, 0.4);
 }
+/* Hide the literal [[ and ]] markers around a wikilink inside the
+   editor. Characters stay in the underlying doc so the cursor can
+   still navigate through them and markdown roundtrip is unchanged —
+   they just render at zero width so visually only the chip-styled
+   title shows. */
+.paradocs-rich-editor .paradocs-wikilink-bracket {
+  font-size: 0;
+  color: transparent;
+  letter-spacing: 0;
+}
