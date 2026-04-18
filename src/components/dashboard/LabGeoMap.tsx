@@ -199,11 +199,6 @@ export default function LabGeoMap({
 
   return (
     <div className="relative w-full h-[60vh] sm:h-[70vh] rounded-2xl overflow-hidden border border-gray-800 bg-gray-950">
-      {/* Small overlay chip so we can sanity-check how many saves have
-          coords — useful for diagnosing "map is blank" reports. */}
-      <div className="absolute top-3 right-3 z-[500] px-2 py-1 rounded-md bg-black/70 border border-white/10 text-[10px] font-medium text-sky-200 backdrop-blur-sm pointer-events-none">
-        {points.length} pin{points.length === 1 ? '' : 's'}
-      </div>
       <MapContainer
         center={[points[0].lat, points[0].lng] as [number, number]}
         zoom={4}
@@ -303,37 +298,54 @@ function ClusteredMarkers({ L, points, onSelect }: ClusteredMarkersProps) {
   }, [map])
 
   // ── Raw (non-clustered) render path for small point counts ──
-  // Render BOTH a plain SVG CircleMarker (guaranteed to paint through
-  // react-leaflet regardless of DivIcon/leaflet-instance issues) AND
-  // the themed pin icon. The circle is a reliability net so pins never
-  // silently vanish just because a divIcon didn't register.
+  // We use stacked CircleMarkers instead of DivIcon — the Next.js/Leaflet
+  // dynamic-import setup produced a Leaflet-instance mismatch that kept
+  // DivIcon pins from painting. A concentric halo + solid body + white
+  // inner dot gives the circles more of a "pin" feel than a flat dot.
+  // Click goes straight to the detail panel; no redundant Leaflet Popup.
   if (!USE_CLUSTERING || !cluster) {
     return (
       <>
         {points.map(({ entry, lat, lng }) => {
           const color = CATEGORY_COLOR[entry.category] || '#64748b'
+          const handlers = { click: () => onSelect(entry) }
           return (
             <React.Fragment key={'pin-' + entry.id}>
+              {/* Outer halo */}
+              <CircleMarker
+                center={[lat, lng]}
+                radius={16}
+                pathOptions={{
+                  stroke: false,
+                  fillColor: color,
+                  fillOpacity: 0.18,
+                }}
+                eventHandlers={handlers}
+              />
+              {/* Solid body with white outline */}
               <CircleMarker
                 center={[lat, lng]}
                 radius={9}
                 pathOptions={{
-                  color: 'rgba(255,255,255,0.9)',
+                  color: '#ffffff',
                   weight: 2,
+                  opacity: 0.95,
                   fillColor: color,
-                  fillOpacity: 0.95,
+                  fillOpacity: 1,
                 }}
-                eventHandlers={{ click: () => onSelect(entry) }}
-              >
-                <Popup>
-                  <div className="text-xs">
-                    <div className="font-semibold text-gray-900 mb-0.5">{entry.name}</div>
-                    {entry.locationName && (
-                      <div className="text-gray-600">{entry.locationName}</div>
-                    )}
-                  </div>
-                </Popup>
-              </CircleMarker>
+                eventHandlers={handlers}
+              />
+              {/* Inner dot for the classic pin feel */}
+              <CircleMarker
+                center={[lat, lng]}
+                radius={2.5}
+                pathOptions={{
+                  stroke: false,
+                  fillColor: '#ffffff',
+                  fillOpacity: 1,
+                }}
+                eventHandlers={handlers}
+              />
             </React.Fragment>
           )
         })}

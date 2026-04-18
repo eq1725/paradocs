@@ -162,15 +162,22 @@ export default function NodeDetailPanel({
         <div className="w-10 h-1 rounded-full bg-gray-700" />
       </div>
 
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-sm border-b border-gray-800 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-lg">{cat.icon}</span>
-          <span className={`text-xs font-medium ${cat.color}`}>{cat.label}</span>
+      {/* Header — entry title leads, category sits as a small contextual chip
+          underneath so users immediately read "what is this source?" rather
+          than just "UFOs & Aliens" which reads like the title at a glance. */}
+      <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-sm border-b border-gray-800 px-4 py-3 flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-semibold text-white leading-tight line-clamp-2">
+            {entry.name || 'Untitled source'}
+          </h2>
+          <div className="flex items-center gap-1 mt-1">
+            <span className="text-xs">{cat.icon}</span>
+            <span className={`text-[10px] font-medium ${cat.color}`}>{cat.label}</span>
+          </div>
         </div>
         <button
           onClick={onClose}
-          className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
+          className="flex-shrink-0 w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
         >
           <XIcon className="w-4 h-4" />
         </button>
@@ -227,27 +234,25 @@ export default function NodeDetailPanel({
           )
         )}
 
-        {/* Title + link (Paradocs report link vs. external link) */}
-        <div>
-          <h3 className="text-white font-semibold text-base leading-tight">{entry.name}</h3>
-          {isExternal && entry.externalUrl ? (
-            <a
-              href={entry.externalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-primary-400 hover:text-primary-300 text-xs mt-1.5 transition-colors"
-            >
-              Open on {entry.sourcePlatform || 'source'} <ExternalLink className="w-3 h-3" />
-            </a>
-          ) : entry.slug ? (
-            <Link
-              href={`/report/${entry.slug}`}
-              className="inline-flex items-center gap-1 text-primary-400 hover:text-primary-300 text-xs mt-1.5 transition-colors"
-            >
-              View full report <ExternalLink className="w-3 h-3" />
-            </Link>
-          ) : null}
-        </div>
+        {/* Source link — title already lives in the sticky header, so this
+            just needs the "open source" CTA. */}
+        {isExternal && entry.externalUrl ? (
+          <a
+            href={entry.externalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-primary-400 hover:text-primary-300 text-xs transition-colors"
+          >
+            Open on {entry.sourcePlatform || 'source'} <ExternalLink className="w-3 h-3" />
+          </a>
+        ) : entry.slug ? (
+          <Link
+            href={`/report/${entry.slug}`}
+            className="inline-flex items-center gap-1 text-primary-400 hover:text-primary-300 text-xs transition-colors"
+          >
+            View full report <ExternalLink className="w-3 h-3" />
+          </Link>
+        ) : null}
 
         {/* Verdict badge */}
         <div className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${verdict.bgColor}`}>
