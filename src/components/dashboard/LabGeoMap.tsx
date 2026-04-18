@@ -13,7 +13,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, useMap, CircleMarker } from 'react-leaflet'
 import type { Map as LeafletMap, LeafletMouseEvent, DivIcon } from 'leaflet'
 import Supercluster from 'supercluster'
 import type { EntryNode, UserMapData } from '@/lib/constellation-types'
@@ -303,26 +303,40 @@ function ClusteredMarkers({ L, points, onSelect }: ClusteredMarkersProps) {
   }, [map])
 
   // ── Raw (non-clustered) render path for small point counts ──
+  // Render BOTH a plain SVG CircleMarker (guaranteed to paint through
+  // react-leaflet regardless of DivIcon/leaflet-instance issues) AND
+  // the themed pin icon. The circle is a reliability net so pins never
+  // silently vanish just because a divIcon didn't register.
   if (!USE_CLUSTERING || !cluster) {
     return (
       <>
-        {points.map(({ entry, lat, lng }) => (
-          <Marker
-            key={'pin-' + entry.id}
-            position={[lat, lng]}
-            icon={makePinIcon(L, entry.category)}
-            eventHandlers={{ click: () => onSelect(entry) }}
-          >
-            <Popup>
-              <div className="text-xs">
-                <div className="font-semibold text-gray-900 mb-0.5">{entry.name}</div>
-                {entry.locationName && (
-                  <div className="text-gray-600">{entry.locationName}</div>
-                )}
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        {points.map(({ entry, lat, lng }) => {
+          const color = CATEGORY_COLOR[entry.category] || '#64748b'
+          return (
+            <React.Fragment key={'pin-' + entry.id}>
+              <CircleMarker
+                center={[lat, lng]}
+                radius={9}
+                pathOptions={{
+                  color: 'rgba(255,255,255,0.9)',
+                  weight: 2,
+                  fillColor: color,
+                  fillOpacity: 0.95,
+                }}
+                eventHandlers={{ click: () => onSelect(entry) }}
+              >
+                <Popup>
+                  <div className="text-xs">
+                    <div className="font-semibold text-gray-900 mb-0.5">{entry.name}</div>
+                    {entry.locationName && (
+                      <div className="text-gray-600">{entry.locationName}</div>
+                    )}
+                  </div>
+                </Popup>
+              </CircleMarker>
+            </React.Fragment>
+          )
+        })}
       </>
     )
   }
