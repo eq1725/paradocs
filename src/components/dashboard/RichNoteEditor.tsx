@@ -19,12 +19,81 @@
  */
 
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo } from 'react'
-import { useEditor, EditorContent, type Editor } from '@tiptap/react'
+import { useEditor, EditorContent, Extension, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import CharacterCount from '@tiptap/extension-character-count'
 import { Markdown } from 'tiptap-markdown'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
+
+/**
+ * tiptap-markdown escapes `[` and `]` as `\[` and `\]` because they're
+ * markdown special characters. That corrupts our `[[Wikilink]]` syntax —
+ * stored markdown ends up looking like `\[\[Title\]\]`, which
+ * markdown-lite (used everywhere else to render notes) doesn't recognize
+ * as a wikilink. Strip those specific escape sequences back out on read.
+ *
+ * We're careful to only unescape the `[[...]]` pattern; other escaped
+ * brackets (e.g. inside `\[not a link\]`) stay escaped.
+ */
+function unescapeWikilinks(md: string): string {
+  // Match \[\[ ... \]\] and strip the backslashes inside the wrapper.
+  return md.replace(/\\\[\\\[([\s\S]+?)\\\]\\\]/g, (_m, inner) => `[[${inner}]]`)
+}
+
+function getMarkdownSafe(editor: Editor | null): string {
+  if (!editor) return ''
+  const raw = (editor.storage as any)?.markdown?.getMarkdown?.() ?? ''
+  return unescapeWikilinks(raw)
+}
+
+/**
+ * WikilinkDecorationExtension — paints a chip-like visual treatment over
+ * any `[[Title]]` tokens in the editor, without touching the underlying
+ * doc. The text itself remains plain markdown characters so it still
+ * roundtrips cleanly through tiptap-markdown; the decoration is a pure
+ * view-layer overlay.
+ *
+ * Clicking the decoration emits a window event the parent can listen for
+ * to navigate to the linked save.
+ */
+const WIKILINK_REGEX = /\[\[([^\[\]\n]+?)\]\]/g
+const wikilinkPluginKey = new PluginKey('paradocs-wikilink-deco')
+
+const WikilinkDecorationExtension = Extension.create({
+  name: 'wikilinkDecoration',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: wikilinkPluginKey,
+        props: {
+          decorations(state) {
+            const decorations: Decoration[] = []
+            state.doc.descendants((node, pos) => {
+              if (!node.isText || !node.text) return
+              const text = node.text
+              let m: RegExpExecArray | null
+              WIKILINK_REGEX.lastIndex = 0
+              while ((m = WIKILINK_REGEX.exec(text)) !== null) {
+                const from = pos + m.index
+                const to = from + m[0].length
+                decorations.push(
+                  Decoration.inline(from, to, {
+                    class: 'paradocs-wikilink-chip',
+                    'data-wikilink-title': m[1],
+                  }),
+                )
+              }
+            })
+            return DecorationSet.create(state.doc, decorations)
+          },
+        },
+      }),
+    ]
+  },
+})
 
 export interface RichNoteEditorHandle {
   /** Focus the editor surface */
@@ -90,6 +159,7 @@ const RichNoteEditor = forwardRef<RichNoteEditorHandle, RichNoteEditorProps>(fun
         transformPastedText: true,
         transformCopiedText: true,
       }),
+      WikilinkDecorationExtension,
     ],
     content: initialMarkdown || '',
     autofocus: autoFocus ? 'end' : false,
@@ -97,10 +167,11 @@ const RichNoteEditor = forwardRef<RichNoteEditorHandle, RichNoteEditorProps>(fun
       attributes: {
         class:
           'paradocs-rich-editor focus:outline-none min-h-full px-6 py-5 text-[15px] leading-relaxed text-gray-100',
+        spellcheck: 'true',
       },
     },
     onUpdate({ editor }) {
-      const md = (editor.storage as any).markdown?.getMarkdown?.() ?? ''
+      const md = getMarkdownSafe(editor)
       onChange(md)
       // Detect wikilink trigger — look at the 32 chars before the cursor
       // and see if there's an unclosed `[[`.
@@ -145,8 +216,7 @@ const RichNoteEditor = forwardRef<RichNoteEditorHandle, RichNoteEditorProps>(fun
     ref,
     () => ({
       focus: () => editor?.commands.focus(),
-      getMarkdown: () =>
-        (editor?.storage as any)?.markdown?.getMarkdown?.() ?? '',
+      getMarkdown: () => getMarkdownSafe(editor ?? null),
       setMarkdown: (md: string) => editor?.commands.setContent(md || '', { emitUpdate: true }),
       insertWikilink: (title: string) => {
         if (!editor) return
@@ -177,7 +247,7 @@ const RichNoteEditor = forwardRef<RichNoteEditorHandle, RichNoteEditorProps>(fun
   // Sync prop changes back into the editor (e.g. if parent resets content)
   useEffect(() => {
     if (!editor) return
-    const current = (editor.storage as any)?.markdown?.getMarkdown?.() ?? ''
+    const current = getMarkdownSafe(editor)
     if (current === initialMarkdown) return
     // Only replace if the parent truly changed the source — avoids caret
     // resets while the user is typing.
@@ -261,6 +331,23 @@ const RichNoteEditor = forwardRef<RichNoteEditorHandle, RichNoteEditorProps>(fun
           pointer-events: none;
           height: 0;
           font-style: italic;
+        }
+        /* Wikilink chip overlay — purely visual, doesn't mutate the
+           underlying markdown characters. The `[[` and `]]` markers fade
+           so the linked title reads as a styled chip. */
+        .paradocs-rich-editor .paradocs-wikilink-chip {
+          color: rgb(103 232 249);
+          background: rgba(103 232 249 / 0.1);
+          border: 1px solid rgba(103 232 249 / 0.25);
+          border-radius: 0.3rem;
+          padding: 0.05em 0.4em;
+          font-weight: 500;
+          cursor: pointer;
+          transition: background 120ms, border-color 120ms;
+        }
+        .paradocs-rich-editor .paradocs-wikilink-chip:hover {
+          background: rgba(103 232 249 / 0.18);
+          border-color: rgba(103 232 249 / 0.4);
         }
       `}</style>
       {/* Expose word count via data-attr on a hidden element so the parent

@@ -41,7 +41,14 @@ export interface ParseOptions {
  */
 export function renderMarkdown(source: string, opts: ParseOptions = {}): React.ReactNode {
   if (!source) return null
-  const blocks = splitBlocks(source.replace(/\r\n/g, '\n'))
+  // The Tiptap editor's markdown serializer used to escape wikilink
+  // brackets (`\[\[Title\]\]`). Un-escape those back to literal `[[...]]`
+  // before parsing so old notes saved with the buggy escape still render
+  // as clickable wikilinks.
+  const normalized = source
+    .replace(/\r\n/g, '\n')
+    .replace(/\\\[\\\[([\s\S]+?)\\\]\\\]/g, (_m, inner) => `[[${inner}]]`)
+  const blocks = splitBlocks(normalized)
   return React.createElement(
     React.Fragment,
     null,
@@ -55,10 +62,12 @@ export function renderMarkdown(source: string, opts: ParseOptions = {}): React.R
  */
 export function extractWikilinkTargets(source: string): string[] {
   if (!source) return []
+  // Tolerate escaped-bracket legacy saves (see renderMarkdown note).
+  const normalized = source.replace(/\\\[\\\[([\s\S]+?)\\\]\\\]/g, (_m, inner) => `[[${inner}]]`)
   const out: string[] = []
   const re = /\[\[([^\]]+?)\]\]/g
   let m: RegExpExecArray | null
-  while ((m = re.exec(source)) !== null) {
+  while ((m = re.exec(normalized)) !== null) {
     const label = m[1].trim()
     if (label) out.push(label)
   }

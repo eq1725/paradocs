@@ -18,7 +18,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   X as XIcon, Bold, Italic, ExternalLink, List as ListIcon,
-  Hash, Edit3, Loader2, Check, Sparkles,
+  Hash, Edit3, Loader2, Check, AtSign, Sparkles,
 } from 'lucide-react'
 import type { EntryNode } from '@/lib/constellation-types'
 import { supabase } from '@/lib/supabase'
@@ -167,11 +167,25 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
 
   const insertLink = () => {
     if (!editor) return
+    const { from, to, empty } = editor.state.selection
     const previousUrl = editor.getAttributes('link').href as string | undefined
     const url = window.prompt('URL', previousUrl || 'https://')
     if (url === null) return
     if (url === '') {
       editor.chain().focus().extendMarkRange('link').unsetLink().run()
+      return
+    }
+    if (empty && !previousUrl) {
+      // No selection and no existing link — insert the URL text itself
+      // and apply the link mark to it. Otherwise setLink on an empty
+      // selection silently does nothing, which was #4 of Chase's QA.
+      editor
+        .chain()
+        .focus()
+        .insertContent([
+          { type: 'text', text: url, marks: [{ type: 'link', attrs: { href: url } }] },
+        ])
+        .run()
       return
     }
     editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
@@ -181,11 +195,11 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm sm:p-6 overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-4xl bg-gray-950 border border-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[92vh] sm:h-[85vh]"
+        className="w-full sm:max-w-4xl bg-gray-950 border border-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[92vh] sm:h-auto sm:max-h-[min(85vh,900px)] sm:min-h-[600px]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -245,7 +259,7 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
           <ToolbarButton
             onClick={run(e => e.chain().focus().insertContent('[[').run())}
             label="Link to another save in your library"
-            icon={Sparkles}
+            icon={AtSign}
           />
         </div>
 
