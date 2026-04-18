@@ -431,6 +431,13 @@ function renderWikilink(
   const key_ = normalizeWikilinkKey(label)
   const target = opts.wikilinks?.get(key_)
   const displayLabel = (target?.displayLabel || label).trim()
+  // Keep the chip `inline` (not inline-flex) so it doesn't inflate the
+  // paragraph line-height. Padding is em-based and vertical padding is
+  // near-zero, matching the editor's ProseMirror decoration chip exactly
+  // so both surfaces read identically.
+  const commonStyle =
+    'inline align-baseline cursor-pointer transition-colors ' +
+    'px-[0.45em] py-[0.05em] rounded-md font-medium text-[0.95em]'
   if (target) {
     return React.createElement(
       'button',
@@ -438,7 +445,9 @@ function renderWikilink(
         key,
         onClick: () => opts.onWikilinkClick?.(target.id),
         className:
-          'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/25 text-cyan-300 hover:bg-cyan-500/18 hover:border-cyan-500/40 hover:text-cyan-200 transition-colors',
+          commonStyle +
+          ' bg-cyan-500/10 border border-cyan-500/25 text-cyan-300 ' +
+          'hover:bg-cyan-500/20 hover:border-cyan-500/40 hover:text-cyan-200',
         title: 'Open ' + displayLabel,
       },
       displayLabel,
@@ -450,7 +459,8 @@ function renderWikilink(
     {
       key,
       className:
-        'inline-flex items-center px-1.5 py-0.5 rounded-md bg-gray-700/30 border border-gray-600/40 text-gray-400',
+        commonStyle +
+        ' bg-gray-700/30 border border-gray-600/40 text-gray-400 cursor-default',
       title: 'No save matches this wikilink yet',
     },
     displayLabel,

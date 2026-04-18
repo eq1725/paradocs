@@ -533,17 +533,21 @@ body.sheet-open {
   font-style: italic;
 }
 .paradocs-rich-editor .paradocs-wikilink-chip {
+  /* Match markdown-lite.renderWikilink exactly so the chip reads the
+     same in the editor as in the detail panel / card preview. */
   color: rgb(103 232 249);
   background: rgba(103, 232, 249, 0.1);
   border: 1px solid rgba(103, 232, 249, 0.25);
-  border-radius: 0.3rem;
-  padding: 0.05em 0.4em;
+  border-radius: 0.375rem;
+  padding: 0.05em 0.45em;
   font-weight: 500;
+  font-size: 0.95em;
+  vertical-align: baseline;
   cursor: pointer;
   transition: background 120ms, border-color 120ms;
 }
 .paradocs-rich-editor .paradocs-wikilink-chip:hover {
-  background: rgba(103, 232, 249, 0.18);
+  background: rgba(103, 232, 249, 0.2);
   border-color: rgba(103, 232, 249, 0.4);
 }
 /* Hide the literal [[ and ]] markers around a wikilink inside the
