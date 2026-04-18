@@ -204,7 +204,7 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-3xl bg-gray-950 border border-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[85vh]"
+        className="w-full sm:max-w-4xl bg-gray-950 border border-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[92vh] sm:h-[85vh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -279,8 +279,8 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
                   setWikilinkSearch(null)
                 }
               }}
-              placeholder="Write your research notes in markdown. Use **bold**, *italic*, - lists, and [[Link to another save]] to connect ideas."
-              className="flex-1 w-full px-4 py-3 bg-gray-950 text-sm text-gray-200 placeholder-gray-600 font-mono leading-relaxed focus:outline-none resize-none"
+              placeholder="What stood out about this source? What do you want to remember? Type [[ to link to another save."
+              className="flex-1 w-full min-h-0 px-4 py-3 bg-gray-950 text-sm text-gray-200 placeholder-gray-600 leading-relaxed focus:outline-none resize-none"
               spellCheck
               autoFocus
             />
@@ -336,20 +336,32 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
                 {renderMarkdown(note, { wikilinks: wikilinkMap })}
               </div>
             ) : (
-              <div className="text-[11px] text-gray-600 italic">
-                Preview appears here as you type.
+              <div className="space-y-3 text-xs text-gray-500">
+                <p className="text-[11px] uppercase tracking-wider font-semibold text-gray-600">
+                  Preview
+                </p>
+                <p className="leading-relaxed">
+                  Your formatted note will appear here as you type. A few tips:
+                </p>
+                <ul className="space-y-1.5 pl-4 list-disc marker:text-gray-700 leading-relaxed">
+                  <li><code className="text-cyan-300/80 font-mono">**bold**</code>, <code className="text-cyan-300/80 font-mono">*italic*</code>, <code className="text-cyan-300/80 font-mono">`code`</code></li>
+                  <li>Start a line with <code className="text-cyan-300/80 font-mono">-</code> for a list, <code className="text-cyan-300/80 font-mono">##</code> for a heading</li>
+                  <li>Type <code className="text-cyan-300/80 font-mono">[[</code> to link to another save in your library</li>
+                </ul>
               </div>
             )}
           </div>
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-800 px-3 py-2 flex items-center gap-2 flex-shrink-0">
-          <div className="flex-1 min-w-0 text-[10px] text-gray-600 truncate hidden sm:block">
-            Supports **bold**, *italic*, `code`, lists, headings, [text](url) links, and [[save title]] to cross-link another save.
+        <div className="border-t border-gray-800 px-4 py-2.5 flex items-center gap-2 flex-shrink-0">
+          <div className="flex-1 min-w-0 text-[10px] text-gray-600 tabular-nums">
+            {note.trim()
+              ? `${note.trim().split(/\s+/).length} words`
+              : 'Empty'}
           </div>
           {error && (
-            <div className="text-[10px] text-red-400 truncate flex-1">
+            <div className="text-[11px] text-red-400 truncate max-w-[50%]">
               {error}
             </div>
           )}
@@ -363,7 +375,7 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
           <button
             onClick={handleSave}
             disabled={saving || !canSave}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-primary-600 hover:bg-primary-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-primary-600 hover:bg-primary-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
             {saving ? 'Saving...' : 'Save note'}
