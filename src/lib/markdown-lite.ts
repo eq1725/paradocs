@@ -258,7 +258,7 @@ function renderBlock(block: Block, key: number, opts: ParseOptions): React.React
     case 'paragraph':
       return React.createElement(
         'p',
-        { key, className: 'text-gray-300 text-sm leading-relaxed my-1.5' },
+        { key, className: 'text-gray-300 text-sm leading-relaxed my-2' },
         renderInline(block.content, opts)
       )
     case 'empty':
@@ -431,13 +431,14 @@ function renderWikilink(
   const key_ = normalizeWikilinkKey(label)
   const target = opts.wikilinks?.get(key_)
   const displayLabel = (target?.displayLabel || label).trim()
-  // Keep the chip `inline` (not inline-flex) so it doesn't inflate the
-  // paragraph line-height. Padding is em-based and vertical padding is
-  // near-zero, matching the editor's ProseMirror decoration chip exactly
-  // so both surfaces read identically.
+  // Pinned to ABSOLUTE px values (not em) so the chip renders identically
+  // in the editor (parent = 15px body) and the detail panel (parent = 14px
+  // body). Using em-based sizing previously let the chip shrink/grow with
+  // each surface's body text, which is how the two drifted visually.
+  // Keep inline (not inline-flex) so the chip doesn't inflate line-height.
   const commonStyle =
     'inline align-baseline cursor-pointer transition-colors ' +
-    'px-[0.45em] py-[0.05em] rounded-md font-medium text-[0.95em]'
+    'px-[6px] py-[1px] rounded-md font-medium text-[13px]'
   if (target) {
     return React.createElement(
       'button',
