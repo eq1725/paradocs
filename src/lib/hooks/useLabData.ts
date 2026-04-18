@@ -141,6 +141,9 @@ export function useLabData(): LabData {
       tags: e.tags || [],
       eventDate: e.eventDate,
       locationName: e.locationName,
+      latitude: e.latitude ?? null,
+      longitude: e.longitude ?? null,
+      loggedAt: e.loggedAt ?? null,
     })))
   }, [realEntries])
 

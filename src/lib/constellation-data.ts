@@ -7,6 +7,7 @@
  */
 
 import { PhenomenonCategory } from './database.types'
+import { HISTORICAL_WAVES, matchesWave } from './historical-waves'
 
 // ── Node Types ──
 
@@ -634,17 +635,34 @@ export function detectEmergentConnections(entries: DetectorEntry[]): EmergentCon
 // These are what surface in the Insights panel as text cards, and what
 // interleave between entry rows in the List view.
 
+export type InsightType =
+  | 'historical_wave'
+  | 'tag_cooccurrence'
+  | 'geographic_density'
+  | 'temporal_cluster'
+  | 'category_compelling'
+
 export interface Insight {
   id: string
-  type: 'tag_cluster' | 'location_cluster' | 'temporal_cluster' | 'category_compelling' | 'cross_category'
+  type: InsightType
+  /** Short pull-quote headline shown as the card title (60 char soft limit) */
   title: string
+  /** One-to-two sentence explanation in plain English */
   body: string
-  /** IDs of entries this insight references — used to pan/highlight the canvas */
+  /**
+   * A secondary label rendered as a small chip on the card. Examples:
+   * "1997", "Geographic", "Behavioral". Gives users a fast at-a-glance
+   * cue for what KIND of pattern this is without reading the body.
+   */
+  badge?: string
+  /** IDs of entries this insight references — used to pan/highlight the list */
   entryIds: string[]
   /** 0-1 significance — controls sort order and card prominence */
   strength: number
   /** Optional category id for color-coding */
   category?: string
+  /** Optional deep link (e.g. to a wave dossier) the card can open */
+  href?: string
 }
 
 interface InsightEntry {
@@ -654,68 +672,183 @@ interface InsightEntry {
   tags: string[]
   eventDate: string | null
   locationName: string | null
+  /** Optional geo — used for proximity clustering + historical wave matching */
+  latitude?: number | null
+  longitude?: number | null
+  /** When this entry was saved (used for verdict-drift comparison). ISO 8601. */
+  loggedAt?: string | null
 }
 
-const TAG_CLUSTER_MIN = 3
-const LOCATION_CLUSTER_MIN = 2
+// ── Thresholds ──
+//
+// All tuned to err toward SILENCE rather than noise. A user with 10 saves
+// should see at most 2-3 cards; one with 100 saves should see 6-10. The
+// failure mode we explicitly avoid is "you tagged 3 things with #uap",
+// which technically meets a count threshold but tells the user nothing
+// they don't already know.
+
 const TEMPORAL_WINDOW_DAYS_INSIGHT = 60
 const TEMPORAL_CLUSTER_MIN = 3
 const CATEGORY_COMPELLING_MIN = 3
+const GEO_DENSITY_MIN = 3
+const GEO_DENSITY_RADIUS_KM = 80
+const COOCCURRENCE_MIN_SAVES = 4
+const COOCCURRENCE_MIN_RATIO = 0.6
+
+// Pairwise haversine in km — local copy to keep the aggregator self-contained.
+function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(b.lat - a.lat)
+  const dLng = toRad(b.lng - a.lng)
+  const lat1 = toRad(a.lat)
+  const lat2 = toRad(b.lat)
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
 
 export function detectInsights(entries: InsightEntry[]): Insight[] {
   if (entries.length < 2) return []
   const out: Insight[] = []
 
-  // ── Tag clusters ──
-  const byTag: Record<string, string[]> = {}
+  // ────────────────────────────────────────────────────────────────
+  // 1. Historical wave matching
+  //
+  // We cross-reference every entry with an eventDate against our curated
+  // HISTORICAL_WAVES corpus. When ≥2 entries fall inside the same wave
+  // window (with geographic match if the wave is localized), we surface
+  // a wave card. This is the kind of insight a user can't derive from
+  // a count — it requires knowing that the date you saved fell inside
+  // the Phoenix Lights window, or the 1973 UFO wave.
+  // ────────────────────────────────────────────────────────────────
+  for (const wave of HISTORICAL_WAVES) {
+    const matchedIds: string[] = []
+    for (const e of entries) {
+      if (!e.eventDate) continue
+      if (
+        matchesWave(
+          {
+            eventDate: e.eventDate,
+            lat: e.latitude ?? null,
+            lng: e.longitude ?? null,
+            category: e.category,
+            tags: e.tags || [],
+          },
+          wave,
+        )
+      ) {
+        matchedIds.push(e.id)
+      }
+    }
+    if (matchedIds.length < 2) continue
+    // Strength grows slowly so a single massive wave doesn't dominate the feed.
+    const strength = Math.min(0.98, 0.75 + matchedIds.length * 0.03)
+    const year = new Date(wave.startDate).getFullYear()
+    out.push({
+      id: `wave:${wave.id}`,
+      type: 'historical_wave',
+      title: `${matchedIds.length} of your saves fall inside ${wave.title}`,
+      body: wave.blurb,
+      badge: String(year),
+      entryIds: matchedIds,
+      strength,
+    })
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // 2. Tag co-occurrence — "Your abduction saves also consistently carry
+  // #sleep-paralysis." We look at every (categoryA OR tagA) set and check
+  // which other tags co-occur in ≥60% of those saves, with a minimum of
+  // 4 saves so random coincidence is ruled out.
+  //
+  // Intentionally we pair a CATEGORY (structural) with a TAG (descriptive)
+  // rather than tag-with-tag — it mirrors the way a researcher would
+  // actually describe a pattern ("abduction cases that involve sleep
+  // paralysis" not "saves tagged both abduction and sleep-paralysis").
+  // ────────────────────────────────────────────────────────────────
+  const byCategory: Record<string, InsightEntry[]> = {}
   for (const e of entries) {
-    for (const raw of e.tags || []) {
-      const t = raw.trim().toLowerCase()
-      if (!t) continue
-      if (!byTag[t]) byTag[t] = []
-      byTag[t].push(e.id)
+    if (!byCategory[e.category]) byCategory[e.category] = []
+    byCategory[e.category].push(e)
+  }
+  for (const [cat, list] of Object.entries(byCategory)) {
+    if (list.length < COOCCURRENCE_MIN_SAVES) continue
+    const tagCount: Record<string, number> = {}
+    for (const e of list) {
+      for (const raw of e.tags || []) {
+        const t = raw.trim().toLowerCase()
+        if (!t) continue
+        tagCount[t] = (tagCount[t] || 0) + 1
+      }
+    }
+    for (const [tag, count] of Object.entries(tagCount)) {
+      const ratio = count / list.length
+      if (ratio < COOCCURRENCE_MIN_RATIO) continue
+      // Ignore tags that are basically synonyms of the category name.
+      const catNode = CONSTELLATION_NODES.find(n => n.id === cat)
+      const catLabel = catNode?.label || cat
+      if (tag === cat || tag === catLabel.toLowerCase()) continue
+      const strength = Math.min(0.95, 0.55 + ratio * 0.3 + count * 0.015)
+      const pct = Math.round(ratio * 100)
+      out.push({
+        id: `cooc:${cat}:${tag}`,
+        type: 'tag_cooccurrence',
+        title: `${pct}% of your ${catLabel} saves also carry #${tag}`,
+        body: `${count} of ${list.length} ${catLabel} saves share this tag — a consistent thread in how you're characterizing this phenomenon.`,
+        badge: 'Emergent',
+        entryIds: list.filter(e => (e.tags || []).some(x => x.trim().toLowerCase() === tag)).map(e => e.id),
+        strength,
+        category: cat,
+      })
     }
   }
-  for (const [tag, ids] of Object.entries(byTag)) {
-    if (ids.length < TAG_CLUSTER_MIN) continue
-    // Strength rises with cluster size but caps so super-common tags don't
-    // dominate the insight feed.
-    const strength = Math.min(0.9, 0.4 + ids.length * 0.08)
+
+  // ────────────────────────────────────────────────────────────────
+  // 3. Geographic density — proximity clustering instead of exact-name
+  // matches. Two saves in "Phoenix" and "Scottsdale, AZ" should count
+  // as the same cluster; the old exact-name matcher missed them.
+  // Greedy clustering: iterate entries, seed a cluster from any unclaimed
+  // geo-present entry, sweep others within 80km.
+  // ────────────────────────────────────────────────────────────────
+  const geoEntries = entries.filter(e => e.latitude != null && e.longitude != null)
+  const claimed = new Set<string>()
+  for (const seed of geoEntries) {
+    if (claimed.has(seed.id)) continue
+    const clusterIds: string[] = [seed.id]
+    claimed.add(seed.id)
+    for (const other of geoEntries) {
+      if (claimed.has(other.id)) continue
+      const d = haversineKm(
+        { lat: seed.latitude!, lng: seed.longitude! },
+        { lat: other.latitude!, lng: other.longitude! },
+      )
+      if (d <= GEO_DENSITY_RADIUS_KM) {
+        clusterIds.push(other.id)
+        claimed.add(other.id)
+      }
+    }
+    if (clusterIds.length < GEO_DENSITY_MIN) continue
+    // Pretty label: use the seed's locationName if it exists, else lat/lng.
+    const seedEntry = entries.find(e => e.id === seed.id)
+    const label = seedEntry?.locationName
+      || `${seed.latitude!.toFixed(2)}, ${seed.longitude!.toFixed(2)}`
+    const strength = Math.min(0.92, 0.6 + clusterIds.length * 0.06)
     out.push({
-      id: `tag:${tag}`,
-      type: 'tag_cluster',
-      title: `${ids.length} saves share #${tag}`,
-      body: `You've tagged ${ids.length} sources with "${tag}". Tap to highlight them on the galaxy.`,
-      entryIds: ids,
+      id: `geo:${seed.id}`,
+      type: 'geographic_density',
+      title: `${clusterIds.length} saves within ~${GEO_DENSITY_RADIUS_KM}km of ${label}`,
+      body: `A geographic hotspot in your library — ${clusterIds.length} saves cluster inside a ${GEO_DENSITY_RADIUS_KM}km radius. Worth opening the Map tab to see the spatial pattern.`,
+      badge: 'Geographic',
+      entryIds: clusterIds,
       strength,
     })
   }
 
-  // ── Location clusters ──
-  const byLocation: Record<string, string[]> = {}
-  for (const e of entries) {
-    if (!e.locationName) continue
-    const key = e.locationName.trim().toLowerCase()
-    if (!key) continue
-    if (!byLocation[key]) byLocation[key] = []
-    byLocation[key].push(e.id)
-  }
-  for (const [loc, ids] of Object.entries(byLocation)) {
-    if (ids.length < LOCATION_CLUSTER_MIN) continue
-    // Pretty-print location from the first entry that used it
-    const label = entries.find(e => e.locationName?.trim().toLowerCase() === loc)?.locationName || loc
-    const strength = Math.min(0.9, 0.55 + ids.length * 0.1)
-    out.push({
-      id: `loc:${loc}`,
-      type: 'location_cluster',
-      title: `${ids.length} reports from ${label}`,
-      body: `Geographic cluster — ${ids.length} of your sources reference ${label}.`,
-      entryIds: ids,
-      strength,
-    })
-  }
-
-  // ── Temporal clusters (60-day rolling window) ──
+  // ────────────────────────────────────────────────────────────────
+  // 4. Temporal clusters (60-day rolling window on eventDate)
+  //    Kept largely unchanged — surfaces user-generated "waves" inside
+  //    their library that we don't have a historical match for.
+  // ────────────────────────────────────────────────────────────────
   const dated = entries
     .filter(e => e.eventDate)
     .map(e => ({ id: e.id, t: new Date(e.eventDate!).getTime() }))
@@ -739,15 +872,18 @@ export function detectInsights(entries: InsightEntry[]): Insight[] {
       out.push({
         id: `time:${windowStart}`,
         type: 'temporal_cluster',
-        title: `${group.length} events, ${start}${start !== end ? '–' + end : ''}`,
-        body: `A burst of ${group.length} events within a ${TEMPORAL_WINDOW_DAYS_INSIGHT}-day window. Often a sign of a wave or investigation thread.`,
+        title: `${group.length} events burst, ${start}${start !== end ? '–' + end : ''}`,
+        body: `A ${TEMPORAL_WINDOW_DAYS_INSIGHT}-day window in your library with ${group.length} event dates — dense enough to suggest a thread worth naming.`,
+        badge: 'Temporal',
         entryIds: group,
         strength,
       })
     }
   }
 
-  // ── Category-compelling clusters ──
+  // ────────────────────────────────────────────────────────────────
+  // 5. Category-compelling concentration — carried over.
+  // ────────────────────────────────────────────────────────────────
   const compellingByCat: Record<string, string[]> = {}
   for (const e of entries) {
     if (e.verdict !== 'compelling') continue
@@ -762,16 +898,18 @@ export function detectInsights(entries: InsightEntry[]): Insight[] {
     out.push({
       id: `compelling:${cat}`,
       type: 'category_compelling',
-      title: `${ids.length} compelling ${catLabel} sources`,
-      body: `${ids.length} of your ${catLabel} saves are marked compelling — your strongest evidence concentration in this category.`,
+      title: `${ids.length} compelling ${catLabel} sources in your library`,
+      body: `${ids.length} ${catLabel} saves are marked compelling — your strongest evidence concentration in this category. Consider turning this into a case file.`,
+      badge: 'Evidence',
       entryIds: ids,
       strength,
       category: cat,
     })
   }
 
-  // Sort by strength descending, cap at 20 for sanity
-  return out.sort((a, b) => b.strength - a.strength).slice(0, 20)
+  // Sort by strength descending, cap at 12 for the feed (historical waves
+  // and emergent patterns naturally outrank counts).
+  return out.sort((a, b) => b.strength - a.strength).slice(0, 12)
 }
 
 /**

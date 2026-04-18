@@ -19,9 +19,9 @@
 
 import React, { useState } from 'react'
 import {
-  Sparkles, ChevronUp, ChevronDown, MapPin, Calendar, Tag, Zap, Star, Crosshair,
+  Sparkles, ChevronUp, ChevronDown, MapPin, Calendar, Star, Crosshair, Waves, GitBranch,
 } from 'lucide-react'
-import type { Insight } from '@/lib/constellation-data'
+import type { Insight, InsightType } from '@/lib/constellation-data'
 import { classNames } from '@/lib/utils'
 
 interface InsightsPanelProps {
@@ -30,13 +30,14 @@ interface InsightsPanelProps {
   layout?: 'panel' | 'drawer'
 }
 
-// Icon + accent color per insight type — subtle but useful at a glance
-const TYPE_STYLE: Record<Insight['type'], { icon: React.ComponentType<{ className?: string }>; accent: string; bg: string }> = {
-  tag_cluster:         { icon: Tag,       accent: 'text-amber-300',  bg: 'bg-amber-500/10 border-amber-500/20' },
-  location_cluster:    { icon: MapPin,    accent: 'text-sky-300',    bg: 'bg-sky-500/10 border-sky-500/20' },
-  temporal_cluster:    { icon: Calendar,  accent: 'text-violet-300', bg: 'bg-violet-500/10 border-violet-500/20' },
-  category_compelling: { icon: Star,      accent: 'text-yellow-300', bg: 'bg-yellow-500/10 border-yellow-500/20' },
-  cross_category:      { icon: Zap,       accent: 'text-cyan-300',   bg: 'bg-cyan-500/10 border-cyan-500/20' },
+// Icon + accent color per insight type — subtle but useful at a glance.
+// Kept in sync with PatternCard so the two surfaces share a vocabulary.
+const TYPE_STYLE: Record<InsightType, { icon: React.ComponentType<{ className?: string }>; accent: string; bg: string }> = {
+  historical_wave:     { icon: Waves,      accent: 'text-cyan-300',    bg: 'bg-cyan-500/10 border-cyan-500/20' },
+  tag_cooccurrence:    { icon: GitBranch,  accent: 'text-fuchsia-300', bg: 'bg-fuchsia-500/10 border-fuchsia-500/20' },
+  geographic_density:  { icon: MapPin,     accent: 'text-sky-300',     bg: 'bg-sky-500/10 border-sky-500/20' },
+  temporal_cluster:    { icon: Calendar,   accent: 'text-violet-300',  bg: 'bg-violet-500/10 border-violet-500/20' },
+  category_compelling: { icon: Star,       accent: 'text-yellow-300',  bg: 'bg-yellow-500/10 border-yellow-500/20' },
 }
 
 export default function InsightsPanel({ insights, onHighlight, layout = 'panel' }: InsightsPanelProps) {
@@ -113,7 +114,7 @@ export default function InsightsPanel({ insights, onHighlight, layout = 'panel' 
 // ── Single insight card (used in both layouts) ──
 
 function InsightCard({ insight, onHighlight }: { insight: Insight; onHighlight: (ids: string[]) => void }) {
-  const style = TYPE_STYLE[insight.type] || TYPE_STYLE.tag_cluster
+  const style = TYPE_STYLE[insight.type] || TYPE_STYLE.temporal_cluster
   const Icon = style.icon
 
   return (
@@ -151,7 +152,7 @@ function InsightCard({ insight, onHighlight }: { insight: Insight; onHighlight: 
  * doesn't visually dominate the flow of saved entries.
  */
 export function InsightCardInline({ insight, onHighlight }: { insight: Insight; onHighlight: (ids: string[]) => void }) {
-  const style = TYPE_STYLE[insight.type] || TYPE_STYLE.tag_cluster
+  const style = TYPE_STYLE[insight.type] || TYPE_STYLE.temporal_cluster
   const Icon = style.icon
 
   return (

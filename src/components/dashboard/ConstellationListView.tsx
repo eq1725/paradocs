@@ -21,7 +21,7 @@ import {
 import type { EntryNode, UserMapData } from '@/lib/constellation-types'
 import type { Insight } from '@/lib/constellation-data'
 import { classNames } from '@/lib/utils'
-import { InsightCardInline } from './InsightsPanel'
+import PatternCard from './PatternCard'
 
 const VERDICT_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
   compelling:   { label: 'Compelling',   icon: '✦', color: 'text-amber-400', bg: 'bg-amber-500/15' },
@@ -154,7 +154,7 @@ export default function ConstellationListView({
               key={'ins-' + item.insight.id}
               className={viewMode === 'grid' ? 'sm:col-span-2 lg:col-span-3' : ''}
             >
-              <InsightCardInline insight={item.insight} onHighlight={onHighlight} />
+              <PatternCard kind="insight" insight={item.insight} onHighlight={onHighlight} />
             </div>
           )
         }

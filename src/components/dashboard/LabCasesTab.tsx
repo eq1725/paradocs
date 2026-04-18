@@ -27,7 +27,7 @@ import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
 import ConstellationListView from './ConstellationListView'
 import NodeDetailPanel from './NodeDetailPanel'
-import { InsightCardInline } from './InsightsPanel'
+import PatternCard from './PatternCard'
 import CaseFileBar, { CreateCaseFileModal } from './CaseFileBar'
 import LabToolbar, { type LabViewMode, type LabSortMode } from './LabToolbar'
 
@@ -391,6 +391,9 @@ function CaseFileDetail({
       tags: e.tags || [],
       eventDate: e.eventDate,
       locationName: e.locationName,
+      latitude: e.latitude ?? null,
+      longitude: e.longitude ?? null,
+      loggedAt: e.loggedAt ?? null,
     })))
   }, [entries])
 
@@ -448,12 +451,14 @@ function CaseFileDetail({
         </div>
       </div>
 
-      {/* Scoped insights — up to 2 inline cards */}
+      {/* Scoped insights — up to 2 pattern cards, same component used by
+          the top-of-Saves Patterns lane for visual consistency. */}
       {scopedInsights.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {scopedInsights.slice(0, 2).map(ins => (
-            <InsightCardInline
+            <PatternCard
               key={ins.id}
+              kind="insight"
               insight={ins}
               onHighlight={ids => {
                 const e = entries.find(en => en.id === ids[0])

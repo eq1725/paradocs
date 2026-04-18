@@ -26,7 +26,7 @@ import ConstellationSidebar from './ConstellationSidebar'
 import CaseFileBar from './CaseFileBar'
 import LabProgressTracker from './LabProgressTracker'
 import PasteUrlButton from './PasteUrlButton'
-import { InsightCardInline } from './InsightsPanel'
+import PatternsLane from './PatternsLane'
 import LabToolbar, { type LabViewMode, type LabSortMode } from './LabToolbar'
 import Link from 'next/link'
 
@@ -223,19 +223,15 @@ export default function LabSavesTab({
         />
       )}
 
-      {/* Top insights */}
-      {insights.length > 0 && (
-        <div>
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-gray-500 font-semibold mb-2 px-1">
-            <SparklesIcon className="w-3 h-3 text-cyan-300" />
-            AI insights ({insights.length})
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {insights.slice(0, 3).map(ins => (
-              <InsightCardInline key={ins.id} insight={ins} onHighlight={handleHighlight} />
-            ))}
-          </div>
-        </div>
+      {/* Patterns & related reports lane — the canonical patterns surface.
+          Mixes the user's library-derived insights with recent related
+          reports from the global Paradocs feed. */}
+      {entryCount > 0 && (
+        <PatternsLane
+          insights={insights}
+          onHighlight={handleHighlight}
+          refreshKey={entryCount}
+        />
       )}
 
       {/* The feed — filtered + sorted by the toolbar controls */}
