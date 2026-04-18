@@ -150,10 +150,12 @@ export default function NodeDetailPanel({
 
   return (
     <div className={[
-      // Fixed positioning (viewport-anchored) so the panel escapes the canvas
-      // container's height/clipping. Only intercepts clicks within its own
-      // bounds — taps on the uncovered canvas area still select new stars.
-      'fixed z-40 bg-gray-900/95 backdrop-blur-md overflow-y-auto transition-transform duration-300 shadow-2xl',
+      // Fixed positioning (viewport-anchored) so the panel escapes the
+      // canvas/map container's height and overflow clipping. z-[1000]
+      // beats Leaflet's internal stack (controls sit at 800, tooltips at
+      // 650, etc.) so the detail panel never sinks behind a tile or a
+      // map control when rendered over the Lab's Leaflet map.
+      'fixed z-[1000] bg-gray-900/95 backdrop-blur-md overflow-y-auto transition-transform duration-300 shadow-2xl',
       'bottom-0 left-0 right-0 max-h-[70vh] rounded-t-2xl border-t border-gray-800',
       'sm:top-[8%] sm:right-4 sm:left-auto sm:bottom-4 sm:max-h-none sm:rounded-2xl sm:border sm:border-gray-800 sm:w-[360px]',
     ].join(' ')}>
