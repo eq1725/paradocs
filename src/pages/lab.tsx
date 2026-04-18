@@ -39,7 +39,6 @@ import {
   LogIn,
   Telescope,
 } from 'lucide-react'
-import Layout from '@/components/Layout'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
 import LabSavesTab from '@/components/dashboard/LabSavesTab'
@@ -115,7 +114,7 @@ export default function LabPage() {
   }, [router])
 
   return (
-    <Layout>
+    <>
       <Head>
         <title>Lab | Paradocs</title>
         <meta name="description" content="Your personal research lab — saves, case files, geographic map, and notes." />
@@ -231,7 +230,7 @@ export default function LabPage() {
           </div>
         )}
       </div>
-    </Layout>
+    </>
   )
 }
 
