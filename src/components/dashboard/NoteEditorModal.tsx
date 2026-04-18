@@ -346,7 +346,7 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
         {/* Footer */}
         <div className="border-t border-gray-800 px-3 py-2 flex items-center gap-2 flex-shrink-0">
           <div className="flex-1 min-w-0 text-[10px] text-gray-600 truncate hidden sm:block">
-            Supports **bold**, *italic*, `code`, lists, headings, [text](url) links, and [[Wikilinks]] to other saves.
+            Supports **bold**, *italic*, `code`, lists, headings, [text](url) links, and [[save title]] to cross-link another save.
           </div>
           {error && (
             <div className="text-[10px] text-red-400 truncate flex-1">

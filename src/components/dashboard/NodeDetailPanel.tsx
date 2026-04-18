@@ -292,7 +292,7 @@ export default function NodeDetailPanel({
             </div>
           ) : (
             <p className="text-[11px] text-gray-500 italic leading-relaxed">
-              No notes yet. Capture what stood out, link to other saves with <span className="font-mono text-cyan-300/80">[[Wikilinks]]</span>, and build your case.
+              No notes yet. Capture what stood out — you can link to another save by typing <span className="font-mono text-cyan-300/80 not-italic">[[its title]]</span>, and markdown formatting works too.
             </p>
           )}
         </div>
