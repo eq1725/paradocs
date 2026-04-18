@@ -79,6 +79,32 @@ export function normalizeWikilinkKey(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
+/**
+ * renderNotePreview — inline-only rendering for short note previews on
+ * entry cards. Flattens the doc structure (headings, lists, paragraphs)
+ * into a single inline flow so it fits on one clamped line without block
+ * elements fighting the layout. Keeps bold/italic/code/links/wikilinks
+ * so the preview reads the same as the full editor view — just smaller.
+ */
+export function renderNotePreview(source: string, opts: ParseOptions = {}): React.ReactNode {
+  if (!source) return null
+  const normalized = source
+    .replace(/\r\n/g, '\n')
+    .replace(/\\\[\\\[([\s\S]+?)\\\]\\\]/g, (_m, inner) => `[[${inner}]]`)
+  // Take the first non-empty line(s) until a blank line, then flatten.
+  // We keep enough to fill 1-2 clamped lines of card space and toss the rest.
+  const firstBlock = normalized.split(/\n{2,}/)[0] || ''
+  // Strip leading block markers (heading #, list -, quote >, etc.) so the
+  // inline renderer isn't asked to interpret them as structural.
+  const cleaned = firstBlock
+    .split('\n')
+    .map(l => l.replace(/^\s*(#{1,3}\s+|[-*]\s+|\d+\.\s+|>\s?)/, ''))
+    .join(' ')
+    .trim()
+  if (!cleaned) return null
+  return React.createElement(React.Fragment, null, ...renderInline(cleaned, opts))
+}
+
 // ── Block parsing ──
 
 type Block =

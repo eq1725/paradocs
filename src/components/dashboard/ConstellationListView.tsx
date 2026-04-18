@@ -19,8 +19,9 @@ import {
   ExternalLink, MapPin, Calendar, Sparkles, ChevronRight, Link2, Bookmark, FileText, Users,
 } from 'lucide-react'
 import type { EntryNode, UserMapData } from '@/lib/constellation-types'
-import type { Insight } from '@/lib/constellation-data'
+import { CONSTELLATION_NODES, type Insight } from '@/lib/constellation-data'
 import { classNames } from '@/lib/utils'
+import { renderNotePreview, normalizeWikilinkKey, type WikilinkTarget } from '@/lib/markdown-lite'
 import PatternCard from './PatternCard'
 
 const VERDICT_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
@@ -42,6 +43,32 @@ const CATEGORY_CONFIG: Record<string, { label: string; icon: string }> = {
   religion_mythology: { label: 'Religion', icon: '⚡' },
   esoteric_practices: { label: 'Esoteric', icon: '✨' },
   combination: { label: 'Multi', icon: '🔄' },
+}
+
+/**
+ * Category color themes for the fallback hero. Each entry is a concrete
+ * set of Tailwind classes so the JIT compiler can see them at build
+ * time — we can't use interpolated class names like `bg-${color}-500/20`.
+ * Keys match the `color` field on CONSTELLATION_NODES.
+ */
+const CATEGORY_THEMES: Record<string, { gradient: string; glow: string; labelBg: string }> = {
+  green:   { gradient: 'from-green-500/25 via-green-900/10 to-gray-950',     glow: 'bg-green-500/30',   labelBg: 'bg-green-600/70' },
+  amber:   { gradient: 'from-amber-500/25 via-amber-900/10 to-gray-950',     glow: 'bg-amber-500/30',   labelBg: 'bg-amber-600/70' },
+  purple:  { gradient: 'from-purple-500/25 via-purple-900/10 to-gray-950',   glow: 'bg-purple-500/30',  labelBg: 'bg-purple-600/70' },
+  blue:    { gradient: 'from-blue-500/25 via-blue-900/10 to-gray-950',       glow: 'bg-blue-500/30',    labelBg: 'bg-blue-600/70' },
+  indigo:  { gradient: 'from-indigo-500/25 via-indigo-900/10 to-gray-950',   glow: 'bg-indigo-500/30',  labelBg: 'bg-indigo-600/70' },
+  pink:    { gradient: 'from-pink-500/25 via-pink-900/10 to-gray-950',       glow: 'bg-pink-500/30',    labelBg: 'bg-pink-600/70' },
+  emerald: { gradient: 'from-emerald-500/25 via-emerald-900/10 to-gray-950', glow: 'bg-emerald-500/30', labelBg: 'bg-emerald-600/70' },
+  cyan:    { gradient: 'from-cyan-500/25 via-cyan-900/10 to-gray-950',       glow: 'bg-cyan-500/30',    labelBg: 'bg-cyan-600/70' },
+  yellow:  { gradient: 'from-yellow-500/25 via-yellow-900/10 to-gray-950',   glow: 'bg-yellow-500/30',  labelBg: 'bg-yellow-600/70' },
+  violet:  { gradient: 'from-violet-500/25 via-violet-900/10 to-gray-950',   glow: 'bg-violet-500/30',  labelBg: 'bg-violet-600/70' },
+  gray:    { gradient: 'from-gray-700/30 via-gray-900/20 to-gray-950',       glow: 'bg-gray-600/30',    labelBg: 'bg-gray-600/70' },
+}
+
+function themeForCategory(category: string) {
+  const node = CONSTELLATION_NODES.find(n => n.id === category)
+  const color = node?.color || 'gray'
+  return CATEGORY_THEMES[color] || CATEGORY_THEMES.gray
 }
 
 export type ListViewMode = 'grid' | 'list' | 'compact'
@@ -103,6 +130,19 @@ export default function ConstellationListView({
     return counts
   }, [aiConnections])
 
+  // Resolver map for wikilinks in note previews. Built from ALL entry
+  // nodes (not just the filtered view) because a user might reference a
+  // save that's currently hidden by a category filter.
+  const wikilinkMap = useMemo(() => {
+    const m = new Map<string, WikilinkTarget>()
+    if (!userMapData) return m
+    for (const e of userMapData.entryNodes) {
+      if (!e.name || e.isGhost) continue
+      m.set(normalizeWikilinkKey(e.name), { id: e.id, displayLabel: e.name })
+    }
+    return m
+  }, [userMapData])
+
   // Empty state
   if (entries.length === 0) {
     return (
@@ -157,6 +197,7 @@ export default function ConstellationListView({
             viewMode={viewMode}
             isSelected={isSelected}
             patternCount={patternCount}
+            wikilinkMap={wikilinkMap}
             onSelect={() => onSelectEntry(entry)}
           />
         )
@@ -174,10 +215,11 @@ interface EntryCardProps {
   viewMode: ListViewMode
   isSelected: boolean
   patternCount: number
+  wikilinkMap: Map<string, WikilinkTarget>
   onSelect: () => void
 }
 
-function EntryCard({ entry, viewMode, isSelected, patternCount, onSelect }: EntryCardProps) {
+function EntryCard({ entry, viewMode, isSelected, patternCount, wikilinkMap, onSelect }: EntryCardProps) {
   const verdict = VERDICT_CONFIG[entry.verdict] || VERDICT_CONFIG.needs_info
   const cat = CATEGORY_CONFIG[entry.category] || CATEGORY_CONFIG.combination
   const isExternal = !!entry.sourceType && entry.sourceType !== 'paradocs_report'
@@ -230,7 +272,7 @@ function EntryCard({ entry, viewMode, isSelected, patternCount, onSelect }: Entr
         )}
       >
         {/* Thumb */}
-        <div className="relative w-32 sm:w-40 flex-shrink-0 bg-gray-900">
+        <div className="relative w-32 sm:w-40 flex-shrink-0 bg-gray-900 overflow-hidden">
           {entry.imageUrl ? (
             <img
               src={entry.imageUrl}
@@ -239,7 +281,7 @@ function EntryCard({ entry, viewMode, isSelected, patternCount, onSelect }: Entr
               onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
             />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-2xl opacity-40">{cat.icon}</div>
+            <CategoryHero category={entry.category} icon={cat.icon} dense />
           )}
         </div>
         {/* Body */}
@@ -251,7 +293,9 @@ function EntryCard({ entry, viewMode, isSelected, patternCount, onSelect }: Entr
             {isExternal && <ExternalLink className="w-3.5 h-3.5 text-gray-500 flex-shrink-0 mt-0.5" />}
           </div>
           {entry.note && (
-            <p className="text-xs text-gray-400 leading-snug line-clamp-1">{entry.note}</p>
+            <div className="text-xs text-gray-400 leading-snug line-clamp-1">
+              {renderNotePreview(entry.note, { wikilinks: wikilinkMap })}
+            </div>
           )}
           <div className="flex items-center gap-1.5 flex-wrap mt-auto">
             <span className={classNames(
@@ -311,17 +355,12 @@ function EntryCard({ entry, viewMode, isSelected, patternCount, onSelect }: Entr
           </div>
         </div>
       ) : (
-        <div className="relative w-full h-20 bg-gradient-to-br from-gray-900 to-gray-950 flex items-center justify-center">
-          <span className="text-3xl opacity-40">{cat.icon}</span>
-          <div className="absolute top-2 left-2">
-            <span className={classNames(
-              'text-[10px] font-semibold px-1.5 py-0.5 rounded',
-              isExternal ? 'bg-white/10 text-gray-200' : 'bg-primary-600/80 text-white'
-            )}>
-              {isExternal ? (entry.sourcePlatform || 'External') : cat.label}
-            </span>
-          </div>
-        </div>
+        <CategoryHero
+          category={entry.category}
+          icon={cat.icon}
+          chip={isExternal ? (entry.sourcePlatform || 'External') : cat.label}
+          chipStyle={isExternal ? 'neutral' : 'primary'}
+        />
       )}
 
       <div className="p-3 space-y-2">
@@ -358,7 +397,9 @@ function EntryCard({ entry, viewMode, isSelected, patternCount, onSelect }: Entr
         {entry.note && (
           <div className="flex items-start gap-1.5 text-xs text-gray-400 leading-snug">
             <FileText className="w-3 h-3 text-gray-600 flex-shrink-0 mt-0.5" />
-            <p className="line-clamp-2">{entry.note}</p>
+            <div className="line-clamp-2">
+              {renderNotePreview(entry.note, { wikilinks: wikilinkMap })}
+            </div>
           </div>
         )}
         {entry.tags && entry.tags.length > 0 && (
@@ -387,5 +428,87 @@ function EntryCard({ entry, viewMode, isSelected, patternCount, onSelect }: Entr
         </div>
       </div>
     </button>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// CategoryHero — the fallback "cover" for entry cards that lack a
+// thumbnail. For internal Paradocs reports without a primary image,
+// a flat gray rectangle felt like wasted visual real estate; this
+// hero pulls the entry's category color, layers a diagonal gradient
+// with a soft radial glow, and centers a large category glyph so
+// the card reads as a proper research artifact rather than a
+// placeholder.
+// ─────────────────────────────────────────────────────────────────
+
+function CategoryHero({
+  category,
+  icon,
+  chip,
+  chipStyle = 'primary',
+  dense,
+}: {
+  category: string
+  icon: string
+  /** Optional label chip rendered at top-left (e.g. category label, platform name) */
+  chip?: string
+  chipStyle?: 'primary' | 'neutral'
+  /** Use the full available height rather than the default aspect-video (for list thumbs) */
+  dense?: boolean
+}) {
+  const theme = themeForCategory(category)
+  return (
+    <div
+      className={classNames(
+        'relative overflow-hidden bg-gray-950',
+        dense ? 'absolute inset-0 w-full h-full' : 'w-full aspect-video',
+      )}
+    >
+      {/* Diagonal base gradient using the category accent */}
+      <div className={classNames('absolute inset-0 bg-gradient-to-br', theme.gradient)} />
+      {/* Soft off-centered radial glow for depth */}
+      <div
+        className={classNames(
+          'absolute -top-10 -right-8 w-40 h-40 rounded-full blur-3xl pointer-events-none',
+          theme.glow,
+        )}
+      />
+      {/* Subtle grid texture to read as "research document" rather than empty */}
+      <div
+        className="absolute inset-0 opacity-[0.07] pointer-events-none"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px)',
+          backgroundSize: '18px 18px',
+        }}
+      />
+      {/* Big category glyph, centered */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span
+          className={classNames(
+            'drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]',
+            dense ? 'text-4xl opacity-70' : 'text-6xl opacity-70',
+          )}
+          aria-hidden
+        >
+          {icon}
+        </span>
+      </div>
+      {/* Optional corner chip */}
+      {chip && (
+        <div className="absolute top-2 left-2 z-10">
+          <span
+            className={classNames(
+              'inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded border backdrop-blur-sm',
+              chipStyle === 'primary'
+                ? classNames(theme.labelBg, 'text-white border-white/10')
+                : 'bg-white/10 text-gray-100 border-white/10',
+            )}
+          >
+            {chip}
+          </span>
+        </div>
+      )}
+    </div>
   )
 }
