@@ -1,72 +1,49 @@
 'use client'
 
 /**
- * LabGeoMap — Geographic map of the user's saves.
+ * LabGeoMap — Geographic view of the user's saved reports.
  *
- * Uses react-leaflet + supercluster for a proper dark-themed world map with
- * category-colored pins, zoom-based clustering, category and case-file
- * filters, and a tap-to-open detail panel.
+ * Powered by MapLibre GL (same stack as the public Explore map) so the
+ * Lab tab has feature parity: three basemap styles, density heatmap,
+ * smooth animated clustering, geolocate control, historical-wave
+ * overlays when user saves fall inside a documented wave window, a
+ * timeline scrubber for filtering by event year, and an optional
+ * global-context backdrop showing all Paradocs reports as faint dots
+ * so the user can see their library in global context.
  *
- * IMPORTANT: this component relies on browser APIs (window, document) and
- * must only be rendered client-side. The parent uses next/dynamic with
- * ssr: false to enforce that.
+ * Only the user's saves come from useLabData; the global backdrop layer
+ * lazy-loads via useViewportData (same hook the public map uses) once
+ * the user opts in.
  */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap, CircleMarker } from 'react-leaflet'
-import type { Map as LeafletMap, LeafletMouseEvent, DivIcon } from 'leaflet'
-import Supercluster from 'supercluster'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Map, {
+  Source,
+  Layer,
+  NavigationControl,
+  GeolocateControl,
+  type MapRef,
+  type MapLayerMouseEvent,
+} from 'react-map-gl/maplibre'
+import 'maplibre-gl/dist/maplibre-gl.css'
+import { Layers, Flame, Clock, Globe2, Map as MapIcon, MapPin as MapPinIcon, X as XIcon } from 'lucide-react'
 import type { EntryNode, UserMapData } from '@/lib/constellation-types'
+import { BASEMAP_STYLES, CATEGORY_COLORS, HEATMAP_COLORS, MAP_BOUNDS } from '@/components/map/mapStyles'
+import { HISTORICAL_WAVES } from '@/lib/historical-waves'
 import { classNames } from '@/lib/utils'
-import { X as XIcon, MapPin as MapPinIcon } from 'lucide-react'
+import { useViewportData } from '@/components/map/useViewportData'
 
-// Leaflet's default icon URLs assume a CDN layout — we supply custom
-// DivIcons anyway, but the default CSS still needs a single import.
-import 'leaflet/dist/leaflet.css'
-
-// Category → marker color. Kept in sync with the rest of the Lab palette.
-const CATEGORY_COLOR: Record<string, string> = {
-  ufos_aliens: '#22c55e',
-  cryptids: '#f59e0b',
-  ghosts_hauntings: '#a855f7',
-  psychic_phenomena: '#3b82f6',
-  consciousness_practices: '#8b5cf6',
-  psychological_experiences: '#ec4899',
-  biological_factors: '#14b8a6',
-  perception_sensory: '#06b6d4',
-  religion_mythology: '#f97316',
-  esoteric_practices: '#6366f1',
-  combination: '#64748b',
-}
-
-// Cluster marker color scales with point density.
-function clusterColor(count: number): string {
-  if (count < 10) return '#6366f1'
-  if (count < 50) return '#a855f7'
-  if (count < 150) return '#ec4899'
-  return '#f97316'
-}
+type BasemapKey = 'dark' | 'satellite' | 'terrain'
 
 interface LabGeoMapProps {
   userMapData: UserMapData | null
-  selectedCategory?: string | null
-  selectedCaseFileId?: string | null
-  onSelectEntry: (entry: EntryNode) => void
+  selectedCategory: string | null
+  selectedCaseFileId: string | null
+  onSelectEntry: (entry: EntryNode | null) => void
 }
 
-/**
- * Best-effort geocode from locationName when DB coordinates aren't present.
- * Stubbed as no-op for now — the component only shows entries that already
- * have explicit lat/lng in the underlying data. Future: server-side
- * geocoding pass that backfills coordinates for text locations.
- *
- * The current EntryNode type doesn't expose lat/lng directly; we pull them
- * from a loose `coordinates` property if present, or from `metadata_json`.
- */
-// Supabase can return NUMERIC columns as strings in some client/driver
-// configurations. Coerce + validate so a stored "-82.22" still counts as
-// a valid longitude. Returns null for anything that isn't a finite number
-// inside the plausible lat/lng range.
+// ─── Coord coercion ─────────────────────────────────────────────
+
 function num(v: unknown): number | null {
   if (v == null) return null
   const n = typeof v === 'number' ? v : typeof v === 'string' ? parseFloat(v) : NaN
@@ -76,51 +53,20 @@ function num(v: unknown): number | null {
 function validCoord(lat: number | null, lng: number | null): { lat: number; lng: number } | null {
   if (lat == null || lng == null) return null
   if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null
-  if (lat === 0 && lng === 0) return null // almost always a default/uninitialized value
+  if (lat === 0 && lng === 0) return null
   return { lat, lng }
 }
 
 function entryCoords(e: EntryNode): { lat: number; lng: number } | null {
-  // Read defensively — the coordinate fields aren't strictly typed and
-  // different save paths (Paradocs report, legacy bookmark, external
-  // artifact) stash them in slightly different places.
-  const loose = e as unknown as {
-    latitude?: unknown; longitude?: unknown;
-    lat?: unknown; lng?: unknown;
-    coordinates?: { latitude?: unknown; longitude?: unknown } | [unknown, unknown]
-  }
-
-  // Primary: flat latitude / longitude on the entry (set by user-map.ts
-  // for report-linked saves).
+  const loose = e as unknown as { latitude?: unknown; longitude?: unknown; lat?: unknown; lng?: unknown }
   const direct = validCoord(num(loose.latitude), num(loose.longitude))
   if (direct) return direct
-
-  // Alternate: lat / lng
   const alt = validCoord(num(loose.lat), num(loose.lng))
   if (alt) return alt
-
-  // Nested coordinates, tuple form: [lng, lat] (GeoJSON order)
-  if (Array.isArray(loose.coordinates) && loose.coordinates.length === 2) {
-    const tuple = validCoord(num(loose.coordinates[1]), num(loose.coordinates[0]))
-    if (tuple) return tuple
-  }
-  // Nested coordinates, object form
-  if (loose.coordinates && !Array.isArray(loose.coordinates)) {
-    const c = loose.coordinates as any
-    const nested = validCoord(num(c.latitude), num(c.longitude))
-    if (nested) return nested
-  }
-
-  // Artifact metadata: extract endpoint stashes coords here for some sources.
-  const m = (e.sourceMetadata || {}) as any
-  const fromMeta = validCoord(
-    num(m.location_latitude ?? m.latitude ?? m.lat),
-    num(m.location_longitude ?? m.longitude ?? m.lng),
-  )
-  if (fromMeta) return fromMeta
-
   return null
 }
+
+// ─── Main component ─────────────────────────────────────────────
 
 export default function LabGeoMap({
   userMapData,
@@ -128,19 +74,35 @@ export default function LabGeoMap({
   selectedCaseFileId,
   onSelectEntry,
 }: LabGeoMapProps) {
-  const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
+  const mapRef = useRef<MapRef>(null)
+  const [mapLoaded, setMapLoaded] = useState(false)
 
-  // Dynamic-load leaflet on the client so we can build DivIcons.
+  // Control state — persisted to localStorage so preferences survive
+  // reloads. Keys intentionally namespaced under `paradocs_lab_`.
+  const [basemap, setBasemap] = useState<BasemapKey>('dark')
+  const [heatmapActive, setHeatmapActive] = useState(false)
+  const [globalContext, setGlobalContext] = useState(false)
+  const [timelineRange, setTimelineRange] = useState<[number, number] | null>(null)
+  const [hoveredPinId, setHoveredPinId] = useState<string | null>(null)
+  const hasFitBounds = useRef(false)
+
+  // Restore persisted prefs once on mount
   useEffect(() => {
-    let cancelled = false
-    import('leaflet').then(L => {
-      if (!cancelled) setLeaflet(L as any)
-    })
-    return () => { cancelled = true }
+    try {
+      const rawBase = localStorage.getItem('paradocs_lab_map_basemap')
+      if (rawBase === 'dark' || rawBase === 'satellite' || rawBase === 'terrain') setBasemap(rawBase)
+      const rawHeat = localStorage.getItem('paradocs_lab_map_heatmap')
+      if (rawHeat === '1') setHeatmapActive(true)
+      const rawGlobal = localStorage.getItem('paradocs_lab_map_global')
+      if (rawGlobal === '1') setGlobalContext(true)
+    } catch {}
   }, [])
+  useEffect(() => { try { localStorage.setItem('paradocs_lab_map_basemap', basemap) } catch {} }, [basemap])
+  useEffect(() => { try { localStorage.setItem('paradocs_lab_map_heatmap', heatmapActive ? '1' : '0') } catch {} }, [heatmapActive])
+  useEffect(() => { try { localStorage.setItem('paradocs_lab_map_global', globalContext ? '1' : '0') } catch {} }, [globalContext])
 
-  // Points: entries with valid coordinates, filtered by category + case file.
-  const points = useMemo(() => {
+  // ── Build user-save points ─────────────────────────────────
+  const userPoints = useMemo(() => {
     if (!userMapData) return [] as Array<{ entry: EntryNode; lat: number; lng: number }>
     return userMapData.entryNodes.flatMap(e => {
       if (e.isGhost) return []
@@ -148,50 +110,170 @@ export default function LabGeoMap({
       if (selectedCaseFileId && !(e.caseFileIds || []).includes(selectedCaseFileId)) return []
       const coords = entryCoords(e)
       if (!coords) return []
+      // Timeline filter (by event year)
+      if (timelineRange && e.eventDate) {
+        const year = new Date(e.eventDate).getFullYear()
+        if (!isNaN(year)) {
+          if (year < timelineRange[0] || year > timelineRange[1]) return []
+        }
+      }
       return [{ entry: e, lat: coords.lat, lng: coords.lng }]
     })
-  }, [userMapData, selectedCategory, selectedCaseFileId])
+  }, [userMapData, selectedCategory, selectedCaseFileId, timelineRange])
 
-  // Empty / loading states
-  if (!leaflet) {
-    return (
-      <div className="w-full h-[60vh] sm:h-[70vh] rounded-2xl bg-gray-950 border border-gray-800 flex items-center justify-center">
-        <div className="text-center">
-          <MapPinIcon className="w-6 h-6 text-gray-600 mx-auto mb-2 animate-pulse" />
-          <p className="text-xs text-gray-500">Loading map...</p>
-        </div>
-      </div>
-    )
-  }
+  // ── Year range available in the user's library (for timeline slider) ──
+  const yearRangeAvailable = useMemo(() => {
+    const years: number[] = []
+    for (const n of userMapData?.entryNodes || []) {
+      if (!n.eventDate) continue
+      const y = new Date(n.eventDate).getFullYear()
+      if (!isNaN(y)) years.push(y)
+    }
+    if (years.length === 0) return null
+    return [Math.min(...years), Math.max(...years)] as [number, number]
+  }, [userMapData])
 
-  if (points.length === 0) {
-    // Explain what's actually going on so Chase (and any user who
-    // mostly saves external URLs) isn't left guessing.
+  // ── Historical wave overlays: show polygons for any wave that has a
+  // centroid and matches at least one user save (by eventDate/location).
+  // Gives saves geographic context — e.g. Phoenix Lights radius, Rendlesham
+  // Forest footprint.
+  const waveOverlays = useMemo(() => {
+    const features: GeoJSON.Feature[] = []
+    for (const wave of HISTORICAL_WAVES) {
+      if (!wave.centroid) continue
+      // Show only if the user has a save inside the wave (temporal overlap
+      // with lat/lng in radius, OR tag / title match).
+      const hit = (userMapData?.entryNodes || []).some(e => {
+        if (!e.eventDate) return false
+        const t = new Date(e.eventDate).getTime()
+        if (isNaN(t)) return false
+        const start = new Date(wave.startDate).getTime()
+        const end = new Date(wave.endDate).getTime() + 86400000
+        if (t < start || t > end) return false
+        const c = entryCoords(e)
+        if (!c) return true // date-in-window with no coords still counts
+        const { lat: cLat, lng: cLng } = c
+        const d = haversineKm({ lat: cLat, lng: cLng }, wave.centroid!)
+        return d <= wave.centroid!.radiusKm
+      })
+      if (!hit) continue
+      features.push(circlePolygon(wave.centroid.lat, wave.centroid.lng, wave.centroid.radiusKm, {
+        id: wave.id,
+        title: wave.title,
+      }))
+    }
+    return { type: 'FeatureCollection', features } as GeoJSON.FeatureCollection
+  }, [userMapData])
+
+  // ── GeoJSON for the user's saves ─────────────────────────
+  const userGeoJSON = useMemo<GeoJSON.FeatureCollection>(() => ({
+    type: 'FeatureCollection',
+    features: userPoints.map(p => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+      properties: {
+        id: p.entry.id,
+        category: p.entry.category,
+        name: p.entry.name,
+      },
+    })),
+  }), [userPoints])
+
+  // ── Category color expression ────────────────────────────
+  const categoryColorExpr = useMemo(() => {
+    const stops: (string | number)[] = []
+    for (const [cat, color] of Object.entries(CATEGORY_COLORS)) stops.push(cat, color)
+    return ['match', ['get', 'category'], ...stops, '#9ca3af'] as any
+  }, [])
+
+  // Global-context layer is loaded lazily via a child component so the
+  // useViewportData hook (which hits Supabase) only runs when the user
+  // actually opts in to the backdrop toggle.
+  const [globalGeoJSON, setGlobalGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null)
+
+  // ── Click handling ────────────────────────────────────────
+  const handleClick = useCallback((e: MapLayerMouseEvent) => {
+    const feature = e.features?.[0]
+    if (!feature) return
+    const props = feature.properties || {}
+    if (props.cluster) {
+      // Clusters on the user-saves source — zoom in
+      const geometry = feature.geometry as GeoJSON.Point
+      mapRef.current?.flyTo({
+        center: geometry.coordinates as [number, number],
+        zoom: Math.min((mapRef.current?.getMap().getZoom() || 4) + 2, MAP_BOUNDS.maxZoom),
+        duration: 500,
+      })
+      return
+    }
+    if (props.id && userMapData) {
+      const entry = userMapData.entryNodes.find(n => n.id === props.id)
+      if (entry) onSelectEntry(entry)
+    }
+  }, [userMapData, onSelectEntry])
+
+  const handleMouseEnter = useCallback((e: MapLayerMouseEvent) => {
+    const map = mapRef.current?.getMap()
+    if (map) map.getCanvas().style.cursor = 'pointer'
+    const f = e.features?.[0]
+    if (f && f.properties?.id) setHoveredPinId(f.properties.id as string)
+  }, [])
+
+  const handleMouseLeave = useCallback(() => {
+    const map = mapRef.current?.getMap()
+    if (map) map.getCanvas().style.cursor = ''
+    setHoveredPinId(null)
+  }, [])
+
+  // ── Fit bounds on first load ─────────────────────────────
+  useEffect(() => {
+    if (!mapLoaded) return
+    if (hasFitBounds.current) return
+    if (userPoints.length === 0) return
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    hasFitBounds.current = true
+    if (userPoints.length === 1) {
+      map.flyTo({ center: [userPoints[0].lng, userPoints[0].lat], zoom: 6, duration: 600 })
+    } else {
+      const lats = userPoints.map(p => p.lat)
+      const lngs = userPoints.map(p => p.lng)
+      map.fitBounds(
+        [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+        { padding: 60, duration: 800, maxZoom: 7 },
+      )
+    }
+  }, [mapLoaded, userPoints])
+
+  // ── Empty state ───────────────────────────────────────────
+  if (userPoints.length === 0 && !globalContext) {
     const totalSaves = (userMapData?.entryNodes || []).filter(e => !e.isGhost).length
     const paradocsReportSaves = (userMapData?.entryNodes || []).filter(
       e => !e.isGhost && e.sourceType !== 'external' && e.reportId,
     ).length
-    const externalOnlySaves = totalSaves - paradocsReportSaves
     return (
-      <div className="w-full h-[60vh] sm:h-[70vh] rounded-2xl bg-gray-950 border border-gray-800 flex items-center justify-center px-6">
+      <div className="relative w-full h-[60vh] sm:h-[70vh] rounded-2xl bg-gray-950 border border-gray-800 flex items-center justify-center px-6">
         <div className="text-center max-w-md">
           <div className="inline-flex p-3 bg-sky-500/10 rounded-full mb-3">
             <MapPinIcon className="w-6 h-6 text-sky-300" />
           </div>
           <h3 className="text-white font-semibold text-sm mb-1">
-            {selectedCategory || selectedCaseFileId
-              ? 'No pins match this filter'
-              : 'No pins to show yet'}
+            {selectedCategory || selectedCaseFileId ? 'No pins match this filter' : 'No pins to show yet'}
           </h3>
-          <p className="text-xs text-gray-400 leading-relaxed">
+          <p className="text-xs text-gray-400 leading-relaxed mb-4">
             {totalSaves === 0
               ? 'Save a Paradocs report with location data to see it here.'
               : paradocsReportSaves === 0
                 ? `You have ${totalSaves} external URL save${totalSaves === 1 ? '' : 's'}. External saves don't auto-place on the map — save a Paradocs report with coordinates to see a pin.`
-                : externalOnlySaves > 0
-                  ? `${paradocsReportSaves} of your ${totalSaves} saves are Paradocs reports, but none have coordinates recorded. External URL saves stay off the map to avoid mis-tagging.`
-                  : 'Your saved Paradocs reports don\'t have coordinates recorded yet.'}
+                : `Your ${paradocsReportSaves} Paradocs report save${paradocsReportSaves === 1 ? '' : 's'} ${paradocsReportSaves === 1 ? 'doesn\'t have coordinates' : 'don\'t have coordinates'} recorded yet.`}
           </p>
+          <button
+            onClick={() => setGlobalContext(true)}
+            className="inline-flex items-center gap-1.5 text-[11px] font-medium text-cyan-300 hover:text-cyan-200 transition-colors"
+          >
+            <Globe2 className="w-3 h-3" />
+            Show all Paradocs reports instead
+          </button>
         </div>
       </div>
     )
@@ -199,263 +281,480 @@ export default function LabGeoMap({
 
   return (
     <div className="relative w-full h-[60vh] sm:h-[70vh] rounded-2xl overflow-hidden border border-gray-800 bg-gray-950">
-      <MapContainer
-        center={[points[0].lat, points[0].lng] as [number, number]}
-        zoom={4}
-        scrollWheelZoom
-        className="w-full h-full"
+      <Map
+        ref={mapRef}
+        initialViewState={{ longitude: userPoints[0]?.lng ?? -40, latitude: userPoints[0]?.lat ?? 30, zoom: 3 }}
+        minZoom={MAP_BOUNDS.minZoom}
+        maxZoom={MAP_BOUNDS.maxZoom}
+        onLoad={() => setMapLoaded(true)}
+        mapStyle={BASEMAP_STYLES[basemap]}
+        style={{ width: '100%', height: '100%' }}
+        interactiveLayerIds={['lab-clusters', 'lab-point', 'lab-point-hit']}
+        onClick={handleClick}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         attributionControl={false}
       >
-        <TileLayer
-          // Dark basemap from CartoDB. Free for small-scale usage under their
-          // terms; attribution appears in the floating control.
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        />
-        <FitToPoints points={points} />
-        <ClusteredMarkers
-          L={leaflet!}
-          points={points}
-          onSelect={onSelectEntry}
-        />
-      </MapContainer>
-    </div>
-  )
-}
+        <NavigationControl position="top-right" showCompass={false} />
+        <GeolocateControl position="top-right" trackUserLocation={false} />
 
-/**
- * FitToPoints — once the map mounts, fit the viewport to the bounding box
- * of all pins so they're always visible. Previously we used a static zoom
- * and the map could open in an area with no pins, giving the impression
- * that the map was empty when it wasn't.
- */
-function FitToPoints({ points }: { points: Array<{ lat: number; lng: number }> }) {
-  const map = useMap()
-  const hasFit = useRef(false)
-  useEffect(() => {
-    if (hasFit.current) return
-    if (points.length === 0) return
-    if (points.length === 1) {
-      map.setView([points[0].lat, points[0].lng], 6, { animate: false })
-    } else {
-      const lats = points.map(p => p.lat)
-      const lngs = points.map(p => p.lng)
-      const south = Math.min(...lats)
-      const north = Math.max(...lats)
-      const west = Math.min(...lngs)
-      const east = Math.max(...lngs)
-      map.fitBounds(
-        [[south, west], [north, east]] as any,
-        { padding: [40, 40], maxZoom: 7, animate: false },
-      )
-    }
-    hasFit.current = true
-  }, [map, points])
-  return null
-}
-
-// ── Clustered marker renderer ──
-
-interface ClusteredMarkersProps {
-  L: typeof import('leaflet')
-  points: Array<{ entry: EntryNode; lat: number; lng: number }>
-  onSelect: (entry: EntryNode) => void
-}
-
-function ClusteredMarkers({ L, points, onSelect }: ClusteredMarkersProps) {
-  const map = useMap()
-  const [, setTick] = useState(0)
-
-  // For small libraries (< 12 points) skip supercluster entirely and render
-  // raw markers. Clustering has historically been where "pins don't show"
-  // bugs hide — zoom / bounds edge cases, initial-mount race conditions —
-  // and with a handful of points we don't need the performance win.
-  const USE_CLUSTERING = points.length >= 12
-
-  // Rebuild supercluster whenever points change (only used when clustering).
-  const cluster = useMemo(() => {
-    if (!USE_CLUSTERING) return null
-    const sc = new Supercluster({ radius: 60, maxZoom: 16 })
-    sc.load(points.map((p, i) => ({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
-      properties: { idx: i, entry: p.entry },
-    })) as any)
-    return sc
-  }, [points, USE_CLUSTERING])
-
-  // Tick the renderer on every map move/zoom so clusters rebuild for the
-  // current viewport.
-  useEffect(() => {
-    const update = () => setTick(t => t + 1)
-    map.on('moveend', update)
-    map.on('zoomend', update)
-    update()
-    return () => {
-      map.off('moveend', update)
-      map.off('zoomend', update)
-    }
-  }, [map])
-
-  // ── Raw (non-clustered) render path for small point counts ──
-  // We use stacked CircleMarkers instead of DivIcon — the Next.js/Leaflet
-  // dynamic-import setup produced a Leaflet-instance mismatch that kept
-  // DivIcon pins from painting. A concentric halo + solid body + white
-  // inner dot gives the circles more of a "pin" feel than a flat dot.
-  // Click goes straight to the detail panel; no redundant Leaflet Popup.
-  if (!USE_CLUSTERING || !cluster) {
-    return (
-      <>
-        {points.map(({ entry, lat, lng }) => {
-          const color = CATEGORY_COLOR[entry.category] || '#64748b'
-          const handlers = { click: () => onSelect(entry) }
-          return (
-            <React.Fragment key={'pin-' + entry.id}>
-              {/* Outer halo */}
-              <CircleMarker
-                center={[lat, lng]}
-                radius={16}
-                pathOptions={{
-                  stroke: false,
-                  fillColor: color,
-                  fillOpacity: 0.18,
-                }}
-                eventHandlers={handlers}
-              />
-              {/* Solid body with white outline */}
-              <CircleMarker
-                center={[lat, lng]}
-                radius={9}
-                pathOptions={{
-                  color: '#ffffff',
-                  weight: 2,
-                  opacity: 0.95,
-                  fillColor: color,
-                  fillOpacity: 1,
-                }}
-                eventHandlers={handlers}
-              />
-              {/* Inner dot for the classic pin feel */}
-              <CircleMarker
-                center={[lat, lng]}
-                radius={2.5}
-                pathOptions={{
-                  stroke: false,
-                  fillColor: '#ffffff',
-                  fillOpacity: 1,
-                }}
-                eventHandlers={handlers}
-              />
-            </React.Fragment>
-          )
-        })}
-      </>
-    )
-  }
-
-  // ── Clustered render path (12+ points) ──
-  const b = map.getBounds()
-  const z = Math.round(map.getZoom())
-  const clusters = cluster.getClusters(
-    [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
-    z,
-  )
-
-  return (
-    <>
-      {clusters.map((c: any) => {
-        const [lng, lat] = c.geometry.coordinates
-        if (c.properties.cluster) {
-          return (
-            <Marker
-              key={'cluster-' + c.properties.cluster_id}
-              position={[lat, lng]}
-              icon={makeClusterIcon(L, c.properties.point_count)}
-              eventHandlers={{
-                click: () => {
-                  const expansionZoom = Math.min(cluster.getClusterExpansionZoom(c.properties.cluster_id), 14)
-                  map.setView([lat, lng], expansionZoom, { animate: true })
-                },
+        {/* ── Historical wave overlays (faint polygons behind pins) ── */}
+        {waveOverlays.features.length > 0 && (
+          <Source id="lab-waves" type="geojson" data={waveOverlays}>
+            <Layer
+              id="lab-wave-fill"
+              type="fill"
+              paint={{
+                'fill-color': '#06b6d4',
+                'fill-opacity': 0.06,
               }}
             />
-          )
-        }
-        const entry = c.properties.entry as EntryNode
-        return (
-          <Marker
-            key={'pin-' + entry.id}
-            position={[lat, lng]}
-            icon={makePinIcon(L, entry.category)}
-            eventHandlers={{
-              click: () => onSelect(entry),
+            <Layer
+              id="lab-wave-outline"
+              type="line"
+              paint={{
+                'line-color': '#22d3ee',
+                'line-opacity': 0.3,
+                'line-width': 1,
+                'line-dasharray': [3, 3] as any,
+              }}
+            />
+          </Source>
+        )}
+
+        {/* ── Global-context backdrop (all Paradocs reports as faint dots) ── */}
+        {globalContext && <GlobalContextLoader onData={setGlobalGeoJSON} />}
+        {globalContext && globalGeoJSON && (
+          <Source id="lab-global" type="geojson" data={globalGeoJSON}>
+            <Layer
+              id="lab-global-points"
+              type="circle"
+              paint={{
+                'circle-color': '#64748b',
+                'circle-radius': 2,
+                'circle-opacity': heatmapActive ? 0 : 0.3,
+                'circle-stroke-width': 0,
+              }}
+            />
+          </Source>
+        )}
+
+        {/* ── Density heatmap of the user's saves ── */}
+        {heatmapActive && userPoints.length > 0 && (
+          <Source id="lab-heat" type="geojson" data={userGeoJSON}>
+            <Layer
+              id="lab-heatmap"
+              type="heatmap"
+              paint={{
+                'heatmap-weight': 1,
+                'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 1, 6, 3, 10, 4] as any,
+                'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 25, 6, 45, 10, 65] as any,
+                'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 0, 0.8, 10, 0.55, 14, 0.2, 16, 0] as any,
+                'heatmap-color': HEATMAP_COLORS as any,
+              }}
+            />
+          </Source>
+        )}
+
+        {/* ── User's saved pins + clusters ── */}
+        <Source
+          id="lab-saves"
+          type="geojson"
+          data={userGeoJSON}
+          cluster
+          clusterRadius={50}
+          clusterMaxZoom={14}
+        >
+          {/* Clusters */}
+          <Layer
+            id="lab-clusters"
+            type="circle"
+            filter={['has', 'point_count']}
+            paint={{
+              'circle-color': [
+                'step', ['get', 'point_count'],
+                '#6366f1', 10, '#8b5cf6', 100, '#a855f7',
+              ] as any,
+              'circle-radius': [
+                'step', ['get', 'point_count'], 16, 10, 20, 100, 26,
+              ] as any,
+              'circle-stroke-width': 2,
+              'circle-stroke-color': 'rgba(255,255,255,0.2)',
+              'circle-opacity': heatmapActive ? 0.4 : 0.95,
             }}
-          >
-            <Popup>
-              <div className="text-xs">
-                <div className="font-semibold text-gray-900 mb-0.5">{entry.name}</div>
-                {entry.locationName && (
-                  <div className="text-gray-600">{entry.locationName}</div>
-                )}
-              </div>
-            </Popup>
-          </Marker>
-        )
-      })}
-    </>
+          />
+          <Layer
+            id="lab-cluster-count"
+            type="symbol"
+            filter={['has', 'point_count']}
+            layout={{
+              'text-field': ['get', 'point_count_abbreviated'] as any,
+              'text-size': 12,
+              'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+              'text-allow-overlap': true,
+            }}
+            paint={{ 'text-color': '#ffffff' }}
+          />
+          {/* Individual pin (halo) */}
+          <Layer
+            id="lab-point-halo"
+            type="circle"
+            filter={['!', ['has', 'point_count']]}
+            paint={{
+              'circle-color': categoryColorExpr,
+              'circle-radius': 14,
+              'circle-opacity': 0.18,
+              'circle-stroke-width': 0,
+            }}
+          />
+          {/* Individual pin (main) */}
+          <Layer
+            id="lab-point"
+            type="circle"
+            filter={['!', ['has', 'point_count']]}
+            paint={{
+              'circle-color': categoryColorExpr,
+              'circle-radius': [
+                'case',
+                ['==', ['get', 'id'], hoveredPinId || ''],
+                9,
+                7,
+              ] as any,
+              'circle-stroke-color': '#ffffff',
+              'circle-stroke-width': 2,
+              'circle-stroke-opacity': 0.9,
+              'circle-opacity': heatmapActive ? 0.55 : 1,
+            }}
+          />
+          {/* Transparent wider hit target for easier clicking */}
+          <Layer
+            id="lab-point-hit"
+            type="circle"
+            filter={['!', ['has', 'point_count']]}
+            paint={{
+              'circle-color': '#000',
+              'circle-radius': 18,
+              'circle-opacity': 0,
+            }}
+          />
+        </Source>
+      </Map>
+
+      {/* Control overlay */}
+      <MapControls
+        basemap={basemap}
+        onBasemapChange={setBasemap}
+        heatmapActive={heatmapActive}
+        onHeatmapToggle={() => setHeatmapActive(v => !v)}
+        globalContext={globalContext}
+        onGlobalContextToggle={() => setGlobalContext(v => !v)}
+        yearRangeAvailable={yearRangeAvailable}
+        timelineRange={timelineRange}
+        onTimelineChange={setTimelineRange}
+        pinCount={userPoints.length}
+        waveCount={waveOverlays.features.length}
+      />
+    </div>
   )
 }
 
-// ── Icon factories ──
+// ─────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────
 
-function makePinIcon(L: typeof import('leaflet'), category: string): DivIcon {
-  const color = CATEGORY_COLOR[category] || '#64748b'
-  // Classic "map pin" shape with a glowing ring. The inline SVG keeps us
-  // from shipping raster assets.
-  const html = `
-    <div style="position: relative; width: 24px; height: 32px;">
-      <svg viewBox="0 0 24 32" width="24" height="32" style="filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));">
-        <path
-          d="M12 0c-6.6 0-12 5.4-12 12 0 8 12 20 12 20s12-12 12-20c0-6.6-5.4-12-12-12z"
-          fill="${color}"
-          stroke="rgba(255,255,255,0.8)"
-          stroke-width="1.5"
-        />
-        <circle cx="12" cy="12" r="4.5" fill="white" />
-      </svg>
-    </div>
-  `
-  return L.divIcon({
-    className: 'lab-pin',
-    html,
-    iconSize: [24, 32],
-    iconAnchor: [12, 32],
-    popupAnchor: [0, -28],
-  })
+function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(b.lat - a.lat)
+  const dLng = toRad(b.lng - a.lng)
+  const lat1 = toRad(a.lat)
+  const lat2 = toRad(b.lat)
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(h))
 }
 
-function makeClusterIcon(L: typeof import('leaflet'), count: number): DivIcon {
-  const color = clusterColor(count)
-  const size = count < 10 ? 34 : count < 50 ? 40 : count < 150 ? 48 : 56
-  const html = `
-    <div style="
-      width: ${size}px;
-      height: ${size}px;
-      border-radius: 50%;
-      background: ${color};
-      box-shadow: 0 0 0 4px ${color}33, 0 2px 6px rgba(0,0,0,0.4);
-      color: white;
-      font-weight: 700;
-      font-size: ${count < 10 ? 13 : count < 150 ? 14 : 15}px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: Inter, system-ui, sans-serif;
-    ">${count}</div>
-  `
-  return L.divIcon({
-    className: 'lab-cluster',
-    html,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-  })
+/** Approximate a circle around (lat, lng) with radiusKm as a GeoJSON polygon. */
+function circlePolygon(
+  lat: number,
+  lng: number,
+  radiusKm: number,
+  properties: Record<string, any>,
+  segments = 64,
+): GeoJSON.Feature<GeoJSON.Polygon> {
+  const coords: [number, number][] = []
+  const latRadius = radiusKm / 111 // rough km-per-deg latitude
+  const lngRadius = radiusKm / (111 * Math.cos((lat * Math.PI) / 180))
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * 2 * Math.PI
+    coords.push([lng + lngRadius * Math.cos(theta), lat + latRadius * Math.sin(theta)])
+  }
+  return {
+    type: 'Feature',
+    properties,
+    geometry: { type: 'Polygon', coordinates: [coords] },
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Map controls panel — basemap switcher, heatmap + global toggles,
+// timeline scrubber. Floats in the top-left corner of the map.
+// ─────────────────────────────────────────────────────────────────
+
+interface MapControlsProps {
+  basemap: BasemapKey
+  onBasemapChange: (b: BasemapKey) => void
+  heatmapActive: boolean
+  onHeatmapToggle: () => void
+  globalContext: boolean
+  onGlobalContextToggle: () => void
+  yearRangeAvailable: [number, number] | null
+  timelineRange: [number, number] | null
+  onTimelineChange: (r: [number, number] | null) => void
+  pinCount: number
+  waveCount: number
+}
+
+function MapControls({
+  basemap, onBasemapChange,
+  heatmapActive, onHeatmapToggle,
+  globalContext, onGlobalContextToggle,
+  yearRangeAvailable, timelineRange, onTimelineChange,
+  pinCount, waveCount,
+}: MapControlsProps) {
+  const [expanded, setExpanded] = useState(false)
+
+  const hasTimeline = !!yearRangeAvailable && yearRangeAvailable[0] !== yearRangeAvailable[1]
+
+  return (
+    <div className="absolute top-3 left-3 z-[500] flex flex-col gap-2 text-xs">
+      {/* Collapsed: pill with counts + expand button */}
+      {!expanded ? (
+        <button
+          onClick={() => setExpanded(true)}
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/75 border border-white/15 text-gray-200 hover:bg-black/85 hover:border-white/25 backdrop-blur-sm transition-colors"
+        >
+          <Layers className="w-3.5 h-3.5 text-sky-300" />
+          <span className="font-medium">{pinCount} pin{pinCount === 1 ? '' : 's'}</span>
+          {waveCount > 0 && (
+            <span className="text-cyan-300/90 text-[10px]">· {waveCount} wave{waveCount === 1 ? '' : 's'}</span>
+          )}
+          <span className="text-gray-500">·</span>
+          <span className="text-gray-400">Layers</span>
+        </button>
+      ) : (
+        <div className="w-64 rounded-xl bg-black/80 border border-white/15 backdrop-blur-md shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
+            <div className="flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-sky-300" />
+              <span className="text-white font-semibold text-[11px] uppercase tracking-wider">Map layers</span>
+            </div>
+            <button
+              onClick={() => setExpanded(false)}
+              className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
+              aria-label="Close map layer controls"
+            >
+              <XIcon className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Basemap switcher */}
+          <div className="px-3 py-2.5 border-b border-white/5">
+            <div className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1.5">Basemap</div>
+            <div className="inline-flex items-center w-full rounded-md bg-white/[0.04] border border-white/10 p-0.5 text-[11px]">
+              {(['dark', 'satellite', 'terrain'] as BasemapKey[]).map(b => (
+                <button
+                  key={b}
+                  onClick={() => onBasemapChange(b)}
+                  className={classNames(
+                    'flex-1 px-2 py-1 rounded capitalize transition-colors',
+                    basemap === b ? 'bg-white/15 text-white' : 'text-gray-400 hover:text-gray-200',
+                  )}
+                >
+                  {b}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Toggles */}
+          <div className="px-3 py-2 space-y-1.5 border-b border-white/5">
+            <ToggleRow
+              label="Density heatmap"
+              hint="Concentration of your saves"
+              icon={Flame}
+              active={heatmapActive}
+              onToggle={onHeatmapToggle}
+            />
+            <ToggleRow
+              label="Global-context backdrop"
+              hint="All Paradocs reports as faint dots"
+              icon={Globe2}
+              active={globalContext}
+              onToggle={onGlobalContextToggle}
+            />
+          </div>
+
+          {/* Timeline scrubber */}
+          {hasTimeline && (
+            <div className="px-3 py-2.5">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-3 h-3 text-violet-300" />
+                  <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Timeline</span>
+                </div>
+                {timelineRange && (
+                  <button
+                    onClick={() => onTimelineChange(null)}
+                    className="text-[10px] text-gray-500 hover:text-white transition-colors"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+              <TimelineSlider
+                min={yearRangeAvailable![0]}
+                max={yearRangeAvailable![1]}
+                value={timelineRange ?? yearRangeAvailable!}
+                onChange={onTimelineChange}
+              />
+            </div>
+          )}
+
+          {/* Legend / hint */}
+          {waveCount > 0 && (
+            <div className="px-3 py-2 bg-cyan-500/5 border-t border-cyan-500/15 text-[10px] text-cyan-200/90 flex items-center gap-1.5">
+              <MapIcon className="w-3 h-3 flex-shrink-0" />
+              <span>Cyan dashed rings = historical wave footprints you have saves inside.</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ToggleRow({
+  label, hint, icon: Icon, active, onToggle,
+}: {
+  label: string
+  hint: string
+  icon: React.ComponentType<{ className?: string }>
+  active: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      className={classNames(
+        'w-full flex items-start gap-2 px-2 py-1.5 rounded-md transition-colors text-left',
+        active ? 'bg-sky-500/10' : 'hover:bg-white/[0.04]',
+      )}
+      role="switch"
+      aria-checked={active}
+    >
+      <Icon className={classNames('w-3.5 h-3.5 mt-0.5 flex-shrink-0', active ? 'text-sky-300' : 'text-gray-500')} />
+      <div className="flex-1 min-w-0">
+        <div className={classNames('text-[11px] font-medium', active ? 'text-white' : 'text-gray-300')}>
+          {label}
+        </div>
+        <div className="text-[10px] text-gray-500 leading-tight">{hint}</div>
+      </div>
+      <div
+        className={classNames(
+          'mt-0.5 w-7 h-4 rounded-full flex-shrink-0 relative transition-colors',
+          active ? 'bg-sky-500/80' : 'bg-white/10',
+        )}
+      >
+        <div
+          className={classNames(
+            'absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all',
+            active ? 'left-3.5' : 'left-0.5',
+          )}
+        />
+      </div>
+    </button>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// TimelineSlider — dual-thumb range slider on a single track
+// ─────────────────────────────────────────────────────────────────
+
+function TimelineSlider({
+  min, max, value, onChange,
+}: {
+  min: number
+  max: number
+  value: [number, number]
+  onChange: (v: [number, number]) => void
+}) {
+  const [lo, hi] = value
+  return (
+    <div className="space-y-1">
+      <div className="relative h-5 flex items-center">
+        <div className="absolute inset-x-0 h-1 rounded-full bg-white/10" />
+        <div
+          className="absolute h-1 rounded-full bg-violet-400/70"
+          style={{
+            left: `${((lo - min) / Math.max(1, max - min)) * 100}%`,
+            right: `${(1 - (hi - min) / Math.max(1, max - min)) * 100}%`,
+          }}
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          value={lo}
+          onChange={e => {
+            const next = Math.min(Number(e.target.value), hi)
+            onChange([next, hi])
+          }}
+          className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-violet-500 [&::-webkit-slider-thumb]:cursor-pointer"
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          value={hi}
+          onChange={e => {
+            const next = Math.max(Number(e.target.value), lo)
+            onChange([lo, next])
+          }}
+          className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-violet-500 [&::-webkit-slider-thumb]:cursor-pointer"
+        />
+      </div>
+      <div className="flex items-center justify-between text-[10px] text-gray-400 tabular-nums">
+        <span>{lo}</span>
+        <span>{hi}</span>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// GlobalContextLoader — only mounts (and therefore only fires the
+// viewport-data fetch) when the user turns on the global backdrop.
+// Keeping useViewportData call off the main component means the Lab
+// map doesn't pay the network cost for users who never toggle it.
+// ─────────────────────────────────────────────────────────────────
+
+function GlobalContextLoader({ onData }: { onData: (d: GeoJSON.FeatureCollection | null) => void }) {
+  const vp = useViewportData(
+    {
+      categories: [],
+      countries: [],
+      years: null,
+      hasMedia: false,
+      hasEvidence: false,
+      verified: false,
+      credibility: null,
+      locationPrecision: null,
+    } as any,
+    null,
+    2,
+  )
+  useEffect(() => {
+    onData(vp.allPointsGeoJSON || null)
+  }, [vp.allPointsGeoJSON, onData])
+  return null
 }
