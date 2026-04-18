@@ -120,24 +120,13 @@ export default function ConstellationListView({
     )
   }
 
-  // Build an interleaved feed: [entry, entry, entry, entry, insight, entry, ...]
-  // Interleaving is suppressed in compact mode and when the caller asks for it
-  // (e.g. case file detail view where insights are already shown above).
-  const showInterleavedInsights = !hideInterleavedInsights && viewMode !== 'compact'
-  const insightPool = showInterleavedInsights
-    ? insights.slice(0, Math.ceil(entries.length / INSIGHT_SPACING))
-    : []
-  let insightIdx = 0
+  // Patterns live in the top-of-Saves lane — we no longer interleave them
+  // between entry cards. Mixing the two surfaces felt scattered and made the
+  // pattern cards look undersized next to full-width entry cards.
   const feed: Array<
     | { kind: 'entry'; entry: EntryNode }
     | { kind: 'insight'; insight: Insight }
-  > = []
-  for (let i = 0; i < entries.length; i++) {
-    feed.push({ kind: 'entry', entry: entries[i] })
-    if (showInterleavedInsights && (i + 1) % INSIGHT_SPACING === 0 && insightIdx < insightPool.length) {
-      feed.push({ kind: 'insight', insight: insightPool[insightIdx++] })
-    }
-  }
+  > = entries.map(entry => ({ kind: 'entry' as const, entry }))
 
   // Container layout per view mode.
   const containerClass =

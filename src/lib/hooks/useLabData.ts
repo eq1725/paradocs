@@ -144,6 +144,7 @@ export function useLabData(): LabData {
       latitude: e.latitude ?? null,
       longitude: e.longitude ?? null,
       loggedAt: e.loggedAt ?? null,
+      title: e.name ?? null,
     })))
   }, [realEntries])
 

@@ -115,24 +115,23 @@ function InsightPatternCard({ insight, onHighlight, compact }: PatternCardInsigh
   return (
     <article
       className={classNames(
-        'rounded-xl border backdrop-blur-sm transition-colors',
-        compact ? 'p-3 min-w-[260px]' : 'p-3.5 min-w-[280px] sm:min-w-[320px]',
+        'h-full rounded-xl border backdrop-blur-sm transition-colors p-4',
         style.bg,
       )}
     >
       <div className="flex items-start gap-3">
-        <div className="flex-shrink-0 p-1.5 rounded-md bg-white/5">
-          <Icon className={classNames('w-4 h-4', style.accent)} />
+        <div className="flex-shrink-0 p-2 rounded-lg bg-white/5">
+          <Icon className={classNames('w-5 h-5', style.accent)} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 mb-1">
+          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
             <Sparkles className={classNames('w-2.5 h-2.5', style.accent)} />
             <span className={classNames('text-[10px] uppercase tracking-wider font-semibold', style.accent)}>
               Pattern detected
             </span>
             {insight.badge && (
               <span className={classNames(
-                'text-[9px] font-medium px-1.5 py-0.5 rounded',
+                'text-[10px] font-medium px-1.5 py-0.5 rounded',
                 style.chipBg,
                 style.chipText,
               )}>
@@ -140,27 +139,23 @@ function InsightPatternCard({ insight, onHighlight, compact }: PatternCardInsigh
               </span>
             )}
           </div>
-          <h3 className={classNames(
-            'font-semibold text-white leading-snug',
-            compact ? 'text-xs' : 'text-sm',
-          )}>
+          <h3 className="font-semibold text-white leading-snug text-[15px]">
             {insight.title}
           </h3>
-          <p className={classNames(
-            'text-gray-400 leading-relaxed mt-1',
-            compact ? 'text-[11px] line-clamp-3' : 'text-xs line-clamp-3',
-          )}>
+          <p className="text-gray-400 leading-relaxed mt-1.5 text-xs line-clamp-3">
             {insight.body}
           </p>
-          <button
-            onClick={() => onHighlight(insight.entryIds)}
-            className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-cyan-300 hover:text-cyan-200 transition-colors"
-          >
-            <Crosshair className="w-3 h-3" />
-            {insight.entryIds.length === 1
-              ? 'Show matching save'
-              : `Show ${insight.entryIds.length} matching saves`}
-          </button>
+          {insight.entryIds.length > 0 && (
+            <button
+              onClick={() => onHighlight(insight.entryIds)}
+              className="mt-3 inline-flex items-center gap-1 text-[11px] font-medium text-cyan-300 hover:text-cyan-200 transition-colors"
+            >
+              <Crosshair className="w-3 h-3" />
+              {insight.entryIds.length === 1
+                ? 'Show matching save'
+                : `Show ${insight.entryIds.length} matching saves`}
+            </button>
+          )}
         </div>
       </div>
     </article>
@@ -186,24 +181,23 @@ function RelatedReportCard({ report, compact }: PatternCardRelatedProps) {
   return (
     <article
       className={classNames(
-        'rounded-xl border backdrop-blur-sm transition-colors',
-        compact ? 'p-3 min-w-[260px]' : 'p-3.5 min-w-[280px] sm:min-w-[320px]',
+        'h-full rounded-xl border backdrop-blur-sm transition-colors p-4',
         style.bg,
       )}
     >
       <div className="flex items-start gap-3">
-        <div className="flex-shrink-0 p-1.5 rounded-md bg-white/5">
-          <Icon className={classNames('w-4 h-4', style.accent)} />
+        <div className="flex-shrink-0 p-2 rounded-lg bg-white/5">
+          <Icon className={classNames('w-5 h-5', style.accent)} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 mb-1">
+          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
             <Sparkles className={classNames('w-2.5 h-2.5', style.accent)} />
             <span className={classNames('text-[10px] uppercase tracking-wider font-semibold', style.accent)}>
               New on Paradocs
             </span>
             {eventYear && (
               <span className={classNames(
-                'text-[9px] font-medium px-1.5 py-0.5 rounded',
+                'text-[10px] font-medium px-1.5 py-0.5 rounded',
                 style.chipBg,
                 style.chipText,
               )}>
@@ -211,21 +205,15 @@ function RelatedReportCard({ report, compact }: PatternCardRelatedProps) {
               </span>
             )}
           </div>
-          <h3 className={classNames(
-            'font-semibold text-white leading-snug line-clamp-2',
-            compact ? 'text-xs' : 'text-sm',
-          )}>
+          <h3 className="font-semibold text-white leading-snug text-[15px] line-clamp-2">
             {report.title}
           </h3>
           {report.summary && (
-            <p className={classNames(
-              'text-gray-400 leading-relaxed mt-1 line-clamp-2',
-              compact ? 'text-[11px]' : 'text-xs',
-            )}>
+            <p className="text-gray-400 leading-relaxed mt-1.5 text-xs line-clamp-2">
               {report.summary}
             </p>
           )}
-          <div className="mt-2 flex items-center justify-between gap-2">
+          <div className="mt-3 flex items-center justify-between gap-2">
             <span className="text-[10px] text-gray-500 truncate">{reason}</span>
             <Link
               href={`/report/${report.slug}`}

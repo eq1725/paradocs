@@ -394,6 +394,7 @@ function CaseFileDetail({
       latitude: e.latitude ?? null,
       longitude: e.longitude ?? null,
       loggedAt: e.loggedAt ?? null,
+      title: e.name ?? null,
     })))
   }, [entries])
 

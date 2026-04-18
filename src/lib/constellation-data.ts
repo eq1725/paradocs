@@ -640,7 +640,6 @@ export type InsightType =
   | 'tag_cooccurrence'
   | 'geographic_density'
   | 'temporal_cluster'
-  | 'category_compelling'
 
 export interface Insight {
   id: string
@@ -675,7 +674,9 @@ interface InsightEntry {
   /** Optional geo — used for proximity clustering + historical wave matching */
   latitude?: number | null
   longitude?: number | null
-  /** When this entry was saved (used for verdict-drift comparison). ISO 8601. */
+  /** Title of the save — used for encyclopedia-anchor matching in wave detection */
+  title?: string | null
+  /** When this entry was saved. ISO 8601. */
   loggedAt?: string | null
 }
 
@@ -689,7 +690,6 @@ interface InsightEntry {
 
 const TEMPORAL_WINDOW_DAYS_INSIGHT = 60
 const TEMPORAL_CLUSTER_MIN = 3
-const CATEGORY_COMPELLING_MIN = 3
 const GEO_DENSITY_MIN = 3
 const GEO_DENSITY_RADIUS_KM = 80
 const COOCCURRENCE_MIN_SAVES = 4
@@ -724,7 +724,6 @@ export function detectInsights(entries: InsightEntry[]): Insight[] {
   for (const wave of HISTORICAL_WAVES) {
     const matchedIds: string[] = []
     for (const e of entries) {
-      if (!e.eventDate) continue
       if (
         matchesWave(
           {
@@ -733,6 +732,8 @@ export function detectInsights(entries: InsightEntry[]): Insight[] {
             lng: e.longitude ?? null,
             category: e.category,
             tags: e.tags || [],
+            title: e.title ?? null,
+            locationName: e.locationName ?? null,
           },
           wave,
         )
@@ -740,14 +741,19 @@ export function detectInsights(entries: InsightEntry[]): Insight[] {
         matchedIds.push(e.id)
       }
     }
-    if (matchedIds.length < 2) continue
-    // Strength grows slowly so a single massive wave doesn't dominate the feed.
-    const strength = Math.min(0.98, 0.75 + matchedIds.length * 0.03)
+    // A single save can still anchor a wave card — the historical context
+    // is worth surfacing even when the user only has one example, because
+    // the card is primarily educational / research-prompting.
+    if (matchedIds.length < 1) continue
+    const strength = Math.min(0.98, 0.8 + matchedIds.length * 0.02)
     const year = new Date(wave.startDate).getFullYear()
     out.push({
       id: `wave:${wave.id}`,
       type: 'historical_wave',
-      title: `${matchedIds.length} of your saves fall inside ${wave.title}`,
+      title:
+        matchedIds.length === 1
+          ? `${wave.title}`
+          : `${matchedIds.length} saves connect to ${wave.title}`,
       body: wave.blurb,
       badge: String(year),
       entryIds: matchedIds,
@@ -879,32 +885,6 @@ export function detectInsights(entries: InsightEntry[]): Insight[] {
         strength,
       })
     }
-  }
-
-  // ────────────────────────────────────────────────────────────────
-  // 5. Category-compelling concentration — carried over.
-  // ────────────────────────────────────────────────────────────────
-  const compellingByCat: Record<string, string[]> = {}
-  for (const e of entries) {
-    if (e.verdict !== 'compelling') continue
-    if (!compellingByCat[e.category]) compellingByCat[e.category] = []
-    compellingByCat[e.category].push(e.id)
-  }
-  for (const [cat, ids] of Object.entries(compellingByCat)) {
-    if (ids.length < CATEGORY_COMPELLING_MIN) continue
-    const node = CONSTELLATION_NODES.find(n => n.id === cat)
-    const catLabel = node?.label || cat
-    const strength = Math.min(0.95, 0.6 + ids.length * 0.08)
-    out.push({
-      id: `compelling:${cat}`,
-      type: 'category_compelling',
-      title: `${ids.length} compelling ${catLabel} sources in your library`,
-      body: `${ids.length} ${catLabel} saves are marked compelling — your strongest evidence concentration in this category. Consider turning this into a case file.`,
-      badge: 'Evidence',
-      entryIds: ids,
-      strength,
-      category: cat,
-    })
   }
 
   // Sort by strength descending, cap at 12 for the feed (historical waves

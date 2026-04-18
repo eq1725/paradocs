@@ -223,32 +223,63 @@ export interface WaveMatchInput {
   lng: number | null
   category: string
   tags: string[]
+  /** Title of the save — used for encyclopedia-anchor name matching */
+  title?: string | null
+  /** Location name — used for fuzzy geographic matching when lat/lng missing */
+  locationName?: string | null
 }
 
 /**
- * Decide whether a single entry falls inside a wave window. We require a
- * temporal match, and — if the wave has a centroid — a geographic match
- * within radius. When no coordinates are present we fall back to category
- * or tag alignment so we don't drop an obviously relevant save just
- * because lat/lng wasn't backfilled.
+ * Decide whether a save is relevant to a historical wave.
+ *
+ * A save matches when ANY of the following is true:
+ *   (a) eventDate falls inside the wave window (strict, with centroid check)
+ *   (b) tags overlap with wave.tags
+ *   (c) title / locationName mentions any of the wave's encyclopedia anchors
+ *
+ * This is deliberately permissive: a save tagged "#roswell" with no event
+ * date still obviously relates to the 1947 flying-disk summer, and the
+ * user expects the historical context card to surface regardless of
+ * whether we have a parsed eventDate on their paste-URL save.
+ *
+ * We don't fire spurious matches because encyclopedia anchor names are
+ * specific ("Roswell Incident", "Nimitz Encounter") and the tag lists
+ * are wave-specific.
  */
 export function matchesWave(entry: WaveMatchInput, wave: HistoricalWave): boolean {
-  if (!entry.eventDate) return false
-  const t = new Date(entry.eventDate).getTime()
-  if (isNaN(t)) return false
-  const start = new Date(wave.startDate).getTime()
-  const end = new Date(wave.endDate).getTime() + 86400000 // include end day
-  if (t < start || t > end) return false
-
-  if (wave.centroid) {
-    if (entry.lat == null || entry.lng == null) {
-      const categoryMatch = wave.categories.includes(entry.category as any)
-      const tagMatch = entry.tags.some(t => wave.tags.includes(t.toLowerCase()))
-      return categoryMatch || tagMatch
+  // (a) Temporal match inside wave window + optional geographic check
+  if (entry.eventDate) {
+    const t = new Date(entry.eventDate).getTime()
+    if (!isNaN(t)) {
+      const start = new Date(wave.startDate).getTime()
+      const end = new Date(wave.endDate).getTime() + 86400000 // include end day
+      if (t >= start && t <= end) {
+        if (!wave.centroid) return true
+        if (entry.lat == null || entry.lng == null) return true
+        const d = haversineKm({ lat: entry.lat, lng: entry.lng }, wave.centroid)
+        if (d <= wave.centroid.radiusKm) return true
+      }
     }
-    const d = haversineKm({ lat: entry.lat, lng: entry.lng }, wave.centroid)
-    if (d > wave.centroid.radiusKm) return false
   }
 
-  return true
+  // (b) Tag overlap with the wave's known tag set
+  const normTags = (entry.tags || []).map(t => (t || '').trim().toLowerCase())
+  if (normTags.some(t => wave.tags.includes(t))) return true
+
+  // (c) Title / locationName / tags reference an encyclopedia anchor name
+  const haystack = [
+    entry.title || '',
+    entry.locationName || '',
+    ...normTags,
+  ].join(' ').toLowerCase()
+  for (const anchor of wave.encyclopediaAnchors) {
+    const needle = anchor.toLowerCase()
+    if (haystack.includes(needle)) return true
+    // Also match on the first significant word of the anchor
+    // (e.g. "Roswell" from "Roswell Incident")
+    const head = needle.split(/\s+/)[0]
+    if (head && head.length >= 5 && haystack.includes(head)) return true
+  }
+
+  return false
 }
