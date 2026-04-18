@@ -914,7 +914,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                 )}
               >
                 <BookOpen className="w-4 h-4" />
-                {isLogged ? 'Saved to Research Hub' : 'Save to Research Hub'}
+                {isLogged ? 'Saved to Lab' : 'Save to Lab'}
               </button>
               <button
                 onClick={handleSave}
@@ -1272,7 +1272,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                       ? 'text-indigo-400 bg-indigo-500/10'
                       : 'text-gray-400 hover:text-indigo-400 hover:bg-white/[0.04]'
                   )}
-                  title="Save to Research Hub"
+                  title="Save to Lab"
                 >
                   <BookOpen className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">{isLogged ? 'In Hub' : 'Research'}</span>

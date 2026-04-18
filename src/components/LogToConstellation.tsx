@@ -162,9 +162,9 @@ export default function LogToConstellation({
         onClose()
         var cfName = selectedCaseFileId ? caseFiles.find(function(cf) { return cf.id === selectedCaseFileId }) : null
         if (cfName) {
-          showToast('success', 'Saved to Research Hub \u00B7 Filed in ' + cfName.title)
+          showToast('success', 'Saved to your Lab \u00B7 Filed in ' + cfName.title)
         } else {
-          showToast('success', 'Saved to Research Hub')
+          showToast('success', 'Saved to your Lab')
         }
         setSelectedCaseFileId(null)
         setShowCaseFiles(false)
@@ -190,7 +190,7 @@ export default function LogToConstellation({
       })
       onLogged && onLogged(null)
       onClose()
-      showToast('info', 'Removed from Research Hub')
+      showToast('info', 'Removed from your Lab')
     } catch (err) {
       console.error('Failed to delete entry:', err)
       showToast('error', 'Failed to remove entry')
@@ -219,7 +219,7 @@ export default function LogToConstellation({
             </div>
             <div>
               <h3 className="text-white font-semibold text-sm">
-                {existing ? 'Edit Research Entry' : 'Save to Research Hub'}
+                {existing ? 'Edit saved entry' : 'Save to your Lab'}
               </h3>
               <p className="text-gray-500 text-xs truncate max-w-[280px]">{reportTitle}</p>
             </div>
@@ -424,7 +424,7 @@ export default function LogToConstellation({
                 <div>
                   {showDeleteConfirm ? (
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">Remove from Research Hub?</span>
+                      <span className="text-xs text-gray-500">Remove from your Lab?</span>
                       <button
                         onClick={handleDelete}
                         disabled={deleting}
@@ -463,7 +463,7 @@ export default function LogToConstellation({
                 ) : (
                   <BookOpen className="w-4 h-4" />
                 )}
-                {existing ? 'Update Entry' : 'Save to Research Hub'}
+                {existing ? 'Update entry' : 'Save to Lab'}
               </button>
             </div>
           </div>
