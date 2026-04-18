@@ -28,7 +28,7 @@ import Map, {
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Layers, Flame, Clock, Globe2, Map as MapIcon, MapPin as MapPinIcon, X as XIcon } from 'lucide-react'
 import type { EntryNode, UserMapData } from '@/lib/constellation-types'
-import { BASEMAP_STYLES, CATEGORY_COLORS, HEATMAP_COLORS, MAP_BOUNDS } from '@/components/map/mapStyles'
+import { BASEMAP_STYLES, CATEGORY_COLORS, HEATMAP_COLORS, MAP_BOUNDS, DEFAULT_FILTERS } from '@/components/map/mapStyles'
 import { HISTORICAL_WAVES } from '@/lib/historical-waves'
 import { classNames } from '@/lib/utils'
 import { useViewportData } from '@/components/map/useViewportData'
@@ -750,20 +750,12 @@ function TimelineSlider({
 // ─────────────────────────────────────────────────────────────────
 
 function GlobalContextLoader({ onData }: { onData: (d: GeoJSON.FeatureCollection | null) => void }) {
-  const vp = useViewportData(
-    {
-      categories: [],
-      countries: [],
-      years: null,
-      hasMedia: false,
-      hasEvidence: false,
-      verified: false,
-      credibility: null,
-      locationPrecision: null,
-    } as any,
-    null,
-    2,
-  )
+  // Use DEFAULT_FILTERS so the hook's internal field reads match the
+  // MapFilters shape exactly — previously we passed a shape from a
+  // different draft of the hook (cast as any), which silently resulted
+  // in an empty fetch or broken filter predicates and the backdrop
+  // never populated.
+  const vp = useViewportData(DEFAULT_FILTERS, null, 2)
   useEffect(() => {
     onData(vp.allPointsGeoJSON || null)
   }, [vp.allPointsGeoJSON, onData])
