@@ -63,35 +63,62 @@ interface LabGeoMapProps {
  * The current EntryNode type doesn't expose lat/lng directly; we pull them
  * from a loose `coordinates` property if present, or from `metadata_json`.
  */
+// Supabase can return NUMERIC columns as strings in some client/driver
+// configurations. Coerce + validate so a stored "-82.22" still counts as
+// a valid longitude. Returns null for anything that isn't a finite number
+// inside the plausible lat/lng range.
+function num(v: unknown): number | null {
+  if (v == null) return null
+  const n = typeof v === 'number' ? v : typeof v === 'string' ? parseFloat(v) : NaN
+  return Number.isFinite(n) ? n : null
+}
+
+function validCoord(lat: number | null, lng: number | null): { lat: number; lng: number } | null {
+  if (lat == null || lng == null) return null
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null
+  if (lat === 0 && lng === 0) return null // almost always a default/uninitialized value
+  return { lat, lng }
+}
+
 function entryCoords(e: EntryNode): { lat: number; lng: number } | null {
-  // Check common fields. The user-map API returns locationName but the
-  // coordinate fields aren't typed on EntryNode yet — we read defensively.
+  // Read defensively — the coordinate fields aren't strictly typed and
+  // different save paths (Paradocs report, legacy bookmark, external
+  // artifact) stash them in slightly different places.
   const loose = e as unknown as {
-    latitude?: number; longitude?: number;
-    lat?: number; lng?: number;
-    coordinates?: { latitude?: number; longitude?: number } | [number, number]
+    latitude?: unknown; longitude?: unknown;
+    lat?: unknown; lng?: unknown;
+    coordinates?: { latitude?: unknown; longitude?: unknown } | [unknown, unknown]
   }
-  if (typeof loose.latitude === 'number' && typeof loose.longitude === 'number') {
-    return { lat: loose.latitude, lng: loose.longitude }
+
+  // Primary: flat latitude / longitude on the entry (set by user-map.ts
+  // for report-linked saves).
+  const direct = validCoord(num(loose.latitude), num(loose.longitude))
+  if (direct) return direct
+
+  // Alternate: lat / lng
+  const alt = validCoord(num(loose.lat), num(loose.lng))
+  if (alt) return alt
+
+  // Nested coordinates, tuple form: [lng, lat] (GeoJSON order)
+  if (Array.isArray(loose.coordinates) && loose.coordinates.length === 2) {
+    const tuple = validCoord(num(loose.coordinates[1]), num(loose.coordinates[0]))
+    if (tuple) return tuple
   }
-  if (typeof loose.lat === 'number' && typeof loose.lng === 'number') {
-    return { lat: loose.lat, lng: loose.lng }
-  }
-  if (loose.coordinates) {
-    if (Array.isArray(loose.coordinates) && loose.coordinates.length === 2) {
-      return { lat: loose.coordinates[1], lng: loose.coordinates[0] }
-    }
+  // Nested coordinates, object form
+  if (loose.coordinates && !Array.isArray(loose.coordinates)) {
     const c = loose.coordinates as any
-    if (typeof c.latitude === 'number' && typeof c.longitude === 'number') {
-      return { lat: c.latitude, lng: c.longitude }
-    }
+    const nested = validCoord(num(c.latitude), num(c.longitude))
+    if (nested) return nested
   }
-  // metadata_json.location_latitude / location_longitude — common shape
-  // for artifacts whose extract endpoint stashed coords.
+
+  // Artifact metadata: extract endpoint stashes coords here for some sources.
   const m = (e.sourceMetadata || {}) as any
-  if (typeof m.location_latitude === 'number' && typeof m.location_longitude === 'number') {
-    return { lat: m.location_latitude, lng: m.location_longitude }
-  }
+  const fromMeta = validCoord(
+    num(m.location_latitude ?? m.latitude ?? m.lat),
+    num(m.location_longitude ?? m.longitude ?? m.lng),
+  )
+  if (fromMeta) return fromMeta
+
   return null
 }
 
