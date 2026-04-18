@@ -435,11 +435,11 @@ export default function LabGeoMap({
         )}
 
         {/* ── Global-context backdrop (all Paradocs reports as faint dots).
-            Distinct look from user pins — smaller, neutral slate color,
-            thin outline — so the visual priority stays on the user's own
-            saves. Hover + click are wired so users can still explore the
-            global corpus. The hovered dot grows and goes bright-white
-            to confirm the interaction. */}
+            Distinct look from user pins — smaller, neutral slate, thin
+            outline — so the visual priority stays on the user's own
+            saves. A separate hover-highlight layer renders on top of
+            the hovered point; keeping the base paint static keeps the
+            layer stable while hover state changes. */}
         {globalContext && <GlobalContextLoader onData={setGlobalGeoJSON} />}
         {globalContext && filteredGlobalGeoJSON && (
           <Source id="lab-global" type="geojson" data={filteredGlobalGeoJSON}>
@@ -447,33 +447,31 @@ export default function LabGeoMap({
               id="lab-global-points"
               type="circle"
               paint={{
-                'circle-color': [
-                  'case',
-                  ['==', ['get', 'id'], hoveredGlobal?.id || ''],
-                  '#ffffff',
-                  '#94a3b8',
-                ] as any,
+                'circle-color': '#94a3b8',
                 'circle-radius': [
-                  'case',
-                  ['==', ['get', 'id'], hoveredGlobal?.id || ''],
-                  6,
-                  ['interpolate', ['linear'], ['zoom'], 0, 2.5, 5, 3, 10, 4] as any,
+                  'interpolate', ['linear'], ['zoom'], 0, 2.5, 5, 3, 10, 4,
                 ] as any,
                 'circle-opacity': heatmapActive ? 0.15 : 0.55,
-                'circle-stroke-color': [
-                  'case',
-                  ['==', ['get', 'id'], hoveredGlobal?.id || ''],
-                  '#22d3ee',
-                  'rgba(255,255,255,0.35)',
-                ] as any,
-                'circle-stroke-width': [
-                  'case',
-                  ['==', ['get', 'id'], hoveredGlobal?.id || ''],
-                  2,
-                  0.5,
-                ] as any,
+                'circle-stroke-color': 'rgba(255,255,255,0.35)',
+                'circle-stroke-width': 0.5,
               }}
             />
+            {/* Hover highlight — only renders when a global pin is hovered,
+                paints a cyan-ringed white dot exactly on top. */}
+            {hoveredGlobal && (
+              <Layer
+                id="lab-global-hover"
+                type="circle"
+                filter={['==', ['get', 'id'], hoveredGlobal.id] as any}
+                paint={{
+                  'circle-color': '#ffffff',
+                  'circle-radius': 6,
+                  'circle-stroke-color': '#22d3ee',
+                  'circle-stroke-width': 2,
+                  'circle-opacity': 1,
+                }}
+              />
+            )}
           </Source>
         )}
 
