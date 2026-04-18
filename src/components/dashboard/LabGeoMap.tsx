@@ -271,8 +271,15 @@ function ClusteredMarkers({ L, points, onSelect }: ClusteredMarkersProps) {
   const map = useMap()
   const [, setTick] = useState(0)
 
-  // Rebuild supercluster whenever points change.
+  // For small libraries (< 12 points) skip supercluster entirely and render
+  // raw markers. Clustering has historically been where "pins don't show"
+  // bugs hide — zoom / bounds edge cases, initial-mount race conditions —
+  // and with a handful of points we don't need the performance win.
+  const USE_CLUSTERING = points.length >= 12
+
+  // Rebuild supercluster whenever points change (only used when clustering).
   const cluster = useMemo(() => {
+    if (!USE_CLUSTERING) return null
     const sc = new Supercluster({ radius: 60, maxZoom: 16 })
     sc.load(points.map((p, i) => ({
       type: 'Feature',
@@ -280,7 +287,7 @@ function ClusteredMarkers({ L, points, onSelect }: ClusteredMarkersProps) {
       properties: { idx: i, entry: p.entry },
     })) as any)
     return sc
-  }, [points])
+  }, [points, USE_CLUSTERING])
 
   // Tick the renderer on every map move/zoom so clusters rebuild for the
   // current viewport.
@@ -295,13 +302,37 @@ function ClusteredMarkers({ L, points, onSelect }: ClusteredMarkersProps) {
     }
   }, [map])
 
-  // Compute current viewport bounds + zoom, ask supercluster for the clusters
-  // it wants to render at this resolution.
+  // ── Raw (non-clustered) render path for small point counts ──
+  if (!USE_CLUSTERING || !cluster) {
+    return (
+      <>
+        {points.map(({ entry, lat, lng }) => (
+          <Marker
+            key={'pin-' + entry.id}
+            position={[lat, lng]}
+            icon={makePinIcon(L, entry.category)}
+            eventHandlers={{ click: () => onSelect(entry) }}
+          >
+            <Popup>
+              <div className="text-xs">
+                <div className="font-semibold text-gray-900 mb-0.5">{entry.name}</div>
+                {entry.locationName && (
+                  <div className="text-gray-600">{entry.locationName}</div>
+                )}
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+      </>
+    )
+  }
+
+  // ── Clustered render path (12+ points) ──
   const b = map.getBounds()
   const z = Math.round(map.getZoom())
   const clusters = cluster.getClusters(
     [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
-    z
+    z,
   )
 
   return (
