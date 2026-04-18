@@ -465,3 +465,84 @@ body.sheet-open {
     bottom: 2rem;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────
+   Tiptap rich note editor — scoped prose styles + wikilink chip.
+   Used by src/components/dashboard/RichNoteEditor.tsx.
+   Kept in globals.css rather than styled-jsx because styled-jsx's
+   parser trips on backticks inside CSS comments.
+   ───────────────────────────────────────────────────────────────── */
+.paradocs-rich-editor p { margin: 0.5rem 0; }
+.paradocs-rich-editor p:first-child { margin-top: 0; }
+.paradocs-rich-editor p:last-child { margin-bottom: 0; }
+.paradocs-rich-editor h2 {
+  color: rgb(255 255 255);
+  font-weight: 600;
+  font-size: 1.25rem;
+  line-height: 1.4;
+  margin: 1.25rem 0 0.5rem;
+}
+.paradocs-rich-editor h3 {
+  color: rgb(255 255 255);
+  font-weight: 600;
+  font-size: 1.05rem;
+  line-height: 1.4;
+  margin: 1rem 0 0.4rem;
+}
+.paradocs-rich-editor strong {
+  color: rgb(255 255 255);
+  font-weight: 600;
+}
+.paradocs-rich-editor em {
+  color: rgb(243 244 246);
+  font-style: italic;
+}
+.paradocs-rich-editor code {
+  color: rgb(103 232 249);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 0.25rem;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.9em;
+}
+.paradocs-rich-editor a {
+  color: rgb(165 180 252);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.paradocs-rich-editor ul,
+.paradocs-rich-editor ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+.paradocs-rich-editor ul { list-style: disc; }
+.paradocs-rich-editor ol { list-style: decimal; }
+.paradocs-rich-editor li { margin: 0.15rem 0; }
+.paradocs-rich-editor blockquote {
+  border-left: 3px solid rgba(255, 255, 255, 0.15);
+  padding-left: 0.75rem;
+  color: rgb(209 213 219);
+  font-style: italic;
+  margin: 0.75rem 0;
+}
+.paradocs-rich-editor p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: rgb(75 85 99);
+  pointer-events: none;
+  height: 0;
+  font-style: italic;
+}
+.paradocs-rich-editor .paradocs-wikilink-chip {
+  color: rgb(103 232 249);
+  background: rgba(103, 232, 249, 0.1);
+  border: 1px solid rgba(103, 232, 249, 0.25);
+  border-radius: 0.3rem;
+  padding: 0.05em 0.4em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+.paradocs-rich-editor .paradocs-wikilink-chip:hover {
+  background: rgba(103, 232, 249, 0.18);
+  border-color: rgba(103, 232, 249, 0.4);
+}

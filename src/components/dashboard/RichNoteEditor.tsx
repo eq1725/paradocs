@@ -18,7 +18,7 @@
  * through the ref-exposed imperative API).
  */
 
-import React, { forwardRef, useEffect, useImperativeHandle, useMemo } from 'react'
+import React, { forwardRef, useEffect, useImperativeHandle } from 'react'
 import { useEditor, EditorContent, Extension, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
@@ -255,104 +255,20 @@ const RichNoteEditor = forwardRef<RichNoteEditorHandle, RichNoteEditorProps>(fun
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialMarkdown, editor])
 
-  const wordCount = useMemo(() => {
-    if (!editor) return 0
-    const count = (editor.storage as any)?.characterCount?.words?.() ?? 0
-    return count
-  }, [editor, editor?.state])
+  // wordCount is read directly by the parent via ref.getEditor() — we
+  // expose it here as a data attribute for any non-ref consumers. Computed
+  // on every render, which is fine since Tiptap's CharacterCount extension
+  // only runs when content changes.
+  const wordCount =
+    (editor?.storage as any)?.characterCount?.words?.() ?? 0
 
+  // Styles for the ProseMirror surface + wikilink chip live in
+  // src/styles/globals.css under the `.paradocs-rich-editor` scope.
+  // They can't live inline via styled-jsx because CSS comments with
+  // literal backticks collide with the template-literal wrapper.
   return (
     <>
       <EditorContent editor={editor} className="flex-1 overflow-y-auto" />
-      {/* Scoped styles for the ProseMirror editor surface. Tiptap doesn't
-          inject default styles, so we reproduce a minimal prose-like look
-          matching the rest of Paradocs' dark UI. */}
-      <style jsx global>{`
-        .paradocs-rich-editor p {
-          margin: 0.5rem 0;
-        }
-        .paradocs-rich-editor p:first-child { margin-top: 0; }
-        .paradocs-rich-editor p:last-child { margin-bottom: 0; }
-        .paradocs-rich-editor h2 {
-          color: rgb(255 255 255);
-          font-weight: 600;
-          font-size: 1.25rem;
-          line-height: 1.4;
-          margin: 1.25rem 0 0.5rem;
-        }
-        .paradocs-rich-editor h3 {
-          color: rgb(255 255 255);
-          font-weight: 600;
-          font-size: 1.05rem;
-          line-height: 1.4;
-          margin: 1rem 0 0.4rem;
-        }
-        .paradocs-rich-editor strong {
-          color: rgb(255 255 255);
-          font-weight: 600;
-        }
-        .paradocs-rich-editor em {
-          color: rgb(243 244 246);
-          font-style: italic;
-        }
-        .paradocs-rich-editor code {
-          color: rgb(103 232 249);
-          background: rgba(255 255 255 / 0.05);
-          border-radius: 0.25rem;
-          padding: 0.05rem 0.35rem;
-          font-size: 0.9em;
-        }
-        .paradocs-rich-editor a {
-          color: rgb(165 180 252);
-          text-decoration: underline;
-          text-underline-offset: 2px;
-        }
-        .paradocs-rich-editor ul, .paradocs-rich-editor ol {
-          margin: 0.5rem 0;
-          padding-left: 1.5rem;
-        }
-        .paradocs-rich-editor ul { list-style: disc; }
-        .paradocs-rich-editor ol { list-style: decimal; }
-        .paradocs-rich-editor li {
-          margin: 0.15rem 0;
-        }
-        .paradocs-rich-editor blockquote {
-          border-left: 3px solid rgba(255 255 255 / 0.15);
-          padding-left: 0.75rem;
-          color: rgb(209 213 219);
-          font-style: italic;
-          margin: 0.75rem 0;
-        }
-        /* Placeholder rendering for Tiptap's Placeholder extension */
-        .paradocs-rich-editor p.is-editor-empty:first-child::before {
-          content: attr(data-placeholder);
-          float: left;
-          color: rgb(75 85 99);
-          pointer-events: none;
-          height: 0;
-          font-style: italic;
-        }
-        /* Wikilink chip overlay — purely visual, doesn't mutate the
-           underlying markdown characters. The `[[` and `]]` markers fade
-           so the linked title reads as a styled chip. */
-        .paradocs-rich-editor .paradocs-wikilink-chip {
-          color: rgb(103 232 249);
-          background: rgba(103 232 249 / 0.1);
-          border: 1px solid rgba(103 232 249 / 0.25);
-          border-radius: 0.3rem;
-          padding: 0.05em 0.4em;
-          font-weight: 500;
-          cursor: pointer;
-          transition: background 120ms, border-color 120ms;
-        }
-        .paradocs-rich-editor .paradocs-wikilink-chip:hover {
-          background: rgba(103 232 249 / 0.18);
-          border-color: rgba(103 232 249 / 0.4);
-        }
-      `}</style>
-      {/* Expose word count via data-attr on a hidden element so the parent
-          can read it without prop-drilling. (Optional — parent can also use
-          the ref's getEditor and read editor.storage.characterCount.) */}
       <span data-word-count={wordCount} hidden />
     </>
   )
