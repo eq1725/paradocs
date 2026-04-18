@@ -22,13 +22,14 @@ import Map, {
   Layer,
   NavigationControl,
   GeolocateControl,
+  Popup,
   type MapRef,
   type MapLayerMouseEvent,
 } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Layers, Flame, Clock, Globe2, Map as MapIcon, MapPin as MapPinIcon, X as XIcon } from 'lucide-react'
 import type { EntryNode, UserMapData } from '@/lib/constellation-types'
-import { BASEMAP_STYLES, CATEGORY_COLORS, HEATMAP_COLORS, MAP_BOUNDS, DEFAULT_FILTERS } from '@/components/map/mapStyles'
+import { BASEMAP_STYLES, CATEGORY_COLORS, HEATMAP_COLORS, MAP_BOUNDS, DEFAULT_FILTERS, TIMELINE } from '@/components/map/mapStyles'
 import { HISTORICAL_WAVES } from '@/lib/historical-waves'
 import { classNames } from '@/lib/utils'
 import { useViewportData } from '@/components/map/useViewportData'
@@ -121,8 +122,14 @@ export default function LabGeoMap({
     })
   }, [userMapData, selectedCategory, selectedCaseFileId, timelineRange])
 
-  // ── Year range available in the user's library (for timeline slider) ──
-  const yearRangeAvailable = useMemo(() => {
+  // ── Year range for the timeline slider ──
+  // When the global-context backdrop is on, widen to the full explore
+  // range (TIMELINE.min → current year) so the user can slide back to
+  // decades earlier than their own saves — global reports routinely
+  // predate anything the user has personally saved. When it's off, fall
+  // back to the user's save span so the slider doesn't show dead years.
+  const yearRangeAvailable = useMemo<[number, number] | null>(() => {
+    if (globalContext) return [TIMELINE.min, TIMELINE.max]
     const years: number[] = []
     for (const n of userMapData?.entryNodes || []) {
       if (!n.eventDate) continue
@@ -130,8 +137,8 @@ export default function LabGeoMap({
       if (!isNaN(y)) years.push(y)
     }
     if (years.length === 0) return null
-    return [Math.min(...years), Math.max(...years)] as [number, number]
-  }, [userMapData])
+    return [Math.min(...years), Math.max(...years)]
+  }, [userMapData, globalContext])
 
   // ── Historical wave overlays: show polygons for any wave that has a
   // centroid and matches at least one user save (by eventDate/location).
@@ -191,13 +198,47 @@ export default function LabGeoMap({
   // actually opts in to the backdrop toggle.
   const [globalGeoJSON, setGlobalGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null)
 
+  // Filter the global backdrop by the same timeline range the user saves
+  // are filtered by — otherwise toggling the slider only hides your
+  // saves while the global dots still span every era.
+  const filteredGlobalGeoJSON = useMemo<GeoJSON.FeatureCollection | null>(() => {
+    if (!globalGeoJSON) return null
+    if (!timelineRange) return globalGeoJSON
+    const [lo, hi] = timelineRange
+    return {
+      type: 'FeatureCollection',
+      features: globalGeoJSON.features.filter(f => {
+        const date = (f.properties as any)?.event_date
+        if (!date) return true // keep undated points rather than silently dropping them
+        const y = new Date(date).getFullYear()
+        if (isNaN(y)) return true
+        return y >= lo && y <= hi
+      }),
+    }
+  }, [globalGeoJSON, timelineRange])
+
+  // Track hovered global-context point so we can show a tooltip with the
+  // report's title + location and let the user explore the global corpus
+  // without leaving the Lab.
+  const [hoveredGlobal, setHoveredGlobal] = useState<{
+    lat: number
+    lng: number
+    id: string
+    title: string
+    locationName: string | null
+    category: string
+    year: number | null
+    slug: string | null
+  } | null>(null)
+
   // ── Click handling ────────────────────────────────────────
   const handleClick = useCallback((e: MapLayerMouseEvent) => {
     const feature = e.features?.[0]
     if (!feature) return
     const props = feature.properties || {}
+
+    // Cluster: zoom in
     if (props.cluster) {
-      // Clusters on the user-saves source — zoom in
       const geometry = feature.geometry as GeoJSON.Point
       mapRef.current?.flyTo({
         center: geometry.coordinates as [number, number],
@@ -206,23 +247,65 @@ export default function LabGeoMap({
       })
       return
     }
-    if (props.id && userMapData) {
-      const entry = userMapData.entryNodes.find(n => n.id === props.id)
-      if (entry) onSelectEntry(entry)
+
+    // User save pin → detail panel
+    if (feature.layer?.id === 'lab-point' || feature.layer?.id === 'lab-point-hit') {
+      if (props.id && userMapData) {
+        const entry = userMapData.entryNodes.find(n => n.id === props.id)
+        if (entry) onSelectEntry(entry)
+      }
+      return
+    }
+
+    // Global-context report pin → open the full report in a new tab.
+    // Keeps Lab in place while letting the user explore the corpus.
+    if (feature.layer?.id === 'lab-global-points' && props.slug) {
+      window.open(`/report/${props.slug}`, '_blank', 'noopener,noreferrer')
     }
   }, [userMapData, onSelectEntry])
 
-  const handleMouseEnter = useCallback((e: MapLayerMouseEvent) => {
+  const handleMouseMove = useCallback((e: MapLayerMouseEvent) => {
     const map = mapRef.current?.getMap()
-    if (map) map.getCanvas().style.cursor = 'pointer'
     const f = e.features?.[0]
-    if (f && f.properties?.id) setHoveredPinId(f.properties.id as string)
+    if (!f) {
+      if (map) map.getCanvas().style.cursor = ''
+      setHoveredPinId(null)
+      setHoveredGlobal(null)
+      return
+    }
+    if (map) map.getCanvas().style.cursor = 'pointer'
+
+    // User-pin hover → small highlight
+    if (f.layer?.id === 'lab-point' || f.layer?.id === 'lab-point-hit') {
+      if (f.properties?.id) setHoveredPinId(f.properties.id as string)
+      setHoveredGlobal(null)
+      return
+    }
+
+    // Global-pin hover → tooltip with report meta
+    if (f.layer?.id === 'lab-global-points') {
+      setHoveredPinId(null)
+      const coords = (f.geometry as GeoJSON.Point).coordinates as [number, number]
+      const p = f.properties || {}
+      const year = p.event_date ? new Date(p.event_date).getFullYear() : null
+      setHoveredGlobal({
+        lat: coords[1],
+        lng: coords[0],
+        id: p.id as string,
+        title: (p.title as string) || 'Untitled report',
+        locationName: (p.location_name as string) || null,
+        category: (p.category as string) || 'combination',
+        year: year && !isNaN(year) ? year : null,
+        slug: (p.slug as string) || null,
+      })
+    }
   }, [])
 
   const handleMouseLeave = useCallback(() => {
     const map = mapRef.current?.getMap()
     if (map) map.getCanvas().style.cursor = ''
     setHoveredPinId(null)
+    setHoveredGlobal(null)
   }, [])
 
   // ── Fit bounds on first load ─────────────────────────────
@@ -289,14 +372,43 @@ export default function LabGeoMap({
         onLoad={() => setMapLoaded(true)}
         mapStyle={BASEMAP_STYLES[basemap]}
         style={{ width: '100%', height: '100%' }}
-        interactiveLayerIds={['lab-clusters', 'lab-point', 'lab-point-hit']}
+        interactiveLayerIds={
+          globalContext
+            ? ['lab-clusters', 'lab-point', 'lab-point-hit', 'lab-global-points']
+            : ['lab-clusters', 'lab-point', 'lab-point-hit']
+        }
         onClick={handleClick}
-        onMouseEnter={handleMouseEnter}
+        onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         attributionControl={false}
       >
         <NavigationControl position="top-right" showCompass={false} />
         <GeolocateControl position="top-right" trackUserLocation={false} />
+
+        {/* Hover tooltip for global-context reports. Anchored below the
+            point so it doesn't cover the dot itself. */}
+        {hoveredGlobal && (
+          <Popup
+            longitude={hoveredGlobal.lng}
+            latitude={hoveredGlobal.lat}
+            anchor="bottom"
+            offset={10}
+            closeButton={false}
+            closeOnClick={false}
+            className="lab-global-popup"
+          >
+            <div className="text-[11px] min-w-[180px] max-w-[240px]">
+              <div className="text-[9px] uppercase tracking-wider font-semibold text-gray-400 mb-0.5">
+                Paradocs report · click to open
+              </div>
+              <div className="font-semibold text-gray-900 leading-tight">{hoveredGlobal.title}</div>
+              <div className="mt-1 text-gray-600 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                {hoveredGlobal.locationName && <span>{hoveredGlobal.locationName}</span>}
+                {hoveredGlobal.year && <span className="tabular-nums">· {hoveredGlobal.year}</span>}
+              </div>
+            </div>
+          </Popup>
+        )}
 
         {/* ── Historical wave overlays (faint polygons behind pins) ── */}
         {waveOverlays.features.length > 0 && (
@@ -322,27 +434,44 @@ export default function LabGeoMap({
           </Source>
         )}
 
-        {/* ── Global-context backdrop (all Paradocs reports as faint dots) ──
-            Subtle but visible — bumped from radius 2 / 0.3 opacity to
-            radius 3 / 0.55 with a thin white stroke so the backdrop
-            actually reads on the dark basemap. */}
+        {/* ── Global-context backdrop (all Paradocs reports as faint dots).
+            Distinct look from user pins — smaller, neutral slate color,
+            thin outline — so the visual priority stays on the user's own
+            saves. Hover + click are wired so users can still explore the
+            global corpus. The hovered dot grows and goes bright-white
+            to confirm the interaction. */}
         {globalContext && <GlobalContextLoader onData={setGlobalGeoJSON} />}
-        {globalContext && globalGeoJSON && (
-          <Source id="lab-global" type="geojson" data={globalGeoJSON}>
+        {globalContext && filteredGlobalGeoJSON && (
+          <Source id="lab-global" type="geojson" data={filteredGlobalGeoJSON}>
             <Layer
               id="lab-global-points"
               type="circle"
               paint={{
-                'circle-color': '#94a3b8',
+                'circle-color': [
+                  'case',
+                  ['==', ['get', 'id'], hoveredGlobal?.id || ''],
+                  '#ffffff',
+                  '#94a3b8',
+                ] as any,
                 'circle-radius': [
-                  'interpolate', ['linear'], ['zoom'],
-                  0, 2.5,
-                  5, 3,
-                  10, 4,
+                  'case',
+                  ['==', ['get', 'id'], hoveredGlobal?.id || ''],
+                  6,
+                  ['interpolate', ['linear'], ['zoom'], 0, 2.5, 5, 3, 10, 4] as any,
                 ] as any,
                 'circle-opacity': heatmapActive ? 0.15 : 0.55,
-                'circle-stroke-color': 'rgba(255,255,255,0.35)',
-                'circle-stroke-width': 0.5,
+                'circle-stroke-color': [
+                  'case',
+                  ['==', ['get', 'id'], hoveredGlobal?.id || ''],
+                  '#22d3ee',
+                  'rgba(255,255,255,0.35)',
+                ] as any,
+                'circle-stroke-width': [
+                  'case',
+                  ['==', ['get', 'id'], hoveredGlobal?.id || ''],
+                  2,
+                  0.5,
+                ] as any,
               }}
             />
           </Source>
