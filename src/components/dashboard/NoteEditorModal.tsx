@@ -1,56 +1,53 @@
 'use client'
 
 /**
- * NoteEditorModal — the unlock for rich research notes.
+ * NoteEditorModal — WYSIWYG research note editor.
  *
- * Lets users edit the `user_note` field on any save — external artifacts
- * (via PATCH /api/constellation/artifacts/:id) or Paradocs-report saves
- * (via POST /api/constellation/entries, which upserts by user + report_id).
+ * Powered by Tiptap (ProseMirror). Clicking Bold toggles bold styling on
+ * the current selection in place; no markdown markers visible. Storage
+ * is still plain markdown in `user_note` — tiptap-markdown roundtrips
+ * the doc so every non-editor surface that renders notes continues to
+ * work unchanged.
  *
- * The editor is markdown-aware with:
- *   - Live preview pane (side-by-side on desktop, tabbed on mobile)
- *   - [[Wikilink]] picker that lists existing saves when the user types `[[`
- *   - Formatting hints at the bottom (bold, italic, lists, links)
- *
- * Saving triggers onSaved so the caller can refresh the user-map payload
- * and the updated note appears in the feed.
+ * Wikilinks: users can type `[[` to open a picker of their other saves,
+ * or click the sparkle toolbar button. Selected titles insert as
+ * `[[Save Title]]` which persists through markdown roundtrip and
+ * renders as a clickable cross-link everywhere else the note is shown.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   X as XIcon, Bold, Italic, ExternalLink, List as ListIcon,
-  Hash, Eye, Edit3, Loader2, Check, Sparkles,
+  Hash, Edit3, Loader2, Check, Sparkles,
 } from 'lucide-react'
 import type { EntryNode } from '@/lib/constellation-types'
 import { supabase } from '@/lib/supabase'
-import { renderMarkdown, normalizeWikilinkKey, type WikilinkTarget } from '@/lib/markdown-lite'
 import { classNames } from '@/lib/utils'
+import RichNoteEditor, { type RichNoteEditorHandle } from './RichNoteEditor'
 
 interface NoteEditorModalProps {
   /** The entry whose note is being edited */
   entry: EntryNode
-  /** All user entries — used to resolve [[Wikilinks]] in the preview + picker */
+  /** All user entries — used for the wikilink picker */
   allEntries: EntryNode[]
   onClose: () => void
   /** Called after a successful save */
   onSaved: () => void
 }
 
-type ViewMode = 'write' | 'preview'
-
 export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }: NoteEditorModalProps) {
   const [note, setNote] = useState(entry.note || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('write')
   const [wikilinkSearch, setWikilinkSearch] = useState<string | null>(null) // null = picker closed
+  // Bumped by editor state changes so the toolbar re-renders with the
+  // correct active/inactive state as the caret moves.
+  const [, setTick] = useState(0)
 
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const editorRef = useRef<RichNoteEditorHandle | null>(null)
 
   const isExternal = !!entry.sourceType && entry.sourceType !== 'paradocs_report'
   const hasArtifactId = !!entry.artifactId
-  // Paradocs-report entries currently only work if the entry has a reportId
-  // (so /api/constellation/entries can upsert). External saves need artifactId.
   const canSave = isExternal ? hasArtifactId : !!entry.reportId
 
   // Body-scroll lock
@@ -60,94 +57,32 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
     return () => { document.body.style.overflow = prev }
   }, [])
 
-  // Esc closes
+  // Esc closes (but not while the wikilink picker is open — Esc should
+  // close the picker first).
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !wikilinkSearch) onClose()
+      if (e.key === 'Escape') {
+        if (wikilinkSearch !== null) {
+          setWikilinkSearch(null)
+          return
+        }
+        onClose()
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose, wikilinkSearch])
 
-  // Wikilinks resolver map for the preview pane
-  const wikilinkMap = useMemo(() => {
-    const m = new Map<string, WikilinkTarget>()
-    for (const e of allEntries) {
-      if (!e.name || e.id === entry.id) continue
-      m.set(normalizeWikilinkKey(e.name), { id: e.id, displayLabel: e.name })
-    }
-    return m
-  }, [allEntries, entry.id])
-
-  // When the user is inside a [[...| — trigger wikilink picker.
-  // Track the cursor position each input change so we know where to insert.
-  const handleNoteChange = (next: string) => {
-    setNote(next)
-    // Detect if the cursor is right after `[[` without a closing `]]`
-    const cursor = textareaRef.current?.selectionStart ?? next.length
-    const upToCursor = next.slice(0, cursor)
-    const lastOpen = upToCursor.lastIndexOf('[[')
-    const lastClose = upToCursor.lastIndexOf(']]')
-    if (lastOpen > lastClose) {
-      const partial = upToCursor.slice(lastOpen + 2)
-      // Only open picker if partial is short enough to look like a query
-      if (partial.length >= 0 && partial.length < 60 && !partial.includes('\n')) {
-        setWikilinkSearch(partial)
-        return
-      }
-    }
-    setWikilinkSearch(null)
-  }
-
   // Resolve wikilink picker matches
   const wikilinkMatches = useMemo(() => {
     if (wikilinkSearch === null) return []
     const q = wikilinkSearch.toLowerCase().trim()
-    const entries = allEntries.filter(e => e.id !== entry.id && !e.isGhost && e.name)
-    if (!q) return entries.slice(0, 6)
-    return entries
+    const candidates = allEntries.filter(e => e.id !== entry.id && !e.isGhost && e.name)
+    if (!q) return candidates.slice(0, 6)
+    return candidates
       .filter(e => e.name.toLowerCase().includes(q))
       .slice(0, 6)
   }, [wikilinkSearch, allEntries, entry.id])
-
-  // Commit a wikilink choice into the textarea
-  const insertWikilink = (title: string) => {
-    const t = textareaRef.current
-    if (!t) return
-    const cursor = t.selectionStart ?? note.length
-    const upToCursor = note.slice(0, cursor)
-    const lastOpen = upToCursor.lastIndexOf('[[')
-    if (lastOpen === -1) return
-    // Replace from `[[` through current cursor with `[[title]]`
-    const before = note.slice(0, lastOpen)
-    const after = note.slice(cursor)
-    const nextText = before + '[[' + title + ']]' + after
-    setNote(nextText)
-    setWikilinkSearch(null)
-    // Re-focus and set cursor after the inserted wikilink
-    setTimeout(() => {
-      if (!t) return
-      const newPos = (before + '[[' + title + ']]').length
-      t.focus()
-      t.setSelectionRange(newPos, newPos)
-    }, 0)
-  }
-
-  // Toolbar actions — wrap selection with markdown syntax
-  const wrapSelection = (prefix: string, suffix: string = prefix) => {
-    const t = textareaRef.current
-    if (!t) return
-    const start = t.selectionStart ?? 0
-    const end = t.selectionEnd ?? 0
-    const selected = note.slice(start, end) || 'text'
-    const replaced = note.slice(0, start) + prefix + selected + suffix + note.slice(end)
-    setNote(replaced)
-    setTimeout(() => {
-      if (!t) return
-      t.focus()
-      t.setSelectionRange(start + prefix.length, start + prefix.length + selected.length)
-    }, 0)
-  }
 
   const handleSave = useCallback(async () => {
     if (!canSave) {
@@ -164,24 +99,25 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
       const token = sess.data.session?.access_token
       if (!token) throw new Error('Sign in expired — refresh and try again.')
 
+      const noteMarkdown = editorRef.current?.getMarkdown() ?? note
+
       if (isExternal) {
         const res = await fetch('/api/constellation/artifacts/' + entry.artifactId, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ user_note: note }),
+          body: JSON.stringify({ user_note: noteMarkdown }),
         })
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: 'Save failed' }))
           throw new Error(err.error || 'Save failed')
         }
       } else {
-        // Paradocs-report saves: upsert via /api/constellation/entries
         const res = await fetch('/api/constellation/entries', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({
             report_id: entry.reportId,
-            note,
+            note: noteMarkdown,
             verdict: entry.verdict,
             tags: entry.tags || [],
           }),
@@ -197,6 +133,51 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
       setSaving(false)
     }
   }, [canSave, isExternal, entry.artifactId, entry.reportId, entry.verdict, entry.tags, note, onSaved])
+
+  // Insert a wikilink into the editor at the current cursor, replacing
+  // whatever partial `[[foo` the user had typed.
+  const insertWikilink = (title: string) => {
+    editorRef.current?.insertWikilink(title)
+    setWikilinkSearch(null)
+  }
+
+  // Compute active-state for the toolbar buttons on every render; tick
+  // state is bumped by the editor's selection updates to force refresh.
+  const editor = editorRef.current?.getEditor() ?? null
+  const isActive = (mark: string, attrs?: Record<string, any>) =>
+    !!(editor && editor.isActive(mark, attrs))
+
+  // Wire selection changes → re-render so `isActive` is fresh.
+  useEffect(() => {
+    if (!editor) return
+    const handler = () => setTick(t => t + 1)
+    editor.on('selectionUpdate', handler)
+    editor.on('update', handler)
+    return () => {
+      editor.off('selectionUpdate', handler)
+      editor.off('update', handler)
+    }
+  }, [editor])
+
+  // Toolbar button commands — operate on the editor, not on markdown strings.
+  const run = (fn: (e: NonNullable<typeof editor>) => void) => () => {
+    if (!editor) return
+    fn(editor)
+  }
+
+  const insertLink = () => {
+    if (!editor) return
+    const previousUrl = editor.getAttributes('link').href as string | undefined
+    const url = window.prompt('URL', previousUrl || 'https://')
+    if (url === null) return
+    if (url === '') {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run()
+      return
+    }
+    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+  }
+
+  const wordCount = editor?.storage.characterCount?.words?.() ?? 0
 
   return (
     <div
@@ -227,105 +208,87 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
           </button>
         </div>
 
-        {/* Toolbar: formatting buttons on the left, Write/Preview toggle on the right.
-            The toggle replaces the old always-on split view. Gives the textarea
-            the full width of the modal and lets users switch to render-preview
-            only when they want to verify formatting before saving. */}
+        {/* Formatting toolbar — state-aware toggles (active state mirrors
+            the current selection, like Word or Google Docs). */}
         <div className="flex items-center gap-1 px-3 py-1.5 border-b border-gray-800 flex-shrink-0 overflow-x-auto scrollbar-hide">
-          <ToolbarButton onClick={() => wrapSelection('**')} label="Bold" icon={Bold} disabled={viewMode === 'preview'} />
-          <ToolbarButton onClick={() => wrapSelection('*')} label="Italic" icon={Italic} disabled={viewMode === 'preview'} />
-          <ToolbarButton onClick={() => wrapSelection('- ', '')} label="Bullet list" icon={ListIcon} disabled={viewMode === 'preview'} />
-          <ToolbarButton onClick={() => wrapSelection('## ', '')} label="Heading" icon={Hash} disabled={viewMode === 'preview'} />
-          <ToolbarButton onClick={() => wrapSelection('[', '](https://)')} label="Insert external link" icon={ExternalLink} disabled={viewMode === 'preview'} />
+          <ToolbarButton
+            onClick={run(e => e.chain().focus().toggleBold().run())}
+            label="Bold"
+            icon={Bold}
+            active={isActive('bold')}
+          />
+          <ToolbarButton
+            onClick={run(e => e.chain().focus().toggleItalic().run())}
+            label="Italic"
+            icon={Italic}
+            active={isActive('italic')}
+          />
+          <ToolbarButton
+            onClick={run(e => e.chain().focus().toggleBulletList().run())}
+            label="Bullet list"
+            icon={ListIcon}
+            active={isActive('bulletList')}
+          />
+          <ToolbarButton
+            onClick={run(e => e.chain().focus().toggleHeading({ level: 2 }).run())}
+            label="Heading"
+            icon={Hash}
+            active={isActive('heading', { level: 2 })}
+          />
+          <ToolbarButton
+            onClick={insertLink}
+            label="Insert external link"
+            icon={ExternalLink}
+            active={isActive('link')}
+          />
           <div className="w-px h-4 bg-gray-800 mx-1" />
-          <ToolbarButton onClick={() => wrapSelection('[[', ']]')} label="Link to another save in your library" icon={Sparkles} disabled={viewMode === 'preview'} />
-
-          {/* Pushes the segmented toggle to the right edge of the toolbar */}
-          <div className="flex-1" />
-
-          <div className="flex-shrink-0 inline-flex items-center rounded-md bg-white/[0.04] border border-white/10 p-0.5 text-[11px]" role="tablist" aria-label="Editor view mode">
-            {(['write', 'preview'] as ViewMode[]).map(m => (
-              <button
-                key={m}
-                onClick={() => setViewMode(m)}
-                role="tab"
-                aria-selected={viewMode === m}
-                className={classNames(
-                  'flex items-center gap-1 px-2 py-1 rounded transition-colors',
-                  viewMode === m ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-gray-200',
-                )}
-              >
-                {m === 'write' ? <Edit3 className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                <span className="hidden sm:inline">{m === 'write' ? 'Write' : 'Preview'}</span>
-              </button>
-            ))}
-          </div>
+          <ToolbarButton
+            onClick={run(e => e.chain().focus().insertContent('[[').run())}
+            label="Link to another save in your library"
+            icon={Sparkles}
+          />
         </div>
 
-        {/* Body: a single full-width pane that swaps between textarea and
-            rendered preview based on viewMode. No more side-by-side. */}
+        {/* Editor body */}
         <div className="flex-1 relative overflow-hidden">
-          {viewMode === 'write' ? (
-            <>
-              <textarea
-                ref={textareaRef}
-                value={note}
-                onChange={e => handleNoteChange(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Escape' && wikilinkSearch !== null) {
-                    e.preventDefault()
-                    setWikilinkSearch(null)
-                  }
-                }}
-                placeholder="What stood out about this source? What do you want to remember? Type [[ to link to another save."
-                className="absolute inset-0 w-full h-full px-6 py-5 bg-gray-950 text-[15px] text-gray-100 placeholder-gray-600 leading-relaxed focus:outline-none resize-none"
-                spellCheck
-                autoFocus
-              />
+          <RichNoteEditor
+            ref={editorRef}
+            initialMarkdown={entry.note || ''}
+            onChange={setNote}
+            onWikilinkQuery={setWikilinkSearch}
+            placeholder="What stood out about this source? What do you want to remember? Type [[ to link to another save."
+            autoFocus
+          />
 
-              {/* Wikilink picker — docks above the footer. Scoped to Write mode. */}
-              {wikilinkSearch !== null && (
-                <div
-                  className="absolute z-10 bg-gray-950 border border-gray-800 rounded-lg shadow-2xl w-72"
-                  style={{ bottom: '16px', left: '24px' }}
-                >
-                  <div className="px-3 py-2 border-b border-gray-800 flex items-center gap-1.5">
-                    <Sparkles className="w-3 h-3 text-cyan-300" />
-                    <span className="text-[11px] font-medium text-gray-300">
-                      Link to a save {wikilinkSearch ? '· "' + wikilinkSearch + '"' : ''}
-                    </span>
-                  </div>
-                  {wikilinkMatches.length === 0 ? (
-                    <div className="px-3 py-4 text-[11px] text-gray-500 text-center">
-                      No matching saves. Keep typing to create a placeholder link.
-                    </div>
-                  ) : (
-                    <ul className="max-h-56 overflow-y-auto py-1">
-                      {wikilinkMatches.map(m => (
-                        <li key={m.id}>
-                          <button
-                            onClick={() => insertWikilink(m.name)}
-                            className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-[11px] text-gray-200 hover:bg-white/5 transition-colors"
-                          >
-                            <span className="truncate">{m.name}</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="absolute inset-0 overflow-y-auto px-6 py-5">
-              {note.trim() ? (
-                <div className="max-w-none text-[15px] leading-relaxed">
-                  {renderMarkdown(note, { wikilinks: wikilinkMap })}
+          {/* Wikilink picker — docks above the footer */}
+          {wikilinkSearch !== null && (
+            <div
+              className="absolute z-10 bg-gray-950 border border-gray-800 rounded-lg shadow-2xl w-72"
+              style={{ bottom: '16px', left: '24px' }}
+            >
+              <div className="px-3 py-2 border-b border-gray-800 flex items-center gap-1.5">
+                <Sparkles className="w-3 h-3 text-cyan-300" />
+                <span className="text-[11px] font-medium text-gray-300">
+                  Link to a save {wikilinkSearch ? '· "' + wikilinkSearch + '"' : ''}
+                </span>
+              </div>
+              {wikilinkMatches.length === 0 ? (
+                <div className="px-3 py-4 text-[11px] text-gray-500 text-center">
+                  No matching saves. Keep typing to create a placeholder link.
                 </div>
               ) : (
-                <p className="text-sm text-gray-600 italic">
-                  Nothing written yet — switch to Write to start your note.
-                </p>
+                <ul className="max-h-56 overflow-y-auto py-1">
+                  {wikilinkMatches.map(m => (
+                    <li key={m.id}>
+                      <button
+                        onClick={() => insertWikilink(m.name)}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-[11px] text-gray-200 hover:bg-white/5 transition-colors"
+                      >
+                        <span className="truncate">{m.name}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           )}
@@ -334,9 +297,7 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
         {/* Footer */}
         <div className="border-t border-gray-800 px-4 py-2.5 flex items-center gap-2 flex-shrink-0">
           <div className="flex-1 min-w-0 text-[10px] text-gray-600 tabular-nums">
-            {note.trim()
-              ? `${note.trim().split(/\s+/).length} words`
-              : 'Empty'}
+            {wordCount > 0 ? `${wordCount} word${wordCount === 1 ? '' : 's'}` : 'Empty'}
           </div>
           {error && (
             <div className="text-[11px] text-red-400 truncate max-w-[50%]">
@@ -364,27 +325,33 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
   )
 }
 
-// Toolbar button helper. `disabled` dims the button and prevents clicks
-// when the editor is in Preview mode (no textarea to act on).
+// Toolbar button with a Word-style active state. When `active` is true,
+// the button gets a filled background so the user sees at a glance that
+// the current selection already has that formatting applied.
 function ToolbarButton({
   onClick,
   label,
   icon: Icon,
-  disabled,
+  active,
 }: {
   onClick: () => void
   label: string
   icon: React.ComponentType<{ className?: string }>
-  disabled?: boolean
+  active?: boolean
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
-      className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-gray-400 disabled:hover:bg-transparent"
+      className={classNames(
+        'w-7 h-7 flex items-center justify-center rounded-md transition-colors flex-shrink-0',
+        active
+          ? 'bg-primary-600/25 text-primary-200'
+          : 'text-gray-400 hover:text-white hover:bg-white/5',
+      )}
       title={label}
       aria-label={label}
+      aria-pressed={active || undefined}
     >
       <Icon className="w-3.5 h-3.5" />
     </button>
