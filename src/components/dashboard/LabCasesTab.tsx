@@ -56,6 +56,18 @@ export default function LabCasesTab({
   const [editingCaseFile, setEditingCaseFile] = useState<CaseFile | null>(null)
   const [createModalOpen, setCreateModalOpen] = useState(false)
 
+  // Keep the selected entry in sync with the latest userMapData so that
+  // mutations (case-file toggle, note edit, tag change) immediately reflect
+  // in the open detail panel after the parent refetches.
+  useEffect(() => {
+    if (!userMapData) return
+    setSelectedEntry(current => {
+      if (!current) return current
+      const fresh = userMapData.entryNodes.find(e => e.id === current.id)
+      return fresh ?? current
+    })
+  }, [userMapData])
+
   if (loading && !userMapData) {
     return <CasesSkeleton />
   }

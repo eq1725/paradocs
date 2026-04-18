@@ -9,7 +9,7 @@
  * Tap a pin → NodeDetailPanel opens.
  */
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Map as MapIcon, MapPin as MapPinIcon } from 'lucide-react'
 import type { EntryNode, UserMapData, CaseFile } from '@/lib/constellation-types'
@@ -50,6 +50,18 @@ export default function LabMapTab({
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [selectedCaseFileId, setSelectedCaseFileId] = useState<string | null>(null)
   const [selectedEntry, setSelectedEntry] = useState<EntryNode | null>(null)
+
+  // Keep the selected entry in sync with the latest userMapData so the
+  // detail panel reflects case-file changes / note edits immediately
+  // after the parent refetches.
+  useEffect(() => {
+    if (!userMapData) return
+    setSelectedEntry(current => {
+      if (!current) return current
+      const fresh = userMapData.entryNodes.find(e => e.id === current.id)
+      return fresh ?? current
+    })
+  }, [userMapData])
 
   if (loading && !userMapData) {
     return (

@@ -53,6 +53,20 @@ export default function LabSavesTab({
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [selectedCaseFileId, setSelectedCaseFileId] = useState<string | null>(null)
 
+  // After a parent refetch (e.g. toggling a case-file membership), the
+  // global userMapData gets fresh EntryNode objects. The panel's selected
+  // entry would otherwise keep pointing at the pre-refetch copy, so the
+  // user sees stale caseFileIds / tags / notes even though the DB is
+  // up-to-date. Resync by id whenever userMapData changes.
+  useEffect(() => {
+    if (!userMapData) return
+    setSelectedEntry(current => {
+      if (!current) return current
+      const fresh = userMapData.entryNodes.find(e => e.id === current.id)
+      return fresh ?? current
+    })
+  }, [userMapData])
+
   // Toolbar state — persisted to localStorage so preferences stick.
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<LabSortMode>('newest')
