@@ -18,7 +18,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  X as XIcon, Bold, Italic, Link as LinkIcon, List as ListIcon,
+  X as XIcon, Bold, Italic, ExternalLink, List as ListIcon,
   Hash, Eye, Edit3, Loader2, Check, Sparkles,
 } from 'lucide-react'
 import type { EntryNode } from '@/lib/constellation-types'
@@ -236,7 +236,7 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
           <ToolbarButton onClick={() => wrapSelection('*')} label="Italic" icon={Italic} disabled={viewMode === 'preview'} />
           <ToolbarButton onClick={() => wrapSelection('- ', '')} label="Bullet list" icon={ListIcon} disabled={viewMode === 'preview'} />
           <ToolbarButton onClick={() => wrapSelection('## ', '')} label="Heading" icon={Hash} disabled={viewMode === 'preview'} />
-          <ToolbarButton onClick={() => wrapSelection('[', '](https://)')} label="Link" icon={LinkIcon} disabled={viewMode === 'preview'} />
+          <ToolbarButton onClick={() => wrapSelection('[', '](https://)')} label="Insert external link" icon={ExternalLink} disabled={viewMode === 'preview'} />
           <div className="w-px h-4 bg-gray-800 mx-1" />
           <ToolbarButton onClick={() => wrapSelection('[[', ']]')} label="Link to another save in your library" icon={Sparkles} disabled={viewMode === 'preview'} />
 
