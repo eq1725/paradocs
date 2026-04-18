@@ -23,6 +23,9 @@ interface CaseFileBarProps {
   onSelectCaseFile: (id: string | null) => void
   /** Called after a create/delete so the parent can refetch user-map. */
   onMutate: () => void
+  /** Hide the "+ New case file" chip. Use on surfaces where creation
+   *  lives elsewhere (e.g. Cases tab is the canonical create surface). */
+  hideCreate?: boolean
 }
 
 const COLOR_PRESETS = [
@@ -35,6 +38,7 @@ export default function CaseFileBar({
   selectedCaseFileId,
   onSelectCaseFile,
   onMutate,
+  hideCreate = false,
 }: CaseFileBarProps) {
   const [createOpen, setCreateOpen] = useState(false)
 
@@ -84,15 +88,19 @@ export default function CaseFileBar({
           )
         })}
 
-        {/* + New case file */}
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary-600/10 border border-primary-500/30 text-primary-300 text-[11px] font-medium hover:bg-primary-600/20 transition-colors whitespace-nowrap"
-        >
-          <Plus className="w-3 h-3" />
-          <span className="hidden sm:inline">New case file</span>
-          <span className="sm:hidden">New</span>
-        </button>
+        {/* + New case file (hidden on surfaces where creation belongs
+            elsewhere, e.g. the Map tab — Cases tab is the canonical
+            creation surface). */}
+        {!hideCreate && (
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary-600/10 border border-primary-500/30 text-primary-300 text-[11px] font-medium hover:bg-primary-600/20 transition-colors whitespace-nowrap"
+          >
+            <Plus className="w-3 h-3" />
+            <span className="hidden sm:inline">New case file</span>
+            <span className="sm:hidden">New</span>
+          </button>
+        )}
       </div>
 
       {createOpen && (

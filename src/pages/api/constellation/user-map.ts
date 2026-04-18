@@ -216,9 +216,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const tagToEntries: Record<string, string[]> = {}
     const allTags = new Set<string>()
 
+    // Supabase's FK-joined data sometimes arrives as an array wrapper
+    // ([{...}]) and sometimes as a plain object depending on how the
+    // relationship is inferred. Normalize to a single object once here
+    // so every downstream field read (name, latitude, title, etc.) works
+    // regardless of which shape came back.
+    const unwrapReport = (r: any) => (Array.isArray(r) ? r[0] : r) || null
+    const toNum = (v: any): number | null => {
+      if (v == null) return null
+      const n = typeof v === 'number' ? v : typeof v === 'string' ? parseFloat(v) : NaN
+      return Number.isFinite(n) ? n : null
+    }
+
     // Build entry nodes for the constellation
     const entryNodes = entries.map((entry: any) => {
-      const report = entry.report
+      const report = unwrapReport(entry.report)
       const cat = report?.category || 'combination'
 
       // Category tracking
@@ -250,8 +262,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         category: cat,
         imageUrl: primaryImage?.url || null,
         locationName: report?.location_name || null,
-        latitude: report?.latitude ?? null,
-        longitude: report?.longitude ?? null,
+        latitude: toNum(report?.latitude),
+        longitude: toNum(report?.longitude),
         eventDate: report?.event_date || null,
         summary: report?.summary || null,
         note: entry.note || '',
@@ -270,7 +282,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const savedOnlyNodes = savedReportsRows
       .filter((s: any) => s.report_id && !constellationReportIds.has(s.report_id))
       .map(function(s: any) {
-        const report = s.report
+        const report = unwrapReport(s.report)
         const cat = report?.category || 'combination'
         if (!categoryMap[cat]) categoryMap[cat] = { entries: 0, verdicts: {}, reportIds: [] }
         categoryMap[cat].entries++
@@ -289,8 +301,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           category: cat,
           imageUrl: primaryImage?.url || null,
           locationName: report?.location_name || null,
-          latitude: report?.latitude ?? null,
-          longitude: report?.longitude ?? null,
+          latitude: toNum(report?.latitude),
+          longitude: toNum(report?.longitude),
           eventDate: report?.event_date || null,
           summary: report?.summary || null,
           note: '',
@@ -375,6 +387,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         tagToEntries[tag].push(a.id)
       }
 
+      // Don't auto-place external saves on the user map. A news article
+      // ABOUT an event in Phoenix shouldn't pin to Phoenix — that would
+      // mislead the user's research view. External artifacts only land
+      // on the map once we add an explicit opt-in geo-intent flag.
       return {
         id: a.id,
         artifactId: a.id,  // external artifacts are their own artifact row

@@ -165,6 +165,13 @@ export default function LabGeoMap({
   }
 
   if (points.length === 0) {
+    // Explain what's actually going on so Chase (and any user who
+    // mostly saves external URLs) isn't left guessing.
+    const totalSaves = (userMapData?.entryNodes || []).filter(e => !e.isGhost).length
+    const paradocsReportSaves = (userMapData?.entryNodes || []).filter(
+      e => !e.isGhost && e.sourceType !== 'external' && e.reportId,
+    ).length
+    const externalOnlySaves = totalSaves - paradocsReportSaves
     return (
       <div className="w-full h-[60vh] sm:h-[70vh] rounded-2xl bg-gray-950 border border-gray-800 flex items-center justify-center px-6">
         <div className="text-center max-w-md">
@@ -173,12 +180,17 @@ export default function LabGeoMap({
           </div>
           <h3 className="text-white font-semibold text-sm mb-1">
             {selectedCategory || selectedCaseFileId
-              ? 'No geocoded saves match this filter'
-              : 'No geocoded saves yet'}
+              ? 'No pins match this filter'
+              : 'No pins to show yet'}
           </h3>
           <p className="text-xs text-gray-400 leading-relaxed">
-            Paradocs reports with a location and cross-referenced coordinates will appear here as pins.
-            Clear any active filters, or save reports that have location data attached.
+            {totalSaves === 0
+              ? 'Save a Paradocs report with location data to see it here.'
+              : paradocsReportSaves === 0
+                ? `You have ${totalSaves} external URL save${totalSaves === 1 ? '' : 's'}. External saves don't auto-place on the map — save a Paradocs report with coordinates to see a pin.`
+                : externalOnlySaves > 0
+                  ? `${paradocsReportSaves} of your ${totalSaves} saves are Paradocs reports, but none have coordinates recorded. External URL saves stay off the map to avoid mis-tagging.`
+                  : 'Your saved Paradocs reports don\'t have coordinates recorded yet.'}
           </p>
         </div>
       </div>

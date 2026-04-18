@@ -88,13 +88,16 @@ export default function LabMapTab({
         </div>
       </div>
 
-      {/* Case files + category filter chips */}
+      {/* Case files filter chips. Creation happens on the Cases tab —
+          hide the "+ New" chip here so the Map tab stays focused on
+          filtering the geographic view. */}
       {caseFiles.length > 0 && (
         <CaseFileBar
           caseFiles={caseFiles}
           selectedCaseFileId={selectedCaseFileId}
           onSelectCaseFile={setSelectedCaseFileId}
           onMutate={onRefresh}
+          hideCreate
         />
       )}
       {userMapData && userMapData.entryNodes.filter(e => !e.isGhost).length > 0 && (
