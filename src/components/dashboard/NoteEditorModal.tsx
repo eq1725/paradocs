@@ -36,13 +36,13 @@ interface NoteEditorModalProps {
   onSaved: () => void
 }
 
-type MobileTab = 'edit' | 'preview'
+type ViewMode = 'write' | 'preview'
 
 export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }: NoteEditorModalProps) {
   const [note, setNote] = useState(entry.note || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [mobileTab, setMobileTab] = useState<MobileTab>('edit')
+  const [viewMode, setViewMode] = useState<ViewMode>('write')
   const [wikilinkSearch, setWikilinkSearch] = useState<string | null>(null) // null = picker closed
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -227,130 +227,108 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
           </button>
         </div>
 
-        {/* Mobile edit/preview tab switcher (hidden on sm+) */}
-        <div className="sm:hidden border-b border-gray-800 flex flex-shrink-0" role="tablist">
-          {(['edit', 'preview'] as MobileTab[]).map(t => (
-            <button
-              key={t}
-              onClick={() => setMobileTab(t)}
-              role="tab"
-              aria-selected={mobileTab === t}
-              className={classNames(
-                'flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors',
-                mobileTab === t
-                  ? 'text-white border-b-2 border-primary-500'
-                  : 'text-gray-500 hover:text-gray-300'
-              )}
-            >
-              {t === 'edit' ? <Edit3 className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-              {t === 'edit' ? 'Write' : 'Preview'}
-            </button>
-          ))}
-        </div>
-
-        {/* Formatting toolbar */}
-        <div className={classNames(
-          'flex items-center gap-1 px-3 py-1.5 border-b border-gray-800 flex-shrink-0 overflow-x-auto scrollbar-hide',
-          mobileTab === 'preview' && 'sm:flex hidden'
-        )}>
-          <ToolbarButton onClick={() => wrapSelection('**')} label="Bold" icon={Bold} />
-          <ToolbarButton onClick={() => wrapSelection('*')} label="Italic" icon={Italic} />
-          <ToolbarButton onClick={() => wrapSelection('- ', '')} label="List" icon={ListIcon} />
-          <ToolbarButton onClick={() => wrapSelection('## ', '')} label="Heading" icon={Hash} />
-          <ToolbarButton onClick={() => wrapSelection('[', '](https://)')} label="Link" icon={LinkIcon} />
+        {/* Toolbar: formatting buttons on the left, Write/Preview toggle on the right.
+            The toggle replaces the old always-on split view. Gives the textarea
+            the full width of the modal and lets users switch to render-preview
+            only when they want to verify formatting before saving. */}
+        <div className="flex items-center gap-1 px-3 py-1.5 border-b border-gray-800 flex-shrink-0 overflow-x-auto scrollbar-hide">
+          <ToolbarButton onClick={() => wrapSelection('**')} label="Bold" icon={Bold} disabled={viewMode === 'preview'} />
+          <ToolbarButton onClick={() => wrapSelection('*')} label="Italic" icon={Italic} disabled={viewMode === 'preview'} />
+          <ToolbarButton onClick={() => wrapSelection('- ', '')} label="Bullet list" icon={ListIcon} disabled={viewMode === 'preview'} />
+          <ToolbarButton onClick={() => wrapSelection('## ', '')} label="Heading" icon={Hash} disabled={viewMode === 'preview'} />
+          <ToolbarButton onClick={() => wrapSelection('[', '](https://)')} label="Link" icon={LinkIcon} disabled={viewMode === 'preview'} />
           <div className="w-px h-4 bg-gray-800 mx-1" />
-          <ToolbarButton onClick={() => wrapSelection('[[', ']]')} label="Wikilink — link to another save" icon={Sparkles} />
+          <ToolbarButton onClick={() => wrapSelection('[[', ']]')} label="Link to another save in your library" icon={Sparkles} disabled={viewMode === 'preview'} />
+
+          {/* Pushes the segmented toggle to the right edge of the toolbar */}
+          <div className="flex-1" />
+
+          <div className="flex-shrink-0 inline-flex items-center rounded-md bg-white/[0.04] border border-white/10 p-0.5 text-[11px]" role="tablist" aria-label="Editor view mode">
+            {(['write', 'preview'] as ViewMode[]).map(m => (
+              <button
+                key={m}
+                onClick={() => setViewMode(m)}
+                role="tab"
+                aria-selected={viewMode === m}
+                className={classNames(
+                  'flex items-center gap-1 px-2 py-1 rounded transition-colors',
+                  viewMode === m ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-gray-200',
+                )}
+              >
+                {m === 'write' ? <Edit3 className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                <span className="hidden sm:inline">{m === 'write' ? 'Write' : 'Preview'}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Body: side-by-side on sm+, tabbed on mobile */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Editor */}
-          <div className={classNames(
-            'flex-1 flex flex-col',
-            mobileTab === 'preview' ? 'hidden sm:flex' : 'flex'
-          )}>
-            <textarea
-              ref={textareaRef}
-              value={note}
-              onChange={e => handleNoteChange(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Escape' && wikilinkSearch !== null) {
-                  e.preventDefault()
-                  setWikilinkSearch(null)
-                }
-              }}
-              placeholder="What stood out about this source? What do you want to remember? Type [[ to link to another save."
-              className="flex-1 w-full min-h-0 px-4 py-3 bg-gray-950 text-sm text-gray-200 placeholder-gray-600 leading-relaxed focus:outline-none resize-none"
-              spellCheck
-              autoFocus
-            />
-
-            {/* Wikilink picker popover */}
-            {wikilinkSearch !== null && (
-              <div className="absolute z-10 bg-gray-950 border border-gray-800 rounded-lg shadow-2xl w-64 mt-1"
-                style={{
-                  // Positioned near the top of the textarea; for MVP we dock
-                  // it above the footer rather than at the exact cursor position.
-                  bottom: '90px',
-                  left: '24px',
+        {/* Body: a single full-width pane that swaps between textarea and
+            rendered preview based on viewMode. No more side-by-side. */}
+        <div className="flex-1 relative overflow-hidden">
+          {viewMode === 'write' ? (
+            <>
+              <textarea
+                ref={textareaRef}
+                value={note}
+                onChange={e => handleNoteChange(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Escape' && wikilinkSearch !== null) {
+                    e.preventDefault()
+                    setWikilinkSearch(null)
+                  }
                 }}
-              >
-                <div className="px-3 py-2 border-b border-gray-800 flex items-center gap-1.5">
-                  <Sparkles className="w-3 h-3 text-cyan-300" />
-                  <span className="text-[11px] font-medium text-gray-300">
-                    Link to a save {wikilinkSearch ? '· "' + wikilinkSearch + '"' : ''}
-                  </span>
-                </div>
-                {wikilinkMatches.length === 0 ? (
-                  <div className="px-3 py-4 text-[11px] text-gray-500 text-center">
-                    No matching saves. Keep typing to create a placeholder link.
+                placeholder="What stood out about this source? What do you want to remember? Type [[ to link to another save."
+                className="absolute inset-0 w-full h-full px-6 py-5 bg-gray-950 text-[15px] text-gray-100 placeholder-gray-600 leading-relaxed focus:outline-none resize-none"
+                spellCheck
+                autoFocus
+              />
+
+              {/* Wikilink picker — docks above the footer. Scoped to Write mode. */}
+              {wikilinkSearch !== null && (
+                <div
+                  className="absolute z-10 bg-gray-950 border border-gray-800 rounded-lg shadow-2xl w-72"
+                  style={{ bottom: '16px', left: '24px' }}
+                >
+                  <div className="px-3 py-2 border-b border-gray-800 flex items-center gap-1.5">
+                    <Sparkles className="w-3 h-3 text-cyan-300" />
+                    <span className="text-[11px] font-medium text-gray-300">
+                      Link to a save {wikilinkSearch ? '· "' + wikilinkSearch + '"' : ''}
+                    </span>
                   </div>
-                ) : (
-                  <ul className="max-h-56 overflow-y-auto py-1">
-                    {wikilinkMatches.map(m => (
-                      <li key={m.id}>
-                        <button
-                          onClick={() => insertWikilink(m.name)}
-                          className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-[11px] text-gray-200 hover:bg-white/5 transition-colors"
-                        >
-                          <span className="truncate">{m.name}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Divider (desktop only) */}
-          <div className="hidden sm:block w-px bg-gray-800" />
-
-          {/* Preview pane */}
-          <div className={classNames(
-            'flex-1 overflow-y-auto px-4 py-3',
-            mobileTab === 'edit' ? 'hidden sm:block' : 'block'
-          )}>
-            {note.trim() ? (
-              <div className="max-w-none">
-                {renderMarkdown(note, { wikilinks: wikilinkMap })}
-              </div>
-            ) : (
-              <div className="space-y-3 text-xs text-gray-500">
-                <p className="text-[11px] uppercase tracking-wider font-semibold text-gray-600">
-                  Preview
+                  {wikilinkMatches.length === 0 ? (
+                    <div className="px-3 py-4 text-[11px] text-gray-500 text-center">
+                      No matching saves. Keep typing to create a placeholder link.
+                    </div>
+                  ) : (
+                    <ul className="max-h-56 overflow-y-auto py-1">
+                      {wikilinkMatches.map(m => (
+                        <li key={m.id}>
+                          <button
+                            onClick={() => insertWikilink(m.name)}
+                            className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-[11px] text-gray-200 hover:bg-white/5 transition-colors"
+                          >
+                            <span className="truncate">{m.name}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="absolute inset-0 overflow-y-auto px-6 py-5">
+              {note.trim() ? (
+                <div className="max-w-none text-[15px] leading-relaxed">
+                  {renderMarkdown(note, { wikilinks: wikilinkMap })}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-600 italic">
+                  Nothing written yet — switch to Write to start your note.
                 </p>
-                <p className="leading-relaxed">
-                  Your formatted note will appear here as you type. A few tips:
-                </p>
-                <ul className="space-y-1.5 pl-4 list-disc marker:text-gray-700 leading-relaxed">
-                  <li><code className="text-cyan-300/80 font-mono">**bold**</code>, <code className="text-cyan-300/80 font-mono">*italic*</code>, <code className="text-cyan-300/80 font-mono">`code`</code></li>
-                  <li>Start a line with <code className="text-cyan-300/80 font-mono">-</code> for a list, <code className="text-cyan-300/80 font-mono">##</code> for a heading</li>
-                  <li>Type <code className="text-cyan-300/80 font-mono">[[</code> to link to another save in your library</li>
-                </ul>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -386,21 +364,25 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
   )
 }
 
-// Toolbar button helper
+// Toolbar button helper. `disabled` dims the button and prevents clicks
+// when the editor is in Preview mode (no textarea to act on).
 function ToolbarButton({
   onClick,
   label,
   icon: Icon,
+  disabled,
 }: {
   onClick: () => void
   label: string
   icon: React.ComponentType<{ className?: string }>
+  disabled?: boolean
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0"
+      disabled={disabled}
+      className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-gray-400 disabled:hover:bg-transparent"
       title={label}
       aria-label={label}
     >
