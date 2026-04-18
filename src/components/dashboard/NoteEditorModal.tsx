@@ -18,7 +18,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   X as XIcon, Bold, Italic, ExternalLink, List as ListIcon,
-  Hash, Edit3, Loader2, Check, AtSign, Sparkles,
+  Hash, Edit3, Loader2, Check, FolderSymlink, Sparkles,
 } from 'lucide-react'
 import type { EntryNode } from '@/lib/constellation-types'
 import { supabase } from '@/lib/supabase'
@@ -259,7 +259,7 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
           <ToolbarButton
             onClick={run(e => e.chain().focus().insertContent('[[').run())}
             label="Link to another save in your library"
-            icon={AtSign}
+            icon={FolderSymlink}
           />
         </div>
 

@@ -404,16 +404,18 @@ function renderWikilink(
 ): React.ReactNode {
   const key_ = normalizeWikilinkKey(label)
   const target = opts.wikilinks?.get(key_)
+  const displayLabel = (target?.displayLabel || label).trim()
   if (target) {
     return React.createElement(
       'button',
       {
         key,
         onClick: () => opts.onWikilinkClick?.(target.id),
-        className: 'inline-flex items-baseline gap-0.5 text-cyan-300 hover:text-cyan-200 underline underline-offset-2 decoration-cyan-500/40 hover:decoration-cyan-400 transition-colors',
-        title: 'Open ' + target.displayLabel,
+        className:
+          'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/25 text-cyan-300 hover:bg-cyan-500/18 hover:border-cyan-500/40 hover:text-cyan-200 transition-colors',
+        title: 'Open ' + displayLabel,
       },
-      '[[' + label + ']]'
+      displayLabel,
     )
   }
   // Unresolved wikilink — still visible, but flagged as broken.
@@ -421,9 +423,10 @@ function renderWikilink(
     'span',
     {
       key,
-      className: 'inline text-gray-500 underline decoration-dashed decoration-gray-600/50',
+      className:
+        'inline-flex items-center px-1.5 py-0.5 rounded-md bg-gray-700/30 border border-gray-600/40 text-gray-400',
       title: 'No save matches this wikilink yet',
     },
-    '[[' + label + ']]'
+    displayLabel,
   )
 }
