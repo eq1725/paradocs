@@ -1134,7 +1134,7 @@ function ExploreBrowseMode() {
                               return (
                                 <Link key={report.id} href={'/report/' + report.slug} className="min-w-[270px] sm:min-w-[310px] max-w-[290px] sm:max-w-[330px] flex-shrink-0 snap-start glass-card p-4 sm:p-5 hover:border-primary-500/30 transition-all group/card flex flex-col">
                                   <div className="flex items-start gap-3 mb-2.5">
-                                    <div className={classNames('w-10 h-10 rounded-lg flex items-center justify-center text-xl flex-shrink-0', catConfig.bgColor)}><CategoryIcon category={report.category as PhenomenonCategory} size={20} /></div>
+                                    <div className={classNames('w-10 h-10 rounded-lg flex items-center justify-center text-xl flex-shrink-0', catConfig.bgColor, catConfig.color)}><CategoryIcon category={report.category as PhenomenonCategory} size={20} /></div>
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-1.5 flex-wrap">
                                         <span className={classNames('text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-medium', catConfig.bgColor, catConfig.color)}>{catConfig.label}</span>
@@ -1219,7 +1219,7 @@ function ExploreBrowseMode() {
                       </div>
                     ) : (
                       <div className={classNames('relative h-36 sm:h-44 flex items-center justify-center bg-gradient-to-br', CATEGORY_GRADIENTS[item.category] || 'from-gray-900 to-gray-950')}>
-                        <span className="text-4xl opacity-40 group-hover/card:scale-110 transition-transform"><CategoryIcon category={item.category as PhenomenonCategory} size={40} /></span>
+                        <span className={classNames('text-4xl opacity-40 group-hover/card:scale-110 transition-transform', (CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination).color)}><CategoryIcon category={item.category as PhenomenonCategory} size={40} /></span>
                         <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/30 to-transparent" />
                       </div>
                     )}
@@ -1636,7 +1636,7 @@ function ExploreSearchMode() {
             return (
               <Link key={report.id} href={'/report/' + report.slug} className="block glass-card p-4 hover:border-primary-500/30 transition-all group">
                 <div className="flex items-start gap-3">
-                  <div className={classNames('w-10 h-10 rounded-lg flex items-center justify-center text-xl flex-shrink-0', config.bgColor)}><CategoryIcon category={report.category as PhenomenonCategory} size={20} /></div>
+                  <div className={classNames('w-10 h-10 rounded-lg flex items-center justify-center text-xl flex-shrink-0', config.bgColor, config.color)}><CategoryIcon category={report.category as PhenomenonCategory} size={20} /></div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className={classNames('text-xs px-2 py-0.5 rounded-full font-medium', config.bgColor, config.color)}>{config.label}</span>
