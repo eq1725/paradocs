@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** April 14, 2026
+**Last updated:** April 19, 2026
 **Project:** beta.discoverparadocs.com
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -168,6 +168,45 @@ Each major feature area has a dedicated Claude session with its own deep context
 | A2 | **Explore Consolidation** | Merge /explore, /map, /search, /phenomena listing into one page with Map/Browse/Search tabs | N/A | **COMPLETE (April 1)** — See details below |
 | B1 | **Ingestion Adapter Hardening** | Audit, fix, and dry-run all high-priority adapters; YouTube comment extraction; crosspost dedup; dry-run script | N/A | **COMPLETE (April 2)** — See details below |
 | B1.5 | **Ingestion Adapter QA/QC (Live Smoke Tests)** | 5-report-per-adapter smoke tests against live sources, row-level verification of case_profile / tier / enrichment fields, bug fixes before mass ingest | `B1_5_QA_QC_NOTES.md` | **IN PROGRESS (April 14)** — NDERF evaluative-tier neutralization + OBERF case_profile extraction complete. 3-row OBERF acceptance evidence captured. Remaining: re-verify NDERF+OBERF with 5 per category, then IANDS → BFRO → NUFORC → Reddit V2 → YouTube → Erowid. **No mass ingest until B1.5 is signed off.** |
+| L1 | **Lab QA Iteration (Saves / Cases / Map / Notes)** | Live QA-driven polish across the /lab surface — patterns overhaul, full Tiptap WYSIWYG note editor, Lab map ported to MapLibre with basemap switcher / heatmap / timeline / historical-wave overlays / global-context backdrop, detail-panel sync fixes, terminology cleanup (Research Hub → Lab) | `LAB_QA_SESSION_2026_04_19.md` | **IN PROGRESS (April 17–19)** — 28 commits shipped: `74faf363` → `37b82489`. Chase iteratively QAing each deploy. See doc for full per-area summary. |
+
+---
+
+### Session L1: Lab QA Iteration — IN PROGRESS (April 17–19, 2026)
+
+**Scope:** Live, QA-driven polish of the /lab surface. Chase reviews each Vercel deploy and drives the next iteration. No finalization target — pass completes when Chase signs off.
+
+**Themes shipped:**
+
+1. **Patterns overhaul.** Dropped "obvious-count" insight types (tag_cluster, location_cluster, verdict_drift, category_compelling). Added `historical_wave` (cross-referenced to HISTORICAL_WAVES — 11 curated waves anchored to encyclopedia entries), `tag_cooccurrence`, `geographic_density`. Unified the display into a single `PatternsLane` at the top of Saves via new `PatternCard` component; killed mid-feed inline interleaves. New `/api/constellation/related-reports` endpoint builds a 180-day research footprint and returns matching unseen reports.
+
+2. **Note editor → full Tiptap WYSIWYG.** Replaced the textarea + Write/Preview toggle with `RichNoteEditor.tsx` wrapping Tiptap (StarterKit + Link + Placeholder + CharacterCount + `tiptap-markdown`). Storage stays as plain markdown in `user_note` — every non-editor render surface (`NodeDetailPanel` preview, backlinks panel, card preview, digest email) is unaffected. Wikilinks `[[Title]]` render as cyan chips (view-layer ProseMirror decoration) with brackets hidden at zero-width. Chip styling pinned to absolute px across editor + detail panel + card preview. Toolbar buttons are state-aware toggles (Word/Notion style).
+
+3. **Lab map → MapLibre GL port.** Ripped out react-leaflet. Shipped all three tiers:
+   - **Tier 1**: MapLibre WebGL rendering, basemap switcher (dark/satellite/terrain), density heatmap.
+   - **Tier 2**: NavigationControl + GeolocateControl, animated flyTo on cluster click, hover-grow pins.
+   - **Tier 3**: Timeline scrubber (range aligns to TIMELINE.min → current year when global backdrop on), historical-wave dashed-ring polygons on matching saves, interactive global-context backdrop (all Paradocs reports as faint dots; hover shows tooltip with title/location/year; click opens the report in new tab).
+
+4. **Detail panel sync + polish.** `selectedEntry` now re-resolves from fresh `userMapData` after parent refetch (was a stale reference → case-file adds didn't reflect). Header leads with entry title (line-clamp-2); category demoted to sub-label. z-index bumped to `z-[1000]` to beat Leaflet/MapLibre panes.
+
+5. **Terminology cleanup.** "Research Hub" replaced with "Lab" / "your Lab" across save modal, report-page buttons, toasts, delete confirmations. Backend file paths + DB columns intentionally untouched. "Wikilinks" term dropped from user-facing copy in favor of describing the behavior.
+
+6. **Cards & thumbnails.** New `CategoryHero` component for image-less Paradocs-report saves: diagonal gradient tinted by category, radial glow, grid-paper texture, large centered glyph. Category theme color table safelisted for Tailwind JIT. Card note previews go through `renderNotePreview` (inline-only first-paragraph flatten) so wikilinks render as chips.
+
+7. **Bug fixes.** Case-file bootstrap (can't create first), duplicate footer on `/lab` + `/profile`, Reader toggle missing on Wix/blog URLs, Paradocs-report saves not appearing on map (Supabase FK array-wrap unwrapping), chip styling divergence between surfaces, global-context filter-shape mismatch, global-context compound paint expression rejected by MapLibre.
+
+**Workflow:** Every commit pushed immediately; Chase runs `git push` and monitors Vercel; each round ends with Chase sending a screenshot + new QA item. Commit messages use HEREDOC. Typecheck filtered by touched files before each commit.
+
+**Pending (not blockers):**
+- Cases tab hasn't received the same visual iteration as Saves / Map.
+- Mobile testing of the Map Layers panel on small viewports.
+- Paste-from-Word / Docs into Tiptap hasn't been stressed.
+- Cross-user pattern detection on shared case files (task #65).
+- Mini knowledge graph per case file (task #62).
+- `react-leaflet` / `leaflet` deps still in `package.json` — unused after Lab map port, drop in cleanup.
+- Legacy `/dashboard/research-hub` route + surrounding components still live in repo but unreachable from nav.
+
+**See:** `LAB_QA_SESSION_2026_04_19.md` for the full commit-by-commit log and file-change table.
 
 ---
 
