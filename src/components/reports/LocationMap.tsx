@@ -14,6 +14,8 @@ import dynamic from 'next/dynamic'
 import { Navigation, ExternalLink, Maximize2, Layers } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 import { CATEGORY_CONFIG } from '@/lib/constants'
+import CategoryIcon from '@/components/ui/CategoryIcon'
+import type { PhenomenonCategory } from '@/lib/database.types'
 
 // Dynamically import react-map-gl (MapLibre) to avoid SSR/WebGL issues
 const Map = dynamic(
@@ -380,7 +382,7 @@ export default function LocationMap({
                   href={`/report/${report.slug}`}
                   className="flex items-center gap-2 text-sm hover:bg-white/5 rounded p-1 -mx-1 transition-colors"
                 >
-                  <span>{config.icon}</span>
+                  <span><CategoryIcon category={report.category as PhenomenonCategory} size={14} /></span>
                   <span className="text-white truncate flex-1">{report.title}</span>
                   <span className="text-gray-500 text-xs flex-shrink-0">
                     {Math.round(kmToMiles(report.distance_km) * 10) / 10} mi

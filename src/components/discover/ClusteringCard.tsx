@@ -16,6 +16,8 @@ import React from 'react'
 import Link from 'next/link'
 import { TrendingUp, MapPin, Calendar, ChevronRight } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
+import CategoryIcon from '@/components/ui/CategoryIcon'
+import type { PhenomenonCategory } from '@/lib/database.types'
 
 export interface ClusterCardData {
   item_type: 'cluster'
@@ -46,7 +48,7 @@ export function ClusteringCard(props: ClusteringCardProps) {
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
   var categoryLabel = config ? config.label : item.category
-  var categoryIcon = config ? config.icon : '\uD83D\uDD2E'
+  var categoryKey = item.category as PhenomenonCategory
   var typeIcon = CLUSTER_ICONS[item.cluster_type] || '\uD83D\uDCC8'
 
   return (
@@ -90,7 +92,7 @@ export function ClusteringCard(props: ClusteringCardProps) {
         {/* Stats row */}
         <div className="flex items-center gap-4 text-xs text-gray-400 mb-8">
           <div className="flex items-center gap-1.5">
-            <span>{categoryIcon}</span>
+            <CategoryIcon category={categoryKey} size={14} />
             <span>{categoryLabel}</span>
           </div>
           {item.location_summary && (

@@ -14,6 +14,8 @@ import React from 'react'
 import Link from 'next/link'
 import { Constellation } from './Constellation'
 import { CATEGORY_CONFIG } from '@/lib/constants'
+import CategoryIcon from '@/components/ui/CategoryIcon'
+import type { PhenomenonCategory } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
 
 export interface RabbitHoleCard {
@@ -74,7 +76,8 @@ export function RabbitHolePanel(props: {
               {/* Category + location */}
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="text-[9px] font-sans font-semibold uppercase tracking-wider" style={{ color: c.categoryColor }}>
-                  {(catConfig?.icon || '') + ' ' + (catConfig?.label || c.category)}
+                  <CategoryIcon category={c.category as PhenomenonCategory} size={10} />
+                  {' ' + (catConfig?.label || c.category)}
                 </span>
                 <span className="text-[9px] text-gray-500 font-sans">
                   {c.location + (c.tag ? ' \u00B7 ' + c.tag : '')}

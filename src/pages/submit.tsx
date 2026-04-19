@@ -13,6 +13,7 @@ import ImageUpload, { UploadedFile } from '@/components/ImageUpload'
 import { PhenomenonCategory, PhenomenonType } from '@/lib/database.types'
 import { CATEGORY_CONFIG, COUNTRIES, US_STATES } from '@/lib/constants'
 import { generateSlug, classNames } from '@/lib/utils'
+import CategoryIcon from '@/components/ui/CategoryIcon'
 
 type Step = 1 | 2 | 3 | 4
 
@@ -357,7 +358,7 @@ export default function SubmitPage() {
                           : 'bg-white/5 border-white/10 hover:border-white/20'
                       )}
                     >
-                      <span className="text-xl">{config.icon}</span>
+                      <span className="text-xl"><CategoryIcon category={key as PhenomenonCategory} size={20} /></span>
                       <p className="mt-1 text-sm font-medium text-white">
                         {config.label}
                       </p>
@@ -404,7 +405,7 @@ export default function SubmitPage() {
                         return (
                           <div key={catKey} className="mb-2">
                             <p className="text-xs text-gray-400 font-medium flex items-center gap-1 mb-1">
-                              <span>{catConfig.icon}</span> {catConfig.label}
+                              <CategoryIcon category={catKey as PhenomenonCategory} size={14} /> {catConfig.label}
                             </p>
                             <div className="flex flex-wrap gap-1 ml-4">
                               {catTypes.slice(0, 5).map(type => {

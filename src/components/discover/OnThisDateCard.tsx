@@ -14,6 +14,8 @@ import React from 'react'
 import Link from 'next/link'
 import { Calendar, ChevronRight } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
+import CategoryIcon from '@/components/ui/CategoryIcon'
+import type { PhenomenonCategory } from '@/lib/database.types'
 
 export interface OnThisDateData {
   item_type: 'on_this_date'
@@ -35,7 +37,7 @@ export function OnThisDateCard(props: OnThisDateCardProps) {
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
   var categoryLabel = config ? config.label : item.category
-  var categoryIcon = config ? config.icon : '\uD83D\uDD2E'
+  var categoryKey = item.category as PhenomenonCategory
 
   var yearsAgo = new Date().getFullYear() - item.event_year
   var yearsText = yearsAgo === 1 ? '1 year ago' : yearsAgo + ' years ago'
@@ -85,7 +87,7 @@ export function OnThisDateCard(props: OnThisDateCardProps) {
 
         {/* Category badge */}
         <div className="flex items-center gap-1.5 mb-4">
-          <span>{categoryIcon}</span>
+          <CategoryIcon category={categoryKey} size={14} />
           <span className="text-xs text-gray-400 font-medium">{categoryLabel}</span>
         </div>
 

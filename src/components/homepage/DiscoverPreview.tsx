@@ -15,6 +15,8 @@ import React, { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
+import CategoryIcon from '@/components/ui/CategoryIcon'
+import type { PhenomenonCategory } from '@/lib/database.types'
 
 // =========================================================================
 //  Types
@@ -196,7 +198,7 @@ function EncyclopediaCard(props: { item: PreviewPhenomenon }) {
           {/* Top: category badge + report count */}
           <div className="flex items-center justify-between mb-4 flex-shrink-0">
             <span className="text-[10px] font-semibold uppercase tracking-widest font-sans" style={{ color: catColor }}>
-              {(config?.icon || '') + ' ' + (config?.label || item.category)}
+              <CategoryIcon category={item.category as PhenomenonCategory} size={12} />{' ' + (config?.label || item.category)}
               {item.primary_regions && item.primary_regions.length > 0 ? ' \u00B7 ' + item.primary_regions[0] : ''}
             </span>
             {item.report_count > 5 && (
@@ -274,7 +276,7 @@ function ReportCard(props: { item: PreviewReport }) {
           {/* Top: category + badge */}
           <div className="flex items-center justify-between mb-3 flex-shrink-0">
             <span className="text-[10px] font-semibold uppercase tracking-widest font-sans" style={{ color: catColor }}>
-              {(config?.icon || '') + ' ' + (config?.label || item.category)}
+              <CategoryIcon category={item.category as PhenomenonCategory} size={12} />{' ' + (config?.label || item.category)}
             </span>
             {/* "Verified" pill (driven by credibility === 'high') intentionally
                 removed — QA/QC Apr 15 2026. We no longer surface the coarse

@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonCategory, PhenomenonType, ReportLinkType } from '@/lib/database.types'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { classNames, formatDate } from '@/lib/utils'
+import CategoryIcon from '@/components/ui/CategoryIcon'
 
 interface RelatedReportsProps {
   reportId: string
@@ -270,7 +271,7 @@ export default function RelatedReports({
               className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-white/[0.06] transition-colors group"
             >
               {/* Category icon */}
-              <span className="text-base flex-shrink-0 leading-none">{config.icon}</span>
+              <span className="text-base flex-shrink-0 leading-none"><CategoryIcon category={report.category as PhenomenonCategory} size={16} /></span>
 
               {/* Content */}
               <div className="flex-1 min-w-0">

@@ -8,7 +8,8 @@ import React from 'react'
 import { Search, X, ChevronLeft, RotateCcw } from 'lucide-react'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG, COUNTRIES } from '@/lib/constants'
 import { PhenomenonCategory } from '@/lib/database.types'
-import { MapFilters, CATEGORY_ICONS, DEFAULT_FILTERS } from './mapStyles'
+import { MapFilters, DEFAULT_FILTERS } from './mapStyles'
+import { CategoryIcon } from '@/components/ui/CategoryIcon'
 
 interface MapFilterPanelProps {
   filters: MapFilters
@@ -84,7 +85,7 @@ export default function MapFilterPanel({
                   : 'bg-gray-800 text-gray-400 hover:text-white'
               }`}
             >
-              <span className="text-xs">{CATEGORY_ICONS[key]}</span>
+              <CategoryIcon category={key} size={14} />
               <span className="hidden sm:inline">{config.label}</span>
             </button>
           ))}

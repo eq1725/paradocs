@@ -4,6 +4,7 @@ import React from 'react'
 import { PhenomenonCategory } from '@/lib/database.types'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
+import CategoryIcon from '@/components/ui/CategoryIcon'
 
 interface CategoryFilterProps {
   selected: PhenomenonCategory | 'all'
@@ -55,7 +56,7 @@ export default function CategoryFilter({
                 : 'bg-white/10 text-gray-300 hover:bg-white/15 hover:text-white'
             )}
           >
-            <span className="text-lg sm:text-sm">{config.icon}</span>
+            <span className="text-lg sm:text-sm"><CategoryIcon category={key} size={18} /></span>
             <span className="hidden sm:inline">{config.label}</span>
             {showCounts && counts && counts[key] > 0 && (
               <span className="text-xs opacity-60">{counts[key]}</span>

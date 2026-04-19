@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { PhenomenonCategory } from '@/lib/database.types'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
+import CategoryIcon from '@/components/ui/CategoryIcon'
 
 interface SubcategoryFilterProps {
   selectedCategories: PhenomenonCategory[]
@@ -263,7 +264,7 @@ export default function SubcategoryFilter({
                     'text-gray-300'
                   )}
                 >
-                  <span className="text-sm">{config.icon}</span>
+                  <span className="text-sm"><CategoryIcon category={category} size={14} /></span>
                   <span>{config.label}</span>
                   <button
                     onClick={() => removeSelectedCategory(category)}
@@ -348,7 +349,7 @@ export default function SubcategoryFilter({
                       )}
                     >
                       {/* Icon and Label */}
-                      <span className="text-lg flex-shrink-0">{config.icon}</span>
+                      <span className="text-lg flex-shrink-0"><CategoryIcon category={category} size={18} /></span>
                       <span className={classNames('font-medium flex-1', compact ? 'text-sm' : 'text-sm')}>
                         {category_label}
                       </span>

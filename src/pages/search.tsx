@@ -11,6 +11,7 @@ import { CATEGORY_CONFIG } from '@/lib/constants'
 import ReportCard from '@/components/ReportCard'
 import SubcategoryFilter from '@/components/SubcategoryFilter'
 import { classNames } from '@/lib/utils'
+import CategoryIcon from '@/components/ui/CategoryIcon'
 
 interface FulltextResult {
   id: string
@@ -652,7 +653,7 @@ export default function SearchPage() {
                                   : 'bg-white/5 text-gray-300 hover:bg-white/10'
                               )}
                             >
-                              <span>{config.icon}</span>
+                              <CategoryIcon category={cat as PhenomenonCategory} size={14} />
                               <span>{config.label}</span>
                               <span className="text-xs opacity-60">{'(' + count + ')'}</span>
                             </button>
@@ -673,7 +674,7 @@ export default function SearchPage() {
                             className="block glass-card p-4 sm:p-5 border border-white/5 hover:border-primary-500/30 hover:bg-white/[0.02] transition-all group"
                           >
                             <div className="flex items-start gap-3">
-                              <span className="text-xl shrink-0 mt-0.5">{config.icon}</span>
+                              <span className="text-xl shrink-0 mt-0.5"><CategoryIcon category={report.category as PhenomenonCategory} size={20} /></span>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap mb-1">
                                   <span className={'text-xs font-medium px-2 py-0.5 rounded-full ' + config.bgColor + ' ' + config.color}>

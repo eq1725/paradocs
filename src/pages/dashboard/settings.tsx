@@ -30,6 +30,8 @@ import AvatarSelector, { Avatar } from '@/components/AvatarSelector'
 import { supabase } from '@/lib/supabase'
 import { usePersonalization } from '@/lib/hooks/usePersonalization'
 import { CATEGORY_CONFIG, COUNTRIES, getRegionsForCountry } from '@/lib/constants'
+import CategoryIcon from '@/components/ui/CategoryIcon'
+import type { PhenomenonCategory } from '@/lib/database.types'
 import type { PhenomenonCategory } from '@/lib/database.types'
 
 interface UserProfile {
@@ -716,7 +718,7 @@ export default function SettingsPage() {
                           : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600'
                       }`}
                     >
-                      <span className="text-xl">{config.icon}</span>
+                      <span className="text-xl"><CategoryIcon category={key as PhenomenonCategory} size={20} /></span>
                       <div className="flex-1 min-w-0">
                         <span className="font-medium block">{config.label}</span>
                         <span className="text-xs text-gray-500 truncate block">

@@ -1,5 +1,10 @@
 import { PhenomenonCategory, CredibilityLevel, ContentType } from './database.types'
 
+/**
+ * Category configuration. The `icon` field is an emoji fallback for text-only
+ * contexts (emails, data-seed). For UI rendering, use `<CategoryIcon>` from
+ * `@/components/ui/CategoryIcon` which renders the proper SVG icon.
+ */
 export const CATEGORY_CONFIG: Record<PhenomenonCategory, {
   label: string
   color: string

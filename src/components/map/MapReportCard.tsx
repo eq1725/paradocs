@@ -8,7 +8,8 @@ import Link from 'next/link'
 import { X, MapPin, Calendar, Users, ExternalLink, Shield } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { formatDate } from '@/lib/utils'
-import { ReportProperties, CATEGORY_ICONS } from './mapStyles'
+import { ReportProperties } from './mapStyles'
+import { CategoryIcon } from '@/components/ui/CategoryIcon'
 
 interface MapReportCardProps {
   report: ReportProperties
@@ -19,13 +20,14 @@ interface MapReportCardProps {
 export default function MapReportCard({ report, onClose, compact = false }: MapReportCardProps) {
   const catConfig = CATEGORY_CONFIG[report.category]
   // Credibility badge intentionally omitted (QA/QC Apr 14 2026).
-  const icon = CATEGORY_ICONS[report.category]
 
   return (
     <div className="bg-gray-900/95 backdrop-blur-sm border border-gray-700/50 rounded-xl overflow-hidden">
       {/* Header */}
       <div className="flex items-start gap-3 p-4 pb-2">
-        <div className="text-2xl flex-shrink-0 mt-0.5">{icon}</div>
+        <div className={`flex-shrink-0 mt-0.5 ${catConfig?.color || 'text-gray-400'}`}>
+          <CategoryIcon category={report.category} size={28} />
+        </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${catConfig?.bgColor} ${catConfig?.color}`}>

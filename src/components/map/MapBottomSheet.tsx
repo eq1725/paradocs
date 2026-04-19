@@ -6,7 +6,8 @@
  */
 
 import React, { useCallback, useRef, useEffect, useState } from 'react'
-import { MapFilters, ReportProperties, CATEGORY_COLORS, CATEGORY_ICONS } from './mapStyles'
+import { MapFilters, ReportProperties, CATEGORY_COLORS } from './mapStyles'
+import { CategoryIcon } from '@/components/ui/CategoryIcon'
 import { PhenomenonCategory } from '@/lib/database.types'
 import MapReportCard from './MapReportCard'
 import MapFilterPanel from './MapFilterPanel'
@@ -337,14 +338,15 @@ export default function MapBottomSheet({
                   .map(([cat, count]) => {
                     const pct = filteredCount > 0 ? (count / filteredCount) * 100 : 0
                     const color = CATEGORY_COLORS[cat as PhenomenonCategory] || '#9ca3af'
-                    const icon = CATEGORY_ICONS[cat as PhenomenonCategory] || '📍'
                     return (
                       <button
                         key={cat}
                         onClick={() => onFilterChange('category', cat as PhenomenonCategory)}
                         className="w-full flex items-center gap-2 group"
                       >
-                        <span className="text-sm w-5 text-center">{icon}</span>
+                        <span className="w-5 text-center" style={{ color }}>
+                          <CategoryIcon category={cat as PhenomenonCategory} size={16} />
+                        </span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
                             <span className="text-xs text-gray-300 group-hover:text-white transition-colors truncate">

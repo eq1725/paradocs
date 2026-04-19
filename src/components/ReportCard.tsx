@@ -7,6 +7,7 @@ import { Report, PhenomenonType } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG } from '@/lib/constants'
 import { formatRelativeDate, formatDate, truncate, classNames } from '@/lib/utils'
 import SourceBadge from './SourceBadge'
+import CategoryIcon from '@/components/ui/CategoryIcon'
 
 interface ReportCardProps {
   report: Report & {
@@ -31,7 +32,7 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
       <Link href={`/report/${report.slug}`} className="block">
         <div className="glass-card p-4 hover:scale-[1.02] transition-transform">
           <div className="flex items-start gap-3">
-            <span className="text-2xl">{categoryConfig.icon}</span>
+            <span className="text-2xl"><CategoryIcon category={report.category as any} size={24} /></span>
             <div className="flex-1 min-w-0">
               <h3 className="font-medium text-white truncate">{report.title}</h3>
               <div className="flex items-center gap-2 mt-1">
@@ -60,7 +61,7 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
           <div className="aspect-video bg-gradient-to-br from-primary-900/50 to-purple-900/50 relative">
             <div className="absolute inset-0 flex items-center justify-center">
               <span className="text-7xl opacity-50 group-hover:scale-110 transition-transform">
-                {categoryConfig.icon}
+                <CategoryIcon category={report.category as any} size={72} />
               </span>
             </div>
             {report.featured && (
@@ -139,7 +140,7 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
             'w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0',
             categoryConfig.bgColor
           )}>
-            {categoryConfig.icon}
+            <CategoryIcon category={report.category as any} size={24} />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">

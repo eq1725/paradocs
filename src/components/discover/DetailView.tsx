@@ -13,6 +13,8 @@ import React from 'react'
 import Link from 'next/link'
 import { Constellation } from './Constellation'
 import { CATEGORY_CONFIG } from '@/lib/constants'
+import CategoryIcon from '@/components/ui/CategoryIcon'
+import type { PhenomenonCategory } from '@/lib/database.types'
 import type { RabbitHoleCard } from './RabbitHolePanel'
 
 export function DetailView(props: {
@@ -32,7 +34,8 @@ export function DetailView(props: {
       {/* Header */}
       <div className="px-5 pb-3 flex items-center justify-between flex-shrink-0 border-b border-white/5">
         <span className="text-[10px] font-sans font-semibold uppercase tracking-wider" style={{ color: card.categoryColor }}>
-          {(catConfig?.icon || '') + ' ' + (catConfig?.label || card.category) + ' \u00B7 ' + card.year}
+          <CategoryIcon category={card.category as PhenomenonCategory} size={12} />
+          {' ' + (catConfig?.label || card.category) + ' \u00B7 ' + card.year}
         </span>
         <button
           onClick={props.onBack}

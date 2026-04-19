@@ -2,6 +2,8 @@
 
 import React, { useState } from 'react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
+import CategoryIcon from '@/components/ui/CategoryIcon'
+import { PhenomenonCategory } from '@/lib/database.types'
 
 interface ImageWithFallbackProps {
   src?: string | null
@@ -26,7 +28,6 @@ export default function ImageWithFallback({
     const config = category
       ? CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG]
       : null
-    const icon = config?.icon || '🔮'
     const color = config?.color || '#7c8ff8'
 
     return (
@@ -37,7 +38,9 @@ export default function ImageWithFallback({
           border: `1px solid ${color}20`,
         }}
       >
-        <span className="text-3xl opacity-60">{icon}</span>
+        <span className="text-3xl opacity-60">
+          <CategoryIcon category={(category || 'combination') as PhenomenonCategory} size={32} />
+        </span>
       </div>
     )
   }

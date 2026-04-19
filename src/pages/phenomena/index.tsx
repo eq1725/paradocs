@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { Search, Grid3X3, List, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, AlertTriangle, MapPin, Tag, ArrowUp, X } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
+import CategoryIcon from '@/components/ui/CategoryIcon'
+import type { PhenomenonCategory } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
 
 interface QuickFacts {
@@ -628,7 +630,7 @@ export default function PhenomenaPage() {
                               : 'bg-gray-800/80 text-gray-400 hover:bg-gray-700 hover:text-white'
                           )}
                         >
-                          <span className="text-sm">{config?.icon}</span>
+                          <span className="text-sm"><CategoryIcon category={category as PhenomenonCategory} size={14} /></span>
                           <span className="hidden sm:inline">{config?.label}</span>
                           <span className={classNames(
                             'px-1.5 py-0.5 rounded-full text-[10px] leading-none',
@@ -737,7 +739,7 @@ export default function PhenomenaPage() {
                       className="w-full flex items-center justify-between gap-3 px-5 py-4 bg-gray-900/80 hover:bg-gray-800/80 transition-colors cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="text-2xl">{config?.icon}</span>
+                        <span className="text-2xl"><CategoryIcon category={category as PhenomenonCategory} size={24} /></span>
                         <h2 className="text-xl font-bold text-white">{config?.label}</h2>
                         <span className="text-gray-500 text-sm">({items.length})</span>
                       </div>
@@ -930,7 +932,9 @@ function PhenomenonCard({ phenomenon }: { phenomenon: Phenomenon }) {
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center gap-2">
               <span className="text-5xl opacity-40 group-hover:opacity-60 group-hover:scale-110 transition-all duration-300">
-                {phenomenon.icon || config?.icon}
+                {phenomenon.icon
+                  ? phenomenon.icon
+                  : <CategoryIcon category={phenomenon.category as PhenomenonCategory} size={48} />}
               </span>
               <span className="text-xs text-gray-500 uppercase tracking-widest font-medium">
                 {config?.label}
@@ -1009,7 +1013,11 @@ function PhenomenonListItem({ phenomenon }: { phenomenon: Phenomenon }) {
       <div className="group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-purple-500/50 transition-all">
         {/* Icon */}
         <div className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-gray-800 rounded-lg shrink-0">
-          <span className="text-xl sm:text-2xl">{phenomenon.icon || config?.icon}</span>
+          <span className="text-xl sm:text-2xl">
+            {phenomenon.icon
+              ? phenomenon.icon
+              : <CategoryIcon category={phenomenon.category as PhenomenonCategory} size={24} />}
+          </span>
         </div>
 
         {/* Content */}

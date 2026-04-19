@@ -30,6 +30,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonType, PhenomenonCategory, CredibilityLevel, ContentType } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CONTENT_TYPE_CONFIG, COUNTRIES } from '@/lib/constants'
+import CategoryIcon from '@/components/ui/CategoryIcon'
 import CategoryFilter from '@/components/CategoryFilter'
 import SubcategoryFilter from '@/components/SubcategoryFilter'
 import ReportCard from '@/components/ReportCard'
@@ -37,6 +38,7 @@ import { classNames, formatRelativeDate } from '@/lib/utils'
 import AskTheUnknown from '@/components/AskTheUnknown'
 import UnifiedOnboarding, { hasCompletedUnifiedOnboarding } from '@/components/UnifiedOnboarding'
 import MapSpotlightRow from '@/components/map/MapSpotlightRow'
+import { CategoryIcon } from '@/components/ui/CategoryIcon'
 // Map imports — dynamic to avoid SSR
 import { useMapState } from '@/components/map/useMapState'
 import { useViewportData } from '@/components/map/useViewportData'
@@ -1195,7 +1197,9 @@ function ExploreBrowseMode() {
           </button>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">{(CATEGORY_CONFIG as any)[selectedCategoryForPhenomena]?.icon || '🔮'}</span>
+              <span className={(CATEGORY_CONFIG as any)[selectedCategoryForPhenomena]?.color || 'text-gray-400'}>
+                <CategoryIcon category={selectedCategoryForPhenomena as PhenomenonCategory} size={28} />
+              </span>
               <div>
                 <h2 className="text-xl font-bold text-white">{(CATEGORY_CONFIG as any)[selectedCategoryForPhenomena]?.label || selectedCategoryForPhenomena}</h2>
                 <p className="text-sm text-gray-500">{phenomena.length} phenomena</p>
@@ -1228,7 +1232,7 @@ function ExploreBrowseMode() {
                       </div>
                     ) : (
                       <div className={classNames('relative h-36 sm:h-44 flex items-center justify-center bg-gradient-to-br', CATEGORY_GRADIENTS[item.category] || 'from-gray-900 to-gray-950')}>
-                        <span className="text-4xl opacity-40 group-hover/card:scale-110 transition-transform">{item.icon || config.icon}</span>
+                        <span className="text-4xl opacity-40 group-hover/card:scale-110 transition-transform"><CategoryIcon category={item.category as PhenomenonCategory} size={40} /></span>
                         <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/30 to-transparent" />
                       </div>
                     )}
@@ -1585,7 +1589,7 @@ function ExploreSearchMode() {
                   : filters.categories.concat([catKey as PhenomenonCategory])
                 setFilters({ ...filters, categories: newCats })
               }} className={classNames('px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5', isActive ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30' : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10')}>
-                {config.icon} {config.label} <span className="text-gray-600">({count})</span>
+                <CategoryIcon category={cat as PhenomenonCategory} size={14} /> {config.label} <span className="text-gray-600">({count})</span>
               </button>
             )
           })}
@@ -1645,7 +1649,7 @@ function ExploreSearchMode() {
             return (
               <Link key={report.id} href={'/report/' + report.slug} className="block glass-card p-4 hover:border-primary-500/30 transition-all group">
                 <div className="flex items-start gap-3">
-                  <div className={classNames('w-10 h-10 rounded-lg flex items-center justify-center text-xl flex-shrink-0', config.bgColor)}>{config.icon}</div>
+                  <div className={classNames('w-10 h-10 rounded-lg flex items-center justify-center text-xl flex-shrink-0', config.bgColor)}><CategoryIcon category={report.category as PhenomenonCategory} size={20} /></div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className={classNames('text-xs px-2 py-0.5 rounded-full font-medium', config.bgColor, config.color)}>{config.label}</span>

@@ -33,20 +33,22 @@ import { supabase } from '@/lib/supabase'
 import { renderMarkdown, normalizeWikilinkKey, extractWikilinkTargets } from '@/lib/markdown-lite'
 import NoteEditorModal from './NoteEditorModal'
 import ReaderView from './ReaderView'
+import { CategoryIcon } from '@/components/ui/CategoryIcon'
+import type { PhenomenonCategory } from '@/lib/database.types'
 
 // Category display config
-const CATEGORY_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
-  ufos_aliens: { label: 'UFOs & Aliens', icon: '🛸', color: 'text-green-400' },
-  cryptids: { label: 'Cryptids', icon: '🦶', color: 'text-amber-400' },
-  ghosts_hauntings: { label: 'Ghosts & Hauntings', icon: '👻', color: 'text-purple-400' },
-  psychic_phenomena: { label: 'Psychic Phenomena', icon: '🔮', color: 'text-blue-400' },
-  consciousness_practices: { label: 'Consciousness', icon: '🧘', color: 'text-violet-400' },
-  psychological_experiences: { label: 'Psychological', icon: '🧠', color: 'text-pink-400' },
-  biological_factors: { label: 'Biological', icon: '🧬', color: 'text-teal-400' },
-  perception_sensory: { label: 'Perception', icon: '👁️', color: 'text-cyan-400' },
-  religion_mythology: { label: 'Religion & Mythology', icon: '⛩️', color: 'text-orange-400' },
-  esoteric_practices: { label: 'Esoteric', icon: '✨', color: 'text-indigo-400' },
-  combination: { label: 'Multi-Category', icon: '🌀', color: 'text-gray-400' },
+const CATEGORY_CONFIG: Record<string, { label: string; color: string }> = {
+  ufos_aliens: { label: 'UFOs & Aliens', color: 'text-green-400' },
+  cryptids: { label: 'Cryptids', color: 'text-amber-400' },
+  ghosts_hauntings: { label: 'Ghosts & Hauntings', color: 'text-purple-400' },
+  psychic_phenomena: { label: 'Psychic Phenomena', color: 'text-blue-400' },
+  consciousness_practices: { label: 'Consciousness', color: 'text-violet-400' },
+  psychological_experiences: { label: 'Psychological', color: 'text-pink-400' },
+  biological_factors: { label: 'Biological', color: 'text-teal-400' },
+  perception_sensory: { label: 'Perception', color: 'text-cyan-400' },
+  religion_mythology: { label: 'Religion & Mythology', color: 'text-orange-400' },
+  esoteric_practices: { label: 'Esoteric', color: 'text-indigo-400' },
+  combination: { label: 'Multi-Category', color: 'text-gray-400' },
 }
 
 const VERDICT_CONFIG: Record<string, { label: string; icon: string; color: string; bgColor: string }> = {
@@ -172,8 +174,8 @@ export default function NodeDetailPanel({
           <h2 className="text-sm font-semibold text-white leading-tight line-clamp-2">
             {entry.name || 'Untitled source'}
           </h2>
-          <div className="flex items-center gap-1 mt-1">
-            <span className="text-xs">{cat.icon}</span>
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className={cat.color}><CategoryIcon category={entry.category as PhenomenonCategory} size={13} /></span>
             <span className={`text-[10px] font-medium ${cat.color}`}>{cat.label}</span>
           </div>
         </div>
@@ -356,7 +358,7 @@ export default function NodeDetailPanel({
                     onClick={() => onEntryClick(conn.id)}
                     className="w-full flex items-center gap-2 px-2.5 py-2 bg-gray-800/50 hover:bg-gray-800 rounded-lg text-left transition-colors group"
                   >
-                    <span className="text-sm">{connCat.icon}</span>
+                    <span className={`${connCat.color}`}><CategoryIcon category={conn.category as PhenomenonCategory} size={16} /></span>
                     <div className="min-w-0 flex-1">
                       <div className="text-gray-200 text-xs font-medium truncate group-hover:text-white transition-colors">
                         {conn.name}
@@ -403,7 +405,7 @@ export default function NodeDetailPanel({
                       onClick={() => onEntryClick(otherId)}
                       className="w-full flex items-start gap-2 px-2.5 py-2 bg-cyan-500/5 border border-cyan-500/15 hover:bg-cyan-500/10 hover:border-cyan-500/30 rounded-lg text-left transition-colors group"
                     >
-                      <span className="text-sm mt-0.5">{otherCat.icon}</span>
+                      <span className={`mt-0.5 ${otherCat.color}`}><CategoryIcon category={other.category as PhenomenonCategory} size={16} /></span>
                       <div className="min-w-0 flex-1">
                         <div className="text-gray-200 text-xs font-medium truncate group-hover:text-white transition-colors">
                           {other.name}
@@ -443,7 +445,7 @@ export default function NodeDetailPanel({
                     onClick={() => onEntryClick(bl.id)}
                     className="w-full flex items-center gap-2 px-2.5 py-2 bg-primary-500/5 border border-primary-500/15 hover:bg-primary-500/10 hover:border-primary-500/30 rounded-lg text-left transition-colors group"
                   >
-                    <span className="text-sm">{blCat.icon}</span>
+                    <span className={blCat.color}><CategoryIcon category={bl.category as PhenomenonCategory} size={16} /></span>
                     <div className="min-w-0 flex-1">
                       <div className="text-gray-200 text-xs font-medium truncate group-hover:text-white transition-colors">
                         {bl.name}

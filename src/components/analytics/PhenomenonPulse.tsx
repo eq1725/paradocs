@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import type { PhenomenonCategory } from '@/lib/database.types'
+import CategoryIcon from '@/components/ui/CategoryIcon'
 
 // Hex colors for use in inline styles
 const CATEGORY_COLORS: Record<PhenomenonCategory, string> = {
@@ -166,7 +167,7 @@ export default function PhenomenonPulse({
                 key={cat.category}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10"
               >
-                <span className="text-base">{config?.icon || '📋'}</span>
+                <span className="text-base"><CategoryIcon category={cat.category as PhenomenonCategory} size={16} /></span>
                 <span className="text-sm text-gray-300">{config?.label || cat.category}</span>
                 <span className="text-xs text-gray-500">({cat.count})</span>
                 {i === 0 && <span className="text-xs text-amber-400">🔥</span>}
@@ -210,7 +211,7 @@ export default function PhenomenonPulse({
                     className="w-8 h-8 rounded-lg flex items-center justify-center text-base shrink-0"
                     style={{ backgroundColor: `${CATEGORY_COLORS[report.category]}20` }}
                   >
-                    {config?.icon || '📋'}
+                    <CategoryIcon category={report.category as PhenomenonCategory} size={14} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm font-medium text-white truncate">

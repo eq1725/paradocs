@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import type { PhenomenonCategory } from '@/lib/database.types'
+import CategoryIcon from '@/components/ui/CategoryIcon'
 
 interface Pattern {
   id: string
@@ -152,7 +153,7 @@ export default function EmergingPatternsAlert({ patterns }: EmergingPatternsAler
                             key={cat}
                             className="text-xs px-1.5 py-0.5 rounded bg-white/10 text-gray-300"
                           >
-                            {config?.icon} {config?.label || cat}
+                            <CategoryIcon category={cat as PhenomenonCategory} size={12} /> {config?.label || cat}
                           </span>
                         )
                       })}

@@ -22,6 +22,8 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { CATEGORY_CONFIG } from '@/lib/constants'
+import CategoryIcon from '@/components/ui/CategoryIcon'
+import type { PhenomenonCategory } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
 import { Constellation } from './Constellation'
 import { deriveCaseProfile, nderfToCaseProfile, type CaseProfile } from '@/lib/caseProfile'
@@ -512,7 +514,7 @@ export function PhenomenonCard(props: {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
-            {(config?.icon || '') + ' ' + badgeParts.join(' \u00B7 ')}
+            <CategoryIcon category={item.category as PhenomenonCategory} size={12} />{' ' + badgeParts.join(' \u00B7 ')}
           </span>
           {item.report_count > 20 && (
             <span className="text-[9px] bg-primary-500/15 text-primary-400 px-2 py-0.5 rounded-full font-medium">
@@ -692,7 +694,7 @@ export function TextReportCard(props: {
     <div className={'flex flex-col gap-4 md:gap-5 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}>
       {/* Case type badge */}
       <span className="text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
-        {(config?.icon || '') + ' ' + badgeParts.join(' \u00B7 ')}
+        <CategoryIcon category={item.category as PhenomenonCategory} size={12} />{' ' + badgeParts.join(' \u00B7 ')}
       </span>
 
       {/* Meta strip: location \u00B7 date \u00B7 source \u00B7 phenomenon */}
@@ -824,7 +826,7 @@ export function MediaReportCard(props: {
       {/* Case type badge + evidence marker */}
       <div className="flex items-center justify-between">
         <span className="text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
-          {(config?.icon || '') + ' ' + badgeParts.join(' \u00B7 ')}
+          <CategoryIcon category={item.category as PhenomenonCategory} size={12} />{' ' + badgeParts.join(' \u00B7 ')}
         </span>
         <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-sans font-semibold uppercase tracking-wider">
           Evidence

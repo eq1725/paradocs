@@ -27,6 +27,8 @@ import {
   Globe2,
 } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
+import CategoryIcon from '@/components/ui/CategoryIcon'
+import type { PhenomenonCategory } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
 import AskTheUnknown from '@/components/AskTheUnknown'
 import PhenomenonMiniMap from '@/components/PhenomenonMiniMap'
@@ -329,7 +331,11 @@ export default function PhenomenonPage() {
                     />
                   </>
                 ) : (
-                  <span className="text-5xl sm:text-7xl">{phenomenon.icon || config?.icon}</span>
+                  <span className="text-5xl sm:text-7xl">
+                    {phenomenon.icon
+                      ? phenomenon.icon
+                      : <CategoryIcon category={phenomenon.category as PhenomenonCategory} size={72} />}
+                  </span>
                 )}
               </div>
 
@@ -477,7 +483,7 @@ export default function PhenomenonPage() {
                     <div>
                       <dt className="text-sm text-gray-400">Category</dt>
                       <dd className="text-white flex items-center gap-2 mt-1">
-                        <span>{config?.icon}</span>
+                        <CategoryIcon category={phenomenon.category as PhenomenonCategory} size={16} />
                         {config?.label}
                       </dd>
                     </div>

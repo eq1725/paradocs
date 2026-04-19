@@ -23,6 +23,8 @@ import { CONSTELLATION_NODES, type Insight } from '@/lib/constellation-data'
 import { classNames } from '@/lib/utils'
 import { renderNotePreview, normalizeWikilinkKey, type WikilinkTarget } from '@/lib/markdown-lite'
 import PatternCard from './PatternCard'
+import { CategoryIcon } from '@/components/ui/CategoryIcon'
+import type { PhenomenonCategory } from '@/lib/database.types'
 
 const VERDICT_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
   compelling:   { label: 'Compelling',   icon: '✦', color: 'text-amber-400', bg: 'bg-amber-500/15' },
@@ -31,18 +33,18 @@ const VERDICT_CONFIG: Record<string, { label: string; icon: string; color: strin
   needs_info:   { label: 'Needs info',   icon: '?', color: 'text-purple-400',bg: 'bg-purple-500/15' },
 }
 
-const CATEGORY_CONFIG: Record<string, { label: string; icon: string }> = {
-  ufos_aliens: { label: 'UFOs', icon: '🛸' },
-  cryptids: { label: 'Cryptids', icon: '🦶' },
-  ghosts_hauntings: { label: 'Ghosts', icon: '👻' },
-  psychic_phenomena: { label: 'Psychic', icon: '🔮' },
-  consciousness_practices: { label: 'Consciousness', icon: '🧘' },
-  psychological_experiences: { label: 'Psychological', icon: '🧠' },
-  biological_factors: { label: 'Biological', icon: '🧬' },
-  perception_sensory: { label: 'Perception', icon: '👁️' },
-  religion_mythology: { label: 'Religion', icon: '⚡' },
-  esoteric_practices: { label: 'Esoteric', icon: '✨' },
-  combination: { label: 'Multi', icon: '🔄' },
+const CATEGORY_LABELS: Record<string, string> = {
+  ufos_aliens: 'UFOs',
+  cryptids: 'Cryptids',
+  ghosts_hauntings: 'Ghosts',
+  psychic_phenomena: 'Psychic',
+  consciousness_practices: 'Consciousness',
+  psychological_experiences: 'Psychological',
+  biological_factors: 'Biological',
+  perception_sensory: 'Perception',
+  religion_mythology: 'Religion',
+  esoteric_practices: 'Esoteric',
+  combination: 'Multi',
 }
 
 /**
@@ -221,7 +223,7 @@ interface EntryCardProps {
 
 function EntryCard({ entry, viewMode, isSelected, patternCount, wikilinkMap, onSelect }: EntryCardProps) {
   const verdict = VERDICT_CONFIG[entry.verdict] || VERDICT_CONFIG.needs_info
-  const cat = CATEGORY_CONFIG[entry.category] || CATEGORY_CONFIG.combination
+  const catLabel = CATEGORY_LABELS[entry.category] || CATEGORY_LABELS.combination
   const isExternal = !!entry.sourceType && entry.sourceType !== 'paradocs_report'
   const communityCount = typeof entry.communitySaveCount === 'number' ? entry.communitySaveCount : 0
 
@@ -236,7 +238,7 @@ function EntryCard({ entry, viewMode, isSelected, patternCount, wikilinkMap, onS
         )}
       >
         <span className={classNames('w-1.5 h-6 rounded-sm flex-shrink-0', verdict.bg)} aria-hidden />
-        <span className="text-base flex-shrink-0" aria-hidden>{cat.icon}</span>
+        <span className="flex-shrink-0" aria-hidden><CategoryIcon category={entry.category as PhenomenonCategory} size={18} /></span>
         <span className="flex-1 min-w-0 text-sm text-white font-medium truncate">
           {entry.name || 'Untitled source'}
         </span>
@@ -281,7 +283,7 @@ function EntryCard({ entry, viewMode, isSelected, patternCount, wikilinkMap, onS
               onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
             />
           ) : (
-            <CategoryHero category={entry.category} icon={cat.icon} dense />
+            <CategoryHero category={entry.category} dense />
           )}
         </div>
         {/* Body */}
@@ -350,15 +352,14 @@ function EntryCard({ entry, viewMode, isSelected, patternCount, wikilinkMap, onS
               'text-[10px] font-semibold px-1.5 py-0.5 rounded backdrop-blur-sm',
               isExternal ? 'bg-white/10 text-white' : 'bg-primary-600/80 text-white'
             )}>
-              {isExternal ? (entry.sourcePlatform || 'External') : (cat.icon + ' ' + cat.label)}
+              {isExternal ? (entry.sourcePlatform || 'External') : catLabel}
             </span>
           </div>
         </div>
       ) : (
         <CategoryHero
           category={entry.category}
-          icon={cat.icon}
-          chip={isExternal ? (entry.sourcePlatform || 'External') : cat.label}
+          chip={isExternal ? (entry.sourcePlatform || 'External') : catLabel}
           chipStyle={isExternal ? 'neutral' : 'primary'}
         />
       )}
@@ -443,13 +444,11 @@ function EntryCard({ entry, viewMode, isSelected, patternCount, wikilinkMap, onS
 
 function CategoryHero({
   category,
-  icon,
   chip,
   chipStyle = 'primary',
   dense,
 }: {
   category: string
-  icon: string
   /** Optional label chip rendered at top-left (e.g. category label, platform name) */
   chip?: string
   chipStyle?: 'primary' | 'neutral'
@@ -482,16 +481,16 @@ function CategoryHero({
           backgroundSize: '18px 18px',
         }}
       />
-      {/* Big category glyph, centered */}
+      {/* Big category icon, centered */}
       <div className="absolute inset-0 flex items-center justify-center">
         <span
           className={classNames(
-            'drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]',
-            dense ? 'text-4xl opacity-70' : 'text-6xl opacity-70',
+            'drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)] text-white',
+            dense ? 'opacity-70' : 'opacity-70',
           )}
           aria-hidden
         >
-          {icon}
+          <CategoryIcon category={category as PhenomenonCategory} size={dense ? 36 : 56} />
         </span>
       </div>
       {/* Optional corner chip */}

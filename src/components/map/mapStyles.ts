@@ -44,6 +44,10 @@ export const CATEGORY_COLORS: Record<PhenomenonCategory, string> = {
   combination: '#9ca3af',       // gray-400
 }
 
+/**
+ * @deprecated Use `<CategoryIcon>` from `@/components/ui/CategoryIcon` for UI.
+ * Emoji fallbacks kept for map marker text labels and non-React contexts.
+ */
 export const CATEGORY_ICONS: Record<PhenomenonCategory, string> = {
   ufos_aliens: '🛸',
   cryptids: '🦶',
