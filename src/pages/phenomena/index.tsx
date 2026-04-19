@@ -7,6 +7,7 @@ import { useRouter } from 'next/router'
 import { Search, Grid3X3, List, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, AlertTriangle, MapPin, Tag, ArrowUp, X } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
+import PhenomenonIcon from '@/components/ui/PhenomenonIcon'
 import type { PhenomenonCategory } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
 
@@ -932,9 +933,7 @@ function PhenomenonCard({ phenomenon }: { phenomenon: Phenomenon }) {
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center gap-2">
               <span className="text-5xl opacity-40 group-hover:opacity-60 group-hover:scale-110 transition-all duration-300">
-                {phenomenon.icon
-                  ? phenomenon.icon
-                  : <CategoryIcon category={phenomenon.category as PhenomenonCategory} size={48} />}
+                <PhenomenonIcon slug={phenomenon.slug} fallbackEmoji={phenomenon.icon} category={phenomenon.category} size={56} />
               </span>
               <span className="text-xs text-gray-500 uppercase tracking-widest font-medium">
                 {config?.label}
@@ -1014,9 +1013,7 @@ function PhenomenonListItem({ phenomenon }: { phenomenon: Phenomenon }) {
         {/* Icon */}
         <div className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-gray-800 rounded-lg shrink-0">
           <span className="text-xl sm:text-2xl">
-            {phenomenon.icon
-              ? phenomenon.icon
-              : <CategoryIcon category={phenomenon.category as PhenomenonCategory} size={24} />}
+            <PhenomenonIcon slug={phenomenon.slug} fallbackEmoji={phenomenon.icon} category={phenomenon.category} size={24} />
           </span>
         </div>
 

@@ -11,7 +11,7 @@ import {
   Award, AlertTriangle, Check, ChevronRight, ChevronDown
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { ReportWithDetails, CommentWithUser } from '@/lib/database.types'
+import { ReportWithDetails, CommentWithUser, PhenomenonCategory } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG, CONTENT_TYPE_CONFIG } from '@/lib/constants'
 import type { ContentType } from '@/lib/database.types'
 import { formatDate, formatRelativeDate, classNames, estimateReadingTime } from '@/lib/utils'
@@ -29,6 +29,7 @@ import SourceAttribution from '@/components/reports/SourceAttribution'
 import FeaturedMediaCard from '@/components/reports/FeaturedMediaCard'
 import MediaMentionBanner from '@/components/reports/MediaMentionBanner'
 import { SHOW_RESEARCH_PANELS } from '@/lib/features'
+import CategoryIcon from '@/components/ui/CategoryIcon'
 import { shouldShowEnvironmentalContext } from '@/lib/reports/environmental-visibility'
 const LogToConstellation = dynamic(
   () => import('@/components/LogToConstellation'),
@@ -799,7 +800,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                 categoryConfig.color,
                 'border-current/30'
               )}>
-                {categoryConfig.icon} {report.phenomenon_type.name}
+                <CategoryIcon category={report.category as PhenomenonCategory} size={14} className="inline-block mr-1 align-text-bottom" /> {report.phenomenon_type.name}
               </span>
             )}
           </div>

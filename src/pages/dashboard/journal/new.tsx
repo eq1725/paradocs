@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { PhenomenonCategory } from '@/lib/database.types'
+import CategoryIcon from '@/components/ui/CategoryIcon'
 
 interface LinkedReport {
   id: string
@@ -270,7 +271,7 @@ export default function NewJournalEntryPage() {
                   key={report.id}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-300"
                 >
-                  {report.category && CATEGORY_CONFIG[report.category as PhenomenonCategory]?.icon}
+                  {report.category && <CategoryIcon category={report.category as PhenomenonCategory} size={14} />}
                   <span className="truncate max-w-[200px]">{report.title}</span>
                   <button
                     onClick={() => removeLinkedReport(report.id)}
@@ -382,7 +383,7 @@ export default function NewJournalEntryPage() {
                       : 'border-gray-800 bg-gray-900 text-gray-500 hover:text-gray-300 hover:border-gray-700'
                   )}
                 >
-                  {config.icon} {config.label}
+                  <CategoryIcon category={key} size={12} className="inline-block mr-1" /> {config.label}
                 </button>
               ))}
           </div>

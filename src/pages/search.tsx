@@ -12,6 +12,7 @@ import ReportCard from '@/components/ReportCard'
 import SubcategoryFilter from '@/components/SubcategoryFilter'
 import { classNames } from '@/lib/utils'
 import CategoryIcon from '@/components/ui/CategoryIcon'
+import PhenomenonIcon from '@/components/ui/PhenomenonIcon'
 
 interface FulltextResult {
   id: string
@@ -45,6 +46,8 @@ interface AutocompleteItem {
   label: string
   query: string
   icon: string
+  slug?: string
+  category?: string
 }
 
 export default function SearchPage() {
@@ -125,7 +128,9 @@ export default function SearchPage() {
               type: 'phenomenon',
               label: p.name,
               query: p.name,
-              icon: config ? config.icon : '\u2728'
+              icon: config ? config.icon : '\u2728',
+              slug: p.slug,
+              category: p.category
             })
           })
         }
@@ -414,7 +419,7 @@ export default function SearchPage() {
                         onClick={function() { handleAutocompleteSelect(item) }}
                         className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/5 transition-colors border-b border-white/5 last:border-b-0"
                       >
-                        <span className="text-lg shrink-0">{item.icon}</span>
+                        <span className="text-lg shrink-0">{item.slug ? <PhenomenonIcon slug={item.slug} fallbackEmoji={item.icon} category={item.category} size={20} /> : item.icon}</span>
                         <div className="flex-1 min-w-0">
                           <span className="text-sm text-white block truncate">{item.label}</span>
                           {item.type === 'phenomenon' && (

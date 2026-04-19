@@ -14,6 +14,7 @@ import { PhenomenonCategory, PhenomenonType } from '@/lib/database.types'
 import { CATEGORY_CONFIG, COUNTRIES, US_STATES } from '@/lib/constants'
 import { generateSlug, classNames } from '@/lib/utils'
 import CategoryIcon from '@/components/ui/CategoryIcon'
+import PhenomenonIcon from '@/components/ui/PhenomenonIcon'
 
 type Step = 1 | 2 | 3 | 4
 
@@ -427,7 +428,7 @@ export default function SubmitPage() {
                                         : 'bg-white/5 text-gray-400 border border-white/10 hover:border-white/20'
                                     )}
                                   >
-                                    {type.icon} {type.name}
+                                    <PhenomenonIcon slug={type.slug || type.name.toLowerCase().replace(/\s+/g, '-')} fallbackEmoji={type.icon} category={catKey} size={14} /> {type.name}
                                   </button>
                                 )
                               })}

@@ -19,6 +19,7 @@ import { supabase } from '@/lib/supabase'
 import { classNames, formatDate } from '@/lib/utils'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { PhenomenonCategory } from '@/lib/database.types'
+import CategoryIcon from '@/components/ui/CategoryIcon'
 
 interface LinkedReportDisplay {
   id: string
@@ -348,7 +349,7 @@ export default function JournalEntryPage() {
                     href={`/report/${report.slug}`}
                     className="flex items-center gap-2 p-2.5 bg-gray-800/50 hover:bg-gray-800 rounded-lg transition-colors group"
                   >
-                    <span>{CATEGORY_CONFIG[report.category as PhenomenonCategory]?.icon || '📄'}</span>
+                    <CategoryIcon category={report.category as PhenomenonCategory} size={16} />
                     <span className="text-gray-300 text-sm group-hover:text-white transition-colors truncate">
                       {report.title}
                     </span>
@@ -389,7 +390,7 @@ export default function JournalEntryPage() {
                       key={cat}
                       className="px-2.5 py-1 bg-gray-800 rounded-full text-xs text-gray-400"
                     >
-                      {config.icon} {config.label}
+                      <CategoryIcon category={cat as PhenomenonCategory} size={12} className="inline-block mr-1" /> {config.label}
                     </span>
                   ) : null
                 })}

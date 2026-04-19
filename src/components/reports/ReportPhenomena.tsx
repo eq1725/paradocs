@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Plus, X, Sparkles, ChevronRight, Check } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
+import PhenomenonIcon from '@/components/ui/PhenomenonIcon'
 import type { PhenomenonCategory } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
 
@@ -179,7 +180,7 @@ export default function ReportPhenomena({ reportSlug, isAuthenticated = false }:
                 key={phenomenon.id}
                 className="group flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition-colors"
               >
-                <span className="text-2xl">{phenomenon.icon ? phenomenon.icon : <CategoryIcon category={phenomenon.category as PhenomenonCategory} size={24} />}</span>
+                <PhenomenonIcon slug={phenomenon.slug} fallbackEmoji={phenomenon.icon} category={phenomenon.category} size={28} />
                 <div className="flex-1 min-w-0">
                   <Link
                     href={`/phenomena/${phenomenon.slug}`}
@@ -255,7 +256,7 @@ export default function ReportPhenomena({ reportSlug, isAuthenticated = false }:
                         onClick={() => tagPhenomenon(p.id)}
                         className="w-full flex items-center gap-3 p-3 hover:bg-gray-800 rounded-lg transition-colors text-left"
                       >
-                        <span className="text-2xl">{p.icon ? p.icon : <CategoryIcon category={p.category as PhenomenonCategory} size={24} />}</span>
+                        <PhenomenonIcon slug={p.slug} fallbackEmoji={p.icon} category={p.category} size={28} />
                         <div className="flex-1 min-w-0">
                           <span className="text-white font-medium block">{p.name}</span>
                           <span className="text-xs text-gray-400">{config?.label}</span>

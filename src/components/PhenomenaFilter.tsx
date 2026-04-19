@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { BookOpen, ChevronDown, X, Search } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
+import PhenomenonIcon from '@/components/ui/PhenomenonIcon'
 
 interface Phenomenon {
   id: string
@@ -76,7 +77,7 @@ export default function PhenomenaFilter({
         <span className="flex items-center gap-2 truncate">
           {selectedPhenomenon ? (
             <>
-              <span>{selectedPhenomenon.icon || '📚'}</span>
+              <PhenomenonIcon slug={selectedPhenomenon.slug} fallbackEmoji={selectedPhenomenon.icon} category={selectedPhenomenon.category} size={16} />
               <span>{selectedPhenomenon.name}</span>
             </>
           ) : (
@@ -159,7 +160,7 @@ export default function PhenomenaFilter({
                     )}
                   >
                     <span className="flex items-center gap-2 truncate">
-                      <span>{phenomenon.icon || '📚'}</span>
+                      <PhenomenonIcon slug={phenomenon.slug} fallbackEmoji={phenomenon.icon} category={phenomenon.category} size={16} />
                       <span className="text-white">{phenomenon.name}</span>
                     </span>
                     <span className="text-xs text-gray-500 flex-shrink-0">

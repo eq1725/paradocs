@@ -25,6 +25,8 @@ import {
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { supabase } from '@/lib/supabase'
+import CategoryIcon from '@/components/ui/CategoryIcon'
+import { PhenomenonCategory } from '@/lib/database.types'
 
 // ============================================
 // TYPES
@@ -230,7 +232,7 @@ export default function DigestsPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <p className="text-purple-400 font-medium truncate">
-                          {catConfig.icon} {report.title}
+                          <CategoryIcon category={report.category as PhenomenonCategory} size={16} className="inline-block mr-1 align-text-bottom" /> {report.title}
                         </p>
                         <p className="text-gray-500 text-sm mt-1">
                           {catConfig.label}

@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
+import PhenomenonIcon from '@/components/ui/PhenomenonIcon'
 import type { PhenomenonCategory } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
 import AskTheUnknown from '@/components/AskTheUnknown'
@@ -332,9 +333,7 @@ export default function PhenomenonPage() {
                   </>
                 ) : (
                   <span className="text-5xl sm:text-7xl">
-                    {phenomenon.icon
-                      ? phenomenon.icon
-                      : <CategoryIcon category={phenomenon.category as PhenomenonCategory} size={72} />}
+                    <PhenomenonIcon slug={phenomenon.slug} fallbackEmoji={phenomenon.icon} category={phenomenon.category} size={72} />
                   </span>
                 )}
               </div>

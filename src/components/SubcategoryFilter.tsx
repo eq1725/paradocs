@@ -7,6 +7,7 @@ import { PhenomenonCategory } from '@/lib/database.types'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
 import CategoryIcon from '@/components/ui/CategoryIcon'
+import PhenomenonIcon from '@/components/ui/PhenomenonIcon'
 
 interface SubcategoryFilterProps {
   selectedCategories: PhenomenonCategory[]
@@ -291,7 +292,7 @@ export default function SubcategoryFilter({
                     'text-primary-300'
                   )}
                 >
-                  <span className="text-sm">{phenomenon.icon}</span>
+                  <PhenomenonIcon slug={phenomenon.name.toLowerCase().replace(/\s+/g, '-')} fallbackEmoji={phenomenon.icon} size={14} />
                   <span>{phenomenon.name}</span>
                   <button
                     onClick={() => removeSelectedType(typeId)}
@@ -392,7 +393,7 @@ export default function SubcategoryFilter({
                                 : 'text-gray-400 hover:text-white hover:bg-white/5'
                             )}
                           >
-                            <span className="text-base flex-shrink-0">{type.icon || '•'}</span>
+                            <span className="text-base flex-shrink-0"><PhenomenonIcon slug={type.name.toLowerCase().replace(/\s+/g, '-')} fallbackEmoji={type.icon} category={category} size={16} /></span>
                             <span className="flex-1 truncate">{type.name}</span>
                             <span className={classNames(
                               'text-xs flex-shrink-0',

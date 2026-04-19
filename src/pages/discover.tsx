@@ -44,6 +44,8 @@ import { useFeedEvents } from '@/lib/hooks/useFeedEvents'
 import { useSessionContext } from '@/lib/hooks/useSessionContext'
 import { useGateStatus } from '@/lib/hooks/useGateStatus'
 import { CATEGORY_CONFIG } from '@/lib/constants'
+import CategoryIcon from '@/components/ui/CategoryIcon'
+import type { PhenomenonCategory } from '@/lib/database.types'
 
 // Extended feed item type that includes new card types
 type ExtendedFeedItem = FeedItemV2 | ClusterCardData | OnThisDateData | PromoCardData
@@ -802,7 +804,8 @@ export default function DiscoverPage() {
                     >
                       <div className="flex items-center gap-2 mb-1.5">
                         <span className="text-[9px] font-sans font-semibold uppercase tracking-wider" style={{ color: c.categoryColor }}>
-                          {(catConfig?.icon || '') + ' ' + (catConfig?.label || c.category)}
+                          <CategoryIcon category={c.category as PhenomenonCategory} size={10} />
+                          {' ' + (catConfig?.label || c.category)}
                         </span>
                         <span className="text-[9px] text-gray-500 font-sans">
                           {c.location + (c.tag ? ' \u00B7 ' + c.tag : '')}

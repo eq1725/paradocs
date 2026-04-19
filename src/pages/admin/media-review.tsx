@@ -8,6 +8,8 @@ import { supabase } from '@/lib/supabase'
 import { Image, Check, X, Download, Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 import { CATEGORY_CONFIG } from '@/lib/constants'
+import CategoryIcon from '@/components/ui/CategoryIcon'
+import { PhenomenonCategory } from '@/lib/database.types'
 
 interface PhenomenonMediaItem {
   id: string;
@@ -1049,7 +1051,7 @@ export default function MediaReviewPage() {
                           {/* Info */}
                           <div className="p-3">
                             <div className="flex items-center gap-1 mb-1">
-                              <span className="text-xs">{cfg?.icon}</span>
+                              <CategoryIcon category={item.category as PhenomenonCategory} size={12} />
                               <h3 className="text-xs font-medium text-white truncate">{item.name}</h3>
                             </div>
 
@@ -1187,7 +1189,7 @@ export default function MediaReviewPage() {
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1">
-                              <span className="text-xs">{cfg?.icon}</span>
+                              <CategoryIcon category={item.category as PhenomenonCategory} size={12} />
                               <h4 className="text-sm font-medium text-white truncate">{item.name}</h4>
                             </div>
                             <p className="text-xs text-gray-500">{item.slug}</p>
@@ -1273,7 +1275,7 @@ export default function MediaReviewPage() {
 
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm">{cfg?.icon}</span>
+                                  <CategoryIcon category={phenomenon.category as PhenomenonCategory} size={16} />
                                   <h3 className="font-medium text-white truncate">{phenomenon.name}</h3>
                                 </div>
                                 <div className="flex flex-wrap gap-1 mt-2">
