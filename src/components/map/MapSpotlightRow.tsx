@@ -12,7 +12,8 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { Map, Flame, Globe2, Compass, Skull, Ghost, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Map, Flame, Compass, ChevronLeft, ChevronRight } from 'lucide-react'
+import { CategoryIcon } from '@/components/ui/CategoryIcon'
 
 interface SpotlightCard {
   id: string
@@ -31,9 +32,9 @@ var SPOTLIGHT_CARDS: SpotlightCard[] = [
     id: 'ufo-hotspots-us',
     title: 'UFO Hotspots',
     subtitle: 'United States',
-    icon: <Globe2 className="w-7 h-7" />,
-    gradient: 'from-emerald-900/60 via-emerald-950/40 to-gray-950',
-    accentColor: 'hover:border-emerald-500/40',
+    icon: <CategoryIcon category="ufos_aliens" size={28} />,
+    gradient: 'from-green-900/60 via-green-950/40 to-gray-950',
+    accentColor: 'hover:border-green-500/40',
     href: '/explore?mode=map&category=ufos_aliens&country=United+States',
     reportCount: 308,
   },
@@ -41,7 +42,7 @@ var SPOTLIGHT_CARDS: SpotlightCard[] = [
     id: 'cryptid-sightings',
     title: 'Cryptid Sightings',
     subtitle: 'Worldwide encounters',
-    icon: <Skull className="w-7 h-7" />,
+    icon: <CategoryIcon category="cryptids" size={28} />,
     gradient: 'from-amber-900/60 via-amber-950/40 to-gray-950',
     accentColor: 'hover:border-amber-500/40',
     href: '/explore?mode=map&category=cryptids',
@@ -51,7 +52,7 @@ var SPOTLIGHT_CARDS: SpotlightCard[] = [
     id: 'ghost-hauntings',
     title: 'Ghost & Hauntings',
     subtitle: 'Paranormal activity map',
-    icon: <Ghost className="w-7 h-7" />,
+    icon: <CategoryIcon category="ghosts_hauntings" size={28} />,
     gradient: 'from-purple-900/60 via-purple-950/40 to-gray-950',
     accentColor: 'hover:border-purple-500/40',
     href: '/explore?mode=map&category=ghosts_hauntings',

@@ -25,7 +25,6 @@ import {
   Bookmark, Eye, ThumbsUp, BookOpen, UserPlus, Bell, Library, LogIn,
   Filter, Loader, AlertCircle, Map as MapIcon, Grid3X3, List,
   ChevronUp, AlertTriangle, Tag, ArrowUp, Loader2, Brain, Calendar, Shield,
-  Radar, Footprints, HeartPulse, Dna, ScanEye, Moon, Layers, Zap
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonType, PhenomenonCategory, CredibilityLevel, ContentType } from '@/lib/database.types'
@@ -175,49 +174,36 @@ interface PhenomenonEntry {
   ai_quick_facts?: QuickFacts | null
 }
 
-// Category-specific gradient backgrounds
+// Category-specific gradient backgrounds — aligned with CATEGORY_CONFIG colors
 var CATEGORY_GRADIENTS: Record<string, string> = {
-  cryptids: 'from-emerald-950 via-gray-900 to-gray-950',
-  ufos_aliens: 'from-indigo-950 via-gray-900 to-gray-950',
+  ufos_aliens: 'from-green-950 via-gray-900 to-gray-950',
+  cryptids: 'from-amber-950/80 via-gray-900 to-gray-950',
   ghosts_hauntings: 'from-slate-900 via-purple-950/50 to-gray-950',
-  psychic_phenomena: 'from-violet-950 via-gray-900 to-gray-950',
-  consciousness_practices: 'from-amber-950/80 via-gray-900 to-gray-950',
-  psychological_experiences: 'from-cyan-950 via-gray-900 to-gray-950',
-  biological_factors: 'from-rose-950 via-gray-900 to-gray-950',
-  perception_sensory: 'from-orange-950 via-gray-900 to-gray-950',
+  psychic_phenomena: 'from-blue-950 via-gray-900 to-gray-950',
+  consciousness_practices: 'from-indigo-950 via-gray-900 to-gray-950',
+  psychological_experiences: 'from-pink-950 via-gray-900 to-gray-950',
+  biological_factors: 'from-emerald-950 via-gray-900 to-gray-950',
+  perception_sensory: 'from-cyan-950 via-gray-900 to-gray-950',
   religion_mythology: 'from-yellow-950/80 via-gray-900 to-gray-950',
-  esoteric_practices: 'from-fuchsia-950 via-gray-900 to-gray-950',
-  combination: 'from-teal-950 via-gray-900 to-gray-950',
+  esoteric_practices: 'from-violet-950 via-gray-900 to-gray-950',
+  combination: 'from-gray-900 via-gray-900 to-gray-950',
 }
 
 // Lucide icons per category (replacing emojis for Apple HIG consistency)
-var CATEGORY_LUCIDE_ICONS: Record<string, any> = {
-  ufos_aliens: Radar,
-  cryptids: Footprints,
-  ghosts_hauntings: Eye,
-  psychic_phenomena: Zap,
-  consciousness_practices: Brain,
-  psychological_experiences: HeartPulse,
-  biological_factors: Dna,
-  perception_sensory: ScanEye,
-  religion_mythology: BookOpen,
-  esoteric_practices: Moon,
-  combination: Layers,
-}
-
 // Accent colors for category cards (icon tint + border highlight)
+// Accent colors aligned with CATEGORY_CONFIG in constants.ts
 var CATEGORY_ACCENT: Record<string, { icon: string; border: string; glow: string }> = {
-  ufos_aliens: { icon: 'text-indigo-400', border: 'border-indigo-500/30', glow: 'group-hover:shadow-indigo-500/10' },
-  cryptids: { icon: 'text-emerald-400', border: 'border-emerald-500/30', glow: 'group-hover:shadow-emerald-500/10' },
+  ufos_aliens: { icon: 'text-green-400', border: 'border-green-500/30', glow: 'group-hover:shadow-green-500/10' },
+  cryptids: { icon: 'text-amber-400', border: 'border-amber-500/30', glow: 'group-hover:shadow-amber-500/10' },
   ghosts_hauntings: { icon: 'text-purple-400', border: 'border-purple-500/30', glow: 'group-hover:shadow-purple-500/10' },
-  psychic_phenomena: { icon: 'text-violet-400', border: 'border-violet-500/30', glow: 'group-hover:shadow-violet-500/10' },
-  consciousness_practices: { icon: 'text-amber-400', border: 'border-amber-500/30', glow: 'group-hover:shadow-amber-500/10' },
-  psychological_experiences: { icon: 'text-cyan-400', border: 'border-cyan-500/30', glow: 'group-hover:shadow-cyan-500/10' },
-  biological_factors: { icon: 'text-rose-400', border: 'border-rose-500/30', glow: 'group-hover:shadow-rose-500/10' },
-  perception_sensory: { icon: 'text-orange-400', border: 'border-orange-500/30', glow: 'group-hover:shadow-orange-500/10' },
+  psychic_phenomena: { icon: 'text-blue-400', border: 'border-blue-500/30', glow: 'group-hover:shadow-blue-500/10' },
+  consciousness_practices: { icon: 'text-indigo-400', border: 'border-indigo-500/30', glow: 'group-hover:shadow-indigo-500/10' },
+  psychological_experiences: { icon: 'text-pink-400', border: 'border-pink-500/30', glow: 'group-hover:shadow-pink-500/10' },
+  biological_factors: { icon: 'text-emerald-400', border: 'border-emerald-500/30', glow: 'group-hover:shadow-emerald-500/10' },
+  perception_sensory: { icon: 'text-cyan-400', border: 'border-cyan-500/30', glow: 'group-hover:shadow-cyan-500/10' },
   religion_mythology: { icon: 'text-yellow-400', border: 'border-yellow-500/30', glow: 'group-hover:shadow-yellow-500/10' },
-  esoteric_practices: { icon: 'text-fuchsia-400', border: 'border-fuchsia-500/30', glow: 'group-hover:shadow-fuchsia-500/10' },
-  combination: { icon: 'text-teal-400', border: 'border-teal-500/30', glow: 'group-hover:shadow-teal-500/10' },
+  esoteric_practices: { icon: 'text-violet-400', border: 'border-violet-500/30', glow: 'group-hover:shadow-violet-500/10' },
+  combination: { icon: 'text-gray-400', border: 'border-gray-500/30', glow: 'group-hover:shadow-gray-500/10' },
 }
 
 // ─── MODE TABS ──────────────────────────────────────────────
@@ -963,7 +949,6 @@ function ExploreBrowseMode() {
                   {latestReports.map(function(report) {
                     var catConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
                     var accent = CATEGORY_ACCENT[report.category] || CATEGORY_ACCENT.combination
-                    var CatIcon = CATEGORY_LUCIDE_ICONS[report.category] || Layers
                     var locationParts = [report.city || report.location_name, report.state_province].filter(Boolean)
                     var locationStr = locationParts.length > 0 ? locationParts.slice(0, 2).join(', ') : null
                     var timeAgo = formatRelativeDate(report.created_at)
@@ -975,8 +960,8 @@ function ExploreBrowseMode() {
                         style={{ minHeight: '12rem' }}
                       >
                         <div className="flex items-center gap-2 mb-3">
-                          <div className={classNames('w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', catConfig.bgColor)}>
-                            <CatIcon className={classNames('w-4 h-4', accent.icon)} />
+                          <div className={classNames('w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', catConfig.bgColor, catConfig.color)}>
+                            <CategoryIcon category={report.category as PhenomenonCategory} size={16} />
                           </div>
                           <span className={classNames('text-[11px] px-2 py-0.5 rounded-full font-medium', catConfig.bgColor, catConfig.color)}>{catConfig.label}</span>
                           {report.source_label && <span className="text-[11px] text-gray-500 ml-auto truncate max-w-[80px]">{report.source_label}</span>}
@@ -1018,7 +1003,6 @@ function ExploreBrowseMode() {
               {Object.entries(CATEGORY_CONFIG).map(function(entry) {
                 var key = entry[0]
                 var config = entry[1]
-                var CatIcon = CATEGORY_LUCIDE_ICONS[key] || Layers
                 var accent = CATEGORY_ACCENT[key] || CATEGORY_ACCENT.combination
                 var count = categoryCounts[key] || 0
                 var latestTitle = categoryLatestTitle[key] || ''
@@ -1036,7 +1020,7 @@ function ExploreBrowseMode() {
                     )}
                     style={{ minHeight: '6rem' }}
                   >
-                    <CatIcon className={classNames('w-7 h-7 sm:w-8 sm:h-8 mb-2 transition-transform group-hover:scale-110', accent.icon)} />
+                    <span className={classNames('block mb-2 transition-transform group-hover:scale-110', accent.icon)}><CategoryIcon category={key as PhenomenonCategory} size={32} /></span>
                     <span className="text-sm sm:text-base font-semibold text-white block leading-tight">{config.label}</span>
                     <span className="text-xs text-gray-400 mt-1 block tabular-nums">
                       {count > 0 ? count.toLocaleString() + ' reports' : 'Explore'}
@@ -1592,7 +1576,7 @@ function ExploreSearchMode() {
                   : filters.categories.concat([catKey as PhenomenonCategory])
                 setFilters({ ...filters, categories: newCats })
               }} className={classNames('px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5', isActive ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30' : 'bg-white/5 text-gray-400 border border-transparent hover:bg-white/10')}>
-                <CategoryIcon category={cat as PhenomenonCategory} size={14} /> {config.label} <span className="text-gray-600">({count})</span>
+                <CategoryIcon category={catKey as PhenomenonCategory} size={14} /> {config.label} <span className="text-gray-600">({count})</span>
               </button>
             )
           })}
