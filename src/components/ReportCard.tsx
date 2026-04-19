@@ -32,7 +32,9 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
       <Link href={`/report/${report.slug}`} className="block">
         <div className="glass-card p-4 hover:scale-[1.02] transition-transform">
           <div className="flex items-start gap-3">
-            <span className={classNames('text-2xl', categoryConfig.color)}><CategoryIcon category={report.category as any} size={24} /></span>
+            <div className={classNames('w-10 h-10 rounded-lg flex items-center justify-center shrink-0', categoryConfig.bgColor, categoryConfig.color)}>
+              <CategoryIcon category={report.category as any} size={20} />
+            </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-medium text-white truncate">{report.title}</h3>
               <div className="flex items-center gap-2 mt-1">
