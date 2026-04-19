@@ -38,7 +38,7 @@ import { classNames, formatRelativeDate } from '@/lib/utils'
 import AskTheUnknown from '@/components/AskTheUnknown'
 import UnifiedOnboarding, { hasCompletedUnifiedOnboarding } from '@/components/UnifiedOnboarding'
 import MapSpotlightRow from '@/components/map/MapSpotlightRow'
-import { CategoryIcon } from '@/components/ui/CategoryIcon'
+// CategoryIcon already imported above (default export)
 // Map imports — dynamic to avoid SSR
 import { useMapState } from '@/components/map/useMapState'
 import { useViewportData } from '@/components/map/useViewportData'
