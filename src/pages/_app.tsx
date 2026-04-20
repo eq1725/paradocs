@@ -3,6 +3,7 @@ import type { AppProps } from 'next/app'
 import Head from 'next/head'
 import { useEffect } from 'react'
 import { useRouter } from 'next/router'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import Layout from '@/components/Layout'
 import { ToastProvider } from '@/components/Toast'
 
@@ -64,6 +65,7 @@ export default function App({ Component, pageProps }: AppProps) {
           </Layout>
         )}
       </ToastProvider>
+      <SpeedInsights />
     </>
   )
 }
