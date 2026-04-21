@@ -561,7 +561,7 @@ function ExploreBrowseMode() {
 
   // Live category counts and latest reports for redesigned browse
   var [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
-  var [categoryLatestTitle, setCategoryLatestTitle] = useState<Record<string, string>>({})
+  // categoryLatestTitle removed — cards now show static descriptions from CATEGORY_CONFIG
   var [latestReports, setLatestReports] = useState<FeedReport[]>([])
   var [latestLoading, setLatestLoading] = useState(true)
 
@@ -596,31 +596,15 @@ function ExploreBrowseMode() {
             .eq('status', 'approved')
             .eq('category', cat)
         })
-        var latestPromises = catKeys.map(function(cat) {
-          return supabase
-            .from('reports')
-            .select('title,category')
-            .eq('status', 'approved')
-            .eq('category', cat)
-            .order('created_at', { ascending: false })
-            .limit(1)
-        })
         var countResults = await Promise.all(countPromises)
-        var latestResults = await Promise.all(latestPromises)
         var counts: Record<string, number> = {}
-        var latestPerCat: Record<string, string> = {}
+
         countResults.forEach(function(res, idx) {
           if (!res.error && typeof res.count === 'number') {
             counts[catKeys[idx]] = res.count
           }
         })
         setCategoryCounts(counts)
-        latestResults.forEach(function(res, idx) {
-          if (!res.error && res.data && res.data.length > 0) {
-            latestPerCat[catKeys[idx]] = (res.data[0] as any).title
-          }
-        })
-        setCategoryLatestTitle(latestPerCat)
 
         // Latest 4 reports across all categories
         var latestRes = await supabase
@@ -1005,7 +989,6 @@ function ExploreBrowseMode() {
                 var config = entry[1]
                 var accent = CATEGORY_ACCENT[key] || CATEGORY_ACCENT.combination
                 var count = categoryCounts[key] || 0
-                var latestTitle = categoryLatestTitle[key] || ''
                 return (
                   <button
                     key={key}
@@ -1018,19 +1001,19 @@ function ExploreBrowseMode() {
                       'hover:shadow-lg',
                       accent.glow
                     )}
-                    style={{ minHeight: '6rem' }}
                   >
                     <span className={classNames('block mb-2 transition-transform group-hover:scale-110', accent.icon)}><CategoryIcon category={key as PhenomenonCategory} size={32} /></span>
                     <span className="text-sm sm:text-base font-semibold text-white block leading-tight">{config.label}</span>
                     <span className="text-xs text-gray-400 mt-1 block tabular-nums">
                       {count > 0 ? count.toLocaleString() + ' reports' : 'Explore'}
                     </span>
-                    {/* Hover preview: most recent report title */}
-                    {latestTitle && (
-                      <span className="absolute bottom-0 left-0 right-0 px-4 py-2 text-[11px] text-gray-300 bg-gray-950/90 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity line-clamp-1 border-t border-white/5">
-                        Latest: {latestTitle}
-                      </span>
-                    )}
+                    {/* Category description — always visible on mobile, hover-reveal on desktop */}
+                    <span className="block sm:hidden text-[11px] text-gray-400 mt-2 leading-relaxed line-clamp-2">
+                      {config.description}
+                    </span>
+                    <span className="hidden sm:block absolute bottom-0 left-0 right-0 px-4 sm:px-5 py-2.5 text-[11px] text-gray-300 leading-relaxed bg-gray-950/90 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity line-clamp-2 border-t border-white/5">
+                      {config.description}
+                    </span>
                   </button>
                 )
               })}
