@@ -1008,10 +1008,10 @@ function ExploreBrowseMode() {
                       {count > 0 ? count.toLocaleString() + ' reports' : 'Explore'}
                     </span>
                     {/* Category description — always visible on mobile, hover-reveal on desktop */}
-                    <span className="block sm:hidden text-[11px] text-gray-400 mt-2 leading-relaxed line-clamp-2">
+                    <span className="block sm:hidden text-xs text-gray-400 mt-2 leading-relaxed">
                       {config.description}
                     </span>
-                    <span className="hidden sm:block absolute bottom-0 left-0 right-0 px-4 sm:px-5 py-2.5 text-[11px] text-gray-300 leading-relaxed bg-gray-950/90 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity line-clamp-2 border-t border-white/5">
+                    <span className="hidden sm:block absolute bottom-0 left-0 right-0 px-4 sm:px-5 py-2.5 text-xs text-gray-300 leading-relaxed bg-gray-950/90 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity border-t border-white/5">
                       {config.description}
                     </span>
                   </button>

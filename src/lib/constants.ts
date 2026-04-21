@@ -17,77 +17,77 @@ export const CATEGORY_CONFIG: Record<PhenomenonCategory, {
     color: 'text-green-500',
     bgColor: 'bg-green-500/20',
     icon: '🛸',
-    description: 'Documented sightings of unidentified aerial phenomena, reported encounters with non-human intelligences, and cases that challenge conventional explanations of what occupies our skies.'
+    description: 'Unidentified aerial phenomena and reported encounters with non-human intelligences.'
   },
   cryptids: {
     label: 'Cryptids',
     color: 'text-amber-500',
     bgColor: 'bg-amber-500/20',
     icon: '🦶',
-    description: 'Sightings and encounters with unidentified creatures — from Bigfoot and Mothman to lake monsters and beings that don\'t fit any known species.'
+    description: 'Encounters with creatures that don\'t fit any known species.'
   },
   ghosts_hauntings: {
     label: 'Ghosts & Hauntings',
     color: 'text-purple-500',
     bgColor: 'bg-purple-500/20',
     icon: '👻',
-    description: 'Reports of apparitions, unexplained presences, poltergeist activity, and locations with persistent anomalous phenomena that resist easy explanation.'
+    description: 'Apparitions, unexplained presences, and locations with persistent anomalous activity.'
   },
   psychic_phenomena: {
     label: 'Psychic Phenomena',
     color: 'text-blue-500',
     bgColor: 'bg-blue-500/20',
     icon: '🔮',
-    description: 'Accounts of telepathy, precognition, remote viewing, and other reported capacities that suggest perception may extend beyond the five recognized senses.'
+    description: 'Telepathy, precognition, remote viewing, and perception beyond the five senses.'
   },
   consciousness_practices: {
     label: 'Consciousness Practices',
     color: 'text-indigo-500',
     bgColor: 'bg-indigo-500/20',
     icon: '🧘',
-    description: 'Experiences arising from meditation, astral projection, lucid dreaming, and other practices that explore the boundaries of conscious awareness.'
+    description: 'Meditation, astral projection, lucid dreaming, and altered states of awareness.'
   },
   psychological_experiences: {
     label: 'Psychological Experiences',
     color: 'text-pink-500',
     bgColor: 'bg-pink-500/20',
     icon: '🧠',
-    description: 'Near-death experiences, sleep paralysis encounters, and other psychological events that blur the line between mind, body, and something beyond either.'
+    description: 'Near-death experiences, sleep paralysis, and events at the edges of psychology.'
   },
   biological_factors: {
     label: 'Biological Factors',
     color: 'text-emerald-500',
     bgColor: 'bg-emerald-500/20',
     icon: '🧬',
-    description: 'Cases where unexplained physiological changes — healing, marks, radiation effects — accompany reported encounters, raising questions about the physical nature of these phenomena.'
+    description: 'Unexplained physiological changes that accompany reported encounters.'
   },
   perception_sensory: {
     label: 'Perception & Sensory',
     color: 'text-cyan-500',
     bgColor: 'bg-cyan-500/20',
     icon: '👁️',
-    description: 'Unexplained visual, auditory, and sensory experiences — from shadow figures to phantom sounds — that challenge our understanding of how perception works.'
+    description: 'Shadow figures, phantom sounds, and sensory experiences without clear origin.'
   },
   religion_mythology: {
     label: 'Religion & Mythology',
     color: 'text-yellow-500',
     bgColor: 'bg-yellow-500/20',
     icon: '⚡',
-    description: 'Visions, miracles, and encounters described through religious and mythological frameworks — traditions that have documented the unexplainable for millennia.'
+    description: 'Visions, miracles, and encounters documented through spiritual traditions.'
   },
   esoteric_practices: {
     label: 'Esoteric Practices',
     color: 'text-violet-500',
     bgColor: 'bg-violet-500/20',
     icon: '✨',
-    description: 'Practices rooted in occult traditions, ritual systems, and hidden knowledge — areas where reported experiences often defy materialist explanation.'
+    description: 'Occult traditions, ritual practices, and reported experiences beyond material explanation.'
   },
   combination: {
     label: 'Multi-Disciplinary',
     color: 'text-gray-400',
     bgColor: 'bg-gray-500/20',
     icon: '🔄',
-    description: 'Cases that cross category boundaries — encounters where UFO sightings overlap with psychic phenomena, or cryptid reports intertwine with consciousness experiences.'
+    description: 'Cases that span multiple categories and resist simple classification.'
   }
 }
 
