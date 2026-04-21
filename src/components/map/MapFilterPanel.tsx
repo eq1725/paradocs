@@ -6,7 +6,7 @@
 
 import React from 'react'
 import { Search, X, ChevronLeft, RotateCcw } from 'lucide-react'
-import { CATEGORY_CONFIG, CREDIBILITY_CONFIG, COUNTRIES } from '@/lib/constants'
+import { CATEGORY_CONFIG, COUNTRIES } from '@/lib/constants'
 import { PhenomenonCategory } from '@/lib/database.types'
 import { MapFilters, DEFAULT_FILTERS } from './mapStyles'
 import { CategoryIcon } from '@/components/ui/CategoryIcon'
@@ -64,10 +64,10 @@ export default function MapFilterPanel({
         <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
           Category
         </label>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => onFilterChange('category', null)}
-            className={`px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               !filters.category
                 ? 'bg-white text-gray-900'
                 : 'bg-gray-800 text-gray-400 hover:text-white'
@@ -79,36 +79,17 @@ export default function MapFilterPanel({
             <button
               key={key}
               onClick={() => onFilterChange('category', filters.category === key ? null : key)}
-              className={`px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors flex items-center gap-1 ${
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
                 filters.category === key
                   ? `${config.bgColor} ${config.color} ring-1 ring-current`
                   : 'bg-gray-800 text-gray-400 hover:text-white'
               }`}
             >
-              <CategoryIcon category={key} size={14} />
-              <span className="hidden sm:inline">{config.label}</span>
+              <CategoryIcon category={key} size={16} />
+              {config.label}
             </button>
           ))}
         </div>
-      </div>
-
-      {/* Credibility */}
-      <div>
-        <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
-          Credibility
-        </label>
-        <select
-          value={filters.credibility || ''}
-          onChange={(e) => onFilterChange('credibility', e.target.value || null)}
-          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700/50 rounded-lg text-sm text-white focus:outline-none focus:border-purple-500/50"
-        >
-          <option value="">All credibility levels</option>
-          {Object.entries(CREDIBILITY_CONFIG).map(([key, config]) => (
-            <option key={key} value={key}>
-              {config.label}
-            </option>
-          ))}
-        </select>
       </div>
 
       {/* Country */}
