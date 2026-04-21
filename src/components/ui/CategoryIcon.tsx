@@ -230,8 +230,7 @@ function CombinationIcon(props: IconSvgProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="-2 10 516 235"
-      preserveAspectRatio="none"
+      viewBox="-2 -120 516 516"
       width={props.width}
       height={props.height}
       className={props.className}
