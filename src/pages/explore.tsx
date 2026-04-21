@@ -449,7 +449,7 @@ function ExploreMapMode() {
 
       {/* Desktop: Filter panel drawer */}
       {filterPanelOpen && (
-        <div className="hidden lg:block absolute top-0 left-0 bottom-0 z-20">
+        <div className="hidden lg:block absolute top-0 left-0 bottom-[52px] z-20">
           <MapFilterPanel
             filters={filters}
             onFilterChange={setFilter}
