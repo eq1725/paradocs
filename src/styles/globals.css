@@ -562,3 +562,8 @@ body.sheet-open {
   color: transparent;
   letter-spacing: 0;
 }
+
+/* Push MapLibre zoom controls down so they clear the tab bar */
+.maplibregl-ctrl-top-right {
+  top: 12px !important;
+}
