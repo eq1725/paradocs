@@ -15,77 +15,77 @@ export const CATEGORY_CONFIG: Record<PhenomenonCategory, {
   ufos_aliens: {
     label: 'UFOs & Aliens',
     color: 'text-green-400',
-    bgColor: 'bg-green-400/15',
+    bgColor: 'bg-green-400/20',
     icon: '🛸',
     description: 'UAP sightings, close encounters, abductions, and unidentified submerged objects.'
   },
   cryptids: {
     label: 'Cryptids',
     color: 'text-amber-400',
-    bgColor: 'bg-amber-400/15',
+    bgColor: 'bg-amber-400/20',
     icon: '🦶',
     description: 'Encounters with creatures that don\'t fit any known species.'
   },
   ghosts_hauntings: {
     label: 'Ghosts & Hauntings',
     color: 'text-purple-400',
-    bgColor: 'bg-purple-400/15',
+    bgColor: 'bg-purple-400/20',
     icon: '👻',
     description: 'Apparitions, poltergeist activity, EVP recordings, and haunted locations.'
   },
   psychic_phenomena: {
     label: 'Psychic Phenomena',
     color: 'text-blue-400',
-    bgColor: 'bg-blue-400/15',
+    bgColor: 'bg-blue-400/20',
     icon: '🔮',
     description: 'Telepathy, precognition, channeling, synchronicity, and after-death communication.'
   },
   consciousness_practices: {
     label: 'Consciousness Practices',
     color: 'text-indigo-400',
-    bgColor: 'bg-indigo-400/15',
+    bgColor: 'bg-indigo-400/20',
     icon: '🧘',
     description: 'Astral projection, lucid dreaming, kundalini awakening, and meditation visions.'
   },
   psychological_experiences: {
     label: 'Psychological Experiences',
     color: 'text-pink-400',
-    bgColor: 'bg-pink-400/15',
+    bgColor: 'bg-pink-400/20',
     icon: '🧠',
     description: 'Near-death experiences, shared death experiences, deathbed visions, and OBEs.'
   },
   biological_factors: {
     label: 'Biological Factors',
     color: 'text-emerald-400',
-    bgColor: 'bg-emerald-400/15',
+    bgColor: 'bg-emerald-400/20',
     icon: '🧬',
     description: 'Unexplained healings, radiation marks, implants, and physical effects tied to encounters.'
   },
   perception_sensory: {
     label: 'Perception & Sensory',
     color: 'text-cyan-400',
-    bgColor: 'bg-cyan-400/15',
+    bgColor: 'bg-cyan-400/20',
     icon: '👁️',
     description: 'Shadow figures, phantom sounds, and sensory experiences without clear origin.'
   },
   religion_mythology: {
     label: 'Religion & Mythology',
     color: 'text-yellow-400',
-    bgColor: 'bg-yellow-400/15',
+    bgColor: 'bg-yellow-400/20',
     icon: '⚡',
     description: 'Visions, miracles, and encounters documented through spiritual traditions.'
   },
   esoteric_practices: {
     label: 'Esoteric Practices',
     color: 'text-violet-400',
-    bgColor: 'bg-violet-400/15',
+    bgColor: 'bg-violet-400/20',
     icon: '✨',
     description: 'Occult traditions, ritual practices, and reported experiences beyond material explanation.'
   },
   combination: {
     label: 'Multi-Disciplinary',
     color: 'text-gray-400',
-    bgColor: 'bg-gray-400/15',
+    bgColor: 'bg-gray-400/20',
     icon: '🔄',
     description: 'Cases that span multiple categories and resist simple classification.'
   }
