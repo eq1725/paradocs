@@ -67,10 +67,10 @@ export default function MapFilterPanel({
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => onFilterChange('category', null)}
-            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
               !filters.category
                 ? 'bg-white text-gray-900'
-                : 'bg-gray-800 text-gray-400 hover:text-white'
+                : 'bg-white/10 text-gray-300 hover:bg-white/15 hover:text-white'
             }`}
           >
             All
@@ -79,13 +79,13 @@ export default function MapFilterPanel({
             <button
               key={key}
               onClick={() => onFilterChange('category', filters.category === key ? null : key)}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2 ${
                 filters.category === key
-                  ? `${config.bgColor} ${config.color} ring-1 ring-current`
-                  : 'bg-gray-800 text-gray-400 hover:text-white'
+                  ? `${config.bgColor} ${config.color} ring-2 ring-current`
+                  : 'bg-white/10 text-gray-300 hover:bg-white/15 hover:text-white'
               }`}
             >
-              <CategoryIcon category={key} size={16} />
+              <CategoryIcon category={key} size={18} />
               {config.label}
             </button>
           ))}
