@@ -1235,7 +1235,6 @@ function ExploreBrowseMode() {
               {([
                 { key: 'alpha' as const, label: 'A–Z' },
                 { key: 'reports' as const, label: 'Most Reports' },
-                { key: 'danger' as const, label: 'Danger' },
               ]).map(function(opt) {
                 return (
                   <button key={opt.key} onClick={function() { setPhenomenaSort(opt.key) }} className={classNames(
@@ -1277,12 +1276,6 @@ function ExploreBrowseMode() {
               {sorted.map(function(item) {
                 var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
                 var hasImage = item.primary_image_url && item.primary_image_url.indexOf('default-cryptid') === -1
-                var dangerLevel = item.ai_quick_facts?.danger_level?.split(' ')[0] || null
-                var dangerColors: Record<string, string> = {
-                  'Extreme': 'text-red-400', 'High': 'text-orange-400',
-                  'Moderate': 'text-yellow-400', 'Low': 'text-green-400',
-                  'Varies': 'text-purple-400', 'Unknown': 'text-gray-500'
-                }
                 return (
                   <Link key={item.id} href={'/phenomena/' + item.slug} className="group/card flex overflow-hidden rounded-xl border border-white/10 hover:border-primary-500/30 bg-white/[0.02] hover:bg-white/[0.04] transition-all">
                     {/* Thumbnail */}
@@ -1304,16 +1297,9 @@ function ExploreBrowseMode() {
                       {item.ai_summary && (
                         <p className="text-[11px] text-gray-500 line-clamp-2 mt-1 leading-relaxed">{item.ai_summary}</p>
                       )}
-                      <div className="flex items-center gap-3 mt-1.5">
-                        {item.report_count > 0 && (
-                          <span className="text-[11px] text-gray-400 tabular-nums">{item.report_count} reports</span>
-                        )}
-                        {dangerLevel && dangerLevel !== 'Unknown' && (
-                          <span className={classNames('text-[11px] font-medium', dangerColors[dangerLevel] || 'text-gray-500')}>
-                            {dangerLevel} risk
-                          </span>
-                        )}
-                      </div>
+                      {item.report_count > 0 && (
+                        <span className="text-[11px] text-gray-400 tabular-nums mt-1.5">{item.report_count} reports</span>
+                      )}
                     </div>
                     {/* Arrow */}
                     <div className="flex items-center pr-3 text-gray-600 group-hover/card:text-primary-400 transition-colors">
