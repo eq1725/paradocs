@@ -559,6 +559,8 @@ function ExploreBrowseMode() {
   var [phenomena, setPhenomena] = useState<PhenomenonEntry[]>([])
   var [phenomenaLoading, setPhenomenaLoading] = useState(false)
   var [selectedCategoryForPhenomena, setSelectedCategoryForPhenomena] = useState<string | null>(null)
+  var [phenomenaSort, setPhenomenaSort] = useState<'alpha' | 'reports' | 'danger'>('alpha')
+  var [phenomenaFilter, setPhenomenaFilter] = useState('')
 
   // Feed sections for category discover
   var [feedSections, setFeedSections] = useState<FeedSection[]>([])
@@ -833,7 +835,7 @@ function ExploreBrowseMode() {
         .from('phenomena')
         .select('id,name,slug,category,icon,ai_summary,report_count,primary_image_url,aliases,ai_quick_facts')
         .eq('category', cat)
-        .order('report_count', { ascending: false })
+        .order('name', { ascending: true })
         .limit(500)
       var result = await q
       if (result.error) throw result.error
@@ -895,6 +897,8 @@ function ExploreBrowseMode() {
   function handleBackToCategories() {
     setSelectedCategoryForPhenomena(null)
     setPhenomena([])
+    setPhenomenaFilter('')
+    setPhenomenaSort('alpha')
   }
 
   // Drill into reports for a category
@@ -1165,12 +1169,35 @@ function ExploreBrowseMode() {
       )}
 
       {/* PHENOMENA VIEW — subcategory drill-down */}
-      {browseView === 'categories' && selectedCategoryForPhenomena && (
+      {browseView === 'categories' && selectedCategoryForPhenomena && (function() {
+        // Sort & filter phenomena client-side
+        var DANGER_ORDER: Record<string, number> = { 'Extreme': 0, 'High': 1, 'Moderate': 2, 'Low': 3, 'Varies': 4, 'Unknown': 5 }
+        var filtered = phenomena.filter(function(p) {
+          if (!phenomenaFilter) return true
+          var q = phenomenaFilter.toLowerCase()
+          return p.name.toLowerCase().indexOf(q) !== -1 ||
+            (p.aliases && p.aliases.some(function(a) { return a.toLowerCase().indexOf(q) !== -1 })) ||
+            (p.ai_summary && p.ai_summary.toLowerCase().indexOf(q) !== -1)
+        })
+        var sorted = filtered.slice().sort(function(a, b) {
+          if (phenomenaSort === 'alpha') return a.name.localeCompare(b.name)
+          if (phenomenaSort === 'reports') return (b.report_count || 0) - (a.report_count || 0) || a.name.localeCompare(b.name)
+          if (phenomenaSort === 'danger') {
+            var aD = a.ai_quick_facts?.danger_level?.split(' ')[0] || 'Unknown'
+            var bD = b.ai_quick_facts?.danger_level?.split(' ')[0] || 'Unknown'
+            return (DANGER_ORDER[aD] ?? 5) - (DANGER_ORDER[bD] ?? 5) || a.name.localeCompare(b.name)
+          }
+          return 0
+        })
+
+        return (
         <>
           <button onClick={handleBackToCategories} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white mb-4 transition-colors">
             <ChevronLeft className="w-4 h-4" /> Back to Categories
           </button>
-          <div className="flex items-center justify-between mb-6">
+
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <span className={(CATEGORY_CONFIG as any)[selectedCategoryForPhenomena]?.color || 'text-gray-400'}>
                 <CategoryIcon category={selectedCategoryForPhenomena as PhenomenonCategory} size={28} />
@@ -1180,40 +1207,117 @@ function ExploreBrowseMode() {
                 <p className="text-sm text-gray-500">{phenomena.length} phenomena</p>
               </div>
             </div>
-            <button onClick={function() { handleViewReports(selectedCategoryForPhenomena!) }} className="px-4 py-2 bg-primary-500/10 border border-primary-500/20 rounded-lg text-primary-400 text-sm font-medium hover:bg-primary-500/20 transition-all">
+            <button onClick={function() { handleViewReports(selectedCategoryForPhenomena!) }} className="hidden sm:flex px-4 py-2 bg-primary-500/10 border border-primary-500/20 rounded-lg text-primary-400 text-sm font-medium hover:bg-primary-500/20 transition-all">
               View Reports
             </button>
           </div>
 
-          {phenomenaLoading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {[1,2,3,4,5,6,7,8].map(function(i) { return <div key={i} className="h-48 skeleton rounded-xl" /> })}
+          {/* Sort & Filter controls */}
+          <div className="flex flex-col sm:flex-row gap-3 mb-5">
+            {/* Inline search */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                type="text"
+                value={phenomenaFilter}
+                onChange={function(e) { setPhenomenaFilter(e.target.value) }}
+                placeholder={'Filter ' + phenomena.length + ' phenomena...'}
+                className="w-full pl-9 pr-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-primary-500/40 transition-colors"
+              />
+              {phenomenaFilter && (
+                <button onClick={function() { setPhenomenaFilter('') }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
-          ) : phenomena.length === 0 ? (
+            {/* Sort buttons */}
+            <div className="flex gap-1.5 shrink-0">
+              {([
+                { key: 'alpha' as const, label: 'A–Z' },
+                { key: 'reports' as const, label: 'Most Reports' },
+                { key: 'danger' as const, label: 'Danger' },
+              ]).map(function(opt) {
+                return (
+                  <button key={opt.key} onClick={function() { setPhenomenaSort(opt.key) }} className={classNames(
+                    'px-3 py-2 rounded-lg text-xs font-medium transition-all',
+                    phenomenaSort === opt.key
+                      ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
+                      : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
+                  )}>
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Mobile View Reports button */}
+          <button onClick={function() { handleViewReports(selectedCategoryForPhenomena!) }} className="sm:hidden w-full mb-4 px-4 py-2.5 bg-primary-500/10 border border-primary-500/20 rounded-lg text-primary-400 text-sm font-medium hover:bg-primary-500/20 transition-all text-center">
+            View All Reports in This Category
+          </button>
+
+          {/* Results count when filtering */}
+          {phenomenaFilter && (
+            <p className="text-xs text-gray-500 mb-3">
+              Showing {sorted.length} of {phenomena.length} phenomena
+              {sorted.length === 0 && ' — try a different search term'}
+            </p>
+          )}
+
+          {phenomenaLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {[1,2,3,4,5,6].map(function(i) { return <div key={i} className="h-28 skeleton rounded-xl" /> })}
+            </div>
+          ) : sorted.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-400">No phenomena found in this category.</p>
+              <p className="text-gray-400">{phenomenaFilter ? 'No phenomena match your filter.' : 'No phenomena found in this category.'}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {phenomena.map(function(item) {
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {sorted.map(function(item) {
                 var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
                 var hasImage = item.primary_image_url && item.primary_image_url.indexOf('default-cryptid') === -1
+                var dangerLevel = item.ai_quick_facts?.danger_level?.split(' ')[0] || null
+                var dangerColors: Record<string, string> = {
+                  'Extreme': 'text-red-400', 'High': 'text-orange-400',
+                  'Moderate': 'text-yellow-400', 'Low': 'text-green-400',
+                  'Varies': 'text-purple-400', 'Unknown': 'text-gray-500'
+                }
                 return (
-                  <Link key={item.id} href={'/phenomena/' + item.slug} className="group/card relative overflow-hidden rounded-xl border border-white/10 hover:border-primary-500/30 transition-all">
-                    {hasImage ? (
-                      <div className="relative h-36 sm:h-44 overflow-hidden">
-                        <img src={item.primary_image_url!} alt="" className="absolute inset-0 w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" loading="lazy" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/40 to-transparent" />
-                      </div>
-                    ) : (
-                      <div className={classNames('relative h-36 sm:h-44 flex items-center justify-center bg-gradient-to-br', CATEGORY_GRADIENTS[item.category] || 'from-gray-900 to-gray-950')}>
-                        <span className={classNames('text-4xl opacity-40 group-hover/card:scale-110 transition-transform', (CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination).color)}><CategoryIcon category={item.category as PhenomenonCategory} size={40} /></span>
-                        <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/30 to-transparent" />
-                      </div>
-                    )}
-                    <div className="absolute bottom-0 left-0 right-0 p-3">
+                  <Link key={item.id} href={'/phenomena/' + item.slug} className="group/card flex overflow-hidden rounded-xl border border-white/10 hover:border-primary-500/30 bg-white/[0.02] hover:bg-white/[0.04] transition-all">
+                    {/* Thumbnail */}
+                    <div className="relative w-24 sm:w-28 shrink-0 overflow-hidden">
+                      {hasImage ? (
+                        <>
+                          <img src={item.primary_image_url!} alt="" className="absolute inset-0 w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" loading="lazy" />
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent to-gray-950/30" />
+                        </>
+                      ) : (
+                        <div className={classNames('absolute inset-0 flex items-center justify-center bg-gradient-to-br', CATEGORY_GRADIENTS[item.category] || 'from-gray-900 to-gray-950')}>
+                          <span className={classNames('opacity-30', config.color)}><CategoryIcon category={item.category as PhenomenonCategory} size={32} /></span>
+                        </div>
+                      )}
+                    </div>
+                    {/* Content */}
+                    <div className="flex-1 min-w-0 p-3 flex flex-col justify-center">
                       <h3 className="font-semibold text-white text-sm line-clamp-1 group-hover/card:text-primary-300 transition-colors">{item.name}</h3>
-                      {item.report_count > 0 && <span className="text-[11px] text-gray-400">{item.report_count} reports</span>}
+                      {item.ai_summary && (
+                        <p className="text-[11px] text-gray-500 line-clamp-2 mt-1 leading-relaxed">{item.ai_summary}</p>
+                      )}
+                      <div className="flex items-center gap-3 mt-1.5">
+                        {item.report_count > 0 && (
+                          <span className="text-[11px] text-gray-400 tabular-nums">{item.report_count} reports</span>
+                        )}
+                        {dangerLevel && dangerLevel !== 'Unknown' && (
+                          <span className={classNames('text-[11px] font-medium', dangerColors[dangerLevel] || 'text-gray-500')}>
+                            {dangerLevel} risk
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Arrow */}
+                    <div className="flex items-center pr-3 text-gray-600 group-hover/card:text-primary-400 transition-colors">
+                      <ChevronRightIcon className="w-4 h-4" />
                     </div>
                   </Link>
                 )
@@ -1221,7 +1325,8 @@ function ExploreBrowseMode() {
             </div>
           )}
         </>
-      )}
+        )
+      })()}
 
       {/* REPORTS VIEW — filtered report list */}
       {browseView === 'reports' && (
