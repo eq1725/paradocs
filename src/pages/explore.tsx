@@ -214,6 +214,10 @@ var MODE_TABS: { key: ExploreMode; label: string; icon: any }[] = [
   { key: 'search', label: 'Search', icon: Search },
 ]
 
+// Stable padding objects for map refit when filter panel opens/closes
+var MAP_PADDING_WITH_FILTERS = { top: 60, bottom: 100, left: 340, right: 40 }
+var MAP_PADDING_DEFAULT = { top: 60, bottom: 100, left: 40, right: 40 }
+
 // ─── MAIN COMPONENT ─────────────────────────────────────────
 
 export default function ExplorePage() {
@@ -415,6 +419,7 @@ function ExploreMapMode() {
         dataBounds={dataBounds}
         flyToTarget={flyToTarget}
         basemapStyle={basemapStyle}
+        mapPadding={filterPanelOpen ? MAP_PADDING_WITH_FILTERS : MAP_PADDING_DEFAULT}
       />
 
       {/* Loading overlay */}

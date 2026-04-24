@@ -53,6 +53,8 @@ interface MapContainerProps {
   flyToTarget?: { lng: number; lat: number; zoom?: number } | null
   /** Basemap style key (dark, satellite, terrain) */
   basemapStyle?: string
+  /** Dynamic padding for map content (e.g. when filter panel opens) */
+  mapPadding?: { top: number; bottom: number; left: number; right: number }
 }
 
 export default function MapContainer({
@@ -66,6 +68,7 @@ export default function MapContainer({
   dataBounds,
   flyToTarget,
   basemapStyle = 'dark',
+  mapPadding,
 }: MapContainerProps) {
   const mapRef = useRef<MapRef>(null)
   const [viewState, setViewState] = useState<{
@@ -145,6 +148,21 @@ export default function MapContainer({
       )
     }
   }, [mapLoaded, dataBounds])
+
+  // Re-fit bounds when padding changes (e.g. filter panel open/close)
+  const prevPaddingRef = useRef(mapPadding)
+  useEffect(() => {
+    if (!mapLoaded || !dataBounds || !mapPadding) return
+    // Skip initial render — only refit on actual padding changes
+    if (prevPaddingRef.current === mapPadding) return
+    prevPaddingRef.current = mapPadding
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    map.fitBounds(
+      [[dataBounds[0], dataBounds[1]], [dataBounds[2], dataBounds[3]]],
+      { padding: mapPadding, duration: 600, maxZoom: 12 }
+    )
+  }, [mapLoaded, mapPadding]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fly to a target location (e.g. user geolocation)
   useEffect(() => {
