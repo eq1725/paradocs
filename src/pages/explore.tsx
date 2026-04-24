@@ -1341,6 +1341,7 @@ function ExploreSearchMode() {
   var [fallbackResults, setFallbackResults] = useState<(Report & { phenomenon_type?: PhenomenonType })[]>([])
   var [loading, setLoading] = useState(false)
   var [searched, setSearched] = useState(false)
+  var [showAllPopular, setShowAllPopular] = useState(false)
   var [showFilters, setShowFilters] = useState(false)
   var [categoryFacets, setCategoryFacets] = useState<Record<string, number>>({})
   var [resultCount, setResultCount] = useState(0)
@@ -1490,11 +1491,23 @@ function ExploreSearchMode() {
     router.replace({ pathname: '/explore', query: { mode: 'search' } }, undefined, { shallow: true })
   }
 
-  // Popular search suggestions
+  // Popular search suggestions — based on high-volume search trends
   var POPULAR_SEARCHES = [
-    'Phoenix Lights', 'Roswell', 'Bigfoot', 'Near Death Experience',
-    'Skinwalker Ranch', 'Black Triangle UFO', 'Shadow People', 'Mothman',
-    'Alien Abduction', 'Poltergeist', 'Rendlesham Forest'
+    // UFO / Aliens — top Google search terms
+    'Phoenix Lights', 'Roswell', 'Black Triangle UFO', 'Tic Tac UFO',
+    'Rendlesham Forest', 'Alien Abduction', 'Men in Black',
+    // Cryptids
+    'Bigfoot', 'Mothman', 'Skinwalker Ranch', 'Chupacabra', 'Wendigo', 'Dogman',
+    // Ghosts & Hauntings
+    'Shadow People', 'Poltergeist', 'Sleep Paralysis Entity', 'Haunted House',
+    // Consciousness & NDEs
+    'Near Death Experience', 'Astral Projection', 'Out of Body Experience',
+    'Past Life Memory',
+    // Psychic & Esoteric
+    'Remote Viewing', 'Telepathy', 'Precognition',
+    // High-interest phenomena
+    'Missing Time', 'Bermuda Triangle', 'Crop Circles', 'Cattle Mutilation',
+    'Spontaneous Combustion', 'Ball Lightning', 'Doppelganger'
   ]
 
   return (
@@ -1576,7 +1589,7 @@ function ExploreSearchMode() {
         <div>
           <h3 className="text-sm font-medium text-gray-400 mb-3">Popular Searches</h3>
           <div className="flex flex-wrap gap-2">
-            {POPULAR_SEARCHES.map(function(term) {
+            {POPULAR_SEARCHES.slice(0, showAllPopular ? undefined : 18).map(function(term) {
               return (
                 <button key={term} onClick={function() { setQuery(term); router.replace({ pathname: '/explore', query: { mode: 'search', q: term } }, undefined, { shallow: true }); performSearch(term) }} className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-gray-300 hover:bg-white/10 hover:border-primary-500/20 transition-all">
                   {term}
@@ -1584,6 +1597,11 @@ function ExploreSearchMode() {
               )
             })}
           </div>
+          {POPULAR_SEARCHES.length > 18 && (
+            <button onClick={function() { setShowAllPopular(!showAllPopular) }} className="mt-3 text-xs text-primary-400 hover:text-primary-300 transition-colors">
+              {showAllPopular ? 'Show less' : 'Show ' + (POPULAR_SEARCHES.length - 18) + ' more'}
+            </button>
+          )}
         </div>
       )}
 
