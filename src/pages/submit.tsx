@@ -389,6 +389,7 @@ export default function SubmitPage() {
   const typeSearchResults = (() => {
     const q = typeSearch.trim().toLowerCase()
     if (q.length < 2) return []
+    const words = q.split(/\s+/).filter(w => w.length >= 2)
 
     const scored = submittableTypes
       .map(t => {
@@ -399,10 +400,19 @@ export default function SubmitPage() {
         if (name === q) score = 100
         // Name starts with query
         else if (name.startsWith(q)) score = 80
-        // Name contains query word
+        // Name contains full query
         else if (name.includes(q)) score = 60
-        // Description contains query
+        // Description contains full query
         else if (desc.includes(q)) score = 30
+        // Multi-word: check if individual words match name or description
+        if (score === 0 && words.length > 1) {
+          const nameHits = words.filter(w => name.includes(w)).length
+          const descHits = words.filter(w => desc.includes(w)).length
+          if (nameHits === words.length) score = 55 // all words in name
+          else if (nameHits > 0) score = 40 // some words in name
+          else if (descHits === words.length) score = 25 // all words in desc
+          else if (descHits > 0) score = 15 // some words in desc
+        }
         return { type: t, score }
       })
       .filter(r => r.score > 0)
