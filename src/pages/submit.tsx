@@ -71,6 +71,11 @@ export default function SubmitPage() {
   const [typeSearchFocused, setTypeSearchFocused] = useState(false)
   const [showBrowseCategories, setShowBrowseCategories] = useState(false)
 
+  // Related phenomena state
+  const [relatedSearch, setRelatedSearch] = useState('')
+  const [typeAssociations, setTypeAssociations] = useState<{ type_id: string; score: number }[]>([])
+  const [showAllRelated, setShowAllRelated] = useState(false)
+
   // Form data
   const [formData, setFormData] = useState({
     // Step 1: Basic Info
@@ -129,6 +134,33 @@ export default function SubmitPage() {
   function updateForm(field: string, value: any) {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
+
+  // Fetch associations when primary type changes
+  useEffect(() => {
+    if (!formData.phenomenonTypeId) {
+      setTypeAssociations([])
+      return
+    }
+    async function fetchAssociations() {
+      const typeId = formData.phenomenonTypeId
+      // Query both directions (type could be in type_id_a or type_id_b)
+      const { data } = await supabase
+        .from('phenomenon_type_associations')
+        .select('type_id_a, type_id_b, association_score')
+        .or(`type_id_a.eq.${typeId},type_id_b.eq.${typeId}`)
+        .order('association_score', { ascending: false })
+        .limit(10)
+
+      if (data) {
+        const mapped = data.map(row => ({
+          type_id: row.type_id_a === typeId ? row.type_id_b : row.type_id_a,
+          score: row.association_score
+        }))
+        setTypeAssociations(mapped)
+      }
+    }
+    fetchAssociations()
+  }, [formData.phenomenonTypeId])
 
   // Country name mapping: Nominatim uses full English names, our dropdown may differ
   const COUNTRY_NAME_MAP: Record<string, string> = {
@@ -723,102 +755,214 @@ export default function SubmitPage() {
               </div>
 
               {/* Cross-disciplinary tagging (shown once a category is selected) */}
-              {formData.category && (
-                <div>
-                  <label className="block text-sm font-medium text-white mb-1">
-                    Related phenomena
-                  </label>
-                  <p className="text-xs text-gray-400 mb-3">
-                    Did your experience also involve any of these? Select any that apply.
-                  </p>
+              {formData.category && (() => {
+                // Build suggested types from associations (exclude same category and already-selected primary)
+                const suggestedTypes = typeAssociations
+                  .map(a => phenomenonTypes.find(t => t.id === a.type_id))
+                  .filter((t): t is PhenomenonType =>
+                    !!t && t.category !== formData.category && t.id !== formData.phenomenonTypeId
+                  )
+                  .slice(0, 5)
 
-                  {/* Selected tags summary */}
-                  {formData.additionalTypeIds.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-3">
-                      {formData.additionalTypeIds.map(id => {
-                        const t = phenomenonTypes.find(pt => pt.id === id)
-                        if (!t) return null
-                        return (
-                          <span
-                            key={id}
-                            className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-primary-500/20 text-primary-300 border border-primary-500/40"
-                          >
-                            {t.name}
-                            <button
-                              type="button"
-                              onClick={() => updateForm('additionalTypeIds', formData.additionalTypeIds.filter(x => x !== id))}
-                              className="hover:text-white ml-0.5"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
+                // Filter for related search
+                const rq = relatedSearch.trim().toLowerCase()
+                const rqWords = rq.split(/\s+/).filter(w => w.length >= 2)
+                const crossTypes = submittableTypes.filter(t =>
+                  t.category !== formData.category && t.id !== formData.phenomenonTypeId
+                )
+                const relatedSearchResults = rq.length >= 2
+                  ? crossTypes
+                      .map(t => {
+                        const name = t.name.toLowerCase()
+                        const desc = (t.description || '').toLowerCase()
+                        let score = 0
+                        if (name === rq) score = 100
+                        else if (name.startsWith(rq)) score = 80
+                        else if (name.includes(rq)) score = 60
+                        else if (desc.includes(rq)) score = 30
+                        if (score === 0 && rqWords.length > 1) {
+                          const nameHits = rqWords.filter(w => name.includes(w)).length
+                          const descHits = rqWords.filter(w => desc.includes(w)).length
+                          if (nameHits === rqWords.length) score = 55
+                          else if (nameHits > 0) score = 40
+                          else if (descHits === rqWords.length) score = 25
+                          else if (descHits > 0) score = 15
+                        }
+                        return { type: t, score }
+                      })
+                      .filter(r => r.score > 0)
+                      .sort((a, b) => b.score - a.score)
+                      .slice(0, 10)
+                      .map(r => r.type)
+                  : []
+
+                // Checkbox row renderer (reused for suggestions, search results, and browse)
+                const renderTypeRow = (type: PhenomenonType) => {
+                  const isSelected = formData.additionalTypeIds.includes(type.id)
+                  return (
+                    <button
+                      key={type.id}
+                      type="button"
+                      onClick={() => {
+                        const newIds = isSelected
+                          ? formData.additionalTypeIds.filter(id => id !== type.id)
+                          : [...formData.additionalTypeIds, type.id]
+                        updateForm('additionalTypeIds', newIds)
+                      }}
+                      className={classNames(
+                        'w-full text-left px-3 py-2 rounded-lg transition-colors flex items-start gap-3',
+                        isSelected
+                          ? 'bg-primary-500/15 border border-primary-500/40'
+                          : 'hover:bg-white/5 border border-transparent'
+                      )}
+                    >
+                      <div className={classNames(
+                        'w-4 h-4 rounded border flex items-center justify-center shrink-0 mt-0.5',
+                        isSelected
+                          ? 'bg-primary-500 border-primary-500'
+                          : 'border-gray-500'
+                      )}>
+                        {isSelected && <Check className="w-3 h-3 text-white" />}
+                      </div>
+                      <div className="min-w-0">
+                        <span className={classNames(
+                          'text-sm block',
+                          isSelected ? 'text-primary-300 font-medium' : 'text-gray-300'
+                        )}>
+                          {type.name}
+                        </span>
+                        {type.description && (
+                          <span className="text-xs text-gray-500 block mt-0.5 leading-snug">
+                            {type.description}
                           </span>
-                        )
-                      })}
-                    </div>
-                  )}
+                        )}
+                      </div>
+                    </button>
+                  )
+                }
 
-                  <div className="max-h-72 overflow-y-auto space-y-3 p-3 bg-white/5 rounded-lg border border-white/10">
-                    {Object.entries(CATEGORY_CONFIG)
-                      .filter(([key]) => key !== formData.category)
-                      .map(([catKey, catConfig]) => {
-                        const catTypes = submittableTypes.filter(t => t.category === catKey)
-                        if (catTypes.length === 0) return null
-                        return (
-                          <div key={catKey}>
-                            <p className="text-xs text-gray-400 font-medium flex items-center gap-1 mb-1.5 sticky top-0 bg-white/5 py-1 -mx-1 px-1 rounded">
-                              <CategoryIcon category={catKey as PhenomenonCategory} size={14} /> {catConfig.label}
-                            </p>
-                            <div className="space-y-0.5 ml-1">
-                              {catTypes.map(type => {
-                                const isSelected = formData.additionalTypeIds.includes(type.id)
+                return (
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-1">
+                      Related phenomena
+                    </label>
+                    <p className="text-xs text-gray-400 mb-3">
+                      Did your experience also involve any of these? Search or pick from suggestions.
+                    </p>
+
+                    {/* Selected tags summary */}
+                    {formData.additionalTypeIds.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-3">
+                        {formData.additionalTypeIds.map(id => {
+                          const t = phenomenonTypes.find(pt => pt.id === id)
+                          if (!t) return null
+                          return (
+                            <span
+                              key={id}
+                              className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-primary-500/20 text-primary-300 border border-primary-500/40"
+                            >
+                              {t.name}
+                              <button
+                                type="button"
+                                onClick={() => updateForm('additionalTypeIds', formData.additionalTypeIds.filter(x => x !== id))}
+                                className="hover:text-white ml-0.5"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* Suggestions from associations */}
+                    {suggestedTypes.length > 0 && !relatedSearch && (
+                      <div className="mb-3">
+                        <p className="text-xs text-gray-500 mb-2">
+                          Others with similar experiences also reported:
+                        </p>
+                        <div className="space-y-0.5 bg-white/5 rounded-lg border border-white/10 p-2">
+                          {suggestedTypes.map(renderTypeRow)}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Search for related phenomena */}
+                    <div className="relative mb-3">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type="text"
+                        value={relatedSearch}
+                        onChange={(e) => setRelatedSearch(e.target.value)}
+                        placeholder="Search related phenomena (e.g., sleep paralysis, telepathy, missing time)"
+                        className="w-full pl-10 pr-10 py-2.5 text-sm"
+                      />
+                      {relatedSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setRelatedSearch('')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Search results */}
+                    {relatedSearch.length >= 2 && (
+                      <div className="bg-white/5 rounded-lg border border-white/10 p-2 mb-3">
+                        {relatedSearchResults.length > 0 ? (
+                          <div className="space-y-0.5">
+                            {relatedSearchResults.map(renderTypeRow)}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-500 p-3 text-center">
+                            No matches found for &ldquo;{relatedSearch}&rdquo;
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Browse all — collapsed by default */}
+                    {!relatedSearch && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setShowAllRelated(!showAllRelated)}
+                          className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-2"
+                        >
+                          <ChevronDown className={classNames(
+                            'w-4 h-4 transition-transform',
+                            showAllRelated ? 'rotate-180' : ''
+                          )} />
+                          Browse all by category
+                        </button>
+
+                        {showAllRelated && (
+                          <div className="max-h-72 overflow-y-auto space-y-3 p-3 bg-white/5 rounded-lg border border-white/10">
+                            {Object.entries(CATEGORY_CONFIG)
+                              .filter(([key]) => key !== formData.category)
+                              .map(([catKey, catConfig]) => {
+                                const catTypes = crossTypes.filter(t => t.category === catKey)
+                                if (catTypes.length === 0) return null
                                 return (
-                                  <button
-                                    key={type.id}
-                                    type="button"
-                                    onClick={() => {
-                                      const newIds = isSelected
-                                        ? formData.additionalTypeIds.filter(id => id !== type.id)
-                                        : [...formData.additionalTypeIds, type.id]
-                                      updateForm('additionalTypeIds', newIds)
-                                    }}
-                                    className={classNames(
-                                      'w-full text-left px-3 py-2 rounded-lg transition-colors flex items-start gap-3',
-                                      isSelected
-                                        ? 'bg-primary-500/15 border border-primary-500/40'
-                                        : 'hover:bg-white/5 border border-transparent'
-                                    )}
-                                  >
-                                    <div className={classNames(
-                                      'w-4 h-4 rounded border flex items-center justify-center shrink-0 mt-0.5',
-                                      isSelected
-                                        ? 'bg-primary-500 border-primary-500'
-                                        : 'border-gray-500'
-                                    )}>
-                                      {isSelected && <Check className="w-3 h-3 text-white" />}
+                                  <div key={catKey}>
+                                    <p className="text-xs text-gray-400 font-medium flex items-center gap-1 mb-1.5 sticky top-0 bg-white/5 py-1 -mx-1 px-1 rounded">
+                                      <CategoryIcon category={catKey as PhenomenonCategory} size={14} /> {catConfig.label}
+                                    </p>
+                                    <div className="space-y-0.5 ml-1">
+                                      {catTypes.map(renderTypeRow)}
                                     </div>
-                                    <div className="min-w-0">
-                                      <span className={classNames(
-                                        'text-sm block',
-                                        isSelected ? 'text-primary-300 font-medium' : 'text-gray-300'
-                                      )}>
-                                        {type.name}
-                                      </span>
-                                      {type.description && (
-                                        <span className="text-xs text-gray-500 block mt-0.5 leading-snug">
-                                          {type.description}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </button>
+                                  </div>
                                 )
                               })}
-                            </div>
                           </div>
-                        )
-                      })}
+                        )}
+                      </>
+                    )}
                   </div>
-                </div>
-              )}
+                )
+              })()}
 
               <div>
                 <label className="block text-sm font-medium text-white mb-2">
