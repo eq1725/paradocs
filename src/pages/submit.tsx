@@ -6,7 +6,7 @@ import Head from 'next/head'
 import Link from 'next/link'
 import {
   ArrowLeft, ArrowRight, Check, MapPin, Calendar, Users,
-  FileText, Eye, Upload, AlertCircle, Camera, Search, X, ChevronDown
+  FileText, Eye, Upload, AlertCircle, Camera, Search, X, ChevronDown, Locate, Loader2
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import ImageUpload, { UploadedFile } from '@/components/ImageUpload'
@@ -61,6 +61,10 @@ export default function SubmitPage() {
   const [phenomenonTypes, setPhenomenonTypes] = useState<PhenomenonType[]>([])
   const [error, setError] = useState('')
   const [uploadedMedia, setUploadedMedia] = useState<UploadedFile[]>([])
+
+  // Geolocation state
+  const [geolocating, setGeolocating] = useState(false)
+  const [geoError, setGeoError] = useState('')
 
   // Smart type search state
   const [typeSearch, setTypeSearch] = useState('')
@@ -124,6 +128,80 @@ export default function SubmitPage() {
 
   function updateForm(field: string, value: any) {
     setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  // Country name mapping: Nominatim uses full English names, our dropdown may differ
+  const COUNTRY_NAME_MAP: Record<string, string> = {
+    'United States of America': 'United States',
+    'United Kingdom of Great Britain and Northern Ireland': 'United Kingdom',
+    'Russian Federation': 'Russia',
+    "People's Republic of China": 'China',
+    'Republic of India': 'India',
+  }
+
+  async function detectLocation() {
+    if (!navigator.geolocation) {
+      setGeoError('Geolocation is not supported by your browser')
+      return
+    }
+    setGeolocating(true)
+    setGeoError('')
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: false,
+          timeout: 10000,
+          maximumAge: 300000, // Cache for 5 min
+        })
+      })
+
+      const { latitude, longitude } = position.coords
+      updateForm('latitude', latitude.toFixed(6))
+      updateForm('longitude', longitude.toFixed(6))
+
+      // Reverse geocode with OpenStreetMap Nominatim
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=en`,
+          { headers: { 'User-Agent': 'Paradocs-Submit/1.0' } }
+        )
+        if (res.ok) {
+          const data = await res.json()
+          const addr = data.address || {}
+
+          // Map country name to our dropdown values
+          const rawCountry = addr.country || ''
+          const mappedCountry = COUNTRY_NAME_MAP[rawCountry] || rawCountry
+          const knownCountry = COUNTRIES.includes(mappedCountry) ? mappedCountry : (rawCountry ? 'Other' : '')
+          if (knownCountry) updateForm('country', knownCountry)
+
+          // State (US-specific — Nominatim returns full state name)
+          if (knownCountry === 'United States' && addr.state) {
+            const stateName = addr.state.replace(/^State of /i, '')
+            if (US_STATES.includes(stateName)) {
+              updateForm('stateProvince', stateName)
+            }
+          }
+
+          // City — Nominatim uses city, town, village, or municipality
+          const city = addr.city || addr.town || addr.village || addr.municipality || ''
+          if (city) updateForm('city', city)
+        }
+      } catch {
+        // Reverse geocode failed — coords are still set, just no address
+      }
+    } catch (err: any) {
+      if (err?.code === 1) {
+        setGeoError('Location access denied. Please allow location access or enter manually.')
+      } else if (err?.code === 3) {
+        setGeoError('Location request timed out. Please try again or enter manually.')
+      } else {
+        setGeoError('Could not detect location. Please enter manually.')
+      }
+    } finally {
+      setGeolocating(false)
+    }
   }
 
   function validateStep(s: Step): boolean {
@@ -819,6 +897,29 @@ export default function SubmitPage() {
           {/* Step 3: Location */}
           {step === 3 && (
             <div className="space-y-6">
+              {/* Auto-detect location */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <button
+                  type="button"
+                  onClick={detectLocation}
+                  disabled={geolocating}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary-500/15 text-primary-300 border border-primary-500/40 hover:bg-primary-500/25 transition-colors disabled:opacity-50 text-sm font-medium"
+                >
+                  {geolocating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Locate className="w-4 h-4" />
+                  )}
+                  {geolocating ? 'Detecting...' : 'Use my current location'}
+                </button>
+                {geoError && (
+                  <p className="text-xs text-red-400">{geoError}</p>
+                )}
+                {!geoError && !geolocating && formData.latitude && formData.longitude && (
+                  <p className="text-xs text-gray-400">Location detected — adjust fields below if needed</p>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-white mb-2">
                   Location Name
