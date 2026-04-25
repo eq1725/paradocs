@@ -6,7 +6,7 @@ import Head from 'next/head'
 import Link from 'next/link'
 import {
   ArrowLeft, ArrowRight, Check, MapPin, Calendar, Users,
-  FileText, Eye, Upload, AlertCircle, Camera
+  FileText, Eye, Upload, AlertCircle, Camera, Search, X, ChevronDown
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import ImageUpload, { UploadedFile } from '@/components/ImageUpload'
@@ -61,6 +61,11 @@ export default function SubmitPage() {
   const [phenomenonTypes, setPhenomenonTypes] = useState<PhenomenonType[]>([])
   const [error, setError] = useState('')
   const [uploadedMedia, setUploadedMedia] = useState<UploadedFile[]>([])
+
+  // Smart type search state
+  const [typeSearch, setTypeSearch] = useState('')
+  const [typeSearchFocused, setTypeSearchFocused] = useState(false)
+  const [showBrowseCategories, setShowBrowseCategories] = useState(false)
 
   // Form data
   const [formData, setFormData] = useState({
@@ -130,7 +135,7 @@ export default function SubmitPage() {
           return false
         }
         if (!formData.category) {
-          setError('Please select a category')
+          setError('Please search for or select an experience type')
           return false
         }
         if (!formData.summary.trim()) {
@@ -272,10 +277,68 @@ export default function SubmitPage() {
     }
   }
 
-  const filteredTypes = phenomenonTypes.filter(
-    t => (!formData.category || t.category === formData.category)
-      && !isEditorialType(t.name, t.slug)
+  // All submittable types (editorial ones excluded)
+  const submittableTypes = phenomenonTypes.filter(
+    t => !isEditorialType(t.name, t.slug)
   )
+
+  // Types filtered by selected category (for browse mode)
+  const filteredTypes = submittableTypes.filter(
+    t => !formData.category || t.category === formData.category
+  )
+
+  // Smart search results: match across ALL categories by name and description
+  const typeSearchResults = (() => {
+    const q = typeSearch.trim().toLowerCase()
+    if (q.length < 2) return []
+
+    const scored = submittableTypes
+      .map(t => {
+        const name = t.name.toLowerCase()
+        const desc = (t.description || '').toLowerCase()
+        let score = 0
+        // Exact name match
+        if (name === q) score = 100
+        // Name starts with query
+        else if (name.startsWith(q)) score = 80
+        // Name contains query word
+        else if (name.includes(q)) score = 60
+        // Description contains query
+        else if (desc.includes(q)) score = 30
+        return { type: t, score }
+      })
+      .filter(r => r.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10)
+
+    return scored.map(r => r.type)
+  })()
+
+  // Handler: select a type from search results (auto-assigns category)
+  function selectTypeFromSearch(type: PhenomenonType) {
+    updateForm('category', type.category)
+    updateForm('phenomenonTypeId', type.id)
+    setTypeSearch('')
+    setTypeSearchFocused(false)
+  }
+
+  // Handler: clear selection and start over
+  function clearTypeSelection() {
+    updateForm('category', '')
+    updateForm('phenomenonTypeId', '')
+    updateForm('additionalTypeIds', [])
+    setTypeSearch('')
+    setShowBrowseCategories(false)
+  }
+
+  // Get the selected type object for display
+  const selectedType = formData.phenomenonTypeId
+    ? phenomenonTypes.find(t => t.id === formData.phenomenonTypeId)
+    : null
+
+  const selectedCategoryConfig = formData.category
+    ? CATEGORY_CONFIG[formData.category as PhenomenonCategory]
+    : null
 
   const steps = [
     { num: 1, label: 'Basic Info', icon: FileText },
@@ -377,68 +440,190 @@ export default function SubmitPage() {
                 />
               </div>
 
+              {/* ── Type & Category Selection (Search-first, browse-as-fallback) ── */}
               <div>
-                <label className="block text-sm font-medium text-white mb-2">
-                  Category *
+                <label className="block text-sm font-medium text-white mb-1">
+                  What did you experience? *
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {Object.entries(CATEGORY_CONFIG).map(([key, config]) => (
+                <p className="text-xs text-gray-400 mb-3">
+                  Search for an experience type or browse by category below.
+                </p>
+
+                {/* Selected type chip (shown when a type is already picked) */}
+                {formData.category && selectedType ? (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className={classNames(
+                      'flex items-center gap-2 px-3 py-2 rounded-lg border',
+                      selectedCategoryConfig ? `${selectedCategoryConfig.bgColor} border-current ${selectedCategoryConfig.color}` : 'bg-white/5 border-white/10'
+                    )}>
+                      <CategoryIcon category={formData.category as PhenomenonCategory} size={16} />
+                      <span className="text-sm font-medium text-white">{selectedType.name}</span>
+                      <span className="text-xs text-gray-400">
+                        in {selectedCategoryConfig?.label}
+                      </span>
+                    </div>
                     <button
-                      key={key}
                       type="button"
-                      onClick={() => updateForm('category', key)}
-                      className={classNames(
-                        'p-3 rounded-lg border text-left transition-all',
-                        formData.category === key
-                          ? `${config.bgColor} border-current ${config.color}`
-                          : 'bg-white/5 border-white/10 hover:border-white/20'
-                      )}
+                      onClick={clearTypeSelection}
+                      className="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition-colors"
                     >
-                      <span className="text-xl"><CategoryIcon category={key as PhenomenonCategory} size={20} /></span>
-                      <p className="mt-1 text-sm font-medium text-white">
-                        {config.label}
-                      </p>
+                      <X className="w-3 h-3" /> Change
                     </button>
-                  ))}
-                </div>
+                  </div>
+                ) : formData.category && !selectedType ? (
+                  /* Category selected but no specific type — show category chip + type dropdown */
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className={classNames(
+                        'flex items-center gap-2 px-3 py-2 rounded-lg border',
+                        selectedCategoryConfig ? `${selectedCategoryConfig.bgColor} border-current ${selectedCategoryConfig.color}` : 'bg-white/5 border-white/10'
+                      )}>
+                        <CategoryIcon category={formData.category as PhenomenonCategory} size={16} />
+                        <span className="text-sm font-medium text-white">
+                          {selectedCategoryConfig?.label}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={clearTypeSelection}
+                        className="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition-colors"
+                      >
+                        <X className="w-3 h-3" /> Change
+                      </button>
+                    </div>
+                    {filteredTypes.length > 0 && (
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">
+                          Narrow it down (optional)
+                        </label>
+                        <select
+                          value={formData.phenomenonTypeId}
+                          onChange={(e) => updateForm('phenomenonTypeId', e.target.value)}
+                          className="w-full"
+                        >
+                          <option value="">Select a specific type...</option>
+                          {filteredTypes.map((type) => (
+                            <option key={type.id} value={type.id}>
+                              {type.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Nothing selected yet — show search + browse */
+                  <div className="space-y-3">
+                    {/* Search input */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={typeSearch}
+                        onChange={(e) => setTypeSearch(e.target.value)}
+                        onFocus={() => setTypeSearchFocused(true)}
+                        onBlur={() => setTimeout(() => setTypeSearchFocused(false), 200)}
+                        placeholder="e.g., lucid dream, shadow figure, abduction..."
+                        className="w-full pl-10 pr-8"
+                      />
+                      {typeSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setTypeSearch('')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      {/* Search results dropdown */}
+                      {typeSearchFocused && typeSearch.length >= 2 && (
+                        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-gray-900 border border-white/10 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+                          {typeSearchResults.length > 0 ? (
+                            typeSearchResults.map((type) => {
+                              const catConfig = CATEGORY_CONFIG[type.category as PhenomenonCategory]
+                              return (
+                                <button
+                                  key={type.id}
+                                  type="button"
+                                  onClick={() => selectTypeFromSearch(type)}
+                                  className="w-full text-left px-4 py-3 hover:bg-white/5 transition-colors flex items-center justify-between gap-3 border-b border-white/5 last:border-0"
+                                >
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <CategoryIcon category={type.category as PhenomenonCategory} size={16} />
+                                    <span className="text-sm text-white truncate">{type.name}</span>
+                                  </div>
+                                  {catConfig && (
+                                    <span className={classNames(
+                                      'text-xs px-2 py-0.5 rounded-full shrink-0',
+                                      catConfig.bgColor, catConfig.color
+                                    )}>
+                                      {catConfig.label}
+                                    </span>
+                                  )}
+                                </button>
+                              )
+                            })
+                          ) : (
+                            <div className="px-4 py-3 text-sm text-gray-500">
+                              No matching types found. Try different keywords or browse by category below.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Browse by category toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setShowBrowseCategories(!showBrowseCategories)}
+                      className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+                    >
+                      <ChevronDown className={classNames(
+                        'w-4 h-4 transition-transform',
+                        showBrowseCategories ? 'rotate-180' : ''
+                      )} />
+                      Or browse by category
+                    </button>
+
+                    {showBrowseCategories && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {Object.entries(CATEGORY_CONFIG).map(([key, config]) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => {
+                              updateForm('category', key)
+                              setShowBrowseCategories(false)
+                            }}
+                            className="p-3 rounded-lg border text-left transition-all bg-white/5 border-white/10 hover:border-white/20"
+                          >
+                            <span className="text-xl"><CategoryIcon category={key as PhenomenonCategory} size={20} /></span>
+                            <p className="mt-1 text-sm font-medium text-white">
+                              {config.label}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {formData.category && filteredTypes.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">
-                    Specific Type (optional)
-                  </label>
-                  <select
-                    value={formData.phenomenonTypeId}
-                    onChange={(e) => updateForm('phenomenonTypeId', e.target.value)}
-                    className="w-full"
-                  >
-                    <option value="">Select a type...</option>
-                    {filteredTypes.map((type) => (
-                      <option key={type.id} value={type.id}>
-                        {type.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Cross-disciplinary tagging */}
+              {/* Cross-disciplinary tagging (shown once a category is selected) */}
               {formData.category && (
                 <div>
-                  <label className="block text-sm font-medium text-white mb-2">
-                    Related Phenomena (Cross-Disciplinary)
+                  <label className="block text-sm font-medium text-white mb-1">
+                    Related phenomena
                   </label>
                   <p className="text-xs text-gray-400 mb-3">
-                    Does this experience relate to other phenomena? Select additional types that apply.
+                    Does this experience also relate to other areas? Select any that apply.
                   </p>
                   <div className="max-h-48 overflow-y-auto space-y-1 p-3 bg-white/5 rounded-lg border border-white/10">
                     {Object.entries(CATEGORY_CONFIG)
                       .filter(([key]) => key !== formData.category)
                       .map(([catKey, catConfig]) => {
-                        const catTypes = phenomenonTypes.filter(
-                          t => t.category === catKey && !isEditorialType(t.name, t.slug)
-                        )
+                        const catTypes = submittableTypes.filter(t => t.category === catKey)
                         if (catTypes.length === 0) return null
                         return (
                           <div key={catKey} className="mb-2">
