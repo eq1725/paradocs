@@ -193,7 +193,9 @@ export default function SubmitPage() {
       }
     } catch (err: any) {
       if (err?.code === 1) {
-        setGeoError('Location access denied. Please allow location access or enter manually.')
+        setGeoError('Location access denied — check that Location Services is enabled in macOS System Settings → Privacy & Security, and that your browser is allowed.')
+      } else if (err?.code === 2) {
+        setGeoError('Location unavailable — your device could not determine its position. Please enter manually.')
       } else if (err?.code === 3) {
         setGeoError('Location request timed out. Please try again or enter manually.')
       } else {
