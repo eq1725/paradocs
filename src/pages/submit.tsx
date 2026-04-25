@@ -228,10 +228,22 @@ export default function SubmitPage() {
           setError('Please describe the experience')
           return false
         }
+        if (!formData.eventDate) {
+          setError('Please enter the date of the event (check "approximate" if unsure)')
+          return false
+        }
+        if (!formData.witnessCount || parseInt(formData.witnessCount) < 1) {
+          setError('Please enter the number of witnesses')
+          return false
+        }
         return true
       case 3:
         if (!formData.country) {
           setError('Please select a country')
+          return false
+        }
+        if (!formData.city.trim()) {
+          setError('Please enter a city or town')
           return false
         }
         return true
@@ -258,7 +270,13 @@ export default function SubmitPage() {
       return
     }
 
-    if (!validateStep(4)) return
+    // Re-validate all steps before final submit
+    for (const s of [1, 2, 3, 4] as Step[]) {
+      if (!validateStep(s)) {
+        setStep(s)
+        return
+      }
+    }
 
     setSubmitting(true)
     setError('')
@@ -824,7 +842,7 @@ export default function SubmitPage() {
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">
-                    Date of Event
+                    Date of Event *
                   </label>
                   <input
                     type="date"
@@ -872,7 +890,7 @@ export default function SubmitPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">
-                    Number of Witnesses
+                    Number of Witnesses *
                   </label>
                   <input
                     type="number"
@@ -971,7 +989,7 @@ export default function SubmitPage() {
 
               <div>
                 <label className="block text-sm font-medium text-white mb-2">
-                  City / Town
+                  City / Town *
                 </label>
                 <input
                   type="text"
