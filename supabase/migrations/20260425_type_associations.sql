@@ -148,7 +148,7 @@ INSERT INTO _assoc_seed (slug_a, slug_b, score) VALUES
 -- Insert seeds into the real table, resolving slugs to IDs
 -- Skip any where either slug doesn't exist in phenomenon_types
 INSERT INTO public.phenomenon_type_associations (type_id_a, type_id_b, association_score, source)
-SELECT
+SELECT DISTINCT ON (LEAST(a.id, b.id), GREATEST(a.id, b.id))
   LEAST(a.id, b.id),
   GREATEST(a.id, b.id),
   s.score,
@@ -156,6 +156,7 @@ SELECT
 FROM _assoc_seed s
 JOIN public.phenomenon_types a ON a.slug = s.slug_a
 JOIN public.phenomenon_types b ON b.slug = s.slug_b
+ORDER BY LEAST(a.id, b.id), GREATEST(a.id, b.id), s.score DESC
 ON CONFLICT (type_id_a, type_id_b) DO UPDATE
   SET association_score = GREATEST(
     public.phenomenon_type_associations.association_score,
@@ -166,24 +167,138 @@ ON CONFLICT (type_id_a, type_id_b) DO UPDATE
 -- ============================================================
 -- Recalculation function (call periodically to update from real data)
 -- ============================================================
+-- Mines co-occurrence patterns from two data sources:
+--   1. report_tags: user-submitted reports with multiple tags
+--   2. report_phenomena → phenomena → phenomenon_type_id: ingested reports
+--      linked to multiple phenomena that each map to a type
+--
+-- The function computes raw co-occurrence counts, then normalizes to a
+-- 0–1 association_score using Jaccard similarity:
+--   score = co_occurrences(A,B) / (reports_with(A) + reports_with(B) - co_occurrences(A,B))
+-- This rewards pairs that consistently appear together, not just pairs
+-- that appear on high-volume types.
+--
+-- Computed rows are merged with curated rows: the higher score wins.
+
 CREATE OR REPLACE FUNCTION public.recalculate_type_associations()
-RETURNS void
+RETURNS TABLE(pairs_updated INT, pairs_inserted INT)
 LANGUAGE plpgsql
 AS $fn$
+DECLARE
+  v_updated INT := 0;
+  v_inserted INT := 0;
 BEGIN
-  -- Find all report pairs where a report has both a primary type and additional types
-  -- or where report_phenomena links multiple types to the same report.
-  -- For now, we work with the reports table's phenomenon_type_id field
-  -- and the additional_type_ids JSONB array (if it exists).
+  -- Step 1: Build a unified "report → type" mapping from all sources
+  CREATE TEMP TABLE _report_types (
+    report_id UUID,
+    type_id UUID
+  ) ON COMMIT DROP;
 
-  -- This is a placeholder that will be enhanced as the data model matures.
-  -- The key insight: every time two types appear on the same report,
-  -- that's one co-occurrence count.
+  -- Source A: report_tags (user submissions + any tagged reports)
+  INSERT INTO _report_types (report_id, type_id)
+  SELECT DISTINCT report_id, phenomenon_type_id
+  FROM public.report_tags
+  WHERE phenomenon_type_id IS NOT NULL;
 
-  -- Update last_calculated_at on all computed rows
-  UPDATE public.phenomenon_type_associations
-  SET last_calculated_at = NOW()
-  WHERE source = 'computed';
+  -- Source B: reports.phenomenon_type_id (primary type on every report)
+  INSERT INTO _report_types (report_id, type_id)
+  SELECT DISTINCT id, phenomenon_type_id
+  FROM public.reports
+  WHERE phenomenon_type_id IS NOT NULL;
+
+  -- Source C: report_phenomena → phenomena.phenomenon_type_id (ingested reports)
+  INSERT INTO _report_types (report_id, type_id)
+  SELECT DISTINCT rp.report_id, p.phenomenon_type_id
+  FROM public.report_phenomena rp
+  JOIN public.phenomena p ON p.id = rp.phenomenon_id
+  WHERE p.phenomenon_type_id IS NOT NULL;
+
+  -- Deduplicate (a report may be in multiple sources)
+  CREATE TEMP TABLE _report_types_deduped AS
+  SELECT DISTINCT report_id, type_id FROM _report_types;
+  DROP TABLE _report_types;
+
+  -- Step 2: Count how many reports each type appears on (for Jaccard denominator)
+  CREATE TEMP TABLE _type_counts AS
+  SELECT type_id, count(DISTINCT report_id) AS report_count
+  FROM _report_types_deduped
+  GROUP BY type_id
+  HAVING count(DISTINCT report_id) >= 2;  -- skip types with <2 reports
+
+  -- Step 3: Self-join to find co-occurrences (pairs on the same report)
+  CREATE TEMP TABLE _co_occurrences AS
+  SELECT
+    LEAST(a.type_id, b.type_id) AS type_id_a,
+    GREATEST(a.type_id, b.type_id) AS type_id_b,
+    count(DISTINCT a.report_id) AS co_count
+  FROM _report_types_deduped a
+  JOIN _report_types_deduped b
+    ON a.report_id = b.report_id
+    AND a.type_id < b.type_id  -- avoid self-pairs and duplicates
+  GROUP BY LEAST(a.type_id, b.type_id), GREATEST(a.type_id, b.type_id)
+  HAVING count(DISTINCT a.report_id) >= 2;  -- minimum 2 co-occurrences
+
+  -- Step 4: Compute Jaccard similarity score
+  CREATE TEMP TABLE _computed_assoc AS
+  SELECT
+    co.type_id_a,
+    co.type_id_b,
+    co.co_count,
+    ROUND(
+      co.co_count::NUMERIC / (ca.report_count + cb.report_count - co.co_count),
+      3
+    ) AS jaccard_score
+  FROM _co_occurrences co
+  JOIN _type_counts ca ON ca.type_id = co.type_id_a
+  JOIN _type_counts cb ON cb.type_id = co.type_id_b;
+
+  -- Step 5: Upsert computed associations
+  -- Update existing rows (both curated and computed)
+  UPDATE public.phenomenon_type_associations pta
+  SET
+    co_occurrence_count = ca.co_count,
+    association_score = GREATEST(
+      CASE WHEN pta.source = 'curated' THEN pta.association_score ELSE 0 END,
+      ca.jaccard_score
+    ),
+    source = CASE
+      WHEN pta.source = 'curated' AND ca.jaccard_score > pta.association_score
+        THEN 'computed'  -- data overtook the curated score
+      ELSE pta.source
+    END,
+    last_calculated_at = NOW()
+  FROM _computed_assoc ca
+  WHERE pta.type_id_a = ca.type_id_a
+    AND pta.type_id_b = ca.type_id_b;
+
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
+
+  -- Insert new pairs that don't exist yet
+  INSERT INTO public.phenomenon_type_associations
+    (type_id_a, type_id_b, co_occurrence_count, association_score, source, last_calculated_at)
+  SELECT
+    ca.type_id_a,
+    ca.type_id_b,
+    ca.co_count,
+    ca.jaccard_score,
+    'computed',
+    NOW()
+  FROM _computed_assoc ca
+  WHERE NOT EXISTS (
+    SELECT 1 FROM public.phenomenon_type_associations pta
+    WHERE pta.type_id_a = ca.type_id_a
+      AND pta.type_id_b = ca.type_id_b
+  );
+
+  GET DIAGNOSTICS v_inserted = ROW_COUNT;
+
+  -- Cleanup
+  DROP TABLE _report_types_deduped;
+  DROP TABLE _type_counts;
+  DROP TABLE _co_occurrences;
+  DROP TABLE _computed_assoc;
+
+  RETURN QUERY SELECT v_updated, v_inserted;
 END;
 $fn$;
 
