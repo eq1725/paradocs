@@ -29,17 +29,6 @@ WHERE phenomenon_type_id IN (
     AND slug != 'near-death-experience'
 );
 
--- Re-point report_phenomena from duplicate to canonical
-UPDATE public.report_phenomena
-SET phenomenon_type_id = (
-  SELECT id FROM public.phenomenon_types WHERE slug = 'near-death-experience'
-)
-WHERE phenomenon_type_id IN (
-  SELECT id FROM public.phenomenon_types
-  WHERE name = 'Near-Death Experience'
-    AND slug != 'near-death-experience'
-);
-
 -- Delete the duplicate(s)
 DELETE FROM public.phenomenon_types
 WHERE name = 'Near-Death Experience'
@@ -81,16 +70,6 @@ BEGIN
     UPDATE public.reports
     SET phenomenon_type_id = canonical_id
     WHERE phenomenon_type_id = ANY(dup_ids);
-
-    -- Re-point report_phenomena
-    IF EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_name = 'report_phenomena' AND column_name = 'phenomenon_type_id'
-    ) THEN
-      UPDATE public.report_phenomena
-      SET phenomenon_type_id = canonical_id
-      WHERE phenomenon_type_id = ANY(dup_ids);
-    END IF;
 
     -- Delete duplicates
     DELETE FROM public.phenomenon_types
