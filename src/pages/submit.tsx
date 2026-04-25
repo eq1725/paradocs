@@ -14,29 +14,41 @@ import { PhenomenonCategory, PhenomenonType } from '@/lib/database.types'
 import { CATEGORY_CONFIG, COUNTRIES, US_STATES } from '@/lib/constants'
 import { generateSlug, classNames } from '@/lib/utils'
 import CategoryIcon from '@/components/ui/CategoryIcon'
-import PhenomenonIcon from '@/components/ui/PhenomenonIcon'
 
-// Types that should NOT appear in the user submission form.
-// These are editorial classifications or location-based entries,
-// not experiences a user would self-select when reporting.
-const EXCLUDED_SUBMIT_TYPES: Set<string> = new Set([
-  // Editorial/classification labels (added to DB for content tagging, not user reports)
-  'historical-sighting',
-  'notable-case',
-  // Location-based entries (user should describe their experience type, not the location)
-  'bermuda-triangle',
-  'skinwalker-ranch',
-  'ley-line',
-])
+/**
+ * Filter out phenomenon types that don't belong in a user submission form.
+ *
+ * The phenomenon_types table contains entries for both:
+ *   (a) Personal experience types (what a user would self-select when reporting)
+ *   (b) Editorial/classification labels used internally for content tagging
+ *
+ * This function returns TRUE for types that should be HIDDEN from the form.
+ */
+function isEditorialType(name: string, slug: string | null): boolean {
+  const n = name.toLowerCase()
+  const s = (slug || '').toLowerCase()
 
-// Name-based fallback for types that may have non-standard slugs
-const EXCLUDED_SUBMIT_TYPE_NAMES: Set<string> = new Set([
-  'Historical Sighting',
-  'Notable Case',
-  'Bermuda Triangle',
-  'Skinwalker Ranch',
-  'Ley Line',
-])
+  // Pattern 1: "Historical ___" — editorial classification, not a personal experience
+  // e.g. "Historical Sighting", "Historical Cryptid Report", "Historical Haunting"
+  if (n.startsWith('historical ')) return true
+
+  // Pattern 2: Case/classification labels — editorial, not experiencer language
+  // e.g. "Notable Case", "Infamous Case", "Classic Case", "Famous Case"
+  if (/\b(notable|infamous|classic|famous)\s+(case|report|incident)/i.test(name)) return true
+
+  // Pattern 3: Specific well-known locations — these describe a place, not an experience type
+  // Users should describe *what* they experienced; the location goes in the location field
+  const locationSlugs = new Set([
+    'bermuda-triangle', 'skinwalker-ranch', 'ley-line',
+  ])
+  if (locationSlugs.has(s)) return true
+  const locationNames = new Set([
+    'bermuda triangle', 'skinwalker ranch', 'ley line',
+  ])
+  if (locationNames.has(n)) return true
+
+  return false
+}
 
 type Step = 1 | 2 | 3 | 4
 
@@ -262,8 +274,7 @@ export default function SubmitPage() {
 
   const filteredTypes = phenomenonTypes.filter(
     t => (!formData.category || t.category === formData.category)
-      && !EXCLUDED_SUBMIT_TYPES.has(t.slug || '')
-      && !EXCLUDED_SUBMIT_TYPE_NAMES.has(t.name)
+      && !isEditorialType(t.name, t.slug)
   )
 
   const steps = [
@@ -405,7 +416,7 @@ export default function SubmitPage() {
                     <option value="">Select a type...</option>
                     {filteredTypes.map((type) => (
                       <option key={type.id} value={type.id}>
-                        {type.icon} {type.name}
+                        {type.name}
                       </option>
                     ))}
                   </select>
@@ -425,7 +436,9 @@ export default function SubmitPage() {
                     {Object.entries(CATEGORY_CONFIG)
                       .filter(([key]) => key !== formData.category)
                       .map(([catKey, catConfig]) => {
-                        const catTypes = phenomenonTypes.filter(t => t.category === catKey)
+                        const catTypes = phenomenonTypes.filter(
+                          t => t.category === catKey && !isEditorialType(t.name, t.slug)
+                        )
                         if (catTypes.length === 0) return null
                         return (
                           <div key={catKey} className="mb-2">
@@ -452,7 +465,7 @@ export default function SubmitPage() {
                                         : 'bg-white/5 text-gray-400 border border-white/10 hover:border-white/20'
                                     )}
                                   >
-                                    <PhenomenonIcon slug={type.slug || type.name.toLowerCase().replace(/\s+/g, '-')} fallbackEmoji={type.icon} category={catKey} size={14} /> {type.name}
+                                    {type.name}
                                   </button>
                                 )
                               })}
