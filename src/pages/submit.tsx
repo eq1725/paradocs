@@ -84,7 +84,7 @@ export default function SubmitPage() {
     description: '',
     eventDate: '',
     eventTime: '',
-    eventDateApproximate: false,
+    eventDatePrecision: 'exact' as 'exact' | 'month' | 'year' | 'decade',
     durationMinutes: '',
     witnessCount: '1',
     submitterWasWitness: false,
@@ -229,7 +229,11 @@ export default function SubmitPage() {
           return false
         }
         if (!formData.eventDate) {
-          setError('Please enter the date of the event (check "approximate" if unsure)')
+          setError('Please enter when this happened')
+          return false
+        }
+        if (formData.eventDatePrecision === 'exact' && formData.eventDate > new Date().toISOString().split('T')[0]) {
+          setError('Date cannot be in the future')
           return false
         }
         if (!formData.witnessCount || parseInt(formData.witnessCount) < 1) {
@@ -299,7 +303,7 @@ export default function SubmitPage() {
           description: formData.description,
           event_date: formData.eventDate || null,
           event_time: formData.eventTime || null,
-          event_date_approximate: formData.eventDateApproximate,
+          event_date_approximate: formData.eventDatePrecision !== 'exact',
           event_duration_minutes: formData.durationMinutes ? parseInt(formData.durationMinutes) : null,
           witness_count: parseInt(formData.witnessCount) || 1,
           submitter_was_witness: formData.submitterWasWitness,
@@ -849,40 +853,103 @@ export default function SubmitPage() {
                 />
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">
-                    Date of Event *
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.eventDate}
-                    onChange={(e) => updateForm('eventDate', e.target.value)}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">
-                    Time of Event
-                  </label>
-                  <input
-                    type="time"
-                    value={formData.eventTime}
-                    onChange={(e) => updateForm('eventTime', e.target.value)}
-                    className="w-full"
-                  />
+              {/* Date precision selector */}
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  How precisely do you remember when this happened? *
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {([
+                    { value: 'exact', label: 'Exact date' },
+                    { value: 'month', label: 'Month & year' },
+                    { value: 'year', label: 'Year only' },
+                    { value: 'decade', label: 'Approximate decade' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        updateForm('eventDatePrecision', opt.value)
+                        // Clear date when switching precision so the right input shows empty
+                        if (opt.value !== formData.eventDatePrecision) {
+                          updateForm('eventDate', '')
+                          updateForm('eventTime', '')
+                        }
+                      }}
+                      className={classNames(
+                        'px-3 py-2 rounded-lg text-sm font-medium transition-colors border',
+                        formData.eventDatePrecision === opt.value
+                          ? 'bg-primary-500/20 text-primary-300 border-primary-500/50'
+                          : 'bg-white/5 text-gray-400 border-white/10 hover:border-white/20'
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.eventDateApproximate}
-                  onChange={(e) => updateForm('eventDateApproximate', e.target.checked)}
-                  className="rounded bg-white/5 border-white/20"
-                />
-                <span className="text-sm text-gray-300">Date is approximate</span>
-              </label>
+              {/* Date input — adapts to precision */}
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    {formData.eventDatePrecision === 'exact' ? 'Date *' :
+                     formData.eventDatePrecision === 'month' ? 'Month & Year *' :
+                     formData.eventDatePrecision === 'year' ? 'Year *' : 'Approximate Decade *'}
+                  </label>
+                  {formData.eventDatePrecision === 'exact' ? (
+                    <input
+                      type="date"
+                      value={formData.eventDate}
+                      onChange={(e) => updateForm('eventDate', e.target.value)}
+                      max={new Date().toISOString().split('T')[0]}
+                      className="w-full"
+                    />
+                  ) : formData.eventDatePrecision === 'month' ? (
+                    <input
+                      type="month"
+                      value={formData.eventDate}
+                      onChange={(e) => updateForm('eventDate', e.target.value)}
+                      max={new Date().toISOString().slice(0, 7)}
+                      className="w-full"
+                    />
+                  ) : (
+                    <select
+                      value={formData.eventDate}
+                      onChange={(e) => updateForm('eventDate', e.target.value)}
+                      className="w-full"
+                    >
+                      <option value="">
+                        {formData.eventDatePrecision === 'year' ? 'Select a year' : 'Select a decade'}
+                      </option>
+                      {formData.eventDatePrecision === 'year'
+                        ? Array.from({ length: new Date().getFullYear() - 1899 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                            <option key={y} value={String(y)}>{y}</option>
+                          ))
+                        : ['2020s', '2010s', '2000s', '1990s', '1980s', '1970s', '1960s', '1950s', 'Before 1950'].map(d => (
+                            <option key={d} value={d}>{d}</option>
+                          ))
+                      }
+                    </select>
+                  )}
+                </div>
+
+                {/* Time — only show for exact date */}
+                {formData.eventDatePrecision === 'exact' && (
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Time of Event
+                    </label>
+                    <input
+                      type="time"
+                      value={formData.eventTime}
+                      onChange={(e) => updateForm('eventTime', e.target.value)}
+                      className="w-full"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Optional — leave blank if you don't remember</p>
+                  </div>
+                )}
+              </div>
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
