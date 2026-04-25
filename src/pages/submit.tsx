@@ -16,6 +16,28 @@ import { generateSlug, classNames } from '@/lib/utils'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import PhenomenonIcon from '@/components/ui/PhenomenonIcon'
 
+// Types that should NOT appear in the user submission form.
+// These are editorial classifications or location-based entries,
+// not experiences a user would self-select when reporting.
+const EXCLUDED_SUBMIT_TYPES: Set<string> = new Set([
+  // Editorial/classification labels (added to DB for content tagging, not user reports)
+  'historical-sighting',
+  'notable-case',
+  // Location-based entries (user should describe their experience type, not the location)
+  'bermuda-triangle',
+  'skinwalker-ranch',
+  'ley-line',
+])
+
+// Name-based fallback for types that may have non-standard slugs
+const EXCLUDED_SUBMIT_TYPE_NAMES: Set<string> = new Set([
+  'Historical Sighting',
+  'Notable Case',
+  'Bermuda Triangle',
+  'Skinwalker Ranch',
+  'Ley Line',
+])
+
 type Step = 1 | 2 | 3 | 4
 
 export default function SubmitPage() {
@@ -239,7 +261,9 @@ export default function SubmitPage() {
   }
 
   const filteredTypes = phenomenonTypes.filter(
-    t => !formData.category || t.category === formData.category
+    t => (!formData.category || t.category === formData.category)
+      && !EXCLUDED_SUBMIT_TYPES.has(t.slug || '')
+      && !EXCLUDED_SUBMIT_TYPE_NAMES.has(t.name)
   )
 
   const steps = [
