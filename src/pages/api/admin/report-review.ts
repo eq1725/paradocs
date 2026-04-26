@@ -61,7 +61,10 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
 
-  if (source) {
+  if (source === 'ingested') {
+    // "ingested" = everything that isn't a user submission
+    query = query.neq('source_type', 'user_submission')
+  } else if (source) {
     query = query.eq('source_type', source)
   }
 

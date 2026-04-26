@@ -468,6 +468,20 @@ export default function AdminDashboard() {
             </button>
           ))}
           <Link
+            href="/admin/report-review"
+            className="px-4 py-3 font-medium transition-colors border-b-2 -mb-px whitespace-nowrap text-gray-400 border-transparent hover:text-green-400 hover:border-green-400"
+          >
+            <span className="mr-2">✅</span>
+            Review Reports
+          </Link>
+          <Link
+            href="/admin/media-review"
+            className="px-4 py-3 font-medium transition-colors border-b-2 -mb-px whitespace-nowrap text-gray-400 border-transparent hover:text-blue-400 hover:border-blue-400"
+          >
+            <span className="mr-2">🖼️</span>
+            Media Review
+          </Link>
+          <Link
             href="/admin/ab-testing"
             className="px-4 py-3 font-medium transition-colors border-b-2 -mb-px whitespace-nowrap text-gray-400 border-transparent hover:text-purple-400 hover:border-purple-400"
           >

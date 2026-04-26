@@ -5,7 +5,7 @@ import { useRouter } from 'next/router'
 import Head from 'next/head'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { Check, X, ChevronLeft, ChevronRight, ExternalLink, Eye, Filter, ArrowLeft, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react'
+import { Check, X, ChevronLeft, ChevronRight, ExternalLink, Eye, Filter, ArrowLeft, CheckCircle, XCircle, Clock, AlertTriangle, User, Database } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 import type { User } from '@supabase/supabase-js'
 
@@ -248,6 +248,7 @@ export default function ReportReview() {
   }
 
   function getReviewReason(report: ReviewReport): string {
+    if (report.source_type === 'user_submission') return 'User-submitted report — requires manual review before publishing'
     var assessment = report.paradocs_assessment
     if (!assessment) return 'Quality score below auto-approve threshold for ' + (SOURCE_LABELS[report.source_type] || report.source_type)
 
@@ -350,8 +351,68 @@ export default function ReportReview() {
             </div>
           )}
 
-          {/* Filters & Actions Bar */}
-          <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+          {/* Source type segmentation */}
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            {[
+              { key: '', label: 'All Reports', icon: Filter, desc: 'Everything pending review' },
+              { key: 'user_submission', label: 'User Submissions', icon: User, desc: 'Submitted via /submit form' },
+              { key: 'ingested', label: 'Ingested Reports', icon: Database, desc: 'From data sources (NUFORC, BFRO, etc.)' },
+            ].map(function(tab) {
+              var isActive = sourceFilter === tab.key
+              var TabIcon = tab.icon
+              var count = 0
+              if (stats) {
+                if (tab.key === '') {
+                  count = Object.values(stats.by_source).reduce(function(a, b) { return a + b }, 0)
+                } else if (tab.key === 'user_submission') {
+                  count = stats.by_source['user_submission'] || 0
+                } else {
+                  // "ingested" = everything that isn't user_submission
+                  for (var src in stats.by_source) {
+                    if (src !== 'user_submission') count += stats.by_source[src]
+                  }
+                }
+              }
+              return (
+                <button
+                  key={tab.key}
+                  onClick={function() { setSourceFilter(tab.key); setPage(1); setSelected(new Set()) }}
+                  className={classNames(
+                    'flex items-center gap-3 p-3 rounded-lg border text-left transition-all',
+                    isActive
+                      ? 'bg-purple-600/10 border-purple-500/40'
+                      : 'bg-gray-900/50 border-gray-800 hover:border-gray-700'
+                  )}
+                >
+                  <div className={classNames(
+                    'w-9 h-9 rounded-lg flex items-center justify-center shrink-0',
+                    isActive ? 'bg-purple-600/20' : 'bg-gray-800'
+                  )}>
+                    <TabIcon className={classNames('w-4 h-4', isActive ? 'text-purple-400' : 'text-gray-500')} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={classNames('text-sm font-medium', isActive ? 'text-white' : 'text-gray-300')}>
+                        {tab.label}
+                      </span>
+                      {count > 0 && (
+                        <span className={classNames(
+                          'text-xs px-1.5 py-0.5 rounded-full font-medium',
+                          isActive ? 'bg-purple-500/20 text-purple-300' : 'bg-gray-800 text-gray-500'
+                        )}>
+                          {count}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 truncate">{tab.desc}</p>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Status + secondary source filter + actions row */}
+          <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
             <div className="flex items-center gap-3">
               {/* Status filter */}
               <div className="flex rounded-lg overflow-hidden border border-gray-700">
@@ -371,21 +432,28 @@ export default function ReportReview() {
                 })}
               </div>
 
-              {/* Source filter */}
-              <select
-                value={sourceFilter}
-                onChange={function(e) { setSourceFilter(e.target.value); setPage(1) }}
-                className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-purple-500"
-              >
-                <option value="">All sources</option>
-                {stats && Object.keys(stats.by_source).sort().map(function(src) {
-                  return (
-                    <option key={src} value={src}>
-                      {(SOURCE_LABELS[src] || src) + ' (' + stats.by_source[src] + ')'}
-                    </option>
-                  )
-                })}
-              </select>
+              {/* Specific source dropdown (only when viewing "Ingested") */}
+              {sourceFilter === 'ingested' && stats && (
+                <select
+                  value={sourceFilter}
+                  onChange={function(e) {
+                    // If a specific source is picked, set it directly
+                    var val = e.target.value
+                    setSourceFilter(val === 'ingested' ? 'ingested' : val)
+                    setPage(1)
+                  }}
+                  className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-purple-500"
+                >
+                  <option value="ingested">All ingested sources</option>
+                  {Object.keys(stats.by_source).sort().filter(function(src) { return src !== 'user_submission' }).map(function(src) {
+                    return (
+                      <option key={src} value={src}>
+                        {(SOURCE_LABELS[src] || src) + ' (' + stats.by_source[src] + ')'}
+                      </option>
+                    )
+                  })}
+                </select>
+              )}
 
               <span className="text-xs text-gray-500">{total} report{total !== 1 ? 's' : ''}</span>
             </div>
@@ -461,7 +529,11 @@ export default function ReportReview() {
                           <h3 className="text-sm font-medium text-white truncate">{report.title}</h3>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                          <span className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">{SOURCE_LABELS[report.source_type] || report.source_type}</span>
+                          {report.source_type === 'user_submission' ? (
+                            <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium">User Submission</span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">{SOURCE_LABELS[report.source_type] || report.source_type}</span>
+                          )}
                           <span className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">{CATEGORY_LABELS[report.category] || report.category}</span>
                           {report.location_name && <span>{report.location_name}</span>}
                           {report.event_date && <span>{formatDate(report.event_date)}</span>}
@@ -475,7 +547,7 @@ export default function ReportReview() {
                               {'Score: ' + credScore + '/100'}
                             </span>
                           )}
-                          <span className="text-gray-600">{'Ingested ' + formatDate(report.created_at)}</span>
+                          <span className="text-gray-600">{(report.source_type === 'user_submission' ? 'Submitted ' : 'Ingested ') + formatDate(report.created_at)}</span>
                         </div>
 
                         {/* Review reason — always shown */}
