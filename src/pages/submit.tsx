@@ -14,6 +14,9 @@ import { PhenomenonCategory, PhenomenonType } from '@/lib/database.types'
 import { CATEGORY_CONFIG, COUNTRIES, US_STATES } from '@/lib/constants'
 import { generateSlug, classNames } from '@/lib/utils'
 import CategoryIcon from '@/components/ui/CategoryIcon'
+import dynamic from 'next/dynamic'
+
+const LocationPicker = dynamic(() => import('@/components/LocationPicker'), { ssr: false })
 
 /**
  * Filter out phenomenon types that don't belong in a user submission form.
@@ -161,6 +164,28 @@ export default function SubmitPage() {
     }
     fetchAssociations()
   }, [formData.phenomenonTypeId])
+
+  // Auto-geocode when city/country changes (debounced)
+  useEffect(() => {
+    if (!formData.city || !formData.country) return
+    const timeout = setTimeout(async () => {
+      try {
+        const q = [formData.city, formData.stateProvince, formData.country].filter(Boolean).join(', ')
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`,
+          { headers: { 'User-Agent': 'Paradocs-Submit/1.0' } }
+        )
+        if (res.ok) {
+          const data = await res.json()
+          if (data.length > 0) {
+            updateForm('latitude', parseFloat(data[0].lat).toFixed(6))
+            updateForm('longitude', parseFloat(data[0].lon).toFixed(6))
+          }
+        }
+      } catch {}
+    }, 1000) // Wait 1s after last keystroke
+    return () => clearTimeout(timeout)
+  }, [formData.city, formData.stateProvince, formData.country])
 
   // Country name mapping: Nominatim uses full English names, our dropdown may differ
   const COUNTRY_NAME_MAP: Record<string, string> = {
@@ -333,22 +358,9 @@ export default function SubmitPage() {
           phenomenon_type_id: formData.phenomenonTypeId || null,
           summary: formData.summary,
           description: formData.description,
-          event_date: (() => {
-            const d = formData.eventDate
-            if (!d) return null
-            // Exact date: already yyyy-mm-dd
-            if (formData.eventDatePrecision === 'exact') return d
-            // Month: "2014-07" → "2014-07-01"
-            if (formData.eventDatePrecision === 'month') return `${d}-01`
-            // Year: "2014" → "2014-01-01"
-            if (formData.eventDatePrecision === 'year') return `${d}-01-01`
-            // Decade: "2010s" → "2010-01-01", "Before 1950" → "1950-01-01"
-            if (formData.eventDatePrecision === 'decade') {
-              const match = d.match(/(\d{4})/)
-              return match ? `${match[1]}-01-01` : null
-            }
-            return d
-          })(),
+          event_date: formData.eventDatePrecision === 'exact' ? (formData.eventDate || null) : null,
+          event_date_raw: formData.eventDatePrecision !== 'exact' ? (formData.eventDate || null) : null,
+          event_date_precision: formData.eventDatePrecision,
           event_time: formData.eventDatePrecision === 'exact' ? (formData.eventTime || null) : null,
           event_date_approximate: formData.eventDatePrecision !== 'exact',
           event_duration_minutes: formData.durationMinutes ? parseInt(formData.durationMinutes) : null,
@@ -1248,60 +1260,14 @@ export default function SubmitPage() {
                 />
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-white">
-                    Coordinates (optional)
-                  </label>
-                  {formData.city && formData.country && !formData.latitude && (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          const q = [formData.city, formData.stateProvince, formData.country].filter(Boolean).join(', ')
-                          const res = await fetch(
-                            `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`,
-                            { headers: { 'User-Agent': 'Paradocs-Submit/1.0' } }
-                          )
-                          if (res.ok) {
-                            const data = await res.json()
-                            if (data.length > 0) {
-                              updateForm('latitude', parseFloat(data[0].lat).toFixed(6))
-                              updateForm('longitude', parseFloat(data[0].lon).toFixed(6))
-                            }
-                          }
-                        } catch {}
-                      }}
-                      className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
-                    >
-                      Auto-fill from city
-                    </button>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <input
-                    type="number"
-                    value={formData.latitude}
-                    onChange={(e) => updateForm('latitude', e.target.value)}
-                    placeholder="Latitude (e.g., 33.4484)"
-                    className="w-full"
-                    step="any"
-                  />
-                  <input
-                    type="number"
-                    value={formData.longitude}
-                    onChange={(e) => updateForm('longitude', e.target.value)}
-                    placeholder="Longitude (e.g., -112.0740)"
-                    className="w-full"
-                    step="any"
-                  />
-                </div>
-                {formData.latitude && formData.longitude && (
-                  <p className="mt-1 text-xs text-gray-500">
-                    {formData.latitude}, {formData.longitude}
-                  </p>
-                )}
-              </div>
+              <LocationPicker
+                latitude={formData.latitude}
+                longitude={formData.longitude}
+                onLocationChange={(lat, lng) => {
+                  updateForm('latitude', lat)
+                  updateForm('longitude', lng)
+                }}
+              />
             </div>
           )}
 
