@@ -46,7 +46,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   // Build query
   var query = supabaseAdmin
     .from('reports')
-    .select('id, title, slug, description, summary, category, location_name, event_date, source_type, source_url, source_label, original_report_id, status, credibility, paradocs_assessment, paradocs_narrative, created_at, tags, submitted_by', { count: 'exact' })
+    .select('id, title, slug, description, summary, category, location_name, location_description, country, state_province, city, latitude, longitude, event_date, event_time, event_date_precision, event_date_raw, event_date_approximate, event_duration_minutes, witness_count, submitter_was_witness, has_physical_evidence, has_photo_video, has_official_report, evidence_summary, source_type, source_url, source_label, original_report_id, status, credibility, paradocs_assessment, paradocs_narrative, created_at, updated_at, tags, submitted_by, anonymous_submission', { count: 'exact' })
 
   // "pending" filter shows both 'pending' and 'pending_review' — these are
   // reports awaiting admin action (user submissions start as 'pending',

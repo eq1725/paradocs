@@ -17,7 +17,24 @@ interface ReviewReport {
   summary: string | null
   category: string
   location_name: string | null
+  location_description: string | null
+  country: string | null
+  state_province: string | null
+  city: string | null
+  latitude: number | null
+  longitude: number | null
   event_date: string | null
+  event_time: string | null
+  event_date_precision: string | null
+  event_date_raw: string | null
+  event_date_approximate: boolean | null
+  event_duration_minutes: number | null
+  witness_count: number | null
+  submitter_was_witness: boolean | null
+  has_physical_evidence: boolean | null
+  has_photo_video: boolean | null
+  has_official_report: boolean | null
+  evidence_summary: string | null
   source_type: string
   source_url: string | null
   source_label: string | null
@@ -27,7 +44,10 @@ interface ReviewReport {
   paradocs_assessment: any
   paradocs_narrative: string | null
   created_at: string
+  updated_at: string | null
   tags: string[]
+  submitted_by: string | null
+  anonymous_submission: boolean | null
 }
 
 interface ReviewStats {
@@ -601,8 +621,82 @@ export default function ReportReview() {
                     {isExpanded && (
                       <div className="border-t border-gray-800 px-4 py-4 bg-gray-900/80">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                          {/* Left: Report content */}
+                          {/* Left: Report content + details */}
                           <div>
+                            {/* Key facts grid */}
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-2 mb-4 p-3 rounded-lg bg-gray-800/50 border border-gray-800">
+                              {/* Date/Time */}
+                              <div>
+                                <span className="text-[10px] uppercase tracking-wide text-gray-600">When</span>
+                                <p className="text-xs text-gray-300">
+                                  {report.event_date_precision === 'exact'
+                                    ? (report.event_date ? formatDate(report.event_date) + (report.event_time ? ' at ' + report.event_time : '') : 'Not specified')
+                                    : (report.event_date_raw || report.event_date ? (report.event_date_raw || formatDate(report.event_date!)) + ' (' + (report.event_date_precision || 'approx') + ')' : 'Not specified')
+                                  }
+                                </p>
+                              </div>
+                              {/* Duration */}
+                              <div>
+                                <span className="text-[10px] uppercase tracking-wide text-gray-600">Duration</span>
+                                <p className="text-xs text-gray-300">
+                                  {report.event_duration_minutes ? report.event_duration_minutes + ' min' : 'Not specified'}
+                                </p>
+                              </div>
+                              {/* Location */}
+                              <div>
+                                <span className="text-[10px] uppercase tracking-wide text-gray-600">Location</span>
+                                <p className="text-xs text-gray-300">
+                                  {[report.city, report.state_province, report.country].filter(Boolean).join(', ') || report.location_name || 'Not specified'}
+                                </p>
+                              </div>
+                              {/* Coordinates */}
+                              <div>
+                                <span className="text-[10px] uppercase tracking-wide text-gray-600">Coordinates</span>
+                                <p className="text-xs text-gray-300">
+                                  {report.latitude && report.longitude
+                                    ? report.latitude.toFixed(4) + ', ' + report.longitude.toFixed(4)
+                                    : 'None'}
+                                </p>
+                              </div>
+                              {/* Witnesses */}
+                              <div>
+                                <span className="text-[10px] uppercase tracking-wide text-gray-600">Witnesses</span>
+                                <p className="text-xs text-gray-300">
+                                  {report.witness_count ? report.witness_count + (report.submitter_was_witness ? ' (submitter was witness)' : '') : 'Not specified'}
+                                </p>
+                              </div>
+                              {/* Evidence */}
+                              <div>
+                                <span className="text-[10px] uppercase tracking-wide text-gray-600">Evidence</span>
+                                <p className="text-xs text-gray-300">
+                                  {(function() {
+                                    var parts: string[] = []
+                                    if (report.has_physical_evidence) parts.push('Physical')
+                                    if (report.has_photo_video) parts.push('Photo/Video')
+                                    if (report.has_official_report) parts.push('Official Report')
+                                    return parts.length > 0 ? parts.join(', ') : 'None reported'
+                                  })()}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Evidence summary */}
+                            {report.evidence_summary && (
+                              <div className="mb-4">
+                                <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Evidence Details</h4>
+                                <p className="text-sm text-gray-400">{report.evidence_summary}</p>
+                              </div>
+                            )}
+
+                            {/* Location description */}
+                            {report.location_description && (
+                              <div className="mb-4">
+                                <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Location Notes</h4>
+                                <p className="text-sm text-gray-400">{report.location_description}</p>
+                              </div>
+                            )}
+
+                            {/* Description */}
                             <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Description</h4>
                             <p className="text-sm text-gray-300 leading-relaxed mb-4 max-h-48 overflow-y-auto">
                               {report.description || 'No description'}
