@@ -58,7 +58,7 @@ type Step = 1 | 2 | 3 | 4
 export default function SubmitPage() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [step, setStep] = useState<Step>(1)
   const [phenomenonTypes, setPhenomenonTypes] = useState<PhenomenonType[]>([])

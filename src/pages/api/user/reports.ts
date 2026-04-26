@@ -58,7 +58,7 @@ export default async function handler(
         created_at,
         updated_at,
         view_count,
-        credibility_score
+        credibility
       `, { count: 'exact' })
       .eq('submitted_by', user.id)
 

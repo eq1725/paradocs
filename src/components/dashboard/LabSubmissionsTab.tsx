@@ -32,7 +32,7 @@ interface SubmittedReport {
   created_at: string
   updated_at: string
   view_count: number
-  credibility_score: number | null
+  credibility: string | null
 }
 
 interface PaginationInfo {

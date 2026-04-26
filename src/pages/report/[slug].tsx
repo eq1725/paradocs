@@ -322,51 +322,69 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     setSidebarOpen(false)
     setParentCase(null)
     try {
-      // Load report — admin preview mode skips status filter
-      let isAdmin = false
+      let reportData: any = null
+      let commentsData: any[] | null = null
+      let mediaData: any[] | null = null
+
+      // Admin preview mode — fetch via server-side API (bypasses RLS)
       if (isPreview) {
         const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user?.email === 'williamschaseh@gmail.com') {
-          isAdmin = true
+        if (session?.access_token) {
+          try {
+            const previewRes = await fetch(`/api/admin/preview-report?slug=${slug}`, {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            })
+            if (previewRes.ok) {
+              const previewData = await previewRes.json()
+              reportData = previewData.report
+              commentsData = previewData.comments
+              mediaData = previewData.media
+            }
+          } catch {}
         }
       }
 
-      let reportQuery = supabase
-        .from('reports')
-        .select(`
-          *,
-          phenomenon_type:phenomenon_types(*)
-        `)
-        .eq('slug', slug)
+      // Normal mode — fetch via client-side Supabase (RLS enforced)
+      if (!reportData) {
+        const { data, error: reportError } = await supabase
+          .from('reports')
+          .select(`
+            *,
+            phenomenon_type:phenomenon_types(*)
+          `)
+          .eq('slug', slug)
+          .eq('status', 'approved')
+          .single()
 
-      if (!isAdmin) {
-        reportQuery = reportQuery.eq('status', 'approved')
+        if (reportError) throw reportError
+        reportData = data
       }
-
-      const { data: reportData, error: reportError } = await reportQuery.single()
-
-      if (reportError) throw reportError
 
       // Stale navigation guard: if user navigated away during fetch, discard results
       if (slug !== fetchingSlug) return
 
-      // Load comments
-      const { data: commentsData } = await supabase
-        .from('comments')
-        .select(`
-          *,
-          user:profiles(*)
-        `)
-        .eq('report_id', reportData.id)
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: true })
+      // Load comments and media (skip if already fetched via preview API)
+      if (!commentsData) {
+        const { data } = await supabase
+          .from('comments')
+          .select(`
+            *,
+            user:profiles(*)
+          `)
+          .eq('report_id', reportData.id)
+          .eq('is_deleted', false)
+          .order('created_at', { ascending: true })
+        commentsData = data
+      }
 
-      // Load media
-      const { data: mediaData } = await supabase
-        .from('report_media')
-        .select('*')
-        .eq('report_id', reportData.id)
-        .order('is_primary', { ascending: false })
+      if (!mediaData) {
+        const { data } = await supabase
+          .from('report_media')
+          .select('*')
+          .eq('report_id', reportData.id)
+          .order('is_primary', { ascending: false })
+        mediaData = data
+      }
 
       // Load user vote and saved state
       const { data: { session } } = await supabase.auth.getSession()
