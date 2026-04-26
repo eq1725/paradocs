@@ -115,6 +115,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const router = useRouter()
   const { showToast } = useToast()
   const slug = propSlug || router.query.slug
+  const isPreview = router.query.preview === 'true'
 
   const [report, setReport] = useState<ReportWithDetails | null>(initialReport || null)
   const [comments, setComments] = useState<CommentWithUser[]>(initialComments || [])
@@ -321,16 +322,28 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     setSidebarOpen(false)
     setParentCase(null)
     try {
-      // Load report
-      const { data: reportData, error: reportError } = await supabase
+      // Load report — admin preview mode skips status filter
+      let isAdmin = false
+      if (isPreview) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user?.email === 'williamschaseh@gmail.com') {
+          isAdmin = true
+        }
+      }
+
+      let reportQuery = supabase
         .from('reports')
         .select(`
           *,
           phenomenon_type:phenomenon_types(*)
         `)
         .eq('slug', slug)
-        .eq('status', 'approved')
-        .single()
+
+      if (!isAdmin) {
+        reportQuery = reportQuery.eq('status', 'approved')
+      }
+
+      const { data: reportData, error: reportError } = await reportQuery.single()
 
       if (reportError) throw reportError
 
@@ -668,6 +681,15 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           <meta key={i} property="article:tag" content={tag} />
         ))}
       </Head>
+
+      {/* Admin preview banner */}
+      {isPreview && report.status !== 'approved' && (
+        <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-2.5 text-center">
+          <span className="text-sm text-amber-400 font-medium">
+            Preview Mode — This report is <strong>{report.status}</strong> and not publicly visible.
+          </span>
+        </div>
+      )}
 
       {/* Reading progress bar — only for curated reports with full body text */}
       {isCurated && <ReadingProgress />}

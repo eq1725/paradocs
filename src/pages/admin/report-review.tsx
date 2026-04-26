@@ -571,7 +571,7 @@ export default function ReportReview() {
                           </a>
                         )}
                         <Link
-                          href={'/report/' + report.slug}
+                          href={'/report/' + report.slug + '?preview=true'}
                           target="_blank"
                           className="p-1.5 rounded hover:bg-gray-800 text-gray-500 hover:text-white transition-colors"
                           title="Preview on site"
