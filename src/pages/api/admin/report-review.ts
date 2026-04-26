@@ -37,7 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 }
 
 async function handleGet(req: NextApiRequest, res: NextApiResponse) {
-  var status = (req.query.status as string) || 'pending_review'
+  var status = (req.query.status as string) || 'pending'
   var source = req.query.source as string
   var page = parseInt(req.query.page as string) || 1
   var limit = parseInt(req.query.limit as string) || 20
@@ -46,8 +46,18 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   // Build query
   var query = supabaseAdmin
     .from('reports')
-    .select('id, title, slug, description, summary, category, location_name, event_date, source_type, source_url, source_label, original_report_id, status, credibility, paradocs_assessment, paradocs_narrative, created_at, tags', { count: 'exact' })
-    .eq('status', status)
+    .select('id, title, slug, description, summary, category, location_name, event_date, source_type, source_url, source_label, original_report_id, status, credibility, paradocs_assessment, paradocs_narrative, created_at, tags, submitted_by', { count: 'exact' })
+
+  // "pending" filter shows both 'pending' and 'pending_review' — these are
+  // reports awaiting admin action (user submissions start as 'pending',
+  // ingested reports start as 'pending_review')
+  if (status === 'pending') {
+    query = query.in('status', ['pending', 'pending_review'])
+  } else {
+    query = query.eq('status', status)
+  }
+
+  query = query
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
 
@@ -67,6 +77,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
     .select('status, source_type')
 
   var stats = {
+    pending: 0,
     pending_review: 0,
     approved: 0,
     rejected: 0,
@@ -77,8 +88,9 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   if (statsData) {
     for (var i = 0; i < statsData.length; i++) {
       var r = statsData[i]
-      if (r.status === 'pending_review') {
-        stats.pending_review++
+      if (r.status === 'pending' || r.status === 'pending_review') {
+        if (r.status === 'pending') stats.pending++
+        else stats.pending_review++
         stats.by_source[r.source_type] = (stats.by_source[r.source_type] || 0) + 1
       } else if (r.status === 'approved') {
         stats.approved++

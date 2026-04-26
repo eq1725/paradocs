@@ -31,6 +31,7 @@ interface ReviewReport {
 }
 
 interface ReviewStats {
+  pending: number
   pending_review: number
   approved: number
   rejected: number
@@ -51,7 +52,8 @@ var SOURCE_LABELS: Record<string, string> = {
   iands: 'IANDS',
   shadowlands: 'Shadowlands',
   ghostsofamerica: 'Ghosts of America',
-  curated: 'Curated'
+  curated: 'Curated',
+  user_submission: 'User Submission',
 }
 
 var CATEGORY_LABELS: Record<string, string> = {
@@ -115,7 +117,7 @@ export default function ReportReview() {
   var _total = useState(0)
   var total = _total[0]
   var setTotal = _total[1]
-  var _statusFilter = useState('pending_review')
+  var _statusFilter = useState('pending')
   var statusFilter = _statusFilter[0]
   var setStatusFilter = _statusFilter[1]
   var _sourceFilter = useState('')
@@ -311,14 +313,14 @@ export default function ReportReview() {
                 </Link>
                 <div>
                   <h1 className="text-xl font-semibold">Report Review</h1>
-                  <p className="text-sm text-gray-400">Review, approve, or reject ingested reports</p>
+                  <p className="text-sm text-gray-400">Review, approve, or reject reports</p>
                 </div>
               </div>
               {stats && (
                 <div className="flex gap-4 text-sm">
                   <div className="flex items-center gap-1.5">
                     <Clock className="w-4 h-4 text-yellow-400" />
-                    <span className="text-yellow-400 font-medium">{stats.pending_review}</span>
+                    <span className="text-yellow-400 font-medium">{(stats.pending || 0) + (stats.pending_review || 0)}</span>
                     <span className="text-gray-500">pending</span>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -353,7 +355,7 @@ export default function ReportReview() {
             <div className="flex items-center gap-3">
               {/* Status filter */}
               <div className="flex rounded-lg overflow-hidden border border-gray-700">
-                {(['pending_review', 'approved', 'rejected'] as const).map(function(s) {
+                {(['pending', 'approved', 'rejected'] as const).map(function(s) {
                   return (
                     <button
                       key={s}
@@ -363,7 +365,7 @@ export default function ReportReview() {
                         statusFilter === s ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
                       )}
                     >
-                      {s === 'pending_review' ? 'Pending Review' : s.charAt(0).toUpperCase() + s.slice(1)}
+                      {s === 'pending' ? 'Pending' : s.charAt(0).toUpperCase() + s.slice(1)}
                     </button>
                   )
                 })}

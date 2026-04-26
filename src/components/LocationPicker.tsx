@@ -1,14 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
+import Map, { Marker, NavigationControl, MapRef } from 'react-map-gl/maplibre'
+import 'maplibre-gl/dist/maplibre-gl.css'
+import { MapPin } from 'lucide-react'
 
-// Fix Leaflet default marker icon in Next.js/webpack
-delete (L.Icon.Default.prototype as any)._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-})
+const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY
+const MAP_STYLE = `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`
 
 interface LocationPickerProps {
   latitude: string
@@ -17,72 +13,45 @@ interface LocationPickerProps {
 }
 
 export default function LocationPicker({ latitude, longitude, onLocationChange }: LocationPickerProps) {
-  const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstanceRef = useRef<L.Map | null>(null)
-  const markerRef = useRef<L.Marker | null>(null)
+  const mapRef = useRef<MapRef>(null)
   const [isDragging, setIsDragging] = useState(false)
 
   const lat = parseFloat(latitude) || 0
   const lng = parseFloat(longitude) || 0
-  const hasCoords = !!(latitude && longitude && lat !== 0)
+  const hasCoords = !!(latitude && longitude && (lat !== 0 || lng !== 0))
 
+  const [viewState, setViewState] = useState({
+    longitude: hasCoords ? lng : 0,
+    latitude: hasCoords ? lat : 30,
+    zoom: hasCoords ? 10 : 2,
+  })
+
+  // Fly to new coordinates when they change (but not while dragging)
   useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return
-
-    const map = L.map(mapRef.current, {
-      center: hasCoords ? [lat, lng] : [30, 0],
-      zoom: hasCoords ? 10 : 2,
-      scrollWheelZoom: true,
-      attributionControl: false,
-    })
-
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-    }).addTo(map)
-
-    // Add attribution in bottom-right, minimal
-    L.control.attribution({ position: 'bottomright', prefix: false })
-      .addAttribution('© <a href="https://www.openstreetmap.org/copyright" style="color:#888">OSM</a>')
-      .addTo(map)
-
-    // Click on map to place/move pin
-    map.on('click', (e: L.LeafletMouseEvent) => {
-      const { lat: newLat, lng: newLng } = e.latlng
-      onLocationChange(newLat.toFixed(6), newLng.toFixed(6))
-    })
-
-    mapInstanceRef.current = map
-
-    return () => {
-      map.remove()
-      mapInstanceRef.current = null
+    if (!hasCoords || isDragging) return
+    const map = mapRef.current
+    if (map) {
+      map.flyTo({
+        center: [lng, lat],
+        zoom: Math.max(map.getZoom(), 10),
+        duration: 800,
+      })
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lat, lng, hasCoords, isDragging])
 
-  // Update marker when coords change
-  useEffect(() => {
-    const map = mapInstanceRef.current
-    if (!map) return
+  // Handle click on map to place/move pin
+  const handleClick = useCallback((e: any) => {
+    const { lng: newLng, lat: newLat } = e.lngLat
+    onLocationChange(newLat.toFixed(6), newLng.toFixed(6))
+  }, [onLocationChange])
 
-    if (hasCoords) {
-      if (markerRef.current) {
-        markerRef.current.setLatLng([lat, lng])
-      } else {
-        const marker = L.marker([lat, lng], { draggable: true }).addTo(map)
-        marker.on('dragstart', () => setIsDragging(true))
-        marker.on('dragend', (e) => {
-          setIsDragging(false)
-          const pos = e.target.getLatLng()
-          onLocationChange(pos.lat.toFixed(6), pos.lng.toFixed(6))
-        })
-        markerRef.current = marker
-      }
-
-      if (!isDragging) {
-        map.setView([lat, lng], Math.max(map.getZoom(), 10), { animate: true })
-      }
-    }
-  }, [lat, lng, hasCoords]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Handle marker drag
+  const handleDragStart = useCallback(() => setIsDragging(true), [])
+  const handleDragEnd = useCallback((e: any) => {
+    setIsDragging(false)
+    const { lng: newLng, lat: newLat } = e.lngLat
+    onLocationChange(newLat.toFixed(6), newLng.toFixed(6))
+  }, [onLocationChange])
 
   return (
     <div>
@@ -97,10 +66,33 @@ export default function LocationPicker({ latitude, longitude, onLocationChange }
         )}
       </div>
       <div
-        ref={mapRef}
         className="w-full h-48 rounded-lg border border-white/10 overflow-hidden"
-        style={{ zIndex: 0 }}
-      />
+        style={{ position: 'relative' }}
+      >
+        <Map
+          ref={mapRef}
+          {...viewState}
+          onMove={(evt) => setViewState(evt.viewState)}
+          onClick={handleClick}
+          mapStyle={MAP_STYLE}
+          style={{ width: '100%', height: '100%' }}
+          attributionControl={false}
+        >
+          <NavigationControl position="top-right" showCompass={false} />
+          {hasCoords && (
+            <Marker
+              longitude={lng}
+              latitude={lat}
+              draggable
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              anchor="bottom"
+            >
+              <MapPin className="w-8 h-8 text-primary-400 drop-shadow-lg" strokeWidth={2.5} />
+            </Marker>
+          )}
+        </Map>
+      </div>
       <p className="mt-1.5 text-xs text-gray-500">
         {hasCoords
           ? 'Drag the pin to adjust the exact location'

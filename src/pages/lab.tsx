@@ -38,21 +38,24 @@ import {
   ChevronRight,
   LogIn,
   Telescope,
+  Send,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
 import LabSavesTab from '@/components/dashboard/LabSavesTab'
 import LabCasesTab from '@/components/dashboard/LabCasesTab'
 import LabMapTab from '@/components/dashboard/LabMapTab'
+import LabSubmissionsTab from '@/components/dashboard/LabSubmissionsTab'
 import { useLabData } from '@/lib/hooks/useLabData'
 
 // Tab definitions
-var TAB_KEYS = ['saves', 'cases', 'map', 'notes'] as const
+var TAB_KEYS = ['saves', 'cases', 'submissions', 'map', 'notes'] as const
 type TabKey = typeof TAB_KEYS[number]
 
 var TAB_CONFIG = {
   saves: { label: 'Saves', icon: Bookmark },
   cases: { label: 'Cases', icon: FolderOpen },
+  submissions: { label: 'Submissions', icon: Send },
   map: { label: 'Map', icon: MapIcon },
   notes: { label: 'Notes', icon: BookOpen },
 }
@@ -216,6 +219,9 @@ export default function LabPage() {
                 aiConnections={lab.aiConnections}
                 onRefresh={lab.refresh}
               />
+            )}
+            {activeTab === 'submissions' && (
+              <LabSubmissionsTab />
             )}
             {activeTab === 'map' && (
               <LabMapTab
