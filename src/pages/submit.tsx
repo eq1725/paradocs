@@ -333,8 +333,23 @@ export default function SubmitPage() {
           phenomenon_type_id: formData.phenomenonTypeId || null,
           summary: formData.summary,
           description: formData.description,
-          event_date: formData.eventDate || null,
-          event_time: formData.eventTime || null,
+          event_date: (() => {
+            const d = formData.eventDate
+            if (!d) return null
+            // Exact date: already yyyy-mm-dd
+            if (formData.eventDatePrecision === 'exact') return d
+            // Month: "2014-07" → "2014-07-01"
+            if (formData.eventDatePrecision === 'month') return `${d}-01`
+            // Year: "2014" → "2014-01-01"
+            if (formData.eventDatePrecision === 'year') return `${d}-01-01`
+            // Decade: "2010s" → "2010-01-01", "Before 1950" → "1950-01-01"
+            if (formData.eventDatePrecision === 'decade') {
+              const match = d.match(/(\d{4})/)
+              return match ? `${match[1]}-01-01` : null
+            }
+            return d
+          })(),
+          event_time: formData.eventDatePrecision === 'exact' ? (formData.eventTime || null) : null,
           event_date_approximate: formData.eventDatePrecision !== 'exact',
           event_duration_minutes: formData.durationMinutes ? parseInt(formData.durationMinutes) : null,
           witness_count: parseInt(formData.witnessCount) || 1,
@@ -760,7 +775,7 @@ export default function SubmitPage() {
                 const suggestedTypes = typeAssociations
                   .map(a => phenomenonTypes.find(t => t.id === a.type_id))
                   .filter((t): t is PhenomenonType =>
-                    !!t && t.category !== formData.category && t.id !== formData.phenomenonTypeId
+                    !!t && t.id !== formData.phenomenonTypeId
                   )
                   .slice(0, 5)
 
@@ -768,7 +783,7 @@ export default function SubmitPage() {
                 const rq = relatedSearch.trim().toLowerCase()
                 const rqWords = rq.split(/\s+/).filter(w => w.length >= 2)
                 const crossTypes = submittableTypes.filter(t =>
-                  t.category !== formData.category && t.id !== formData.phenomenonTypeId
+                  t.id !== formData.phenomenonTypeId
                 )
                 const relatedSearchResults = rq.length >= 2
                   ? crossTypes
@@ -1233,33 +1248,59 @@ export default function SubmitPage() {
                 />
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">
-                    Latitude (optional)
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-white">
+                    Coordinates (optional)
                   </label>
+                  {formData.city && formData.country && !formData.latitude && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const q = [formData.city, formData.stateProvince, formData.country].filter(Boolean).join(', ')
+                          const res = await fetch(
+                            `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`,
+                            { headers: { 'User-Agent': 'Paradocs-Submit/1.0' } }
+                          )
+                          if (res.ok) {
+                            const data = await res.json()
+                            if (data.length > 0) {
+                              updateForm('latitude', parseFloat(data[0].lat).toFixed(6))
+                              updateForm('longitude', parseFloat(data[0].lon).toFixed(6))
+                            }
+                          }
+                        } catch {}
+                      }}
+                      className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
+                    >
+                      Auto-fill from city
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <input
                     type="number"
                     value={formData.latitude}
                     onChange={(e) => updateForm('latitude', e.target.value)}
-                    placeholder="e.g., 33.4484"
+                    placeholder="Latitude (e.g., 33.4484)"
                     className="w-full"
                     step="any"
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">
-                    Longitude (optional)
-                  </label>
                   <input
                     type="number"
                     value={formData.longitude}
                     onChange={(e) => updateForm('longitude', e.target.value)}
-                    placeholder="e.g., -112.0740"
+                    placeholder="Longitude (e.g., -112.0740)"
                     className="w-full"
                     step="any"
                   />
                 </div>
+                {formData.latitude && formData.longitude && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    {formData.latitude}, {formData.longitude}
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -1290,9 +1331,23 @@ export default function SubmitPage() {
 
               <div>
                 <label className="block text-sm font-medium text-white mb-3">
-                  Evidence Available
+                  Do you have any evidence?
                 </label>
                 <div className="space-y-3">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!formData.hasPhotoVideo && !formData.hasPhysicalEvidence && !formData.hasOfficialReport && uploadedMedia.length === 0}
+                      onChange={() => {
+                        updateForm('hasPhotoVideo', false)
+                        updateForm('hasPhysicalEvidence', false)
+                        updateForm('hasOfficialReport', false)
+                      }}
+                      className="rounded bg-white/5 border-white/20"
+                      readOnly
+                    />
+                    <span className="text-sm text-gray-300">No evidence — testimony only</span>
+                  </label>
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"
@@ -1302,7 +1357,7 @@ export default function SubmitPage() {
                       disabled={uploadedMedia.length > 0}
                     />
                     <span className="text-sm text-gray-300">
-                      Photos or videos available
+                      Photos or videos
                       {uploadedMedia.length > 0 && (
                         <span className="text-primary-400 ml-1">({uploadedMedia.length} uploaded)</span>
                       )}
@@ -1329,17 +1384,20 @@ export default function SubmitPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">
-                  Evidence Description
-                </label>
-                <textarea
-                  value={formData.evidenceSummary}
-                  onChange={(e) => updateForm('evidenceSummary', e.target.value)}
-                  placeholder="Describe any evidence you have (photos, recordings, physical traces, etc.)"
-                  className="w-full h-24 resize-none"
-                />
-              </div>
+              {/* Evidence description — only show if they have evidence */}
+              {(formData.hasPhotoVideo || formData.hasPhysicalEvidence || formData.hasOfficialReport || uploadedMedia.length > 0) && (
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    Evidence Description
+                  </label>
+                  <textarea
+                    value={formData.evidenceSummary}
+                    onChange={(e) => updateForm('evidenceSummary', e.target.value)}
+                    placeholder="Describe the evidence you have (photos, recordings, physical traces, etc.)"
+                    className="w-full h-24 resize-none"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-white mb-2">

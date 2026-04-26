@@ -42,8 +42,8 @@ export default function SubmitSuccessPage() {
           <div className="mt-8 p-4 bg-white/5 rounded-lg">
             <p className="text-sm text-gray-400">
               Want to track the status of your submissions?
-              <Link href="/lab" className="text-primary-400 hover:text-primary-300 ml-1">
-                View your Lab
+              <Link href="/lab?tab=cases" className="text-primary-400 hover:text-primary-300 ml-1">
+                View My Reports
               </Link>
             </p>
           </div>
