@@ -118,8 +118,8 @@ export default function Home() {
             </form>
 
             {/* Trust line */}
-            <p className="mt-8 text-sm text-gray-500">
-              Millions of real experiences across 4,792 phenomena types
+            <p className="mt-8 text-sm text-gray-400">
+              <span className="text-primary-400">Millions</span> of real experiences across <span className="text-primary-400">4,792</span> phenomena types
             </p>
 
           </div>
