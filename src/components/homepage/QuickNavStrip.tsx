@@ -1,15 +1,14 @@
 'use client'
 
-import React, { useRef, useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 
 /**
- * Category carousel — full-width, auto-scrolling strip of category art banners.
- * Each card links to explore browse filtered by that category.
+ * Category slideshow — full-width, one image at a time with crossfade.
+ * Auto-advances every 3 seconds, pauses on hover/touch.
+ * Each slide links to explore browse filtered by that category.
  *
  * Art assets in /public/categories/ as @2x PNGs (~1473x391).
- * Cards duplicate to create seamless infinite scroll effect.
- * Auto-scrolls at ~30px/s, pauses on hover/touch.
  */
 
 var categories = [
@@ -23,96 +22,91 @@ var categories = [
   { slug: 'psychological_experiences', image: '/categories/psychological-experiences.png' },
 ]
 
+var INTERVAL = 3000 /* ms between slides */
+
 export default function QuickNavStrip() {
-  var scrollRef = useRef<HTMLDivElement>(null)
-  var isPaused = useRef(false)
-  var animationRef = useRef<number>(0)
-  var lastTimeRef = useRef<number>(0)
-  var SPEED = 30 /* pixels per second */
+  var [activeIndex, setActiveIndex] = useState(0)
+  var [isPaused, setIsPaused] = useState(false)
+  var timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  /* Duplicate cards for seamless loop */
-  var allCards = categories.concat(categories)
-
-  var animate = useCallback(function(timestamp: number) {
-    if (!scrollRef.current) {
-      animationRef.current = requestAnimationFrame(animate)
-      return
-    }
-
-    if (lastTimeRef.current === 0) {
-      lastTimeRef.current = timestamp
-    }
-
-    var delta = timestamp - lastTimeRef.current
-    lastTimeRef.current = timestamp
-
-    if (!isPaused.current && delta < 100) {
-      scrollRef.current.scrollLeft += (SPEED * delta) / 1000
-
-      /* Reset to start when we've scrolled past the first set */
-      var halfWidth = scrollRef.current.scrollWidth / 2
-      if (scrollRef.current.scrollLeft >= halfWidth) {
-        scrollRef.current.scrollLeft -= halfWidth
-      }
-    }
-
-    animationRef.current = requestAnimationFrame(animate)
+  var advance = useCallback(function() {
+    setActiveIndex(function(prev) {
+      return (prev + 1) % categories.length
+    })
   }, [])
 
+  /* Auto-advance timer */
   useEffect(function() {
-    animationRef.current = requestAnimationFrame(animate)
+    if (isPaused) return
+
+    timerRef.current = setTimeout(advance, INTERVAL)
+
     return function() {
-      cancelAnimationFrame(animationRef.current)
+      if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [animate])
+  }, [activeIndex, isPaused, advance])
 
-  function handlePause() {
-    isPaused.current = true
-  }
-
-  function handleResume() {
-    isPaused.current = false
-    lastTimeRef.current = 0
+  function goToSlide(index: number) {
+    setActiveIndex(index)
+    /* Reset the timer when user clicks a dot */
+    if (timerRef.current) clearTimeout(timerRef.current)
   }
 
   return (
     <section className="py-6 md:py-8">
-      <div
-        ref={scrollRef}
-        className="flex gap-3 md:gap-4 overflow-x-auto scrollbar-hide"
-        style={{ WebkitOverflowScrolling: 'touch' }}
-        onMouseEnter={handlePause}
-        onMouseLeave={handleResume}
-        onTouchStart={handlePause}
-        onTouchEnd={handleResume}
-      >
-        {/* Left padding spacer for mobile */}
-        <div className="flex-shrink-0 w-2 sm:w-4" />
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div
+          className="relative overflow-hidden rounded-2xl border border-white/10"
+          style={{ height: '180px' }}
+          onMouseEnter={function() { setIsPaused(true) }}
+          onMouseLeave={function() { setIsPaused(false) }}
+          onTouchStart={function() { setIsPaused(true) }}
+          onTouchEnd={function() { setIsPaused(false) }}
+        >
+          {/* Stacked slides with crossfade */}
+          {categories.map(function(cat, i) {
+            var isActive = i === activeIndex
+            return (
+              <Link
+                key={cat.slug}
+                href={'/explore?mode=browse&category=' + cat.slug}
+                className="absolute inset-0 block transition-opacity duration-700 ease-in-out"
+                style={{
+                  opacity: isActive ? 1 : 0,
+                  pointerEvents: isActive ? 'auto' : 'none',
+                  zIndex: isActive ? 1 : 0,
+                }}
+                aria-hidden={!isActive}
+                tabIndex={isActive ? 0 : -1}
+              >
+                <img
+                  src={cat.image}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  loading={i < 2 ? 'eager' : 'lazy'}
+                  draggable={false}
+                />
+                {/* Subtle gradient overlay for depth */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/10" />
+              </Link>
+            )
+          })}
 
-        {allCards.map(function(cat, i) {
-          return (
-            <Link
-              key={cat.slug + '-' + i}
-              href={'/explore?mode=browse&category=' + cat.slug}
-              className="flex-shrink-0 group relative overflow-hidden rounded-xl border border-white/10 hover:border-white/30 transition-all duration-300"
-              style={{ width: '320px', height: '140px' }}
-            >
-              {/* Category art */}
-              <img
-                src={cat.image}
-                alt=""
-                className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                loading={i < 8 ? 'eager' : 'lazy'}
-                draggable={false}
-              />
-              {/* Subtle hover overlay */}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors duration-300" />
-            </Link>
-          )
-        })}
-
-        {/* Right padding spacer for mobile */}
-        <div className="flex-shrink-0 w-2 sm:w-4" />
+          {/* Dot indicators */}
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex gap-2">
+            {categories.map(function(cat, i) {
+              var isActive = i === activeIndex
+              return (
+                <button
+                  key={cat.slug}
+                  onClick={function() { goToSlide(i) }}
+                  className={'rounded-full transition-all duration-300 ' + (isActive ? 'w-6 h-2 bg-white' : 'w-2 h-2 bg-white/40 hover:bg-white/60')}
+                  aria-label={'Go to category ' + (i + 1)}
+                />
+              )
+            })}
+          </div>
+        </div>
       </div>
     </section>
   )
