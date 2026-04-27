@@ -53,8 +53,11 @@ export default function QuickNavStrip() {
   }
 
   return (
-    <section className="py-6 md:py-8">
+    <section className="py-4 md:py-6">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <p className="text-xs uppercase tracking-widest text-gray-500 font-medium mb-3 text-center">
+          Explore by category
+        </p>
         <div
           className="relative overflow-hidden rounded-2xl border border-white/10"
           style={{ aspectRatio: '3.77 / 1' }}
