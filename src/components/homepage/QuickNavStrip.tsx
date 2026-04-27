@@ -1,16 +1,15 @@
 'use client'
 
-import React, { useRef, useState, useEffect } from 'react'
+import React, { useRef, useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 /**
- * Category carousel — replaces the old pill-button nav strip.
- * Shows category art banners in a horizontally-scrolling strip.
- * Each card links to the explore page filtered to that category.
+ * Category carousel — full-width, auto-scrolling strip of category art banners.
+ * Each card links to explore browse filtered by that category.
  *
- * Art assets live in /public/categories/ as @2x PNGs (~1473x391).
- * Displayed at ~240x64 CSS size for a compact, Netflix-style row.
+ * Art assets in /public/categories/ as @2x PNGs (~1473x391).
+ * Cards duplicate to create seamless infinite scroll effect.
+ * Auto-scrolls at ~30px/s, pauses on hover/touch.
  */
 
 var categories = [
@@ -26,87 +25,94 @@ var categories = [
 
 export default function QuickNavStrip() {
   var scrollRef = useRef<HTMLDivElement>(null)
-  var [canScrollLeft, setCanScrollLeft] = useState(false)
-  var [canScrollRight, setCanScrollRight] = useState(false)
+  var isPaused = useRef(false)
+  var animationRef = useRef<number>(0)
+  var lastTimeRef = useRef<number>(0)
+  var SPEED = 30 /* pixels per second */
 
-  function checkScroll() {
-    var el = scrollRef.current
-    if (!el) return
-    setCanScrollLeft(el.scrollLeft > 4)
-    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4)
-  }
+  /* Duplicate cards for seamless loop */
+  var allCards = categories.concat(categories)
 
-  useEffect(function() {
-    checkScroll()
-    var el = scrollRef.current
-    if (el) {
-      el.addEventListener('scroll', checkScroll, { passive: true })
-      window.addEventListener('resize', checkScroll)
+  var animate = useCallback(function(timestamp: number) {
+    if (!scrollRef.current) {
+      animationRef.current = requestAnimationFrame(animate)
+      return
     }
-    return function() {
-      if (el) el.removeEventListener('scroll', checkScroll)
-      window.removeEventListener('resize', checkScroll)
+
+    if (lastTimeRef.current === 0) {
+      lastTimeRef.current = timestamp
     }
+
+    var delta = timestamp - lastTimeRef.current
+    lastTimeRef.current = timestamp
+
+    if (!isPaused.current && delta < 100) {
+      scrollRef.current.scrollLeft += (SPEED * delta) / 1000
+
+      /* Reset to start when we've scrolled past the first set */
+      var halfWidth = scrollRef.current.scrollWidth / 2
+      if (scrollRef.current.scrollLeft >= halfWidth) {
+        scrollRef.current.scrollLeft -= halfWidth
+      }
+    }
+
+    animationRef.current = requestAnimationFrame(animate)
   }, [])
 
-  function scroll(direction: 'left' | 'right') {
-    var el = scrollRef.current
-    if (!el) return
-    var distance = el.clientWidth * 0.7
-    el.scrollBy({ left: direction === 'left' ? -distance : distance, behavior: 'smooth' })
+  useEffect(function() {
+    animationRef.current = requestAnimationFrame(animate)
+    return function() {
+      cancelAnimationFrame(animationRef.current)
+    }
+  }, [animate])
+
+  function handlePause() {
+    isPaused.current = true
+  }
+
+  function handleResume() {
+    isPaused.current = false
+    lastTimeRef.current = 0
   }
 
   return (
-    <section className="py-6 md:py-8 relative">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="py-6 md:py-8">
+      <div
+        ref={scrollRef}
+        className="flex gap-3 md:gap-4 overflow-x-auto scrollbar-hide"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+        onMouseEnter={handlePause}
+        onMouseLeave={handleResume}
+        onTouchStart={handlePause}
+        onTouchEnd={handleResume}
+      >
+        {/* Left padding spacer for mobile */}
+        <div className="flex-shrink-0 w-2 sm:w-4" />
 
-        {/* Desktop scroll arrows */}
-        {canScrollLeft && (
-          <button
-            onClick={function() { scroll('left') }}
-            className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 items-center justify-center rounded-full bg-black/60 backdrop-blur border border-white/10 text-white hover:bg-black/80 transition-colors"
-            aria-label="Scroll left"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-        )}
-        {canScrollRight && (
-          <button
-            onClick={function() { scroll('right') }}
-            className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 items-center justify-center rounded-full bg-black/60 backdrop-blur border border-white/10 text-white hover:bg-black/80 transition-colors"
-            aria-label="Scroll right"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        )}
+        {allCards.map(function(cat, i) {
+          return (
+            <Link
+              key={cat.slug + '-' + i}
+              href={'/explore?mode=browse&category=' + cat.slug}
+              className="flex-shrink-0 group relative overflow-hidden rounded-xl border border-white/10 hover:border-white/30 transition-all duration-300"
+              style={{ width: '320px', height: '140px' }}
+            >
+              {/* Category art */}
+              <img
+                src={cat.image}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                loading={i < 8 ? 'eager' : 'lazy'}
+                draggable={false}
+              />
+              {/* Subtle hover overlay */}
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors duration-300" />
+            </Link>
+          )
+        })}
 
-        {/* Scrollable row */}
-        <div
-          ref={scrollRef}
-          className="flex gap-3 overflow-x-auto scrollbar-hide scroll-smooth snap-x snap-mandatory"
-          style={{ WebkitOverflowScrolling: 'touch' }}
-        >
-          {categories.map(function(cat) {
-            return (
-              <Link
-                key={cat.slug}
-                href={'/explore?mode=browse&category=' + cat.slug}
-                className="flex-shrink-0 snap-start group relative overflow-hidden rounded-xl border border-white/10 hover:border-white/25 transition-all duration-300"
-                style={{ width: '240px', height: '64px' }}
-              >
-                {/* Category art */}
-                <img
-                  src={cat.image}
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  loading="lazy"
-                />
-                {/* Hover overlay */}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
-              </Link>
-            )
-          })}
-        </div>
+        {/* Right padding spacer for mobile */}
+        <div className="flex-shrink-0 w-2 sm:w-4" />
       </div>
     </section>
   )
