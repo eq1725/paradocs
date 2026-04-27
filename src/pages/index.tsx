@@ -8,6 +8,7 @@ import QuickNavStrip from '@/components/homepage/QuickNavStrip'
 import FeedShowcase from '@/components/homepage/FeedShowcase'
 import MapShowcase from '@/components/homepage/MapShowcase'
 import AIInsight from '@/components/homepage/AIInsight'
+import LabShowcase from '@/components/homepage/LabShowcase'
 import DataProofCTA from '@/components/homepage/DataProofCTA'
 
 // Hero headline variants — must match admin/ab-testing.tsx variant table
@@ -138,7 +139,10 @@ export default function Home() {
       {/* === SECTION 5: AI Pattern Insight === */}
       <AIInsight />
 
-      {/* === SECTION 6: Data Proof + CTA === */}
+      {/* === SECTION 6: Lab / Investigate Showcase === */}
+      <LabShowcase />
+
+      {/* === SECTION 7: Data Proof + CTA === */}
       <DataProofCTA />
     </>
   )
