@@ -57,7 +57,7 @@ export default function QuickNavStrip() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div
           className="relative overflow-hidden rounded-2xl border border-white/10"
-          style={{ height: '180px' }}
+          style={{ aspectRatio: '3.77 / 1' }}
           onMouseEnter={function() { setIsPaused(true) }}
           onMouseLeave={function() { setIsPaused(false) }}
           onTouchStart={function() { setIsPaused(true) }}
