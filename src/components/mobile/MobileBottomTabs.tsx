@@ -4,9 +4,9 @@
  * MobileBottomTabs — Session A1: UX Consolidation
  *
  * New 4-tab structure (NO FAB, NO More sheet):
- * 1. Feed (flame) — /discover
- * 2. Explore (compass) — /explore
- * 3. Lab (telescope) — /lab
+ * 1. Reports (flame) — /discover
+ * 2. Phenomena (compass) — /explore
+ * 3. Investigate (telescope) — /lab
  * 4. Profile (avatar) — /profile
  *
  * The [+] FAB and "More" bottom sheet are completely removed.
@@ -28,9 +28,9 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
 var TABS = [
-  { key: 'feed', label: 'Feed', icon: Flame, href: '/discover' },
-  { key: 'explore', label: 'Explore', icon: Compass, href: '/explore' },
-  { key: 'lab', label: 'Lab', icon: Telescope, href: '/lab' },
+  { key: 'feed', label: 'Reports', icon: Flame, href: '/discover' },
+  { key: 'explore', label: 'Phenomena', icon: Compass, href: '/explore' },
+  { key: 'lab', label: 'Investigate', icon: Telescope, href: '/lab' },
   { key: 'profile', label: 'Profile', icon: User, href: '/profile' },
 ]
 

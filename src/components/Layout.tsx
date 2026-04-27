@@ -76,11 +76,12 @@ export default function Layout({ children }: LayoutProps) {
     }
   }
 
-  // Main navigation — Session A2: Explore Consolidation
+  // Main navigation — unified labels across all nav surfaces
   const navigation = [
-    { name: 'Feed', href: '/discover', icon: Flame },
-    { name: 'Explore', href: '/explore', icon: Compass },
-    { name: 'Lab', href: '/lab', icon: Sparkles },
+    { name: 'Reports', href: '/discover', icon: Flame },
+    { name: 'Map', href: '/map', icon: Map },
+    { name: 'Phenomena', href: '/explore', icon: Compass },
+    { name: 'Investigate', href: '/lab', icon: Sparkles },
   ]
 
   return (
@@ -178,7 +179,7 @@ export default function Layout({ children }: LayoutProps) {
                         </div>
                         <Link href="/lab" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
                           <LayoutDashboard className="w-4 h-4" />
-                          Lab
+                          Investigate
                         </Link>
                         <Link href="/profile" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
                           <User className="w-4 h-4" />
@@ -237,12 +238,12 @@ export default function Layout({ children }: LayoutProps) {
               </p>
             </div>
             <div>
-              <h4 className="font-medium text-white mb-4">Explore</h4>
+              <h4 className="font-medium text-white mb-4">Phenomena</h4>
               <ul className="space-y-2 text-sm text-gray-400">
                 <li><Link href="/explore?category=ufo_uap" className="hover:text-white">UFO Sightings</Link></li>
                 <li><Link href="/explore?category=cryptid" className="hover:text-white">Cryptids</Link></li>
                 <li><Link href="/explore?category=ghost_haunting" className="hover:text-white">Ghosts</Link></li>
-                <li><Link href="/explore?mode=map" className="hover:text-white">Interactive Map</Link></li>
+                <li><Link href="/map" className="hover:text-white">Map</Link></li>
                 <li><Link href="/explore?mode=search" className="hover:text-white">Search</Link></li>
               </ul>
             </div>
@@ -250,7 +251,8 @@ export default function Layout({ children }: LayoutProps) {
               <h4 className="font-medium text-white mb-4">Community</h4>
               <ul className="space-y-2 text-sm text-gray-400">
                 <li><Link href="/submit" className="hover:text-white">Submit Report</Link></li>
-                <li><Link href="/explore" className="hover:text-white">Explore</Link></li>
+                <li><Link href="/discover" className="hover:text-white">Reports</Link></li>
+                <li><Link href="/lab" className="hover:text-white">Investigate</Link></li>
                 <li><Link href="/about" className="hover:text-white">About</Link></li>
               </ul>
             </div>

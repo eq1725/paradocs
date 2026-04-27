@@ -5,11 +5,11 @@ import { classNames } from '@/lib/utils'
 
 // Pages where user browses lists and clicks into detail pages
 const LIST_PAGES: Record<string, string> = {
-  '/explore': 'Explore',
-  '/discover': 'Discover',
+  '/explore': 'Phenomena',
+  '/discover': 'Reports',
   '/phenomena': 'Encyclopedia',
   '/insights': 'Insights',
-  '/lab': 'Lab',
+  '/lab': 'Investigate',
   '/dashboard/saved': 'Saved Reports',
   '/dashboard/reports': 'My Reports',
   '/dashboard/journal': 'Journal',
@@ -136,7 +136,7 @@ export default function NavigationHelper() {
       if (path.startsWith('/insights/patterns/')) {
         setBackInfo({ label: 'Insights', path: '/insights' })
       } else if (path.startsWith('/story/')) {
-        setBackInfo({ label: 'Explore', path: '/explore' })
+        setBackInfo({ label: 'Phenomena', path: '/explore' })
       } else if (path.startsWith('/dashboard/journal/')) {
         setBackInfo({ label: 'Journal', path: '/dashboard/journal' })
       }

@@ -120,7 +120,7 @@ export default function SuggestedNextSteps(props: SuggestedNextStepsProps) {
       title: 'Keep exploring',
       description: 'Discover new cases, save evidence, and let the AI find patterns you might miss.',
       href: '/explore',
-      ctaLabel: 'Explore',
+      ctaLabel: 'Browse phenomena',
     })
   }
 
