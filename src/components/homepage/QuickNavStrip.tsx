@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 /**
  * Category slideshow — full-width, one image at a time with crossfade.
  * Auto-advances every 3 seconds, pauses on hover/touch.
  * Each slide links to explore browse filtered by that category.
+ * Desktop: subtle chevron arrows on hover for manual navigation.
  *
  * Art assets in /public/categories/ as @2x PNGs (~1473x391).
  */
@@ -27,12 +29,27 @@ var INTERVAL = 3000 /* ms between slides */
 export default function QuickNavStrip() {
   var [activeIndex, setActiveIndex] = useState(0)
   var [isPaused, setIsPaused] = useState(false)
+  var [isHovered, setIsHovered] = useState(false)
   var timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   var advance = useCallback(function() {
     setActiveIndex(function(prev) {
       return (prev + 1) % categories.length
     })
+  }, [])
+
+  var goBack = useCallback(function() {
+    setActiveIndex(function(prev) {
+      return (prev - 1 + categories.length) % categories.length
+    })
+    if (timerRef.current) clearTimeout(timerRef.current)
+  }, [])
+
+  var goForward = useCallback(function() {
+    setActiveIndex(function(prev) {
+      return (prev + 1) % categories.length
+    })
+    if (timerRef.current) clearTimeout(timerRef.current)
   }, [])
 
   /* Auto-advance timer */
@@ -46,12 +63,6 @@ export default function QuickNavStrip() {
     }
   }, [activeIndex, isPaused, advance])
 
-  function goToSlide(index: number) {
-    setActiveIndex(index)
-    /* Reset the timer when user clicks a dot */
-    if (timerRef.current) clearTimeout(timerRef.current)
-  }
-
   return (
     <section className="py-4 md:py-6">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -59,10 +70,10 @@ export default function QuickNavStrip() {
           Explore by category
         </p>
         <div
-          className="relative overflow-hidden rounded-2xl border border-white/10"
+          className="relative overflow-hidden rounded-2xl border border-white/10 group"
           style={{ aspectRatio: '3.77 / 1' }}
-          onMouseEnter={function() { setIsPaused(true) }}
-          onMouseLeave={function() { setIsPaused(false) }}
+          onMouseEnter={function() { setIsPaused(true); setIsHovered(true) }}
+          onMouseLeave={function() { setIsPaused(false); setIsHovered(false) }}
           onTouchStart={function() { setIsPaused(true) }}
           onTouchEnd={function() { setIsPaused(false) }}
         >
@@ -95,19 +106,31 @@ export default function QuickNavStrip() {
             )
           })}
 
-          {/* Dot indicators */}
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex gap-2">
-            {categories.map(function(cat, i) {
-              var isActive = i === activeIndex
-              return (
-                <button
-                  key={cat.slug}
-                  onClick={function() { goToSlide(i) }}
-                  className={'rounded-full transition-all duration-300 ' + (isActive ? 'w-6 h-2 bg-white' : 'w-2 h-2 bg-white/40 hover:bg-white/60')}
-                  aria-label={'Go to category ' + (i + 1)}
-                />
-              )
-            })}
+          {/* Chevron arrows — visible on desktop hover only */}
+          <button
+            onClick={function(e) { e.preventDefault(); goBack() }}
+            className="hidden md:flex absolute left-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/60 transition-all duration-300 opacity-0 group-hover:opacity-100 cursor-pointer"
+            aria-label="Previous category"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <button
+            onClick={function(e) { e.preventDefault(); goForward() }}
+            className="hidden md:flex absolute right-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/60 transition-all duration-300 opacity-0 group-hover:opacity-100 cursor-pointer"
+            aria-label="Next category"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+
+          {/* Slide position indicator — thin bar at bottom */}
+          <div className="absolute bottom-0 left-0 right-0 z-10 h-0.5 bg-white/10">
+            <div
+              className="h-full bg-white/50 transition-all duration-700 ease-in-out"
+              style={{
+                width: (100 / categories.length) + '%',
+                marginLeft: (activeIndex * 100 / categories.length) + '%',
+              }}
+            />
           </div>
         </div>
       </div>

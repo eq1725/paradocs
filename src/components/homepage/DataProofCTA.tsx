@@ -63,11 +63,27 @@ function AnimatedCounter({ target, duration, suffix, label }: {
 /**
  * Data proof counters + final CTA section.
  *
- * Phase 1 (launch): phenomena types, categories, source archives
+ * Phase 1 (launch): phenomena types, locations (dynamic), source archives
  * Phase 2 (post-ingestion): add total reports counter
  * Phase 3 (growth): add researchers counter
  */
 export default function DataProofCTA() {
+  var [locationCount, setLocationCount] = useState(0)
+
+  /* Fetch dynamic location count from API */
+  useEffect(function() {
+    fetch('/api/stats/locations')
+      .then(function(res) { return res.json() })
+      .then(function(data) {
+        if (data.count && data.count > 0) {
+          setLocationCount(data.count)
+        }
+      })
+      .catch(function() {
+        /* Silent fail — counter just stays at 0 / won't animate */
+      })
+  }, [])
+
   return (
     <section className="py-16 md:py-24 border-t border-white/5 bg-gradient-to-b from-transparent to-primary-900/10">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -75,7 +91,11 @@ export default function DataProofCTA() {
         {/* Animated counters */}
         <div className="grid grid-cols-3 gap-6 md:gap-12 mb-16">
           <AnimatedCounter target={4792} duration={2000} label="phenomena types" />
-          <AnimatedCounter target={11} duration={1200} label="categories" />
+          {locationCount > 0 ? (
+            <AnimatedCounter target={locationCount} duration={1800} label="locations" />
+          ) : (
+            <AnimatedCounter target={200} duration={1500} suffix="+" label="locations" />
+          )}
           <AnimatedCounter target={200} duration={1500} suffix="+" label="source archives" />
         </div>
 
