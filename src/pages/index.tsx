@@ -119,7 +119,7 @@ export default function Home() {
 
             {/* Trust line */}
             <p className="mt-8 text-sm text-gray-500">
-              4,792 phenomena types across 11 categories {'\u00b7'} AI-powered pattern analysis
+              Millions of real experiences across 4,792 phenomena types
             </p>
 
           </div>
