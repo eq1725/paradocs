@@ -1,13 +1,14 @@
 'use client'
 
 import React, { useState } from 'react'
-import Link from 'next/link'
 import Head from 'next/head'
-import { Search, ArrowRight, LogIn } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useABTest } from '@/lib/ab-testing'
-import FourPillars from '@/components/homepage/FourPillars'
-import DiscoverPreview from '@/components/homepage/DiscoverPreview'
-import InstallPrompt from '@/components/InstallPrompt'
+import QuickNavStrip from '@/components/homepage/QuickNavStrip'
+import FeedShowcase from '@/components/homepage/FeedShowcase'
+import MapShowcase from '@/components/homepage/MapShowcase'
+import AIInsight from '@/components/homepage/AIInsight'
+import DataProofCTA from '@/components/homepage/DataProofCTA'
 
 // Hero headline variants — must match admin/ab-testing.tsx variant table
 var HERO_VARIANTS: Record<string, { headline: string; subheadline: string }> = {
@@ -118,48 +119,27 @@ export default function Home() {
 
             {/* Trust line */}
             <p className="mt-8 text-sm text-gray-500">
-              4,792+ phenomena catalogued across 11 categories {'\u00b7'} AI-powered pattern analysis
+              4,792 phenomena types across 11 categories {'\u00b7'} AI-powered pattern analysis
             </p>
 
           </div>
         </div>
       </section>
 
-      {/* === SECTION 2: Four Pillars === */}
-      <FourPillars />
+      {/* === SECTION 2: Quick Nav Strip === */}
+      <QuickNavStrip />
 
-      {/* === SECTION 3: Product Taste === */}
-      <DiscoverPreview />
+      {/* === SECTION 3: Feed Showcase === */}
+      <FeedShowcase />
 
-      {/* === SECTION 4: Get Started === */}
-      <section className="py-16 border-t border-white/5 bg-gradient-to-b from-transparent to-primary-900/10">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-2xl md:text-3xl font-display font-bold text-white">
-            Start exploring for free
-          </h2>
-          <p className="mt-3 text-gray-400">
-            Search the database, swipe through reports, and save what matters. No credit card required.
-          </p>
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-primary-500 hover:bg-primary-400 text-white font-semibold transition-colors text-base"
-            >
-              <LogIn className="w-5 h-5" />
-              Create free account
-            </Link>
-            <Link
-              href="/explore"
-              className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl border border-white/15 text-gray-300 hover:text-white hover:bg-white/5 transition-colors text-sm"
-            >
-              Browse without an account
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-          {/* PWA install prompt — mobile only, below CTA buttons */}
-          <InstallPrompt />
-        </div>
-      </section>
+      {/* === SECTION 4: Map Showcase === */}
+      <MapShowcase />
+
+      {/* === SECTION 5: AI Pattern Insight === */}
+      <AIInsight />
+
+      {/* === SECTION 6: Data Proof + CTA === */}
+      <DataProofCTA />
     </>
   )
 }
