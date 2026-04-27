@@ -110,7 +110,7 @@ export default function MapShowcase() {
                 <div className="absolute bottom-8 left-3 right-3 flex items-center justify-between bg-gray-900/80 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10">
                   <div className="flex flex-col">
                     <span className="text-[9px] text-gray-500">Visible reports</span>
-                    <span className="text-[12px] font-semibold text-white">4,792</span>
+                    <span className="text-[12px] font-semibold text-white">12,847</span>
                   </div>
                   <div className="flex flex-col items-end">
                     <span className="text-[9px] text-gray-500">Hotspot</span>

@@ -51,7 +51,7 @@ export default function AIInsight() {
               href="/lab"
               className="inline-flex items-center gap-2 mt-6 text-sm font-medium text-primary-400 hover:text-primary-300 transition-colors"
             >
-              Investigate patterns
+              See what else the AI found
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>

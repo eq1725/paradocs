@@ -2,7 +2,6 @@
 
 import React from 'react'
 import PhoneMockup from './PhoneMockup'
-import AppStoreBadges from './AppStoreBadges'
 
 /**
  * "What people are reporting" — AllTrails-style showcase section.
@@ -64,7 +63,7 @@ function FeedCardMock({ card, index }: { card: typeof mockFeedCards[0]; index: n
 
 export default function FeedShowcase() {
   return (
-    <section className="py-16 md:py-24 overflow-hidden">
+    <section className="py-16 md:py-24 overflow-hidden border-t border-white/5">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row items-center gap-10 md:gap-16">
 
@@ -74,7 +73,7 @@ export default function FeedShowcase() {
               {/* Fake status bar */}
               <div className="pt-9 px-4 pb-2 flex items-center justify-between">
                 <span className="text-[10px] font-semibold text-white">Paradocs</span>
-                <span className="text-[9px] text-gray-500">Feed</span>
+                <span className="text-[9px] text-gray-500">Reports</span>
               </div>
 
               {/* Section header inside phone */}
@@ -94,19 +93,19 @@ export default function FeedShowcase() {
               <div className="absolute bottom-6 left-0 right-0 flex justify-around px-6 py-2 border-t border-white/10 bg-gray-950/90">
                 <div className="flex flex-col items-center gap-0.5">
                   <div className="w-4 h-4 rounded bg-primary-500/30" />
-                  <span className="text-[7px] text-primary-400">Feed</span>
+                  <span className="text-[7px] text-primary-400">Reports</span>
                 </div>
                 <div className="flex flex-col items-center gap-0.5">
                   <div className="w-4 h-4 rounded bg-white/10" />
-                  <span className="text-[7px] text-gray-500">Map</span>
+                  <span className="text-[7px] text-gray-500">Phenomena</span>
                 </div>
                 <div className="flex flex-col items-center gap-0.5">
                   <div className="w-4 h-4 rounded bg-white/10" />
-                  <span className="text-[7px] text-gray-500">Explore</span>
+                  <span className="text-[7px] text-gray-500">Investigate</span>
                 </div>
                 <div className="flex flex-col items-center gap-0.5">
                   <div className="w-4 h-4 rounded bg-white/10" />
-                  <span className="text-[7px] text-gray-500">Lab</span>
+                  <span className="text-[7px] text-gray-500">Profile</span>
                 </div>
               </div>
             </PhoneMockup>
@@ -121,9 +120,9 @@ export default function FeedShowcase() {
               Real encounters and AI-detected patterns emerging from millions of cases. Swipe through reports, save what matters, and discover connections no one else can see.
             </p>
 
-            <div className="mt-8">
-              <AppStoreBadges />
-            </div>
+            <p className="mt-6 text-sm text-gray-500">
+              Available on iOS, Android, and web
+            </p>
           </div>
 
         </div>
