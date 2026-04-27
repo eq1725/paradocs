@@ -92,7 +92,7 @@ export default function Home() {
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold text-white leading-tight">
               {heroContent.headline}
             </h1>
-            <p className="mt-6 text-lg md:text-xl text-gray-400 max-w-2xl mx-auto">
+            <p className="mt-6 text-base md:text-lg text-gray-400 max-w-2xl mx-auto">
               {heroContent.subheadline}
             </p>
 
@@ -118,7 +118,7 @@ export default function Home() {
             </form>
 
             {/* Trust line */}
-            <p className="mt-8 text-sm text-gray-400">
+            <p className="mt-6 text-base font-medium tracking-wide text-gray-400">
               <span className="text-primary-400">Millions</span> of real experiences across <span className="text-primary-400">4,792</span> phenomena types
             </p>
 
