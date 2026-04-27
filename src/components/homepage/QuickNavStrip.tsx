@@ -1,66 +1,108 @@
 'use client'
 
-import React from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Newspaper, Map, BookOpen, FlaskConical } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
-var navItems = [
-  { label: 'Reports', href: '/discover', icon: Newspaper, accent: 'cyan' },
-  { label: 'Map', href: '/map', icon: Map, accent: 'green' },
-  { label: 'Phenomena', href: '/explore?mode=browse', icon: BookOpen, accent: 'purple' },
-  { label: 'Investigate', href: '/lab', icon: FlaskConical, accent: 'orange' },
+/**
+ * Category carousel — replaces the old pill-button nav strip.
+ * Shows category art banners in a horizontally-scrolling strip.
+ * Each card links to the explore page filtered to that category.
+ *
+ * Art assets live in /public/categories/ as @2x PNGs (~1473x391).
+ * Displayed at ~240x64 CSS size for a compact, Netflix-style row.
+ */
+
+var categories = [
+  { slug: 'ufos_aliens', image: '/categories/ufo-aliens.png' },
+  { slug: 'cryptids', image: '/categories/cryptids.png' },
+  { slug: 'ghosts_hauntings', image: '/categories/ghosts-hauntings.png' },
+  { slug: 'psychic_phenomena', image: '/categories/psychic-phenomena.png' },
+  { slug: 'esoteric_practices', image: '/categories/esoteric-practices.png' },
+  { slug: 'religion_mythology', image: '/categories/religion-mythology.png' },
+  { slug: 'consciousness_practices', image: '/categories/consciousness-practices.png' },
+  { slug: 'psychological_experiences', image: '/categories/psychological-experiences.png' },
 ]
 
-/* Accent color mappings for the subtle tint on each pill */
-var accentStyles: Record<string, { border: string; bg: string; glow: string; icon: string; hoverBg: string }> = {
-  cyan: {
-    border: 'border-cyan-500/20',
-    bg: 'bg-cyan-500/5',
-    glow: 'group-hover:shadow-cyan-500/10',
-    icon: 'text-cyan-400',
-    hoverBg: 'group-hover:bg-cyan-500/10',
-  },
-  green: {
-    border: 'border-emerald-500/20',
-    bg: 'bg-emerald-500/5',
-    glow: 'group-hover:shadow-emerald-500/10',
-    icon: 'text-emerald-400',
-    hoverBg: 'group-hover:bg-emerald-500/10',
-  },
-  purple: {
-    border: 'border-primary-500/20',
-    bg: 'bg-primary-500/5',
-    glow: 'group-hover:shadow-primary-500/10',
-    icon: 'text-primary-400',
-    hoverBg: 'group-hover:bg-primary-500/10',
-  },
-  orange: {
-    border: 'border-orange-500/20',
-    bg: 'bg-orange-500/5',
-    glow: 'group-hover:shadow-orange-500/10',
-    icon: 'text-orange-400',
-    hoverBg: 'group-hover:bg-orange-500/10',
-  },
-}
-
 export default function QuickNavStrip() {
+  var scrollRef = useRef<HTMLDivElement>(null)
+  var [canScrollLeft, setCanScrollLeft] = useState(false)
+  var [canScrollRight, setCanScrollRight] = useState(false)
+
+  function checkScroll() {
+    var el = scrollRef.current
+    if (!el) return
+    setCanScrollLeft(el.scrollLeft > 4)
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4)
+  }
+
+  useEffect(function() {
+    checkScroll()
+    var el = scrollRef.current
+    if (el) {
+      el.addEventListener('scroll', checkScroll, { passive: true })
+      window.addEventListener('resize', checkScroll)
+    }
+    return function() {
+      if (el) el.removeEventListener('scroll', checkScroll)
+      window.removeEventListener('resize', checkScroll)
+    }
+  }, [])
+
+  function scroll(direction: 'left' | 'right') {
+    var el = scrollRef.current
+    if (!el) return
+    var distance = el.clientWidth * 0.7
+    el.scrollBy({ left: direction === 'left' ? -distance : distance, behavior: 'smooth' })
+  }
+
   return (
-    <section className="py-6 md:py-8">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
-          {navItems.map(function(item) {
-            var Icon = item.icon
-            var colors = accentStyles[item.accent]
+    <section className="py-6 md:py-8 relative">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+
+        {/* Desktop scroll arrows */}
+        {canScrollLeft && (
+          <button
+            onClick={function() { scroll('left') }}
+            className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 items-center justify-center rounded-full bg-black/60 backdrop-blur border border-white/10 text-white hover:bg-black/80 transition-colors"
+            aria-label="Scroll left"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+        )}
+        {canScrollRight && (
+          <button
+            onClick={function() { scroll('right') }}
+            className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 items-center justify-center rounded-full bg-black/60 backdrop-blur border border-white/10 text-white hover:bg-black/80 transition-colors"
+            aria-label="Scroll right"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        )}
+
+        {/* Scrollable row */}
+        <div
+          ref={scrollRef}
+          className="flex gap-3 overflow-x-auto scrollbar-hide scroll-smooth snap-x snap-mandatory"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
+          {categories.map(function(cat) {
             return (
               <Link
-                key={item.label}
-                href={item.href}
-                className={'group relative flex items-center gap-2.5 px-5 py-2.5 sm:px-6 sm:py-3 rounded-full border transition-all duration-200 shadow-lg shadow-transparent ' + colors.border + ' ' + colors.bg + ' ' + colors.glow + ' ' + colors.hoverBg + ' hover:border-opacity-40 hover:shadow-lg'}
+                key={cat.slug}
+                href={'/explore?mode=browse&category=' + cat.slug}
+                className="flex-shrink-0 snap-start group relative overflow-hidden rounded-xl border border-white/10 hover:border-white/25 transition-all duration-300"
+                style={{ width: '240px', height: '64px' }}
               >
-                <Icon className={'w-4 h-4 sm:w-[18px] sm:h-[18px] transition-colors ' + colors.icon} />
-                <span className="text-sm sm:text-[15px] font-medium text-gray-300 group-hover:text-white transition-colors">
-                  {item.label}
-                </span>
+                {/* Category art */}
+                <img
+                  src={cat.image}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  loading="lazy"
+                />
+                {/* Hover overlay */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
               </Link>
             )
           })}
