@@ -12,11 +12,13 @@
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
+  background-color: rgb(var(--background-end-rgb));
+  background-image: linear-gradient(
     to bottom,
     rgb(var(--background-start-rgb)),
     rgb(var(--background-end-rgb))
   );
+  background-attachment: fixed;
   min-height: 100vh;
 }
 
