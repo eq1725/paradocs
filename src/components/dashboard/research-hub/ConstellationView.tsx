@@ -601,7 +601,7 @@ export function ConstellationView({
       // Label for active nodes
       if (isActive) {
         var fontSize = Math.max(10, Math.min(13, 12 / zoom))
-        ctx.font = '600 ' + fontSize + "px 'Space Grotesk', Inter, system-ui, sans-serif"
+        ctx.font = '600 ' + fontSize + "px 'Changa', Inter, system-ui, sans-serif"
         ctx.textAlign = 'center'
         ctx.textBaseline = 'top'
 
@@ -633,7 +633,7 @@ export function ConstellationView({
         ctx.fillStyle = 'rgba(255, 255, 255, ' + alpha + ')'
         ctx.fillText(cluster.icon, cluster.x, cluster.y - fontSize * 1.2)
 
-        ctx.font = '600 ' + fontSize + "px 'Space Grotesk', Inter, system-ui, sans-serif"
+        ctx.font = '600 ' + fontSize + "px 'Changa', Inter, system-ui, sans-serif"
         ctx.fillStyle = 'rgba(255, 255, 255, ' + (alpha * 0.8) + ')'
         ctx.fillText(cluster.title, cluster.x, cluster.y + fontSize * 0.4)
 

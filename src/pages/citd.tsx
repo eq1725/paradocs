@@ -44,7 +44,7 @@ export default function CITDPage() {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Changa:wght@600;700;800&family=Changa+One&family=Inter:wght@400;500;600&display=swap"
           rel="stylesheet"
         />
       </Head>
@@ -343,7 +343,7 @@ export default function CITDPage() {
         }
 
         .citd-headline {
-          font-family: 'Space Grotesk', sans-serif;
+          font-family: 'Changa', sans-serif;
           font-size: clamp(36px, 5.5vw, 56px);
           font-weight: 700;
           line-height: 1.1;
@@ -505,7 +505,7 @@ export default function CITDPage() {
           padding: 2px 16px 6px;
         }
         .citd-app-logo {
-          font-family: 'Space Grotesk', sans-serif;
+          font-family: 'Changa', sans-serif;
           font-size: 17px;
           font-weight: 700;
           color: #fff;

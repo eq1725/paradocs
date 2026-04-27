@@ -80,7 +80,7 @@ export default function BetaAccessPage() {
         {/* Header */}
         <header className="p-6">
           <Link href="https://www.discoverparadocs.com" className="inline-block text-white hover:opacity-80 transition-opacity">
-            <span className="text-xl font-black tracking-tight">Paradocs.</span>
+            <span className="text-xl font-brand tracking-tight">Paradocs.</span>
           </Link>
         </header>
 

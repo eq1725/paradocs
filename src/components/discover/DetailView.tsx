@@ -4,7 +4,7 @@
  * DetailView — full-screen overlay for expanded case detail
  *
  * Opened from RabbitHolePanel when a related case is tapped.
- * Uses site typography and colors (Inter, Space Grotesk, primary-500).
+ * Uses site typography and colors (Inter, Changa, primary-500).
  *
  * SWC-compatible: var, function expressions, string concat.
  */

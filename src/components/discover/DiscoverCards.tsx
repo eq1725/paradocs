@@ -12,7 +12,7 @@
  *   4. Large bold opener line — headline treatment
  *   5. "Read Case" button → expands summary + Constellation paywall
  *
- * Typography: Inter (font-sans) body, Space Grotesk (font-display) headings.
+ * Typography: Inter (font-sans) body, Changa (font-display) headings.
  * Colors: primary-500 (#9000F0) accent, gray-900 backgrounds.
  * Matches site-wide styling from tailwind.config + globals.css.
  *

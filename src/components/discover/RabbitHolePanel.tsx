@@ -4,7 +4,7 @@
  * RabbitHolePanel — slide-up panel showing related cases
  *
  * Triggered by swiping DOWN on a card. Slides up from the bottom.
- * Uses site typography (Inter body, Space Grotesk headings) and
+ * Uses site typography (Inter body, Changa headings) and
  * color system (primary-500, gray-900, border-white/5).
  *
  * SWC-compatible: var, function expressions, string concat.

@@ -35,7 +35,8 @@ module.exports = {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
-        display: ['Space Grotesk', 'system-ui', 'sans-serif'],
+        display: ['Changa', 'system-ui', 'sans-serif'],
+        brand: ["'Changa One'", 'Changa', 'system-ui', 'sans-serif'],
       },
       spacing: {
         'touch': '44px',
