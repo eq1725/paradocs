@@ -37,18 +37,18 @@ export default function MapShowcase() {
       <div className="absolute top-1/2 right-[15%] -translate-y-1/2 w-[500px] h-[500px] rounded-full opacity-[0.06] pointer-events-none" style={{ background: 'radial-gradient(circle, #22d3ee 0%, transparent 70%)' }} />
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-        <div className="flex flex-col md:flex-row items-center gap-10 md:gap-14">
+        <div className="flex flex-col md:flex-row items-center md:items-start gap-10 md:gap-14">
 
           {/* Text content — left on desktop, headline above phone on mobile */}
-          <div className="flex-1 order-1 md:order-1 text-center md:text-left">
+          <div className="flex-1 order-1 md:order-1 text-center md:text-left md:pt-16">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-white leading-tight">
               Explore the global map
             </h2>
-            <p className="mt-5 text-base md:text-lg text-gray-400 max-w-lg">
+            <p className="mt-4 text-base md:text-lg text-gray-400 max-w-lg">
               Every report, pinned to where it happened. Filter by type, zoom into hotspots, and uncover clusters.
             </p>
 
-            <div className="mt-10">
+            <div className="mt-8">
               <AppStoreBadges />
             </div>
           </div>
