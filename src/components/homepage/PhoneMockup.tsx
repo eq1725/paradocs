@@ -13,11 +13,11 @@ interface PhoneMockupProps {
  */
 export default function PhoneMockup({ children }: PhoneMockupProps) {
   return (
-    <div className="relative mx-auto" style={{ width: '280px', maxWidth: '100%' }}>
-      {/* Phone outer frame */}
-      <div className="relative rounded-[2.5rem] border-[6px] border-gray-800 bg-gray-900 shadow-2xl shadow-black/50 overflow-hidden">
+    <div className="relative mx-auto" style={{ width: '320px', maxWidth: '100%' }}>
+      {/* Phone outer frame — thick dark bezel for realistic device feel */}
+      <div className="relative rounded-[2.8rem] border-[10px] border-black bg-black shadow-2xl shadow-black/60 overflow-hidden">
         {/* Notch */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[120px] h-[28px] bg-gray-800 rounded-b-2xl z-10" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[110px] h-[26px] bg-black rounded-b-2xl z-10" />
 
         {/* Screen content */}
         <div className="relative bg-gray-950 aspect-[9/19.5] overflow-hidden">
@@ -25,7 +25,7 @@ export default function PhoneMockup({ children }: PhoneMockupProps) {
         </div>
 
         {/* Home indicator */}
-        <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-[100px] h-[4px] bg-gray-600 rounded-full" />
+        <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-[100px] h-[4px] bg-gray-700 rounded-full" />
       </div>
     </div>
   )

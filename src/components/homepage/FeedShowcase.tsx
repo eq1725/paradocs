@@ -2,6 +2,7 @@
 
 import React from 'react'
 import PhoneMockup from './PhoneMockup'
+import AppStoreBadges from './AppStoreBadges'
 
 /**
  * "What people are reporting" — AllTrails-style showcase section.
@@ -120,9 +121,9 @@ export default function FeedShowcase() {
               Real encounters and AI-detected patterns emerging from millions of cases. Swipe through reports, save what matters, and discover connections no one else can see.
             </p>
 
-            <p className="mt-6 text-sm text-gray-500">
-              Available on iOS, Android, and web
-            </p>
+            <div className="mt-8">
+              <AppStoreBadges />
+            </div>
           </div>
 
         </div>
