@@ -38,7 +38,7 @@ export default function LabShowcase() {
   return (
     <section className="py-16 md:py-24 overflow-hidden border-t border-white/5">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row items-center gap-10 md:gap-16">
+        <div className="flex flex-col md:flex-row items-center gap-10 md:gap-14">
 
           {/* Text content — left on desktop */}
           <div className="flex-1 order-2 md:order-1 text-center md:text-left">
@@ -59,7 +59,7 @@ export default function LabShowcase() {
           </div>
 
           {/* Laptop mockup — right on desktop */}
-          <div className="flex-shrink-0 order-1 md:order-2 w-full md:w-auto">
+          <div className="flex-shrink-0 order-1 md:order-2 w-full md:w-auto md:-my-12">
             <LaptopMockup>
               <div className="absolute inset-0 flex">
 

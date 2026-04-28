@@ -62,10 +62,10 @@ export default function FeedShowcase() {
       <div className="absolute top-1/2 left-[20%] -translate-y-1/2 w-[500px] h-[500px] rounded-full opacity-[0.07] pointer-events-none" style={{ background: 'radial-gradient(circle, #9000F0 0%, transparent 70%)' }} />
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-        <div className="flex flex-col md:flex-row items-center gap-10 md:gap-20">
+        <div className="flex flex-col md:flex-row items-center gap-10 md:gap-14">
 
           {/* Phone mockup — left on desktop */}
-          <div className="flex-shrink-0 order-2 md:order-1 md:-my-8">
+          <div className="flex-shrink-0 order-2 md:order-1 md:-my-16">
             <PhoneMockup>
               {/* Status bar */}
               <div className="pt-8 px-4 pb-2 flex items-center justify-between">

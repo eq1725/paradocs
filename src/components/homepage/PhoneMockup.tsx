@@ -39,7 +39,7 @@ export default function PhoneMockup({ children }: PhoneMockupProps) {
       ref={ref}
       className="relative mx-auto transition-all duration-700 ease-out"
       style={{
-        width: '320px',
+        width: '360px',
         maxWidth: '100%',
         aspectRatio: '92 / 170',
         opacity: isVisible ? 1 : 0,

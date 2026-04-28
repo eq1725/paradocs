@@ -41,7 +41,7 @@ export default function LaptopMockup({ children }: LaptopMockupProps) {
       ref={ref}
       className="relative mx-auto transition-all duration-700 ease-out"
       style={{
-        width: '560px',
+        width: '700px',
         maxWidth: '100%',
         aspectRatio: '440 / 257',
         opacity: isVisible ? 1 : 0,
