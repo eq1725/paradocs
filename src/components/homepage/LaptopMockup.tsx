@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 
 interface LaptopMockupProps {
   children: React.ReactNode
@@ -8,40 +8,72 @@ interface LaptopMockupProps {
 
 /**
  * Realistic laptop frame for homepage showcase sections.
- * Renders children inside a dark laptop screen with bezel,
- * webcam dot, and keyboard base — mirrors the PhoneMockup pattern.
+ *
+ * Uses a high-fidelity vector device frame (metallic hinge, keyboard deck,
+ * trackpad, webcam) with a transparent screen area. Screen content is
+ * positioned underneath the frame overlay at the exact screen coordinates.
+ *
+ * Includes scroll-triggered fade-up entrance animation via IntersectionObserver.
  *
  * TODO: Replace static placeholder content with looped video capture.
  */
 export default function LaptopMockup({ children }: LaptopMockupProps) {
+  var [isVisible, setIsVisible] = useState(false)
+  var ref = useRef<HTMLDivElement>(null)
+
+  useEffect(function() {
+    if (!ref.current) return
+    var observer = new IntersectionObserver(
+      function(entries) {
+        if (entries[0].isIntersecting) {
+          setIsVisible(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.15 }
+    )
+    observer.observe(ref.current)
+    return function() { observer.disconnect() }
+  }, [])
+
   return (
-    <div className="relative mx-auto" style={{ width: '560px', maxWidth: '100%' }}>
-      {/* Screen + bezel */}
-      <div className="relative rounded-xl border-[4px] border-gray-700 bg-gray-800 shadow-2xl shadow-black/50 overflow-hidden">
-        {/* Webcam dot */}
-        <div className="absolute top-[5px] left-1/2 -translate-x-1/2 w-[6px] h-[6px] rounded-full bg-gray-600 z-10" />
-
-        {/* Screen content */}
-        <div className="relative bg-gray-950 aspect-[16/10] overflow-hidden mt-[2px]">
-          {children}
-        </div>
+    <div
+      ref={ref}
+      className="relative mx-auto transition-all duration-700 ease-out"
+      style={{
+        width: '560px',
+        maxWidth: '100%',
+        aspectRatio: '440 / 257',
+        opacity: isVisible ? 1 : 0,
+        transform: isVisible ? 'translateY(0)' : 'translateY(40px)',
+      }}
+    >
+      {/* Screen content — positioned at exact screen coordinates within the frame */}
+      <div
+        className="absolute overflow-hidden bg-gray-950"
+        style={{
+          left: '12.0%',
+          top: '5.7%',
+          width: '76.0%',
+          height: '80.5%',
+        }}
+      >
+        {children}
       </div>
 
-      {/* Keyboard base / hinge */}
-      <div className="relative mx-auto">
-        {/* Hinge strip */}
-        <div className="h-[6px] bg-gradient-to-b from-gray-600 to-gray-700 rounded-b-sm mx-[2px]" />
-        {/* Keyboard deck */}
-        <div
-          className="h-[10px] bg-gray-700 rounded-b-xl mx-auto"
-          style={{ width: '108%', marginLeft: '-4%' }}
-        />
-        {/* Bottom edge / feet */}
-        <div
-          className="h-[3px] bg-gray-800 rounded-b-xl mx-auto"
-          style={{ width: '40%' }}
-        />
-      </div>
+      {/* Realistic device frame overlay — transparent screen area */}
+      <img
+        src="/device-laptop.svg"
+        alt=""
+        className="absolute inset-0 w-full h-full pointer-events-none select-none"
+        draggable={false}
+      />
+
+      {/* Subtle shadow cast beneath the device */}
+      <div
+        className="absolute -bottom-3 left-[15%] right-[15%] h-6 rounded-full blur-xl"
+        style={{ background: 'radial-gradient(ellipse, rgba(0,0,0,0.35) 0%, transparent 70%)' }}
+      />
     </div>
   )
 }
