@@ -34,26 +34,26 @@ var reportDots = [
 
 export default function MapShowcase() {
   return (
-    <section className="py-16 md:py-24 overflow-hidden border-t border-white/5">
+    <section className="py-16 md:py-24 border-t border-white/5">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row items-center gap-10 md:gap-16">
+        <div className="flex flex-col md:flex-row items-center gap-10 md:gap-20">
 
           {/* Text content — left on desktop (reversed from feed section) */}
           <div className="flex-1 order-2 md:order-1 text-center md:text-left">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-white leading-tight">
               Explore the global map
             </h2>
-            <p className="mt-4 text-base md:text-lg text-gray-400 max-w-lg">
-              Every report, pinned to where it happened. Filter by phenomena type, zoom into hotspots, and uncover clusters the data reveals.
+            <p className="mt-5 text-base md:text-lg text-gray-400 max-w-lg">
+              Every report, pinned to where it happened. Filter by type, zoom into hotspots, and uncover clusters.
             </p>
 
-            <div className="mt-8">
+            <div className="mt-10">
               <AppStoreBadges />
             </div>
           </div>
 
-          {/* Phone mockup — right on desktop */}
-          <div className="flex-shrink-0 order-1 md:order-2">
+          {/* Phone mockup — right on desktop, breaks out of section bounds */}
+          <div className="flex-shrink-0 order-1 md:order-2 md:-my-8">
             <PhoneMockup>
               {/* Dark map background */}
               <div className="absolute inset-0 bg-[#0a0f1a]">

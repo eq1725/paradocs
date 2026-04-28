@@ -64,12 +64,12 @@ function FeedCardMock({ card, index }: { card: typeof mockFeedCards[0]; index: n
 
 export default function FeedShowcase() {
   return (
-    <section className="py-16 md:py-24 overflow-hidden border-t border-white/5">
+    <section className="py-16 md:py-24 border-t border-white/5">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row items-center gap-10 md:gap-16">
+        <div className="flex flex-col md:flex-row items-center gap-10 md:gap-20">
 
-          {/* Phone mockup — left on desktop */}
-          <div className="flex-shrink-0 order-1 md:order-1">
+          {/* Phone mockup — left on desktop, breaks out of section bounds */}
+          <div className="flex-shrink-0 order-1 md:order-1 md:-my-8">
             <PhoneMockup>
               {/* Fake status bar */}
               <div className="pt-9 px-4 pb-2 flex items-center justify-between">
@@ -117,11 +117,11 @@ export default function FeedShowcase() {
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-white leading-tight">
               What people are reporting
             </h2>
-            <p className="mt-4 text-base md:text-lg text-gray-400 max-w-lg">
-              Real encounters and AI-detected patterns emerging from millions of cases. Swipe through reports, save what matters, and discover connections no one else can see.
+            <p className="mt-5 text-base md:text-lg text-gray-400 max-w-lg">
+              Swipe through real encounters, save what matters, and discover connections no one else can see.
             </p>
 
-            <div className="mt-8">
+            <div className="mt-10">
               <AppStoreBadges />
             </div>
           </div>
