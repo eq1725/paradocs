@@ -23,17 +23,17 @@ export default function SubmitSuccessPage() {
           </h1>
 
           <p className="text-gray-400 mb-8">
-            Thank you for your contribution to Paradocs. Your report has been submitted
-            and is pending review. Our team will review it shortly and it will be
-            published once approved.
+            Thank you for trusting us with this. Your report has been submitted
+            and is pending review. In the meantime, see how your experience
+            connects to others.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/" className="btn btn-secondary">
-              <Home className="w-4 h-4" />
-              Back to Home
+            <Link href="/lab?tab=constellation" className="btn btn-primary">
+              <Eye className="w-4 h-4" />
+              See Your Constellation
             </Link>
-            <Link href="/submit" className="btn btn-primary">
+            <Link href="/submit" className="btn btn-secondary">
               <PlusCircle className="w-4 h-4" />
               Submit Another
             </Link>
@@ -41,9 +41,9 @@ export default function SubmitSuccessPage() {
 
           <div className="mt-8 p-4 bg-white/5 rounded-lg">
             <p className="text-sm text-gray-400">
-              Want to track the status of your submissions?
+              Track the status of your submissions in
               <Link href="/lab?tab=submissions" className="text-primary-400 hover:text-primary-300 ml-1">
-                View your submissions
+                your Lab
               </Link>
             </p>
           </div>

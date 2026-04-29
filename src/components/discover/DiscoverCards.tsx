@@ -27,6 +27,7 @@ import type { PhenomenonCategory } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
 import { Constellation } from './Constellation'
 import { deriveCaseProfile, nderfToCaseProfile, type CaseProfile } from '@/lib/caseProfile'
+import SourceBadge from '@/components/SourceBadge'
 
 // =========================================================================
 //  Shared types
@@ -697,10 +698,20 @@ export function TextReportCard(props: {
         <CategoryIcon category={item.category as PhenomenonCategory} size={12} />{' ' + badgeParts.join(' \u00B7 ')}
       </span>
 
-      {/* Meta strip: location \u00B7 date \u00B7 source \u00B7 phenomenon */}
-      <p className="text-[11px] md:text-xs text-gray-500 font-sans">
-        {metaParts.join(' \u00B7 ')}
-      </p>
+      {/* Meta strip: location \u00B7 date \u00B7 phenomenon + source badge */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <p className="text-[11px] md:text-xs text-gray-500 font-sans">
+          {metaParts.filter(function(p) { return p !== item.source_label }).join(' \u00B7 ')}
+        </p>
+        {item.source_type && (
+          <SourceBadge
+            sourceType={item.source_type}
+            sourceLabel={item.source_label || undefined}
+            sourceUrl={item.source_url || undefined}
+            variant="compact"
+          />
+        )}
+      </div>
 
       {/* Large bold opener */}
       <h2 className="text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] font-display font-bold text-white leading-snug">
@@ -833,10 +844,20 @@ export function MediaReportCard(props: {
         </span>
       </div>
 
-      {/* Meta strip: location \u00B7 date \u00B7 source */}
-      <p className="text-[11px] text-gray-500 font-sans">
-        {metaParts.join(' \u00B7 ')}
-      </p>
+      {/* Meta strip: location \u00B7 date \u00B7 phenomenon + source badge */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <p className="text-[11px] text-gray-500 font-sans">
+          {metaParts.filter(function(p) { return p !== item.source_label }).join(' \u00B7 ')}
+        </p>
+        {item.source_type && (
+          <SourceBadge
+            sourceType={item.source_type}
+            sourceLabel={item.source_label || undefined}
+            sourceUrl={item.source_url || undefined}
+            variant="compact"
+          />
+        )}
+      </div>
 
       {/* Large bold opener */}
       <h2 className="text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] font-display font-bold text-white leading-snug">

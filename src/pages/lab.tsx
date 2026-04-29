@@ -46,13 +46,16 @@ import LabSavesTab from '@/components/dashboard/LabSavesTab'
 import LabCasesTab from '@/components/dashboard/LabCasesTab'
 import LabMapTab from '@/components/dashboard/LabMapTab'
 import LabSubmissionsTab from '@/components/dashboard/LabSubmissionsTab'
+import LabConstellationTab from '@/components/dashboard/LabConstellationTab'
 import { useLabData } from '@/lib/hooks/useLabData'
+import { Star } from 'lucide-react'
 
 // Tab definitions
-var TAB_KEYS = ['saves', 'cases', 'submissions', 'map', 'notes'] as const
+var TAB_KEYS = ['constellation', 'saves', 'cases', 'submissions', 'map', 'notes'] as const
 type TabKey = typeof TAB_KEYS[number]
 
 var TAB_CONFIG = {
+  constellation: { label: 'Constellation', icon: Star },
   saves: { label: 'Saves', icon: Bookmark },
   cases: { label: 'Cases', icon: FolderOpen },
   submissions: { label: 'Submissions', icon: Send },
@@ -62,7 +65,7 @@ var TAB_CONFIG = {
 
 export default function LabPage() {
   var router = useRouter()
-  var [activeTab, setActiveTab] = useState<TabKey>('saves')
+  var [activeTab, setActiveTab] = useState<TabKey>('constellation')
   var [isLoggedIn, setIsLoggedIn] = useState(false)
   var [userProfile, setUserProfile] = useState<any>(null)
   var [loading, setLoading] = useState(true)
@@ -200,6 +203,9 @@ export default function LabPage() {
         ) : (
           /* Tab content — Saves / Cases / Map share lab data; Notes is standalone */
           <div>
+            {activeTab === 'constellation' && (
+              <LabConstellationTab />
+            )}
             {activeTab === 'saves' && (
               <LabSavesTab
                 loading={lab.loading}

@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ExternalLink, Database, BookOpen, MessageCircle, Ghost, Telescope } from 'lucide-react'
+import { ExternalLink, Database, BookOpen, MessageCircle, Ghost, Telescope, Video, Heart, User, FileText, Globe } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 
 // Source configuration with colors and icons
@@ -60,6 +60,111 @@ const SOURCE_CONFIG: Record<string, {
     color: 'text-primary-400',
     bgColor: 'bg-primary-500/10',
     icon: MessageCircle,
+  },
+  'user_submission': {
+    label: 'Paradocs Member',
+    shortLabel: 'Member',
+    color: 'text-emerald-400',
+    bgColor: 'bg-emerald-500/10',
+    icon: User,
+  },
+  'reddit_scrape': {
+    label: 'Reddit',
+    shortLabel: 'Reddit',
+    color: 'text-orange-400',
+    bgColor: 'bg-orange-500/10',
+    icon: MessageCircle,
+  },
+  'nuforc_scrape': {
+    label: 'NUFORC',
+    shortLabel: 'NUFORC',
+    color: 'text-teal-400',
+    bgColor: 'bg-teal-500/10',
+    icon: Telescope,
+  },
+  'mufon_import': {
+    label: 'MUFON',
+    shortLabel: 'MUFON',
+    color: 'text-violet-400',
+    bgColor: 'bg-violet-500/10',
+    icon: Telescope,
+  },
+  'bfro_scrape': {
+    label: 'BFRO',
+    shortLabel: 'BFRO',
+    color: 'text-green-400',
+    bgColor: 'bg-green-500/10',
+    icon: Database,
+  },
+  'iands_scrape': {
+    label: 'IANDS',
+    shortLabel: 'IANDS',
+    color: 'text-amber-400',
+    bgColor: 'bg-amber-500/10',
+    icon: Heart,
+  },
+  'nderf_scrape': {
+    label: 'NDERF',
+    shortLabel: 'NDERF',
+    color: 'text-amber-400',
+    bgColor: 'bg-amber-500/10',
+    icon: Heart,
+  },
+  'oberf_scrape': {
+    label: 'OBERF',
+    shortLabel: 'OBERF',
+    color: 'text-amber-400',
+    bgColor: 'bg-amber-500/10',
+    icon: Heart,
+  },
+  'youtube_scrape': {
+    label: 'YouTube',
+    shortLabel: 'YouTube',
+    color: 'text-red-400',
+    bgColor: 'bg-red-500/10',
+    icon: Video,
+  },
+  'forum_scrape': {
+    label: 'Paranormal Forum',
+    shortLabel: 'Forum',
+    color: 'text-purple-400',
+    bgColor: 'bg-purple-500/10',
+    icon: MessageCircle,
+  },
+  'erowid_scrape': {
+    label: 'Erowid',
+    shortLabel: 'Erowid',
+    color: 'text-lime-400',
+    bgColor: 'bg-lime-500/10',
+    icon: BookOpen,
+  },
+  'news_scrape': {
+    label: 'News',
+    shortLabel: 'News',
+    color: 'text-sky-400',
+    bgColor: 'bg-sky-500/10',
+    icon: Globe,
+  },
+  'editorial': {
+    label: 'Paradocs Editorial',
+    shortLabel: 'Editorial',
+    color: 'text-primary-400',
+    bgColor: 'bg-primary-500/10',
+    icon: FileText,
+  },
+  'curated': {
+    label: 'Paradocs Editorial',
+    shortLabel: 'Editorial',
+    color: 'text-primary-400',
+    bgColor: 'bg-primary-500/10',
+    icon: FileText,
+  },
+  'historical_archive': {
+    label: 'Historical Archive',
+    shortLabel: 'Archive',
+    color: 'text-amber-300',
+    bgColor: 'bg-amber-500/10',
+    icon: BookOpen,
   },
 }
 

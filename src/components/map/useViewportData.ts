@@ -112,6 +112,7 @@ export function useViewportData(
               witness_count: r.witness_count,
               has_physical_evidence: r.has_physical_evidence || false,
               has_photo_video: r.has_photo_video || false,
+              source_type: r.source_type || null,
               location_precision: (r.metadata && r.metadata.location_precision) || null,
             }
             reportMap.set(r.id, props)

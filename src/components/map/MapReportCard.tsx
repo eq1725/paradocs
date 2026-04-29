@@ -10,6 +10,7 @@ import { CATEGORY_CONFIG } from '@/lib/constants'
 import { formatDate } from '@/lib/utils'
 import { ReportProperties } from './mapStyles'
 import { CategoryIcon } from '@/components/ui/CategoryIcon'
+import SourceBadge from '@/components/SourceBadge'
 
 interface MapReportCardProps {
   report: ReportProperties
@@ -33,6 +34,9 @@ export default function MapReportCard({ report, onClose, compact = false }: MapR
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${catConfig?.bgColor} ${catConfig?.color}`}>
               {catConfig?.label}
             </span>
+            {report.source_type && (
+              <SourceBadge sourceType={report.source_type} variant="compact" />
+            )}
           </div>
           <h3 className="text-white font-semibold text-sm leading-tight line-clamp-2">
             {report.title}
