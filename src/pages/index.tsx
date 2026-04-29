@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import Head from 'next/head'
 import { Search } from 'lucide-react'
 import { useABTest } from '@/lib/ab-testing'
@@ -9,7 +9,86 @@ import FeedShowcase from '@/components/homepage/FeedShowcase'
 import MapShowcase from '@/components/homepage/MapShowcase'
 import AIInsight from '@/components/homepage/AIInsight'
 import LabShowcase from '@/components/homepage/LabShowcase'
+import HowItWorks from '@/components/homepage/HowItWorks'
 import DataProofCTA from '@/components/homepage/DataProofCTA'
+
+/* Rotating search placeholder queries — real examples that model depth */
+var SEARCH_EXAMPLES = [
+  'triangle UFOs over the Hudson Valley',
+  'shadow people in old houses',
+  'strange lights near military bases',
+  'Bigfoot sightings in the Pacific Northwest',
+  'missing time on rural highways',
+  'orbs captured on security cameras',
+  'encounters along the 37th parallel',
+]
+
+var TYPE_SPEED = 60   /* ms per character typed */
+var DELETE_SPEED = 30  /* ms per character deleted */
+var PAUSE_AFTER_TYPE = 2500 /* ms to hold the completed query */
+var PAUSE_AFTER_DELETE = 400 /* ms pause before typing next */
+
+/**
+ * Animated placeholder text that types, pauses, deletes, and cycles
+ * through example queries. Returns the current display string.
+ * Stops animating when the user focuses the input (isFocused = true).
+ */
+function useAnimatedPlaceholder(isFocused: boolean) {
+  var [text, setText] = useState('')
+  var indexRef = useRef(0)
+  var phaseRef = useRef<'typing' | 'pausing' | 'deleting' | 'waiting'>('typing')
+  var charRef = useRef(0)
+  var timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  var tick = useCallback(function() {
+    var query = SEARCH_EXAMPLES[indexRef.current]
+    var phase = phaseRef.current
+
+    if (phase === 'typing') {
+      charRef.current++
+      setText(query.slice(0, charRef.current))
+      if (charRef.current >= query.length) {
+        phaseRef.current = 'pausing'
+        timerRef.current = setTimeout(tick, PAUSE_AFTER_TYPE)
+      } else {
+        timerRef.current = setTimeout(tick, TYPE_SPEED)
+      }
+    } else if (phase === 'pausing') {
+      phaseRef.current = 'deleting'
+      timerRef.current = setTimeout(tick, DELETE_SPEED)
+    } else if (phase === 'deleting') {
+      charRef.current--
+      setText(query.slice(0, charRef.current))
+      if (charRef.current <= 0) {
+        phaseRef.current = 'waiting'
+        indexRef.current = (indexRef.current + 1) % SEARCH_EXAMPLES.length
+        timerRef.current = setTimeout(tick, PAUSE_AFTER_DELETE)
+      } else {
+        timerRef.current = setTimeout(tick, DELETE_SPEED)
+      }
+    } else if (phase === 'waiting') {
+      phaseRef.current = 'typing'
+      timerRef.current = setTimeout(tick, TYPE_SPEED)
+    }
+  }, [])
+
+  useEffect(function() {
+    if (isFocused) {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      return
+    }
+    /* Reset and start */
+    phaseRef.current = 'typing'
+    charRef.current = 0
+    setText('')
+    timerRef.current = setTimeout(tick, 600)
+    return function() {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [isFocused, tick])
+
+  return text
+}
 
 // Hero headline variants — must match admin/ab-testing.tsx variant table
 var HERO_VARIANTS: Record<string, { headline: string; subheadline: string }> = {
@@ -41,6 +120,8 @@ export default function Home() {
   var heroContent = HERO_VARIANTS[heroTest.variant] || HERO_VARIANTS.B
 
   var [searchQuery, setSearchQuery] = useState('')
+  var [isSearchFocused, setIsSearchFocused] = useState(false)
+  var animatedPlaceholder = useAnimatedPlaceholder(isSearchFocused || searchQuery.length > 0)
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
@@ -103,10 +184,12 @@ export default function Home() {
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-primary-400 transition-colors" />
                 <input
                   type="text"
-                  placeholder="Search reports, phenomena, locations..."
+                  placeholder={animatedPlaceholder || 'Search...'}
                   value={searchQuery}
                   onChange={function(e) { setSearchQuery(e.target.value) }}
-                  className="w-full pl-12 pr-28 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 text-base"
+                  onFocus={function() { setIsSearchFocused(true) }}
+                  onBlur={function() { setIsSearchFocused(false) }}
+                  className="w-full pl-12 pr-28 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/40 text-base"
                 />
                 <button
                   type="submit"
@@ -130,19 +213,22 @@ export default function Home() {
       {/* === SECTION 2: Quick Nav Strip === */}
       <QuickNavStrip />
 
-      {/* === SECTION 3: Feed Showcase === */}
+      {/* === SECTION 3: AI Pattern Insight === */}
+      <AIInsight />
+
+      {/* === SECTION 4: Feed Showcase === */}
       <FeedShowcase />
 
-      {/* === SECTION 4: Map Showcase === */}
+      {/* === SECTION 5: Map Showcase === */}
       <MapShowcase />
-
-      {/* === SECTION 5: AI Pattern Insight === */}
-      <AIInsight />
 
       {/* === SECTION 6: Lab / Investigate Showcase === */}
       <LabShowcase />
 
-      {/* === SECTION 7: Data Proof + CTA === */}
+      {/* === SECTION 7: How It Works + FAQ === */}
+      <HowItWorks />
+
+      {/* === SECTION 8: Data Proof + CTA === */}
       <DataProofCTA />
     </>
   )

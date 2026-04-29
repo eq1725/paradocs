@@ -14,14 +14,14 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
  */
 
 var categories = [
-  { slug: 'ufos_aliens', image: '/categories/ufo-aliens.png' },
-  { slug: 'cryptids', image: '/categories/cryptids.png' },
-  { slug: 'ghosts_hauntings', image: '/categories/ghosts-hauntings.png' },
-  { slug: 'psychic_phenomena', image: '/categories/psychic-phenomena.png' },
-  { slug: 'esoteric_practices', image: '/categories/esoteric-practices.png' },
-  { slug: 'religion_mythology', image: '/categories/religion-mythology.png' },
-  { slug: 'consciousness_practices', image: '/categories/consciousness-practices.png' },
-  { slug: 'psychological_experiences', image: '/categories/psychological-experiences.png' },
+  { slug: 'ufos_aliens', image: '/categories/ufo-aliens.png', webp: '/categories/ufo-aliens.webp' },
+  { slug: 'cryptids', image: '/categories/cryptids.png', webp: '/categories/cryptids.webp' },
+  { slug: 'ghosts_hauntings', image: '/categories/ghosts-hauntings.png', webp: '/categories/ghosts-hauntings.webp' },
+  { slug: 'psychic_phenomena', image: '/categories/psychic-phenomena.png', webp: '/categories/psychic-phenomena.webp' },
+  { slug: 'esoteric_practices', image: '/categories/esoteric-practices.png', webp: '/categories/esoteric-practices.webp' },
+  { slug: 'religion_mythology', image: '/categories/religion-mythology.png', webp: '/categories/religion-mythology.webp' },
+  { slug: 'consciousness_practices', image: '/categories/consciousness-practices.png', webp: '/categories/consciousness-practices.webp' },
+  { slug: 'psychological_experiences', image: '/categories/psychological-experiences.png', webp: '/categories/psychological-experiences.webp' },
 ]
 
 var INTERVAL = 3000 /* ms between slides */
@@ -93,13 +93,16 @@ export default function QuickNavStrip() {
                 aria-hidden={!isActive}
                 tabIndex={isActive ? 0 : -1}
               >
-                <img
-                  src={cat.image}
-                  alt=""
-                  className="w-full h-full object-cover"
-                  loading={i < 2 ? 'eager' : 'lazy'}
-                  draggable={false}
-                />
+                <picture>
+                  <source srcSet={cat.webp} type="image/webp" />
+                  <img
+                    src={cat.image}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    loading={i < 2 ? 'eager' : 'lazy'}
+                    draggable={false}
+                  />
+                </picture>
                 {/* Subtle gradient overlay for depth */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/10" />
               </Link>

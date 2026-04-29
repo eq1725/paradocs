@@ -1,8 +1,9 @@
 'use client'
 
 import React from 'react'
+import Link from 'next/link'
+import { ArrowRight, Smartphone } from 'lucide-react'
 import PhoneMockup from './PhoneMockup'
-import AppStoreBadges from './AppStoreBadges'
 
 /**
  * Map showcase — realistic phone mockup showing the Paradocs interactive map.
@@ -48,9 +49,14 @@ export default function MapShowcase() {
               Every report, pinned to where it happened. Filter by type, zoom into hotspots, and uncover clusters.
             </p>
 
-            <div className="mt-8">
-              <AppStoreBadges />
-            </div>
+            <Link
+              href="/explore"
+              className="inline-flex items-center gap-2 mt-8 px-6 py-3 rounded-xl bg-white/5 border border-white/10 text-sm font-medium text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <Smartphone className="w-4 h-4 text-primary-400" />
+              Available on iOS, Android & Web
+              <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
 
           {/* Phone mockup — right on desktop */}
