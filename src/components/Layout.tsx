@@ -79,7 +79,7 @@ export default function Layout({ children }: LayoutProps) {
   // Main navigation — unified labels across all nav surfaces
   const navigation = [
     { name: 'Reports', href: '/discover', icon: Flame },
-    { name: 'Map', href: '/map', icon: Map },
+    { name: 'Map', href: '/explore?mode=map', icon: Map },
     { name: 'Phenomena', href: '/explore', icon: Compass },
     { name: 'Investigate', href: '/lab', icon: Sparkles },
   ]
