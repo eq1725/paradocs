@@ -122,24 +122,19 @@ export default function LabPage() {
     if (activeTab !== 'constellation') return
     function lockScroll() {
       if (window.innerWidth < 1024) {
-        document.body.style.position = 'fixed'
-        document.body.style.width = '100%'
-        document.body.style.top = '-' + window.scrollY + 'px'
+        document.documentElement.style.overflow = 'hidden'
+        document.body.style.overflow = 'hidden'
       } else {
-        document.body.style.position = ''
-        document.body.style.width = ''
-        document.body.style.top = ''
+        document.documentElement.style.overflow = ''
+        document.body.style.overflow = ''
       }
     }
     lockScroll()
     window.addEventListener('resize', lockScroll)
     return function() {
       window.removeEventListener('resize', lockScroll)
-      var scrollY = Math.abs(parseInt(document.body.style.top || '0', 10))
-      document.body.style.position = ''
-      document.body.style.width = ''
-      document.body.style.top = ''
-      window.scrollTo(0, scrollY)
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
     }
   }, [activeTab])
 
