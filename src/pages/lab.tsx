@@ -57,7 +57,7 @@ var TAB_CONFIG = {
   constellation: { label: 'Constellation', icon: Star },
   saves: { label: 'Saves', icon: Bookmark },
   cases: { label: 'Cases', icon: FolderOpen },
-  map: { label: 'Map', icon: MapIcon },
+  map: { label: 'My Map', icon: MapIcon },
   notes: { label: 'Notes', icon: BookOpen },
 }
 
@@ -146,7 +146,7 @@ export default function LabPage() {
       </Head>
 
       <div className={activeTab === 'constellation' ? 'flex flex-col lg:block lg:h-auto' : ''}
-        style={activeTab === 'constellation' ? { background: '#0a0a14', height: '100dvh' } : undefined}>
+        style={activeTab === 'constellation' ? { background: '#0a0a14', height: '100dvh' } : { background: '#0a0a14' }}>
         {/* Header row: title + actions — always constrained */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
         <div className="flex items-center justify-between mb-4 sm:mb-6">
