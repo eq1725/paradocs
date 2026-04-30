@@ -53,8 +53,8 @@ import { Star } from 'lucide-react'
 var TAB_KEYS = ['constellation', 'saves', 'cases', 'map', 'notes'] as const
 type TabKey = typeof TAB_KEYS[number]
 
-var TAB_CONFIG = {
-  constellation: { label: 'Constellation', icon: Star },
+var TAB_CONFIG: Record<string, { label: string; mobileLabel?: string; icon: typeof Star }> = {
+  constellation: { label: 'Constellation', mobileLabel: 'Stellar', icon: Star },
   saves: { label: 'Saves', icon: Bookmark },
   cases: { label: 'Cases', icon: FolderOpen },
   map: { label: 'My Map', icon: MapIcon },
@@ -211,7 +211,14 @@ export default function LabPage() {
                 )}
               >
                 <Icon className="w-4 h-4" />
-                <span className="text-[10px] font-semibold tracking-wide uppercase leading-none">{config.label}</span>
+                {config.mobileLabel ? (
+                  <>
+                    <span className="text-[10px] font-semibold tracking-wide uppercase leading-none sm:hidden">{config.mobileLabel}</span>
+                    <span className="text-[10px] font-semibold tracking-wide uppercase leading-none hidden sm:inline">{config.label}</span>
+                  </>
+                ) : (
+                  <span className="text-[10px] font-semibold tracking-wide uppercase leading-none">{config.label}</span>
+                )}
               </button>
             )
           })}
@@ -234,7 +241,7 @@ export default function LabPage() {
               <LabConstellationTab />
             )}
             {activeTab !== 'constellation' && (
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12" style={{ minHeight: 'calc(100dvh - 200px)' }}>
                 {activeTab === 'saves' && (
                   <LabSavesTab
                     loading={lab.loading}
