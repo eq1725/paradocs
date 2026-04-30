@@ -123,10 +123,14 @@ export default function LabPage() {
     function lockScroll() {
       if (window.innerWidth < 1024) {
         document.documentElement.style.overflow = 'hidden'
+        document.documentElement.style.height = '100%'
         document.body.style.overflow = 'hidden'
+        document.body.style.height = '100%'
       } else {
         document.documentElement.style.overflow = ''
+        document.documentElement.style.height = ''
         document.body.style.overflow = ''
+        document.body.style.height = ''
       }
     }
     lockScroll()
@@ -134,7 +138,9 @@ export default function LabPage() {
     return function() {
       window.removeEventListener('resize', lockScroll)
       document.documentElement.style.overflow = ''
+      document.documentElement.style.height = ''
       document.body.style.overflow = ''
+      document.body.style.height = ''
     }
   }, [activeTab])
 

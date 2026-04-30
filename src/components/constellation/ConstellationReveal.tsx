@@ -433,7 +433,7 @@ var CSS = `
   .cv2-sdiv{height:18px;}
 
   /* Mobile bottom bar — more compact, no dock glass */
-  .cv2-btm{padding:8px 12px 16px;padding-bottom:max(80px,calc(env(safe-area-inset-bottom,0px) + 72px));align-items:stretch;background:linear-gradient(to top,rgba(10,10,20,1) 55%,transparent);}
+  .cv2-btm{padding:8px 12px 16px;padding-bottom:max(16px,calc(env(safe-area-inset-bottom,0px) + 8px));align-items:stretch;background:linear-gradient(to top,rgba(10,10,20,1) 55%,transparent);}
   .cv2-dock{background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;border:none;border-radius:0;padding:0;max-width:none;opacity:1;transform:none;transition:none;}
   .cv2-filters{margin-bottom:6px;padding-bottom:6px;border-bottom:none;justify-content:flex-start;}
   .cv2-callout{flex-direction:column;align-items:stretch;background:rgba(144,0,240,.06);border:1px solid rgba(144,0,240,.15);border-radius:14px;padding:10px 12px;gap:8px;}
@@ -443,8 +443,8 @@ var CSS = `
   .cv2-callout-btns{justify-content:stretch;}
   .cv2-callout-btns .cv2-btn-cta,.cv2-callout-btns .cv2-btn-notify{flex:1;text-align:center;justify-content:center;}
 
-  /* Mobile sheet — take more screen, rounded top */
-  .cv2-sheet{max-height:72vh;border-radius:18px 18px 0 0;}
+  /* Mobile sheet — take more screen, rounded top, fixed for scroll */
+  .cv2-sheet{position:fixed;max-height:72vh;border-radius:18px 18px 0 0;}
   .cv2-sh-body{padding:14px 16px 32px;padding-bottom:max(32px,calc(env(safe-area-inset-bottom,0px) + 16px));}
   .cv2-sh-loc{font-size:15px;}
   .cv2-sh-match-num{font-size:28px;}

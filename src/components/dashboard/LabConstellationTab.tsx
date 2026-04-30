@@ -188,10 +188,11 @@ export default function LabConstellationTab() {
   // Has submission — show constellation (with or without reveal animation)
   if (userExperience) {
     return (
-      <div
-        className=""
-        style={{ height: 'calc(100dvh - 120px)', minHeight: '500px' }}
-      >
+      <div className="cv2-lab-container">
+        <style>{'\
+.cv2-lab-container{height:calc(100dvh - 120px);min-height:500px;}\
+@media(max-width:767px){.cv2-lab-container{height:calc(100dvh - 200px);}}\
+        '}</style>
         <ConstellationReveal
           userExperience={userExperience}
           matches={matches}
