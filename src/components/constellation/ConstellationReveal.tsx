@@ -436,8 +436,8 @@ var CSS = `
   .cv2-btm{padding:8px 12px 16px;padding-bottom:max(16px,calc(env(safe-area-inset-bottom,0px) + 8px));align-items:stretch;background:linear-gradient(to top,rgba(10,10,20,1) 55%,transparent);}
   .cv2-dock{background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;border:none;border-radius:0;padding:0;max-width:none;opacity:1;transform:none;transition:none;}
   .cv2-filters{margin-bottom:6px;padding-bottom:6px;border-bottom:none;justify-content:flex-start;}
-  .cv2-callout{flex-direction:column;align-items:stretch;background:rgba(144,0,240,.06);border:1px solid rgba(144,0,240,.15);border-radius:14px;padding:10px 12px;gap:8px;opacity:0;transform:translateY(6px);transition:opacity .5s 2.2s,transform .5s 2.2s;}
-  .cv2-callout.vis{opacity:1;transform:translateY(0);}
+  .cv2-callout{flex-direction:column;align-items:stretch;background:rgba(144,0,240,.06);border:1px solid rgba(144,0,240,.15);border-radius:14px;padding:10px 12px;gap:8px;}
+  .cv2-callout.vis{opacity:1;transform:none;}
   .cv2-cq-big{font-size:14px;}
   .cv2-cq-sm{font-size:11px;}
   .cv2-callout-btns{justify-content:stretch;}
