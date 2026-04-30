@@ -54,7 +54,7 @@ var TAB_KEYS = ['constellation', 'saves', 'cases', 'map', 'notes'] as const
 type TabKey = typeof TAB_KEYS[number]
 
 var TAB_CONFIG: Record<string, { label: string; mobileLabel?: string; icon: typeof Star }> = {
-  constellation: { label: 'Constellation', mobileLabel: 'Radar', icon: Star },
+  constellation: { label: 'Radar', icon: Star },
   saves: { label: 'Saves', icon: Bookmark },
   cases: { label: 'Cases', icon: FolderOpen },
   map: { label: 'My Map', icon: MapIcon },
