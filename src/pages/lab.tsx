@@ -38,27 +38,25 @@ import {
   ChevronRight,
   LogIn,
   Telescope,
-  Send,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
 import LabSavesTab from '@/components/dashboard/LabSavesTab'
 import LabCasesTab from '@/components/dashboard/LabCasesTab'
 import LabMapTab from '@/components/dashboard/LabMapTab'
-import LabSubmissionsTab from '@/components/dashboard/LabSubmissionsTab'
+// LabSubmissionsTab merged into LabCasesTab — submissions show as pinned section
 import LabConstellationTab from '@/components/dashboard/LabConstellationTab'
 import { useLabData } from '@/lib/hooks/useLabData'
 import { Star } from 'lucide-react'
 
 // Tab definitions
-var TAB_KEYS = ['constellation', 'saves', 'cases', 'submissions', 'map', 'notes'] as const
+var TAB_KEYS = ['constellation', 'saves', 'cases', 'map', 'notes'] as const
 type TabKey = typeof TAB_KEYS[number]
 
 var TAB_CONFIG = {
   constellation: { label: 'Constellation', icon: Star },
   saves: { label: 'Saves', icon: Bookmark },
   cases: { label: 'Cases', icon: FolderOpen },
-  submissions: { label: 'Submissions', icon: Send },
   map: { label: 'Map', icon: MapIcon },
   notes: { label: 'Notes', icon: BookOpen },
 }
@@ -192,9 +190,9 @@ export default function LabPage() {
           </div>
         </div>
 
-        {/* Tab bar — hide bottom border when constellation active to avoid seam */}
+        {/* Tab bar — compact icon+label segment control */}
         <div className={classNames(
-          'flex overflow-x-auto scrollbar-hide border-b',
+          'flex border-b',
           activeTab === 'constellation' ? 'border-transparent' : 'border-gray-800'
         )}>
           {TAB_KEYS.map(function(tabKey) {
@@ -206,14 +204,14 @@ export default function LabPage() {
                 key={tabKey}
                 onClick={function() { handleTabChange(tabKey) }}
                 className={classNames(
-                  'flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
+                  'flex-1 flex flex-col items-center gap-1 py-2.5 border-b-2 transition-colors min-w-0',
                   isActive
                     ? 'border-primary-500 text-primary-400'
-                    : 'border-transparent text-gray-500 hover:text-gray-300 hover:border-gray-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-300'
                 )}
               >
                 <Icon className="w-4 h-4" />
-                {config.label}
+                <span className="text-[10px] font-semibold tracking-wide uppercase leading-none">{config.label}</span>
               </button>
             )
           })}
@@ -256,9 +254,6 @@ export default function LabPage() {
                     aiConnections={lab.aiConnections}
                     onRefresh={lab.refresh}
                   />
-                )}
-                {activeTab === 'submissions' && (
-                  <LabSubmissionsTab />
                 )}
                 {activeTab === 'map' && (
                   <LabMapTab

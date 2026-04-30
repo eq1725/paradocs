@@ -13,18 +13,22 @@
  *      edit / delete actions, case-file-scoped insights.
  */
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft, Plus, FolderOpen, MoreHorizontal, Edit3, Trash2,
   Compass, Sparkles as SparklesIcon, Loader2, X as XIcon, Check,
   Share2, Globe, Lock, Copy, Users, Mail, Crown,
+  Send, Clock, CheckCircle, XCircle, ChevronDown, ChevronUp,
+  ExternalLink,
 } from 'lucide-react'
 import type { EntryNode, UserMapData, CaseFile } from '@/lib/constellation-types'
 import type { EmergentConnection, Insight } from '@/lib/constellation-data'
 import { detectInsights } from '@/lib/constellation-data'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
+import CategoryIcon from '@/components/ui/CategoryIcon'
+import { PhenomenonCategory } from '@/lib/database.types'
 import ConstellationListView from './ConstellationListView'
 import NodeDetailPanel from './NodeDetailPanel'
 import PatternCard from './PatternCard'
@@ -117,6 +121,9 @@ export default function LabCasesTab({
           <span className="sm:hidden">New</span>
         </button>
       </div>
+
+      {/* My Submissions — pinned section showing user's submitted reports */}
+      <MySubmissionsSection />
 
       {/* CaseFileBar — horizontal filter strip, only shown when there's
           something to filter. The primary "+ New" button lives in the header
@@ -1114,6 +1121,122 @@ function CollaboratorsSection({ caseFileId }: { caseFileId: string }) {
             Copy
           </button>
         </div>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// MY SUBMISSIONS — Compact inline section pinned at top of Cases
+// ─────────────────────────────────────────────────────────────────
+
+var SUB_STATUS: Record<string, { label: string; icon: typeof Clock; color: string; bg: string }> = {
+  pending:        { label: 'Pending',   icon: Clock,       color: 'text-amber-400',  bg: 'bg-amber-400/10 border-amber-400/20' },
+  pending_review: { label: 'In Review', icon: Clock,       color: 'text-blue-400',   bg: 'bg-blue-400/10 border-blue-400/20' },
+  approved:       { label: 'Approved',  icon: CheckCircle, color: 'text-green-400',  bg: 'bg-green-400/10 border-green-400/20' },
+  published:      { label: 'Published', icon: CheckCircle, color: 'text-green-400',  bg: 'bg-green-400/10 border-green-400/20' },
+  rejected:       { label: 'Rejected',  icon: XCircle,     color: 'text-red-400',    bg: 'bg-red-400/10 border-red-400/20' },
+}
+
+interface SubReport {
+  id: string
+  title: string
+  slug: string
+  status: string
+  category: PhenomenonCategory
+  created_at: string
+}
+
+function MySubmissionsSection() {
+  var [reports, setReports] = useState<SubReport[]>([])
+  var [loading, setLoading] = useState(true)
+  var [total, setTotal] = useState(0)
+  var [expanded, setExpanded] = useState(false)
+
+  useEffect(function() {
+    async function load() {
+      var sessionResult = await supabase.auth.getSession()
+      var token = sessionResult.data.session?.access_token
+      if (!token) { setLoading(false); return }
+
+      try {
+        var res = await fetch('/api/user/reports?limit=20&sort=created_at&order=desc', {
+          headers: { Authorization: 'Bearer ' + token },
+        })
+        if (res.ok) {
+          var data = await res.json()
+          setReports(data.reports || [])
+          setTotal(data.pagination?.total || 0)
+        }
+      } catch (err) {
+        console.error('Error loading submissions:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  if (loading) return null
+  if (reports.length === 0) return null
+
+  var visible = expanded ? reports : reports.slice(0, 3)
+
+  return (
+    <div className="mb-5">
+      <button
+        onClick={function() { setExpanded(function(e) { return !e }) }}
+        className="flex items-center justify-between w-full mb-2 group"
+      >
+        <div className="flex items-center gap-2">
+          <Send className="w-3.5 h-3.5 text-primary-400" />
+          <span className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
+            My Submissions ({total})
+          </span>
+        </div>
+        {reports.length > 3 && (
+          expanded
+            ? <ChevronUp className="w-3.5 h-3.5 text-gray-600 group-hover:text-gray-400 transition-colors" />
+            : <ChevronDown className="w-3.5 h-3.5 text-gray-600 group-hover:text-gray-400 transition-colors" />
+        )}
+      </button>
+      <div className="space-y-1.5">
+        {visible.map(function(r) {
+          var st = SUB_STATUS[r.status] || SUB_STATUS.pending
+          var StIcon = st.icon
+          return (
+            <Link
+              key={r.id}
+              href={r.status === 'published' || r.status === 'approved' ? '/report/' + r.slug : '#'}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-gray-900/60 border border-gray-800/60 hover:border-primary-600/30 hover:bg-gray-900 transition-all group"
+            >
+              <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
+                <CategoryIcon category={r.category} size={14} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-white truncate">{r.title || 'Untitled Report'}</div>
+                <div className="text-[10px] text-gray-500">
+                  {new Date(r.created_at).toLocaleDateString()}
+                </div>
+              </div>
+              <div className={classNames('flex items-center gap-1 px-2 py-1 rounded-full border text-[10px] font-semibold', st.bg, st.color)}>
+                <StIcon className="w-3 h-3" />
+                {st.label}
+              </div>
+              {(r.status === 'published' || r.status === 'approved') && (
+                <ExternalLink className="w-3.5 h-3.5 text-gray-600 group-hover:text-primary-400 transition-colors flex-shrink-0" />
+              )}
+            </Link>
+          )
+        })}
+      </div>
+      {!expanded && reports.length > 3 && (
+        <button
+          onClick={function() { setExpanded(true) }}
+          className="mt-2 text-[11px] text-primary-400 hover:text-primary-300 transition-colors"
+        >
+          Show all {total} submissions
+        </button>
       )}
     </div>
   )
