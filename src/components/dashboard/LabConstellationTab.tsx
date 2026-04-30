@@ -190,7 +190,7 @@ export default function LabConstellationTab() {
     return (
       <div
         className=""
-        style={{ height: 'calc(100dvh - 120px)', minHeight: '500px', marginBottom: '80px' }}
+        style={{ height: 'calc(100dvh - 120px)', minHeight: '500px' }}
       >
         <ConstellationReveal
           userExperience={userExperience}
