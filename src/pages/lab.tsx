@@ -119,6 +119,27 @@ export default function LabPage() {
     router.replace('/lab?tab=' + tab, undefined, { shallow: true })
   }, [router])
 
+  // Lock scroll on mobile/tablet (<1024px) when constellation active
+  useEffect(function() {
+    if (activeTab !== 'constellation') return
+    function lockScroll() {
+      if (window.innerWidth < 1024) {
+        document.documentElement.style.overflow = 'hidden'
+        document.body.style.overflow = 'hidden'
+      } else {
+        document.documentElement.style.overflow = ''
+        document.body.style.overflow = ''
+      }
+    }
+    lockScroll()
+    window.addEventListener('resize', lockScroll)
+    return function() {
+      window.removeEventListener('resize', lockScroll)
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+  }, [activeTab])
+
   return (
     <>
       <Head>
@@ -126,7 +147,7 @@ export default function LabPage() {
         <meta name="description" content="Your personal research lab — saves, case files, geographic map, and notes." />
       </Head>
 
-      <div>
+      <div className={activeTab === 'constellation' ? 'flex flex-col h-screen lg:block lg:h-auto' : ''}>
         {/* Header row: title + actions — always constrained */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
         <div className="flex items-center justify-between mb-4 sm:mb-6">
@@ -170,8 +191,11 @@ export default function LabPage() {
           </div>
         </div>
 
-        {/* Tab bar */}
-        <div className="flex border-b border-gray-800 overflow-x-auto scrollbar-hide">
+        {/* Tab bar — hide bottom border when constellation active to avoid seam */}
+        <div className={classNames(
+          'flex overflow-x-auto scrollbar-hide border-b',
+          activeTab === 'constellation' ? 'border-transparent' : 'border-gray-800'
+        )}>
           {TAB_KEYS.map(function(tabKey) {
             var config = TAB_CONFIG[tabKey]
             var Icon = config.icon
@@ -206,7 +230,7 @@ export default function LabPage() {
           </div>
         ) : (
           /* Tab content — Constellation goes full-bleed; others get constrained padding */
-          <div>
+          <div className={activeTab === 'constellation' ? 'flex-1 min-h-0' : ''}>
             {activeTab === 'constellation' && (
               <LabConstellationTab />
             )}

@@ -335,10 +335,9 @@ var CSS = `
 
 /* ── Map screen ── */
 .cv2-map{position:absolute;inset:0;display:flex;flex-direction:column;animation:cv2FadeIn .5s ease both;}
-.cv2-topbar{flex-shrink:0;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(38,38,64,.6);background:rgba(10,10,20,.95);backdrop-filter:blur(20px);z-index:10;}
-.cv2-topbar-left{display:flex;align-items:center;gap:8px;}
-.cv2-topbar-title{font-family:var(--ff-mono);font-size:11px;color:var(--text3);letter-spacing:.14em;text-transform:uppercase;font-weight:500;}
 .cv2-live-dot{width:5px;height:5px;border-radius:50%;background:#34d399;flex-shrink:0;animation:cv2LivePulse 2s ease-in-out infinite;}
+/* Floating stats overlay — sits inside the SVG wrapper */
+.cv2-stats-overlay{position:absolute;top:12px;right:16px;z-index:10;display:flex;gap:14px;align-items:center;background:rgba(10,10,20,.75);backdrop-filter:blur(12px);border:1px solid rgba(38,38,64,.5);border-radius:12px;padding:8px 16px;opacity:0;animation:cv2FadeIn .6s 1.8s ease both;}
 .cv2-stats{display:flex;gap:14px;align-items:center;}
 .cv2-stat{display:flex;flex-direction:column;align-items:flex-end;}
 .cv2-stat-n{font-family:var(--ff-mono);font-size:19px;font-weight:500;line-height:1;}
@@ -424,14 +423,11 @@ var CSS = `
 /* ── Mobile overrides ── */
 @media(max-width:639px){
   /* Safe area insets for notched phones */
-  .cv2-topbar{padding-top:max(13px,env(safe-area-inset-top,0px));padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px));}
   .cv2-btm{padding-bottom:max(26px,calc(env(safe-area-inset-bottom,0px) + 10px));}
   .cv2-idle-fg{padding-bottom:max(44px,calc(env(safe-area-inset-bottom,0px) + 24px));}
 
-  /* Compact topbar for mobile */
-  .cv2-topbar{padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top,0px));}
-  .cv2-topbar-title{font-size:10px;}
-  .cv2-stats{gap:8px;}
+  /* Stats overlay mobile */
+  .cv2-stats-overlay{top:8px;right:10px;gap:8px;padding:6px 12px;border-radius:10px;}
   .cv2-stat-n{font-size:14px;}
   .cv2-sdiv{height:18px;}
 
@@ -934,14 +930,10 @@ export default function ConstellationReveal({
         {/* ── Map ── */}
         {phase === 'map' && (
           <div className="cv2-map" onClick={function() { setSheet(null) }}>
-            <div className="cv2-topbar">
-              <div className="cv2-topbar-left">
-                <DiamondMark size={isMobile ? 10 : 14} />
-                <span className="cv2-topbar-title">Constellation</span>
-                <div className="cv2-live-dot" />
-              </div>
+            <div className={'cv2-svgw' + (revealed ? ' revealed' : '') + (live ? ' live' : '')}>
+              {/* Floating stats overlay — top right corner of canvas */}
               {statsOn && (
-                <div className="cv2-stats">
+                <div className="cv2-stats-overlay">
                   <div className="cv2-stat">
                     <div className="cv2-stat-n" style={{ color: '#c084fc' }}>{sM}</div>
                     <div className="cv2-stat-l">matches</div>
@@ -958,9 +950,6 @@ export default function ConstellationReveal({
                   </div>
                 </div>
               )}
-            </div>
-
-            <div className={'cv2-svgw' + (revealed ? ' revealed' : '') + (live ? ' live' : '')}>
               <svg className="cv2-map-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
                 <defs>
                   <radialGradient id="cv2atmo" cx="50%" cy="48%">
