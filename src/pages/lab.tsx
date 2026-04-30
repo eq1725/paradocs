@@ -54,10 +54,10 @@ var TAB_KEYS = ['constellation', 'saves', 'cases', 'map', 'notes'] as const
 type TabKey = typeof TAB_KEYS[number]
 
 var TAB_CONFIG: Record<string, { label: string; mobileLabel?: string; icon: typeof Star }> = {
-  constellation: { label: 'Constellation', mobileLabel: 'Stellar', icon: Star },
+  constellation: { label: 'Constellation', mobileLabel: 'Radar', icon: Star },
   saves: { label: 'Saves', icon: Bookmark },
   cases: { label: 'Cases', icon: FolderOpen },
-  map: { label: 'My Map', icon: MapIcon },
+  map: { label: 'My Map', mobileLabel: 'Map', icon: MapIcon },
   notes: { label: 'Notes', icon: BookOpen },
 }
 
@@ -216,11 +216,11 @@ export default function LabPage() {
                 <Icon className="w-4 h-4" />
                 {config.mobileLabel ? (
                   <>
-                    <span className="text-[10px] font-semibold tracking-wide uppercase leading-none sm:hidden">{config.mobileLabel}</span>
-                    <span className="text-[10px] font-semibold tracking-wide uppercase leading-none hidden sm:inline">{config.label}</span>
+                    <span className="text-[10px] font-semibold tracking-wide uppercase leading-none whitespace-nowrap sm:hidden">{config.mobileLabel}</span>
+                    <span className="text-[10px] font-semibold tracking-wide uppercase leading-none whitespace-nowrap hidden sm:inline">{config.label}</span>
                   </>
                 ) : (
-                  <span className="text-[10px] font-semibold tracking-wide uppercase leading-none">{config.label}</span>
+                  <span className="text-[10px] font-semibold tracking-wide uppercase leading-none whitespace-nowrap">{config.label}</span>
                 )}
               </button>
             )
