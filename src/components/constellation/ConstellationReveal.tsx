@@ -335,6 +335,7 @@ var CSS = `
 
 /* ── Map screen ── */
 .cv2-map{position:absolute;inset:0;display:flex;flex-direction:column;animation:cv2FadeIn .5s ease both;}
+.cv2-map.cv2-return{animation:cv2ReturnIn .8s cubic-bezier(.25,.46,.45,.94) both;}
 .cv2-live-dot{width:5px;height:5px;border-radius:50%;background:#34d399;flex-shrink:0;animation:cv2LivePulse 2s ease-in-out infinite;}
 /* Floating stats overlay — sits inside the SVG wrapper */
 .cv2-stats-overlay{position:absolute;top:12px;right:16px;z-index:10;display:flex;gap:14px;align-items:center;background:rgba(10,10,20,.75);backdrop-filter:blur(12px);border:1px solid rgba(38,38,64,.5);border-radius:12px;padding:8px 16px;opacity:0;animation:cv2FadeIn .6s 1.8s ease both;}
@@ -356,7 +357,7 @@ var CSS = `
 .cv2-chip{flex-shrink:0;padding:6px 14px;border-radius:100px;border:1px solid var(--border);background:transparent;font-family:var(--ff-body);font-size:11px;font-weight:600;color:var(--text3);cursor:pointer;letter-spacing:.06em;text-transform:uppercase;transition:all .15s;}
 .cv2-chip:hover{border-color:#3a3a55;color:var(--text2);}.cv2-chip:active{transform:scale(.95);}
 .cv2-chip.on{background:rgba(144,0,240,.1);border-color:var(--brand);color:var(--brand-l);}
-.cv2-callout{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(144,0,240,.06);border:1px solid rgba(144,0,240,.15);border-radius:18px;padding:13px 14px;opacity:0;transform:translateY(6px);transition:opacity .5s 2.2s,transform .5s 2.2s;}
+.cv2-callout{display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(144,0,240,.06);border:1px solid rgba(144,0,240,.15);border-radius:16px;padding:12px 14px;opacity:0;transform:translateY(6px);transition:opacity .5s 2.2s,transform .5s 2.2s;}
 .cv2-callout.vis{opacity:1;transform:translateY(0);}
 .cv2-cq-big{font-family:var(--ff-display);font-size:17px;font-weight:400;color:var(--text);line-height:1.25;}
 .cv2-cq-sm{font-size:12px;color:var(--text2);margin-top:3px;line-height:1.4;}
@@ -434,8 +435,8 @@ var CSS = `
   /* Mobile bottom bar — more compact */
   .cv2-btm{padding:8px 12px 16px;padding-bottom:max(16px,calc(env(safe-area-inset-bottom,0px) + 8px));}
   .cv2-filters{margin-bottom:6px;padding-bottom:6px;}
-  .cv2-callout{flex-direction:column;align-items:stretch;padding:12px;border-radius:14px;gap:10px;}
-  .cv2-cq-big{font-size:15px;}
+  .cv2-callout{flex-direction:column;align-items:stretch;padding:10px 12px;border-radius:14px;gap:8px;}
+  .cv2-cq-big{font-size:14px;}
   .cv2-cq-sm{font-size:11px;}
   .cv2-callout-btns{justify-content:stretch;}
   .cv2-callout-btns .cv2-btn-cta,.cv2-callout-btns .cv2-btn-notify{flex:1;text-align:center;justify-content:center;}
@@ -473,6 +474,7 @@ var CSS = `
 @keyframes cv2Twinkle{0%,100%{opacity:var(--op);}50%{opacity:calc(var(--op)*.18);}}
 @keyframes cv2NewReport{0%{transform:scale(.8);opacity:.75;}60%{transform:scale(2.4);opacity:0;}100%{transform:scale(.8);opacity:0;}}
 @keyframes cv2MapBreath{0%,100%{transform:scale(1);}50%{transform:scale(1.006);}}
+@keyframes cv2ReturnIn{from{opacity:0;transform:scale(1.03);}to{opacity:1;transform:scale(1);}}
 `
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -785,18 +787,10 @@ export default function ConstellationReveal({
   var sN = useCountUp(nearbyCount, 900, statsOn)
   var sS = useCountUp(strongCount, 900, statsOn)
 
-  // Toast
+  // Toast — disabled until wired to real new-report data (POST-INGESTION)
   var [toast, setToast] = useState(false)
-  useEffect(function() {
-    if (!statsOn) return
-    var t = setTimeout(function() { setToast(true) }, 3500)
-    return function() { clearTimeout(t) }
-  }, [statsOn])
-  useEffect(function() {
-    if (!toast) return
-    var t = setTimeout(function() { setToast(false) }, 4500)
-    return function() { clearTimeout(t) }
-  }, [toast])
+  // Future: trigger setToast(true) when a real new report arrives via
+  // websocket or polling, then auto-dismiss after 4500ms.
 
   // Map reveal timing
   useEffect(function() {
@@ -929,7 +923,7 @@ export default function ConstellationReveal({
 
         {/* ── Map ── */}
         {phase === 'map' && (
-          <div className="cv2-map" onClick={function() { setSheet(null) }}>
+          <div className={'cv2-map' + (startAtMap ? ' cv2-return' : '')} onClick={function() { setSheet(null) }}>
             <div className={'cv2-svgw' + (revealed ? ' revealed' : '') + (live ? ' live' : '')}>
               {/* Floating stats overlay — top right corner of canvas */}
               {statsOn && (
@@ -1121,15 +1115,15 @@ export default function ConstellationReveal({
                 })}
               </div>
               <div className={'cv2-callout' + (statsOn ? ' vis' : '')}>
-                <div>
-                  <div className="cv2-cq-big">{matchCount} accounts.<br />Nearly identical to yours.</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="cv2-cq-big">{matchCount} matches found</div>
                   <div className="cv2-cq-sm">
-                    Reddit, NUFORC, MUFON, and more · {nearbyCount} within 80 miles
+                    {nearbyCount > 0 ? nearbyCount + ' nearby · ' : ''}from Reddit, NUFORC, MUFON + more
                   </div>
                 </div>
                 <div className="cv2-callout-btns">
                   <button className="cv2-btn-cta" onClick={function(e) { e.stopPropagation(); if (onPaywall) onPaywall() }}>
-                    Read all →
+                    Read all
                   </button>
                   <button className="cv2-btn-notify" onClick={function(e) { e.stopPropagation(); if (onNotify) onNotify() }}>
                     Notify me

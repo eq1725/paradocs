@@ -147,7 +147,8 @@ export default function LabPage() {
         <meta name="description" content="Your personal research lab — saves, case files, geographic map, and notes." />
       </Head>
 
-      <div className={activeTab === 'constellation' ? 'flex flex-col h-screen lg:block lg:h-auto' : ''}>
+      <div className={activeTab === 'constellation' ? 'flex flex-col lg:block lg:h-auto' : ''}
+        style={activeTab === 'constellation' ? { background: '#0a0a14', height: '100dvh' } : undefined}>
         {/* Header row: title + actions — always constrained */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
         <div className="flex items-center justify-between mb-4 sm:mb-6">

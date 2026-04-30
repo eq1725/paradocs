@@ -173,7 +173,7 @@ export default function LabConstellationTab() {
   // No submissions yet — show the experience onboarding flow
   if (!hasSubmission && !showReveal) {
     return (
-      <div className="" style={{ minHeight: 'calc(100vh - 180px)' }}>
+      <div className="" style={{ minHeight: '100%' }}>
         <ExperienceOnboarding
           onComplete={handleOnboardingComplete}
           onSkip={function() {
@@ -190,7 +190,7 @@ export default function LabConstellationTab() {
     return (
       <div
         className=""
-        style={{ height: 'calc(100vh - 120px)', minHeight: '500px' }}
+        style={{ height: '100%', minHeight: '500px' }}
       >
         <ConstellationReveal
           userExperience={userExperience}
