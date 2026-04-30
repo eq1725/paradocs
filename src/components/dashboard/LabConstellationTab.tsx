@@ -191,7 +191,7 @@ export default function LabConstellationTab() {
       <div className="cv2-lab-container">
         <style>{'\
 .cv2-lab-container{height:calc(100dvh - 120px);min-height:500px;}\
-@media(max-width:767px){.cv2-lab-container{height:calc(100dvh - 280px);}}\
+@media(max-width:767px){.cv2-lab-container{height:calc(100dvh - 310px);}}\
         '}</style>
         <ConstellationReveal
           userExperience={userExperience}
