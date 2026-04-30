@@ -143,6 +143,9 @@ export default function LabPage() {
       <Head>
         <title>Lab | Paradocs</title>
         <meta name="description" content="Your personal research lab — saves, case files, geographic map, and notes." />
+        {activeTab === 'constellation' && (
+          <style>{`footer{background:#0a0a14 !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}`}</style>
+        )}
       </Head>
 
       <div className={activeTab === 'constellation' ? 'flex flex-col lg:block lg:h-auto' : ''}
