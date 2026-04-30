@@ -335,14 +335,10 @@ var CSS = `
 
 /* ── Map screen ── */
 .cv2-map{position:absolute;inset:0;display:flex;flex-direction:column;animation:cv2FadeIn .5s ease both;}
-.cv2-topbar{flex-shrink:0;padding:13px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(38,38,64,.6);background:rgba(10,10,20,.95);backdrop-filter:blur(20px);z-index:10;}
-.cv2-wm{display:flex;align-items:center;gap:9px;}
-.cv2-wm-text{font-family:var(--ff-display);font-size:20px;font-weight:400;color:var(--text);}
-.cv2-wm-text span{color:var(--brand);}
-.cv2-wm-sub{font-family:var(--ff-mono);font-size:10px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-top:2px;}
-.cv2-wm-live{display:inline-flex;align-items:center;gap:5px;margin-top:3px;}
+.cv2-topbar{flex-shrink:0;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(38,38,64,.6);background:rgba(10,10,20,.95);backdrop-filter:blur(20px);z-index:10;}
+.cv2-topbar-left{display:flex;align-items:center;gap:8px;}
+.cv2-topbar-title{font-family:var(--ff-mono);font-size:11px;color:var(--text3);letter-spacing:.14em;text-transform:uppercase;font-weight:500;}
 .cv2-live-dot{width:5px;height:5px;border-radius:50%;background:#34d399;flex-shrink:0;animation:cv2LivePulse 2s ease-in-out infinite;}
-.cv2-live-txt{font-family:var(--ff-mono);font-size:9px;color:#34d399;letter-spacing:.14em;text-transform:uppercase;}
 .cv2-stats{display:flex;gap:14px;align-items:center;}
 .cv2-stat{display:flex;flex-direction:column;align-items:flex-end;}
 .cv2-stat-n{font-family:var(--ff-mono);font-size:19px;font-weight:500;line-height:1;}
@@ -433,13 +429,11 @@ var CSS = `
   .cv2-idle-fg{padding-bottom:max(44px,calc(env(safe-area-inset-bottom,0px) + 24px));}
 
   /* Compact topbar for mobile */
-  .cv2-topbar{padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top,0px));}
-  .cv2-wm-text{font-size:17px;}
-  .cv2-wm-sub{font-size:9px;margin-top:1px;}
-  .cv2-wm-live{margin-top:1px;}
-  .cv2-stats{gap:10px;}
-  .cv2-stat-n{font-size:15px;}
-  .cv2-sdiv{height:20px;}
+  .cv2-topbar{padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top,0px));}
+  .cv2-topbar-title{font-size:10px;}
+  .cv2-stats{gap:8px;}
+  .cv2-stat-n{font-size:14px;}
+  .cv2-sdiv{height:18px;}
 
   /* Mobile bottom bar — more compact */
   .cv2-btm{padding:8px 12px 16px;padding-bottom:max(16px,calc(env(safe-area-inset-bottom,0px) + 8px));}
@@ -941,18 +935,10 @@ export default function ConstellationReveal({
         {phase === 'map' && (
           <div className="cv2-map" onClick={function() { setSheet(null) }}>
             <div className="cv2-topbar">
-              <div>
-                <div className="cv2-wm">
-                  <DiamondMark />
-                  <div>
-                    <div className="cv2-wm-text">Para<span>docs</span></div>
-                    <div className="cv2-wm-sub">Constellation</div>
-                    <div className="cv2-wm-live">
-                      <div className="cv2-live-dot" />
-                      <span className="cv2-live-txt">Updated today</span>
-                    </div>
-                  </div>
-                </div>
+              <div className="cv2-topbar-left">
+                <DiamondMark size={isMobile ? 10 : 14} />
+                <span className="cv2-topbar-title">Constellation</span>
+                <div className="cv2-live-dot" />
               </div>
               {statsOn && (
                 <div className="cv2-stats">

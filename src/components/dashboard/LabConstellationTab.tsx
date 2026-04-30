@@ -173,7 +173,7 @@ export default function LabConstellationTab() {
   // No submissions yet — show the experience onboarding flow
   if (!hasSubmission && !showReveal) {
     return (
-      <div className="-mx-4 sm:-mx-6 lg:-mx-8 -mt-4 sm:-mt-6" style={{ minHeight: 'calc(100vh - 180px)' }}>
+      <div className="" style={{ minHeight: 'calc(100vh - 180px)' }}>
         <ExperienceOnboarding
           onComplete={handleOnboardingComplete}
           onSkip={function() {
@@ -189,7 +189,7 @@ export default function LabConstellationTab() {
   if (userExperience) {
     return (
       <div
-        className="-mx-4 sm:-mx-6 lg:-mx-8 -mt-4 sm:-mt-6"
+        className=""
         style={{ height: 'calc(100vh - 120px)', minHeight: '500px' }}
       >
         <ConstellationReveal

@@ -126,8 +126,9 @@ export default function LabPage() {
         <meta name="description" content="Your personal research lab — saves, case files, geographic map, and notes." />
       </Head>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-        {/* Header row: title + actions */}
+      <div>
+        {/* Header row: title + actions — always constrained */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-primary-600/20 rounded-lg">
@@ -170,7 +171,7 @@ export default function LabPage() {
         </div>
 
         {/* Tab bar */}
-        <div className="flex border-b border-gray-800 mb-6 overflow-x-auto scrollbar-hide">
+        <div className="flex border-b border-gray-800 overflow-x-auto scrollbar-hide">
           {TAB_KEYS.map(function(tabKey) {
             var config = TAB_CONFIG[tabKey]
             var Icon = config.icon
@@ -192,53 +193,60 @@ export default function LabPage() {
             )
           })}
         </div>
+        </div>{/* close constrained header wrapper */}
 
         {/* Auth gate for unauthenticated users */}
         {!isLoggedIn && !loading ? (
-          <UnauthenticatedPrompt />
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <UnauthenticatedPrompt />
+          </div>
         ) : loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
-          /* Tab content — Saves / Cases / Map share lab data; Notes is standalone */
+          /* Tab content — Constellation goes full-bleed; others get constrained padding */
           <div>
             {activeTab === 'constellation' && (
               <LabConstellationTab />
             )}
-            {activeTab === 'saves' && (
-              <LabSavesTab
-                loading={lab.loading}
-                userMapData={lab.userMapData}
-                aiConnections={lab.aiConnections}
-                insights={lab.insights}
-                newInsights={lab.newInsights}
-                caseFiles={lab.caseFiles}
-                onRefresh={lab.refresh}
-              />
+            {activeTab !== 'constellation' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+                {activeTab === 'saves' && (
+                  <LabSavesTab
+                    loading={lab.loading}
+                    userMapData={lab.userMapData}
+                    aiConnections={lab.aiConnections}
+                    insights={lab.insights}
+                    newInsights={lab.newInsights}
+                    caseFiles={lab.caseFiles}
+                    onRefresh={lab.refresh}
+                  />
+                )}
+                {activeTab === 'cases' && (
+                  <LabCasesTab
+                    loading={lab.loading}
+                    userMapData={lab.userMapData}
+                    caseFiles={lab.caseFiles}
+                    aiConnections={lab.aiConnections}
+                    onRefresh={lab.refresh}
+                  />
+                )}
+                {activeTab === 'submissions' && (
+                  <LabSubmissionsTab />
+                )}
+                {activeTab === 'map' && (
+                  <LabMapTab
+                    loading={lab.loading}
+                    userMapData={lab.userMapData}
+                    aiConnections={lab.aiConnections}
+                    caseFiles={lab.caseFiles}
+                    onRefresh={lab.refresh}
+                  />
+                )}
+                {activeTab === 'notes' && <NotesTab />}
+              </div>
             )}
-            {activeTab === 'cases' && (
-              <LabCasesTab
-                loading={lab.loading}
-                userMapData={lab.userMapData}
-                caseFiles={lab.caseFiles}
-                aiConnections={lab.aiConnections}
-                onRefresh={lab.refresh}
-              />
-            )}
-            {activeTab === 'submissions' && (
-              <LabSubmissionsTab />
-            )}
-            {activeTab === 'map' && (
-              <LabMapTab
-                loading={lab.loading}
-                userMapData={lab.userMapData}
-                aiConnections={lab.aiConnections}
-                caseFiles={lab.caseFiles}
-                onRefresh={lab.refresh}
-              />
-            )}
-            {activeTab === 'notes' && <NotesTab />}
           </div>
         )}
       </div>
