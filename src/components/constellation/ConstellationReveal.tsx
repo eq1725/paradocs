@@ -350,15 +350,15 @@ var CSS = `
 .cv2-svgw.live .cv2-map-svg{transform:scale(1);transition:none;animation:cv2MapBreath 9s ease-in-out infinite;}
 
 /* ── Bottom bar ── */
-.cv2-btm{flex-shrink:0;padding:10px 16px 26px;background:linear-gradient(to top,rgba(10,10,20,1) 55%,transparent);}
-.cv2-filters{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none;margin-bottom:10px;opacity:0;transition:opacity .6s 1.4s;}
-.cv2-filters.vis{opacity:1;}
+.cv2-btm{flex-shrink:0;display:flex;flex-direction:column;align-items:center;padding:10px 16px 26px;background:linear-gradient(to top,rgba(10,10,20,1) 55%,transparent);}
+.cv2-dock{background:rgba(15,15,30,.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(138,100,255,.15);border-radius:20px;padding:16px 24px;max-width:620px;width:100%;opacity:0;transform:translateY(6px);transition:opacity .5s 2.2s,transform .5s 2.2s;}
+.cv2-dock.vis{opacity:1;transform:translateY(0);}
+.cv2-filters{display:flex;gap:6px;justify-content:center;padding-bottom:12px;border-bottom:1px solid rgba(138,100,255,.08);margin-bottom:12px;scrollbar-width:none;overflow-x:auto;}
 .cv2-filters::-webkit-scrollbar{display:none;}
-.cv2-chip{flex-shrink:0;padding:6px 14px;border-radius:100px;border:1px solid var(--border);background:transparent;font-family:var(--ff-body);font-size:11px;font-weight:600;color:var(--text3);cursor:pointer;letter-spacing:.06em;text-transform:uppercase;transition:all .15s;}
+.cv2-chip{flex-shrink:0;padding:6px 14px;border-radius:100px;border:1px solid rgba(255,255,255,.1);background:transparent;font-family:var(--ff-body);font-size:11px;font-weight:600;color:var(--text3);cursor:pointer;letter-spacing:.06em;text-transform:uppercase;transition:all .15s;}
 .cv2-chip:hover{border-color:#3a3a55;color:var(--text2);}.cv2-chip:active{transform:scale(.95);}
-.cv2-chip.on{background:rgba(144,0,240,.1);border-color:var(--brand);color:var(--brand-l);}
-.cv2-callout{display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(144,0,240,.06);border:1px solid rgba(144,0,240,.15);border-radius:16px;padding:12px 14px;opacity:0;transform:translateY(6px);transition:opacity .5s 2.2s,transform .5s 2.2s;}
-.cv2-callout.vis{opacity:1;transform:translateY(0);}
+.cv2-chip.on{background:rgba(138,100,255,.25);border-color:rgba(138,100,255,.5);color:var(--brand-l);}
+.cv2-callout{display:flex;align-items:center;justify-content:space-between;gap:12px;}
 .cv2-cq-big{font-family:var(--ff-display);font-size:17px;font-weight:400;color:var(--text);line-height:1.25;}
 .cv2-cq-sm{font-size:12px;color:var(--text2);margin-top:3px;line-height:1.4;}
 .cv2-callout-btns{display:flex;gap:7px;flex-shrink:0;}
@@ -432,10 +432,11 @@ var CSS = `
   .cv2-stat-n{font-size:14px;}
   .cv2-sdiv{height:18px;}
 
-  /* Mobile bottom bar — more compact */
-  .cv2-btm{padding:8px 12px 16px;padding-bottom:max(16px,calc(env(safe-area-inset-bottom,0px) + 8px));}
-  .cv2-filters{margin-bottom:6px;padding-bottom:6px;}
-  .cv2-callout{flex-direction:column;align-items:stretch;padding:10px 12px;border-radius:14px;gap:8px;}
+  /* Mobile bottom bar — more compact, no dock glass */
+  .cv2-btm{padding:8px 12px 16px;padding-bottom:max(16px,calc(env(safe-area-inset-bottom,0px) + 8px));align-items:stretch;}
+  .cv2-dock{background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;border:none;border-radius:0;padding:0;max-width:none;}
+  .cv2-filters{margin-bottom:6px;padding-bottom:6px;border-bottom:none;justify-content:flex-start;}
+  .cv2-callout{flex-direction:column;align-items:stretch;background:rgba(144,0,240,.06);border:1px solid rgba(144,0,240,.15);border-radius:14px;padding:10px 12px;gap:8px;}
   .cv2-cq-big{font-size:14px;}
   .cv2-cq-sm{font-size:11px;}
   .cv2-callout-btns{justify-content:stretch;}
@@ -1102,32 +1103,34 @@ export default function ConstellationReveal({
               </svg>
             </div>
 
-            {/* Bottom bar */}
+            {/* Bottom bar — unified dock on desktop */}
             <div className="cv2-btm">
-              <div className={'cv2-filters' + (statsOn ? ' vis' : '')}>
-                {[['all', 'All Reports'], ['strong', 'High Match'], ['nearby', 'Nearby']].map(function(pair) {
-                  return (
-                    <button key={pair[0]} className={'cv2-chip' + (filter === pair[0] ? ' on' : '')}
-                      onClick={function() { setFilter(pair[0]) }}>
-                      {pair[1]}
-                    </button>
-                  )
-                })}
-              </div>
-              <div className={'cv2-callout' + (statsOn ? ' vis' : '')}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="cv2-cq-big">{matchCount} matches found</div>
-                  <div className="cv2-cq-sm">
-                    {nearbyCount > 0 ? nearbyCount + ' nearby · ' : ''}from Reddit, NUFORC, MUFON + more
-                  </div>
+              <div className={'cv2-dock' + (statsOn ? ' vis' : '')}>
+                <div className="cv2-filters">
+                  {[['all', 'All Reports'], ['strong', 'High Match'], ['nearby', 'Nearby']].map(function(pair) {
+                    return (
+                      <button key={pair[0]} className={'cv2-chip' + (filter === pair[0] ? ' on' : '')}
+                        onClick={function() { setFilter(pair[0]) }}>
+                        {pair[1]}
+                      </button>
+                    )
+                  })}
                 </div>
-                <div className="cv2-callout-btns">
-                  <button className="cv2-btn-cta" onClick={function(e) { e.stopPropagation(); if (onPaywall) onPaywall() }}>
-                    Read all
-                  </button>
-                  <button className="cv2-btn-notify" onClick={function(e) { e.stopPropagation(); if (onNotify) onNotify() }}>
-                    Notify me
-                  </button>
+                <div className="cv2-callout">
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="cv2-cq-big">{matchCount} matches found</div>
+                    <div className="cv2-cq-sm">
+                      {nearbyCount > 0 ? nearbyCount + ' nearby · ' : ''}from Reddit, NUFORC, MUFON + more
+                    </div>
+                  </div>
+                  <div className="cv2-callout-btns">
+                    <button className="cv2-btn-cta" onClick={function(e) { e.stopPropagation(); if (onPaywall) onPaywall() }}>
+                      Read all
+                    </button>
+                    <button className="cv2-btn-notify" onClick={function(e) { e.stopPropagation(); if (onNotify) onNotify() }}>
+                      Notify me
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
