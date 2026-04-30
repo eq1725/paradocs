@@ -241,15 +241,21 @@ export default function LabConstellationTab() {
         {notifyToast && (
           <div style={{
             position: 'fixed', bottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
-            left: '50%', transform: 'translateX(-50%)',
-            background: '#1a1a33', border: '1px solid rgba(20,184,166,.3)',
-            borderRadius: '12px', padding: '12px 20px',
-            display: 'flex', alignItems: 'center', gap: '10px',
-            zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,.5)',
-            animation: 'cv2FadeUp .35s ease both',
+            left: 0, right: 0,
+            display: 'flex', justifyContent: 'center',
+            zIndex: 9999, pointerEvents: 'none',
           }}>
-            <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#14b8a6', flexShrink: 0 }} />
-            <span style={{ fontSize: 13, fontWeight: 500, color: '#f1f1f8', whiteSpace: 'nowrap' }}>{notifyToast}</span>
+            <div style={{
+              background: '#1a1a33', border: '1px solid rgba(20,184,166,.3)',
+              borderRadius: '12px', padding: '12px 20px',
+              display: 'flex', alignItems: 'center', gap: '10px',
+              boxShadow: '0 8px 32px rgba(0,0,0,.5)',
+              animation: 'cv2FadeUp .35s ease both',
+              pointerEvents: 'auto',
+            }}>
+              <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#14b8a6', flexShrink: 0 }} />
+              <span style={{ fontSize: 13, fontWeight: 500, color: '#f1f1f8', whiteSpace: 'nowrap' }}>{notifyToast}</span>
+            </div>
           </div>
         )}
       </>
