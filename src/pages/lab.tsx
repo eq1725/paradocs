@@ -156,83 +156,87 @@ export default function LabPage() {
 
       <div className={activeTab === 'constellation' ? 'flex flex-col lg:block lg:h-auto' : ''}
         style={activeTab === 'constellation' ? { background: '#0a0a14', minHeight: '100dvh', paddingBottom: '24px' } : { background: '#0a0a14' }}>
-        {/* Header row: title + actions — always constrained */}
+        {/* Header row: title + actions — scrolls away */}
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
-        <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary-600/20 rounded-lg">
-              <Telescope className="w-5 h-5 sm:w-6 sm:h-6 text-primary-400" />
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary-600/20 rounded-lg">
+                <Telescope className="w-5 h-5 sm:w-6 sm:h-6 text-primary-400" />
+              </div>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold text-white">Lab</h1>
+                <p className="text-xs sm:text-sm text-gray-400 hidden sm:block">Your personal research workspace</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white">Lab</h1>
-              <p className="text-xs sm:text-sm text-gray-400 hidden sm:block">Your personal research workspace</p>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            {/* Submit Report link */}
-            <Link
-              href="/submit"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-primary-400 bg-primary-600/10 border border-primary-600/20 hover:bg-primary-600/20 transition-colors"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span className="hidden sm:inline">Submit Report</span>
-            </Link>
-
-            {/* Notification bell */}
-            <button
-              className="relative p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-              title="Notifications — coming soon"
-            >
-              <Bell className="w-5 h-5" />
-              {/* Future: notification badge */}
-            </button>
-
-            {/* Settings gear → profile */}
-            <Link
-              href="/profile"
-              className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-              title="Settings"
-            >
-              <Settings className="w-5 h-5" />
-            </Link>
-          </div>
-        </div>
-
-        {/* Tab bar — compact icon+label segment control */}
-        <div className={classNames(
-          'flex border-b',
-          activeTab === 'constellation' ? 'border-transparent' : 'border-gray-800'
-        )}>
-          {TAB_KEYS.map(function(tabKey) {
-            var config = TAB_CONFIG[tabKey]
-            var Icon = config.icon
-            var isActive = activeTab === tabKey
-            return (
-              <button
-                key={tabKey}
-                onClick={function() { handleTabChange(tabKey) }}
-                className={classNames(
-                  'flex-1 flex flex-col items-center gap-1 py-2.5 border-b-2 transition-colors min-w-0',
-                  isActive
-                    ? 'border-primary-500 text-primary-400'
-                    : 'border-transparent text-gray-500 hover:text-gray-300'
-                )}
+            <div className="flex items-center gap-2">
+              {/* Submit Report link */}
+              <Link
+                href="/submit"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-primary-400 bg-primary-600/10 border border-primary-600/20 hover:bg-primary-600/20 transition-colors"
               >
-                <Icon className="w-4 h-4" />
-                {config.mobileLabel ? (
-                  <>
-                    <span className="text-[10px] font-semibold tracking-wide uppercase leading-none whitespace-nowrap sm:hidden">{config.mobileLabel}</span>
-                    <span className="text-[10px] font-semibold tracking-wide uppercase leading-none whitespace-nowrap hidden sm:inline">{config.label}</span>
-                  </>
-                ) : (
-                  <span className="text-[10px] font-semibold tracking-wide uppercase leading-none whitespace-nowrap">{config.label}</span>
-                )}
+                <PlusCircle className="w-4 h-4" />
+                <span className="hidden sm:inline">Submit Report</span>
+              </Link>
+
+              {/* Notification bell */}
+              <button
+                className="relative p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                title="Notifications — coming soon"
+              >
+                <Bell className="w-5 h-5" />
+                {/* Future: notification badge */}
               </button>
-            )
-          })}
+
+              {/* Settings gear → profile */}
+              <Link
+                href="/profile"
+                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                title="Settings"
+              >
+                <Settings className="w-5 h-5" />
+              </Link>
+            </div>
+          </div>
         </div>
-        </div>{/* close constrained header wrapper */}
+
+        {/* Tab bar — sticky below header so users can always switch tabs */}
+        <div className="sticky-below-header bg-gray-950/95 backdrop-blur-lg" style={{ background: activeTab === 'constellation' ? '#0a0a14' : undefined }}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className={classNames(
+              'flex border-b',
+              activeTab === 'constellation' ? 'border-transparent' : 'border-gray-800'
+            )}>
+              {TAB_KEYS.map(function(tabKey) {
+                var config = TAB_CONFIG[tabKey]
+                var Icon = config.icon
+                var isActive = activeTab === tabKey
+                return (
+                  <button
+                    key={tabKey}
+                    onClick={function() { handleTabChange(tabKey) }}
+                    className={classNames(
+                      'flex-1 flex flex-col items-center gap-1 py-2.5 border-b-2 transition-colors min-w-0',
+                      isActive
+                        ? 'border-primary-500 text-primary-400'
+                        : 'border-transparent text-gray-500 hover:text-gray-300'
+                    )}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {config.mobileLabel ? (
+                      <>
+                        <span className="text-[10px] font-semibold tracking-wide uppercase leading-none whitespace-nowrap sm:hidden">{config.mobileLabel}</span>
+                        <span className="text-[10px] font-semibold tracking-wide uppercase leading-none whitespace-nowrap hidden sm:inline">{config.label}</span>
+                      </>
+                    ) : (
+                      <span className="text-[10px] font-semibold tracking-wide uppercase leading-none whitespace-nowrap">{config.label}</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
 
         {/* Auth gate for unauthenticated users */}
         {!isLoggedIn && !loading ? (

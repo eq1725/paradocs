@@ -267,7 +267,7 @@ export default function ExplorePage() {
 
       {/* ─── Mode Tabs (always visible at top) ─── */}
       <div className={classNames(
-        'sticky top-14 z-30 bg-gray-950/95 backdrop-blur-lg border-b border-white/5',
+        'sticky-below-header bg-gray-950/95 backdrop-blur-lg border-b border-white/5',
         mode === 'map' ? 'safe-area-pt' : ''
       )}>
         <div className="max-w-7xl mx-auto px-4">
