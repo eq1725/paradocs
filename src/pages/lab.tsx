@@ -151,7 +151,7 @@ export default function LabPage() {
       <div className={activeTab === 'constellation' ? 'flex flex-col lg:block lg:h-auto' : ''}
         style={activeTab === 'constellation' ? { background: '#0a0a14', minHeight: '100dvh', paddingBottom: '120px' } : { background: '#0a0a14' }}>
         {/* Header row: title + actions — always constrained */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-primary-600/20 rounded-lg">
