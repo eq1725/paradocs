@@ -224,8 +224,8 @@ export default function Layout({ children }: LayoutProps) {
         {children}
       </main>
 
-      {/* Footer - extra bottom padding on mobile for bottom nav */}
-      <footer className="border-t border-white/5 bg-black/30 backdrop-blur pb-20 md:pb-0">
+      {/* Footer — hidden on mobile (bottom tab nav replaces it); visible md+ */}
+      <footer className="hidden md:block border-t border-white/5 bg-black/30 backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="col-span-2 md:col-span-1">

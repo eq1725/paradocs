@@ -31,6 +31,8 @@ import {
   Telescope,
   BookOpen,
   ExternalLink,
+  Info,
+  FileText,
 } from 'lucide-react'
 import { Avatar } from '@/components/AvatarSelector'
 import { supabase } from '@/lib/supabase'
@@ -221,6 +223,33 @@ export default function ProfilePage() {
             label="My Lab"
             description="Research workspace, saves, and notes"
           />
+
+          {/* About & Legal — accessible on mobile since footer is hidden */}
+          <div className="pt-4 mt-4 border-t border-gray-800 md:hidden">
+            <div className="flex items-center gap-4 px-1 mb-3">
+              <span className="text-[10px] font-semibold tracking-widest uppercase text-gray-600">About & Legal</span>
+            </div>
+            <div className="space-y-2">
+              <ProfileLink
+                href="/about"
+                icon={Info}
+                label="About Paradocs"
+                description="Our mission and team"
+              />
+              <ProfileLink
+                href="/privacy"
+                icon={Shield}
+                label="Privacy Policy"
+                description="How we handle your data"
+              />
+              <ProfileLink
+                href="/terms"
+                icon={FileText}
+                label="Terms of Service"
+                description="Usage terms and conditions"
+              />
+            </div>
+          </div>
 
           {/* Sign Out */}
           <button

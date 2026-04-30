@@ -30,7 +30,7 @@ import { supabase } from '@/lib/supabase'
 var TABS = [
   { key: 'feed', label: 'Reports', icon: Flame, href: '/discover' },
   { key: 'explore', label: 'Phenomena', icon: Compass, href: '/explore' },
-  { key: 'lab', label: 'Investigate', icon: Telescope, href: '/lab' },
+  { key: 'lab', label: 'Lab', icon: Telescope, href: '/lab' },
   { key: 'profile', label: 'Profile', icon: User, href: '/profile' },
 ]
 
