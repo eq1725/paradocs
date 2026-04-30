@@ -350,7 +350,7 @@ var CSS = `
 .cv2-svgw.live .cv2-map-svg{transform:scale(1);transition:none;animation:cv2MapBreath 9s ease-in-out infinite;}
 
 /* ── Bottom bar ── */
-.cv2-btm{flex-shrink:0;display:flex;flex-direction:column;align-items:center;padding:10px 16px 26px;background:linear-gradient(to top,rgba(10,10,20,1) 55%,transparent);}
+.cv2-btm{flex-shrink:0;display:flex;flex-direction:column;align-items:center;padding:10px 16px 16px;}
 .cv2-dock{background:rgba(15,15,30,.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(138,100,255,.15);border-radius:20px;padding:16px 24px;max-width:620px;width:100%;opacity:0;transform:translateY(6px);transition:opacity .5s 2.2s,transform .5s 2.2s;}
 .cv2-dock.vis{opacity:1;transform:translateY(0);}
 .cv2-filters{display:flex;gap:6px;justify-content:center;padding-bottom:12px;border-bottom:1px solid rgba(138,100,255,.08);margin-bottom:12px;scrollbar-width:none;overflow-x:auto;}
