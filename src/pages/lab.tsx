@@ -244,7 +244,7 @@ export default function LabPage() {
               <LabConstellationTab />
             )}
             {activeTab !== 'constellation' && (
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12" style={{ minHeight: 'calc(100dvh - 200px)' }}>
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-20" style={{ minHeight: 'calc(100dvh - 200px)' }}>
                 {activeTab === 'saves' && (
                   <LabSavesTab
                     loading={lab.loading}
