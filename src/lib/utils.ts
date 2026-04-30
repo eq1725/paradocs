@@ -1,5 +1,14 @@
 import { formatDistanceToNow, format, parseISO } from 'date-fns'
 
+/**
+ * API base URL — empty string for web (relative paths), or the full
+ * origin when running inside Capacitor (native app shell).
+ * Set NEXT_PUBLIC_API_BASE in .env for Capacitor builds.
+ */
+export function getApiBase(): string {
+  return process.env.NEXT_PUBLIC_API_BASE || ''
+}
+
 export function formatRelativeDate(date: string | Date): string {
   const d = typeof date === 'string' ? parseISO(date) : date
   return formatDistanceToNow(d, { addSuffix: true })

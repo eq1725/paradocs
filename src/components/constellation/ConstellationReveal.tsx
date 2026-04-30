@@ -19,7 +19,21 @@
  * - Launch-honest CTAs (read accounts, not meet people)
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+
+// ── Mobile detection ─────────────────────────────────────────────────────────
+
+function useIsMobile(breakpoint?: number) {
+  var bp = breakpoint || 640
+  var [mobile, setMobile] = useState(false)
+  useEffect(function() {
+    function check() { setMobile(window.innerWidth < bp) }
+    check()
+    window.addEventListener('resize', check)
+    return function() { window.removeEventListener('resize', check) }
+  }, [bp])
+  return mobile
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -411,6 +425,48 @@ var CSS = `
 .cv2-rst{position:absolute;top:68px;right:14px;z-index:30;background:var(--surf);border:1px solid var(--border);color:var(--text3);font-family:var(--ff-body);font-size:11px;padding:6px 13px;border-radius:100px;cursor:pointer;transition:all .15s;}
 .cv2-rst:hover{color:var(--text2);border-color:#3a3a55;}.cv2-rst:active{transform:scale(.96);}
 
+/* ── Mobile overrides ── */
+@media(max-width:639px){
+  /* Safe area insets for notched phones */
+  .cv2-topbar{padding-top:max(13px,env(safe-area-inset-top,0px));padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px));}
+  .cv2-btm{padding-bottom:max(26px,calc(env(safe-area-inset-bottom,0px) + 10px));}
+  .cv2-idle-fg{padding-bottom:max(44px,calc(env(safe-area-inset-bottom,0px) + 24px));}
+
+  /* Compact topbar for mobile */
+  .cv2-topbar{padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top,0px));}
+  .cv2-wm-text{font-size:17px;}
+  .cv2-wm-sub{font-size:9px;margin-top:1px;}
+  .cv2-wm-live{margin-top:1px;}
+  .cv2-stats{gap:10px;}
+  .cv2-stat-n{font-size:15px;}
+  .cv2-sdiv{height:20px;}
+
+  /* Mobile bottom bar — more compact */
+  .cv2-btm{padding:8px 12px 16px;padding-bottom:max(16px,calc(env(safe-area-inset-bottom,0px) + 8px));}
+  .cv2-filters{margin-bottom:6px;padding-bottom:6px;}
+  .cv2-callout{flex-direction:column;align-items:stretch;padding:12px;border-radius:14px;gap:10px;}
+  .cv2-cq-big{font-size:15px;}
+  .cv2-cq-sm{font-size:11px;}
+  .cv2-callout-btns{justify-content:stretch;}
+  .cv2-callout-btns .cv2-btn-cta,.cv2-callout-btns .cv2-btn-notify{flex:1;text-align:center;justify-content:center;}
+
+  /* Mobile sheet — take more screen, rounded top */
+  .cv2-sheet{max-height:72vh;border-radius:18px 18px 0 0;}
+  .cv2-sh-body{padding:14px 16px 32px;padding-bottom:max(32px,calc(env(safe-area-inset-bottom,0px) + 16px));}
+  .cv2-sh-loc{font-size:15px;}
+  .cv2-sh-match-num{font-size:28px;}
+
+  /* Idle screen mobile tweaks */
+  .cv2-idle-h1{font-size:clamp(24px,7vw,34px);}
+  .cv2-idle-sub{font-size:13px;max-width:280px;}
+  .cv2-idle-proof{gap:6px;}
+  .cv2-proof-pill{padding:5px 10px;font-size:9px;}
+
+  /* Toast positioning */
+  .cv2-toast{top:max(66px,calc(env(safe-area-inset-top,0px) + 56px));}
+  .cv2-rst{top:max(58px,calc(env(safe-area-inset-top,0px) + 48px));right:10px;}
+}
+
 /* ── Animations ── */
 @keyframes cv2FadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
 @keyframes cv2FadeIn{from{opacity:0;}to{opacity:1;}}
@@ -697,14 +753,23 @@ export default function ConstellationReveal({
 }: ConstellationRevealProps) {
   var totalExp = totalExperiences || 2300000
   var totalCo = totalCountries || 43
+  var isMobile = useIsMobile()
 
-  // Layout
-  var positioned = layoutReports(matches, userExperience.latitude, userExperience.longitude)
-  var clusters = detectClusters(positioned)
-  var sortedByDist = [...positioned].sort(function(a, b) {
-    return Math.sqrt(Math.pow(a.x - 50, 2) + Math.pow(a.y - 48, 2)) -
-           Math.sqrt(Math.pow(b.x - 50, 2) + Math.pow(b.y - 48, 2))
-  })
+  // Layout — memoized for performance
+  var positioned = useMemo(function() {
+    return layoutReports(matches, userExperience.latitude, userExperience.longitude)
+  }, [matches, userExperience.latitude, userExperience.longitude])
+
+  var clusters = useMemo(function() {
+    return detectClusters(positioned)
+  }, [positioned])
+
+  var sortedByDist = useMemo(function() {
+    return [...positioned].sort(function(a, b) {
+      return Math.sqrt(Math.pow(a.x - 50, 2) + Math.pow(a.y - 48, 2)) -
+             Math.sqrt(Math.pow(b.x - 50, 2) + Math.pow(b.y - 48, 2))
+    })
+  }, [positioned])
 
   var matchCount = matches.filter(function(r) { return r.match_score >= 0.6 }).length
   var nearbyCount = matches.filter(function(r) { return r.match_score >= 0.7 && !r.locked }).length
@@ -752,23 +817,32 @@ export default function ConstellationReveal({
   }, [phase, startAtMap])
 
   var begin = useCallback(function() {
+    // Mobile: compressed ~3s total. Desktop: full ~7s reveal.
+    var procDelay = isMobile ? 1400 : 2600
+    var textDelay = isMobile ? 1000 : 1900
+    var subDelay = isMobile ? 1600 : 2700
+    var mapDelay = isMobile ? 2200 : 4200
+    var nodeStagger = isMobile ? 40 : 75
+    var lineDelay = isMobile ? 600 : 1050
+    var statsDelay = isMobile ? 1100 : 1900
+
     setPhase('processing')
     setTimeout(function() {
       setPhase('alone')
-      setTimeout(function() { setTextOn(true) }, 1900)
-      setTimeout(function() { setSubOn(true) }, 2700)
+      setTimeout(function() { setTextOn(true) }, textDelay)
+      setTimeout(function() { setSubOn(true) }, subDelay)
       setTimeout(function() {
         setPhase('map')
         sortedByDist.forEach(function(r, i) {
           setTimeout(function() {
             setShown(function(p) { return p.concat([r.id]) })
-          }, i * 75 + 300)
+          }, i * nodeStagger + 200)
         })
-        setTimeout(function() { setLines(true) }, 1050)
-        setTimeout(function() { setStats(true) }, 1900)
-      }, 4200)
-    }, 2600)
-  }, [sortedByDist])
+        setTimeout(function() { setLines(true) }, lineDelay)
+        setTimeout(function() { setStats(true) }, statsDelay)
+      }, mapDelay)
+    }, procDelay)
+  }, [sortedByDist, isMobile])
 
   var reset = useCallback(function() {
     setPhase('idle')
@@ -981,7 +1055,8 @@ export default function ConstellationReveal({
                 {/* Nodes */}
                 {visible.map(function(r, i) {
                   var col = getTypeColor(r.category)
-                  var sz = 0.65 + r.match_score * 0.95
+                  var baseSz = isMobile ? 1.2 + r.match_score * 1.4 : 0.65 + r.match_score * 0.95
+                  var sz = baseSz
                   var sel = sheet === r.id
                   var srcInfo = getSourceInfo(r.source_type)
                   var srcColor = srcInfo ? srcInfo.color : null
@@ -989,8 +1064,8 @@ export default function ConstellationReveal({
                   return (
                     <g key={r.id} onClick={function(e) { tap(r.id, e) }}
                       style={{ opacity: dim(r.id) ? 0.15 : 1, transition: 'opacity .3s', cursor: 'pointer' }}>
-                      {/* Invisible touch target */}
-                      <circle cx={r.x} cy={r.y} r={5.5} fill="transparent" />
+                      {/* Invisible touch target — larger on mobile for thumb accuracy */}
+                      <circle cx={r.x} cy={r.y} r={isMobile ? 8 : 5.5} fill="transparent" />
 
                       {/* Live pulse on select reports */}
                       {linesOn && !r.locked && i < 3 && (
@@ -1002,9 +1077,10 @@ export default function ConstellationReveal({
                       {/* Selection ring */}
                       {sel && <circle cx={r.x} cy={r.y} r={sz + 2.8} fill="none" stroke={col} strokeWidth=".22" strokeOpacity=".5" />}
 
-                      {/* Glow for strong matches */}
+                      {/* Glow for strong matches — skip blur filter on mobile for performance */}
                       {r.match_score >= 0.8 && (
-                        <circle cx={r.x} cy={r.y} r={sz + 1.8} fill={col} fillOpacity=".07" style={{ filter: 'url(#cv2sglow)' }} />
+                        <circle cx={r.x} cy={r.y} r={sz + 1.8} fill={col} fillOpacity={isMobile ? '.12' : '.07'}
+                          style={isMobile ? undefined : { filter: 'url(#cv2sglow)' }} />
                       )}
 
                       {/* Node */}
@@ -1015,7 +1091,7 @@ export default function ConstellationReveal({
                           stroke={col}
                           strokeWidth={r.locked ? 0.18 : 0.1}
                           strokeOpacity={r.locked ? 0.32 : 0.9}
-                          style={r.match_score >= 0.8 ? { filter: 'url(#cv2glow)' } : undefined} />
+                          style={r.match_score >= 0.8 && !isMobile ? { filter: 'url(#cv2glow)' } : undefined} />
                         {r.locked && (
                           <g style={{ color: col, opacity: 0.4 }} filter="url(#cv2lkblur)">
                             <LockGlyph cx={r.x} cy={r.y} sz={sz * 1.5} />
@@ -1041,8 +1117,8 @@ export default function ConstellationReveal({
                       </g>
                     )
                   })}
-                  <circle cx={50} cy={48} r={7} fill="#3b0066" fillOpacity={0.18} style={{ filter: 'url(#cv2sglow)' }} />
-                  <polygon points="50,44.2 53.8,48 50,51.8 46.2,48" fill="#f1f1f8" opacity={0.96} style={{ filter: 'url(#cv2dglow)' }} />
+                  <circle cx={50} cy={48} r={7} fill="#3b0066" fillOpacity={0.18} style={isMobile ? undefined : { filter: 'url(#cv2sglow)' }} />
+                  <polygon points="50,44.2 53.8,48 50,51.8 46.2,48" fill="#f1f1f8" opacity={0.96} style={isMobile ? undefined : { filter: 'url(#cv2dglow)' }} />
                   <polygon points="50,46.7 51.3,48 50,49.3 48.7,48" fill="#9000F0" />
                   {sheet === 'user' && (
                     <g style={{ transformBox: 'fill-box' as any, transformOrigin: 'center', transform: 'scale(1.55)' }}>

@@ -13,6 +13,7 @@
 
 import React, { useState, useCallback } from 'react'
 import { X, Lock, Star, Zap, Bell, CheckCircle, Loader2 } from 'lucide-react'
+import { getApiBase } from '@/lib/utils'
 
 interface PaywallModalProps {
   isOpen: boolean
@@ -47,7 +48,7 @@ export default function PaywallModal({
     setError('')
 
     try {
-      var res = await fetch('/api/waitlist', {
+      var res = await fetch(getApiBase() + '/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
