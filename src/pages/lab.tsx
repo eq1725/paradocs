@@ -57,7 +57,7 @@ var TAB_CONFIG: Record<string, { label: string; mobileLabel?: string; icon: type
   constellation: { label: 'Constellation', mobileLabel: 'Radar', icon: Star },
   saves: { label: 'Saves', icon: Bookmark },
   cases: { label: 'Cases', icon: FolderOpen },
-  map: { label: 'My Map', mobileLabel: 'Map', icon: MapIcon },
+  map: { label: 'My Map', icon: MapIcon },
   notes: { label: 'Notes', icon: BookOpen },
 }
 
