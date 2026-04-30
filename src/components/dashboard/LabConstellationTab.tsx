@@ -188,54 +188,56 @@ export default function LabConstellationTab() {
   // Has submission — show constellation (with or without reveal animation)
   if (userExperience) {
     return (
-      <div className="cv2-lab-container">
-        <style>{'\
+      <>
+        <div className="cv2-lab-container">
+          <style>{'\
 .cv2-lab-container{height:calc(100dvh - 120px);min-height:500px;}\
 @media(max-width:767px){.cv2-lab-container{height:calc(100dvh - 310px);}}\
-        '}</style>
-        <ConstellationReveal
-          userExperience={userExperience}
-          matches={matches}
-          totalExperiences={totalExperiences}
-          startAtMap={!showReveal}
-          onPaywall={function() {
-            setShowPaywall(true)
-          }}
-          onNotify={function() {
-            // Lightweight notify — quick API call + toast, no modal
-            if (notifyToast) return
-            if (userEmail) {
-              fetch(getApiBase() + '/api/waitlist', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: userEmail, source: 'constellation_notify' }),
-              }).catch(function() {})
-            }
-            setNotifyToast('We\'ll notify you when new matches appear.')
-            setTimeout(function() { setNotifyToast(null) }, 3500)
-          }}
-          onShare={function() {
-            if (navigator.share) {
-              navigator.share({
-                title: 'My Constellation — Paradocs',
-                text: 'I found ' + matches.length + ' connections to my experience on Paradocs.',
-                url: window.location.href,
-              }).catch(function() {})
-            } else if (navigator.clipboard) {
-              navigator.clipboard.writeText(window.location.href)
-            }
-          }}
-          onReset={function() {
-            setShowReveal(false)
-          }}
-        />
-        <PaywallModal
-          isOpen={showPaywall}
-          onClose={function() { setShowPaywall(false) }}
-          userEmail={userEmail}
-          unlockedCount={matches.filter(function(m) { return !m.locked }).length}
-          totalMatches={matches.length}
-        />
+          '}</style>
+          <ConstellationReveal
+            userExperience={userExperience}
+            matches={matches}
+            totalExperiences={totalExperiences}
+            startAtMap={!showReveal}
+            onPaywall={function() {
+              setShowPaywall(true)
+            }}
+            onNotify={function() {
+              // Lightweight notify — quick API call + toast, no modal
+              if (notifyToast) return
+              if (userEmail) {
+                fetch(getApiBase() + '/api/waitlist', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ email: userEmail, source: 'constellation_notify' }),
+                }).catch(function() {})
+              }
+              setNotifyToast('We\'ll notify you when new matches appear.')
+              setTimeout(function() { setNotifyToast(null) }, 3500)
+            }}
+            onShare={function() {
+              if (navigator.share) {
+                navigator.share({
+                  title: 'My Constellation — Paradocs',
+                  text: 'I found ' + matches.length + ' connections to my experience on Paradocs.',
+                  url: window.location.href,
+                }).catch(function() {})
+              } else if (navigator.clipboard) {
+                navigator.clipboard.writeText(window.location.href)
+              }
+            }}
+            onReset={function() {
+              setShowReveal(false)
+            }}
+          />
+          <PaywallModal
+            isOpen={showPaywall}
+            onClose={function() { setShowPaywall(false) }}
+            userEmail={userEmail}
+            unlockedCount={matches.filter(function(m) { return !m.locked }).length}
+            totalMatches={matches.length}
+          />
+        </div>
         {notifyToast && (
           <div style={{
             position: 'fixed', bottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
@@ -250,7 +252,7 @@ export default function LabConstellationTab() {
             <span style={{ fontSize: 13, fontWeight: 500, color: '#f1f1f8', whiteSpace: 'nowrap' }}>{notifyToast}</span>
           </div>
         )}
-      </div>
+      </>
     )
   }
 
