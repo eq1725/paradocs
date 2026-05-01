@@ -1,8 +1,8 @@
 # HANDOFF_EXPLORE.md — Explore & Discovery Session
 
-**Last updated:** March 28, 2026
+**Last updated:** May 1, 2026
 **Session:** Explore & Discovery (Session 2)
-**Status:** Active — Phase 3.5: Card content overhaul for index model + feed hook generation at scale
+**Status:** Active — Last work: Sticky tabs safe-area fix (May 1)
 
 ---
 
@@ -328,8 +328,13 @@ Gate copy rules: Always reference specific report (category, location), include 
 | `src/components/homepage/DiscoverPreview.tsx` | **MODIFIED** (Phase 3.5) — `PullQuoteCard` → `DossierCard` (case-file grid, no quote marks, no italic/serif). `isQuote` → `hasHook` throughout. Removed `CATEGORY_QUOTE_COLORS`. All card text in bold editorial voice via `feed_hook`. |
 | `src/pages/api/admin/ai/generate-phenomena-hooks.ts` | **NEW** (Phase 3.5) — Admin batch endpoint for phenomena feed hook generation via Claude Haiku. Category-specific documentary-trailer prompting. Supports batch_missing/single/stats actions + offset parameter for parallel processing. |
 | `src/lib/services/feed-hook.service.ts` | **MODIFIED** (Phase 3.5) — System prompt rewritten for two-line format (25-50 words). Category tones sharpened. Validation bounds tightened. |
-| `src/pages/discover.tsx` | **REWRITTEN** (Phase 3) — Adds event tracking, onboarding, session context, new card types, gating |
-| `src/styles/globals.css` | **MODIFIED** — Added `@keyframes swipe-breathe` for SwipeHint breathing animation |
+| `src/pages/discover.tsx` | **REWRITTEN** (Phase 3) — Adds event tracking, onboarding, session context, new card types, gating. **MODIFIED** (April 29) — Removed custom header, now renders inside site Layout. Progress bar + counter inline. |
+| `src/pages/explore.tsx` | **MODIFIED** (April 29) — Browse category card hover previews replaced with CATEGORY_CONFIG descriptions. Filter panel scroll fix (`bottom-[52px]`). Map recentering on filter panel toggle (`mapPadding` prop). **MODIFIED** (May 1) — Sticky tabs: replaced hardcoded `top-14` with `sticky-below-header` CSS utility class to fix mobile safe-area gap on devices with Dynamic Island/notch. |
+| `src/lib/constants.ts` | **MODIFIED** (April 29) — All category colors `-500`→`-400`, bgColor `/15`→`/20`. Descriptions shortened and audited against all ~90 subcategories. |
+| `src/components/map/MapFilterPanel.tsx` | **MODIFIED** (April 29) — Credibility filter removed. Category pills unified with CategoryFilter style. |
+| `src/components/map/MapContainer.tsx` | **MODIFIED** (April 29) — Added `mapPadding` prop for auto-refit on filter panel toggle. |
+| `src/pages/_app.tsx` | **MODIFIED** (April 29) — Removed `/discover` from `STANDALONE_PAGES`. |
+| `src/styles/globals.css` | **MODIFIED** — Added `@keyframes swipe-breathe` for SwipeHint breathing animation. **MODIFIED** (April 29) — Added `.maplibregl-ctrl-top-right` CSS override for zoom control positioning. **MODIFIED** (May 1) — Added `.sticky-below-header` utility class (`position: sticky; top: calc(3.5rem + env(safe-area-inset-top)); z-index: 20; background: inherit`) for safe-area-aware sticky tab bars. |
 
 ## Files NOT Modified (intentionally)
 

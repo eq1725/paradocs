@@ -1,6 +1,6 @@
 # HANDOFF - Mobile-First Design System (Session 13)
 
-**Last updated:** March 15, 2026
+**Last updated:** May 1, 2026
 **Session focus:** Cross-cutting mobile UX design system, navigation, and screen-by-screen redesign
 **Design references:** Netflix, Uber, Spotify, Apple Maps
 
@@ -13,7 +13,8 @@ Discovered dual layout problem during Phase 3a (March 14). **RESOLVED** during S
 ### How Page Layouts Work (`_app.tsx`)
 
 ```
-STANDALONE_PAGES = ['/beta-access', '/survey', '/discover']  → No layout wrapper (full-screen immersive)
+STANDALONE_PAGES = ['/beta-access', '/survey']               → No layout wrapper (full-screen immersive)
+# Note: /discover was removed from STANDALONE_PAGES on April 29 — it now renders inside site Layout
 CUSTOM_LAYOUT_PREFIXES = ['/dashboard']                       → DashboardLayout.tsx (sidebar + MobileBottomTabs)
 Everything else                                                → Layout.tsx (public header + MobileBottomTabs)
 ```
@@ -22,7 +23,8 @@ Everything else                                                → Layout.tsx (p
 
 Both `Layout.tsx` and `DashboardLayout.tsx` now render the same `MobileBottomTabs` component. The tabs are identical on every page:
 
-**Tabs:** Explore (Compass) | Map (MapIcon) | **Stories FAB** (Flame, elevated center) | Library/Encyclopedia (auth-aware) | More (Menu)
+**Tabs (as of May 1):** Feed (flame) | Explore (compass) | Lab (telescope) | Profile (user)
+*Note: The original 5-tab structure (Explore/Map/Stories FAB/Library/More) was replaced by Session A1 (April 1) with a 4-tab layout. "Investigate" label renamed to "Lab" on May 1.*
 
 - **4th tab is auth-aware:** Non-logged-in users see "Encyclopedia" (BookOpen → `/phenomena`). Logged-in users see "Library" (LayoutDashboard → `/dashboard`).
 - **Stories FAB:** Elevated circular center button with Flame icon — the TikTok-like casual user hook. Visually distinct from other tabs (larger, elevated, colored background). Route remains `/discover`; renamed to "Stories" per Session 7 desktop nav update.
@@ -100,6 +102,7 @@ Mobile design system foundation deployed. Bottom tab navigation replaces hamburg
 - `.bottom-sheet-backdrop`, `.sheet-handle`: bottom sheet UI utilities
 - `.touch-pan-x`, `.touch-pan-y`, `.overscroll-contain`: touch interaction isolation
 - `body.sheet-open`: prevents scroll when sheet is open
+- `.sticky-below-header` (May 1): safe-area-aware sticky positioning for tab bars (`position: sticky; top: calc(3.5rem + env(safe-area-inset-top)); z-index: 20; background: inherit`). Used by Lab and Explore page tab bars.
 
 #### Files Modified
 
@@ -174,10 +177,21 @@ Incremental mobile fixes applied during Research Hub development:
 **`src/pages/report/[slug].tsx`** — Quick fix:
 - Reading progress bar: `h-[3px]` → `h-1.5` (6px) for better visibility
 
+### May 1, 2026 — Radar/Lab Polish Continuation
+
+Five mobile-relevant changes shipped:
+
+1. **Footer hidden on mobile** (`Layout.tsx`) — Added `hidden md:block` to `<footer>`. Bottom tab nav replaces the footer on mobile; website footer only shows on desktop.
+2. **Legal/about links on Profile** (`profile.tsx`) — Added mobile-only "About & Legal" section (About, Privacy Policy, Terms of Service) above Sign Out, preserving access after footer hidden.
+3. **"Investigate" to "Lab" rename** (`MobileBottomTabs.tsx`) — Label changed for consistency with desktop nav, page heading, and URL.
+4. **Sticky tab bars with safe-area support** (`globals.css`, `lab.tsx`, `explore.tsx`) — New `.sticky-below-header` CSS utility class (`position: sticky; top: calc(3.5rem + env(safe-area-inset-top)); z-index: 20`) for safe-area-aware sticky tab bars. Applied to both Lab and Explore pages.
+5. **Toast centering fix** (`LabConstellationTab.tsx`) — Restructured from `translateX(-50%)` to flexbox centering to avoid CSS animation transform conflict on mobile.
+
 ### Known Issues (Remaining)
 
 **RESOLVED:** ~~Nav Unification~~ ✅ (March 15, 2026)
 **RESOLVED:** ~~Layout.tsx `<style jsx global>` block~~ ✅ (removed entirely, no longer needed)
+**RESOLVED:** ~~Footer duplicating nav on mobile~~ ✅ (May 1, 2026 — hidden on mobile)
 
 **Phase 3 Remaining Screens:**
 3. **ArtifactDetailDrawer** — Still slides from right as a full-screen overlay on mobile. Should become a bottom sheet (use MobileBottomSheet).

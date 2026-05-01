@@ -1,7 +1,7 @@
-# Lab QA Session — April 17–19, 2026
+# Lab QA Session — April 17–19, 2026 (continued May 1)
 
 **Branch:** main
-**Commits range:** `74faf363` → `37b82489` (28 commits, ~3,000+ LOC net)
+**Commits range:** `74faf363` → `37b82489` (28 commits, ~3,000+ LOC net) + May 1 continuation commits
 **Deploy:** beta.discoverparadocs.com
 **Workflow:** Claude-Anthropic pair with Chase. Chase QAs live after each Vercel deploy; feedback drives the next iteration.
 
@@ -143,3 +143,28 @@ package.json + package-lock.json                         adds Tiptap stack
 - **Typecheck before committing** — `npx tsc --noEmit` filtered by touched files.
 - **Commit messages use HEREDOC** so multi-line bodies survive shell quoting cleanly.
 - **Defer large refactors** that introduce new deps until Chase explicitly says "do it" (e.g., Tiptap was scoped as two-path option before commit).
+
+---
+
+## May 1, 2026 — Continuation: Radar/Lab Polish
+
+Continuation of the Lab QA polish pass, focused on five targeted fixes across Lab, Explore, Layout, and Profile.
+
+### Changes shipped
+
+| # | Change | File(s) | Root cause / detail |
+|---|--------|---------|---------------------|
+| 1 | **Toast centering fix** | `src/components/dashboard/LabConstellationTab.tsx` | The "Notify me" toast was not centering on mobile or desktop. The `cv2FadeUp` CSS animation's final `transform: translateY(0)` overrode the inline `transform: translateX(-50%)` used for centering. Restructured to use `left:0; right:0` with flexbox centering on an outer container, so the animation transform on the inner pill doesn't conflict. |
+| 2 | **Hide footer on mobile** | `src/components/Layout.tsx` | Added `hidden md:block` to the `<footer>` element. Bottom tab nav replaces the footer on mobile. Website footer only shows on desktop. |
+| 3 | **Legal/about links on Profile** | `src/pages/profile.tsx` | Added About, Privacy Policy, and Terms of Service links in a mobile-only "About & Legal" section above Sign Out. Preserves access to these links after hiding the footer on mobile. |
+| 4 | **"Investigate" to "Lab" rename** | `src/components/mobile/MobileBottomTabs.tsx` | Changed label from "Investigate" to "Lab" for consistency with desktop nav, page heading, and URL. |
+| 5 | **Sticky tab bars** | `src/styles/globals.css`, `src/pages/lab.tsx`, `src/pages/explore.tsx` | Created `.sticky-below-header` CSS utility class that accounts for `safe-area-inset-top` (Dynamic Island/notch). Lab: split header into scrolling title row + sticky tab bar. Explore: replaced hardcoded `top-14` with `sticky-below-header` to fix mobile safe-area gap. |
+
+### Pending tasks carried forward
+
+- Task #55: Handle incomplete encyclopedia pages gracefully
+- Task #62: POST-INGESTION: Replace hardcoded 2.3M with real database count
+
+### Next planned work
+
+Expert panel review and redesign of the Reports tab (discover page) on both desktop and mobile.

@@ -1,6 +1,6 @@
 # Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** March 5, 2026
+**Last updated:** May 1, 2026
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
 
 ---
@@ -65,7 +65,7 @@ Columns: id, title, slug, summary, description, phenomenon_type_id, tags, locati
 ## Current Site Features — What's Built
 
 ### Core Pages
-- **Landing page** (`index.tsx`) — hero, search, animated stats counter, featured report, category grid, email capture
+- **Landing page** (`index.tsx`) — 8-section AllTrails-tier homepage: Hero (animated typewriter search, A/B headlines) → Category Slideshow (full-width crossfade, WebP images) → AI Pattern Insight (4 rotating insights + share button) → Feed Phone Showcase (realistic vector phone frame, mock feed cards, App Store badges + QR) → Map Phone Showcase (phone frame with dark map + report dots, compact platform CTA) → Lab Laptop Showcase (dark charcoal laptop frame, mock Lab workspace) → How It Works + FAQ (3-step process + 5-question accordion) → Data Proof CTA (animated counters, dynamic location count from API)
 - **Explore/Feed** (`explore.tsx`) — personalized discovery feed with category filters, search, sort
 - **Report detail** (`report/[slug].tsx`) — full report with reactions, comments, share, save, related reports, phenomena links, credibility scoring, investigation journal, evidence section
 - **Phenomena/Encyclopedia** (`phenomena/index.tsx`, `phenomena/[slug].tsx`) — 1,598 phenomena with grid/list view, category quick-nav bar, detail pages with Wikipedia images
@@ -127,7 +127,7 @@ Columns: id, title, slug, summary, description, phenomenon_type_id, tags, locati
 | Feature | Status |
 |---------|--------|
 | **Embeddable widgets** | ✅ Built |
-| A/B testing framework | ❌ |
+| A/B testing framework | ✅ Built (5 hero headline variants, useABTest hook) |
 | Community challenges | ❌ |
 | Year in Review | ❌ |
 | Win-back email sequence | ❌ |
@@ -262,12 +262,13 @@ src/
 │   ├── OnboardingTour.tsx       # 3-tap onboarding
 │   ├── ReportCard.tsx           # Report preview card
 │   ├── MapView.tsx              # MapBox map component
+│   ├── homepage/                # Homepage showcase components (PhoneMockup, LaptopMockup, FeedShowcase, MapShowcase, LabShowcase, AIInsight, HowItWorks, AppStoreBadges, QuickNavStrip, DataProofCTA)
 │   ├── dashboard/               # Dashboard components (constellation, streak, tier badge, etc.)
 │   ├── analytics/               # Analytics components
 │   ├── patterns/                # Pattern detection components
 │   └── reports/                 # Report-related components
 ├── pages/
-│   ├── index.tsx                # Landing page
+│   ├── index.tsx                # Landing page (8 sections, animated search, A/B headlines)
 │   ├── explore.tsx              # Discovery feed
 │   ├── map.tsx                  # Map view
 │   ├── submit.tsx               # Report submission
@@ -302,6 +303,51 @@ src/
 
 ## Session Progress Log
 
+### May 1, 2026 — Radar/Lab Polish Continuation (Toast, Footer, Legal, Naming, Sticky Tabs)
+**Status:** COMPLETE
+
+Continuation of the Radar/Lab polish pass. Five targeted fixes:
+
+1. **Toast centering fix** (`src/components/dashboard/LabConstellationTab.tsx`) — The "Notify me" toast was not centering on mobile or desktop. Root cause: the `cv2FadeUp` CSS animation's final `transform: translateY(0)` was overriding the inline `transform: translateX(-50%)` used for centering. Fix: restructured toast to use `left:0; right:0` with flexbox centering on an outer container, so the animation transform on the inner pill doesn't conflict with centering.
+
+2. **Hide footer on mobile** (`src/components/Layout.tsx`) — Added `hidden md:block` to the `<footer>` element. The bottom tab nav replaces the footer on mobile, so the website footer only shows on desktop now.
+
+3. **Added legal/about links to Profile page** (`src/pages/profile.tsx`) — Added About, Privacy Policy, and Terms of Service links in a mobile-only "About & Legal" section on the Profile page (above Sign Out), so those links remain accessible after hiding the footer on mobile.
+
+4. **Unified naming: "Investigate" to "Lab"** (`src/components/mobile/MobileBottomTabs.tsx`) — Changed the mobile bottom tab label from "Investigate" to "Lab" for consistency with desktop nav, page heading, and URL.
+
+5. **Sticky tab bars** (`src/styles/globals.css`, `src/pages/lab.tsx`, `src/pages/explore.tsx`) — Made tab bars sticky on both Lab and Explore pages:
+   - Created `.sticky-below-header` CSS utility class in globals.css that accounts for `safe-area-inset-top` (Dynamic Island/notch)
+   - Lab: split header into scrolling title row + sticky tab bar
+   - Explore: replaced hardcoded `top-14` with `sticky-below-header` class to fix mobile safe-area gap
+
+**Files modified:**
+- `src/components/dashboard/LabConstellationTab.tsx`
+- `src/components/Layout.tsx`
+- `src/pages/profile.tsx`
+- `src/components/mobile/MobileBottomTabs.tsx`
+- `src/styles/globals.css`
+- `src/pages/lab.tsx`
+- `src/pages/explore.tsx`
+
+### April 27-29, 2026 — Homepage Redesign (AllTrails Benchmark)
+**Status:** IN PROGRESS — iterating with Chase
+
+- Complete homepage overhaul benchmarked against AllTrails.com for world-class visual quality
+- 8 new homepage components built: PhoneMockup, LaptopMockup, FeedShowcase, MapShowcase, LabShowcase, AIInsight (rebuilt with 4 rotating insights + share), HowItWorks (new FAQ section), AppStoreBadges
+- Realistic vector device frames (SVG with evenodd transparent screen cutouts) for both phone and laptop
+- Phone frame extracted from purchased vector asset, laptop darkened to charcoal to reduce distraction
+- Animated typewriter search placeholder cycling through 7 real example queries
+- Category slideshow images converted to WebP (80-87% file size savings) with `<picture>` fallback
+- AI Insight moved before phone sections (strongest differentiator hits earlier in scroll)
+- Feed section: full App Store badges + QR; Map section: compact "Available on iOS, Android & Web" (varied treatment)
+- How It Works (3-step process) + FAQ accordion added above final CTA for SEO and user clarity
+- Multiple expert panel reviews (up to 12 panelists including domain SMEs) drove iterative improvements
+- Section layout: top-aligned text with pt-16 offset, tighter gap (56px), aggressive device breakout (-my-16)
+- Brand fonts: Changa (display), Changa One (wordmark), Inter (body). Brand color: #9000F0
+- All changes pushed to main, auto-deployed on Vercel
+- **Pending:** Replace static mockup content with looped video recordings, connect AI insights to real pipeline, mobile viewport testing
+
 ### March 3-5, 2026 — Phase 2 Regeneration
 **Status:** COMPLETE
 
@@ -335,4 +381,10 @@ src/
 6. [NEXT] Curate reports to 1000 — need ~100 more from diverse sources
 7. [OPTIONAL] OpenAI monthly budget reduction ($120 to $10-20)
 8. [FUTURE] Sprint 2-4 features per Dev Handoff v3
-9. [FUTURE] UX optimization (header/mobile nav, homepage flow, report detail breadcrumbs)
+9. [IN PROGRESS] Homepage redesign — AllTrails-tier visual overhaul (April 27-29, 2026). 8 sections built. Pending: replace static mockups with video recordings, connect AI insights to pipeline, mobile testing.
+10. [NEXT] Replace static phone/laptop mockup content with looped demo video recordings
+11. [NEXT] Connect rotating AI insights to real pipeline results post-mass-ingestion
+12. [NOTE] Apple JWT secret expires September 18, 2026
+13. [PENDING] Task #55: Handle incomplete encyclopedia pages gracefully
+14. [PENDING] Task #62: POST-INGESTION: Replace hardcoded 2.3M with real database count
+15. [NEXT] Expert panel review and redesign of Reports tab (discover page) on desktop and mobile

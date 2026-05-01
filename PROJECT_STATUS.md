@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** April 19, 2026
+**Last updated:** May 1, 2026 (Radar/Lab polish continuation)
 **Project:** beta.discoverparadocs.com
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -155,7 +155,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
 | 6a | **Report Experience — Curated Content** | Handcrafted case files, editorial enrichment, Featured Investigations, curated media, book recommendations | `HANDOFF_REPORTS.md` | Active — 20 reports across 2 case clusters (Roswell 14 + Rendlesham 6), credibility rationales, badge redesign, homepage discovery row |
 | 6b | **Report Experience — Ingestion & Scale** | Reports from mass ingestion pipeline, quality templates, automated enrichment, connection generation at scale | `HANDOFF_REPORTS_INGESTION.md` | Active — Report detail page redesign COMPLETE (March 25). Index model enforced: ParadocsAnalysisBox, SourceAttribution, ResearchHubPreview. Curated reports unaffected. Behavioral event stubs wired for Session 2. Awaiting Session 10 data to populate. |
-| 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO, color system, PWA | `HANDOFF_SEARCH_NAV.md` | COMPLETE — Homepage: 4 optimized sections (Hero, Four Pillars, Eyewitness Accounts, Get Started CTA). DiscoverPreview: 3 card formats (featured/dossier/compact), smart selection from pool of 20, quality-scored hook extraction with feed_hook integration + vivid language scoring. **March 28:** PullQuoteCard → DossierCard (case-file grid, no quote marks), `isQuote` → `hasHook`, all card text unified to bold editorial voice. PWA + color (#9000F0) + fulltext search + A/B testing all shipped. |
+| 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO, color system, PWA | `HANDOFF_SEARCH_NAV.md` | Active — **April 27-29 HOMEPAGE REDESIGN (AllTrails-tier):** Complete homepage overhaul benchmarked against AllTrails. 8 sections: Hero (animated typewriter search) → Category Slideshow → AI Insight (4 rotating insights + share) → Feed Phone Showcase → Map Phone Showcase → Lab Laptop Showcase → How It Works + FAQ → Data Proof CTA. Realistic vector device frames (phone + laptop SVGs with transparent screen cutouts). WebP category images (80-87% savings). A/B hero headlines. See session details below. |
 | 8 | **Subscription & Monetization** | Stripe checkout, paywall, tier system, billing portal, cancellation | `HANDOFF_SUBSCRIPTION.md` | Not started |
 | 9 | **Email & Engagement** | Weekly digests, drip campaigns, smart alerts, winback, notifications | `HANDOFF_EMAIL.md` | Not started |
 | 10 | **Data Ingestion & Pipeline** | Source adapters, quality filters, dedup, bulk import, feed hooks, Paradocs Analysis, embedding integration | `HANDOFF_INGESTION.md` | Active — **April 14 (Session B1.5):** Live smoke-test QA/QC pass underway. NDERF evaluative-tier neutralization verified. OBERF `case_profile` extraction rebuilt (LabelResolver closure, color-span field map, archive-type inference); 3-row smoke test passed across OBE/SOBE + narrative-only variants. **Remaining B1.5 work:** 5-per-category smoke tests across remaining 7 OBERF archives, then IANDS → BFRO → NUFORC → Reddit V2 → YouTube → Erowid. **Session B2 (mass ingest) blocked on B1.5 sign-off.** See B1.5 section below. |
@@ -168,7 +168,7 @@ Each major feature area has a dedicated Claude session with its own deep context
 | A2 | **Explore Consolidation** | Merge /explore, /map, /search, /phenomena listing into one page with Map/Browse/Search tabs | N/A | **COMPLETE (April 1)** — See details below |
 | B1 | **Ingestion Adapter Hardening** | Audit, fix, and dry-run all high-priority adapters; YouTube comment extraction; crosspost dedup; dry-run script | N/A | **COMPLETE (April 2)** — See details below |
 | B1.5 | **Ingestion Adapter QA/QC (Live Smoke Tests)** | 5-report-per-adapter smoke tests against live sources, row-level verification of case_profile / tier / enrichment fields, bug fixes before mass ingest | `B1_5_QA_QC_NOTES.md` | **IN PROGRESS (April 14)** — NDERF evaluative-tier neutralization + OBERF case_profile extraction complete. 3-row OBERF acceptance evidence captured. Remaining: re-verify NDERF+OBERF with 5 per category, then IANDS → BFRO → NUFORC → Reddit V2 → YouTube → Erowid. **No mass ingest until B1.5 is signed off.** |
-| L1 | **Lab QA Iteration (Saves / Cases / Map / Notes)** | Live QA-driven polish across the /lab surface — patterns overhaul, full Tiptap WYSIWYG note editor, Lab map ported to MapLibre with basemap switcher / heatmap / timeline / historical-wave overlays / global-context backdrop, detail-panel sync fixes, terminology cleanup (Research Hub → Lab) | `LAB_QA_SESSION_2026_04_19.md` | **IN PROGRESS (April 17–19)** — 28 commits shipped: `74faf363` → `37b82489`. Chase iteratively QAing each deploy. See doc for full per-area summary. |
+| L1 | **Lab QA Iteration (Saves / Cases / Map / Notes)** | Live QA-driven polish across the /lab surface — patterns overhaul, full Tiptap WYSIWYG note editor, Lab map ported to MapLibre with basemap switcher / heatmap / timeline / historical-wave overlays / global-context backdrop, detail-panel sync fixes, terminology cleanup (Research Hub → Lab) | `LAB_QA_SESSION_2026_04_19.md` | **IN PROGRESS (April 17–May 1)** — 28+ commits shipped. Chase iteratively QAing each deploy. May 1 continuation: toast centering fix, footer hidden on mobile, legal links on Profile, "Investigate"→"Lab" rename, sticky tab bars. See doc for full per-area summary. |
 
 ---
 
@@ -197,6 +197,21 @@ Each major feature area has a dedicated Claude session with its own deep context
 
 **Workflow:** Every commit pushed immediately; Chase runs `git push` and monitors Vercel; each round ends with Chase sending a screenshot + new QA item. Commit messages use HEREDOC. Typecheck filtered by touched files before each commit.
 
+**May 1 continuation (Radar/Lab polish):**
+
+8. **Toast centering fix.** The "Notify me" toast in `LabConstellationTab.tsx` was not centering on mobile or desktop. Root cause: `cv2FadeUp` animation's final `transform: translateY(0)` overrode the inline `transform: translateX(-50%)` used for centering. Fix: restructured to `left:0; right:0` with flexbox centering on an outer container so animation transform on the inner pill doesn't conflict.
+
+9. **Footer hidden on mobile.** Added `hidden md:block` to the `<footer>` element in `Layout.tsx`. The bottom tab nav replaces the footer on mobile; website footer only shows on desktop.
+
+10. **Legal/about links on Profile page.** Added About, Privacy Policy, and Terms of Service links in a mobile-only "About & Legal" section on `profile.tsx` (above Sign Out), preserving access to those links after hiding the footer.
+
+11. **Unified naming: "Investigate" to "Lab".** Changed `MobileBottomTabs.tsx` label from "Investigate" to "Lab" for consistency with desktop nav, page heading, and URL.
+
+12. **Sticky tab bars.** Made tab bars sticky on both Lab and Explore pages:
+    - Created `.sticky-below-header` CSS utility class in `globals.css` that accounts for `safe-area-inset-top` (Dynamic Island/notch)
+    - Lab (`lab.tsx`): split header into scrolling title row + sticky tab bar
+    - Explore (`explore.tsx`): replaced hardcoded `top-14` with `sticky-below-header` class to fix mobile safe-area gap
+
 **Pending (not blockers):**
 - Cases tab hasn't received the same visual iteration as Saves / Map.
 - Mobile testing of the Map Layers panel on small viewports.
@@ -205,6 +220,9 @@ Each major feature area has a dedicated Claude session with its own deep context
 - Mini knowledge graph per case file (task #62).
 - `react-leaflet` / `leaflet` deps still in `package.json` — unused after Lab map port, drop in cleanup.
 - Legacy `/dashboard/research-hub` route + surrounding components still live in repo but unreachable from nav.
+- Task #55: Handle incomplete encyclopedia pages gracefully.
+- Task #62: POST-INGESTION: Replace hardcoded 2.3M with real database count.
+- **Next planned work:** Expert panel review and redesign of the Reports tab (discover page) on both desktop and mobile.
 
 **See:** `LAB_QA_SESSION_2026_04_19.md` for the full commit-by-commit log and file-change table.
 
@@ -227,6 +245,7 @@ Each major feature area has a dedicated Claude session with its own deep context
    - Shows avatar, display name, username, rank (Observer → Investigator → Senior Researcher → Field Agent)
    - Stats row: saved count, reports, hypotheses (placeholder 0), corroborations (placeholder 0)
    - Links to: Account Settings, Subscription, Public Profile, Lab, Sign Out
+   - **May 1:** Added mobile-only "About & Legal" section (above Sign Out) with About, Privacy Policy, and Terms of Service links — these were previously only accessible via the footer, which is now hidden on mobile
    - Unauthenticated users see sign-in prompt
 
 3. **`MobileBottomTabs.tsx` rewrite** — New 4-tab structure:
@@ -235,6 +254,7 @@ Each major feature area has a dedicated Claude session with its own deep context
    - [+] FAB REMOVED
    - Profile tab redirects to /login for unauthenticated users
    - Active tab indicator uses existing brand primary-400 color
+   - **May 1:** Label changed from "Investigate" to "Lab" for consistency with desktop nav, page heading, and URL
 
 4. **301 redirects** in `next.config.js`:
    - `/dashboard` → `/lab`
@@ -526,7 +546,7 @@ No changes to ingestion engine, admin endpoints, DB schema, or other adapters.
 
 **Key files:**
 - `src/pages/explore.tsx` — Main discovery feed page (Discover + Browse tabs)
-- `src/pages/discover.tsx` — TikTok-style fullscreen swipe feed (standalone, no nav chrome) — Phase 2: mixed content
+- `src/pages/discover.tsx` — TikTok-style fullscreen swipe feed (now renders inside site Layout, April 29) — Phase 2: mixed content
 - `src/pages/api/discover/feed-v2.ts` — **REWRITTEN Phase 3** Scored ranking feed API (parameterized weights from feed_config, engagement + recency + affinity + explore scoring, diversity constraint, cold start support)
 - `src/pages/api/discover/related-cards.ts` — **NEW** Full FeedItemV2-shaped related cards API (category + phenomenon_type matching)
 - `src/lib/hooks/useFeedEvents.ts` — **NEW Phase 3** Behavioral signal collection (batch buffer, sendBeacon, impression dedup, dwell threshold)
@@ -589,6 +609,16 @@ No changes to ingestion engine, admin endpoints, DB schema, or other adapters.
 - ~~Report topic classification~~ ✅ All 132 reports classified with phenomenon_type_id. Backfill endpoint reusable for future ingestion batches (March 31)
 - ~~Discover QA issues~~ ✅ Feed limit cap, empty slug, swipe-left analytics (March 31)
 
+**April 29, 2026 — UI/UX polish pass:**
+- **Discover page Layout unification:** Removed `/discover` from `STANDALONE_PAGES` in `_app.tsx` so it now renders inside the site-wide `Layout` wrapper (shared header, footer, mobile bottom nav). Removed custom fixed header (logo + "DISCOVER" text + minimal nav + counter). Replaced with inline progress bar + counter strip below site header. Removed `MobileBottomTabs` import (Layout provides it). Adjusted padding to account for site header.
+- **Browse category card descriptions:** Replaced hover preview (latest report title fetched from DB) with static description text from `CATEGORY_CONFIG`. Mobile shows description inline below card; desktop shows on hover via opacity transition. Removed `categoryLatestTitle` state, `latestPromises` fetching, `latestPerCat` variable. Descriptions shortened for larger font and audited against all ~90 subcategories in `phenomenon_types` table to ensure accurate coverage.
+- **CATEGORY_CONFIG color standardization:** All category colors updated from `-500` to `-400` variants (brighter, more visible against dark backgrounds). All `bgColor` opacities bumped from `/15` to `/20` for consistent tint visibility across all hues. Affects all category pills, badges, and indicators site-wide.
+- **Category filter pill unification:** `MapFilterPanel.tsx` category pills unified to match `CategoryFilter.tsx` reference style: `rounded-full` (was `rounded-lg`), `px-4 py-2` (was `px-3 py-2`), `ring-2 ring-current` (was `ring-1`), `bg-white/10 text-gray-300 hover:bg-white/15 hover:text-white` unselected style, icon size 18 (was 16), labels always visible in filter panel. Both components now share identical visual language.
+- **Credibility filter removed:** Entire credibility filter section removed from `MapFilterPanel.tsx`. `CREDIBILITY_CONFIG` import removed. Credibility filtering phased out from map view.
+- **Filter panel scroll fix:** Changed filter panel container from `bottom-0` to `bottom-[52px]` to clear the timeline bar, fixing scroll cutoff issue.
+- **Map recentering on filter panel toggle:** Added `mapPadding` prop to `MapContainer.tsx`. When filter panel opens on desktop, map refits bounds with left padding of 340px (panel width). Uses `prevPaddingRef` to skip initial render and only trigger on actual padding changes. Module-level constants (`MAP_PADDING_WITH_FILTERS`, `MAP_PADDING_DEFAULT`) prevent unnecessary effect triggers.
+- **Map zoom control positioning:** Added CSS override `.maplibregl-ctrl-top-right { top: 12px !important; }` in `globals.css` to push MapLibre NavigationControl below the header bar.
+
 **Touches other sessions:** Encyclopedia (content quality affects feed + spotlight), Insights (trending patterns surface in feed), Dashboard (personalization preferences), Search (shared filter components), Foundation (Layout.tsx + globals.css modified), Mobile Design (MobileBottomTabs modified)
 
 ---
@@ -620,10 +650,11 @@ No changes to ingestion engine, admin endpoints, DB schema, or other adapters.
 
 **Environment variables:** `NEXT_PUBLIC_MAPTILER_KEY` — MapTiler API key (Flex plan, domain-restricted to beta.discoverparadocs.com + localhost). Must be set in Vercel env vars.
 
-**Current state (March 16, 2026):**
+**Current state (April 29, 2026):**
 - **Phase 1 COMPLETE:** Full MapLibre GL migration deployed. Leaflet replaced on main map page. 312 geocoded reports rendering with Supercluster clustering, heatmap layer, category-colored markers, mobile bottom sheet (3-snap), auto-fit to data bounds, URL-synced filters, locate me (geolocation → flyTo), desktop filter drawer + report detail panel.
 - **Phase 2 COMPLETE:** Timeline slider (dual-handle, 1400–2026) with decade histogram sparkline and era presets (All Time, Pre-Modern, 1900–1950, 1950–2000, 2000+). Basemap toggle cycling dark → satellite → terrain. Bottom sheet improvements: raised above nav bar, pull-down-to-dismiss from content area, enlarged slider touch targets (44×44px). Era presets visible on mobile. Desktop timeline bar with backdrop blur.
 - **Phase 3 PARTIALLY COMPLETE:** Map Spotlight placeholder cards deployed on Explore page (`MapSpotlightRow.tsx`). 5 hardcoded cards (UFO Hotspots US, Cryptid Sightings, Ghost & Hauntings, Global Heatmap, Pre-Modern Encounters) with gradient backgrounds, icons, and deep-link URLs to `/map` with filter params. Positioned as 2nd row in Discover feed (after Encyclopedia Spotlight). Card dimensions matched to Encyclopedia Spotlight cards. Deep-link URLs and encyclopedia map links deferred to post-ingestion.
+- **UI/UX polish (April 29):** Credibility filter removed from `MapFilterPanel.tsx`. Category pills unified with `CategoryFilter.tsx` style (rounded-full, ring-2, bg-white/10). Filter panel scroll fixed (bottom-[52px] clears timeline bar). Map auto-refits bounds when filter panel opens/closes (mapPadding prop, 340px left padding for panel). Zoom controls repositioned below header via CSS override.
 
 **What needs work (remaining Phase 3 + Phase 4, post-ingestion):**
 - **Phase 3 remaining (post-ingestion):** Replace placeholder Map Spotlight cards with dynamic data-driven cards (cluster density, hotspots). Add pre-rendered static map thumbnail images. Deep-link URL schema for `?phenomenon=`, `?bounds=`. Encyclopedia "View all on map" links.
@@ -874,7 +905,7 @@ No changes to ingestion engine, admin endpoints, DB schema, or other adapters.
 ### 7. Search, Navigation & Homepage
 
 **Key files:**
-- `src/pages/index.tsx` — Homepage (4 sections: Hero, Four Pillars, Discover Preview, Get Started CTA + PWA install)
+- `src/pages/index.tsx` — Homepage (8 sections: Hero w/ animated search, Category Slideshow, AI Insight, Feed Phone Showcase, Map Phone Showcase, Lab Laptop Showcase, How It Works + FAQ, Data Proof CTA)
 - `src/pages/search.tsx` — Full-text search page
 - `src/pages/api/search/fulltext.ts` — Full-text search API
 - `src/components/Layout.tsx` — Global navigation
@@ -885,7 +916,8 @@ No changes to ingestion engine, admin endpoints, DB schema, or other adapters.
 
 **Database:** `search_vector` column, full-text search indexes, `featured_investigations` (data owned by Session 6a, layout owned by Session 7)
 
-**Current state (March 22, 2026):**
+**Current state (April 29, 2026):**
+- **MAJOR REDESIGN:** Complete homepage overhaul benchmarked against AllTrails. Old 4-section layout (Hero, Four Pillars, Eyewitness Accounts, Get Started CTA) replaced with 8-section design centered on realistic device mockups. See "April 27-29" section below for full details.
 - Homepage hero A/B tested (5 variants), search bar enhanced with quick-search tags, Quick Links removed, SEO + JSON-LD added
 - Search page rewritten: fulltext API with ts_rank ranking (was ILIKE), autocomplete on phenomena, keyword/phrase toggle
 - Onboarding consolidated: `UnifiedOnboarding.tsx` replaces WelcomeOnboarding + ThreeTapOnboarding
@@ -926,6 +958,52 @@ No changes to ingestion engine, admin endpoints, DB schema, or other adapters.
 - `src/components/homepage/DiscoverPreview.tsx` — Hook scoring overhaul, feed_hook quality scoring, selection algorithm rewrite, section title change (~560 lines)
 - `src/components/discover/DiscoverCards.tsx` — ACCENT_VARIATIONS coverage, category quote borders
 - `src/pages/api/admin/generate-hooks.ts` — NEW: AI feed_hook generation endpoint (~190 lines)
+
+**April 27-29, 2026 — Complete Homepage Redesign (AllTrails Benchmark):**
+
+Major visual overhaul benchmarked against AllTrails.com to achieve world-class quality. Complete replacement of the old 4-section homepage (Hero, Four Pillars, Eyewitness Accounts, Get Started CTA) with an 8-section design centered on realistic device mockups and product showcase.
+
+**New section order:** Hero → Category Slideshow → AI Pattern Insight → Feed Phone Showcase → Map Phone Showcase → Lab Laptop Showcase → How It Works + FAQ → Data Proof + CTA
+
+**New components built:**
+- `src/components/homepage/PhoneMockup.tsx` — Realistic phone frame using SVG overlay with transparent screen cutout (evenodd compound path). IntersectionObserver scroll-triggered fade-up animation. 360px wide, aspect-ratio 92/170.
+- `src/components/homepage/LaptopMockup.tsx` — Same pattern for laptop. Dark charcoal base (not silver). 700px wide, aspect-ratio 440/257.
+- `src/components/homepage/FeedShowcase.tsx` — "What people are reporting" — phone mockup with mock feed cards (3 cards: UFO, Cryptid, Ghost). App Store + Google Play badges with QR code. Purple radial ambient glow.
+- `src/components/homepage/MapShowcase.tsx` — "Explore the global map" — phone mockup with dark map, glowing report dots, filter chips, stat bar. Compact "Available on iOS, Android & Web" CTA (varied from Feed section's full badges). Cyan ambient glow with gradient wash background.
+- `src/components/homepage/LabShowcase.tsx` — "Investigate the unknown" — laptop mockup showing mock Lab workspace (sidebar case files, report cards, credibility tags, constellation visualization). CTA links to /lab.
+- `src/components/homepage/AIInsight.tsx` — **REBUILT:** 4 rotating AI insights with crossfade (8s interval), clickable dot indicators, category tags ("Geographic correlation", "Temporal correlation", etc.), share button (Web Share API / clipboard fallback). Insights: military base correlation, 37th parallel, geomagnetic storms, orb/EMI co-occurrence. TODO: connect to real AI pipeline post-mass-ingestion.
+- `src/components/homepage/HowItWorks.tsx` — **NEW:** 3-step process ("aggregate → AI detects → you explore") + 5-question FAQ accordion. SEO-rich crawlable text.
+- `src/components/homepage/AppStoreBadges.tsx` — QR code (100×100) + App Store + Google Play badges.
+- `src/components/homepage/QuickNavStrip.tsx` — **UPDATED:** WebP images via `<picture>` element with PNG fallback.
+- `public/device-phone.svg` — High-fidelity vector phone frame (metallic bezel, notch, camera, side buttons). Extracted from purchased vector asset, modified with evenodd transparent screen cutout.
+- `public/device-laptop.svg` — High-fidelity vector laptop frame (dark charcoal base, trackpad, webcam, hinge). Same evenodd technique.
+- `public/categories/*.webp` — WebP conversions of category art (80-87% file size reduction).
+
+**Hero changes:**
+- Animated typewriter search placeholder cycling through 7 real example queries ("triangle UFOs over the Hudson Valley", "shadow people in old houses", etc.). Types, pauses, backspaces, cycles. Stops on focus.
+- Focus ring bumped to `focus:ring-primary-500/40` for accessibility.
+- 5 A/B tested headline variants (unchanged from prior work).
+
+**Design decisions documented:**
+- Phone sections use `items-start` (top-aligned text) with `md:pt-16` offset so headline sits at upper third of phone — AllTrails pattern.
+- Text-to-device gap: `md:gap-14` (56px). Section breakout: `md:-my-16` (phone), `md:-my-12` (laptop).
+- Feed section has full badges + QR; Map section has compact "Available on iOS, Android & Web" button — varied to avoid repetition fatigue.
+- Laptop base darkened to charcoal (#1a-#3a range) so keyboard area recedes against dark page background.
+- Section backgrounds differentiated: Feed has purple glow, Map has cyan glow + gradient wash, Lab is neutral.
+
+**Iterative expert panel process:**
+- Multiple rounds of 5-12 expert panel reviews (UX, Design, Marketing, Growth, Frontend Performance, Mobile UX, Copywriting, Community, SEO, Data Viz, Domain SME, Gen-Z Consumer).
+- AllTrails used as primary visual benchmark throughout.
+- Each round produced specific actionable changes that were implemented and verified.
+
+**Key files modified:** `src/pages/index.tsx` (section order, animated search, HowItWorks import), `public/device-laptop.svg` (darkened gradients), all homepage components listed above.
+
+**What needs work:**
+- Replace static phone/laptop mockup content with looped video recordings of actual product
+- Connect AI insight rotation to real pipeline results post-mass-ingestion
+- Replace placeholder data (feed cards, map dots, Lab workspace) with live content
+- Mobile testing of 360px phone at small viewport widths
+- Category image `srcset` with responsive sizes for mobile (currently WebP but full-res)
 
 **Touches other sessions:** ALL sessions (service worker is Foundation-level — all pages now cached by SW), Session 13 (mobile install prompt), Foundation (sw.js + _app.tsx SW registration), Session 10 (feed_hook column consumed + generation endpoint built, ~700 reports still need hooks, pipeline strategy documented for mass ingestion)
 
@@ -1124,6 +1202,8 @@ No changes to ingestion engine, admin endpoints, DB schema, or other adapters.
 
 | Date | Source Session | Note | Affects |
 |------|--------------|------|---------|
+| 2026-05-01 | Lab QA (L1) | **Radar/Lab polish continuation (May 1).** (1) Toast centering fix in `LabConstellationTab.tsx` — restructured from `translateX(-50%)` to flexbox centering to avoid CSS animation transform conflict. (2) Footer hidden on mobile via `hidden md:block` on `<footer>` in `Layout.tsx` — bottom tab nav replaces footer. (3) Legal/about links added to `profile.tsx` as mobile-only "About & Legal" section above Sign Out. (4) MobileBottomTabs label changed from "Investigate" to "Lab" for consistency. (5) Sticky tab bars on Lab and Explore pages using new `.sticky-below-header` CSS utility in `globals.css` that accounts for `safe-area-inset-top`. Lab header split into scrolling title + sticky tabs. Explore `top-14` replaced with `sticky-below-header`. **Files modified:** `LabConstellationTab.tsx`, `Layout.tsx`, `profile.tsx`, `MobileBottomTabs.tsx`, `globals.css`, `lab.tsx`, `explore.tsx`. | Foundation (Layout.tsx footer changed, globals.css new utility class), Mobile Design (Session 13 — footer hidden, bottom tab label changed, safe-area-aware sticky utility), Explore & Discovery (Session 2 — explore.tsx sticky tabs updated), Session A1 (Lab page header restructured, Profile page updated) |
+| 2026-04-29 | UI/UX Polish | **Cross-feature UI/UX polish pass.** (1) Discover page unified with site Layout — removed from `STANDALONE_PAGES` in `_app.tsx`, custom header removed, now renders inside shared Layout wrapper. (2) `CATEGORY_CONFIG` colors standardized: all categories updated to `-400` color variants and `/20` bgColor opacity for consistent brightness across hues. Affects every component that reads CATEGORY_CONFIG. (3) Browse category card hover previews replaced with static description text from CATEGORY_CONFIG (removed DB fetches). (4) Map filter panel: credibility filter removed entirely, category pills unified with CategoryFilter.tsx style, scroll cutoff fixed (`bottom-[52px]`), map auto-refits when panel opens/closes (`mapPadding` prop on MapContainer). (5) MapLibre zoom controls repositioned via CSS override in globals.css. **Files modified:** `_app.tsx`, `discover.tsx`, `explore.tsx`, `constants.ts`, `MapFilterPanel.tsx`, `MapContainer.tsx`, `globals.css`. | Explore & Discovery (Session 2), Map & Geospatial (Session 3), Foundation (Session 12 — _app.tsx, globals.css), ALL sessions (CATEGORY_CONFIG color change affects all category-colored UI) |
 | 2026-04-14 | Ingestion B1.5 | **Session B1.5: Adapter QA/QC (Live Smoke Tests) OPENED.** NDERF evaluative-tier neutralization verified — public `ndeType` always "Near-Death Experience", tier preserved internally in `case_profile.nderf_tier`. OBERF `case_profile` extraction rebuilt: `buildCaseProfile()` refactored to accept a `LabelResolver` closure; new `buildOBERFFieldMap()` handles OBERF's inline `color:green`/`color:blue` span markup (vs. NDERF's class-based markup). Added archive-type inference (OBE/SOBE archives default `cp_oob=yes`) and narrative-year date fallback. 3-row OBERF smoke test passed across full/NDERF-style/narrative-only page variants. **B2 mass ingestion BLOCKED until B1.5 signs off on every adapter.** B1.5 protocol: 5 reports per category per adapter → row-level SELECT verification → fix bugs → move on. Priority order: NDERF+OBERF re-verify → IANDS → BFRO → NUFORC → Reddit V2 → YouTube → Erowid. Details in `B1_5_QA_QC_NOTES.md`. Continuation prompt: `B1_5_CONTINUATION_PROMPT.md`. **No date cutoff on any adapter** (reversed an incorrect "Stop at 2019" policy cited in an earlier session summary). | Session 10 (active B1.5 work), Session B2 (blocked on B1.5 sign-off), Session 6b + Session 2 (unchanged — await B2) |
 | 2026-04-02 | Ingestion B1 | **Session B1: Adapter Hardening COMPLETE.** All 7 high-priority adapters audited. NUFORC scoping fix, Reddit V2 crosspost+content dedup + Experiencers subreddit + minScore raised to 10, YouTube completely rewritten with experiencer comment extraction (videos + comments as separate reports). BFRO/NDERF/IANDS/Erowid verified clean. Dry-run script created at `scripts/dry-run-adapters.ts`. `.env.example` updated with YOUTUBE_API_KEY. Estimated first-wave yield: ~250K-310K reports across all 7 adapters. | Session 10 (all adapters now hardened), Session 6b (YouTube comments as new report source type), Session 2/Explore (more diverse source types in feed after ingestion), Session B2 (exact mass ingestion commands documented in B1 section) |
 | 2026-03-25 | Dashboard (5) | **Dashboard UX Overhaul (Parts 1-6 COMPLETE).** Part 1: New dashboard page flow with 5 new components (QuickActions, ActivitySummary, SuggestedNextSteps, RecentDiscoveries, EmptyState). Part 2: ConstellationProgress.tsx — 5-tier milestone messaging (0-4/5-9/10-24/25-49/50+ entries) with contextual guidance on constellation page. Part 3: Saved items polish — category filter pills, sort dropdown, EmptyState integration, horizontal-scroll tabs on mobile. Part 4: Settings — Subscription section with CTA to /dashboard/subscription, About section with version + legal links. Part 5: ProgressMilestones.tsx — localStorage-based achievement tracking (firstSave, firstCaseFile, constellationUnlocked, aiInsightsUnlocked) with dismissable celebration banners. Part 6: Mobile polish — 44px touch targets on pills/buttons/tabs, horizontal-scroll + touch-pan-x on filter rows, responsive header stacking, always-visible action overlays on mobile. 7 new components total, 4 pages modified. | Mobile Design (touch targets standardized), Search & Nav (QuickActions links to /search and /ask), Subscription (settings now links to /dashboard/subscription) |
