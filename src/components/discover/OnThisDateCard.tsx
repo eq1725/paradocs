@@ -52,14 +52,18 @@ export function OnThisDateCard(props: OnThisDateCardProps) {
   }
 
   return (
-    <div className="h-screen w-full relative overflow-hidden bg-gray-950" role="article" aria-label="On this day card">
+    <div className="h-full w-full relative overflow-hidden bg-gray-950" role="article" aria-label="On this day card">
       {/* Amber/orange gradient background */}
       <div className="absolute inset-0 bg-gradient-to-br from-amber-950/50 via-gray-950 to-orange-950/30" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_30%,rgba(217,119,6,0.10),transparent_60%)]" />
 
-      {/* Content */}
+      {/* Content — V3 panel review fix: lifted to top third instead of
+          dead-centered. Year now sits at ~25% from top, leaving the bottom
+          half free for the headline + category + body + CTA. */}
       <div className={
-        'relative z-10 h-full flex flex-col justify-center items-center px-6 sm:px-10 text-center transition-all duration-700 ' +
+        'relative z-10 h-full flex flex-col items-center px-6 sm:px-10 text-center transition-all duration-700 ' +
+        // Top-aligned with calculated padding-top so content starts ~22% down
+        'pt-[calc(env(safe-area-inset-top,0px)+22vh)] pb-[calc(80px+env(safe-area-inset-bottom,0px)+24px)] md:pb-8 ' +
         (props.isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4')
       }>
         {/* Badge */}

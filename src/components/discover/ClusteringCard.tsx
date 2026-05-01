@@ -52,7 +52,7 @@ export function ClusteringCard(props: ClusteringCardProps) {
   var typeIcon = CLUSTER_ICONS[item.cluster_type] || '\uD83D\uDCC8'
 
   return (
-    <div className="h-screen w-full relative overflow-hidden bg-gray-950" role="article" aria-label="Cluster pattern card">
+    <div className="h-full w-full relative overflow-hidden bg-gray-950" role="article" aria-label="Cluster pattern card">
       {/* Top-corner label pill — panel review fix: special cards must self-identify */}
       <div className="absolute top-3 left-3 z-20">
         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/15 border border-purple-400/30 text-[10px] font-sans font-semibold uppercase tracking-wider text-purple-200">
@@ -71,9 +71,12 @@ export function ClusteringCard(props: ClusteringCardProps) {
         backgroundSize: '40px 40px'
       }} />
 
-      {/* Content */}
+      {/* Content — V3 panel review: top-aligned (consistent with other
+          special cards) so content doesn't get pushed below the visible
+          area when the mobile tab nav consumes the bottom 80px. */}
       <div className={
-        'relative z-10 h-full flex flex-col justify-center items-center px-6 sm:px-10 text-center transition-all duration-700 ' +
+        'relative z-10 h-full flex flex-col items-center px-6 sm:px-10 text-center transition-all duration-700 ' +
+        'pt-[calc(env(safe-area-inset-top,0px)+18vh)] pb-[calc(80px+env(safe-area-inset-bottom,0px)+24px)] md:pb-8 ' +
         (props.isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4')
       }>
         {/* Badge */}

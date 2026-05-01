@@ -599,6 +599,7 @@ export function PhenomenonCard(props: {
         <h2
           onClick={!props.expanded ? props.onExpand : undefined}
           className={'font-display font-bold text-white leading-snug ' + (props.expanded ? 'text-xl md:text-2xl' : 'text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] cursor-pointer')}
+          style={!props.expanded ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 4, overflow: 'hidden' } : undefined}
         >
           {displayText || item.name}
         </h2>
@@ -803,6 +804,7 @@ export function TextReportCard(props: {
         <h2
           onClick={!props.expanded ? props.onExpand : undefined}
           className={'font-display font-bold text-white leading-snug ' + (props.expanded ? 'text-xl md:text-2xl' : 'text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] cursor-pointer')}
+          style={!props.expanded ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 4, overflow: 'hidden' } : undefined}
         >
           {displayText || item.title}
         </h2>
@@ -963,6 +965,7 @@ export function MediaReportCard(props: {
         <h2
           onClick={!props.expanded ? props.onExpand : undefined}
           className={'font-display font-bold text-white leading-snug ' + (props.expanded ? 'text-xl md:text-2xl' : 'text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] cursor-pointer')}
+          style={!props.expanded ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 4, overflow: 'hidden' } : undefined}
         >
           {displayText || item.title}
         </h2>

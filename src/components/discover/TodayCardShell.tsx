@@ -98,7 +98,8 @@ export function TodayCardShell(props: TodayCardShellProps) {
 
   return (
     <div className="relative h-full w-full overflow-hidden font-sans">
-      {/* Hero image backdrop — only when provided */}
+      {/* Hero image backdrop — only when provided. 0.28 keeps the image
+          present without overpowering the dossier text layer. */}
       {props.heroImageUrl && (
         <div
           className="absolute inset-0 pointer-events-none"
@@ -106,19 +107,20 @@ export function TodayCardShell(props: TodayCardShellProps) {
             backgroundImage: 'url(' + props.heroImageUrl + ')',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            opacity: 0.32,
+            opacity: 0.28,
           }}
           aria-hidden="true"
         />
       )}
 
-      {/* Hero scrim — bottom-up gradient mask for legibility */}
+      {/* Hero scrim — heavier at top + middle for unambiguous headline
+          legibility, lifts only at the bottom 25% to let imagery breathe. */}
       {props.heroImageUrl && (
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
             backgroundImage:
-              'linear-gradient(to bottom, rgba(10,10,20,0.35) 0%, rgba(10,10,20,0.6) 40%, rgba(10,10,20,0.95) 100%)',
+              'linear-gradient(to bottom, rgba(10,10,20,0.55) 0%, rgba(10,10,20,0.78) 40%, rgba(10,10,20,0.95) 75%, rgba(10,10,20,0.98) 100%)',
           }}
           aria-hidden="true"
         />
@@ -185,37 +187,43 @@ export function TodayCardShell(props: TodayCardShellProps) {
         </div>
       )}
 
-      {/* Body scroll region — fills available vertical space, scrolls within */}
+      {/* Body scroll region — fills available vertical space, scrolls within.
+          On mobile, padding-bottom = CTA(64) + tab nav(80) + safe-area.
+          On md+ where the tab nav is hidden, padding-bottom = CTA(64) only.
+          Uses Tailwind arbitrary values to cleanly switch at the breakpoint. */}
       <div
-        className="absolute inset-0 flex flex-col z-10"
-        style={{ paddingTop: '54px', paddingBottom: '64px' }}
+        className="absolute inset-0 flex flex-col z-10 pt-[54px] pb-[calc(144px+env(safe-area-inset-bottom,0px))] md:pb-[64px]"
       >
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-6 md:px-8 lg:px-10 today-card-body">
           {props.children}
         </div>
       </div>
 
-      {/* Sticky bottom CTA bar — always visible regardless of body length */}
+      {/* Sticky bottom CTA bar — V3 fix: anchored ABOVE the mobile tab nav.
+          Previously bottom-0 was overlapped by the fixed MobileBottomTabs at
+          z-40, hiding the Read Case button until users scrolled the body. */}
       <div
         className={
-          'absolute bottom-0 left-0 right-0 z-20 px-3 sm:px-4 pt-2 pb-3 ' +
+          'absolute left-0 right-0 z-20 px-3 sm:px-4 pt-2 pb-3 ' +
+          'bottom-[calc(80px+env(safe-area-inset-bottom,0px))] md:bottom-0 ' +
           'flex items-center gap-2 transition-colors duration-300 ' +
           (props.isSaved ? 'today-cta-saved' : '')
         }
         style={{
           background:
-            'linear-gradient(to top, rgba(10,10,20,0.92) 0%, rgba(10,10,20,0.7) 60%, rgba(10,10,20,0) 100%)',
+            'linear-gradient(to top, rgba(10,10,20,0.95) 0%, rgba(10,10,20,0.78) 55%, rgba(10,10,20,0) 100%)',
         }}
       >
         <div className="flex-1">{props.cta}</div>
         {props.ctaSecondary && <div className="flex-shrink-0">{props.ctaSecondary}</div>}
       </div>
 
-      {/* Next-card peek — 4px sliver of the next card's category color
-          at the very bottom edge of the viewport */}
+      {/* Next-card peek — 4px sliver of the next card's category color.
+          Positioned just above the tab nav on mobile, at the viewport edge
+          on desktop. */}
       {props.nextCatColor && (
         <div
-          className="absolute left-0 right-0 bottom-0 h-[4px] z-10 opacity-60"
+          className="absolute left-0 right-0 h-[4px] z-10 opacity-60 bottom-[calc(80px+env(safe-area-inset-bottom,0px))] md:bottom-0"
           style={{ background: props.nextCatColor }}
           aria-hidden="true"
         />
