@@ -20,9 +20,10 @@
  * SWC: var, function expressions, string concat only.
  */
 
-import React from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
+import { Search, X } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import type { PhenomenonCategory } from '@/lib/database.types'
@@ -70,8 +71,28 @@ export function TodayHeader(props: {
   feedbackLabel: string | null
   showShortcutsToggle?: boolean
   onToggleShortcuts?: () => void
+  // V2 panel review additions
+  /** Optional streak count — when > 0, shows a streak chip top-right */
+  streakDays?: number
+  /** Native search overlay value (controlled) */
+  searchQuery?: string
+  /** Search query change handler */
+  onSearchQueryChange?: (q: string) => void
 }) {
   var router = useRouter()
+  var [searchOpen, setSearchOpen] = useState(false)
+  var searchInputRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(function () {
+    if (searchOpen && searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }, [searchOpen])
+
+  function closeSearch() {
+    setSearchOpen(false)
+    if (props.onSearchQueryChange) props.onSearchQueryChange('')
+  }
 
   var counter = props.total > 0
     ? (Math.min(props.idx + 1, props.total)) + ' / ' + props.total
@@ -92,9 +113,9 @@ export function TodayHeader(props: {
       {/* sr-only h1 for accessibility + SEO */}
       <h1 className="sr-only">Today — Paradocs</h1>
 
-      {/* Lens chip strip */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide py-2">
+      {/* Lens chip strip — wrapped in fade-mask to hint at horizontal scroll */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide py-2 today-fade-mask-r">
           {LENSES.map(function (lens) {
             var isActive = props.lens === lens.key
             return (
@@ -115,9 +136,9 @@ export function TodayHeader(props: {
         </div>
       </div>
 
-      {/* Category chip strip */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
+      {/* Category chip strip — also wrapped in fade-mask */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 today-fade-mask-r">
           <button
             onClick={function () { props.onCategoryChange(null) }}
             className={
@@ -195,6 +216,27 @@ export function TodayHeader(props: {
           >
             {props.feedbackLabel || ''}
           </span>
+          {/* Streak chip — visible at 2+ day streak for daily-rhythm reinforcement (V2 #12) */}
+          {props.streakDays && props.streakDays >= 2 && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-400/30 text-[10px] font-sans font-semibold text-amber-300 flex-shrink-0"
+              title={props.streakDays + ' day streak'}
+            >
+              <span aria-hidden="true">{'🔥'}</span>
+              {props.streakDays}
+            </span>
+          )}
+          {/* Inline search button — opens overlay; doesn't navigate away (V2 #13) */}
+          {props.onSearchQueryChange && (
+            <button
+              onClick={function () { setSearchOpen(true) }}
+              className="inline-flex w-5 h-5 items-center justify-center rounded-full border border-white/10 text-[10px] text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0"
+              aria-label="Search Today"
+              title="Search Today"
+            >
+              <Search className="w-3 h-3" />
+            </button>
+          )}
           <Link
             href={browseHref}
             className="hidden sm:inline-flex text-[10px] font-sans font-medium text-gray-500 hover:text-primary-300 transition-colors flex-shrink-0"
@@ -216,6 +258,46 @@ export function TodayHeader(props: {
           )}
         </div>
       </div>
+
+      {/* Native search overlay — V2 panel review #13. Filters Today in place
+          via the searchQuery prop instead of routing out to /explore. */}
+      {searchOpen && (
+        <div className="absolute inset-x-0 top-0 z-40 bg-gray-950/97 backdrop-blur-md border-b border-white/10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-2">
+            <Search className="w-4 h-4 text-gray-500 flex-shrink-0" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              inputMode="search"
+              placeholder="Search today’s feed..."
+              value={props.searchQuery || ''}
+              onChange={function (e) {
+                if (props.onSearchQueryChange) props.onSearchQueryChange(e.target.value)
+              }}
+              onKeyDown={function (e) {
+                if (e.key === 'Escape') closeSearch()
+              }}
+              className="flex-1 bg-transparent text-[14px] text-white placeholder-gray-500 font-sans outline-none border-none"
+            />
+            {(props.searchQuery && props.searchQuery.length > 0) && (
+              <button
+                onClick={function () { if (props.onSearchQueryChange) props.onSearchQueryChange('') }}
+                aria-label="Clear search"
+                className="text-gray-400 hover:text-white transition-colors flex-shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              onClick={closeSearch}
+              className="text-[12px] font-sans text-gray-400 hover:text-white transition-colors flex-shrink-0 px-1"
+              aria-label="Close search"
+            >
+              {'Cancel'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

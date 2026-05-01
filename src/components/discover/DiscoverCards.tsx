@@ -28,6 +28,7 @@ import { classNames } from '@/lib/utils'
 import { Constellation } from './Constellation'
 import { deriveCaseProfile, nderfToCaseProfile, type CaseProfile } from '@/lib/caseProfile'
 import SourceBadge from '@/components/SourceBadge'
+import TodayCardShell from './TodayCardShell'
 
 // =========================================================================
 //  Shared types
@@ -158,6 +159,27 @@ function isLinkOnly(sourceType: string | null): boolean {
   if (!sourceType) return false
   return LINK_ONLY_SOURCES.indexOf(sourceType) !== -1
 }
+
+// =========================================================================
+//  Shared: sentence-boundary truncation
+//  Truncates at the nearest sentence end (.) or comma after `min` chars,
+//  falling back to a hard cut + ellipsis if none found before `max`.
+//  Used everywhere a body excerpt is shown on a card to avoid mid-word
+//  cutoffs like "spatiotempor..." (panel review V2 fix).
+// =========================================================================
+function truncateAtSentence(text: string, min: number = 100, max: number = 220): string {
+  if (!text) return ''
+  if (text.length <= max) return text
+  var window = text.slice(0, max)
+  // Prefer ". " over comma. Walk backward from max to find a sentence end.
+  var lastPeriod = Math.max(window.lastIndexOf('. '), window.lastIndexOf('? '), window.lastIndexOf('! '))
+  if (lastPeriod > min) return text.slice(0, lastPeriod + 1)
+  var lastComma = window.lastIndexOf(', ')
+  if (lastComma > min) return text.slice(0, lastComma) + '\u2026'
+  return window.trimEnd() + '\u2026'
+}
+
+
 
 // =========================================================================
 //  Category color map (hex values for accent stripe / inline color)
@@ -504,6 +526,13 @@ export function PhenomenonCard(props: {
   onCollapse?: () => void
   user: any
   onShowSignup: (show: boolean) => void
+  // V2 panel review additions
+  isSaved?: boolean
+  onSave?: () => void
+  onShare?: () => void
+  isTodaysLead?: boolean
+  whyReason?: string | null
+  nextCatColor?: string | null
 }) {
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
@@ -535,123 +564,125 @@ export function PhenomenonCard(props: {
   var displayText = item.feed_hook || item.ai_summary || ''
 
   return (
-    <div
-      className={'relative flex flex-col gap-4 md:gap-5 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}
-      role="article"
-      aria-label={'Encyclopedia entry: ' + (item.name || 'Phenomenon')}
-      style={{
-        backgroundImage: 'radial-gradient(ellipse 80% 60% at 100% 0%, ' + catColor + '14 0%, transparent 60%)',
-      }}
+    <TodayCardShell
+      catColor={catColor}
+      nextCatColor={props.nextCatColor || null}
+      heroImageUrl={item.primary_image_url || null}
+      isSaved={props.isSaved || false}
+      onSave={props.onSave || function () {}}
+      onShare={props.onShare}
+      isTodaysLead={props.isTodaysLead}
+      whyReason={props.whyReason || null}
+      cta={
+        !props.expanded ? (
+          <ReadCaseButton onExpand={props.onExpand} />
+        ) : (
+          <CollapseButton onCollapse={props.onCollapse || function () {}} />
+        )
+      }
     >
-      {/* Case type badge */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
-            <CategoryIcon category={item.category as PhenomenonCategory} size={12} />{' ' + badgeParts.join(' \u00B7 ')}
+      <div role="article" aria-label={'Encyclopedia entry: ' + (item.name || 'Phenomenon')} className="flex flex-col gap-3 md:gap-4 pt-1">
+        {/* Element 1 — Badge row (category + year + region, optional trending) */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
+            <CategoryIcon category={item.category as PhenomenonCategory} size={12} />
+            {' ' + badgeParts.join(' · ')}
           </span>
           {item.report_count > 20 && (
-            <span className="text-[9px] bg-primary-500/15 text-primary-400 px-2 py-0.5 rounded-full font-medium">
+            <span className="text-[9px] bg-primary-500/15 text-primary-400 px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">
               trending
             </span>
           )}
         </div>
-      </div>
 
-      {/* Location + meta — gray-400 for AA contrast (panel review).
-          Guard against empty primary_regions array producing a leading bullet. */}
-      <p className="text-[11px] text-gray-400 font-sans">
-        {((item.primary_regions && item.primary_regions.length > 0) ? item.primary_regions.join(', ') : 'Global') + (qf?.classification ? ' \u00B7 ' + qf.classification : '')}
-      </p>
+        {/* Element 2 — Headline (tap to expand) */}
+        <h2
+          onClick={!props.expanded ? props.onExpand : undefined}
+          className={'font-display font-bold text-white leading-snug ' + (props.expanded ? 'text-xl md:text-2xl' : 'text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] cursor-pointer')}
+        >
+          {displayText || item.name}
+        </h2>
 
-      {/* Large bold opener — font-display for headlines */}
-      <h2 className="text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] font-display font-bold text-white leading-snug">
-        {displayText || item.name}
-      </h2>
+        {/* Element 3 — Chip strip (credibility/evidence signals) */}
+        <CredibilityTags tags={credSignals} />
 
-      {/* Credibility signals */}
-      <CredibilityTags tags={credSignals} />
+        {/* Element 4 — Optional 1-stat callout (single biggest number) */}
+        {!props.expanded && tensionItems.length > 0 && (
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl md:text-3xl font-display font-bold" style={{ color: catColor }}>
+              {tensionItems[0].value}
+            </span>
+            <span className="text-[10px] md:text-xs text-gray-400 font-sans uppercase tracking-wider">
+              {tensionItems[0].label}
+            </span>
+          </div>
+        )}
 
-      {/* Tension stats */}
-      {tensionItems.length > 0 && (
-        <StatsRow items={tensionItems} color={catColor} />
-      )}
-
-      {/* Read Case / Expanded */}
-      {!props.expanded ? (
-        <ReadCaseButton onExpand={props.onExpand} />
-      ) : (
-        <>
-          <div className="h-px bg-white/[0.07] flex-shrink-0" />
-
-          {/* Description — prefer ai_description (richer) over ai_summary (often mirrors hook) */}
-          <p className="text-sm text-gray-400 leading-relaxed font-sans">
-            {item.ai_description || item.ai_summary || 'No additional information available.'}
-          </p>
-
-          {/* Quick facts strip */}
-          {qf && (
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 py-3 px-3 rounded-lg bg-white/[0.02] border border-white/[0.06] flex-shrink-0">
-              {qf.first_documented && (
-                <div className="flex flex-col">
-                  <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">First documented</span>
-                  <span className="text-xs text-gray-300 font-sans">{qf.first_documented}</span>
-                </div>
-              )}
-              {qf.origin && (
-                <div className="flex flex-col">
-                  <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Origin</span>
-                  <span className="text-xs text-gray-300 font-sans">{qf.origin}</span>
-                </div>
-              )}
-              {qf.typical_encounter && (
-                <div className="flex flex-col">
-                  <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Typical encounter</span>
-                  <span className="text-xs text-gray-300 font-sans">{qf.typical_encounter}</span>
-                </div>
-              )}
-              {qf.danger_level && (
-                <div className="flex flex-col">
-                  <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Danger level</span>
-                  <span className="text-xs text-gray-300 font-sans">{qf.danger_level}</span>
-                </div>
-              )}
-              {qf.notable_feature && (
-                <div className="flex flex-col col-span-2">
-                  <span className="text-[9px] text-gray-600 font-sans uppercase tracking-wider">Notable feature</span>
-                  <span className="text-xs text-gray-300 font-sans">{qf.notable_feature}</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Aliases */}
-          {item.aliases && item.aliases.length > 0 && (
-            <p className="text-[11px] text-gray-500 font-sans flex-shrink-0">
-              {'Also known as: ' + item.aliases.slice(0, 4).join(', ')}
+        {/* Element 5 — Body excerpt (collapsed) or full expanded view */}
+        {!props.expanded ? (
+          item.ai_summary && item.ai_summary !== displayText ? (
+            <p className="text-sm text-gray-300 leading-relaxed font-sans">
+              {truncateAtSentence(item.ai_summary, 80, 200)}
             </p>
-          )}
+          ) : null
+        ) : (
+          <div className="flex flex-col gap-4 pb-2">
+            <p className="text-sm text-gray-300 leading-relaxed font-sans">
+              {item.ai_description || item.ai_summary || 'No additional information available.'}
+            </p>
 
-          <Link
-            href={'/phenomena/' + item.slug}
-            className="inline-flex items-center gap-2 text-sm font-sans font-medium text-primary-400 hover:text-primary-300 transition-colors flex-shrink-0"
-          >
-            {'View Full Case \u2192'}
-          </Link>
-          {/* Constellation paywall — single canonical placement (panel review). */}
-          <Constellation />
-          {props.onCollapse && <CollapseButton onCollapse={props.onCollapse} />}
-          <div className="h-5" />
-        </>
-      )}
+            {qf && (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 py-3 px-3 rounded-lg bg-white/[0.03] border border-white/[0.06] flex-shrink-0">
+                {qf.first_documented && (
+                  <div className="flex flex-col">
+                    <span className="text-[9px] text-gray-500 font-sans uppercase tracking-wider">First documented</span>
+                    <span className="text-xs text-gray-200 font-sans">{qf.first_documented}</span>
+                  </div>
+                )}
+                {qf.origin && (
+                  <div className="flex flex-col">
+                    <span className="text-[9px] text-gray-500 font-sans uppercase tracking-wider">Origin</span>
+                    <span className="text-xs text-gray-200 font-sans">{qf.origin}</span>
+                  </div>
+                )}
+                {qf.typical_encounter && (
+                  <div className="flex flex-col">
+                    <span className="text-[9px] text-gray-500 font-sans uppercase tracking-wider">Typical encounter</span>
+                    <span className="text-xs text-gray-200 font-sans">{qf.typical_encounter}</span>
+                  </div>
+                )}
+                {qf.danger_level && (
+                  <div className="flex flex-col">
+                    <span className="text-[9px] text-gray-500 font-sans uppercase tracking-wider">Danger level</span>
+                    <span className="text-xs text-gray-200 font-sans">{qf.danger_level}</span>
+                  </div>
+                )}
+                {qf.notable_feature && (
+                  <div className="flex flex-col col-span-2">
+                    <span className="text-[9px] text-gray-500 font-sans uppercase tracking-wider">Notable feature</span>
+                    <span className="text-xs text-gray-200 font-sans">{qf.notable_feature}</span>
+                  </div>
+                )}
+              </div>
+            )}
 
-      {/* Bottom bar */}
-      {!props.expanded && (
-        <BottomStatsBar
-          left={item.report_count > 0 ? '\u2661 ' + item.report_count + ' reports' : ''}
-          right={qf?.first_documented || ''}
-        />
-      )}
-    </div>
+            {item.aliases && item.aliases.length > 0 && (
+              <p className="text-[11px] text-gray-400 font-sans">
+                {'Also known as: ' + item.aliases.slice(0, 4).join(', ')}
+              </p>
+            )}
+
+            <Link
+              href={'/phenomena/' + item.slug}
+              className="inline-flex items-center gap-2 text-sm font-sans font-medium text-primary-400 hover:text-primary-300 transition-colors"
+            >
+              {'View Full Case →'}
+            </Link>
+            <Constellation />
+          </div>
+        )}
+      </div>
+    </TodayCardShell>
   )
 }
 
@@ -668,6 +699,12 @@ export function TextReportCard(props: {
   onCollapse?: () => void
   user: any
   onShowSignup: (show: boolean) => void
+  isSaved?: boolean
+  onSave?: () => void
+  onShare?: () => void
+  isTodaysLead?: boolean
+  whyReason?: string | null
+  nextCatColor?: string | null
 }) {
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
@@ -728,92 +765,91 @@ export function TextReportCard(props: {
   if (item.comment_count > 0) tensionItems.push({ value: item.comment_count, label: 'comments' })
 
   return (
-    <div
-      className={'relative flex flex-col gap-4 md:gap-5 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}
-      role="article"
-      aria-label={'Eyewitness report: ' + (item.title || 'Untitled')}
-      style={{
-        backgroundImage: 'radial-gradient(ellipse 80% 60% at 100% 0%, ' + catColor + '14 0%, transparent 60%)',
-      }}
+    <TodayCardShell
+      catColor={catColor}
+      nextCatColor={props.nextCatColor || null}
+      heroImageUrl={item.associated_image_url || null}
+      isSaved={props.isSaved || false}
+      onSave={props.onSave || function () {}}
+      onShare={props.onShare}
+      isTodaysLead={props.isTodaysLead}
+      whyReason={props.whyReason || null}
+      cta={
+        !props.expanded ? (
+          <ReadCaseButton onExpand={props.onExpand} />
+        ) : (
+          <CollapseButton onCollapse={props.onCollapse || function () {}} />
+        )
+      }
     >
-      {/* Case type badge */}
-      <span className="text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
-        <CategoryIcon category={item.category as PhenomenonCategory} size={12} />{' ' + badgeParts.join(' \u00B7 ')}
-      </span>
+      <div role="article" aria-label={'Eyewitness report: ' + (item.title || 'Untitled')} className="flex flex-col gap-3 md:gap-4 pt-1">
+        {/* Element 1 — Badge row (category · year · location-trim) */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
+            <CategoryIcon category={item.category as PhenomenonCategory} size={12} />
+            {' ' + badgeParts.join(' · ')}
+          </span>
+          {item.source_type && (
+            <SourceBadge
+              sourceType={item.source_type}
+              sourceLabel={item.source_label || undefined}
+              sourceUrl={(item as any).source_url || undefined}
+              variant="compact"
+            />
+          )}
+        </div>
 
-      {/* Meta strip: location \u00B7 date \u00B7 phenomenon + source badge */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <p className="text-[11px] md:text-xs text-gray-400 font-sans">
-          {metaParts.filter(function(p) { return p !== item.source_label }).join(' \u00B7 ')}
-        </p>
-        {item.source_type && (
-          <SourceBadge
-            sourceType={item.source_type}
-            sourceLabel={item.source_label || undefined}
-            sourceUrl={item.source_url || undefined}
-            variant="compact"
-          />
+        {/* Element 2 — Headline (tap to expand) */}
+        <h2
+          onClick={!props.expanded ? props.onExpand : undefined}
+          className={'font-display font-bold text-white leading-snug ' + (props.expanded ? 'text-xl md:text-2xl' : 'text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] cursor-pointer')}
+        >
+          {displayText || item.title}
+        </h2>
+
+        {/* Element 3 — Chip strip (evidence signals) */}
+        <CredibilityTags tags={credSignals} />
+
+        {/* Element 4 — Optional 1-stat callout */}
+        {!props.expanded && tensionItems.length > 0 && (
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl md:text-3xl font-display font-bold" style={{ color: catColor }}>
+              {tensionItems[0].value}
+            </span>
+            <span className="text-[10px] md:text-xs text-gray-400 font-sans uppercase tracking-wider">
+              {tensionItems[0].label}
+            </span>
+          </div>
+        )}
+
+        {/* Element 5 — Body excerpt (sentence-boundary truncation) or expanded analysis */}
+        {!props.expanded ? (
+          item.summary ? (
+            <p className="text-sm text-gray-300 leading-relaxed font-sans">
+              {truncateAtSentence(item.summary, 80, 200)}
+            </p>
+          ) : null
+        ) : (
+          <div className="flex flex-col gap-4 pb-2">
+            {expandedText ? (
+              <p className="text-sm text-gray-300 leading-relaxed font-sans">{expandedText}</p>
+            ) : (
+              <p className="text-sm text-gray-400 italic leading-relaxed font-sans">
+                {'Analysis coming soon. View the full report for source details.'}
+              </p>
+            )}
+            {unifiedProfile && <CaseProfileChips profile={unifiedProfile} sourceType={item.source_type} />}
+            <Link
+              href={'/report/' + item.slug}
+              className="inline-flex items-center gap-2 text-sm font-sans font-medium text-primary-400 hover:text-primary-300 transition-colors"
+            >
+              {'View Full Report →'}
+            </Link>
+            <Constellation />
+          </div>
         )}
       </div>
-
-      {/* Large bold opener */}
-      <h2 className="text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] font-display font-bold text-white leading-snug">
-        {displayText || item.title}
-      </h2>
-
-      {/* Credibility */}
-      <CredibilityTags tags={credSignals} />
-
-      {/* Stats */}
-      {tensionItems.length > 0 && (
-        <StatsRow items={tensionItems} color={catColor} />
-      )}
-
-      {/* Read Case / Expanded */}
-      {!props.expanded ? (
-        <ReadCaseButton onExpand={props.onExpand} />
-      ) : (
-        <>
-          <div className="h-px bg-white/[0.07] flex-shrink-0" />
-
-          {/* Paradocs Analysis \u2014 our own longer analytical take */}
-          {expandedText ? (
-            <p className="text-sm text-gray-400 leading-relaxed font-sans">
-              {expandedText}
-            </p>
-          ) : (
-            <p className="text-sm text-gray-400 italic leading-relaxed font-sans">
-              {'Analysis coming soon. View the full report for source details.'}
-            </p>
-          )}
-
-          {/* Universal Case Profile chips \u2014 replaces generic Research Data Panel */}
-          {unifiedProfile && (
-            <CaseProfileChips profile={unifiedProfile} sourceType={item.source_type} />
-          )}
-
-          <Link
-            href={'/report/' + item.slug}
-            className="inline-flex items-center gap-2 text-sm font-sans font-medium text-primary-400 hover:text-primary-300 transition-colors flex-shrink-0"
-          >
-            {'View Full Report \u2192'}
-          </Link>
-          {/* Constellation paywall is canonically rendered here, once per expanded
-              card. Sidebar/detail-modal duplicates removed (panel review fix). */}
-          <Constellation />
-          {props.onCollapse && <CollapseButton onCollapse={props.onCollapse} />}
-          <div className="h-5" />
-        </>
-      )}
-
-      {/* Bottom bar */}
-      {!props.expanded && (
-        <BottomStatsBar
-          left={item.upvotes > 0 ? '\u2661 ' + item.upvotes.toLocaleString() : ''}
-          right={item.event_date ? new Date(item.event_date).getFullYear().toString() : ''}
-        />
-      )}
-    </div>
+    </TodayCardShell>
   )
 }
 
@@ -830,6 +866,12 @@ export function MediaReportCard(props: {
   onCollapse?: () => void
   user: any
   onShowSignup: (show: boolean) => void
+  isSaved?: boolean
+  onSave?: () => void
+  onShare?: () => void
+  isTodaysLead?: boolean
+  whyReason?: string | null
+  nextCatColor?: string | null
 }) {
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
@@ -880,110 +922,106 @@ export function MediaReportCard(props: {
   if (item.view_count > 0) tensionItems.push({ value: item.view_count > 999 ? Math.round(item.view_count / 100) / 10 + 'k' : item.view_count, label: 'views' })
 
   return (
-    <div
-      className={'relative flex flex-col gap-4 md:gap-5 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}
-      role="article"
-      aria-label={'Eyewitness report with media: ' + (item.title || 'Untitled')}
-      style={{
-        backgroundImage: 'radial-gradient(ellipse 80% 60% at 100% 0%, ' + catColor + '14 0%, transparent 60%)',
-      }}
+    <TodayCardShell
+      catColor={catColor}
+      nextCatColor={props.nextCatColor || null}
+      heroImageUrl={item.primary_media?.thumbnail_url || item.primary_media?.url || item.associated_image_url || null}
+      isSaved={props.isSaved || false}
+      onSave={props.onSave || function () {}}
+      onShare={props.onShare}
+      isTodaysLead={props.isTodaysLead}
+      whyReason={props.whyReason || null}
+      cta={
+        !props.expanded ? (
+          <ReadCaseButton onExpand={props.onExpand} />
+        ) : (
+          <CollapseButton onCollapse={props.onCollapse || function () {}} />
+        )
+      }
     >
-      {/* Case type badge + evidence marker */}
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
-          <CategoryIcon category={item.category as PhenomenonCategory} size={12} />{' ' + badgeParts.join(' \u00B7 ')}
-        </span>
-        <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-sans font-semibold uppercase tracking-wider">
-          Evidence
-        </span>
-      </div>
+      <div role="article" aria-label={'Eyewitness report with media: ' + (item.title || 'Untitled')} className="flex flex-col gap-3 md:gap-4 pt-1">
+        {/* Element 1 — Badge row + amber Evidence pill */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
+            <CategoryIcon category={item.category as PhenomenonCategory} size={12} />
+            {' ' + badgeParts.join(' · ')}
+          </span>
+          <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-sans font-semibold uppercase tracking-wider">
+            Evidence
+          </span>
+          {item.source_type && (
+            <SourceBadge
+              sourceType={item.source_type}
+              sourceLabel={item.source_label || undefined}
+              sourceUrl={(item as any).source_url || undefined}
+              variant="compact"
+            />
+          )}
+        </div>
 
-      {/* Meta strip: location \u00B7 date \u00B7 phenomenon + source badge */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <p className="text-[11px] text-gray-400 font-sans">
-          {metaParts.filter(function(p) { return p !== item.source_label }).join(' \u00B7 ')}
-        </p>
-        {item.source_type && (
-          <SourceBadge
-            sourceType={item.source_type}
-            sourceLabel={item.source_label || undefined}
-            sourceUrl={item.source_url || undefined}
-            variant="compact"
-          />
+        {/* Element 2 — Headline (tap to expand) */}
+        <h2
+          onClick={!props.expanded ? props.onExpand : undefined}
+          className={'font-display font-bold text-white leading-snug ' + (props.expanded ? 'text-xl md:text-2xl' : 'text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] cursor-pointer')}
+        >
+          {displayText || item.title}
+        </h2>
+
+        {/* Element 3 — Chip strip */}
+        <CredibilityTags tags={credSignals} />
+
+        {/* Element 4 — Optional 1-stat callout */}
+        {!props.expanded && tensionItems.length > 0 && (
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl md:text-3xl font-display font-bold text-amber-400">
+              {tensionItems[0].value}
+            </span>
+            <span className="text-[10px] md:text-xs text-gray-400 font-sans uppercase tracking-wider">
+              {tensionItems[0].label}
+            </span>
+          </div>
+        )}
+
+        {/* Element 5 — Body excerpt or expanded view (with media thumbnail) */}
+        {!props.expanded ? (
+          item.summary ? (
+            <p className="text-sm text-gray-300 leading-relaxed font-sans">
+              {truncateAtSentence(item.summary, 80, 200)}
+            </p>
+          ) : null
+        ) : (
+          <div className="flex flex-col gap-4 pb-2">
+            {item.primary_media && (item.primary_media.thumbnail_url || item.primary_media.url) && (
+              <div className="rounded-lg overflow-hidden flex-shrink-0">
+                <img
+                  src={item.primary_media.thumbnail_url || item.primary_media.url}
+                  alt={item.primary_media.caption || ''}
+                  className="w-full h-44 object-cover opacity-90"
+                  referrerPolicy="no-referrer"
+                />
+                {item.primary_media.caption && (
+                  <p className="text-[10px] text-gray-400 font-sans pt-1.5">{item.primary_media.caption}</p>
+                )}
+              </div>
+            )}
+            {expandedText ? (
+              <p className="text-sm text-gray-300 leading-relaxed font-sans">{expandedText}</p>
+            ) : (
+              <p className="text-sm text-gray-400 italic leading-relaxed font-sans">
+                {'Analysis coming soon. View the full report for source details.'}
+              </p>
+            )}
+            {unifiedProfile && <CaseProfileChips profile={unifiedProfile} sourceType={item.source_type} />}
+            <Link
+              href={'/report/' + item.slug}
+              className="inline-flex items-center gap-2 text-sm font-sans font-medium text-primary-400 hover:text-primary-300 transition-colors"
+            >
+              {'View Full Report →'}
+            </Link>
+            <Constellation />
+          </div>
         )}
       </div>
-
-      {/* Large bold opener */}
-      <h2 className="text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] font-display font-bold text-white leading-snug">
-        {displayText || item.title}
-      </h2>
-
-      {/* Credibility */}
-      <CredibilityTags tags={credSignals} />
-
-      {/* Stats */}
-      {tensionItems.length > 0 && (
-        <StatsRow items={tensionItems} color={catColor} />
-      )}
-
-      {/* Read Case / Expanded */}
-      {!props.expanded ? (
-        <ReadCaseButton onExpand={props.onExpand} />
-      ) : (
-        <>
-          <div className="h-px bg-white/[0.07] flex-shrink-0" />
-          {/* Media thumbnail */}
-          {item.primary_media && (item.primary_media.thumbnail_url || item.primary_media.url) && (
-            <div className="rounded-lg overflow-hidden flex-shrink-0">
-              <img
-                src={item.primary_media.thumbnail_url || item.primary_media.url}
-                alt={item.primary_media.caption || ''}
-                className="w-full h-44 object-cover opacity-80"
-                referrerPolicy="no-referrer"
-              />
-              {item.primary_media.caption && (
-                <p className="text-[10px] text-gray-500 font-sans pt-1.5">{item.primary_media.caption}</p>
-              )}
-            </div>
-          )}
-
-          {/* Paradocs Analysis \u2014 our own longer analytical take */}
-          {expandedText ? (
-            <p className="text-sm text-gray-400 leading-relaxed font-sans">
-              {expandedText}
-            </p>
-          ) : (
-            <p className="text-sm text-gray-400 italic leading-relaxed font-sans">
-              {'Analysis coming soon. View the full report for source details.'}
-            </p>
-          )}
-
-          {/* Universal Case Profile chips */}
-          {unifiedProfile && (
-            <CaseProfileChips profile={unifiedProfile} sourceType={item.source_type} />
-          )}
-
-          <Link
-            href={'/report/' + item.slug}
-            className="inline-flex items-center gap-2 text-sm font-sans font-medium text-primary-400 hover:text-primary-300 transition-colors flex-shrink-0"
-          >
-            {'View Full Report \u2192'}
-          </Link>
-          {/* Constellation paywall is canonically rendered here, once per expanded
-              card. Sidebar/detail-modal duplicates removed (panel review fix). */}
-          <Constellation />
-          {props.onCollapse && <CollapseButton onCollapse={props.onCollapse} />}
-          <div className="h-5" />
-        </>
-      )}
-
-      {/* Bottom bar */}
-      {!props.expanded && (
-        <BottomStatsBar
-          left={item.upvotes > 0 ? '\u2661 ' + item.upvotes.toLocaleString() : ''}
-          right={item.event_date ? new Date(item.event_date).getFullYear().toString() : ''}
-        />
-      )}
-    </div>
+    </TodayCardShell>
   )
 }

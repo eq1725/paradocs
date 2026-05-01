@@ -111,6 +111,68 @@ body {
   animation: today-streak-glow 2.4s ease-out infinite;
 }
 
+/* ===== V2 Panel Review additions ===== */
+
+/* Bookmark fill pulse — fires when user saves a card. Rapid scale + glow. */
+@keyframes today-bookmark-pulse {
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0   rgba(255, 209, 102, 0.45); }
+  40%  { transform: scale(1.18); box-shadow: 0 0 0 10px rgba(255, 209, 102, 0); }
+  100% { transform: scale(1);    box-shadow: 0 0 0 0   rgba(255, 209, 102, 0); }
+}
+.today-bookmark-pulse {
+  animation: today-bookmark-pulse 0.55s ease-out;
+}
+
+/* CTA bar saved-state subtle amber tint. Triggered when isSaved is true. */
+.today-cta-saved {
+  background:
+    linear-gradient(to top, rgba(255,209,102,0.06) 0%, rgba(10,10,20,0.7) 60%, rgba(10,10,20,0) 100%) !important;
+}
+
+/* Body scroll fade-mask — soft top + bottom fade so the user sees content
+   continues without a hard edge. WebKit + standard mask-image. */
+.today-card-body {
+  -webkit-mask-image: linear-gradient(to bottom,
+    transparent 0px,
+    rgba(0,0,0,1) 18px,
+    rgba(0,0,0,1) calc(100% - 18px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(to bottom,
+    transparent 0px,
+    rgba(0,0,0,1) 18px,
+    rgba(0,0,0,1) calc(100% - 18px),
+    transparent 100%
+  );
+}
+
+/* Right-edge fade-mask for horizontal chip strips. Hints "scrollable". */
+.today-fade-mask-r {
+  -webkit-mask-image: linear-gradient(to right,
+    rgba(0,0,0,1) 0%,
+    rgba(0,0,0,1) calc(100% - 28px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(to right,
+    rgba(0,0,0,1) 0%,
+    rgba(0,0,0,1) calc(100% - 28px),
+    transparent 100%
+  );
+}
+
+/* prefers-reduced-motion — disable all Today animations + transforms.
+   Required for WCAG / iOS accessibility (V2 panel review #25). */
+@media (prefers-reduced-motion: reduce) {
+  .today-skeleton,
+  .today-chevron-pulse,
+  .today-heart-pulse,
+  .today-tutorial-arrow,
+  .today-streak-glow,
+  .today-bookmark-pulse {
+    animation: none !important;
+  }
+}
+
 /* Hide scrollbar for horizontal scroll areas */
 .scrollbar-hide {
   -ms-overflow-style: none;

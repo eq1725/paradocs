@@ -229,8 +229,31 @@ export default function DiscoverPage() {
   var [feedOffset, setFeedOffset] = useState(0)
   var loadingRef = useRef(false)
 
-  // Filtered view of items based on the active lens
-  var displayItems = applyLens(items, lens)
+  // --- Search overlay state (V2 #13) — declared early so the displayItems
+  // memo below can reference it before the rest of the state block runs. ---
+  var [searchQuery, setSearchQuery] = useState('')
+
+  // Filtered view of items based on the active lens.
+  // V2 panel review: also applies a client-side search filter when the user
+  // has opened the search overlay and entered a query.
+  var lensFiltered = applyLens(items, lens)
+  var displayItems = (function () {
+    var q = (searchQuery || '').trim().toLowerCase()
+    if (!q) return lensFiltered
+    return lensFiltered.filter(function (it) {
+      var hay = ''
+      if (it.item_type === 'phenomenon') {
+        var p = it as PhenomenonItem
+        hay = ((p.name || '') + ' ' + (p.feed_hook || '') + ' ' + (p.ai_summary || '') + ' ' + (p.ai_description || '') + ' ' + (p.aliases || []).join(' ')).toLowerCase()
+      } else if (it.item_type === 'report') {
+        var r = it as ReportItem
+        hay = ((r.title || '') + ' ' + (r.feed_hook || '') + ' ' + (r.summary || '') + ' ' + (r.location_name || '') + ' ' + (r.city || '') + ' ' + (r.state_province || '') + ' ' + (r.country || '')).toLowerCase()
+      } else {
+        return true  // always include special cards
+      }
+      return hay.indexOf(q) >= 0
+    })
+  })()
 
   // --- Card index + gesture state ---
   var [idx, setIdx] = useState(0)
@@ -284,6 +307,28 @@ export default function DiscoverPage() {
   // --- Desktop keyboard shortcut overlay (default-collapsed per panel review) ---
   var [showShortcuts, setShowShortcuts] = useState(false)
 
+  // --- Save → Lab celebration loop (V2 panel review #20) ---
+  var saveCountRef = useRef(0)
+  var [celebrationToast, setCelebrationToast] = useState<string | null>(null)
+
+  // --- Streak (for header chip, V2 #12) ---
+  var [streakDays, setStreakDays] = useState<number>(0)
+  // searchQuery state lives near the top of the component (above displayItems)
+
+  // --- First-time Collapse tooltip (V2 panel review #15) ---
+  var COLLAPSE_TIP_KEY = 'today_collapse_tip_v1'
+  var [showCollapseTip, setShowCollapseTip] = useState(false)
+  function maybeShowCollapseTip() {
+    if (typeof window === 'undefined') return
+    try {
+      if (localStorage.getItem(COLLAPSE_TIP_KEY) !== '1') {
+        setShowCollapseTip(true)
+        setTimeout(function () { setShowCollapseTip(false) }, 4500)
+        localStorage.setItem(COLLAPSE_TIP_KEY, '1')
+      }
+    } catch (e) {}
+  }
+
   // Pending special cards
   var pendingSpecialCards = useRef<{ card: ExtendedFeedItem; position: number }[]>([])
   var specialCardsInjected = useRef(false)
@@ -318,6 +363,22 @@ export default function DiscoverPage() {
       })
       .catch(function () { /* tier read failed, leave default */ })
   }
+
+  // Pull streak data for the header chip (best-effort; quiet on failure).
+  useEffect(function () {
+    if (!user?.id) { setStreakDays(0); return }
+    var aborted = false
+    fetch('/api/user/streak')
+      .then(function (res) { return res.ok ? res.json() : null })
+      .then(function (data) {
+        if (aborted) return
+        if (data && data.streak && typeof data.streak.current_streak === 'number') {
+          setStreakDays(data.streak.current_streak)
+        }
+      })
+      .catch(function () {})
+    return function () { aborted = true }
+  }, [user?.id])
 
   // =========================================================================
   //  Onboarding + first-run gesture tutorial
@@ -526,21 +587,41 @@ export default function DiscoverPage() {
   //  Save / dismiss / more-like-this actions
   // =========================================================================
   function doSave(item: ExtendedFeedItem) {
-    // Only reports + phenomena are persistable. Special cards (cluster /
-    // on_this_date / promo) are skipped — saving them is meaningless and
-    // would just generate API errors.
+    // Only reports + phenomena are persistable.
     if (item.item_type !== 'report' && item.item_type !== 'phenomenon') {
       flash('Skipped')
       return
     }
     saves.persistSave(item.id, item.item_type)
     feedEvents.trackSave(item.id, item.item_type, (item as any).category || '')
+    haptic(35)
     flash('✦ Saved')
+    // Save → Lab celebration loop (panel review #20). Every 5 saves shows a
+    // transient toast with category breakdown.
+    var nextCount = saveCountRef.current + 1
+    saveCountRef.current = nextCount
+    if (nextCount > 0 && nextCount % 5 === 0) {
+      var catLabel = (item as any).category
+        ? CATEGORY_CONFIG[(item as any).category as keyof typeof CATEGORY_CONFIG]?.label
+        : null
+      var msg = catLabel
+        ? 'You’re building a ' + catLabel + ' archive — ' + nextCount + ' cases saved'
+        : nextCount + ' cases saved — visit Lab to organize'
+      setCelebrationToast(msg)
+      setTimeout(function () { setCelebrationToast(null) }, 4000)
+    }
+  }
+
+  function haptic(ms: number) {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try { (navigator as any).vibrate(ms) } catch (_) {}
+    }
   }
 
   function doDismiss(item: ExtendedFeedItem) {
     feedEvents.trackDismiss(item.id, item.item_type, (item as any).category || '')
     if (item.item_type === 'promo') bumpPromoDismissals()
+    haptic(15)
     flash('Dismissed')
   }
 
@@ -557,6 +638,7 @@ export default function DiscoverPage() {
     if ((item as any).category) sessionCtx.recordTap((item as any).category)
     setHeartPulse(true)
     setTimeout(function () { setHeartPulse(false) }, 900)
+    haptic(50)
     flash('♡ More like this')
   }
 
@@ -805,6 +887,57 @@ export default function DiscoverPage() {
 
   function handleCollapse() { setExpanded(false) }
 
+  // Tap-to-expand wrapper that also triggers the first-run Collapse tooltip
+  function handleExpand() {
+    setExpanded(true)
+    haptic(20)
+    maybeShowCollapseTip()
+  }
+
+  // Native OS share for the current card
+  function handleShare(item: ExtendedFeedItem) {
+    var origin = (typeof window !== 'undefined') ? window.location.origin : ''
+    var slug = (item as any).slug
+    if (!slug) return
+    var path = item.item_type === 'phenomenon' ? '/phenomena/' : '/report/'
+    var url = origin + path + slug
+    var title = (item as any).name || (item as any).title || 'Paradocs case'
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      try {
+        (navigator as any).share({ title: title, url: url }).catch(function () {})
+      } catch (_) {}
+    } else if (typeof navigator !== 'undefined' && (navigator as any).clipboard) {
+      try {
+        (navigator as any).clipboard.writeText(url)
+        flash('Link copied')
+      } catch (_) {}
+    }
+  }
+
+  // "Why you're seeing this" copy generation
+  function whyReasonFor(item: ExtendedFeedItem): string | null {
+    if (!item) return null
+    var cat = (item as any).category
+    if (!cat) return null
+    var catLabel = CATEGORY_CONFIG[cat as keyof typeof CATEGORY_CONFIG]?.label || cat
+    if (onboardingTopics.indexOf(cat) >= 0) {
+      return 'Because you picked ' + catLabel + ' during onboarding.'
+    }
+    if (sessionCtx.sessionDepth >= 3) {
+      return 'Trending in ' + catLabel + ' this week — surfaced based on engagement.'
+    }
+    return 'Recently added to ' + catLabel + '.'
+  }
+
+  // Color of the next card (for the bottom peek strip)
+  function nextCatColorFor(): string | null {
+    var next = displayItems[idx + 1]
+    if (!next) return null
+    var c = (next as any).category
+    if (!c) return null
+    return CATEGORY_COLORS[c] || null
+  }
+
   // Handle View Full Report / Case clicks → set return marker
   useEffect(function () {
     function onLinkClick(e: MouseEvent) {
@@ -844,13 +977,22 @@ export default function DiscoverPage() {
       )
     }
 
+    var why = whyReasonFor(card)
+    var nextColor = nextCatColorFor()
+    var leadFlag = idx === 0  // first card of the session = "Today's Lead"
+    var saveCb = function () { doSave(card) }
+    var shareCb = function () { handleShare(card) }
+    var savedNow = saves.isSaved(card.id)
+
     if (card.item_type === 'phenomenon') {
       return (
         <PhenomenonCard
           item={card as PhenomenonItem} index={idx} isActive={true}
-          expanded={expanded} onExpand={function () { setExpanded(true) }}
+          expanded={expanded} onExpand={handleExpand}
           onCollapse={handleCollapse}
           user={user} onShowSignup={setShowSignupPromptCb}
+          isSaved={savedNow} onSave={saveCb} onShare={shareCb}
+          isTodaysLead={leadFlag} whyReason={why} nextCatColor={nextColor}
         />
       )
     }
@@ -860,18 +1002,22 @@ export default function DiscoverPage() {
       return (
         <MediaReportCard
           item={report} index={idx} isActive={true}
-          expanded={expanded} onExpand={function () { setExpanded(true) }}
+          expanded={expanded} onExpand={handleExpand}
           onCollapse={handleCollapse}
           user={user} onShowSignup={setShowSignupPromptCb}
+          isSaved={savedNow} onSave={saveCb} onShare={shareCb}
+          isTodaysLead={leadFlag} whyReason={why} nextCatColor={nextColor}
         />
       )
     }
     return (
       <TextReportCard
         item={report} index={idx} isActive={true}
-        expanded={expanded} onExpand={function () { setExpanded(true) }}
+        expanded={expanded} onExpand={handleExpand}
         onCollapse={handleCollapse}
         user={user} onShowSignup={setShowSignupPromptCb}
+        isSaved={savedNow} onSave={saveCb} onShare={shareCb}
+        isTodaysLead={leadFlag} whyReason={why} nextCatColor={nextColor}
       />
     )
   }
@@ -936,6 +1082,13 @@ export default function DiscoverPage() {
           feedbackLabel={feedbackLabel}
           showShortcutsToggle={true}
           onToggleShortcuts={function () { setShowShortcuts(function (v) { return !v }) }}
+          streakDays={streakDays}
+          searchQuery={searchQuery}
+          onSearchQueryChange={function (q: string) {
+            setSearchQuery(q)
+            // Reset position so search results start at the top
+            if (idx !== 0) setIdx(0)
+          }}
         />
 
         {/* Main content */}
@@ -960,16 +1113,38 @@ export default function DiscoverPage() {
               style={{ background: catColor }}
             />
 
-            {/* Main card area */}
+            {/* Main card area — viewport-fit (V2 panel review). The
+                TodayCardShell handles its own internal padding + sticky CTA;
+                we just provide the positioning context + swipe transform.
+                Transform is suppressed when prefers-reduced-motion is on. */}
             <div
-              className="absolute inset-0 px-5 sm:px-6 md:px-8 lg:px-10 mobile-content-pb md:pb-8 overflow-y-auto transition-all duration-200"
+              className="absolute inset-0 transition-all duration-200 motion-reduce:transition-none"
               style={{
-                paddingTop: '1.5rem',
                 transform: swipeAnim === 'up' ? 'translateY(-52px)' : swipeAnim === 'down' ? 'translateY(52px)' : 'translateY(0)',
                 opacity: swipeAnim ? 0 : 1,
               }}
             >
-              {renderCardContent()}
+              {/* Zero-result lens empty state — V2 panel review #5 */}
+              {!loading && displayItems.length === 0 && (
+                <div className="h-full flex flex-col items-center justify-center text-center px-6">
+                  <div className="text-5xl mb-4 opacity-40">{'⊘'}</div>
+                  <h2 className="text-lg font-display font-semibold text-white mb-2">
+                    {'No cases match this view'}
+                  </h2>
+                  <p className="text-sm text-gray-400 font-sans max-w-sm mb-6">
+                    {lens === 'on-this-date'
+                      ? 'Nothing in our archive matches today’s date. Try All or Trending.'
+                      : 'Try a different lens or category.'}
+                  </p>
+                  <button
+                    onClick={function () { handleLensChange('all'); handleCategoryChange(null) }}
+                    className="px-5 py-2.5 rounded-full bg-primary-600 hover:bg-primary-500 text-white text-sm font-sans font-medium transition-colors"
+                  >
+                    Show All Cases
+                  </button>
+                </div>
+              )}
+              {(loading || displayItems.length > 0 || atEndOfFeed) && renderCardContent()}
             </div>
 
             {/* Persistent edge chevrons — replaces 6%-opacity vertical text.
@@ -1215,6 +1390,25 @@ export default function DiscoverPage() {
             >
               Keep scrolling
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Save → Lab celebration toast (V2 panel review #20) */}
+      {celebrationToast && (
+        <div className="fixed left-1/2 -translate-x-1/2 z-[55] pointer-events-none" style={{ bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}>
+          <div className="px-4 py-2.5 rounded-full bg-primary-600/95 backdrop-blur-md border border-primary-400/40 shadow-xl text-white text-[13px] font-sans font-medium today-streak-glow">
+            {celebrationToast}
+          </div>
+        </div>
+      )}
+
+      {/* First-run Collapse tooltip (V2 panel review #15) — appears once, only
+          the first time the user expands a card */}
+      {showCollapseTip && (
+        <div className="fixed left-1/2 -translate-x-1/2 z-[55] pointer-events-none" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 200px)' }}>
+          <div className="px-3.5 py-2 rounded-lg bg-gray-900/95 backdrop-blur-md border border-white/15 shadow-xl text-gray-100 text-[12px] font-sans">
+            {'Tap ▲ Collapse to return to the feed'}
           </div>
         </div>
       )}
