@@ -174,13 +174,16 @@ export function TodayHeader(props: {
               )
             })}
           </div>
-          {/* Feedback flash zone — aria-live polite for screen readers */}
+          {/* Feedback flash zone — aria-live polite for screen readers.
+              NOTE: was 'hidden xs:inline' but Tailwind has no default xs:
+              breakpoint, so the span was permanently invisible — saves
+              were firing but feedback was never shown (May 2026 fix). */}
           <span
             aria-live="polite"
             aria-atomic="true"
             className={
-              'text-[10px] font-medium font-sans truncate transition-opacity duration-200 hidden xs:inline ' +
-              (props.feedbackLabel ? 'opacity-100' : 'opacity-0 w-0')
+              'text-[10px] font-medium font-sans truncate transition-opacity duration-200 ' +
+              (props.feedbackLabel ? 'opacity-100 max-w-[140px]' : 'opacity-0 max-w-0 overflow-hidden')
             }
             style={{
               color: props.feedbackLabel && props.feedbackLabel.indexOf('✦') >= 0

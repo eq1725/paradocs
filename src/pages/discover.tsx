@@ -242,6 +242,7 @@ export default function DiscoverPage() {
   var [heartPulse, setHeartPulse] = useState(false)
   var touchStart = useRef<{ x: number; y: number; t: number } | null>(null)
   var longPressTimer = useRef<any>(null)
+  var longPressFiredRef = useRef<{ v: boolean } | null>(null)
   var animating = useRef(false)
 
   // --- Auth ---
@@ -604,39 +605,62 @@ export default function DiscoverPage() {
 
   function handleTouchStart(e: React.TouchEvent) {
     if (expanded || rabbitOpen || detailCard) return
+    if (!e.touches || e.touches.length === 0) return
     var t = e.touches[0]
     touchStart.current = { x: t.clientX, y: t.clientY, t: Date.now() }
-    // Long-press → "More like this"
+    // Long-press → "More like this". CRITICAL: timer must NOT null out
+    // touchStart.current — the original implementation did, which broke
+    // any swipe that took longer than 600ms (slow horizontal swipes,
+    // re-grip mid-swipe, etc.). Now the timer just fires the more-like-
+    // this action; touchend still sees touchStart and decides if it was
+    // a swipe vs a held tap based on movement distance.
+    var longPressFired = { v: false }
+    longPressFiredRef.current = longPressFired
     var item = displayItems[idx]
     if (item && (item.item_type === 'phenomenon' || item.item_type === 'report')) {
       longPressTimer.current = setTimeout(function () {
+        // Only fire if the user genuinely held still (handleTouchMove
+        // would have cleared this timer if they moved >8px).
+        longPressFired.v = true
         doMoreLikeThis(item)
-        // Clear so the touchEnd doesn't also fire save
-        touchStart.current = null
       }, 600)
     }
   }
 
   function handleTouchMove(e: React.TouchEvent) {
     if (!touchStart.current) return
+    if (!e.touches || e.touches.length === 0) return
     var t = e.touches[0]
     var dx = Math.abs(t.clientX - touchStart.current.x)
     var dy = Math.abs(t.clientY - touchStart.current.y)
-    if (dx > 8 || dy > 8) clearLongPress()
+    // 6px threshold — slightly more forgiving on iOS where the first
+    // touchmove can fire after only a few pixels of motion.
+    if (dx > 6 || dy > 6) clearLongPress()
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
     clearLongPress()
     if (!touchStart.current || expanded || rabbitOpen || detailCard) return
+    if (!e.changedTouches || e.changedTouches.length === 0) {
+      touchStart.current = null
+      return
+    }
     var dx = e.changedTouches[0].clientX - touchStart.current.x
     var dy = e.changedTouches[0].clientY - touchStart.current.y
+    var firedLong = longPressFiredRef.current ? longPressFiredRef.current.v : false
     touchStart.current = null
 
+    // If the long-press already fired ("More like this"), don't ALSO trigger
+    // a save/dismiss on the same touchend — but still allow vertical-swipe
+    // navigation if the motion was big.
+    if (firedLong && Math.abs(dx) < 60 && Math.abs(dy) < 60) return
+
+    var SWIPE_THRESHOLD = 35  // was 50 — more forgiving for short flicks
     if (Math.abs(dy) > Math.abs(dx)) {
-      if (dy < -45) nextCard()
-      if (dy > 45) setRabbitOpen(true)
+      if (dy < -SWIPE_THRESHOLD) nextCard()
+      else if (dy > SWIPE_THRESHOLD) setRabbitOpen(true)
     } else {
-      if (Math.abs(dx) < 50) return
+      if (Math.abs(dx) < SWIPE_THRESHOLD) return
       var item = displayItems[idx]
       if (!item) return
       if (dx < 0) {
@@ -916,9 +940,15 @@ export default function DiscoverPage() {
 
         {/* Main content */}
         <div className="flex-1 flex">
-          {/* Card pane — capped width at xl per panel review #14 */}
+          {/* Card pane — capped width at xl per panel review #14.
+              touch-action: pan-y tells iOS Safari to handle vertical pan
+              natively (so reading scrolls inner content) but leave
+              horizontal touches to React's onTouch* handlers. Without
+              this, horizontal swipes can be silently consumed by iOS
+              when an ancestor has overflow-y-auto. */}
           <div
             className="flex-1 relative overflow-hidden cursor-grab lg:max-w-2xl lg:mx-auto xl:mx-auto xl:max-w-3xl"
+            style={{ touchAction: 'pan-y' }}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
