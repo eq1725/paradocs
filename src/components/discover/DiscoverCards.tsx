@@ -223,13 +223,28 @@ function StatsRow(props: { items: { value: string | number, label: string }[], c
 //  Shared: Read Case button
 // =========================================================================
 
-function ReadCaseButton(props: { onExpand: () => void }) {
+export function ReadCaseButton(props: { onExpand: () => void }) {
   return (
     <button
       onClick={props.onExpand}
       className="w-full md:w-auto md:px-8 py-2.5 md:py-3 rounded-lg border border-white/10 bg-white/[0.03] text-gray-400 text-xs md:text-sm font-sans font-medium uppercase tracking-widest hover:bg-white/[0.06] hover:text-gray-300 transition-colors flex-shrink-0 cursor-pointer"
     >
       {'\u25BC Read Case'}
+    </button>
+  )
+}
+
+// Symmetric collapse affordance — panel review fix for "no way to collapse
+// on mobile" finding. Replaces ReadCaseButton when card is expanded.
+export function CollapseButton(props: { onCollapse: () => void }) {
+  return (
+    <button
+      onClick={props.onCollapse}
+      className="w-full md:w-auto md:px-8 py-2.5 md:py-3 rounded-lg border border-white/10 bg-white/[0.03] text-gray-400 text-xs md:text-sm font-sans font-medium uppercase tracking-widest hover:bg-white/[0.06] hover:text-gray-300 transition-colors flex-shrink-0 cursor-pointer"
+      aria-expanded="true"
+      aria-label="Collapse this case and return to the feed"
+    >
+      {'▲ Collapse'}
     </button>
   )
 }
@@ -477,6 +492,7 @@ export function PhenomenonCard(props: {
   isActive: boolean
   expanded: boolean
   onExpand: () => void
+  onCollapse?: () => void
   user: any
   onShowSignup: (show: boolean) => void
 }) {
@@ -525,8 +541,8 @@ export function PhenomenonCard(props: {
         </div>
       </div>
 
-      {/* Location + meta */}
-      <p className="text-[11px] text-gray-500 font-sans">
+      {/* Location + meta — gray-400 for AA contrast (panel review) */}
+      <p className="text-[11px] text-gray-400 font-sans">
         {(item.primary_regions ? item.primary_regions.join(', ') : 'Global') + (qf?.classification ? ' \u00B7 ' + qf.classification : '')}
       </p>
 
@@ -604,7 +620,9 @@ export function PhenomenonCard(props: {
           >
             {'View Full Case \u2192'}
           </Link>
+          {/* Constellation paywall — single canonical placement (panel review). */}
           <Constellation />
+          {props.onCollapse && <CollapseButton onCollapse={props.onCollapse} />}
           <div className="h-5" />
         </>
       )}
@@ -630,6 +648,7 @@ export function TextReportCard(props: {
   isActive: boolean
   expanded: boolean
   onExpand: () => void
+  onCollapse?: () => void
   user: any
   onShowSignup: (show: boolean) => void
 }) {
@@ -692,7 +711,11 @@ export function TextReportCard(props: {
   if (item.comment_count > 0) tensionItems.push({ value: item.comment_count, label: 'comments' })
 
   return (
-    <div className={'flex flex-col gap-4 md:gap-5 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}>
+    <div
+      className={'flex flex-col gap-4 md:gap-5 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}
+      role="article"
+      aria-label={'Eyewitness report: ' + (item.title || 'Untitled')}
+    >
       {/* Case type badge */}
       <span className="text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
         <CategoryIcon category={item.category as PhenomenonCategory} size={12} />{' ' + badgeParts.join(' \u00B7 ')}
@@ -755,7 +778,10 @@ export function TextReportCard(props: {
           >
             {'View Full Report \u2192'}
           </Link>
+          {/* Constellation paywall is canonically rendered here, once per expanded
+              card. Sidebar/detail-modal duplicates removed (panel review fix). */}
           <Constellation />
+          {props.onCollapse && <CollapseButton onCollapse={props.onCollapse} />}
           <div className="h-5" />
         </>
       )}
@@ -781,6 +807,7 @@ export function MediaReportCard(props: {
   isActive: boolean
   expanded: boolean
   onExpand: () => void
+  onCollapse?: () => void
   user: any
   onShowSignup: (show: boolean) => void
 }) {
@@ -833,7 +860,11 @@ export function MediaReportCard(props: {
   if (item.view_count > 0) tensionItems.push({ value: item.view_count > 999 ? Math.round(item.view_count / 100) / 10 + 'k' : item.view_count, label: 'views' })
 
   return (
-    <div className={'flex flex-col gap-4 md:gap-5 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}>
+    <div
+      className={'flex flex-col gap-4 md:gap-5 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}
+      role="article"
+      aria-label={'Eyewitness report with media: ' + (item.title || 'Untitled')}
+    >
       {/* Case type badge + evidence marker */}
       <div className="flex items-center justify-between">
         <span className="text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
@@ -915,7 +946,10 @@ export function MediaReportCard(props: {
           >
             {'View Full Report \u2192'}
           </Link>
+          {/* Constellation paywall is canonically rendered here, once per expanded
+              card. Sidebar/detail-modal duplicates removed (panel review fix). */}
           <Constellation />
+          {props.onCollapse && <CollapseButton onCollapse={props.onCollapse} />}
           <div className="h-5" />
         </>
       )}

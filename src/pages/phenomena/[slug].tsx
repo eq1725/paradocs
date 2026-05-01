@@ -33,6 +33,7 @@ import type { PhenomenonCategory } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
 import AskTheUnknown from '@/components/AskTheUnknown'
 import PhenomenonMiniMap from '@/components/PhenomenonMiniMap'
+import { BackToTodayBar } from '@/components/discover/BackToTodayBar'
 
 interface Phenomenon {
   id: string
@@ -271,6 +272,9 @@ export default function PhenomenonPage() {
         <title>{phenomenon.name} - Phenomena Encyclopedia - Paradocs</title>
         <meta name="description" content={phenomenon.ai_summary || `Learn about ${phenomenon.name} in our paranormal phenomena encyclopedia.`} />
       </Head>
+
+      {/* Back-to-Today bar — shown when user came from /discover (Today) */}
+      <BackToTodayBar />
 
       <div className="min-h-screen bg-gray-950">
         {/* Hero Section */}

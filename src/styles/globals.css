@@ -55,6 +55,62 @@ body {
   }
 }
 
+/* ===== /discover (Today) — panel-review additions ===== */
+
+/* Skeleton shimmer for SkeletonCard loading placeholder */
+@keyframes today-skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.today-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.02) 0%,
+    rgba(255,255,255,0.06) 50%,
+    rgba(255,255,255,0.02) 100%
+  );
+  background-size: 200% 100%;
+  animation: today-skeleton-shimmer 1.6s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
+
+/* Edge-chevron pulse for the persistent gesture affordances on /discover */
+@keyframes today-chevron-pulse {
+  0%, 100% { opacity: 0.18; transform: scale(1); }
+  50%      { opacity: 0.42; transform: scale(1.12); }
+}
+.today-chevron-pulse {
+  animation: today-chevron-pulse 2.4s ease-in-out infinite;
+}
+
+/* "More like this" heart pulse — fires on long-press / double-tap */
+@keyframes today-heart-pulse {
+  0%   { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
+  30%  { transform: translate(-50%, -50%) scale(1.25); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1.7); opacity: 0; }
+}
+.today-heart-pulse {
+  animation: today-heart-pulse 0.9s ease-out forwards;
+}
+
+/* Tutorial overlay backdrop pulse */
+@keyframes today-tutorial-arrow {
+  0%, 100% { transform: translate3d(0, 0, 0); opacity: 0.7; }
+  50%      { transform: translate3d(var(--arrow-dx, 0), var(--arrow-dy, 0), 0); opacity: 1; }
+}
+.today-tutorial-arrow {
+  animation: today-tutorial-arrow 1.6s ease-in-out infinite;
+}
+
+/* Streak chip subtle glow on EndOfFeedCard */
+@keyframes today-streak-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(144, 0, 240, 0.18); }
+  50%      { box-shadow: 0 0 0 6px rgba(144, 0, 240, 0); }
+}
+.today-streak-glow {
+  animation: today-streak-glow 2.4s ease-out infinite;
+}
+
 /* Hide scrollbar for horizontal scroll areas */
 .scrollbar-hide {
   -ms-overflow-style: none;

@@ -77,8 +77,9 @@ export default function Layout({ children }: LayoutProps) {
   }
 
   // Main navigation — unified labels across all nav surfaces
+  // (May 2026 panel-review rename: "Reports" → "Today")
   const navigation = [
-    { name: 'Reports', href: '/discover', icon: Flame },
+    { name: 'Today', href: '/discover', icon: Flame },
     { name: 'Phenomena', href: '/explore', icon: Compass },
     { name: 'Lab', href: '/lab', icon: Sparkles },
   ]
@@ -178,7 +179,7 @@ export default function Layout({ children }: LayoutProps) {
                         </div>
                         <Link href="/lab" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
                           <LayoutDashboard className="w-4 h-4" />
-                          Investigate
+                          Lab
                         </Link>
                         <Link href="/profile" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10">
                           <User className="w-4 h-4" />
@@ -219,8 +220,10 @@ export default function Layout({ children }: LayoutProps) {
       {/* Scroll position restoration for list-detail-list navigation */}
       <NavigationHelper />
 
-      {/* Main content - accounts for header + safe area (Dynamic Island) + bottom nav */}
-      <main className="main-content-pt pb-20 md:pb-0 min-h-screen">
+      {/* Main content - accounts for header + safe area (Dynamic Island) + bottom nav.
+          /discover handles its own bottom padding via .mobile-content-pb on the inner pane,
+          so we suppress the global pb-20 there to avoid double padding (panel review fix). */}
+      <main className={'main-content-pt min-h-screen ' + (router.pathname === '/discover' ? 'pb-0' : 'pb-20 md:pb-0')}>
         {children}
       </main>
 
@@ -250,8 +253,8 @@ export default function Layout({ children }: LayoutProps) {
               <h4 className="font-medium text-white mb-4">Community</h4>
               <ul className="space-y-2 text-sm text-gray-400">
                 <li><Link href="/submit" className="hover:text-white">Submit Report</Link></li>
-                <li><Link href="/discover" className="hover:text-white">Reports</Link></li>
-                <li><Link href="/lab" className="hover:text-white">Investigate</Link></li>
+                <li><Link href="/discover" className="hover:text-white">Today</Link></li>
+                <li><Link href="/lab" className="hover:text-white">Lab</Link></li>
                 <li><Link href="/about" className="hover:text-white">About</Link></li>
               </ul>
             </div>

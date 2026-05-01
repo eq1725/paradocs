@@ -648,7 +648,8 @@ function ExploreBrowseMode() {
   var [contentType, setContentType] = useState<ContentType | 'all' | 'primary'>('primary')
   var [showFilters, setShowFilters] = useState(false)
 
-  // Restore filter state from URL on mount
+  // Restore filter state from URL on mount.
+  // Also honors ?lens= from /discover's "View as list →" link (panel review #22)
   useEffect(function() {
     if (!router.isReady) return
     var q = router.query
@@ -658,6 +659,24 @@ function ExploreBrowseMode() {
     }
     if (q.q && typeof q.q === 'string') setSearchQuery(q.q)
     if (q.view === 'reports') setBrowseView('reports')
+
+    // Map /discover lens → /explore filter equivalents
+    if (q.lens && typeof q.lens === 'string') {
+      var lens = q.lens
+      if (lens === 'trending') {
+        setSort('popular' as SortOption)
+        setBrowseView('reports')
+      } else if (lens === 'recent') {
+        setSort('newest' as SortOption)
+        setBrowseView('reports')
+      } else if (lens === 'photo-video') {
+        setHasMedia(true)
+        setBrowseView('reports')
+      } else if (lens === 'on-this-date') {
+        // No direct equivalent; leave defaults but switch to reports view
+        setBrowseView('reports')
+      }
+    }
   }, [router.isReady])
 
   // Auth state

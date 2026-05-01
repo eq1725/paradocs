@@ -24,6 +24,7 @@ import ArticleTableOfContents from '@/components/ArticleTableOfContents'
 import ParadocsAnalysisBox from '@/components/reports/ParadocsAnalysisBox'
 import type { ParadocsAssessment } from '@/components/reports/ParadocsAnalysisBox'
 import { CaseProfileChips } from '@/components/discover/DiscoverCards'
+import { BackToTodayBar } from '@/components/discover/BackToTodayBar'
 import { deriveCaseProfile } from '@/lib/caseProfile'
 import SourceAttribution from '@/components/reports/SourceAttribution'
 import FeaturedMediaCard from '@/components/reports/FeaturedMediaCard'
@@ -699,6 +700,9 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           <meta key={i} property="article:tag" content={tag} />
         ))}
       </Head>
+
+      {/* Back-to-Today bar — shown when user came from /discover (Today) */}
+      <BackToTodayBar />
 
       {/* Admin preview banner */}
       {isPreview && report.status !== 'approved' && (

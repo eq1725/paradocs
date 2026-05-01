@@ -52,7 +52,15 @@ export function ClusteringCard(props: ClusteringCardProps) {
   var typeIcon = CLUSTER_ICONS[item.cluster_type] || '\uD83D\uDCC8'
 
   return (
-    <div className="h-screen w-full relative overflow-hidden bg-gray-950">
+    <div className="h-screen w-full relative overflow-hidden bg-gray-950" role="article" aria-label="Cluster pattern card">
+      {/* Top-corner label pill — panel review fix: special cards must self-identify */}
+      <div className="absolute top-3 left-3 z-20">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/15 border border-purple-400/30 text-[10px] font-sans font-semibold uppercase tracking-wider text-purple-200">
+          <span aria-hidden="true">{'◉'}</span>
+          Cluster pattern
+        </span>
+      </div>
+
       {/* Purple gradient background */}
       <div className="absolute inset-0 bg-gradient-to-br from-purple-950/60 via-gray-950 to-indigo-950/40" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_40%,rgba(144,0,240,0.12),transparent_60%)]" />

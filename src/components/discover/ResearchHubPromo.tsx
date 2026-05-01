@@ -25,7 +25,13 @@ interface ResearchHubPromoProps {
 
 export function ResearchHubPromo(props: ResearchHubPromoProps) {
   return (
-    <div className="h-screen w-full relative overflow-hidden bg-gray-950">
+    <div className="h-screen w-full relative overflow-hidden bg-gray-950" role="article" aria-label="Promotion: Research Hub">
+      {/* Top-corner label pill — panel review fix: special cards must self-identify */}
+      <div className="absolute top-3 left-3 z-20">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-400/30 text-[10px] font-sans font-semibold uppercase tracking-wider text-indigo-200">
+          From Paradocs
+        </span>
+      </div>
       {/* Gradient background */}
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/40 via-gray-950 to-purple-950/30" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_40%,rgba(99,102,241,0.10),transparent_60%)]" />

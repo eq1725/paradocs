@@ -490,9 +490,13 @@ export default function DiscoverPreview() {
         {/* Header */}
         <div className="flex items-end justify-between mb-8">
           <div>
-            <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-2">What people are reporting</h2>
+            <h2 className="text-xl sm:text-2xl font-display font-semibold text-white mb-2">Today on Paradocs</h2>
             <p className="text-sm sm:text-base text-gray-400 max-w-2xl">
               Real encounters and AI-detected patterns emerging from millions of cases.
+              {' '}
+              <Link href="/discover" className="text-primary-400 hover:text-primary-300 transition-colors font-medium">
+                {'Open Today →'}
+              </Link>
             </p>
           </div>
 

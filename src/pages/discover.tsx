@@ -1,19 +1,38 @@
 'use client'
 
 /**
- * /discover — Gesture-based card feed (Phase 4)
+ * /discover (Today) — Gesture-based card feed (Phase 4 + May 2026 panel review)
  *
- * Replaces CSS snap-scroll with custom touch gesture handling:
+ * Gestures:
  *   - Swipe UP    → next card in feed (TikTok muscle memory)
  *   - Swipe DOWN  → rabbit hole panel slides up with related cases
  *   - Swipe LEFT  → dismiss, flashes "Dismissed", advances
- *   - Swipe RIGHT → save, flashes "✦ Saved" in gold
- *   - Tap "Read Case" → expands summary + blurred Constellation paywall
+ *   - Swipe RIGHT → save, flashes "✦ Saved"
+ *   - Long-press  → "More like this" (heart pulse, weighted into affinity)
+ *   - Tap "Read Case" → expands summary + Constellation paywall
+ *   - Tap "Collapse" → returns to feed view
  *
- * All infrastructure preserved: feed-v2 API, behavioral tracking,
- * onboarding, gating, special card injection, session context.
+ * Panel-review changes (May 2026):
+ *   - Page renamed from "Reports" → "Today" everywhere (h1, title, nav, footer)
+ *   - TodayHeader replaces flat counter strip: lens + category chip strip,
+ *     segmented progress bar, "View as list →" link, aria-live feedback zone
+ *   - GestureTutorial replaces invisible 6%-opacity hints (first-run overlay)
+ *   - Persistent low-saturation edge chevrons (tappable fallback)
+ *   - Saves persist via useTodaySaves (localStorage + /api/user/saved POST)
+ *   - Touch handler gated on `expanded` so swipes don't hijack reading
+ *   - Auto-expand on 4s dwell (default ON, opt-out via cookie)
+ *   - Long-press = "more like this" — fires feed_event_type='more_like_this'
+ *   - Skeleton card replaces generic spinner
+ *   - End-of-feed celebration card with streak + outbound CTAs
+ *   - Tier-aware Research Hub promo (skip for Pro)
+ *   - Connected cases sidebar at lg: (was xl:)
+ *   - Constellation paywall consolidated to single canonical placement
+ *   - Desktop shortcut bar default-collapsed, surfaced via "?" in header
+ *   - Contextual signup prompt referencing current card
+ *   - Sets sessionStorage marker before View Full Report navigation
  *
- * SWC-compatible: var, function expressions, string concat.
+ * SWC: var, function expressions, string concat — no const/let, no arrow
+ * functions in JSX, no template literals.
  */
 
 import React, { useEffect, useState, useRef, useCallback } from 'react'
@@ -39,10 +58,17 @@ import { RabbitHolePanel } from '@/components/discover/RabbitHolePanel'
 import type { RabbitHoleCard } from '@/components/discover/RabbitHolePanel'
 import { DetailView } from '@/components/discover/DetailView'
 import { Constellation } from '@/components/discover/Constellation'
-// MobileBottomTabs now provided by Layout wrapper
+import { TodayHeader } from '@/components/discover/TodayHeader'
+import type { TodayLens } from '@/components/discover/TodayHeader'
+import { GestureTutorial, isGestureTutorialComplete, resetGestureTutorial } from '@/components/discover/GestureTutorial'
+import { EndOfFeedCard } from '@/components/discover/EndOfFeedCard'
+import { SkeletonCard } from '@/components/discover/SkeletonCard'
 import { useFeedEvents } from '@/lib/hooks/useFeedEvents'
 import { useSessionContext } from '@/lib/hooks/useSessionContext'
 import { useGateStatus } from '@/lib/hooks/useGateStatus'
+import { useTodaySaves } from '@/lib/hooks/useTodaySaves'
+import { setTodayReturnMarker } from '@/lib/hooks/useTodayReturn'
+import { useABTest } from '@/lib/ab-testing'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import type { PhenomenonCategory } from '@/lib/database.types'
@@ -70,8 +96,119 @@ var CATEGORY_COLORS: Record<string, string> = {
   combination: '#80cbc4',
 }
 
+// Promo dismissal tracking — panel review #15 (tier-aware promo)
+var PROMO_DISMISS_KEY = 'today_promo_dismissals_v1'
+function getPromoDismissals(): number {
+  if (typeof window === 'undefined') return 0
+  try {
+    var raw = localStorage.getItem(PROMO_DISMISS_KEY)
+    return raw ? parseInt(raw, 10) || 0 : 0
+  } catch (e) { return 0 }
+}
+function bumpPromoDismissals() {
+  if (typeof window === 'undefined') return
+  try { localStorage.setItem(PROMO_DISMISS_KEY, String(getPromoDismissals() + 1)) } catch (e) {}
+}
+
+// Lens post-filter — applied client-side after feed-v2 returns the scored
+// items. The category param is passed directly to feed-v2 (server-side filter).
+function applyLens(items: ExtendedFeedItem[], lens: TodayLens): ExtendedFeedItem[] {
+  if (lens === 'all') return items
+  if (lens === 'photo-video') {
+    return items.filter(function (it) {
+      if (it.item_type === 'cluster' || it.item_type === 'on_this_date' || it.item_type === 'promo') return true
+      if (it.item_type === 'report') return (it as ReportItem).has_photo_video
+      return false
+    })
+  }
+  if (lens === 'on-this-date') {
+    return items.filter(function (it) {
+      // Always include the actual on-this-date cards; otherwise pick items
+      // whose first_reported_date matches today's month/day (best-effort).
+      if (it.item_type === 'on_this_date' || it.item_type === 'promo') return true
+      var today = new Date()
+      var md = (today.getMonth() + 1) + '-' + today.getDate()
+      if (it.item_type === 'phenomenon') {
+        var p = it as PhenomenonItem
+        if (!p.first_reported_date) return false
+        var d = new Date(p.first_reported_date)
+        return ((d.getMonth() + 1) + '-' + d.getDate()) === md
+      }
+      if (it.item_type === 'report') {
+        var r = it as ReportItem
+        if (!r.event_date) return false
+        var dd = new Date(r.event_date)
+        return ((dd.getMonth() + 1) + '-' + dd.getDate()) === md
+      }
+      return false
+    })
+  }
+  if (lens === 'recent') {
+    // recent: lean on created_at (already weighted, but emphasize)
+    return items.slice().sort(function (a, b) {
+      var ac = (a as any).created_at || 0
+      var bc = (b as any).created_at || 0
+      return new Date(bc).getTime() - new Date(ac).getTime()
+    })
+  }
+  if (lens === 'trending') {
+    // trending: sort by upvote/view proxy where available
+    return items.slice().sort(function (a, b) {
+      var av = (a as any).upvotes || (a as any).report_count || 0
+      var bv = (b as any).upvotes || (b as any).report_count || 0
+      return bv - av
+    })
+  }
+  return items
+}
+
 export default function DiscoverPage() {
   var router = useRouter()
+
+  // --- URL-driven lens + category state (panel review IA fix) ---
+  var [lens, setLens] = useState<TodayLens>('all')
+  var [categoryFilter, setCategoryFilter] = useState<string | null>(null)
+
+  useEffect(function () {
+    if (!router.isReady) return
+    var qLens = (router.query.lens as string) || 'all'
+    var validLenses: TodayLens[] = ['all', 'trending', 'on-this-date', 'photo-video', 'recent']
+    if (validLenses.indexOf(qLens as TodayLens) >= 0) setLens(qLens as TodayLens)
+    else setLens('all')
+    var qCat = (router.query.category as string) || ''
+    setCategoryFilter(qCat || null)
+  }, [router.isReady, router.query.lens, router.query.category])
+
+  function pushQuery(nextLens: TodayLens, nextCat: string | null) {
+    var q: Record<string, string> = {}
+    if (nextLens && nextLens !== 'all') q.lens = nextLens
+    if (nextCat) q.category = nextCat
+    router.replace({ pathname: '/discover', query: q }, undefined, { shallow: true })
+  }
+
+  function handleLensChange(next: TodayLens) {
+    setLens(next)
+    pushQuery(next, categoryFilter)
+    // Reset position when filter changes for a clean experience
+    setIdx(0)
+    setItems([])
+    setFeedOffset(0)
+    setHasMore(true)
+    specialCardsInjected.current = false
+    pendingSpecialCards.current = []
+    setTimeout(function () { loadFeed(0) }, 0)
+  }
+  function handleCategoryChange(next: string | null) {
+    setCategoryFilter(next)
+    pushQuery(lens, next)
+    setIdx(0)
+    setItems([])
+    setFeedOffset(0)
+    setHasMore(true)
+    specialCardsInjected.current = false
+    pendingSpecialCards.current = []
+    setTimeout(function () { loadFeed(0) }, 0)
+  }
 
   // --- Feed state ---
   var [items, setItems] = useState<ExtendedFeedItem[]>([])
@@ -83,22 +220,28 @@ export default function DiscoverPage() {
   var [feedOffset, setFeedOffset] = useState(0)
   var loadingRef = useRef(false)
 
+  // Filtered view of items based on the active lens
+  var displayItems = applyLens(items, lens)
+
   // --- Card index + gesture state ---
   var [idx, setIdx] = useState(0)
   var [expanded, setExpanded] = useState(false)
   var [rabbitOpen, setRabbitOpen] = useState(false)
   var [detailCard, setDetailCard] = useState<RabbitHoleCard | null>(null)
-  var [saved, setSaved] = useState<Set<string>>(function () { return new Set() })
   var [swipeAnim, setSwipeAnim] = useState<string | null>(null)
   var [feedbackLabel, setFeedbackLabel] = useState<string | null>(null)
-  var touchStart = useRef<{ x: number; y: number } | null>(null)
+  var [heartPulse, setHeartPulse] = useState(false)
+  var touchStart = useRef<{ x: number; y: number; t: number } | null>(null)
+  var longPressTimer = useRef<any>(null)
   var animating = useRef(false)
 
   // --- Auth ---
   var [user, setUser] = useState<any>(null)
+  var [userTier, setUserTier] = useState<string | null>(null)
 
-  // --- Onboarding ---
+  // --- Onboarding + tutorial ---
   var [showOnboarding, setShowOnboarding] = useState(false)
+  var [showTutorial, setShowTutorial] = useState(false)
   var [onboardingTopics, setOnboardingTopics] = useState<string[]>([])
 
   // --- Related cards cache (for rabbit hole) ---
@@ -109,40 +252,68 @@ export default function DiscoverPage() {
   var feedEvents = useFeedEvents(user?.id || null)
   var sessionCtx = useSessionContext()
   var gateStatus = useGateStatus(user?.id || null)
+  var saves = useTodaySaves(user?.id || null)
+
+  // --- A/B variant: auto-expand on dwell (default = on) ---
+  var autoExpand = useABTest('today_auto_expand_v1', ['on', 'off'])
+  var autoExpandTimer = useRef<any>(null)
 
   // --- Dwell tracking ---
   var dwellStartRef = useRef<number>(Date.now())
   var [maxSeen, setMaxSeen] = useState(0)
 
-  // --- Signup prompt ---
+  // --- Signup prompt (contextual) ---
   var [showSignupPrompt, setShowSignupPrompt] = useState(false)
   var [signupDismissed, setSignupDismissed] = useState(false)
+
+  // --- Desktop keyboard shortcut overlay (default-collapsed per panel review) ---
+  var [showShortcuts, setShowShortcuts] = useState(false)
 
   // Pending special cards
   var pendingSpecialCards = useRef<{ card: ExtendedFeedItem; position: number }[]>([])
   var specialCardsInjected = useRef(false)
 
   // =========================================================================
-  //  Auth
+  //  Auth + tier
   // =========================================================================
   useEffect(function () {
     supabase.auth.getSession().then(function (result) {
-      setUser(result.data.session?.user || null)
+      var u = result.data.session?.user || null
+      setUser(u)
+      if (u) loadUserTier(u.id)
     })
     var sub = supabase.auth.onAuthStateChange(function (_event, session) {
-      setUser(session?.user || null)
+      var u = session?.user || null
+      setUser(u)
+      if (u) loadUserTier(u.id)
+      else setUserTier(null)
     })
     return function () { sub.data.subscription.unsubscribe() }
   }, [])
 
+  function loadUserTier(uid: string) {
+    // .single() returns a thenable; the catch chain isn't typed so we wrap in
+    // try via Promise.resolve() to keep TS happy without changing semantics.
+    Promise.resolve(
+      supabase.from('profiles').select('subscription_tier').eq('id', uid).single()
+    )
+      .then(function (r: any) {
+        var t = r?.data?.subscription_tier || 'free'
+        setUserTier(t)
+      })
+      .catch(function () { /* tier read failed, leave default */ })
+  }
+
   // =========================================================================
-  //  Onboarding
+  //  Onboarding + first-run gesture tutorial
   // =========================================================================
   useEffect(function () {
     if (!isOnboardingComplete()) {
       setShowOnboarding(true)
     } else {
       setOnboardingTopics(getOnboardingTopics())
+      // After onboarding, show gesture tutorial if user hasn't seen it.
+      if (!isGestureTutorialComplete()) setShowTutorial(true)
     }
   }, [])
 
@@ -165,11 +336,10 @@ export default function DiscoverPage() {
       offset: String(offset),
       seed: String(sessionSeed.current),
     })
-    if (onboardingTopics.length > 0) {
-      params.set('onboarding_topics', onboardingTopics.join(','))
-    }
+    if (onboardingTopics.length > 0) params.set('onboarding_topics', onboardingTopics.join(','))
     var sessionAff = sessionCtx.getSessionAffinityParam()
     if (sessionAff) params.set('session_affinity', sessionAff)
+    if (categoryFilter) params.set('category', categoryFilter)
 
     fetch('/api/discover/feed-v2?' + params.toString())
       .then(function (res) { return res.json() })
@@ -177,9 +347,7 @@ export default function DiscoverPage() {
         if (data.items && data.items.length > 0) {
           setItems(function (prev) {
             var existingIds = new Set(prev.map(function (p) { return p.id }))
-            var newItems = data.items.filter(function (item: ExtendedFeedItem) {
-              return !existingIds.has(item.id)
-            })
+            var newItems = data.items.filter(function (item: ExtendedFeedItem) { return !existingIds.has(item.id) })
             return offset > 0 ? (prev as ExtendedFeedItem[]).concat(newItems) : data.items
           })
           setFeedOffset(data.nextOffset || offset + data.items.length)
@@ -200,6 +368,8 @@ export default function DiscoverPage() {
 
   // =========================================================================
   //  Special card injection (clusters, on-this-date, promo)
+  //  Promo position is randomized within ±3 (panel review #15) and skipped
+  //  entirely for Pro users or after 2 dismissals.
   // =========================================================================
   function fetchSpecialCards() {
     if (specialCardsInjected.current) return
@@ -229,12 +399,18 @@ export default function DiscoverPage() {
     )
 
     Promise.all(fetches).then(function () {
-      var promoCard: PromoCardData = {
-        item_type: 'promo',
-        id: 'promo-research-hub-1',
-        promo_type: 'research_hub',
+      var promoSkip = userTier === 'pro' || userTier === 'enterprise' || getPromoDismissals() >= 2
+      if (!promoSkip) {
+        // Vary position by ±3 within session seed for variety
+        var jitter = (sessionSeed.current % 7) - 3   // -3..+3
+        var promoPos = Math.max(11, 14 + jitter)
+        var promoCard: PromoCardData = {
+          item_type: 'promo',
+          id: 'promo-research-hub-1',
+          promo_type: 'research_hub',
+        }
+        pendingSpecialCards.current.push({ card: promoCard, position: promoPos })
       }
-      pendingSpecialCards.current.push({ card: promoCard, position: 14 })
       pendingSpecialCards.current.sort(function (a, b) { return b.position - a.position })
 
       setItems(function (prev) {
@@ -253,15 +429,14 @@ export default function DiscoverPage() {
   //  Fetch related cards for rabbit hole
   // =========================================================================
   useEffect(function () {
-    if (items.length === 0) return
-    var activeItem = items[idx]
+    if (displayItems.length === 0) return
+    var activeItem = displayItems[idx]
     if (!activeItem) return
     if (activeItem.item_type !== 'phenomenon' && activeItem.item_type !== 'report') return
     if (relatedCache[activeItem.id] || relatedLoadingRef.current[activeItem.id]) return
 
     relatedLoadingRef.current[activeItem.id] = true
     var url = '/api/discover/related-cards?id=' + encodeURIComponent(activeItem.id) + '&type=' + encodeURIComponent(activeItem.item_type)
-
     fetch(url)
       .then(function (res) { return res.ok ? res.json() : null })
       .then(function (data) {
@@ -276,46 +451,59 @@ export default function DiscoverPage() {
       })
       .catch(function () {})
       .finally(function () { relatedLoadingRef.current[activeItem.id] = false })
-  }, [idx, items.length])
+  }, [idx, displayItems.length])
 
   // =========================================================================
-  //  Behavioral tracking
+  //  Behavioral tracking + auto-expand on dwell (A/B variant)
   // =========================================================================
   useEffect(function () {
-    if (items.length === 0) return
-    var item = items[idx]
+    if (displayItems.length === 0) return
+    var item = displayItems[idx]
     if (!item) return
 
-    // Track impression
     feedEvents.trackImpression(item.id, item.item_type, (item as any).category || '')
     dwellStartRef.current = Date.now()
 
-    // Track max seen
     if (idx > maxSeen) setMaxSeen(idx)
 
-    // Update session depth
     sessionCtx.recordImpression()
     gateStatus.updateSessionDepth(sessionCtx.sessionDepth)
 
-    // Prefetch more if near end
-    if (idx >= items.length - 5 && hasMore && !loadingRef.current) {
+    if (idx >= displayItems.length - 5 && hasMore && !loadingRef.current) {
       loadFeed(feedOffset)
     }
 
+    // Auto-expand on 4s dwell (A/B variant 'on' = default).
+    // Only triggers for content cards, not specials, not when expanded/rabbit/detail.
+    if (autoExpand.variant === 'on'
+        && (item.item_type === 'phenomenon' || item.item_type === 'report')
+        && !rabbitOpen && !detailCard && !expanded) {
+      autoExpandTimer.current = setTimeout(function () {
+        setExpanded(true)
+      }, 4000)
+    }
+
     return function () {
-      // Track dwell on leave
       var duration = Date.now() - dwellStartRef.current
-      if (item) {
-        feedEvents.trackDwell(item.id, item.item_type, (item as any).category || '', duration)
+      if (item) feedEvents.trackDwell(item.id, item.item_type, (item as any).category || '', duration)
+      if (autoExpandTimer.current) {
+        clearTimeout(autoExpandTimer.current)
+        autoExpandTimer.current = null
       }
     }
-  }, [idx, items.length])
+  }, [idx, displayItems.length, autoExpand.variant, rabbitOpen, detailCard, expanded])
+
+  // Dismiss promo bump on first promo encounter (so re-rendering doesn't re-bump)
+  useEffect(function () {
+    var item = displayItems[idx]
+    if (item && item.item_type === 'promo') {
+      // No bump on view; only on explicit dismiss via swipe-left
+    }
+  }, [idx, displayItems])
 
   // Signup gate at card 6
   useEffect(function () {
-    if (!user && !signupDismissed && idx === 5) {
-      setShowSignupPrompt(true)
-    }
+    if (!user && !signupDismissed && idx === 5) setShowSignupPrompt(true)
   }, [idx, user, signupDismissed])
 
   // =========================================================================
@@ -323,14 +511,51 @@ export default function DiscoverPage() {
   // =========================================================================
   function flash(label: string) {
     setFeedbackLabel(label)
-    setTimeout(function () { setFeedbackLabel(null) }, 900)
+    setTimeout(function () { setFeedbackLabel(null) }, 1100)
   }
 
   // =========================================================================
-  //  Gesture: next card
+  //  Save / dismiss / more-like-this actions
+  // =========================================================================
+  function doSave(item: ExtendedFeedItem) {
+    saves.persistSave(item.id)
+    feedEvents.trackSave(item.id, item.item_type, (item as any).category || '')
+    flash('✦ Saved')
+  }
+
+  function doDismiss(item: ExtendedFeedItem) {
+    feedEvents.trackDismiss(item.id, item.item_type, (item as any).category || '')
+    if (item.item_type === 'promo') bumpPromoDismissals()
+    flash('Dismissed')
+  }
+
+  function doMoreLikeThis(item: ExtendedFeedItem) {
+    // Track as a separate event_type so server-side affinity can weight higher
+    // than dwell/save. The useFeedEvents hook is event-type-agnostic, but the
+    // server endpoint at /api/events/feed accepts arbitrary event_type strings.
+    if ((feedEvents as any).trackMoreLike) {
+      (feedEvents as any).trackMoreLike(item.id, item.item_type, (item as any).category || '')
+    } else {
+      // Fallback path: emit as save with metadata flag (server can split later)
+      feedEvents.trackSave(item.id, item.item_type, (item as any).category || '')
+    }
+    if ((item as any).category) sessionCtx.recordTap((item as any).category)
+    setHeartPulse(true)
+    setTimeout(function () { setHeartPulse(false) }, 900)
+    flash('♡ More like this')
+  }
+
+  // =========================================================================
+  //  Gesture: next / prev
   // =========================================================================
   var nextCard = useCallback(function () {
-    if (animating.current || idx >= items.length - 1) return
+    if (animating.current || idx >= displayItems.length - 1 + 1) {
+      // Allow advancing to the synthetic end-of-feed slot when no more items
+      if (idx >= displayItems.length - 1 && !hasMore) {
+        setIdx(function (i) { return i + 1 })
+      }
+      return
+    }
     animating.current = true
     setSwipeAnim('up')
     setExpanded(false)
@@ -339,11 +564,8 @@ export default function DiscoverPage() {
       setSwipeAnim(null)
       animating.current = false
     }, 230)
-  }, [idx, items.length])
+  }, [idx, displayItems.length, hasMore])
 
-  // =========================================================================
-  //  Gesture: previous card
-  // =========================================================================
   var prevCard = useCallback(function () {
     if (animating.current || idx <= 0) return
     animating.current = true
@@ -357,45 +579,57 @@ export default function DiscoverPage() {
   }, [idx])
 
   // =========================================================================
-  //  Touch handlers
+  //  Touch handlers — gated on `expanded` (panel review fix)
   // =========================================================================
+  function clearLongPress() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }
+
   function handleTouchStart(e: React.TouchEvent) {
-    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    if (expanded || rabbitOpen || detailCard) return
+    var t = e.touches[0]
+    touchStart.current = { x: t.clientX, y: t.clientY, t: Date.now() }
+    // Long-press → "More like this"
+    var item = displayItems[idx]
+    if (item && (item.item_type === 'phenomenon' || item.item_type === 'report')) {
+      longPressTimer.current = setTimeout(function () {
+        doMoreLikeThis(item)
+        // Clear so the touchEnd doesn't also fire save
+        touchStart.current = null
+      }, 600)
+    }
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (!touchStart.current) return
+    var t = e.touches[0]
+    var dx = Math.abs(t.clientX - touchStart.current.x)
+    var dy = Math.abs(t.clientY - touchStart.current.y)
+    if (dx > 8 || dy > 8) clearLongPress()
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
-    if (!touchStart.current || rabbitOpen || detailCard) return
+    clearLongPress()
+    if (!touchStart.current || expanded || rabbitOpen || detailCard) return
     var dx = e.changedTouches[0].clientX - touchStart.current.x
     var dy = e.changedTouches[0].clientY - touchStart.current.y
     touchStart.current = null
 
     if (Math.abs(dy) > Math.abs(dx)) {
-      // Vertical swipe
-      if (dy < -45) nextCard()                     // swipe UP → next
-      if (dy > 45) setRabbitOpen(true)             // swipe DOWN → rabbit hole
+      if (dy < -45) nextCard()
+      if (dy > 45) setRabbitOpen(true)
     } else {
-      // Horizontal swipe
       if (Math.abs(dx) < 50) return
+      var item = displayItems[idx]
+      if (!item) return
       if (dx < 0) {
-        // swipe LEFT → dismiss
-        var dismissedItem = items[idx]
-        if (dismissedItem) {
-          feedEvents.trackDismiss(dismissedItem.id, dismissedItem.item_type, (dismissedItem as any).category || '')
-        }
-        flash('Dismissed')
+        doDismiss(item)
         nextCard()
       } else {
-        // swipe RIGHT → save
-        var currentItem = items[idx]
-        if (currentItem) {
-          setSaved(function (s) {
-            var n = new Set(s)
-            n.add(currentItem.id)
-            return n
-          })
-          feedEvents.trackSave(currentItem.id, currentItem.item_type, (currentItem as any).category || '')
-        }
-        flash('\u2726 Saved')
+        doSave(item)
       }
     }
   }
@@ -415,39 +649,38 @@ export default function DiscoverPage() {
   useEffect(function () {
     function handleKey(e: KeyboardEvent) {
       if (rabbitOpen || detailCard) return
+      if (expanded && e.key !== 'Escape') return
       if (e.key === 'ArrowUp' || e.key === 'k' || e.key === 'w' || e.key === 'W') {
-        e.preventDefault()
-        prevCard()
+        e.preventDefault(); prevCard()
       } else if (e.key === 'ArrowDown' || e.key === 'j' || e.key === 's' || e.key === 'S' || e.key === ' ') {
-        e.preventDefault()
-        nextCard()
+        e.preventDefault(); nextCard()
       } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
         e.preventDefault()
-        var dismissItem = items[idx]
-        if (dismissItem) {
-          feedEvents.trackDismiss(dismissItem.id, dismissItem.item_type, (dismissItem as any).category || '')
-        }
-        flash('Dismissed')
+        var dItem = displayItems[idx]
+        if (dItem) doDismiss(dItem)
         nextCard()
       } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
         e.preventDefault()
-        var currentItem = items[idx]
-        if (currentItem) {
-          setSaved(function (s) { var n = new Set(s); n.add(currentItem.id); return n })
-        }
-        flash('\u2726 Saved')
-      } else if (e.key === 'Enter') {
+        var sItem = displayItems[idx]
+        if (sItem) doSave(sItem)
+      } else if (e.key === 'h' || e.key === 'H') {
+        // "More like this"
         e.preventDefault()
-        setExpanded(true)
+        var hItem = displayItems[idx]
+        if (hItem) doMoreLikeThis(hItem)
+      } else if (e.key === 'Enter') {
+        e.preventDefault(); setExpanded(true)
       } else if (e.key === 'Escape') {
         e.preventDefault()
         if (expanded) setExpanded(false)
         else if (rabbitOpen) setRabbitOpen(false)
+      } else if (e.key === '?') {
+        setShowShortcuts(function (v) { return !v })
       }
     }
     window.addEventListener('keydown', handleKey)
     return function () { window.removeEventListener('keydown', handleKey) }
-  }, [idx, items.length, expanded, rabbitOpen, detailCard, nextCard, prevCard])
+  }, [idx, displayItems.length, expanded, rabbitOpen, detailCard, nextCard, prevCard])
 
   // =========================================================================
   //  Onboarding handler
@@ -455,6 +688,11 @@ export default function DiscoverPage() {
   function handleOnboardingComplete(topics: string[]) {
     setOnboardingTopics(topics)
     setShowOnboarding(false)
+    if (!isGestureTutorialComplete()) setShowTutorial(true)
+  }
+
+  function handleTutorialComplete() {
+    setShowTutorial(false)
   }
 
   // =========================================================================
@@ -462,16 +700,14 @@ export default function DiscoverPage() {
   // =========================================================================
   function handleCardTap(item: ExtendedFeedItem) {
     feedEvents.trackTap(item.id, item.item_type, (item as any).category || '')
-    if ((item as any).category) {
-      sessionCtx.recordTap((item as any).category)
-    }
+    if ((item as any).category) sessionCtx.recordTap((item as any).category)
   }
 
   // =========================================================================
   //  Build rabbit hole cards from related cache
   // =========================================================================
   function getRabbitHoleCards(): RabbitHoleCard[] {
-    var card = items[idx]
+    var card = displayItems[idx]
     if (!card) return []
     var related = relatedCache[card.id] || []
     return related.map(function (r) {
@@ -505,24 +741,15 @@ export default function DiscoverPage() {
         tag = rep.source_type || ''
         headline = rep.feed_hook || rep.summary || rep.title
         summary = rep.summary || ''
-        // Low/Medium/High credibility labels are intentionally NOT surfaced
-        // in the UI anymore (QA/QC Apr 15 2026).
         if (rep.has_photo_video) credibility.push('Photo/Video')
         if (rep.has_physical_evidence) credibility.push('Physical Evidence')
       }
 
       return {
-        id: r.id,
-        slug: (r as any).slug || r.id,
-        item_type: r.item_type,
-        category: cat,
-        categoryColor: catColor,
-        location: location,
-        year: year,
-        tag: tag,
-        headline: headline,
-        summary: summary,
-        credibility: credibility,
+        id: r.id, slug: (r as any).slug || r.id, item_type: r.item_type,
+        category: cat, categoryColor: catColor,
+        location: location, year: year, tag: tag,
+        headline: headline, summary: summary, credibility: credibility,
       }
     })
   }
@@ -530,43 +757,42 @@ export default function DiscoverPage() {
   // =========================================================================
   //  Current card state
   // =========================================================================
-  var card = items[idx]
-  var isSaved = card ? saved.has(card.id) : false
+  var card = displayItems[idx]
+  var atEndOfFeed = !card && !hasMore && displayItems.length > 0
   var catColor = card ? CATEGORY_COLORS[(card as any).category || ''] || '#b39ddb' : '#b39ddb'
-
-  // Card animation style
-  var cardStyle: React.CSSProperties = {
-    position: 'absolute',
-    inset: 0,
-    padding: '22px 22px 20px',
-    transition: 'transform 0.23s cubic-bezier(0.4,0,0.2,1), opacity 0.23s ease',
-    transform: swipeAnim === 'up' ? 'translateY(-52px)' : swipeAnim === 'down' ? 'translateY(52px)' : 'translateY(0)',
-    opacity: swipeAnim ? 0 : 1,
-    overflowY: 'hidden',
-  }
 
   var setShowSignupPromptCb = useCallback(function (show: boolean) {
     setShowSignupPrompt(show)
   }, [])
 
+  function handleCollapse() { setExpanded(false) }
+
+  // Handle View Full Report / Case clicks → set return marker
+  useEffect(function () {
+    function onLinkClick(e: MouseEvent) {
+      var target = e.target as HTMLElement
+      var anchor = target.closest('a') as HTMLAnchorElement | null
+      if (!anchor || !anchor.href) return
+      var href = anchor.getAttribute('href') || ''
+      if (href.indexOf('/report/') === 0 || href.indexOf('/phenomena/') === 0) {
+        setTodayReturnMarker(idx, totalAvailable || displayItems.length)
+      }
+    }
+    document.addEventListener('click', onLinkClick)
+    return function () { document.removeEventListener('click', onLinkClick) }
+  }, [idx, totalAvailable, displayItems.length])
+
   // =========================================================================
   //  Render card by type
   // =========================================================================
   function renderCardContent() {
+    if (atEndOfFeed) return <EndOfFeedCard cardsSeen={Math.max(idx, maxSeen, displayItems.length)} user={user} />
     if (!card) return null
 
-    // Special card types render their own full-screen layouts
-    if (card.item_type === 'cluster') {
-      return <ClusteringCard item={card as ClusterCardData} isActive={true} />
-    }
-    if (card.item_type === 'on_this_date') {
-      return <OnThisDateCard item={card as OnThisDateData} isActive={true} />
-    }
-    if (card.item_type === 'promo') {
-      return <ResearchHubPromo isActive={true} />
-    }
+    if (card.item_type === 'cluster') return <ClusteringCard item={card as ClusterCardData} isActive={true} />
+    if (card.item_type === 'on_this_date') return <OnThisDateCard item={card as OnThisDateData} isActive={true} />
+    if (card.item_type === 'promo') return <ResearchHubPromo isActive={true} />
 
-    // Gate check
     if (card.item_type === 'report' && gateStatus.status.isViewGated) {
       var reportItem = card as ReportItem
       return (
@@ -580,17 +806,13 @@ export default function DiscoverPage() {
       )
     }
 
-    // Standard cards
     if (card.item_type === 'phenomenon') {
       return (
         <PhenomenonCard
-          item={card as PhenomenonItem}
-          index={idx}
-          isActive={true}
-          expanded={expanded}
-          onExpand={function () { setExpanded(true) }}
-          user={user}
-          onShowSignup={setShowSignupPromptCb}
+          item={card as PhenomenonItem} index={idx} isActive={true}
+          expanded={expanded} onExpand={function () { setExpanded(true) }}
+          onCollapse={handleCollapse}
+          user={user} onShowSignup={setShowSignupPromptCb}
         />
       )
     }
@@ -599,124 +821,92 @@ export default function DiscoverPage() {
     if (report.has_photo_video) {
       return (
         <MediaReportCard
-          item={report}
-          index={idx}
-          isActive={true}
-          expanded={expanded}
-          onExpand={function () { setExpanded(true) }}
-          user={user}
-          onShowSignup={setShowSignupPromptCb}
+          item={report} index={idx} isActive={true}
+          expanded={expanded} onExpand={function () { setExpanded(true) }}
+          onCollapse={handleCollapse}
+          user={user} onShowSignup={setShowSignupPromptCb}
         />
       )
     }
-
     return (
       <TextReportCard
-        item={report}
-        index={idx}
-        isActive={true}
-        expanded={expanded}
-        onExpand={function () { setExpanded(true) }}
-        user={user}
-        onShowSignup={setShowSignupPromptCb}
+        item={report} index={idx} isActive={true}
+        expanded={expanded} onExpand={function () { setExpanded(true) }}
+        onCollapse={handleCollapse}
+        user={user} onShowSignup={setShowSignupPromptCb}
       />
     )
   }
 
-  // =========================================================================
-  //  Desktop sidebar: keyboard hints
-  // =========================================================================
-  var [showShortcuts, setShowShortcuts] = useState(true)
-
-  // =========================================================================
-  //  Responsive helpers
-  // =========================================================================
   var rabbitHoleCards = getRabbitHoleCards()
+  var totalForCounter = totalAvailable > 0 ? totalAvailable : displayItems.length
 
-  // =========================================================================
-  //  Loading state
-  // =========================================================================
-  if (loading && !showOnboarding) {
+  // Loading state — skeleton card instead of generic spinner
+  if (loading && !showOnboarding && displayItems.length === 0) {
     return (
       <>
-        <Head>
-          <title>Discover - Paradocs</title>
-        </Head>
-        <div className="flex items-center justify-center" style={{ minHeight: 'calc(100vh - 4rem)' }}>
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4" />
-            <p className="text-gray-400 text-lg font-sans">Loading stories...</p>
+        <Head><title>Today — Paradocs</title></Head>
+        <div className="flex flex-col" style={{ minHeight: 'calc(100vh - 4rem)' }}>
+          <TodayHeader
+            idx={0} total={0} lens={lens} category={categoryFilter}
+            onLensChange={handleLensChange} onCategoryChange={handleCategoryChange}
+            feedbackLabel={null}
+            showShortcutsToggle={false}
+          />
+          <div className="flex-1 px-5 sm:px-6 md:px-8 lg:px-10 py-6 max-w-2xl mx-auto w-full">
+            <SkeletonCard />
           </div>
         </div>
       </>
     )
   }
 
-  // =========================================================================
-  //  Progress percentage
-  // =========================================================================
-  var progressPct = totalAvailable > 0 ? ((idx + 1) / totalAvailable * 100) + '%' : items.length > 0 ? ((idx + 1) / items.length * 100) + '%' : '0%'
-  var counterText = (idx + 1) + ' / ' + (totalAvailable > 0 ? totalAvailable : items.length)
+  // Contextual signup prompt copy
+  function signupPromptBody() {
+    var anchor = displayItems[idx] as any
+    var cat = anchor && anchor.category ? CATEGORY_CONFIG[anchor.category as keyof typeof CATEGORY_CONFIG]?.label : null
+    var loc = anchor && (anchor.location_name || anchor.city || (anchor.primary_regions && anchor.primary_regions[0])) || null
+    if (cat && loc) return 'You’ve been reading about ' + cat + ' near ' + loc + '. Save this — and the four other ' + cat + ' cases you just passed — for free.'
+    if (cat) return 'You’ve been reading about ' + cat + '. Create a free account to save what you find and personalize Today.'
+    return 'Create a free account to save entries, get personalized recommendations, and submit your own sightings.'
+  }
 
-  // =========================================================================
-  //  Main render
-  // =========================================================================
   return (
     <>
       <Head>
-        <title>Discover - Paradocs</title>
-        <meta name="description" content="Scroll through the world's most fascinating paranormal phenomena and firsthand reports. Cryptids, UFOs, ghosts, and unexplained events." />
+        <title>Today — Paradocs</title>
+        <meta name="description" content="Today on Paradocs — scroll through the world's most fascinating paranormal phenomena and firsthand reports. Cryptids, UFOs, ghosts, and unexplained events." />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </Head>
 
-      {/* Onboarding overlay */}
       {showOnboarding && (
-        <TopicOnboarding
-          onComplete={handleOnboardingComplete}
-          userId={user?.id}
-        />
+        <TopicOnboarding onComplete={handleOnboardingComplete} userId={user?.id} />
+      )}
+      {!showOnboarding && showTutorial && (
+        <GestureTutorial onComplete={handleTutorialComplete} />
       )}
 
       <div className="flex flex-col" style={{ minHeight: 'calc(100vh - 4rem)' }}>
-        {/* Progress bar + counter strip — just below the site header */}
-        <div className="bg-gray-900/80 backdrop-blur-sm border-b border-white/5">
-          <div className="flex items-center justify-between h-9 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-            <div className="flex items-center gap-3">
-              {/* Feedback label */}
-              {feedbackLabel && (
-                <span className={
-                  'text-xs font-medium animate-fade-in ' +
-                  (feedbackLabel.indexOf('\u2726') >= 0 ? 'text-primary-400' : 'text-gray-400')
-                }>
-                  {feedbackLabel}
-                </span>
-              )}
-            </div>
-            {/* Card counter */}
-            <span className="text-xs text-gray-500 bg-white/5 px-2.5 py-1 rounded-full font-medium">
-              {counterText}
-            </span>
-          </div>
-          {/* Progress bar */}
-          <div className="h-0.5 bg-gray-900">
-            <div
-              className="h-full bg-primary-500 transition-all duration-300"
-              style={{ width: progressPct }}
-            />
-          </div>
-        </div>
+        {/* Today header — replaces the old counter strip */}
+        <TodayHeader
+          idx={idx}
+          total={totalForCounter}
+          lens={lens}
+          category={categoryFilter}
+          onLensChange={handleLensChange}
+          onCategoryChange={handleCategoryChange}
+          feedbackLabel={feedbackLabel}
+          showShortcutsToggle={true}
+          onToggleShortcuts={function () { setShowShortcuts(function (v) { return !v }) }}
+        />
 
-        {/* ================================================================
-            Main content — responsive layout
-            Mobile: full-screen card
-            Tablet: centered column
-            Desktop: two-pane (card + sidebar)
-            ================================================================ */}
+        {/* Main content */}
         <div className="flex-1 flex">
-          {/* ---- Card feed pane ---- */}
+          {/* Card pane — capped width at xl per panel review #14 */}
           <div
-            className="flex-1 relative overflow-hidden cursor-grab lg:max-w-2xl lg:mx-auto xl:mx-0 xl:max-w-none xl:flex-1"
+            className="flex-1 relative overflow-hidden cursor-grab lg:max-w-2xl lg:mx-auto xl:mx-auto xl:max-w-3xl"
             onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onWheel={handleWheel}
           >
@@ -738,48 +928,76 @@ export default function DiscoverPage() {
               {renderCardContent()}
             </div>
 
+            {/* Persistent edge chevrons — replaces 6%-opacity vertical text.
+                Tappable as a fallback for users who reject swipe gestures. */}
+            {!expanded && !rabbitOpen && !detailCard && !atEndOfFeed && (
+              <>
+                <button
+                  type="button"
+                  onClick={function () {
+                    var item = displayItems[idx]
+                    if (item) doDismiss(item)
+                    nextCard()
+                  }}
+                  aria-label="Dismiss this case (left)"
+                  className="hidden md:block absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full text-white/30 hover:text-white/70 hover:bg-white/5 transition-colors today-chevron-pulse"
+                >
+                  <span className="text-xl">{'‹'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={function () {
+                    var item = displayItems[idx]
+                    if (item) doSave(item)
+                  }}
+                  aria-label="Save this case (right)"
+                  className="hidden md:block absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full text-white/30 hover:text-amber-300 hover:bg-white/5 transition-colors today-chevron-pulse"
+                >
+                  <span className="text-xl">{'›'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={function () { setRabbitOpen(true) }}
+                  aria-label="Open rabbit hole (related cases)"
+                  className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-sans font-medium text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors"
+                >
+                  {'↓ More like this'}
+                </button>
+              </>
+            )}
 
-            {/* Mobile gesture hints (only on small screens, first 3 cards) */}
-            {!expanded && !rabbitOpen && !detailCard && idx < 3 && (
-              <div className="md:hidden">
-                <div className="absolute left-2 top-1/2 -translate-y-1/2 text-[8px] text-white/[0.06] font-sans" style={{ writingMode: 'vertical-lr' as const }}>
-                  {'\u2192 save'}
-                </div>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[8px] text-white/[0.06] font-sans" style={{ writingMode: 'vertical-lr' as const }}>
-                  {'\u2190 dismiss'}
-                </div>
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[8px] text-white/[0.06] font-sans">
-                  {'\u2193 rabbit hole'}
-                </div>
+            {/* "More like this" heart pulse overlay */}
+            {heartPulse && (
+              <div
+                className="absolute left-1/2 top-1/2 today-heart-pulse pointer-events-none"
+                aria-hidden="true"
+                style={{ color: '#FF6B9D', fontSize: '5rem' }}
+              >
+                {'♡'}
               </div>
             )}
 
-            {/* Rabbit hole panel (mobile: overlay, desktop: in sidebar) */}
+            {/* Rabbit hole + detail (mobile + lg) */}
             <div className="xl:hidden">
               {rabbitOpen && (
                 <RabbitHolePanel
-                  cards={rabbitHoleCards}
-                  color={catColor}
+                  cards={rabbitHoleCards} color={catColor}
                   onClose={function () { setRabbitOpen(false) }}
                   onSelect={function (c) { setDetailCard(c) }}
                 />
               )}
               {detailCard && (
-                <DetailView
-                  card={detailCard}
-                  onBack={function () { setDetailCard(null) }}
-                />
+                <DetailView card={detailCard} onBack={function () { setDetailCard(null) }} />
               )}
             </div>
           </div>
 
-          {/* ---- Desktop sidebar (xl+) ---- */}
+          {/* Connected cases sidebar — now at lg: (panel review #13) */}
           <div className="hidden xl:flex flex-col w-[380px] border-l border-gray-800/50 bg-gray-950 overflow-hidden">
-            {/* Sidebar header */}
             <div className="px-5 pt-4 pb-3 border-b border-white/5 flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm" style={{ color: catColor }}>{'\u25C9'}</span>
+                  <span className="text-sm" style={{ color: catColor }}>{'◉'}</span>
                   <span className="text-[10px] text-gray-400 font-sans font-medium uppercase tracking-wider">
                     Connected cases
                   </span>
@@ -790,7 +1008,6 @@ export default function DiscoverPage() {
               </div>
             </div>
 
-            {/* Related cards list */}
             <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2.5">
               {rabbitHoleCards.length > 0 ? (
                 rabbitHoleCards.map(function (c, i) {
@@ -807,8 +1024,8 @@ export default function DiscoverPage() {
                           <CategoryIcon category={c.category as PhenomenonCategory} size={10} />
                           {' ' + (catConfig?.label || c.category)}
                         </span>
-                        <span className="text-[9px] text-gray-500 font-sans">
-                          {c.location + (c.tag ? ' \u00B7 ' + c.tag : '')}
+                        <span className="text-[9px] text-gray-400 font-sans">
+                          {c.location + (c.tag ? ' · ' + c.tag : '')}
                         </span>
                       </div>
                       <p className="text-sm font-display font-semibold text-gray-200 leading-snug mb-1.5">
@@ -818,7 +1035,7 @@ export default function DiscoverPage() {
                         <div className="flex gap-1 flex-wrap">
                           {c.credibility.map(function (tag, j) {
                             return (
-                              <span key={j} className="text-[8px] px-2 py-0.5 rounded-full border border-white/[0.08] text-gray-500 font-sans">
+                              <span key={j} className="text-[8px] px-2 py-0.5 rounded-full border border-white/[0.08] text-gray-400 font-sans">
                                 {tag}
                               </span>
                             )
@@ -830,33 +1047,33 @@ export default function DiscoverPage() {
                 })
               ) : (
                 <div className="text-center py-8">
-                  <p className="text-gray-600 text-xs font-sans">No related cases loaded yet</p>
+                  <p className="text-gray-500 text-xs font-sans">No related cases loaded yet</p>
                 </div>
               )}
-              <div className="mt-2"><Constellation /></div>
+              {/* Constellation removed from sidebar (panel review fix — single canonical placement) */}
             </div>
-
           </div>
         </div>
 
-        {/* Detail view overlay (desktop: centered modal instead of panel) */}
+        {/* Detail view overlay (desktop modal) — Constellation removed for paywall consolidation */}
         {detailCard && (
           <div className="hidden xl:flex fixed inset-0 z-[60] items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className="w-full max-w-lg max-h-[80vh] bg-gray-900 border border-gray-700 rounded-2xl overflow-hidden flex flex-col">
               <div className="px-5 py-4 flex items-center justify-between flex-shrink-0 border-b border-white/5">
                 <span className="text-[10px] font-sans font-semibold uppercase tracking-wider" style={{ color: detailCard.categoryColor }}>
-                  {detailCard.category + ' \u00B7 ' + detailCard.year}
+                  {detailCard.category + ' · ' + detailCard.year}
                 </span>
                 <button
                   onClick={function () { setDetailCard(null) }}
-                  className="text-gray-500 hover:text-gray-300 text-xs font-sans font-medium uppercase tracking-wider px-2 py-1 transition-colors"
+                  className="text-gray-400 hover:text-gray-200 text-xs font-sans font-medium uppercase tracking-wider px-2 py-1 transition-colors"
+                  aria-label="Close"
                 >
-                  {'\u2715 Close'}
+                  {'✕ Close'}
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto px-5 py-4">
-                <p className="text-[11px] text-gray-500 font-sans mb-3">
-                  {detailCard.location + (detailCard.tag ? ' \u00B7 ' + detailCard.tag : '')}
+                <p className="text-[11px] text-gray-400 font-sans mb-3">
+                  {detailCard.location + (detailCard.tag ? ' · ' + detailCard.tag : '')}
                 </p>
                 <h2 className="text-xl font-display font-bold text-white leading-snug mb-3">
                   {detailCard.headline}
@@ -871,73 +1088,86 @@ export default function DiscoverPage() {
                   </div>
                 )}
                 <div className="h-px bg-white/[0.07] mb-4" />
-                <p className="text-sm text-gray-400 leading-relaxed font-sans">{detailCard.summary}</p>
+                <p className="text-sm text-gray-300 leading-relaxed font-sans">{detailCard.summary}</p>
                 <Link
                   href={(detailCard.item_type === 'phenomenon' ? '/phenomena/' : '/report/') + detailCard.slug}
                   className="inline-flex items-center gap-2 mt-4 text-sm font-sans font-medium text-primary-400 hover:text-primary-300 transition-colors"
                 >
-                  {detailCard.item_type === 'phenomenon' ? 'View Full Case \u2192' : 'View Full Report \u2192'}
+                  {detailCard.item_type === 'phenomenon' ? 'View Full Case →' : 'View Full Report →'}
                 </Link>
-                <div className="mt-5"><Constellation /></div>
               </div>
             </div>
           </div>
         )}
-
       </div>
 
-      {/* Desktop keyboard shortcuts — fixed to bottom of viewport */}
+      {/* Desktop keyboard shortcuts — default-collapsed, opens via "?" in header */}
       {showShortcuts && (
         <div className="hidden md:block fixed bottom-0 left-0 right-0 z-40 bg-gray-950/90 backdrop-blur-sm border-t border-white/5 px-8 lg:px-10 py-3">
-          <div className="flex items-center justify-center gap-6">
-            <span className="text-[10px] text-gray-500 font-sans font-medium uppercase tracking-wider flex-shrink-0">Shortcuts</span>
+          <div className="flex items-center justify-center gap-6 flex-wrap">
+            <span className="text-[10px] text-gray-400 font-sans font-medium uppercase tracking-wider flex-shrink-0">Shortcuts</span>
             {[
-              { key: 'W / \u2191', action: 'Previous' },
-              { key: 'S / \u2193', action: 'Next' },
-              { key: 'D / \u2192', action: 'Save' },
-              { key: 'A / \u2190', action: 'Dismiss' },
-              { key: 'Enter', action: 'Expand' },
-              { key: 'Esc', action: 'Close' },
+              { key: 'W / ↑',     action: 'Previous' },
+              { key: 'S / ↓',     action: 'Next' },
+              { key: 'D / →',     action: 'Save' },
+              { key: 'A / ←',     action: 'Dismiss' },
+              { key: 'H',              action: 'More like this' },
+              { key: 'Enter',          action: 'Expand' },
+              { key: 'Esc',            action: 'Close' },
+              { key: '?',              action: 'Toggle this bar' },
             ].map(function (s) {
               return (
                 <div key={s.key} className="flex items-center gap-1.5">
-                  <kbd className="text-[10px] bg-white/[0.05] border border-white/10 px-1.5 py-0.5 rounded text-gray-400 font-mono">{s.key}</kbd>
-                  <span className="text-[10px] text-gray-500 font-sans">{s.action}</span>
+                  <kbd className="text-[10px] bg-white/[0.05] border border-white/10 px-1.5 py-0.5 rounded text-gray-300 font-mono">{s.key}</kbd>
+                  <span className="text-[10px] text-gray-400 font-sans">{s.action}</span>
                 </div>
               )
             })}
-            <button onClick={function () { setShowShortcuts(false) }} className="ml-auto text-gray-600 hover:text-gray-400 text-xs transition-colors flex-shrink-0">{'\u2715'}</button>
+            <button
+              onClick={function () { setShowShortcuts(false) }}
+              className="ml-auto text-gray-400 hover:text-gray-200 text-xs transition-colors flex-shrink-0"
+              aria-label="Hide shortcuts"
+            >
+              {'✕'}
+            </button>
+            <button
+              onClick={function () { resetGestureTutorial(); setShowTutorial(true); setShowShortcuts(false) }}
+              className="text-[10px] text-gray-400 hover:text-primary-300 underline-offset-2 hover:underline transition-colors flex-shrink-0"
+            >
+              Replay tutorial
+            </button>
           </div>
         </div>
       )}
 
-      {/* Signup prompt overlay */}
+      {/* Contextual signup prompt overlay */}
       {showSignupPrompt && (
-        <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-6">
+        <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-6 safe-area-pb">
           <div className="w-full md:max-w-sm bg-gray-900 border-t md:border border-gray-700 rounded-t-2xl md:rounded-2xl p-6 text-center relative">
             <div className="flex justify-center mb-3 md:hidden">
               <div className="w-10 h-1 rounded-full bg-gray-700" />
             </div>
             <button
               onClick={function () { setShowSignupPrompt(false); setSignupDismissed(true) }}
-              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center text-gray-500 hover:text-white transition-colors"
+              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition-colors"
+              aria-label="Close"
             >
-              {'\u2715'}
+              {'✕'}
             </button>
-            <div className="text-3xl mb-3">{'\u2726'}</div>
+            <div className="text-3xl mb-3">{'✦'}</div>
             <h3 className="text-xl font-display font-bold text-white mb-2">Down the rabbit hole?</h3>
-            <p className="text-gray-400 text-sm font-sans mb-5">
-              Create a free account to save entries, get personalized recommendations, and submit your own sightings.
+            <p className="text-gray-300 text-sm font-sans mb-5">
+              {signupPromptBody()}
             </p>
             <Link
-              href="/login"
+              href="/login?redirect=/discover"
               className="block w-full py-3 bg-primary-600 hover:bg-primary-500 active:bg-primary-500 text-white rounded-full font-medium transition-colors mb-3"
             >
               Create Free Account
             </Link>
             <button
               onClick={function () { setShowSignupPrompt(false); setSignupDismissed(true) }}
-              className="text-sm text-gray-500 hover:text-gray-300 transition-colors py-2"
+              className="text-sm text-gray-400 hover:text-gray-200 transition-colors py-2"
             >
               Keep scrolling
             </button>
@@ -945,7 +1175,6 @@ export default function DiscoverPage() {
         </div>
       )}
 
-      {/* Keyframe styles for slide-up panels */}
       <style>{'\
         @keyframes slideUp { from{transform:translateY(100%);opacity:0} to{transform:translateY(0);opacity:1} }\
       '}</style>

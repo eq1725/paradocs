@@ -303,6 +303,75 @@ src/
 
 ## Session Progress Log
 
+### May 1, 2026 (PM) — Reports/Discover Panel Review + Full Implementation
+**Status:** COMPLETE (TS clean; pending push + deploy)
+
+Five-expert panel review of `/discover` (UX, mobile, engagement, product, IA)
+saved to `REPORTS_DISCOVER_PANEL_REVIEW.md`. All 23 prioritized recommendations
+plus the "out of scope" peripherals were implemented in one pass.
+
+**Renamed "Reports" → "Today" everywhere** — bottom nav (`MobileBottomTabs.tsx`),
+desktop nav (`Layout.tsx`), `<title>`, footer Community column. Footer
+"Investigate" → "Lab" cleanup at the same time.
+
+**New components:**
+- `src/components/discover/TodayHeader.tsx` — sticky page header with sr-only
+  h1, lens chip strip (All / Trending / On this day / Photo + Video / Recent),
+  scrollable category chip strip, 8-segment progress bar, "View as list →"
+  link, aria-live feedback zone, "?" shortcut toggle.
+- `src/components/discover/GestureTutorial.tsx` — first-run interactive overlay
+  teaching swipe up/right/left/down. Replays via shortcut bar.
+- `src/components/discover/EndOfFeedCard.tsx` — celebration card with streak
+  pull from `/api/user/streak` and 3 outbound CTAs.
+- `src/components/discover/SkeletonCard.tsx` — dossier-styled loading
+  placeholder. Replaces "Loading stories…" spinner.
+- `src/components/discover/BackToTodayBar.tsx` — sticky bar shown on
+  `/report/[slug]` and `/phenomena/[slug]` when user came from /discover.
+
+**New hooks:**
+- `src/lib/hooks/useTodaySaves.ts` — save persistence (localStorage for
+  anonymous; POST `/api/user/saved` with `collection_name='Today'` for auth).
+- `src/lib/hooks/useTodayReturn.ts` — sessionStorage marker for back-to-Today.
+
+**`/src/pages/discover.tsx` — full refactor** preserving all infrastructure
+(feed-v2, onboarding, special cards, gating, behavioral events). New:
+TodayHeader, URL-driven `?lens=`/`?category=`, touch handler gated on
+`expanded`, long-press = "More like this" (heart pulse), keyboard `H` and `?`,
+A/B test `today_auto_expand_v1` (variant 'on' auto-expands at 4s dwell), edge
+chevrons replace 6%-opacity vertical text, persistent saves via useTodaySaves,
+EndOfFeedCard at !hasMore, tier-aware promo (Pro skipped, position ±3 jitter,
+≥2 dismissals → suppressed), Constellation consolidated to single placement,
+desktop shortcut bar default-collapsed, contextual signup prompt at idx=5,
+auto setTodayReturnMarker on /report/* + /phenomena/* link clicks.
+
+**`DiscoverCards.tsx`:** new `CollapseButton`, `onCollapse` prop on all three
+card variants, `role="article"` + aria-labels, single-paywall comment marker.
+
+**Special cards self-identify:** "Cluster pattern" pill on ClusteringCard,
+"From Paradocs" pill on ResearchHubPromo. OnThisDateCard already had its own
+"On This Date" badge.
+
+**`/explore`** honors `?lens=` from /discover's "View as list →" link.
+
+**`Layout.tsx`** drops `pb-20` on `/discover` to fix the double-bottom-padding
+finding (~80px of dead space recovered).
+
+**`globals.css`** adds: `today-skeleton`, `today-chevron-pulse`,
+`today-heart-pulse`, `today-tutorial-arrow`, `today-streak-glow`.
+
+**Homepage `DiscoverPreview`** section heading → "Today on Paradocs" with an
+"Open Today →" link inline.
+
+**Verification:** `tsc --noEmit -p tsconfig.json` shows zero new errors from
+any file I created or modified. Pre-existing errors in `DiscoverCards.tsx`
+(`source_url`) and `report/[slug].tsx` (voting code) are unrelated.
+
+**Pending:** push to GitHub API + Vercel deploy; live mobile/desktop QA of
+tutorial flow, save persistence across refresh, back-to-Today bar, lens chip
+filtering, end-of-feed celebration, shortcut bar toggle.
+
+---
+
 ### May 1, 2026 — Radar/Lab Polish Continuation (Toast, Footer, Legal, Naming, Sticky Tabs)
 **Status:** COMPLETE
 

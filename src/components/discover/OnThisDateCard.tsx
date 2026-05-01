@@ -52,7 +52,7 @@ export function OnThisDateCard(props: OnThisDateCardProps) {
   }
 
   return (
-    <div className="h-screen w-full relative overflow-hidden bg-gray-950">
+    <div className="h-screen w-full relative overflow-hidden bg-gray-950" role="article" aria-label="On this day card">
       {/* Amber/orange gradient background */}
       <div className="absolute inset-0 bg-gradient-to-br from-amber-950/50 via-gray-950 to-orange-950/30" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_30%,rgba(217,119,6,0.10),transparent_60%)]" />

@@ -1,13 +1,13 @@
 'use client'
 
 /**
- * MobileBottomTabs — Session A1: UX Consolidation
+ * MobileBottomTabs — Session A1: UX Consolidation (May 2026: panel-review rename)
  *
- * New 4-tab structure (NO FAB, NO More sheet):
- * 1. Reports (flame) — /discover
- * 2. Phenomena (compass) — /explore
- * 3. Investigate (telescope) — /lab
- * 4. Profile (avatar) — /profile
+ * Current 4-tab structure (NO FAB, NO More sheet):
+ * 1. Today (flame)      — /discover  (formerly "Reports")
+ * 2. Phenomena (compass)— /explore
+ * 3. Lab (telescope)    — /lab
+ * 4. Profile (avatar)   — /profile
  *
  * The [+] FAB and "More" bottom sheet are completely removed.
  * Active tab indicator uses the existing brand primary color.
@@ -28,7 +28,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
 var TABS = [
-  { key: 'feed', label: 'Reports', icon: Flame, href: '/discover' },
+  { key: 'feed', label: 'Today', icon: Flame, href: '/discover' },
   { key: 'explore', label: 'Phenomena', icon: Compass, href: '/explore' },
   { key: 'lab', label: 'Lab', icon: Telescope, href: '/lab' },
   { key: 'profile', label: 'Profile', icon: User, href: '/profile' },
