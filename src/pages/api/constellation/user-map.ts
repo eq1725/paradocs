@@ -28,8 +28,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Invalid token' })
     }
 
-    // Parallel fetch: constellation entries, total phenomena count, streak, connections, theories, research hub artifacts, case file memberships, case files list, legacy saved_reports
-    const [entriesResult, totalResult, streakResult, connectionsResult, theoriesResult, artifactsResult, caseFileLinksResult, caseFilesListResult, savedReportsResult] = await Promise.all([
+    // Parallel fetch: constellation entries, total phenomena count, streak,
+    // connections, theories, research hub artifacts, case file memberships,
+    // case files list, legacy saved_reports, AND (May 2026) saved_phenomena
+    // for /discover (Today) phenomenon-card right-swipes.
+    const [entriesResult, totalResult, streakResult, connectionsResult, theoriesResult, artifactsResult, caseFileLinksResult, caseFilesListResult, savedReportsResult, savedPhenomenaResult] = await Promise.all([
       // User's logged constellation entries with report details
       supabase
         .from('constellation_entries')
@@ -114,6 +117,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false }),
+
+      // /discover (Today) phenomenon saves — saved_phenomena (May 2026).
+      // Right-swipe on a PhenomenonCard goes here. Folded into the unified
+      // feed alongside saved_reports so the Lab → SAVES count matches.
+      supabase
+        .from('saved_phenomena' as any)
+        .select(`
+          id,
+          phenomenon_id,
+          collection_name,
+          created_at,
+          phenomenon:phenomena(id, name, slug, category, ai_summary, primary_image_url, primary_regions, first_reported_date)
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false }),
     ])
 
     const entries = entriesResult.data || []
@@ -125,6 +143,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const caseFileLinks = (caseFileLinksResult as any).data || []
     const caseFilesList = (caseFilesListResult as any).data || []
     const savedReportsRows = (savedReportsResult as any).data || []
+    // Tolerate the case where the saved_phenomena migration hasn't been run yet
+    // — the supabase client returns an error rather than throwing. Default to
+    // empty so the rest of the map still renders.
+    const savedPhenomenaRows = ((savedPhenomenaResult as any).data || []) as any[]
 
     // ── Shared-with-me case files ──
     // Case files where the current user is an ACCEPTED collaborator (not just
@@ -316,6 +338,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       })
 
+    // ── Fold in /discover phenomena saves (saved_phenomena, May 2026)
+    // These are encyclopedia entries (no report_id) right-swiped on /discover.
+    // Same shape as savedOnlyNodes but pulled from a different table; we
+    // namespace the id as 'savedphen:' to avoid collisions.
+    const savedPhenomenaOnlyNodes = savedPhenomenaRows
+      .filter(function (s: any) { return s.phenomenon_id })
+      .map(function (s: any) {
+        const ph = unwrapReport(s.phenomenon) // unwrapReport handles either array or scalar embed
+        const cat = ph?.category || 'combination'
+        if (!categoryMap[cat]) categoryMap[cat] = { entries: 0, verdicts: {}, reportIds: [] }
+        categoryMap[cat].entries++
+        categoryMap[cat].verdicts['needs_info'] = (categoryMap[cat].verdicts['needs_info'] || 0) + 1
+
+        return {
+          id: 'savedphen:' + s.id,
+          reportId: null,
+          phenomenonId: s.phenomenon_id,
+          name: ph?.name || 'Saved encyclopedia entry',
+          slug: ph?.slug || '',
+          category: cat,
+          imageUrl: ph?.primary_image_url || null,
+          locationName: (ph?.primary_regions && ph.primary_regions[0]) || null,
+          latitude: null,
+          longitude: null,
+          eventDate: ph?.first_reported_date || null,
+          summary: ph?.ai_summary || null,
+          note: '',
+          verdict: 'needs_info',
+          tags: [] as string[],
+          loggedAt: s.created_at,
+          updatedAt: s.created_at,
+          isLegacyBookmark: true,
+          isPhenomenonSave: true,
+        }
+      })
+
     // Build tag-based connections (entries that share tags)
     const tagConnections: Array<{
       tag: string
@@ -419,7 +477,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
 
     // Merge all entry nodes: constellation logs + legacy bookmarks + external artifacts.
-    var allEntryNodes = entryNodes.concat(savedOnlyNodes).concat(externalEntryNodes)
+    var allEntryNodes = entryNodes.concat(savedOnlyNodes).concat(savedPhenomenaOnlyNodes).concat(externalEntryNodes)
 
     // Build per-case-file artifact counts for the CaseFileBar.
     // Covers owned + shared case files.

@@ -3,20 +3,28 @@
 /**
  * useTodaySaves — save/unsave persistence for the /discover (Today) feed.
  *
- * Behavior:
- *   - Anonymous users: writes to localStorage under TODAY_SAVES_KEY.
- *   - Authenticated users: POST /api/user/saved with collection_name='Today'.
- *   - Always also tracks the action in a local Set for instant UI updates.
- *   - On mount: hydrates the local Set from localStorage AND from the
- *     authenticated /api/user/saved?collection=Today endpoint when a
- *     supabase session is available.
+ * Bug-fix May 2026 (panel review follow-up): /discover serves both reports
+ * AND phenomena, and `saved_reports` strictly FK-references `reports.id`.
+ * The previous implementation POSTed phenomenon UUIDs into saved_reports,
+ * silently violating the FK; the catch swallowed the error and the user
+ * saw a saved-flash with no actual persistence.
+ *
+ * This version dispatches by `item_type`:
+ *   - 'report'     → POST /api/user/saved
+ *   - 'phenomenon' → POST /api/user/saved-phenomena (new endpoint)
+ *
+ * Saves no longer auto-assign a 'Today' collection — they go uncategorized,
+ * matching the existing /explore bookmark behavior. Users can move them
+ * into a collection from Lab → SAVES.
+ *
+ * Errors are logged to console.error so silent failures stop happening.
  *
  * Returns:
- *   - savedSet: Set<string> of report_id values currently saved
+ *   - savedSet: Set<string> of item_id values currently saved (any type)
  *   - isSaved(id): boolean
- *   - toggleSave(id): Promise<{ saved: boolean }>
- *   - persistSave(id): Promise<void>  (idempotent)
- *   - removeSave(id): Promise<void>
+ *   - persistSave(id, item_type): Promise — idempotent
+ *   - removeSave(id, item_type): Promise
+ *   - toggleSave(id, item_type): Promise<{ saved: boolean }>
  *
  * SWC: var, function expressions, string concat only.
  */
@@ -24,8 +32,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
+export type TodaySaveItemType = 'report' | 'phenomenon'
+
 var TODAY_SAVES_KEY = 'today_saves_v1'
-var TODAY_COLLECTION = 'Today'
 
 function readLocal(): Set<string> {
   if (typeof window === 'undefined') return new Set()
@@ -52,34 +61,56 @@ function getAuthHeader(): Promise<string | null> {
   }).catch(function () { return null })
 }
 
+function endpointFor(itemType: TodaySaveItemType): string {
+  return itemType === 'phenomenon' ? '/api/user/saved-phenomena' : '/api/user/saved'
+}
+
+function payloadKey(itemType: TodaySaveItemType): string {
+  return itemType === 'phenomenon' ? 'phenomenon_id' : 'report_id'
+}
+
 export function useTodaySaves(userId: string | null | undefined) {
   var [savedSet, setSavedSet] = useState<Set<string>>(function () { return readLocal() })
 
-  // Hydrate from server when authenticated
+  // Hydrate from server when authenticated. Pull both reports + phenomena.
   useEffect(function () {
     if (!userId) return
     var aborted = false
     getAuthHeader().then(function (auth) {
       if (!auth || aborted) return
-      fetch('/api/user/saved?collection=' + encodeURIComponent(TODAY_COLLECTION) + '&limit=200', {
-        headers: { Authorization: auth },
+      var headers = { Authorization: auth }
+
+      var fetches: Promise<string[]>[] = [
+        fetch('/api/user/saved?limit=200', { headers: headers })
+          .then(function (res) { return res.ok ? res.json() : { saved: [] } })
+          .then(function (data: any) {
+            return (data.saved || []).map(function (row: any) {
+              return row.report_id || (row.report && row.report.id)
+            }).filter(function (x: any) { return typeof x === 'string' })
+          })
+          .catch(function () { return [] }),
+        fetch('/api/user/saved-phenomena?limit=200', { headers: headers })
+          .then(function (res) { return res.ok ? res.json() : { saved: [] } })
+          .then(function (data: any) {
+            return (data.saved || []).map(function (row: any) {
+              return row.phenomenon_id || (row.phenomenon && row.phenomenon.id)
+            }).filter(function (x: any) { return typeof x === 'string' })
+          })
+          .catch(function () { return [] }),
+      ]
+
+      Promise.all(fetches).then(function (results) {
+        if (aborted) return
+        var ids = results[0].concat(results[1])
+        if (ids.length > 0) {
+          setSavedSet(function (prev) {
+            var next = new Set(prev)
+            ids.forEach(function (id: string) { next.add(id) })
+            writeLocal(next)
+            return next
+          })
+        }
       })
-        .then(function (res) { return res.ok ? res.json() : null })
-        .then(function (data) {
-          if (!data || aborted) return
-          var ids = (data.saved || []).map(function (row: any) {
-            return row.report_id || (row.report && row.report.id)
-          }).filter(function (x: any) { return typeof x === 'string' })
-          if (ids.length > 0) {
-            setSavedSet(function (prev) {
-              var next = new Set(prev)
-              ids.forEach(function (id: string) { next.add(id) })
-              writeLocal(next)
-              return next
-            })
-          }
-        })
-        .catch(function () {})
     })
     return function () { aborted = true }
   }, [userId])
@@ -88,22 +119,36 @@ export function useTodaySaves(userId: string | null | undefined) {
     return savedSet.has(id)
   }, [savedSet])
 
-  var persistRemote = useCallback(function (id: string, saved: boolean) {
+  var persistRemote = useCallback(function (id: string, itemType: TodaySaveItemType, saved: boolean) {
     return getAuthHeader().then(function (auth) {
-      if (!auth) return  // anonymous → localStorage only
+      if (!auth) {
+        // Anonymous → localStorage only. That's expected and not an error.
+        return
+      }
       var method = saved ? 'POST' : 'DELETE'
-      var body = saved
-        ? JSON.stringify({ report_id: id, collection_name: TODAY_COLLECTION })
-        : JSON.stringify({ report_id: id })
-      return fetch('/api/user/saved', {
+      var key = payloadKey(itemType)
+      var bodyObj: Record<string, any> = {}
+      bodyObj[key] = id
+      // Note: no collection_name — saves go uncategorized, matching /explore.
+      return fetch(endpointFor(itemType), {
         method: method,
         headers: { 'Content-Type': 'application/json', Authorization: auth },
-        body: body,
-      }).catch(function () {})
+        body: JSON.stringify(bodyObj),
+      })
+        .then(function (res) {
+          if (!res.ok) {
+            return res.text().then(function (txt) {
+              console.error('[useTodaySaves] ' + method + ' ' + endpointFor(itemType) + ' failed:', res.status, txt)
+            })
+          }
+        })
+        .catch(function (err) {
+          console.error('[useTodaySaves] ' + method + ' ' + endpointFor(itemType) + ' threw:', err)
+        })
     })
   }, [])
 
-  var persistSave = useCallback(function (id: string) {
+  var persistSave = useCallback(function (id: string, itemType: TodaySaveItemType) {
     setSavedSet(function (prev) {
       if (prev.has(id)) return prev
       var next = new Set(prev)
@@ -111,10 +156,10 @@ export function useTodaySaves(userId: string | null | undefined) {
       writeLocal(next)
       return next
     })
-    return persistRemote(id, true) || Promise.resolve()
+    return persistRemote(id, itemType, true) || Promise.resolve()
   }, [persistRemote])
 
-  var removeSave = useCallback(function (id: string) {
+  var removeSave = useCallback(function (id: string, itemType: TodaySaveItemType) {
     setSavedSet(function (prev) {
       if (!prev.has(id)) return prev
       var next = new Set(prev)
@@ -122,13 +167,13 @@ export function useTodaySaves(userId: string | null | undefined) {
       writeLocal(next)
       return next
     })
-    return persistRemote(id, false) || Promise.resolve()
+    return persistRemote(id, itemType, false) || Promise.resolve()
   }, [persistRemote])
 
-  var toggleSave = useCallback(function (id: string) {
+  var toggleSave = useCallback(function (id: string, itemType: TodaySaveItemType) {
     var willSave = !savedSet.has(id)
-    if (willSave) persistSave(id)
-    else removeSave(id)
+    if (willSave) persistSave(id, itemType)
+    else removeSave(id, itemType)
     return Promise.resolve({ saved: willSave })
   }, [savedSet, persistSave, removeSave])
 

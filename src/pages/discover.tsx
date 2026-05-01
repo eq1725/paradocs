@@ -115,9 +115,18 @@ function bumpPromoDismissals() {
 function applyLens(items: ExtendedFeedItem[], lens: TodayLens): ExtendedFeedItem[] {
   if (lens === 'all') return items
   if (lens === 'photo-video') {
+    // Renamed in UI to "With Evidence" (panel review #15). Paradocs is an
+    // index — for link-only sources (BFRO/NUFORC/NDERF/OBERF) we don't
+    // republish media even when has_photo_video=true on the source. Match
+    // reports that either (a) have physical evidence OR (b) have media we
+    // own locally (primary_media set from report_media table).
     return items.filter(function (it) {
       if (it.item_type === 'cluster' || it.item_type === 'on_this_date' || it.item_type === 'promo') return true
-      if (it.item_type === 'report') return (it as ReportItem).has_photo_video
+      if (it.item_type === 'report') {
+        var r = it as ReportItem
+        return r.has_physical_evidence === true
+          || (r.has_photo_video === true && r.primary_media != null)
+      }
       return false
     })
   }
@@ -518,7 +527,14 @@ export default function DiscoverPage() {
   //  Save / dismiss / more-like-this actions
   // =========================================================================
   function doSave(item: ExtendedFeedItem) {
-    saves.persistSave(item.id)
+    // Only reports + phenomena are persistable. Special cards (cluster /
+    // on_this_date / promo) are skipped — saving them is meaningless and
+    // would just generate API errors.
+    if (item.item_type !== 'report' && item.item_type !== 'phenomenon') {
+      flash('Skipped')
+      return
+    }
+    saves.persistSave(item.id, item.item_type)
     feedEvents.trackSave(item.id, item.item_type, (item as any).category || '')
     flash('✦ Saved')
   }
@@ -961,7 +977,7 @@ export default function DiscoverPage() {
                   aria-label="Open rabbit hole (related cases)"
                   className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-sans font-medium text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors"
                 >
-                  {'↓ More like this'}
+                  {'↓ Connected cases'}
                 </button>
               </>
             )}

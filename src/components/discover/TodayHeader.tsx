@@ -34,11 +34,15 @@ interface LensSpec {
   label: string
 }
 
+// Panel-review note: "Photo + Video" is renamed to "With Evidence" because
+// the index doesn't republish source media (BFRO/NUFORC/NDERF/OBERF are
+// link-only). The lens now matches reports with `has_physical_evidence` OR
+// `has_photo_video AND we have local media`. See applyLens() in discover.tsx.
 var LENSES: LensSpec[] = [
   { key: 'all',          label: 'All' },
   { key: 'trending',     label: 'Trending' },
   { key: 'on-this-date', label: 'On this day' },
-  { key: 'photo-video',  label: 'Photo + Video' },
+  { key: 'photo-video',  label: 'With Evidence' },
   { key: 'recent',       label: 'Recent' },
 ]
 
@@ -87,54 +91,6 @@ export function TodayHeader(props: {
     <div className="sticky-below-header bg-gray-950/85 backdrop-blur-md border-b border-white/5">
       {/* sr-only h1 for accessibility + SEO */}
       <h1 className="sr-only">Today — Paradocs</h1>
-
-      {/* Top row: counter + view-as-list + feedback */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-9 gap-3">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <span className="text-[11px] font-sans font-semibold uppercase tracking-widest text-gray-500 flex-shrink-0">
-            Today
-          </span>
-          <span
-            aria-live="polite"
-            aria-atomic="true"
-            className={
-              'text-[11px] font-medium font-sans truncate transition-opacity duration-200 ' +
-              (props.feedbackLabel ? 'opacity-100' : 'opacity-0')
-            }
-            style={{
-              color: props.feedbackLabel && props.feedbackLabel.indexOf('✦') >= 0
-                ? '#FFD166'
-                : props.feedbackLabel && props.feedbackLabel.indexOf('♡') >= 0
-                  ? '#FF6B9D'
-                  : '#9CA3AF',
-            }}
-          >
-            {props.feedbackLabel || ''}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <Link
-            href={browseHref}
-            className="hidden sm:inline-flex text-[11px] font-sans font-medium text-gray-500 hover:text-primary-300 transition-colors"
-          >
-            {'View as list →'}
-          </Link>
-          <span className="text-[11px] text-gray-500 bg-white/5 px-2.5 py-0.5 rounded-full font-medium font-sans tabular-nums">
-            {counter}
-          </span>
-          {props.showShortcutsToggle && (
-            <button
-              onClick={props.onToggleShortcuts}
-              className="hidden md:inline-flex w-6 h-6 items-center justify-center rounded-full border border-white/10 text-[11px] text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
-              aria-label="Show keyboard shortcuts"
-              title="Keyboard shortcuts"
-            >
-              {'?'}
-            </button>
-          )}
-        </div>
-      </div>
 
       {/* Lens chip strip */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -196,18 +152,65 @@ export function TodayHeader(props: {
         </div>
       </div>
 
-      {/* Segmented progress bar */}
+      {/* Combined: progress bar + inline counter + feedback flash + view-as-list + ? toggle.
+          Collapses what was a separate 36px counter row (panel review #2) — saves chrome height. */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-2">
-        <div className="flex gap-1" role="progressbar" aria-valuenow={props.idx + 1} aria-valuemin={1} aria-valuemax={props.total || 1} aria-label="Today progress">
-          {Array.from({ length: SEGMENTS }).map(function (_, i) {
-            var isFilled = i < filled
-            return (
-              <span
-                key={i}
-                className={'h-[3px] flex-1 rounded-full transition-colors duration-300 ' + (isFilled ? 'bg-primary-500' : 'bg-white/10')}
-              />
-            )
-          })}
+        <div className="flex items-center gap-3">
+          <div
+            className="flex gap-1 flex-1 min-w-0"
+            role="progressbar"
+            aria-valuenow={props.idx + 1}
+            aria-valuemin={1}
+            aria-valuemax={props.total || 1}
+            aria-label="Today progress"
+          >
+            {Array.from({ length: SEGMENTS }).map(function (_, i) {
+              var isFilled = i < filled
+              return (
+                <span
+                  key={i}
+                  className={'h-[3px] flex-1 rounded-full transition-colors duration-300 ' + (isFilled ? 'bg-primary-500' : 'bg-white/10')}
+                />
+              )
+            })}
+          </div>
+          {/* Feedback flash zone — aria-live polite for screen readers */}
+          <span
+            aria-live="polite"
+            aria-atomic="true"
+            className={
+              'text-[10px] font-medium font-sans truncate transition-opacity duration-200 hidden xs:inline ' +
+              (props.feedbackLabel ? 'opacity-100' : 'opacity-0 w-0')
+            }
+            style={{
+              color: props.feedbackLabel && props.feedbackLabel.indexOf('✦') >= 0
+                ? '#FFD166'
+                : props.feedbackLabel && props.feedbackLabel.indexOf('♡') >= 0
+                  ? '#FF6B9D'
+                  : '#9CA3AF',
+            }}
+          >
+            {props.feedbackLabel || ''}
+          </span>
+          <Link
+            href={browseHref}
+            className="hidden sm:inline-flex text-[10px] font-sans font-medium text-gray-500 hover:text-primary-300 transition-colors flex-shrink-0"
+          >
+            {'View as list →'}
+          </Link>
+          <span className="text-[10px] text-gray-400 font-sans font-medium tabular-nums flex-shrink-0">
+            {counter}
+          </span>
+          {props.showShortcutsToggle && (
+            <button
+              onClick={props.onToggleShortcuts}
+              className="hidden md:inline-flex w-5 h-5 items-center justify-center rounded-full border border-white/10 text-[10px] text-gray-500 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0"
+              aria-label="Show keyboard shortcuts"
+              title="Keyboard shortcuts"
+            >
+              {'?'}
+            </button>
+          )}
         </div>
       </div>
     </div>

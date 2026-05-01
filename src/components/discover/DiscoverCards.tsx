@@ -183,12 +183,21 @@ var CATEGORY_COLORS: Record<string, string> = {
 
 function CredibilityTags(props: { tags: string[] }) {
   if (!props.tags || props.tags.length === 0) return null
+  function truncate(s: string): string {
+    if (!s) return ''
+    if (s.length <= 60) return s
+    return s.slice(0, 57) + '\u2026'
+  }
   return (
     <div className="flex gap-1.5 md:gap-2 flex-wrap flex-shrink-0">
       {props.tags.map(function (tag, i) {
         return (
-          <span key={i} className="text-[10px] md:text-[11px] px-2.5 md:px-3 py-0.5 md:py-1 rounded-full border border-white/10 text-gray-400 font-sans font-medium">
-            {tag}
+          <span
+            key={i}
+            title={tag}
+            className="text-[10px] md:text-[11px] px-2.5 md:px-3 py-0.5 md:py-1 rounded-full border border-white/10 text-gray-300 font-sans font-medium max-w-full truncate"
+          >
+            {truncate(tag)}
           </span>
         )
       })}
@@ -526,7 +535,14 @@ export function PhenomenonCard(props: {
   var displayText = item.feed_hook || item.ai_summary || ''
 
   return (
-    <div className={'flex flex-col gap-4 md:gap-5 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}>
+    <div
+      className={'relative flex flex-col gap-4 md:gap-5 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}
+      role="article"
+      aria-label={'Encyclopedia entry: ' + (item.name || 'Phenomenon')}
+      style={{
+        backgroundImage: 'radial-gradient(ellipse 80% 60% at 100% 0%, ' + catColor + '14 0%, transparent 60%)',
+      }}
+    >
       {/* Case type badge */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -541,9 +557,10 @@ export function PhenomenonCard(props: {
         </div>
       </div>
 
-      {/* Location + meta — gray-400 for AA contrast (panel review) */}
+      {/* Location + meta — gray-400 for AA contrast (panel review).
+          Guard against empty primary_regions array producing a leading bullet. */}
       <p className="text-[11px] text-gray-400 font-sans">
-        {(item.primary_regions ? item.primary_regions.join(', ') : 'Global') + (qf?.classification ? ' \u00B7 ' + qf.classification : '')}
+        {((item.primary_regions && item.primary_regions.length > 0) ? item.primary_regions.join(', ') : 'Global') + (qf?.classification ? ' \u00B7 ' + qf.classification : '')}
       </p>
 
       {/* Large bold opener — font-display for headlines */}
@@ -712,9 +729,12 @@ export function TextReportCard(props: {
 
   return (
     <div
-      className={'flex flex-col gap-4 md:gap-5 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}
+      className={'relative flex flex-col gap-4 md:gap-5 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}
       role="article"
       aria-label={'Eyewitness report: ' + (item.title || 'Untitled')}
+      style={{
+        backgroundImage: 'radial-gradient(ellipse 80% 60% at 100% 0%, ' + catColor + '14 0%, transparent 60%)',
+      }}
     >
       {/* Case type badge */}
       <span className="text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
@@ -723,7 +743,7 @@ export function TextReportCard(props: {
 
       {/* Meta strip: location \u00B7 date \u00B7 phenomenon + source badge */}
       <div className="flex items-center gap-2 flex-wrap">
-        <p className="text-[11px] md:text-xs text-gray-500 font-sans">
+        <p className="text-[11px] md:text-xs text-gray-400 font-sans">
           {metaParts.filter(function(p) { return p !== item.source_label }).join(' \u00B7 ')}
         </p>
         {item.source_type && (
@@ -762,7 +782,7 @@ export function TextReportCard(props: {
               {expandedText}
             </p>
           ) : (
-            <p className="text-sm text-gray-500 italic leading-relaxed font-sans">
+            <p className="text-sm text-gray-400 italic leading-relaxed font-sans">
               {'Analysis coming soon. View the full report for source details.'}
             </p>
           )}
@@ -861,9 +881,12 @@ export function MediaReportCard(props: {
 
   return (
     <div
-      className={'flex flex-col gap-4 md:gap-5 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}
+      className={'relative flex flex-col gap-4 md:gap-5 h-full font-sans' + (props.expanded ? ' overflow-y-auto' : ' overflow-hidden')}
       role="article"
       aria-label={'Eyewitness report with media: ' + (item.title || 'Untitled')}
+      style={{
+        backgroundImage: 'radial-gradient(ellipse 80% 60% at 100% 0%, ' + catColor + '14 0%, transparent 60%)',
+      }}
     >
       {/* Case type badge + evidence marker */}
       <div className="flex items-center justify-between">
@@ -877,7 +900,7 @@ export function MediaReportCard(props: {
 
       {/* Meta strip: location \u00B7 date \u00B7 phenomenon + source badge */}
       <div className="flex items-center gap-2 flex-wrap">
-        <p className="text-[11px] text-gray-500 font-sans">
+        <p className="text-[11px] text-gray-400 font-sans">
           {metaParts.filter(function(p) { return p !== item.source_label }).join(' \u00B7 ')}
         </p>
         {item.source_type && (
@@ -930,7 +953,7 @@ export function MediaReportCard(props: {
               {expandedText}
             </p>
           ) : (
-            <p className="text-sm text-gray-500 italic leading-relaxed font-sans">
+            <p className="text-sm text-gray-400 italic leading-relaxed font-sans">
               {'Analysis coming soon. View the full report for source details.'}
             </p>
           )}
