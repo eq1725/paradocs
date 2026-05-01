@@ -47,12 +47,13 @@ export function ResearchHubPromo(props: ResearchHubPromoProps) {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_25%,rgba(99,102,241,0.15),transparent_55%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_75%_75%,rgba(168,85,247,0.10),transparent_55%)]" />
 
-      {/* Content — V3 panel review: top-aligned (not centered) so the
-          eye lands on the headline first. Concrete benefit chips replace
-          the blurred-card placeholder. */}
+      {/* Content — V4 panel feedback: justify-center so content sits in the
+          visible middle of the available card area, not anchored near the top
+          with awkward empty space above. The fixed bottom padding still
+          reserves room for the mobile tab nav so content never gets clipped. */}
       <div className={
-        'relative z-10 h-full flex flex-col items-center px-6 sm:px-10 transition-all duration-700 ' +
-        'pt-[calc(env(safe-area-inset-top,0px)+18vh)] pb-[calc(80px+env(safe-area-inset-bottom,0px)+24px)] md:pb-8 ' +
+        'relative z-10 h-full flex flex-col items-center justify-center px-6 sm:px-10 transition-all duration-700 ' +
+        'pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-[calc(80px+env(safe-area-inset-bottom,0px)+24px)] md:pb-8 ' +
         (props.isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4')
       }>
         {/* Section label */}

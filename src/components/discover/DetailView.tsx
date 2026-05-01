@@ -11,7 +11,6 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { Constellation } from './Constellation'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import type { PhenomenonCategory } from '@/lib/database.types'
@@ -86,10 +85,6 @@ export function DetailView(props: {
           {card.item_type === 'phenomenon' ? 'View Full Case \u2192' : 'View Full Report \u2192'}
         </Link>
 
-        {/* Constellation paywall */}
-        <div className="mt-5">
-          <Constellation />
-        </div>
         <div className="h-6" />
       </div>
     </div>

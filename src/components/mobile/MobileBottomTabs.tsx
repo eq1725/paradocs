@@ -107,9 +107,7 @@ export function MobileBottomTabs() {
               )}>
                 {tab.label}
               </span>
-              {isActive && (
-                <div className="absolute top-1.5 w-1 h-1 rounded-full bg-primary-400" />
-              )}
+              {/* V4 QA: removed the dot above the active icon — color change is enough indicator */}
             </Link>
           )
         })}

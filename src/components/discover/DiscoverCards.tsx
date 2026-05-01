@@ -25,7 +25,6 @@ import { CATEGORY_CONFIG } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import type { PhenomenonCategory } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
-import { Constellation } from './Constellation'
 import { deriveCaseProfile, nderfToCaseProfile, type CaseProfile } from '@/lib/caseProfile'
 import SourceBadge from '@/components/SourceBadge'
 import TodayCardShell from './TodayCardShell'
@@ -550,11 +549,11 @@ export function PhenomenonCard(props: {
     badgeParts.push(item.primary_regions[0])
   }
 
-  // Credibility signals
+  // Credibility signals — note: report_count is intentionally NOT pushed here
+  // anymore (V4 QA). It was duplicating the stat callout below ("20 REPORTS").
   var credSignals: string[] = []
   if (qf?.evidence_types) credSignals.push(qf.evidence_types)
   if (qf?.classification) credSignals.push(qf.classification)
-  if (item.report_count > 5) credSignals.push(item.report_count + ' reports')
 
   // Tension stats
   var tensionItems: { value: string | number, label: string }[] = []
@@ -679,7 +678,6 @@ export function PhenomenonCard(props: {
             >
               {'View Full Case →'}
             </Link>
-            <Constellation />
           </div>
         )}
       </div>
@@ -847,7 +845,6 @@ export function TextReportCard(props: {
             >
               {'View Full Report →'}
             </Link>
-            <Constellation />
           </div>
         )}
       </div>
@@ -1021,7 +1018,6 @@ export function MediaReportCard(props: {
             >
               {'View Full Report →'}
             </Link>
-            <Constellation />
           </div>
         )}
       </div>

@@ -57,7 +57,6 @@ import { TopicOnboarding, isOnboardingComplete, getOnboardingTopics } from '@/co
 import { RabbitHolePanel } from '@/components/discover/RabbitHolePanel'
 import type { RabbitHoleCard } from '@/components/discover/RabbitHolePanel'
 import { DetailView } from '@/components/discover/DetailView'
-import { Constellation } from '@/components/discover/Constellation'
 import { TodayHeader } from '@/components/discover/TodayHeader'
 import type { TodayLens } from '@/components/discover/TodayHeader'
 import { GestureTutorial, isGestureTutorialComplete, resetGestureTutorial } from '@/components/discover/GestureTutorial'
@@ -592,12 +591,19 @@ export default function DiscoverPage() {
       flash('Skipped')
       return
     }
+    // V4 QA: bookmark is a toggle now. If already saved, this unsaves.
+    var alreadySaved = saves.isSaved(item.id)
+    if (alreadySaved) {
+      saves.removeSave(item.id, item.item_type)
+      haptic(20)
+      flash('Unsaved')
+      return
+    }
     saves.persistSave(item.id, item.item_type)
     feedEvents.trackSave(item.id, item.item_type, (item as any).category || '')
     haptic(35)
     flash('✦ Saved')
-    // Save → Lab celebration loop (panel review #20). Every 5 saves shows a
-    // transient toast with category breakdown.
+    // Save → Lab celebration loop. Every 5 saves shows a transient toast.
     var nextCount = saveCountRef.current + 1
     saveCountRef.current = nextCount
     if (nextCount > 0 && nextCount % 5 === 0) {

@@ -12,7 +12,6 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { Constellation } from './Constellation'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import type { PhenomenonCategory } from '@/lib/database.types'
@@ -104,7 +103,6 @@ export function RabbitHolePanel(props: {
             </button>
           )
         })}
-        <div className="mt-2"><Constellation /></div>
         <div className="h-3" />
       </div>
     </div>

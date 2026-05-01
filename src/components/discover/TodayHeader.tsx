@@ -94,19 +94,16 @@ export function TodayHeader(props: {
     if (props.onSearchQueryChange) props.onSearchQueryChange('')
   }
 
-  var counter = props.total > 0
-    ? (Math.min(props.idx + 1, props.total)) + ' / ' + props.total
-    : (props.idx + 1).toString()
+  // V4 QA: progress bar + X/total counter removed. They were anti-features
+  // for the Gaia cohort — "1/4853" reads as homework, not exploration. The
+  // streak chip + Today's Lead badge + lens chips already carry the
+  // daily-rhythm signal.
 
   // Build a "View as list →" target preserving current lens/category
   var browseQuery: string[] = []
   if (props.category) browseQuery.push('category=' + encodeURIComponent(props.category))
   if (props.lens && props.lens !== 'all') browseQuery.push('lens=' + encodeURIComponent(props.lens))
   var browseHref = '/explore' + (browseQuery.length > 0 ? '?' + browseQuery.join('&') : '')
-
-  // Segmented progress bar — first 8 segments
-  var SEGMENTS = 8
-  var filled = props.total > 0 ? Math.min(SEGMENTS, Math.round(((props.idx + 1) / props.total) * SEGMENTS)) : 0
 
   return (
     <div className="sticky-below-header bg-gray-950/85 backdrop-blur-md border-b border-white/5">
@@ -173,51 +170,35 @@ export function TodayHeader(props: {
         </div>
       </div>
 
-      {/* Combined: progress bar + inline counter + feedback flash + view-as-list + ? toggle.
-          Collapses what was a separate 36px counter row (panel review #2) — saves chrome height. */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-2">
-        <div className="flex items-center gap-3">
-          <div
-            className="flex gap-1 flex-1 min-w-0"
-            role="progressbar"
-            aria-valuenow={props.idx + 1}
-            aria-valuemin={1}
-            aria-valuemax={props.total || 1}
-            aria-label="Today progress"
-          >
-            {Array.from({ length: SEGMENTS }).map(function (_, i) {
-              var isFilled = i < filled
-              return (
-                <span
-                  key={i}
-                  className={'h-[3px] flex-1 rounded-full transition-colors duration-300 ' + (isFilled ? 'bg-primary-500' : 'bg-white/10')}
-                />
-              )
-            })}
-          </div>
-          {/* Feedback flash zone — aria-live polite for screen readers.
-              NOTE: was 'hidden xs:inline' but Tailwind has no default xs:
-              breakpoint, so the span was permanently invisible — saves
-              were firing but feedback was never shown (May 2026 fix). */}
+      {/* V4 QA: simplified utility row — feedback flash + streak chip + search +
+          view-as-list + (?) shortcuts toggle. No progress bar, no X/total counter.
+          The row stays tiny when nothing is happening (just the search icon
+          and view-as-list link). */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-2 pt-1">
+        <div className="flex items-center justify-end gap-3 min-h-[20px]">
+          {/* Feedback flash zone — aria-live polite for screen readers */}
           <span
             aria-live="polite"
             aria-atomic="true"
             className={
-              'text-[10px] font-medium font-sans truncate transition-opacity duration-200 ' +
-              (props.feedbackLabel ? 'opacity-100 max-w-[140px]' : 'opacity-0 max-w-0 overflow-hidden')
+              'text-[11px] font-medium font-sans truncate transition-opacity duration-200 mr-auto ' +
+              (props.feedbackLabel ? 'opacity-100 max-w-[180px]' : 'opacity-0 max-w-0 overflow-hidden')
             }
             style={{
               color: props.feedbackLabel && props.feedbackLabel.indexOf('✦') >= 0
                 ? '#FFD166'
                 : props.feedbackLabel && props.feedbackLabel.indexOf('♡') >= 0
                   ? '#FF6B9D'
-                  : '#9CA3AF',
+                  : '#D1D5DB',
             }}
           >
             {props.feedbackLabel || ''}
           </span>
-          {/* Streak chip — visible at 2+ day streak for daily-rhythm reinforcement (V2 #12) */}
-          {props.streakDays && props.streakDays >= 2 && (
+          {/* Streak chip — explicit boolean check fixes V3 falsy-render bug
+              ('0' was appearing in the header when streakDays was 0 because
+              `streakDays && streakDays >= 2` evaluates to `0`, which JSX
+              renders literally instead of skipping). */}
+          {(typeof props.streakDays === 'number' && props.streakDays >= 2) ? (
             <span
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-400/30 text-[10px] font-sans font-semibold text-amber-300 flex-shrink-0"
               title={props.streakDays + ' day streak'}
@@ -225,28 +206,25 @@ export function TodayHeader(props: {
               <span aria-hidden="true">{'🔥'}</span>
               {props.streakDays}
             </span>
-          )}
-          {/* Inline search button — opens overlay; doesn't navigate away (V2 #13) */}
-          {props.onSearchQueryChange && (
+          ) : null}
+          {/* Inline search button — opens overlay; doesn't navigate away */}
+          {props.onSearchQueryChange ? (
             <button
               onClick={function () { setSearchOpen(true) }}
-              className="inline-flex w-5 h-5 items-center justify-center rounded-full border border-white/10 text-[10px] text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0"
+              className="inline-flex w-6 h-6 items-center justify-center rounded-full border border-white/10 text-[10px] text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0"
               aria-label="Search Today"
               title="Search Today"
             >
               <Search className="w-3 h-3" />
             </button>
-          )}
+          ) : null}
           <Link
             href={browseHref}
             className="hidden sm:inline-flex text-[10px] font-sans font-medium text-gray-500 hover:text-primary-300 transition-colors flex-shrink-0"
           >
             {'View as list →'}
           </Link>
-          <span className="text-[10px] text-gray-400 font-sans font-medium tabular-nums flex-shrink-0">
-            {counter}
-          </span>
-          {props.showShortcutsToggle && (
+          {props.showShortcutsToggle ? (
             <button
               onClick={props.onToggleShortcuts}
               className="hidden md:inline-flex w-5 h-5 items-center justify-center rounded-full border border-white/10 text-[10px] text-gray-500 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0"
@@ -255,7 +233,7 @@ export function TodayHeader(props: {
             >
               {'?'}
             </button>
-          )}
+          ) : null}
         </div>
       </div>
 

@@ -27,9 +27,10 @@ import {
   Check,
   Loader2,
   Edit3,
+  Trash2 as Trash2Icon,
 } from 'lucide-react'
-import type { EntryNode, UserMapData, CaseFile } from '@/lib/constellation-types'
 import { supabase } from '@/lib/supabase'
+import type { EntryNode, UserMapData, CaseFile } from '@/lib/constellation-types'
 import { renderMarkdown, normalizeWikilinkKey, extractWikilinkTargets } from '@/lib/markdown-lite'
 import NoteEditorModal from './NoteEditorModal'
 import ReaderView from './ReaderView'
@@ -179,12 +180,47 @@ export default function NodeDetailPanel({
             <span className={`text-[10px] font-medium ${cat.color}`}>{cat.label}</span>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="flex-shrink-0 w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
-        >
-          <XIcon className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* V4 QA: Unsave button for plain bookmarks. Visible for entries
+              that came in via /discover (or the legacy save button) which
+              don't have a richer constellation_entry around them. */}
+          {(entry as any).isLegacyBookmark ? (
+            <button
+              onClick={async () => {
+                try {
+                  const isPhen = (entry as any).isPhenomenonSave === true || (entry.id || '').indexOf('savedphen:') === 0
+                  const sessionRes = await supabase.auth.getSession()
+                  const token = sessionRes.data.session?.access_token
+                  if (!token) return
+                  const url = isPhen ? '/api/user/saved-phenomena' : '/api/user/saved'
+                  const body = isPhen
+                    ? JSON.stringify({ phenomenon_id: (entry as any).phenomenonId })
+                    : JSON.stringify({ report_id: (entry as any).reportId })
+                  await fetch(url, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+                    body: body,
+                  })
+                  if (onCaseFilesChanged) onCaseFilesChanged()
+                  onClose()
+                } catch (err) {
+                  console.error('[NodeDetailPanel] unsave failed:', err)
+                }
+              }}
+              className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-rose-500/15 text-gray-400 hover:text-rose-300 transition-colors"
+              title="Remove from saves"
+              aria-label="Remove from saves"
+            >
+              <Trash2Icon className="w-4 h-4" />
+            </button>
+          ) : null}
+          <button
+            onClick={onClose}
+            className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            <XIcon className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <div className="px-4 py-4 space-y-4 pb-6 sm:pb-4">

@@ -71,12 +71,11 @@ export function ClusteringCard(props: ClusteringCardProps) {
         backgroundSize: '40px 40px'
       }} />
 
-      {/* Content — V3 panel review: top-aligned (consistent with other
-          special cards) so content doesn't get pushed below the visible
-          area when the mobile tab nav consumes the bottom 80px. */}
+      {/* Content — V4 panel feedback: justify-center so content sits in the
+          visible middle of the card area. */}
       <div className={
-        'relative z-10 h-full flex flex-col items-center px-6 sm:px-10 text-center transition-all duration-700 ' +
-        'pt-[calc(env(safe-area-inset-top,0px)+18vh)] pb-[calc(80px+env(safe-area-inset-bottom,0px)+24px)] md:pb-8 ' +
+        'relative z-10 h-full flex flex-col items-center justify-center px-6 sm:px-10 text-center transition-all duration-700 ' +
+        'pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-[calc(80px+env(safe-area-inset-bottom,0px)+24px)] md:pb-8 ' +
         (props.isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4')
       }>
         {/* Badge */}
