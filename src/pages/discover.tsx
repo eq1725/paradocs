@@ -263,8 +263,13 @@ export default function DiscoverPage() {
   var gateStatus = useGateStatus(user?.id || null)
   var saves = useTodaySaves(user?.id || null)
 
-  // --- A/B variant: auto-expand on dwell (default = on) ---
-  var autoExpand = useABTest('today_auto_expand_v1', ['on', 'off'])
+  // --- Auto-expand on dwell — DISABLED May 2026 ---
+  // The 4s dwell auto-expand was conflicting with the gesture system: long
+  // headlines (Pali Canon, etc.) take >4s to read, the card silently
+  // expanded, and then handleTouchStart/End early-return on `expanded` to
+  // prevent swipes hijacking reading mode. Net effect: gestures stopped
+  // working after the first card. Keeping the placeholder ref in case we
+  // re-introduce as an opt-in setting later.
   var autoExpandTimer = useRef<any>(null)
 
   // --- Dwell tracking ---
@@ -482,15 +487,8 @@ export default function DiscoverPage() {
       loadFeed(feedOffset)
     }
 
-    // Auto-expand on 4s dwell (A/B variant 'on' = default).
-    // Only triggers for content cards, not specials, not when expanded/rabbit/detail.
-    if (autoExpand.variant === 'on'
-        && (item.item_type === 'phenomenon' || item.item_type === 'report')
-        && !rabbitOpen && !detailCard && !expanded) {
-      autoExpandTimer.current = setTimeout(function () {
-        setExpanded(true)
-      }, 4000)
-    }
+    // Auto-expand on dwell intentionally NOT firing here — see comment above
+    // the autoExpandTimer ref declaration.
 
     return function () {
       var duration = Date.now() - dwellStartRef.current
@@ -500,7 +498,7 @@ export default function DiscoverPage() {
         autoExpandTimer.current = null
       }
     }
-  }, [idx, displayItems.length, autoExpand.variant, rabbitOpen, detailCard, expanded])
+  }, [idx, displayItems.length, rabbitOpen, detailCard, expanded])
 
   // Dismiss promo bump on first promo encounter (so re-rendering doesn't re-bump)
   useEffect(function () {
