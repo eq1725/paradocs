@@ -194,7 +194,12 @@ export default async function handler(
   }
 
   var supabase = getSupabaseAdmin()
-  var action = (req.body && req.body.action) || 'batch_missing'
+  // V6.5 fix: read action from EITHER query string or body. Earlier curl
+  // commands using ?action=force_all were silently falling through to
+  // batch_missing because the original endpoint only checked req.body.
+  var action = (req.query && (req.query.action as string)) ||
+               (req.body && req.body.action) ||
+               'batch_missing'
 
   // ---- Stats ----
   if (action === 'stats') {
@@ -247,17 +252,28 @@ export default async function handler(
     return res.status(500).json({ error: 'Failed to generate hook' })
   }
 
-  // ---- Batch missing ----
-  var batchSize = (req.body && req.body.batch_size) || 25
-  var offset = (req.body && req.body.offset) || 0
+  // ---- Batch missing OR force_all ----
+  // V6.5: force_all overwrites EVERY phenomenon's feed_hook, regardless of
+  // whether it already has one. Used to roll out V6 prompt changes against
+  // a corpus that was already populated under V5 prompts.
+  // Both batch_missing and force_all also accept query-param offset/limit
+  // so curl loops with ?offset=N work without a JSON body.
+  var batchSize = parseInt((req.query.limit as string) || '0', 10) ||
+                  (req.body && req.body.batch_size) || 25
+  var offset = parseInt((req.query.offset as string) || '0', 10) ||
+               (req.body && req.body.offset) || 0
   var delay = (req.body && req.body.delay_ms) || 500
 
   var query = supabase
     .from('phenomena')
     .select('id, name, slug, category, icon, ai_summary, ai_description, ai_quick_facts, primary_regions, first_reported_date, report_count, aliases')
-    .is('feed_hook', null)
     .order('report_count', { ascending: false })
     .range(offset, offset + batchSize - 1)
+
+  if (action !== 'force_all') {
+    // batch_missing: only phenomena with no hook yet
+    query = query.is('feed_hook', null)
+  }
 
   var { data: missing } = await query
 
