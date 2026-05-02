@@ -97,28 +97,56 @@ interface RepairResult {
 }
 
 function parseDateResponse(raw: string): { value: string | null; precision: RepairResult['precision'] } {
-  // Try to pull a JSON blob out
+  // Strip markdown code fences if present
+  let text = raw.trim()
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim()
+
+  // Try direct parse
   let json: any = null
-  try {
-    json = JSON.parse(raw.trim())
-  } catch (_) {
-    // Try to extract the first {...} block
-    const m = raw.match(/\{[^}]+\}/)
+  try { json = JSON.parse(text) } catch (_) {}
+
+  // Try to extract the FIRST balanced {...} block (greedy across newlines)
+  if (!json) {
+    const m = text.match(/\{[\s\S]*?\}/)
     if (m) {
       try { json = JSON.parse(m[0]) } catch (_) {}
     }
   }
-  if (!json || typeof json.date !== 'string') return { value: null, precision: 'error' }
-  const date = json.date.trim()
-  if (date === 'unknown') return { value: null, precision: 'unknown' }
-  // YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return { value: date, precision: 'day' }
-  // YYYY-MM → set to mid-month conservatively. Mid-month avoids surfacing
-  // on the 1st (which is a placeholder magnet) while still being roughly
-  // accurate.
-  if (/^\d{4}-\d{2}$/.test(date)) return { value: date + '-15', precision: 'month' }
-  // YYYY
-  if (/^\d{4}$/.test(date)) return { value: null, precision: 'year' }
+
+  // V6.3 fallback: if no JSON parsed but the text contains a recognizable
+  // pattern like '"date": "..."' or 'date: ...', extract the value directly.
+  let dateValue: string | null = null
+  if (json && typeof json.date === 'string') {
+    dateValue = json.date.trim()
+  } else {
+    // Look for "date": "VALUE" anywhere in the response (with or without
+    // quoted key). Catches AI responses that wrap JSON in prose.
+    const keyMatch = text.match(/["']?date["']?\s*:\s*["']([^"']+)["']/i)
+    if (keyMatch) {
+      dateValue = keyMatch[1].trim()
+    } else if (/\bunknown\b/i.test(text) && !/\d{4}/.test(text.slice(0, 200))) {
+      // Free-text "unknown" with no year mentioned
+      dateValue = 'unknown'
+    } else {
+      // Last resort: pull a YYYY-MM-DD or YYYY-MM or YYYY out of free text
+      const day = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/)
+      if (day) { dateValue = day[1] + '-' + day[2] + '-' + day[3] }
+      else {
+        const monthOnly = text.match(/\b(\d{4})-(\d{2})\b/)
+        if (monthOnly) { dateValue = monthOnly[1] + '-' + monthOnly[2] }
+        else {
+          const yearOnly = text.match(/\b(1[6789]\d{2}|20\d{2})\b/)
+          if (yearOnly) { dateValue = yearOnly[1] }
+        }
+      }
+    }
+  }
+
+  if (!dateValue) return { value: null, precision: 'error' }
+  if (dateValue === 'unknown') return { value: null, precision: 'unknown' }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return { value: dateValue, precision: 'day' }
+  if (/^\d{4}-\d{2}$/.test(dateValue)) return { value: dateValue + '-15', precision: 'month' }
+  if (/^\d{4}$/.test(dateValue)) return { value: null, precision: 'year' }
   return { value: null, precision: 'error' }
 }
 
@@ -152,7 +180,10 @@ async function extractDate(p: any): Promise<{ value: string | null; precision: R
   try {
     const resp = await anthropic.messages.create({
       model: MODEL,
-      max_tokens: 60,
+      max_tokens: 200,    // raised from 60 — concept phenomena like
+                          // "Christianity" produce a longer reasoning chain
+                          // before the AI emits the JSON, so 60 was cutting
+                          // them off mid-thought.
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }],
     })
