@@ -212,6 +212,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const dryRun = req.query.dryRun === 'true'
   const onlyPlaceholders = req.query.onlyPlaceholders === 'true'
   const force = req.query.force === 'true'
+  // V6.4: retryErrors targets phenomena whose first_reported_date didn't get
+  // updated by a previous sweep AND whose AI text wasn't already nullified.
+  // Heuristic: rows with non-null ai_quick_facts but null first_reported_date
+  // OR rows still on a placeholder date — i.e. anything that *could* benefit
+  // from a re-extraction.
+  const retryErrors = req.query.retryErrors === 'true'
 
   let query = supabase
     .from('phenomena')
