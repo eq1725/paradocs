@@ -47,48 +47,78 @@ export default async function handler(
       return res.status(500).json({ error: 'Query failed' })
     }
 
-    // V6 panel review fix: filter out known placeholder dates.
-    // Many phenomena have first_reported_date set to 1900-01-01 or
-    // 1933-05-01 — placeholders from ingestion that surface incorrectly
-    // on Jan 1 / May 1. Loch Ness is the canonical example: ai_history
-    // and ai_quick_facts.first_documented correctly say "July 22, 1933"
-    // but the date column says 1933-05-01.
-    var looksLikePlaceholder = function (p: any): boolean {
-      try {
-        var d = new Date(p.first_reported_date)
-        var m = d.getMonth() + 1
-        var dd = d.getDate()
-        if (m === 1 && dd === 1) return true
-        if (m === 5 && dd === 1) return true
-        var qf = p.ai_quick_facts
-        if (qf && typeof qf === 'object') {
-          var doc = (qf.first_documented || '').toString().toLowerCase()
-          if (doc) {
-            var months = ['january','february','march','april','may','june','july','august','september','october','november','december']
-            for (var i = 0; i < months.length; i++) {
-              if (doc.indexOf(months[i]) !== -1 && (i + 1) !== m) {
-                return true
-              }
-            }
-          }
+    // V6.1 panel review fix: data audit revealed ~270 placeholder dates
+    // (Jan 1, May 1, March 8, December 12) plus pervasive use of row-
+    // creation timestamps as first_reported_date. The AI-generated text
+    // in ai_quick_facts.first_documented is the authoritative source.
+    //
+    // New strategy: try to parse a real date out of ai_quick_facts.first_documented
+    // FIRST. If that yields a day-precision date, use it. If it yields only
+    // a year, skip (year-only doesn't surface on a specific day). Only fall
+    // back to first_reported_date when AI text is missing AND the date
+    // column doesn't look like a placeholder.
+    var MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december']
+    var parseAiDate = function (text: string): { month: number, day: number, year: number } | null {
+      if (!text) return null
+      var lower = text.toLowerCase()
+      // Try "Month Day, YYYY" pattern first (e.g. "July 22, 1933")
+      for (var i = 0; i < MONTHS.length; i++) {
+        var pattern = new RegExp('\\b' + MONTHS[i] + '\\s+(\\d{1,2}),?\\s+(\\d{3,4})\\b', 'i')
+        var m = lower.match(pattern)
+        if (m) {
+          return { month: i + 1, day: parseInt(m[1], 10), year: parseInt(m[2], 10) }
         }
-        return false
-      } catch (e) {
-        return true
       }
+      // ISO format like "1933-07-22" inside text
+      var iso = lower.match(/\b(\d{4})-(\d{2})-(\d{2})\b/)
+      if (iso) {
+        return { year: parseInt(iso[1], 10), month: parseInt(iso[2], 10), day: parseInt(iso[3], 10) }
+      }
+      return null
+    }
+    var isPlaceholderDate = function (d: Date): boolean {
+      var m = d.getUTCMonth() + 1
+      var dd = d.getUTCDate()
+      if (m === 1 && dd === 1) return true
+      if (m === 5 && dd === 1) return true
+      // March 8 / December 12 batch placeholders identified in audit
+      if (m === 3 && dd === 8) return true
+      if (m === 12 && dd === 12) return true
+      return false
     }
 
     var matches = (phenomena || []).filter(function (p) {
+      // Try AI-text-derived date first
+      var qf = p.ai_quick_facts
+      var aiText = (qf && typeof qf === 'object') ? (qf.first_documented || '') : ''
+      var aiDate = parseAiDate(aiText)
+      if (aiDate) {
+        // AI text has a real day-precision date — use it
+        if (aiDate.month === month && aiDate.day === day) {
+          ;(p as any)._eventYear = aiDate.year
+          ;(p as any)._eventDate = aiDate.year + '-' + String(aiDate.month).padStart(2, '0') + '-' + String(aiDate.day).padStart(2, '0')
+          return true
+        }
+        // AI text has a date but it's not today — skip
+        return false
+      }
+      // No AI date parseable. Fall back to first_reported_date IF it's not
+      // a known placeholder.
       try {
         var d = new Date(p.first_reported_date)
-        if ((d.getMonth() + 1) !== month || d.getDate() !== day) return false
-        if (looksLikePlaceholder(p)) return false
+        if (isPlaceholderDate(d)) return false
+        if ((d.getUTCMonth() + 1) !== month || d.getUTCDate() !== day) return false
+        ;(p as any)._eventYear = d.getUTCFullYear()
+        ;(p as any)._eventDate = p.first_reported_date
         return true
       } catch (e) {
         return false
       }
     }).map(function (p) {
-      var eventYear = new Date(p.first_reported_date).getFullYear()
+      // _eventYear / _eventDate were attached during the filter pass —
+      // prefer them since they're already validated against AI text.
+      var eventYear = (p as any)._eventYear || new Date(p.first_reported_date).getFullYear()
+      var eventDate = (p as any)._eventDate || p.first_reported_date
       return {
         item_type: 'on_this_date',
         id: 'otd-' + p.id,
@@ -97,7 +127,7 @@ export default async function handler(
         category: p.category,
         ai_summary: p.ai_summary,
         event_year: eventYear,
-        first_reported_date: p.first_reported_date,
+        first_reported_date: eventDate,
       }
     })
 
