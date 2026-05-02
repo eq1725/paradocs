@@ -1100,14 +1100,15 @@ export default function DiscoverPage() {
         {/* Main content */}
         <div className="flex-1 flex">
           {/* Card pane — capped width at xl per panel review #14.
-              touch-action: pan-y tells iOS Safari to handle vertical pan
-              natively (so reading scrolls inner content) but leave
-              horizontal touches to React's onTouch* handlers. Without
-              this, horizontal swipes can be silently consumed by iOS
-              when an ancestor has overflow-y-auto. */}
+              touch-action: pan-y for horizontal-swipe → JS, vertical → native.
+              overscrollBehavior: 'none' on this OUTER container plus the
+              inner body kills iOS rubberband completely (V5 fix). Without
+              this, pulling the card content down past its natural bottom
+              elastically lifted the entire card (including the sticky CTA)
+              and momentarily sent it under the bottom tab nav. */}
           <div
             className="flex-1 relative overflow-hidden cursor-grab lg:max-w-2xl lg:mx-auto xl:mx-auto xl:max-w-3xl"
-            style={{ touchAction: 'pan-y' }}
+            style={{ touchAction: 'pan-y', overscrollBehavior: 'none' }}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}

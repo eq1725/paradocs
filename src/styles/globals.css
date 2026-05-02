@@ -146,6 +146,19 @@ body {
   );
 }
 
+/* CTA anchor — V5. Mobile sits the CTA bar above the tab nav with a 20px
+   safety buffer; desktop anchors at the viewport bottom (no tab nav). The
+   inline value cannot use a media query, so we encode it as a CSS class
+   that the responsive variant can override cleanly. */
+.today-cta-anchor {
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 768px) {
+  .today-cta-anchor {
+    bottom: 0;
+  }
+}
+
 /* Right-edge fade-mask for horizontal chip strips. Hints "scrollable". */
 .today-fade-mask-r {
   -webkit-mask-image: linear-gradient(to right,

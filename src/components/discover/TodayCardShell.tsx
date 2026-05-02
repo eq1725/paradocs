@@ -188,30 +188,34 @@ export function TodayCardShell(props: TodayCardShellProps) {
       )}
 
       {/* Body scroll region — fills available vertical space, scrolls within.
-          On mobile, padding-bottom = CTA(64) + tab nav(80) + safe-area.
-          On md+ where the tab nav is hidden, padding-bottom = CTA(64) only.
-          Uses Tailwind arbitrary values to cleanly switch at the breakpoint. */}
+          V5 panel feedback: tightened the bottom buffer from 144px → 100px
+          and added overscroll-behavior: none so iOS doesn't rubberband the
+          inner content past the CTA on pull-down. Tab nav is 80px so 100
+          gives the CTA a 20px guarantee above the nav with zero play. */}
       <div
-        className="absolute inset-0 flex flex-col z-10 pt-[54px] pb-[calc(144px+env(safe-area-inset-bottom,0px))] md:pb-[64px]"
+        className="absolute inset-0 flex flex-col z-10 pt-[44px] pb-[calc(100px+env(safe-area-inset-bottom,0px))] md:pb-[60px]"
       >
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-6 md:px-8 lg:px-10 today-card-body">
+        <div
+          className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 md:px-8 lg:px-10 today-card-body"
+          style={{ overscrollBehavior: 'none' }}
+        >
           {props.children}
         </div>
       </div>
 
-      {/* Sticky bottom CTA bar — V3 fix: anchored ABOVE the mobile tab nav.
-          Previously bottom-0 was overlapped by the fixed MobileBottomTabs at
-          z-40, hiding the Read Case button until users scrolled the body. */}
+      {/* Sticky bottom CTA bar — V5: uses today-cta-anchor class (defined in
+          globals.css) which encodes the mobile vs md+ bottom positions via
+          a media query, so the calc() always applies on mobile and snaps to
+          0 on desktop. Tighter pt-1.5 pb-2 reduces vertical footprint. */}
       <div
         className={
-          'absolute left-0 right-0 z-20 px-3 sm:px-4 pt-2 pb-3 ' +
-          'bottom-[calc(80px+env(safe-area-inset-bottom,0px))] md:bottom-0 ' +
-          'flex items-center gap-2 transition-colors duration-300 ' +
+          'absolute left-0 right-0 z-20 px-3 sm:px-4 pt-1.5 pb-2 md:pb-3 ' +
+          'today-cta-anchor flex items-center gap-2 transition-colors duration-300 ' +
           (props.isSaved ? 'today-cta-saved' : '')
         }
         style={{
           background:
-            'linear-gradient(to top, rgba(10,10,20,0.95) 0%, rgba(10,10,20,0.78) 55%, rgba(10,10,20,0) 100%)',
+            'linear-gradient(to top, rgba(10,10,20,0.97) 0%, rgba(10,10,20,0.82) 55%, rgba(10,10,20,0) 100%)',
         }}
       >
         <div className="flex-1">{props.cta}</div>
@@ -219,11 +223,11 @@ export function TodayCardShell(props: TodayCardShellProps) {
       </div>
 
       {/* Next-card peek — 4px sliver of the next card's category color.
-          Positioned just above the tab nav on mobile, at the viewport edge
-          on desktop. */}
+          Same anchor class as the CTA so it stays just above the tab nav
+          on mobile and at the viewport edge on desktop. */}
       {props.nextCatColor && (
         <div
-          className="absolute left-0 right-0 h-[4px] z-10 opacity-60 bottom-[calc(80px+env(safe-area-inset-bottom,0px))] md:bottom-0"
+          className="absolute left-0 right-0 h-[4px] z-10 opacity-60 today-cta-anchor"
           style={{ background: props.nextCatColor }}
           aria-hidden="true"
         />
