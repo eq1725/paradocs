@@ -37,7 +37,7 @@ export default async function handler(
     // and filter in JS. For a small table (phenomena), this is fine.
     var { data: phenomena, error } = await supabase
       .from('phenomena')
-      .select('id, name, slug, category, ai_summary, first_reported_date')
+      .select('id, name, slug, category, ai_summary, first_reported_date, ai_quick_facts')
       .eq('status', 'active')
       .not('first_reported_date', 'is', null)
       .not('ai_summary', 'is', null)
@@ -47,11 +47,43 @@ export default async function handler(
       return res.status(500).json({ error: 'Query failed' })
     }
 
-    // Filter to matching month/day
+    // V6 panel review fix: filter out known placeholder dates.
+    // Many phenomena have first_reported_date set to 1900-01-01 or
+    // 1933-05-01 — placeholders from ingestion that surface incorrectly
+    // on Jan 1 / May 1. Loch Ness is the canonical example: ai_history
+    // and ai_quick_facts.first_documented correctly say "July 22, 1933"
+    // but the date column says 1933-05-01.
+    var looksLikePlaceholder = function (p: any): boolean {
+      try {
+        var d = new Date(p.first_reported_date)
+        var m = d.getMonth() + 1
+        var dd = d.getDate()
+        if (m === 1 && dd === 1) return true
+        if (m === 5 && dd === 1) return true
+        var qf = p.ai_quick_facts
+        if (qf && typeof qf === 'object') {
+          var doc = (qf.first_documented || '').toString().toLowerCase()
+          if (doc) {
+            var months = ['january','february','march','april','may','june','july','august','september','october','november','december']
+            for (var i = 0; i < months.length; i++) {
+              if (doc.indexOf(months[i]) !== -1 && (i + 1) !== m) {
+                return true
+              }
+            }
+          }
+        }
+        return false
+      } catch (e) {
+        return true
+      }
+    }
+
     var matches = (phenomena || []).filter(function (p) {
       try {
         var d = new Date(p.first_reported_date)
-        return (d.getMonth() + 1) === month && d.getDate() === day
+        if ((d.getMonth() + 1) !== month || d.getDate() !== day) return false
+        if (looksLikePlaceholder(p)) return false
+        return true
       } catch (e) {
         return false
       }
