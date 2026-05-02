@@ -122,6 +122,20 @@ function parseDateResponse(raw: string): { value: string | null; precision: Repa
   return { value: null, precision: 'error' }
 }
 
+/** Enumerate every YYYY-MM-DD that matches our 4 known placeholder
+ *  month-day patterns, across years 1700..2030. Used as an .in() filter
+ *  so the server only returns placeholder rows when onlyPlaceholders=true. */
+function generatePlaceholderDates(): string[] {
+  const out: string[] = []
+  const monthDays = ['01-01', '05-01', '03-08', '12-12']
+  for (let y = 1700; y <= 2030; y++) {
+    for (const md of monthDays) {
+      out.push(y + '-' + md)
+    }
+  }
+  return out
+}
+
 async function extractDate(p: any): Promise<{ value: string | null; precision: RepairResult['precision']; reason?: string }> {
   if (!anthropic) {
     return { value: null, precision: 'error', reason: 'anthropic_not_configured' }
@@ -172,14 +186,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     .from('phenomena')
     .select('id, slug, name, first_reported_date, ai_quick_facts, ai_history')
     .eq('status', 'active')
-    .order('id', { ascending: true })
-    .range(offset, offset + limit - 1)
 
   if (onlyPlaceholders) {
-    // Filter to phenomena whose date looks like a Jan 1 / May 1 placeholder.
-    // Supabase doesn't support EXTRACT in .filter(), so we fetch all matching
-    // status=active and filter client-side. For batches of 50–100, fine.
+    // Use OR filter to pull only the placeholder dates (Jan 1, May 1,
+    // Mar 8, Dec 12 — identified in the May 2 audit). PostgREST supports
+    // chained .in() over date strings.
+    query = query.in('first_reported_date', [
+      // Most common placeholder years × placeholder month-days. Generated
+      // by enumerating known placeholder month-days (01-01, 05-01,
+      // 03-08, 12-12) over the year range observed in the audit.
+      // We pull a wide year range; non-existent rows are simply skipped.
+      ...generatePlaceholderDates(),
+    ] as any)
   }
+
+  query = query.order('id', { ascending: true }).range(offset, offset + limit - 1)
 
   const { data: rows, error } = await query
   if (error) {
@@ -190,18 +211,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!p.ai_quick_facts && !p.ai_history) return false
     if (force) return true
     if (onlyPlaceholders) {
-      if (!p.first_reported_date) return false
-      const d = new Date(p.first_reported_date)
-      const m = d.getUTCMonth() + 1
-      const dd = d.getUTCDate()
-      return (m === 1 && dd === 1) || (m === 5 && dd === 1)
+      // Server-side filter already restricted to placeholder dates; just
+      // require at least some AI text to extract from.
+      return !!(p.ai_quick_facts || p.ai_history)
     }
     // Default mode: only repair rows with no date OR placeholder dates
     if (!p.first_reported_date) return true
     const d = new Date(p.first_reported_date)
     const m = d.getUTCMonth() + 1
     const dd = d.getUTCDate()
-    return (m === 1 && dd === 1) || (m === 5 && dd === 1)
+    return (m === 1 && dd === 1) || (m === 5 && dd === 1) || (m === 3 && dd === 8) || (m === 12 && dd === 12)
   })
 
   const results: RepairResult[] = []
