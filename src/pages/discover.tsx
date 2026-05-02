@@ -62,6 +62,7 @@ import type { TodayLens } from '@/components/discover/TodayHeader'
 import { GestureTutorial, isGestureTutorialComplete, resetGestureTutorial } from '@/components/discover/GestureTutorial'
 import { EndOfFeedCard } from '@/components/discover/EndOfFeedCard'
 import { SkeletonCard } from '@/components/discover/SkeletonCard'
+import { TodayGridMode } from '@/components/discover/TodayGridMode'
 import { useFeedEvents } from '@/lib/hooks/useFeedEvents'
 import { useSessionContext } from '@/lib/hooks/useSessionContext'
 import { useGateStatus } from '@/lib/hooks/useGateStatus'
@@ -313,6 +314,14 @@ export default function DiscoverPage() {
   // --- Streak (for header chip, V2 #12) ---
   var [streakDays, setStreakDays] = useState<number>(0)
   // searchQuery state lives near the top of the component (above displayItems)
+
+  // --- V5-next: grid mode (desktop) ---
+  var [gridOpen, setGridOpen] = useState(false)
+
+  // --- V5-next: pull-to-refresh ---
+  var [pullDistance, setPullDistance] = useState(0)
+  var pullStartRef = useRef<number | null>(null)
+  var [refreshing, setRefreshing] = useState(false)
 
   // --- First-time Collapse tooltip (V2 panel review #15) ---
   var COLLAPSE_TIP_KEY = 'today_collapse_tip_v1'
@@ -696,6 +705,12 @@ export default function DiscoverPage() {
     if (!e.touches || e.touches.length === 0) return
     var t = e.touches[0]
     touchStart.current = { x: t.clientX, y: t.clientY, t: Date.now() }
+    // V5-next: pull-to-refresh — only enabled at idx=0 + body scrolled to top.
+    if (idx === 0) {
+      pullStartRef.current = t.clientY
+    } else {
+      pullStartRef.current = null
+    }
     // Long-press → "More like this". CRITICAL: timer must NOT null out
     // touchStart.current — the original implementation did, which broke
     // any swipe that took longer than 600ms (slow horizontal swipes,
@@ -724,6 +739,15 @@ export default function DiscoverPage() {
     // 6px threshold — slightly more forgiving on iOS where the first
     // touchmove can fire after only a few pixels of motion.
     if (dx > 6 || dy > 6) clearLongPress()
+    // Pull-to-refresh: only at idx=0 with downward motion
+    if (pullStartRef.current !== null && idx === 0) {
+      var pullDy = t.clientY - pullStartRef.current
+      if (pullDy > 0) {
+        // Resistance curve so the rubber-band feel is preserved
+        var resisted = Math.min(120, pullDy * 0.4)
+        setPullDistance(resisted)
+      }
+    }
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
@@ -737,6 +761,29 @@ export default function DiscoverPage() {
     var dy = e.changedTouches[0].clientY - touchStart.current.y
     var firedLong = longPressFiredRef.current ? longPressFiredRef.current.v : false
     touchStart.current = null
+
+    // Pull-to-refresh trigger
+    if (pullStartRef.current !== null && pullDistance >= 80) {
+      pullStartRef.current = null
+      setPullDistance(0)
+      setRefreshing(true)
+      haptic(40)
+      // Reset and reload
+      sessionSeed.current = Math.floor(Math.random() * 2147483647)
+      setItems([])
+      setIdx(0)
+      setFeedOffset(0)
+      setHasMore(true)
+      specialCardsInjected.current = false
+      pendingSpecialCards.current = []
+      setTimeout(function () {
+        loadFeed(0)
+        setTimeout(function () { setRefreshing(false) }, 600)
+      }, 0)
+      return
+    }
+    pullStartRef.current = null
+    if (pullDistance > 0) setPullDistance(0)
 
     // If the long-press already fired ("More like this"), don't ALSO trigger
     // a save/dismiss on the same touchend — but still allow vertical-swipe
@@ -998,7 +1045,7 @@ export default function DiscoverPage() {
           onCollapse={handleCollapse}
           user={user} onShowSignup={setShowSignupPromptCb}
           isSaved={savedNow} onSave={saveCb} onShare={shareCb}
-          isTodaysLead={leadFlag} whyReason={why} nextCatColor={nextColor}
+          isTodaysLead={leadFlag} streakDays={streakDays} whyReason={why} nextCatColor={nextColor}
         />
       )
     }
@@ -1012,7 +1059,7 @@ export default function DiscoverPage() {
           onCollapse={handleCollapse}
           user={user} onShowSignup={setShowSignupPromptCb}
           isSaved={savedNow} onSave={saveCb} onShare={shareCb}
-          isTodaysLead={leadFlag} whyReason={why} nextCatColor={nextColor}
+          isTodaysLead={leadFlag} streakDays={streakDays} whyReason={why} nextCatColor={nextColor}
         />
       )
     }
@@ -1023,7 +1070,7 @@ export default function DiscoverPage() {
         onCollapse={handleCollapse}
         user={user} onShowSignup={setShowSignupPromptCb}
         isSaved={savedNow} onSave={saveCb} onShare={shareCb}
-        isTodaysLead={leadFlag} whyReason={why} nextCatColor={nextColor}
+        isTodaysLead={leadFlag} streakDays={streakDays} whyReason={why} nextCatColor={nextColor}
       />
     )
   }
@@ -1095,25 +1142,43 @@ export default function DiscoverPage() {
             // Reset position so search results start at the top
             if (idx !== 0) setIdx(0)
           }}
+          onToggleGrid={function () { setGridOpen(function (v) { return !v }) }}
         />
 
         {/* Main content */}
         <div className="flex-1 flex">
-          {/* Card pane — capped width at xl per panel review #14.
-              touch-action: pan-y for horizontal-swipe → JS, vertical → native.
-              overscrollBehavior: 'none' on this OUTER container plus the
-              inner body kills iOS rubberband completely (V5 fix). Without
-              this, pulling the card content down past its natural bottom
-              elastically lifted the entire card (including the sticky CTA)
-              and momentarily sent it under the bottom tab nav. */}
+          {/* Card pane — V5-next: height-capped at md+ via today-card-pane-cap. */}
           <div
-            className="flex-1 relative overflow-hidden cursor-grab lg:max-w-2xl lg:mx-auto xl:mx-auto xl:max-w-3xl"
+            className="flex-1 relative overflow-hidden cursor-grab lg:max-w-2xl lg:mx-auto xl:mx-auto xl:max-w-3xl today-card-pane-cap"
             style={{ touchAction: 'pan-y', overscrollBehavior: 'none' }}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onWheel={handleWheel}
           >
+            {/* Pull-to-refresh indicator (V5-next) — visible only when at
+                idx=0 and the user is dragging down. Spinner appears once
+                the threshold is reached. */}
+            {(pullDistance > 0 || refreshing) && (
+              <div
+                className="absolute top-0 left-0 right-0 z-30 flex items-center justify-center pointer-events-none"
+                style={{
+                  height: refreshing ? 60 : pullDistance,
+                  transition: refreshing ? 'height 200ms' : 'none',
+                }}
+              >
+                <div
+                  className={
+                    'w-7 h-7 rounded-full border-2 border-primary-400 border-t-transparent ' +
+                    (refreshing ? 'animate-spin' : '')
+                  }
+                  style={{
+                    opacity: Math.min(1, pullDistance / 80) || 1,
+                    transform: 'rotate(' + (refreshing ? 0 : pullDistance * 3) + 'deg)',
+                  }}
+                />
+              </div>
+            )}
             {/* Category accent stripe */}
             <div
               className="absolute left-0 top-0 bottom-0 w-[3px] opacity-50 z-10 transition-colors duration-400"
@@ -1158,6 +1223,8 @@ export default function DiscoverPage() {
                 Tappable as a fallback for users who reject swipe gestures. */}
             {!expanded && !rabbitOpen && !detailCard && !atEndOfFeed && (
               <>
+                {/* Edge chevrons — V5 desktop: expand on hover into labeled
+                    pills so mouse users see the action explicitly. */}
                 <button
                   type="button"
                   onClick={function () {
@@ -1165,10 +1232,11 @@ export default function DiscoverPage() {
                     if (item) doDismiss(item)
                     nextCard()
                   }}
-                  aria-label="Dismiss this case (left)"
-                  className="hidden md:block absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full text-white/30 hover:text-white/70 hover:bg-white/5 transition-colors today-chevron-pulse"
+                  aria-label="Dismiss this case (previous)"
+                  className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 items-center gap-1.5 h-9 px-2 rounded-full text-white/40 hover:text-white hover:bg-black/40 transition-colors today-edge-chevron"
                 >
-                  <span className="text-xl">{'‹'}</span>
+                  <span className="text-xl leading-none">{'‹'}</span>
+                  <span className="today-edge-chevron-label text-[11px] font-sans font-medium uppercase tracking-wider">Dismiss</span>
                 </button>
                 <button
                   type="button"
@@ -1176,10 +1244,11 @@ export default function DiscoverPage() {
                     var item = displayItems[idx]
                     if (item) doSave(item)
                   }}
-                  aria-label="Save this case (right)"
-                  className="hidden md:block absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full text-white/30 hover:text-amber-300 hover:bg-white/5 transition-colors today-chevron-pulse"
+                  aria-label="Save this case"
+                  className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 items-center gap-1.5 h-9 px-2 rounded-full text-white/40 hover:text-amber-200 hover:bg-black/40 transition-colors today-edge-chevron"
                 >
-                  <span className="text-xl">{'›'}</span>
+                  <span className="today-edge-chevron-label text-[11px] font-sans font-medium uppercase tracking-wider">Save</span>
+                  <span className="text-xl leading-none">{'›'}</span>
                 </button>
                 <button
                   type="button"
@@ -1203,8 +1272,10 @@ export default function DiscoverPage() {
               </div>
             )}
 
-            {/* Rabbit hole + detail (mobile + lg) */}
-            <div className="xl:hidden">
+            {/* Rabbit hole + detail — V5: gated to BELOW lg (was xl), so
+                tablet landscape (1180px = lg) sees the sidebar instead of
+                the modal duplication. */}
+            <div className="lg:hidden">
               {rabbitOpen && (
                 <RabbitHolePanel
                   cards={rabbitHoleCards} color={catColor}
@@ -1218,8 +1289,10 @@ export default function DiscoverPage() {
             </div>
           </div>
 
-          {/* Connected cases sidebar — now at lg: (panel review #13) */}
-          <div className="hidden xl:flex flex-col w-[380px] border-l border-gray-800/50 bg-gray-950 overflow-hidden">
+          {/* Connected cases sidebar — V5: lifted from xl:flex to lg:flex.
+              Most laptops (1024–1279px) and iPad landscape (1180px) are in
+              the lg band; they were previously losing the sidebar. */}
+          <div className="hidden lg:flex flex-col w-[340px] xl:w-[380px] border-l border-gray-800/50 bg-gray-950 overflow-hidden">
             <div className="px-5 pt-4 pb-3 border-b border-white/5 flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -1281,9 +1354,9 @@ export default function DiscoverPage() {
           </div>
         </div>
 
-        {/* Detail view overlay (desktop modal) — Constellation removed for paywall consolidation */}
+        {/* Detail view overlay — V5: now at lg+ to match the sidebar move */}
         {detailCard && (
-          <div className="hidden xl:flex fixed inset-0 z-[60] items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="hidden lg:flex fixed inset-0 z-[60] items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className="w-full max-w-lg max-h-[80vh] bg-gray-900 border border-gray-700 rounded-2xl overflow-hidden flex flex-col">
               <div className="px-5 py-4 flex items-center justify-between flex-shrink-0 border-b border-white/5">
                 <span className="text-[10px] font-sans font-semibold uppercase tracking-wider" style={{ color: detailCard.categoryColor }}>
@@ -1399,6 +1472,46 @@ export default function DiscoverPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Grid mode overlay — desktop power-user feature (V5 #D8) */}
+      {gridOpen && (
+        <TodayGridMode
+          items={displayItems.map(function (it) {
+            var headline = ''
+            var hero: string | null = null
+            if (it.item_type === 'phenomenon') {
+              var p = it as PhenomenonItem
+              headline = p.feed_hook || p.ai_summary || p.name || 'Encyclopedia entry'
+              hero = p.primary_image_url || null
+            } else if (it.item_type === 'report') {
+              var r = it as ReportItem
+              headline = r.feed_hook || r.summary || r.title || 'Eyewitness report'
+              hero = (r.primary_media && (r.primary_media.thumbnail_url || r.primary_media.url)) || r.associated_image_url || null
+            } else if (it.item_type === 'on_this_date') {
+              var od = it as OnThisDateData
+              headline = od.name + ' — ' + od.event_year
+              hero = null
+            } else if (it.item_type === 'cluster') {
+              var cl = it as ClusterCardData
+              headline = cl.headline || 'Cluster pattern'
+              hero = null
+            } else {
+              headline = 'From Paradocs'
+              hero = null
+            }
+            return {
+              id: it.id,
+              item_type: it.item_type,
+              category: (it as any).category || 'combination',
+              headline: headline,
+              hero: hero,
+            }
+          })}
+          currentIdx={idx}
+          onSelect={function (i) { setIdx(i); setExpanded(false); setGridOpen(false) }}
+          onClose={function () { setGridOpen(false) }}
+        />
       )}
 
       {/* Save → Lab celebration toast (V2 panel review #20) */}

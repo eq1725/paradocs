@@ -181,8 +181,61 @@ body {
   .today-heart-pulse,
   .today-tutorial-arrow,
   .today-streak-glow,
-  .today-bookmark-pulse {
+  .today-bookmark-pulse,
+  .today-shortcut-pulse {
     animation: none !important;
+  }
+}
+
+/* "?" keyboard-shortcut hint pulse — fires once per session on desktop to
+   advertise that keyboard shortcuts exist (V5 panel review #D5). */
+@keyframes today-shortcut-pulse {
+  0%, 100% { box-shadow: 0 0 0 0   rgba(144, 0, 240, 0.45); transform: scale(1);    }
+  50%      { box-shadow: 0 0 0 8px rgba(144, 0, 240, 0);    transform: scale(1.18); }
+}
+.today-shortcut-pulse {
+  animation: today-shortcut-pulse 0.9s ease-out 2;
+}
+
+/* Edge chevrons on desktop — expand to a labeled pill on hover (V5 #D2) */
+.today-edge-chevron {
+  transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1), background-color 250ms;
+}
+.today-edge-chevron .today-edge-chevron-label {
+  opacity: 0;
+  max-width: 0;
+  transition: opacity 220ms 50ms, max-width 250ms;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.today-edge-chevron:hover .today-edge-chevron-label,
+.today-edge-chevron:focus-visible .today-edge-chevron-label {
+  opacity: 1;
+  max-width: 90px;
+}
+
+/* Card pane height cap on desktop (V5 #D1) — prevents the feeling of a
+   small card lonely in a tall pane on 1440px+ monitors. */
+@media (min-width: 768px) {
+  .today-card-pane-cap {
+    max-height: min(720px, calc(100vh - 9rem));
+    margin-top: auto;
+    margin-bottom: auto;
+    border-radius: 1.25rem;
+    overflow: hidden;
+    box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  }
+}
+
+/* Headline hover (V5 #D7) — subtle color shift + underline on desktop so
+   tap-to-expand reads as interactive */
+@media (hover: hover) and (pointer: fine) {
+  .today-headline-hover:hover {
+    color: rgb(229, 231, 235);
+    text-decoration: underline;
+    text-decoration-color: rgba(255, 255, 255, 0.18);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
   }
 }
 

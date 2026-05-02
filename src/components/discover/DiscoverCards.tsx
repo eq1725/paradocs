@@ -530,6 +530,7 @@ export function PhenomenonCard(props: {
   onSave?: () => void
   onShare?: () => void
   isTodaysLead?: boolean
+  streakDays?: number
   whyReason?: string | null
   nextCatColor?: string | null
 }) {
@@ -560,6 +561,7 @@ export function PhenomenonCard(props: {
   if (item.report_count > 0) tensionItems.push({ value: item.report_count, label: 'reports' })
   if (qf?.danger_level) tensionItems.push({ value: qf.danger_level.split(' ')[0], label: 'danger' })
 
+  var hasHero = !!item.primary_image_url
   var displayText = item.feed_hook || item.ai_summary || ''
 
   return (
@@ -567,10 +569,12 @@ export function PhenomenonCard(props: {
       catColor={catColor}
       nextCatColor={props.nextCatColor || null}
       heroImageUrl={item.primary_image_url || null}
+      heroImageAttribution={item.primary_image_url ? 'via Wikimedia' : null}
       isSaved={props.isSaved || false}
       onSave={props.onSave || function () {}}
       onShare={props.onShare}
       isTodaysLead={props.isTodaysLead}
+      streakDays={props.streakDays}
       whyReason={props.whyReason || null}
       cta={
         !props.expanded ? (
@@ -597,8 +601,8 @@ export function PhenomenonCard(props: {
         {/* Element 2 — Headline (tap to expand) */}
         <h2
           onClick={!props.expanded ? props.onExpand : undefined}
-          className={'font-display font-bold text-white leading-snug ' + (props.expanded ? 'text-xl md:text-2xl' : 'text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] cursor-pointer')}
-          style={!props.expanded ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 4, overflow: 'hidden' } : undefined}
+          className={'font-display font-bold text-white leading-snug ' + (props.expanded ? 'text-xl md:text-2xl' : 'text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] cursor-pointer today-headline-hover')}
+          style={!props.expanded ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: hasHero ? 4 : 6, overflow: 'hidden' } : undefined}
         >
           {displayText || item.name}
         </h2>
@@ -702,6 +706,7 @@ export function TextReportCard(props: {
   onSave?: () => void
   onShare?: () => void
   isTodaysLead?: boolean
+  streakDays?: number
   whyReason?: string | null
   nextCatColor?: string | null
 }) {
@@ -739,6 +744,7 @@ export function TextReportCard(props: {
   var credSignals: string[] = []
   if (item.has_physical_evidence) credSignals.push('Physical Evidence')
 
+  var hasHero = !!item.associated_image_url
   var displayText = item.feed_hook || item.summary || ''
   // Universal case profile — falls back across every adapter (NDERF, OBERF,
   // BFRO, NUFORC, Erowid, Reddit, IANDS, Ghosts, …). Returns null when the
@@ -768,10 +774,12 @@ export function TextReportCard(props: {
       catColor={catColor}
       nextCatColor={props.nextCatColor || null}
       heroImageUrl={item.associated_image_url || null}
+      heroImageAttribution={item.associated_image_source ? 'via ' + item.associated_image_source : null}
       isSaved={props.isSaved || false}
       onSave={props.onSave || function () {}}
       onShare={props.onShare}
       isTodaysLead={props.isTodaysLead}
+      streakDays={props.streakDays}
       whyReason={props.whyReason || null}
       cta={
         !props.expanded ? (
@@ -801,8 +809,8 @@ export function TextReportCard(props: {
         {/* Element 2 — Headline (tap to expand) */}
         <h2
           onClick={!props.expanded ? props.onExpand : undefined}
-          className={'font-display font-bold text-white leading-snug ' + (props.expanded ? 'text-xl md:text-2xl' : 'text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] cursor-pointer')}
-          style={!props.expanded ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 4, overflow: 'hidden' } : undefined}
+          className={'font-display font-bold text-white leading-snug ' + (props.expanded ? 'text-xl md:text-2xl' : 'text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] cursor-pointer today-headline-hover')}
+          style={!props.expanded ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: hasHero ? 4 : 6, overflow: 'hidden' } : undefined}
         >
           {displayText || item.title}
         </h2>
@@ -869,6 +877,7 @@ export function MediaReportCard(props: {
   onSave?: () => void
   onShare?: () => void
   isTodaysLead?: boolean
+  streakDays?: number
   whyReason?: string | null
   nextCatColor?: string | null
 }) {
@@ -903,6 +912,7 @@ export function MediaReportCard(props: {
   if (item.has_photo_video) credSignals.push('Photo/Video Evidence')
   if (item.has_physical_evidence) credSignals.push('Physical Evidence')
 
+  var hasHero = !!(item.primary_media && (item.primary_media.thumbnail_url || item.primary_media.url)) || !!item.associated_image_url
   var displayText = item.feed_hook || item.summary || ''
   var unifiedProfile = deriveCaseProfile({
     source_type: item.source_type,
@@ -925,10 +935,12 @@ export function MediaReportCard(props: {
       catColor={catColor}
       nextCatColor={props.nextCatColor || null}
       heroImageUrl={item.primary_media?.thumbnail_url || item.primary_media?.url || item.associated_image_url || null}
+      heroImageAttribution={item.source_label ? 'via ' + item.source_label : null}
       isSaved={props.isSaved || false}
       onSave={props.onSave || function () {}}
       onShare={props.onShare}
       isTodaysLead={props.isTodaysLead}
+      streakDays={props.streakDays}
       whyReason={props.whyReason || null}
       cta={
         !props.expanded ? (
@@ -961,8 +973,8 @@ export function MediaReportCard(props: {
         {/* Element 2 — Headline (tap to expand) */}
         <h2
           onClick={!props.expanded ? props.onExpand : undefined}
-          className={'font-display font-bold text-white leading-snug ' + (props.expanded ? 'text-xl md:text-2xl' : 'text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] cursor-pointer')}
-          style={!props.expanded ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 4, overflow: 'hidden' } : undefined}
+          className={'font-display font-bold text-white leading-snug ' + (props.expanded ? 'text-xl md:text-2xl' : 'text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] cursor-pointer today-headline-hover')}
+          style={!props.expanded ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: hasHero ? 4 : 6, overflow: 'hidden' } : undefined}
         >
           {displayText || item.title}
         </h2>

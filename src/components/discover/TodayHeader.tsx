@@ -23,7 +23,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { Search, X } from 'lucide-react'
+import { Search, X, LayoutGrid } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import type { PhenomenonCategory } from '@/lib/database.types'
@@ -78,9 +78,13 @@ export function TodayHeader(props: {
   searchQuery?: string
   /** Search query change handler */
   onSearchQueryChange?: (q: string) => void
+  // V5-next additions
+  /** Toggle to open desktop grid mode overlay (3x3 card preview) */
+  onToggleGrid?: () => void
 }) {
   var router = useRouter()
   var [searchOpen, setSearchOpen] = useState(false)
+  var [shortcutsPulsed, setShortcutsPulsed] = useState(false)
   var searchInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(function () {
@@ -88,6 +92,24 @@ export function TodayHeader(props: {
       searchInputRef.current.focus()
     }
   }, [searchOpen])
+
+  // V5: pulse the "?" once per session to advertise keyboard shortcuts on
+  // desktop where they're otherwise undiscoverable.
+  useEffect(function () {
+    if (!props.showShortcutsToggle) return
+    if (typeof window === 'undefined') return
+    try {
+      var KEY = 'today_shortcut_pulsed_v1'
+      if (sessionStorage.getItem(KEY) === '1') return
+      // Defer slightly so the user can't possibly miss it.
+      var t = setTimeout(function () {
+        setShortcutsPulsed(true)
+        sessionStorage.setItem(KEY, '1')
+        setTimeout(function () { setShortcutsPulsed(false) }, 2400)
+      }, 1500)
+      return function () { clearTimeout(t) }
+    } catch (e) {}
+  }, [props.showShortcutsToggle])
 
   function closeSearch() {
     setSearchOpen(false)
@@ -194,18 +216,16 @@ export function TodayHeader(props: {
           >
             {props.feedbackLabel || ''}
           </span>
-          {/* Streak chip — explicit boolean check fixes V3 falsy-render bug
-              ('0' was appearing in the header when streakDays was 0 because
-              `streakDays && streakDays >= 2` evaluates to `0`, which JSX
-              renders literally instead of skipping). */}
+          {/* Streak chip — V5: now tappable, opens Lab streak history. */}
           {(typeof props.streakDays === 'number' && props.streakDays >= 2) ? (
-            <span
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-400/30 text-[10px] font-sans font-semibold text-amber-300 flex-shrink-0"
-              title={props.streakDays + ' day streak'}
+            <Link
+              href="/lab?tab=streak"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-400/30 text-[10px] font-sans font-semibold text-amber-300 hover:bg-amber-500/25 transition-colors flex-shrink-0"
+              title={props.streakDays + ' day streak — view streak history'}
             >
               <span aria-hidden="true">{'🔥'}</span>
               {props.streakDays}
-            </span>
+            </Link>
           ) : null}
           {/* Inline search button — opens overlay; doesn't navigate away */}
           {props.onSearchQueryChange ? (
@@ -224,10 +244,26 @@ export function TodayHeader(props: {
           >
             {'View as list →'}
           </Link>
+          {/* Grid mode toggle — desktop / lg+ only (V5 #D8) */}
+          {props.onToggleGrid ? (
+            <button
+              onClick={props.onToggleGrid}
+              className="hidden lg:inline-flex w-6 h-6 items-center justify-center rounded-full border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0"
+              aria-label="Open grid view"
+              title="Open grid view"
+            >
+              <LayoutGrid className="w-3 h-3" />
+            </button>
+          ) : null}
           {props.showShortcutsToggle ? (
             <button
               onClick={props.onToggleShortcuts}
-              className="hidden md:inline-flex w-5 h-5 items-center justify-center rounded-full border border-white/10 text-[10px] text-gray-500 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0"
+              className={
+                'hidden md:inline-flex w-5 h-5 items-center justify-center rounded-full border text-[10px] hover:text-white hover:bg-white/5 transition-colors flex-shrink-0 ' +
+                (shortcutsPulsed
+                  ? 'border-primary-400/60 text-primary-300 today-shortcut-pulse'
+                  : 'border-white/10 text-gray-500')
+              }
               aria-label="Show keyboard shortcuts"
               title="Keyboard shortcuts"
             >

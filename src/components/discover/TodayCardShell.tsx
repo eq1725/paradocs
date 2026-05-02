@@ -42,6 +42,9 @@ interface TodayCardShellProps {
   onShare?: () => void
   /** Optional "Today's Lead Case" badge marker */
   isTodaysLead?: boolean
+  /** Optional streak day — if set and user has streak, the badge upgrades
+   *  to "Today's lead · day N". Cross-cutting V5 panel review item. */
+  streakDays?: number
   /** Optional "Why you're seeing this" reason — surfaced via small (i) icon */
   whyReason?: string | null
   /** Sticky bottom CTA — receives "saved" tint when isSaved */
@@ -133,56 +136,76 @@ export function TodayCardShell(props: TodayCardShellProps) {
         aria-hidden="true"
       />
 
-      {/* Top-right chrome: Save + Share + Why-you-see-this */}
-      <div className="absolute top-3 right-3 z-30 flex items-center gap-1.5">
-        {props.whyReason && (
+      {/* Top-right chrome: Save + Share + Why-you-see-this — V5 grouped in
+          a single backdrop-blur pill so the trio reads as a cluster against
+          busy hero imagery. */}
+      <div className="absolute top-3 right-3 z-30">
+        <div className="flex items-center gap-0.5 rounded-full bg-black/35 backdrop-blur-md border border-white/10 px-1 py-1">
+          {props.whyReason && (
+            <button
+              type="button"
+              onClick={function (e) { e.stopPropagation(); setWhyOpen(function (v) { return !v }) }}
+              aria-label="Why you're seeing this card"
+              className="w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <span className="text-[11px] font-semibold">{'i'}</span>
+            </button>
+          )}
+          {props.onShare !== undefined && (
+            <button
+              type="button"
+              onClick={handleShareClick}
+              aria-label="Share"
+              className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <Share2 className="w-4 h-4" />
+            </button>
+          )}
           <button
             type="button"
-            onClick={function (e) { e.stopPropagation(); setWhyOpen(function (v) { return !v }) }}
-            aria-label="Why you're seeing this card"
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.05] backdrop-blur-sm text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+            onClick={handleSaveClick}
+            aria-label={props.isSaved ? 'Unsave' : 'Save'}
+            aria-pressed={props.isSaved}
+            className={
+              'w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200 ' +
+              (props.isSaved
+                ? 'text-amber-300 hover:bg-white/10'
+                : 'text-gray-400 hover:text-white hover:bg-white/10')
+              + (bookmarkPulse ? ' today-bookmark-pulse' : '')
+            }
+            style={props.isSaved ? { color: '#FFD166' } : undefined}
           >
-            <span className="text-[11px] font-semibold">{'i'}</span>
+            <Bookmark
+              className="w-4 h-4"
+              fill={props.isSaved ? 'currentColor' : 'none'}
+              strokeWidth={props.isSaved ? 1 : 1.8}
+            />
           </button>
-        )}
-        {props.onShare !== undefined && (
-          <button
-            type="button"
-            onClick={handleShareClick}
-            aria-label="Share"
-            className="w-9 h-9 flex items-center justify-center rounded-full bg-white/[0.05] backdrop-blur-sm text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-          >
-            <Share2 className="w-4 h-4" />
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={handleSaveClick}
-          aria-label={props.isSaved ? 'Unsave' : 'Save'}
-          aria-pressed={props.isSaved}
-          className={
-            'w-9 h-9 flex items-center justify-center rounded-full backdrop-blur-sm transition-all duration-200 ' +
-            (props.isSaved
-              ? 'bg-amber-400/20 text-amber-300 hover:bg-amber-400/25'
-              : 'bg-white/[0.05] text-gray-400 hover:text-white hover:bg-white/10')
-            + (bookmarkPulse ? ' today-bookmark-pulse' : '')
-          }
-          style={props.isSaved ? { color: '#FFD166' } : undefined}
-        >
-          <Bookmark
-            className="w-4 h-4"
-            fill={props.isSaved ? 'currentColor' : 'none'}
-            strokeWidth={props.isSaved ? 1 : 1.8}
-          />
-        </button>
+        </div>
       </div>
 
-      {/* "Today's Lead Case" badge — top-left corner */}
+      {/* Hero image attribution (V5 #5) — tiny credit in the bottom-right
+          corner just above the CTA region. Required for Wikimedia / CC content. */}
+      {props.heroImageUrl && props.heroImageAttribution && (
+        <div
+          className="absolute right-3 z-10 today-cta-anchor pointer-events-none"
+          style={{ marginBottom: '64px' }}
+        >
+          <span className="text-[9px] text-gray-400/70 italic font-sans">
+            {props.heroImageAttribution}
+          </span>
+        </div>
+      )}
+
+      {/* "Today's Lead" badge — top-left corner. V5: enriched with streak
+          context when the user has a 2+ day streak ("Today's lead · day 5"). */}
       {props.isTodaysLead && (
         <div className="absolute top-3 left-3 z-30">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary-500/20 border border-primary-400/40 text-[10px] font-sans font-semibold uppercase tracking-wider text-primary-200 backdrop-blur-sm">
             <span aria-hidden="true">{'✦'}</span>
-            Today's lead
+            {(typeof props.streakDays === 'number' && props.streakDays >= 2)
+              ? 'Today’s lead · day ' + props.streakDays
+              : 'Today’s lead'}
           </span>
         </div>
       )}
