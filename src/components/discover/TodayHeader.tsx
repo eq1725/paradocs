@@ -128,7 +128,11 @@ export function TodayHeader(props: {
   var browseHref = '/explore' + (browseQuery.length > 0 ? '?' + browseQuery.join('&') : '')
 
   return (
-    <div className="sticky-below-header bg-gray-950/85 backdrop-blur-md border-b border-white/5">
+    {/* V6.7: bumped opacity 0.85 → 0.97 so card content scrolling under
+        the sticky header doesn't bleed through visually. Backdrop-blur stays
+        on for browsers that support it; the higher alpha guarantees no
+        legibility loss on browsers that don't. */}
+    <div className="sticky-below-header bg-gray-950/97 backdrop-blur-md border-b border-white/5">
       {/* sr-only h1 for accessibility + SEO */}
       <h1 className="sr-only">Today — Paradocs</h1>
 
