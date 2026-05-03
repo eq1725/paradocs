@@ -135,12 +135,15 @@ export function TopicOnboarding(props: TopicOnboardingProps) {
         (isAnimating ? 'opacity-0 scale-105' : 'opacity-100 scale-100')
       }
     >
-      {/* Scrollable inner container with safe spacing */}
+      {/* Scrollable inner container with safe spacing.
+          V7.0: bumped paddingBottom guarantee from 2rem to 4.5rem so the
+          "Pick 3 more topics" CTA isn't clipped by the iOS home indicator
+          on PWA. */}
       <div
         className="min-h-full flex flex-col items-center justify-center py-6"
         style={{
           paddingTop: 'max(env(safe-area-inset-top, 0px) + 2.5rem, 4rem)',
-          paddingBottom: 'max(env(safe-area-inset-bottom, 0px) + 1rem, 2rem)',
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px) + 2.5rem, 4.5rem)',
         }}
       >
       {/* Skip button — well below Dynamic Island */}

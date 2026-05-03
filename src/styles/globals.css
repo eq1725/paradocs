@@ -146,15 +146,14 @@ body {
   );
 }
 
-/* CTA anchor — V6.7. Bumped 96px → 112px so the CTA sits ~22px above
-   the tab nav top edge instead of flush. Avoids the visual "trapped"
-   feeling Chase reported with V6.6 where the button was technically
-   visible but felt cramped against the nav.
-   The env(safe-area-inset-bottom, 0px) catches the home-indicator gap
-   when iOS reports it correctly; the 112px floor guarantees clearance
-   even when iOS PWA standalone mode reports env=0. */
+/* CTA anchor — V7.0. Tuned to the sweet spot: 100px floor + env.
+   - V6.6 (96px): cramped, sat flush with tab nav
+   - V6.7 (112px): too much air between CTA and tab nav
+   - V7.0 (100px): ~10px breath above tab nav — visible, not floating
+   Combined with body-scroll lock in V7.0 (page can't scroll, sticky
+   header can't activate over the CTA), the position is now stable. */
 .today-cta-anchor {
-  bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
 }
 @media (min-width: 768px) {
   .today-cta-anchor {

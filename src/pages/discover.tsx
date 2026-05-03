@@ -341,6 +341,24 @@ export default function DiscoverPage() {
   var pendingSpecialCards = useRef<{ card: ExtendedFeedItem; position: number }[]>([])
   var specialCardsInjected = useRef(false)
 
+  // V7.0: lock body scroll on /discover so the sticky TodayHeader never
+  // gets promoted to its compositing layer (which renders above sibling
+  // chrome regardless of z-index). On iOS PWA, safe-area math can over-
+  // count viewport by ~17px causing slight body scroll → sticky activation
+  // → chrome cluster hidden behind header. Locking body scroll eliminates
+  // that path entirely.
+  useEffect(function () {
+    if (typeof document === 'undefined') return
+    var prevOverflow = document.body.style.overflow
+    var prevHtmlOverflow = document.documentElement.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    return function () {
+      document.body.style.overflow = prevOverflow
+      document.documentElement.style.overflow = prevHtmlOverflow
+    }
+  }, [])
+
   // =========================================================================
   //  Auth + tier
   // =========================================================================
