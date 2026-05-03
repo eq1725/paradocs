@@ -146,12 +146,17 @@ body {
   );
 }
 
-/* CTA anchor — V5. Mobile sits the CTA bar above the tab nav with a 20px
-   safety buffer; desktop anchors at the viewport bottom (no tab nav). The
-   inline value cannot use a media query, so we encode it as a CSS class
-   that the responsive variant can override cleanly. */
+/* CTA anchor — V6.6 robust fix.
+   The mobile bottom tab nav is ~56px content + safe-area-inset-bottom (≈34px
+   on iPhones with home indicator). Total ~90–96px tall.
+   In iOS PWA standalone mode, env(safe-area-inset-bottom) sometimes returns
+   0 even when the home-indicator gap is real — a known WebKit quirk where
+   safe-area inheritance gets dropped inside fixed/absolute layouts. To
+   guarantee the CTA always clears the nav, we use a fixed 96px floor PLUS
+   max() the env value, so on devices that report it correctly we keep the
+   safe-area-aware lift, and on devices that report 0 we still clear by 6px+. */
 .today-cta-anchor {
-  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
 }
 @media (min-width: 768px) {
   .today-cta-anchor {

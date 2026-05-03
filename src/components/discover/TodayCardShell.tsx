@@ -210,13 +210,12 @@ export function TodayCardShell(props: TodayCardShellProps) {
         </div>
       )}
 
-      {/* Body scroll region — fills available vertical space, scrolls within.
-          V5 panel feedback: tightened the bottom buffer from 144px → 100px
-          and added overscroll-behavior: none so iOS doesn't rubberband the
-          inner content past the CTA on pull-down. Tab nav is 80px so 100
-          gives the CTA a 20px guarantee above the nav with zero play. */}
+      {/* Body scroll region — V6.6: body's padding-bottom must keep the body
+          content from overlapping the CTA. CTA bottom = 96px+safe, CTA height
+          ~76px → CTA top at 172px+safe. Body pb of 180px+safe gives an 8px
+          breather above the CTA top so body content doesn't touch the CTA. */}
       <div
-        className="absolute inset-0 flex flex-col z-10 pt-[44px] pb-[calc(100px+env(safe-area-inset-bottom,0px))] md:pb-[60px]"
+        className="absolute inset-0 flex flex-col z-10 pt-[44px] pb-[calc(180px+env(safe-area-inset-bottom,0px))] md:pb-[60px]"
       >
         <div
           className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 md:px-8 lg:px-10 today-card-body"
