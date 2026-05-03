@@ -212,12 +212,11 @@ export function TodayCardShell(props: TodayCardShellProps) {
         </div>
       )}
 
-      {/* Body scroll region — V6.9: pt bumped 60 → 96 so the badge row
-          stays well below the chrome cluster (which sits at top-3 = ~12px
-          + ~36px tall = bottom edge ~48px). 96px gives 48px clearance below
-          the chrome plus buffer for any TodayHeader scroll-under bleed. */}
+      {/* Body scroll region — V7.1: pb bumped 180 → 200 so the body
+          content has a visible 20+px gap above the CTA. Earlier the body
+          ended ~4px above the CTA top, making them visually merge. */}
       <div
-        className="absolute inset-0 flex flex-col z-10 pt-[96px] pb-[calc(180px+env(safe-area-inset-bottom,0px))] md:pb-[60px]"
+        className="absolute inset-0 flex flex-col z-10 pt-[96px] pb-[calc(200px+env(safe-area-inset-bottom,0px))] md:pb-[60px]"
       >
         <div
           className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 md:px-8 lg:px-10 today-card-body"
