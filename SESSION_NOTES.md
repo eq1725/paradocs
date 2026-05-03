@@ -303,6 +303,135 @@ src/
 
 ## Session Progress Log
 
+### May 2, 2026 — Today (/discover) V3-V6 polish, date repair, V6 hook regen
+**Status:** COMPLETE (deployed; admin key rotated)
+
+Continuation of the May 1 panel review work. Six iterative passes through
+the Today feed addressing visual mass-market readiness, content quality,
+and a major data audit + repair.
+
+**V3 (commit 6c56e31f):** Lifted sticky CTA above the mobile bottom-tab nav
+(was hidden behind it). Capped headlines at 4 lines (8-line Pali Canon
+shrinks to 4). Heavier hero scrim (0.55 → 0.78 → 0.95) for legibility on
+imagery-heavy cards. Special cards (OnThisDate, Cluster, Promo) re-balanced
+to top-third layout. Replaced Research Hub blurred placeholder with three
+concrete benefit chips ('Cross-reference', 'Pattern detection', 'Build
+constellations') + sharper headline.
+
+**V4 (commit 1328d0b3):** Bookmark toggle (was save-only). Killed
+progress/X/total counter — anti-feature for the Gaia cohort, reads as
+homework not exploration. Removed Constellation widget from card
+expansions and rabbit-hole panel (kept the file in codebase for future
+use). Fixed the '0' rendering bug in TodayHeader (streakDays falsy check
+returning 0 instead of false). Removed the dot above active mobile nav
+icon. Centered special cards justify-center within the available card
+area (V3's pt-22vh was leaving content too low).
+
+**V5 (commit 168f59bb):** Killed iOS rubberband on /discover by adding
+overscrollBehavior: 'none' on the OUTER card pane (V3 only contained the
+inner body). Tightened bottom buffer 144px → 100px now that V3 math is
+verified. Switched Tailwind arbitrary `bottom-[calc(...)]` class to a CSS
+class `today-cta-anchor` with media query — Tailwind JIT was unreliable
+with nested env() commas. Comprehensive desktop panel review document
+written to `TODAY_PANEL_REVIEW_V5.md`.
+
+**V5-next (commit ebb4ed3a):** Bookmark/share/(i) icons grouped in single
+backdrop-blur pill. Streak chip is now a Link to /lab?tab=streak. Pull-to-
+refresh at idx=0 (drag-down past 80px reseeds + reloads). Hero image
+attribution rendered bottom-right of cards. Adaptive line-clamp (4 lines
+with hero, 6 lines text-only). Card pane height-capped at min(720px,
+viewport-9rem) on md+ — desktop card now reads as a discrete object,
+not a tall lonely pane. Connected Cases sidebar lifted from xl: → lg:
+(major win for iPad-landscape Gaia cohort). Edge chevrons expand on hover
+into 'Dismiss / Save' labeled pills. '?' shortcut toggle pulses once per
+session via sessionStorage. Headline hover state on desktop. Grid mode
+overlay (TodayGridMode component, 3-4 column card preview, lg+ only,
+toggled via LayoutGrid icon in header). Today's Lead badge enriched with
+streak context ('Today's lead · day 5').
+
+**V6 (commit dd724957):** Lead-with-identification prompt rewrites for
+both phenomena hooks (`generate-phenomena-hooks.ts`) and report hooks
+(`feed-hook.service.ts`). Sentence 1 = plain-language identification
+('Scotland's most famous lake monster, reported from Loch Ness since
+1933.'); Sentence 2 = unresolved tension. CONTENT_QUALITY_PANEL_REVIEW.md
+documents the panel observations + audit SQL + comparable products
+(Apple News, Atlantic, Wikipedia ledes, NYT Cooking, Pocket Discover).
+OnThisDate API placeholder guard added to skip Jan 1 / May 1 / Mar 8 /
+Dec 12 (placeholder dump days identified in the audit).
+
+**V6.1 (commit 2251f4a3):** Audit revealed 230 phenomena on Jan 1
+(placeholder dump), 12 on May 1 (Loch Ness wrongly here at 1933-05-02),
+plus pervasive use of row-creation timestamps as first_reported_date
+(Bigfoot at 2022-10-25, NDE at 1945-01-01). OnThisDate API rewritten to
+parse 'Month Day, YYYY' patterns out of `ai_quick_facts.first_documented`
+FIRST, falling back to first_reported_date only when AI text has no
+parseable date AND the column isn't a known placeholder. New
+`/api/admin/ai/repair-dates` endpoint that re-extracts dates from AI
+narrative fields via Claude Haiku (returns YYYY-MM-DD / YYYY-MM / YYYY
+/ unknown; nullifies aggressively for year-only and unknown).
+
+**V6.2-V6.5 (commits 3213a4fb, 3f99a94b, 13b920fa, aee74055):** Iterative
+hardening of the repair-dates endpoint and the phenomena-hooks endpoint:
+server-side placeholder filter (V6.2), parser hardening + raised
+max_tokens (V6.3), retryErrors flag (V6.4), force_all action +
+query-param support for phenomena-hooks (V6.5 — this was a critical bug:
+the endpoint only read action from req.body, so all earlier curl loops
+with ?action=force_all were silently no-op'ing through batch_missing,
+which only generates hooks for phenomena WITHOUT an existing one).
+
+**Data ops executed:**
+1. Date repair: full corpus sweep via repair-dates endpoint. ~190
+   day/month-precision repairs (Loch Ness 1933-05-02 → 1933-07-22,
+   Mothman 1966-01-01 → 1966-11-15, Dover Demon 1977-01-01 →
+   1977-04-21, etc.). ~4,500 nullified (concept-rooted phenomena
+   without specific Western discovery dates — encyclopedia year display
+   still works via ai_quick_facts.first_documented). Placeholder
+   distribution dropped from 230 on Jan 1 to 14 on Jan 1.
+2. Hook regeneration with V6 prompt: 4,753 phenomena + 25 reports.
+   Zero failures across 48 batches. Verified spot-check: every checked
+   phenomenon (Loch Ness, Bigfoot, Mothman, NDE, Tulpa, Astral
+   Projection, Grey Alien, Lucid Dreaming, etc.) leads with plain-
+   language identification before the engagement angle.
+3. ADMIN_API_KEY rotated in Vercel post-session (was exposed in chat
+   logs during the data ops phase).
+
+**New files:**
+- `src/components/discover/TodayCardShell.tsx` — viewport-fit chrome
+- `src/components/discover/TodayGridMode.tsx` — desktop grid overlay
+- `src/components/discover/TodayHeader.tsx` — sticky header, simplified
+- `src/components/discover/GestureTutorial.tsx` — first-run swipe tutorial
+- `src/components/discover/EndOfFeedCard.tsx` — celebration card
+- `src/components/discover/SkeletonCard.tsx` — dossier-styled loading
+- `src/components/discover/BackToTodayBar.tsx` — return-from-detail bar
+- `src/lib/hooks/useTodaySaves.ts` — save persistence + dispatch by type
+- `src/lib/hooks/useTodayReturn.ts` — sessionStorage marker
+- `src/pages/api/admin/ai/repair-dates.ts` — date extraction endpoint
+- `src/pages/api/user/saved-phenomena.ts` — parallel saves for phenomena
+- `supabase/migrations/20260501_saved_phenomena.sql` — saved_phenomena table
+- Three review documents:
+  - `REPORTS_DISCOVER_PANEL_REVIEW.md` (V0)
+  - `TODAY_LAUNCH_DECISION_MATRIX.md` (cohort-calibrated roadmap)
+  - `TODAY_PANEL_REVIEW_V5.md` (mobile + desktop pass)
+  - `TODAY_VISUAL_PANEL_REVIEW_V2.md` (mass-market readiness)
+  - `CONTENT_QUALITY_PANEL_REVIEW.md` (V6 lead-with-identification)
+
+**Booked for V7+ (separate sprints):**
+- Robert Stack documentary-voice narrative regeneration (paradocs_narrative
+  + ai_description) with mandatory skeptical-perspective paragraph
+- Manual curation of top-50 phenomena (Roswell, Rendlesham, Loch Ness,
+  Bell Witch, etc.) — needs human review
+- 'Today's Lead Case' push notification infrastructure (highest single
+  retention lever per V2 panel; in-app badge already shipped)
+- Year in Review / Wrapped feature (V6 spend per phenomena coverage
+  is now sufficient to support this)
+- Light theme variant
+- Sound design pass
+- Tablet-specific layout refinement
+- Fix .in() URL-length bug in repair-dates if a clean placeholder-only
+  re-run is ever needed (force=true sweep handled the same outcome)
+
+---
+
 ### May 1, 2026 (PM) — Reports/Discover Panel Review + Full Implementation
 **Status:** COMPLETE (TS clean; pending push + deploy)
 
