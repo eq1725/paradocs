@@ -136,10 +136,12 @@ export function TodayCardShell(props: TodayCardShellProps) {
         aria-hidden="true"
       />
 
-      {/* Top-right chrome: Save + Share + Why-you-see-this — V5 grouped in
-          a single backdrop-blur pill so the trio reads as a cluster against
-          busy hero imagery. */}
-      <div className="absolute top-3 right-3 z-30">
+      {/* Top-right chrome: Save + Share + Why-you-see-this.
+          V6.9: bumped to z-50 so it always wins the stacking order against
+          the sticky TodayHeader (z-30) — needed because in iOS PWA the
+          page can scroll a few pixels which pins the header over the
+          card pane top, hiding chrome that's only z-30. */}
+      <div className="absolute top-3 right-3 z-50">
         <div className="flex items-center gap-0.5 rounded-full bg-black/35 backdrop-blur-md border border-white/10 px-1 py-1">
           {props.whyReason && (
             <button
@@ -198,9 +200,9 @@ export function TodayCardShell(props: TodayCardShellProps) {
       )}
 
       {/* "Today's Lead" badge — top-left corner. V5: enriched with streak
-          context when the user has a 2+ day streak ("Today's lead · day 5"). */}
+          context when the user has a 2+ day streak. V6.9: z-50 to match chrome. */}
       {props.isTodaysLead && (
-        <div className="absolute top-3 left-3 z-30">
+        <div className="absolute top-3 left-3 z-50">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary-500/20 border border-primary-400/40 text-[10px] font-sans font-semibold uppercase tracking-wider text-primary-200 backdrop-blur-sm">
             <span aria-hidden="true">{'✦'}</span>
             {(typeof props.streakDays === 'number' && props.streakDays >= 2)
@@ -210,12 +212,12 @@ export function TodayCardShell(props: TodayCardShellProps) {
         </div>
       )}
 
-      {/* Body scroll region — V6.7:
-          - pt bumped 44 → 60 so the badge row clears the chrome cluster
-            (top-3 absolute) AND any TodayHeader bleed-through.
-          - pb stays at 180+safe to keep clearance above the CTA. */}
+      {/* Body scroll region — V6.9: pt bumped 60 → 96 so the badge row
+          stays well below the chrome cluster (which sits at top-3 = ~12px
+          + ~36px tall = bottom edge ~48px). 96px gives 48px clearance below
+          the chrome plus buffer for any TodayHeader scroll-under bleed. */}
       <div
-        className="absolute inset-0 flex flex-col z-10 pt-[60px] pb-[calc(180px+env(safe-area-inset-bottom,0px))] md:pb-[60px]"
+        className="absolute inset-0 flex flex-col z-10 pt-[96px] pb-[calc(180px+env(safe-area-inset-bottom,0px))] md:pb-[60px]"
       >
         <div
           className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 md:px-8 lg:px-10 today-card-body"

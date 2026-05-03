@@ -1083,7 +1083,7 @@ export default function DiscoverPage() {
     return (
       <>
         <Head><title>Today — Paradocs</title></Head>
-        <div className="flex flex-col overflow-hidden" style={{ height: 'calc(100dvh - 4rem)' }}>
+        <div className="flex flex-col" style={{ minHeight: 'calc(100vh - 4rem)' }}>
           <TodayHeader
             idx={0} total={0} lens={lens} category={categoryFilter}
             onLensChange={handleLensChange} onCategoryChange={handleCategoryChange}
@@ -1123,7 +1123,7 @@ export default function DiscoverPage() {
         <GestureTutorial onComplete={handleTutorialComplete} />
       )}
 
-      <div className="flex flex-col overflow-hidden" style={{ height: 'calc(100dvh - 4rem)' }}>
+      <div className="flex flex-col" style={{ minHeight: 'calc(100vh - 4rem)' }}>
         {/* Today header — replaces the old counter strip */}
         <TodayHeader
           idx={idx}
