@@ -40,6 +40,8 @@ interface ParadocsAnalysisResult {
   }>
   similar_phenomena: string[]
   emotional_tone?: string
+  suggested_category?: string
+  discovery_tags?: string[]
 }
 
 // Legacy type kept for backward compatibility with ParadocsAnalysisBox
@@ -118,7 +120,9 @@ var SYSTEM_PROMPT = 'You are the editorial intelligence behind Paradocs, the wor
   + '  "credibility_signal": "<1 phrase, max 8 words>",\n'
   + '  "mundane_explanations": [{"explanation": "...", "likelihood": "high|medium|low", "reasoning": "..."}],\n'
   + '  "similar_phenomena": ["phenomenon 1", "phenomenon 2"],\n'
-  + '  "emotional_tone": "frightening|awe_inspiring|ambiguous|clinical|unsettling|hopeful"\n'
+  + '  "emotional_tone": "frightening|awe_inspiring|ambiguous|clinical|unsettling|hopeful",\n'
+  + '  "suggested_category": "<the category YOU think fits best, from the allowed list>",\n'
+  + '  "discovery_tags": ["<3-6 plain-language tags for user-facing discovery>"]\n'
   + '}\n\n'
   + 'HOOK RULES:\n'
   + '- Start with the most unusual, specific, or inexplicable element.\n'
@@ -127,7 +131,12 @@ var SYSTEM_PROMPT = 'You are the editorial intelligence behind Paradocs, the wor
   + '- Create an open loop the reader must resolve by reading further.\n'
   + '- NEVER include precise clock times (e.g. "at 21:19"). Vague times are fine ("after midnight").\n\n'
   + 'ANALYSIS RULES:\n'
-  + '- Lead with what is unusual about this report relative to its category.\n'
+  + '- OPENING SENTENCE: Lead with the most vivid, specific, or inexplicable experiential detail from the report. '
+  + 'Put the reader inside the experience immediately. Do NOT open with a metadata inventory '
+  + '("A [location] witness reports seeing..."). Instead open with the sensory or situational hook '
+  + '("The light split into three distinct orbs and paced the vehicle for six miles." or '
+  + '"Halfway through the tunnel, the life review shifted from observation to full re-immersion.").\n'
+  + '- After the opening, contextualize what is unusual about this report relative to its category.\n'
   + '- CAPTURE SPECIFIC OBSERVATIONAL DETAILS: height estimates, build, coloring, limb proportions, '
   + 'gait or movement patterns, sounds, smells, behavioral responses, distance, duration of sighting. '
   + 'These physical and sensory details are the most valuable data in any report. If the report '
@@ -184,14 +193,32 @@ var SYSTEM_PROMPT = 'You are the editorial intelligence behind Paradocs, the wor
   + '- Frame it as an analyst\'s observation about the evidence, patterns, or implications.\n'
   + '- Must work as a complete thought with zero context.\n'
   + '- Should be the line someone would screenshot.\n'
+  + '- MUST include at least one concrete sensory or physical detail from the report. '
+  + 'Generic editorial ("This case raises important questions") is NOT acceptable.\n'
   + '- Specific > general. Evocative > explanatory.\n'
-  + '- Must be grammatically complete and polished. No fragments, no typos.\n\n'
+  + '- Must be grammatically complete and polished. No fragments, no typos.\n'
+  + '- FEW-SHOT EXAMPLES (study these for tone and specificity):\n'
+  + '  GOOD: "Three independent observers in a 40-mile corridor described identical descent patterns within the same hour."\n'
+  + '  GOOD: "The 8-foot bipedal figure left 17-inch tracks in fresh mud, then the trail simply stops."\n'
+  + '  GOOD: "She flatlined for four minutes and described the resuscitation procedure from a vantage point above the gurney."\n'
+  + '  GOOD: "The object held position against 60-knot winds for eleven minutes before accelerating beyond visual range."\n'
+  + '  BAD: "This report adds to the growing body of evidence." (generic, no detail)\n'
+  + '  BAD: "The witness describes a truly remarkable encounter." (empty, no specifics)\n'
+  + '  BAD: "Cases like this challenge our understanding." (cliche, could apply to anything)\n\n'
   + 'CREDIBILITY SIGNAL RULES:\n'
-  + '- Evidence-based only: corroboration count, evidence type, source quality, witness count.\n'
-  + '- Honest when thin: "Single witness, unverified" is correct.\n'
-  + '- Never fabricate corroboration.\n'
-  + '- Examples: "Four military witnesses, photographic evidence", "Single anonymous account", '
-  + '"Multiple witnesses, no physical evidence", "Official report with radar data".\n\n'
+  + '- Describe what the report CONTAINS, not what it lacks. Frame positively.\n'
+  + '- Lead with the strongest evidentiary element actually present in the report.\n'
+  + '- Never fabricate corroboration. Be honest but constructive.\n'
+  + '- BANNED: "Single witness, no physical evidence", "Single anonymous account", '
+  + '"Unverified", "No corroboration". These phrases discourage readers without adding insight.\n'
+  + '- GOOD EXAMPLES: "First-person account with sensory detail", '
+  + '"Detailed physical description, multiple observers", '
+  + '"Investigated by field team, physical traces documented", '
+  + '"Consistent with 12 similar reports from this region", '
+  + '"Named witness, specific timeframe and location", '
+  + '"Structured questionnaire response with cross-validated elements".\n'
+  + '- If the report is genuinely thin (short, vague, no specifics), use: '
+  + '"Brief account, limited detail" rather than implying falsehood.\n\n'
   + 'ALTERNATIVE EXPLANATIONS (field name: "mundane_explanations"):\n'
   + '- Provide 1-3. They do NOT all have to be reductive/materialist — a range of framings is the goal.\n'
   + '- Mix classical explanations (misidentification, sleep paralysis, pareidolia, hoax, coincidence, '
@@ -211,6 +238,32 @@ var SYSTEM_PROMPT = 'You are the editorial intelligence behind Paradocs, the wor
   + 'downgrade to "medium." Base rates across a category are not specific evidence in THIS report.\n\n'
   + 'SIMILAR PHENOMENA:\n'
   + '- Name real paranormal phenomena categories (e.g. "shadow people", "orbs", "missing time").\n\n'
+  + 'SUGGESTED CATEGORY:\n'
+  + '- Based on the actual content, which Paradocs category fits best? Allowed values:\n'
+  + '  ufos_aliens, cryptids, ghosts_hauntings, psychic_phenomena, consciousness_practices, '
+  + 'psychological_experiences, biological_factors, high_strangeness, earth_mysteries, '
+  + 'time_anomalies, technology_ai, folklore_mythology, conspiracies, other.\n'
+  + '- This is used for misclassification detection. Some sources (e.g. OBERF) file reports '
+  + 'under a blanket category that may not match the actual content. A UFO sighting filed under '
+  + '"psychic_phenomena" should have suggested_category: "ufos_aliens".\n'
+  + '- If the current category is correct, return the same value. Only differ when the content '
+  + 'clearly belongs elsewhere.\n\n'
+  + 'DISCOVERY TAGS:\n'
+  + '- Provide 3-6 plain-language tags that a general audience would use to find this report.\n'
+  + '- These are for user-facing discovery, NOT source-system metadata.\n'
+  + '- BANNED: source identifiers ("nuforc", "bfro", "oberf", "nderf"), technical codes '
+  + '("class-a", "class-b", "ce-1", "ce-3"), and internal jargon.\n'
+  + '- GOOD examples: "triangle craft", "night sighting", "rural encounter", "multiple witnesses", '
+  + '"bedroom visitation", "tunnel of light", "life review", "childhood NDE", "forest sounds", '
+  + '"physical traces", "recurring location".\n'
+  + '- Tags should be lowercase, 1-3 words each, specific to THIS report.\n\n'
+  + 'VAGUE DATE HANDLING:\n'
+  + '- When the report lacks a precise date (year only, decade, or "sometime in the 90s"), '
+  + 'weave a brief temporal anchor into the analysis. Reference what was happening culturally, '
+  + 'technologically, or in the field at that time to give the reader context.\n'
+  + '- Example: "This mid-1990s sighting predates consumer drones and widespread LED technology, '
+  + 'narrowing the conventional explanations available."\n'
+  + '- Do NOT fabricate dates. Only contextualize when the imprecision is notable.\n\n'
   + 'GLOBAL RULE: NEVER copy, quote, paraphrase, or restructure ANY sentence from the witness text. '
   + 'Do not use the witness\'s phrasing even with minor word changes. Every sentence you write must '
   + 'be composed from scratch as original editorial analysis. If you find yourself echoing the witness\'s '
@@ -607,6 +660,29 @@ function parseAnalysisJson(text: string): ParadocsAnalysisResult | null {
       delete parsed.emotional_tone
     }
 
+    // Validate suggested_category
+    var validCategories = [
+      'ufos_aliens', 'cryptids', 'ghosts_hauntings', 'psychic_phenomena',
+      'consciousness_practices', 'psychological_experiences', 'biological_factors',
+      'high_strangeness', 'earth_mysteries', 'time_anomalies', 'technology_ai',
+      'folklore_mythology', 'conspiracies', 'other'
+    ]
+    if (parsed.suggested_category && validCategories.indexOf(parsed.suggested_category) === -1) {
+      delete parsed.suggested_category
+    }
+
+    // Validate discovery_tags — ensure array of strings, max 6
+    if (parsed.discovery_tags) {
+      if (!Array.isArray(parsed.discovery_tags)) {
+        delete parsed.discovery_tags
+      } else {
+        parsed.discovery_tags = parsed.discovery_tags
+          .filter(function(t: any) { return typeof t === 'string' && t.trim().length > 0 })
+          .map(function(t: string) { return t.trim().toLowerCase() })
+          .slice(0, 6)
+      }
+    }
+
     return parsed as ParadocsAnalysisResult
   } catch (err) {
     console.error('[ParadocsAnalysis] JSON parse failed:', err)
@@ -642,8 +718,8 @@ export async function generateParadocsAnalysis(reportId: string): Promise<Parado
   console.log('[ParadocsAnalysis] Generating for: ' + reportId + ' (' + ((report as any).title || 'untitled').substring(0, 40) + ')')
 
   // Single call, temperature 0.4 for consistent quality
-  // 1024 tokens needed — 500 was causing truncation mid-JSON for detailed reports
-  var response = await callClaude(SYSTEM_PROMPT, userPrompt, 1024, 0.4)
+  // 1200 tokens needed — added suggested_category + discovery_tags fields
+  var response = await callClaude(SYSTEM_PROMPT, userPrompt, 1200, 0.4)
 
   if (response) {
     var result = parseAnalysisJson(response)
@@ -721,6 +797,12 @@ export async function generateAndSaveParadocsAnalysis(reportId: string): Promise
       if (result.emotional_tone) {
         assessmentData.emotional_tone = result.emotional_tone
       }
+      if (result.suggested_category) {
+        assessmentData.suggested_category = result.suggested_category
+      }
+      if (result.discovery_tags && result.discovery_tags.length > 0) {
+        assessmentData.discovery_tags = result.discovery_tags
+      }
 
       var updateData: Record<string, any> = {
         feed_hook: result.hook,
@@ -733,6 +815,24 @@ export async function generateAndSaveParadocsAnalysis(reportId: string): Promise
 
       if (result.emotional_tone) {
         updateData.emotional_tone = result.emotional_tone
+      }
+
+      // Store discovery_tags on the report's tags column (merged with existing source tags)
+      if (result.discovery_tags && result.discovery_tags.length > 0) {
+        updateData.ai_discovery_tags = result.discovery_tags
+      }
+
+      // Flag misclassification for admin review
+      if (result.suggested_category) {
+        var { data: catCheck } = await supabase
+          .from('reports')
+          .select('category')
+          .eq('id', reportId)
+          .single()
+        if (catCheck && result.suggested_category !== (catCheck as any).category) {
+          updateData.suggested_category = result.suggested_category
+          updateData.category_mismatch = true
+        }
       }
 
       var { error: updateError } = await (supabase

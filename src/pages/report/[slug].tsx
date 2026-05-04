@@ -26,6 +26,7 @@ import type { ParadocsAssessment } from '@/components/reports/ParadocsAnalysisBo
 import { CaseProfileChips } from '@/components/discover/DiscoverCards'
 import { BackToTodayBar } from '@/components/discover/BackToTodayBar'
 import { deriveCaseProfile } from '@/lib/caseProfile'
+import { getCategoryMoodImage, getCategoryMoodImageAbsolute } from '@/lib/categoryMoodImage'
 import SourceAttribution from '@/components/reports/SourceAttribution'
 import FeaturedMediaCard from '@/components/reports/FeaturedMediaCard'
 import MediaMentionBanner from '@/components/reports/MediaMentionBanner'
@@ -690,13 +691,21 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         <meta property="og:description" content={report.summary || ''} />
         <meta property="og:site_name" content="Paradocs" />
         <meta property="og:url" content={`https://beta.discoverparadocs.com/report/${slug}`} />
-        {media[0]?.url && <meta property="og:image" content={media[0].url} />}
+        {(function () {
+          var ogImg = media[0]?.url || getCategoryMoodImageAbsolute(report.category || 'other', report.id, 'https://beta.discoverparadocs.com')
+          if (!ogImg) return null
+          return <meta property="og:image" content={ogImg} />
+        })()}
 
         {/* Twitter Card */}
-        <meta name="twitter:card" content={media[0]?.url ? 'summary_large_image' : 'summary'} />
+        <meta name="twitter:card" content={(media[0]?.url || getCategoryMoodImage(report.category || 'other', report.id)) ? 'summary_large_image' : 'summary'} />
         <meta name="twitter:title" content={report.title} />
         <meta name="twitter:description" content={report.summary || ''} />
-        {media[0]?.url && <meta name="twitter:image" content={media[0].url} />}
+        {(function () {
+          var twImg = media[0]?.url || getCategoryMoodImageAbsolute(report.category || 'other', report.id, 'https://beta.discoverparadocs.com')
+          if (!twImg) return null
+          return <meta name="twitter:image" content={twImg} />
+        })()}
 
         {/* Article metadata */}
         {report.event_date && <meta property="article:published_time" content={report.event_date} />}
@@ -880,6 +889,23 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             {report.title}
           </h1>
 
+          {/* Category mood hero — atmospheric image for index reports without media */}
+          {isIndexReport && media.length === 0 && (function () {
+            var moodSrc = getCategoryMoodImage(report.category || 'other', report.id)
+            if (!moodSrc) return null
+            return (
+              <div className="relative w-full h-32 sm:h-44 rounded-xl overflow-hidden mb-4">
+                <img
+                  src={moodSrc}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover"
+                  loading="eager"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 via-gray-900/20 to-transparent" />
+              </div>
+            )
+          })()}
+
           {/* Feed hook lede — Paradocs editorial voice for index reports.
               Slightly larger on mobile to emphasise the editorial hook. */}
           {isIndexReport && (report as any).feed_hook && (
@@ -912,7 +938,15 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                   } else {
                     parts.push(locName)
                   }
-                  if (report.country) parts.push(report.country as string)
+                  // Dedup: skip country if it duplicates location_name or last part
+                  if (report.country) {
+                    var countryStr = report.country as string
+                    var lastPart = parts[parts.length - 1] || ''
+                    if (countryStr.toLowerCase() !== lastPart.toLowerCase()
+                      && countryStr.toLowerCase() !== locName.toLowerCase()) {
+                      parts.push(countryStr)
+                    }
+                  }
                   return (
                     <>
                       {parts.join(', ')}
@@ -1131,21 +1165,43 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             </p>
 
             {/* 4. "Had a similar experience?" \u2014 journey step 2\u21923 conversion */}
-            <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-purple-500/[0.06] to-indigo-500/[0.06] border border-purple-500/15">
-              <p className="text-sm font-medium text-white mb-1">
-                {'Had a similar experience?'}
-              </p>
-              <p className="text-xs text-gray-400 mb-3">
-                {'Your account could help others make sense of ' + categoryConfig.label.toLowerCase() + ' experiences like this one.'}
-              </p>
-              <Link
-                href="/submit"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium text-white bg-purple-600 hover:bg-purple-500 transition-colors"
-              >
-                {'Share your experience'}
-                <ChevronRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
+            {/* CTA copy adapts based on emotional_tone from AI analysis */}
+            {(function () {
+              var tone = paradocsAssessment ? (paradocsAssessment as any).emotional_tone : null
+              var headline = 'Had a similar experience?'
+              var body = 'Your account could help others make sense of ' + categoryConfig.label.toLowerCase() + ' experiences like this one.'
+              var buttonText = 'Share your experience'
+              if (tone === 'frightening' || tone === 'unsettling') {
+                headline = 'Processing something similar?'
+                body = "You're not alone. Sharing can help you and others understand " + categoryConfig.label.toLowerCase() + ' experiences like this.'
+                buttonText = 'Tell your story'
+              } else if (tone === 'awe_inspiring' || tone === 'hopeful') {
+                headline = 'Had a similar experience?'
+                body = 'Your account could help others make sense of ' + categoryConfig.label.toLowerCase() + ' experiences like this one.'
+                buttonText = 'Share your experience'
+              } else if (tone === 'clinical') {
+                headline = 'Can you add to the data?'
+                body = 'First-hand accounts strengthen the research on ' + categoryConfig.label.toLowerCase() + ' cases.'
+                buttonText = 'Submit your account'
+              }
+              return (
+                <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-purple-500/[0.06] to-indigo-500/[0.06] border border-purple-500/15">
+                  <p className="text-sm font-medium text-white mb-1">
+                    {headline}
+                  </p>
+                  <p className="text-xs text-gray-400 mb-3">
+                    {body}
+                  </p>
+                  <Link
+                    href="/submit"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium text-white bg-purple-600 hover:bg-purple-500 transition-colors"
+                  >
+                    {buttonText}
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              )
+            })()}
 
             {/* 5. Case Profile Chips \u2014 supporting structured data */}
             {/* Universal Case Profile \u2014 structured facts for every adapter.

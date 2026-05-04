@@ -80,6 +80,61 @@ function yn(v: any): 'yes' | 'no' | 'unknown' {
   return 'unknown'
 }
 
+/**
+ * Plain-language label map for case profile phenomena and facts.
+ * Converts source jargon into terms a general audience understands.
+ */
+var PLAIN_LABEL_MAP: Record<string, string> = {
+  // NDE/OBE phenomena
+  'Boundary': 'Point of no return',
+  'Met beings': 'Encountered entities',
+  'Mystical being': 'Encountered a presence',
+  'Deceased present': 'Saw deceased loved ones',
+  'Other realm': 'Visited another realm',
+  'Special knowledge': 'Received knowledge',
+  'Future scenes': 'Saw future events',
+  'Afterlife aware': 'Awareness of afterlife',
+  'Brilliant light': 'Saw a brilliant light',
+  'Altered time': 'Time felt different',
+  'Vivid memory': 'Vivid recall',
+  'Believes real': 'Felt more real than real',
+  'Life changed': 'Life-changing aftereffects',
+  'Life review': 'Experienced life review',
+  'Out-of-body': 'Left the body',
+  'Tunnel': 'Tunnel experience',
+  // BFRO/Cryptid
+  'BFRO class': 'Evidence type',
+  'BFRO investigated': 'Field investigation',
+  'Other witnesses': 'Additional witnesses',
+  'Other stories nearby': 'Prior reports nearby',
+  // General
+  'Photo / video': 'Photo or video',
+  'Official report': 'Formally reported',
+  'Specific location named': 'Named location',
+  'Date reported': 'Date on record',
+  'Group context': 'Group setting',
+}
+
+/**
+ * Map for BFRO classification values — turn codes into plain descriptions.
+ */
+var BFRO_CLASS_MAP: Record<string, string> = {
+  'Class A': 'Direct sighting',
+  'Class B': 'Indirect evidence',
+  'Class C': 'Secondhand report',
+}
+
+function plainLabel(label: string): string {
+  return PLAIN_LABEL_MAP[label] || label
+}
+
+function plainFactValue(label: string, value: string): string {
+  if (label === 'BFRO class' || label === 'Evidence type') {
+    return BFRO_CLASS_MAP[value] || value
+  }
+  return value
+}
+
 // =========================================================================
 //  NDERF / OBERF — legacy-shape converter
 //  Re-uses the big NDE questionnaire already stored on metadata.case_profile.
@@ -383,28 +438,52 @@ function deriveGeneric(r: CaseProfileSource, kind: CaseProfileKind, headerLabel:
 //  Top-level dispatcher
 // =========================================================================
 
+/**
+ * Post-process a profile to apply plain-language labels and fact values.
+ * Runs once at the top-level dispatcher so every source adapter benefits.
+ */
+function applyPlainLabels(profile: CaseProfile | null): CaseProfile | null {
+  if (!profile) return null
+  profile.phenomena = profile.phenomena.map(function(p) {
+    return { label: plainLabel(p.label), state: p.state }
+  })
+  profile.facts = profile.facts.map(function(f) {
+    var newLabel = plainLabel(f.label)
+    return { label: newLabel, value: plainFactValue(f.label, f.value) }
+  })
+  return profile
+}
+
 export function deriveCaseProfile(report: CaseProfileSource | null | undefined): CaseProfile | null {
   if (!report) return null
   var src = (report.source_type || '').toLowerCase()
   var m = report.metadata || {}
 
+  var profile: CaseProfile | null = null
+
   // NDERF/OBERF already carry a structured case_profile — re-use that path.
   if ((src === 'nderf' || src === 'oberf') && m.case_profile) {
-    return nderfToCaseProfile(m.case_profile as NDERFCaseProfile, src)
+    profile = nderfToCaseProfile(m.case_profile as NDERFCaseProfile, src)
+  } else if (src === 'nuforc') {
+    profile = deriveNuforc(report)
+  } else if (src === 'bfro') {
+    profile = deriveBfro(report)
+  } else if (src === 'erowid') {
+    profile = deriveErowid(report)
+  } else if (src === 'iands') {
+    profile = deriveIands(report)
+  } else if (src === 'ghostsofamerica' || src === 'shadowlands') {
+    profile = deriveGhost(report)
+  } else if (src === 'reddit' || src === 'reddit-v2') {
+    profile = deriveReddit(report)
+  } else if (src === 'youtube') {
+    profile = deriveGeneric(report, 'media', 'Media Profile')
+  } else if (src === 'wikipedia' || src === 'news' || src === 'curated' || src === 'editorial' || src === 'historical_archive') {
+    profile = deriveGeneric(report, 'archive', 'Case Profile')
+  } else {
+    // Default: try to build a generic profile from whatever is on the report.
+    profile = deriveGeneric(report, 'generic', 'Case Profile')
   }
 
-  if (src === 'nuforc') return deriveNuforc(report)
-  if (src === 'bfro') return deriveBfro(report)
-  if (src === 'erowid') return deriveErowid(report)
-  if (src === 'iands') return deriveIands(report)
-  if (src === 'ghostsofamerica' || src === 'shadowlands') return deriveGhost(report)
-  if (src === 'reddit' || src === 'reddit-v2') return deriveReddit(report)
-
-  if (src === 'youtube') return deriveGeneric(report, 'media', 'Media Profile')
-  if (src === 'wikipedia' || src === 'news' || src === 'curated' || src === 'editorial' || src === 'historical_archive') {
-    return deriveGeneric(report, 'archive', 'Case Profile')
-  }
-
-  // Default: try to build a generic profile from whatever is on the report.
-  return deriveGeneric(report, 'generic', 'Case Profile')
+  return applyPlainLabels(profile)
 }
