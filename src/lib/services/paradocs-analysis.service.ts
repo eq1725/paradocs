@@ -811,6 +811,13 @@ export async function generateAndSaveParadocsAnalysis(reportId: string): Promise
         assessmentData.discovery_tags = result.discovery_tags
       }
 
+      // Only write to columns known to exist in the schema.
+      // New fields (emotional_tone, suggested_category, discovery_tags, category_mismatch)
+      // are stored inside paradocs_assessment JSONB.
+      if (result.suggested_category && result.suggested_category !== (report as any).category) {
+        assessmentData.category_mismatch = true
+      }
+
       var updateData: Record<string, any> = {
         feed_hook: result.hook,
         feed_hook_generated_at: new Date().toISOString(),
@@ -818,28 +825,6 @@ export async function generateAndSaveParadocsAnalysis(reportId: string): Promise
         paradocs_assessment: assessmentData,
         paradocs_analysis_generated_at: new Date().toISOString(),
         paradocs_analysis_model: ANTHROPIC_MODEL
-      }
-
-      if (result.emotional_tone) {
-        updateData.emotional_tone = result.emotional_tone
-      }
-
-      // Store discovery_tags on the report's tags column (merged with existing source tags)
-      if (result.discovery_tags && result.discovery_tags.length > 0) {
-        updateData.ai_discovery_tags = result.discovery_tags
-      }
-
-      // Flag misclassification for admin review
-      if (result.suggested_category) {
-        var { data: catCheck } = await supabase
-          .from('reports')
-          .select('category')
-          .eq('id', reportId)
-          .single()
-        if (catCheck && result.suggested_category !== (catCheck as any).category) {
-          updateData.suggested_category = result.suggested_category
-          updateData.category_mismatch = true
-        }
       }
 
       var { error: updateError } = await (supabase
@@ -1130,6 +1115,12 @@ export async function generateAndSaveDirect(reportId: string): Promise<{ success
     if (result.suggested_category) assessmentData.suggested_category = result.suggested_category
     if (result.discovery_tags && result.discovery_tags.length > 0) assessmentData.discovery_tags = result.discovery_tags
 
+    // Store category mismatch flag inside assessment JSONB
+    if (result.suggested_category && result.suggested_category !== (report as any).category) {
+      assessmentData.category_mismatch = true
+    }
+
+    // Only write to columns known to exist in the schema
     var updateData: Record<string, any> = {
       feed_hook: result.hook,
       feed_hook_generated_at: new Date().toISOString(),
@@ -1137,14 +1128,6 @@ export async function generateAndSaveDirect(reportId: string): Promise<{ success
       paradocs_assessment: assessmentData,
       paradocs_analysis_generated_at: new Date().toISOString(),
       paradocs_analysis_model: ANTHROPIC_MODEL
-    }
-    if (result.emotional_tone) updateData.emotional_tone = result.emotional_tone
-    if (result.discovery_tags && result.discovery_tags.length > 0) updateData.ai_discovery_tags = result.discovery_tags
-
-    // Check category mismatch
-    if (result.suggested_category && result.suggested_category !== (report as any).category) {
-      updateData.suggested_category = result.suggested_category
-      updateData.category_mismatch = true
     }
 
     var { error: updateError } = await (supabase.from('reports') as any)
