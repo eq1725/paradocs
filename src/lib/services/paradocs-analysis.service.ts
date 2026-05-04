@@ -410,9 +410,10 @@ async function callClaude(
 ): Promise<string | null> {
   var apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
-    console.error('[ParadocsAnalysis] No ANTHROPIC_API_KEY found')
+    console.error('[ParadocsAnalysis] No ANTHROPIC_API_KEY found. Env keys available: ' + Object.keys(process.env).filter(function(k) { return k.indexOf('ANTHROPIC') !== -1 || k.indexOf('CLAUDE') !== -1 }).join(', '))
     return null
   }
+  console.log('[ParadocsAnalysis] callClaude starting. Key prefix: ' + apiKey.substring(0, 12) + '... systemPrompt length: ' + systemPrompt.length + ' chars, userPrompt length: ' + userPrompt.length + ' chars, maxTokens: ' + maxTokens)
 
   var models = [ANTHROPIC_MODEL, ANTHROPIC_FALLBACK]
 
@@ -465,16 +466,19 @@ async function callClaude(
 
         if (!resp.ok) {
           var errText = await resp.text().catch(function() { return '(no body)' })
-          console.error('[ParadocsAnalysis] API error with ' + modelName + ': ' + resp.status + ' ' + errText.substring(0, 300))
+          console.error('[ParadocsAnalysis] API error with ' + modelName + ': ' + resp.status + ' ' + errText.substring(0, 500))
           break
         }
 
+        console.log('[ParadocsAnalysis] API response OK from ' + modelName + ', status: ' + resp.status)
+
         var data = await resp.json()
         if (data.content && data.content.length > 0 && data.content[0].text) {
+          console.log('[ParadocsAnalysis] Got response from ' + modelName + ', length: ' + data.content[0].text.length + ' chars, stop_reason: ' + (data.stop_reason || 'unknown'))
           return data.content[0].text.trim()
         }
 
-        console.warn('[ParadocsAnalysis] Empty response from ' + modelName)
+        console.warn('[ParadocsAnalysis] Empty response from ' + modelName + '. Data keys: ' + Object.keys(data).join(', ') + ', stop_reason: ' + (data.stop_reason || 'none') + ', content: ' + JSON.stringify(data.content || null).substring(0, 200))
         break
 
       } catch (err: any) {
@@ -704,9 +708,10 @@ export async function generateParadocsAnalysis(reportId: string): Promise<Parado
     .single()
 
   if (fetchError || !report) {
-    console.error('[ParadocsAnalysis] Report not found: ' + reportId)
+    console.error('[ParadocsAnalysis] Report not found: ' + reportId + ' error: ' + (fetchError ? fetchError.message : 'no data'))
     return null
   }
+  console.log('[ParadocsAnalysis] Fetched report ' + reportId + ' - has description: ' + !!(report as any).description + ', category: ' + (report as any).category)
 
   // Compute per-report length budget so analysis never exceeds source length.
   var sourceText = (report as any).description || (report as any).summary || ''
