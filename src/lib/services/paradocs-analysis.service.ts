@@ -392,14 +392,82 @@ function buildUserPrompt(report: any, analysisWordBudget: number): string {
 }
 
 // ============================================
-// API Calling (preserved — robust with timeouts/retries/backoff)
+// API Calling — simplified, matching proven diagnose pattern
 // ============================================
 
-var REQUEST_TIMEOUT_MS = 45000
-var MAX_RETRIES = 3
+var REQUEST_TIMEOUT_MS = 50000
 
 function sleep(ms: number): Promise<void> {
   return new Promise(function(resolve) { setTimeout(resolve, ms) })
+}
+
+/**
+ * Single API call attempt to one model. Returns response text or null.
+ * Isolated function avoids var-scoping issues with AbortController in loops.
+ */
+async function callClaudeOnce(
+  apiKey: string,
+  modelName: string,
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens: number,
+  temperature: number
+): Promise<{ text: string | null; retryable: boolean; status: number }> {
+  var controller = new AbortController()
+  var timeoutId = setTimeout(function() { controller.abort() }, REQUEST_TIMEOUT_MS)
+
+  try {
+    var bodyObj = {
+      model: modelName,
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+      temperature: temperature
+    }
+
+    var resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify(bodyObj),
+      signal: controller.signal
+    })
+
+    clearTimeout(timeoutId)
+
+    if (resp.status === 429 || resp.status >= 500) {
+      var errBody = await resp.text().catch(function() { return '' })
+      console.warn('[ParadocsAnalysis] ' + resp.status + ' from ' + modelName + ': ' + errBody.substring(0, 200))
+      return { text: null, retryable: true, status: resp.status }
+    }
+
+    if (!resp.ok) {
+      var errText = await resp.text().catch(function() { return '' })
+      console.error('[ParadocsAnalysis] ' + resp.status + ' from ' + modelName + ': ' + errText.substring(0, 400))
+      return { text: null, retryable: false, status: resp.status }
+    }
+
+    var data = await resp.json()
+    if (data.content && data.content.length > 0 && data.content[0].text) {
+      console.log('[ParadocsAnalysis] OK from ' + modelName + ' (' + data.content[0].text.length + ' chars, ' + (data.usage ? data.usage.output_tokens : '?') + ' tokens)')
+      return { text: data.content[0].text.trim(), retryable: false, status: 200 }
+    }
+
+    console.warn('[ParadocsAnalysis] Empty content from ' + modelName + ', stop_reason: ' + (data.stop_reason || 'none'))
+    return { text: null, retryable: false, status: 200 }
+
+  } catch (err: any) {
+    clearTimeout(timeoutId)
+    if (err.name === 'AbortError') {
+      console.error('[ParadocsAnalysis] Timeout (' + REQUEST_TIMEOUT_MS + 'ms) on ' + modelName)
+    } else {
+      console.error('[ParadocsAnalysis] Network error on ' + modelName + ': ' + (err.message || err))
+    }
+    return { text: null, retryable: true, status: 0 }
+  }
 }
 
 async function callClaude(
@@ -410,94 +478,28 @@ async function callClaude(
 ): Promise<string | null> {
   var apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
-    console.error('[ParadocsAnalysis] No ANTHROPIC_API_KEY found. Env keys available: ' + Object.keys(process.env).filter(function(k) { return k.indexOf('ANTHROPIC') !== -1 || k.indexOf('CLAUDE') !== -1 }).join(', '))
+    console.error('[ParadocsAnalysis] No ANTHROPIC_API_KEY found')
     return null
   }
-  console.log('[ParadocsAnalysis] callClaude starting. Key prefix: ' + apiKey.substring(0, 12) + '... systemPrompt length: ' + systemPrompt.length + ' chars, userPrompt length: ' + userPrompt.length + ' chars, maxTokens: ' + maxTokens)
 
+  var temp = (temperature != null) ? temperature : 0.4
   var models = [ANTHROPIC_MODEL, ANTHROPIC_FALLBACK]
 
-  for (var m = 0; m < models.length; m++) {
-    var modelName = models[m]
+  // Try primary model with 2 attempts
+  var r1 = await callClaudeOnce(apiKey, models[0], systemPrompt, userPrompt, maxTokens, temp)
+  if (r1.text) return r1.text
 
-    for (var attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      try {
-        var controller = new AbortController()
-        var timeoutId = setTimeout(function() { controller.abort() }, REQUEST_TIMEOUT_MS)
-
-        var bodyObj: Record<string, any> = {
-          model: modelName,
-          max_tokens: maxTokens,
-          system: systemPrompt,
-          messages: [{ role: 'user', content: userPrompt }]
-        }
-        if (temperature != null) {
-          bodyObj.temperature = temperature
-        }
-
-        var resp = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01'
-          },
-          body: JSON.stringify(bodyObj),
-          signal: controller.signal
-        })
-
-        clearTimeout(timeoutId)
-
-        if (resp.status === 429) {
-          var retryAfter = resp.headers.get('retry-after')
-          var backoffMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : (Math.pow(2, attempt + 1) * 1000)
-          console.warn('[ParadocsAnalysis] Rate limited (429) on ' + modelName + ', attempt ' + (attempt + 1) + '/' + MAX_RETRIES + ', backing off ' + backoffMs + 'ms')
-          await sleep(backoffMs)
-          continue
-        }
-
-        if (resp.status >= 500) {
-          var errBody = await resp.text().catch(function() { return '(no body)' })
-          var backoff5xx = Math.pow(2, attempt + 1) * 1000
-          console.warn('[ParadocsAnalysis] Server error ' + resp.status + ' on ' + modelName + ', attempt ' + (attempt + 1) + '/' + MAX_RETRIES + '. Body: ' + errBody.substring(0, 200))
-          await sleep(backoff5xx)
-          continue
-        }
-
-        if (!resp.ok) {
-          var errText = await resp.text().catch(function() { return '(no body)' })
-          console.error('[ParadocsAnalysis] API error with ' + modelName + ': ' + resp.status + ' ' + errText.substring(0, 500))
-          break
-        }
-
-        console.log('[ParadocsAnalysis] API response OK from ' + modelName + ', status: ' + resp.status)
-
-        var data = await resp.json()
-        if (data.content && data.content.length > 0 && data.content[0].text) {
-          console.log('[ParadocsAnalysis] Got response from ' + modelName + ', length: ' + data.content[0].text.length + ' chars, stop_reason: ' + (data.stop_reason || 'unknown'))
-          return data.content[0].text.trim()
-        }
-
-        console.warn('[ParadocsAnalysis] Empty response from ' + modelName + '. Data keys: ' + Object.keys(data).join(', ') + ', stop_reason: ' + (data.stop_reason || 'none') + ', content: ' + JSON.stringify(data.content || null).substring(0, 200))
-        break
-
-      } catch (err: any) {
-        clearTimeout(timeoutId!)
-        if (err.name === 'AbortError') {
-          console.error('[ParadocsAnalysis] Timeout on ' + modelName + ', attempt ' + (attempt + 1))
-        } else {
-          console.error('[ParadocsAnalysis] Network error on ' + modelName + ', attempt ' + (attempt + 1) + ':', err.message || err)
-        }
-        if (attempt < MAX_RETRIES - 1) {
-          await sleep(Math.pow(2, attempt + 1) * 1000)
-          continue
-        }
-        break
-      }
-    }
+  if (r1.retryable) {
+    await sleep(2000)
+    var r2 = await callClaudeOnce(apiKey, models[0], systemPrompt, userPrompt, maxTokens, temp)
+    if (r2.text) return r2.text
   }
 
-  console.error('[ParadocsAnalysis] All models and retries exhausted')
+  // Try fallback model
+  var r3 = await callClaudeOnce(apiKey, models[1], systemPrompt, userPrompt, maxTokens, temp)
+  if (r3.text) return r3.text
+
+  console.error('[ParadocsAnalysis] All attempts exhausted')
   return null
 }
 
