@@ -146,12 +146,15 @@ body {
   );
 }
 
-/* CTA anchor — V7.1. Final tuned value: 108px + env.
-   Adds ~8px more clearance vs V7.0 (100px) which Chase perceived as
-   slightly obscured by the tab nav. With body-scroll lock in V7.0,
-   the position is fully stable across all card swipes. */
+/* CTA anchor — V7.2. Tab nav (h-14 = 56px) + label area + home indicator
+   on modern iPhones (~34px) totals ~120px of bottom UI that the CTA must
+   clear. V7.1 used 108px which Chase still perceived as too low — the
+   button felt visually pinned to the tab labels. 128px adds ~20px breath
+   so the CTA reads as a distinct element with comfortable separation
+   from the OS chrome. iOS PWA env(safe-area-inset-bottom) returns 0 in
+   standalone, so we hard-code the indicator allowance into the constant. */
 .today-cta-anchor {
-  bottom: calc(108px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(128px + env(safe-area-inset-bottom, 0px));
 }
 @media (min-width: 768px) {
   .today-cta-anchor {

@@ -212,11 +212,12 @@ export function TodayCardShell(props: TodayCardShellProps) {
         </div>
       )}
 
-      {/* Body scroll region — V7.1: pb bumped 180 → 200 so the body
-          content has a visible 20+px gap above the CTA. Earlier the body
-          ended ~4px above the CTA top, making them visually merge. */}
+      {/* Body scroll region — V7.2: pb bumped 200 → 220 to track the
+          CTA anchor's 108 → 128 bump, keeping the visible gap between
+          body content and CTA at ~24px so the two read as separate
+          elements (not a merged block). */}
       <div
-        className="absolute inset-0 flex flex-col z-10 pt-[96px] pb-[calc(200px+env(safe-area-inset-bottom,0px))] md:pb-[60px]"
+        className="absolute inset-0 flex flex-col z-10 pt-[96px] pb-[calc(220px+env(safe-area-inset-bottom,0px))] md:pb-[60px]"
       >
         <div
           className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 md:px-8 lg:px-10 today-card-body"
