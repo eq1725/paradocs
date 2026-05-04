@@ -923,6 +923,129 @@ export async function generateAnalysisBatch(
   return stats
 }
 
+/**
+ * Diagnostic function — runs the pipeline for a single report and returns
+ * a detailed trace of what happened at each step, rather than just pass/fail.
+ * Used by the admin endpoint with action: "diagnose".
+ */
+export async function diagnoseAnalysisGeneration(reportId: string): Promise<Record<string, any>> {
+  var trace: Record<string, any> = { reportId: reportId, steps: [] }
+
+  try {
+    // Step 1: Check API key
+    var apiKey = process.env.ANTHROPIC_API_KEY
+    trace.apiKeyPresent = !!apiKey
+    trace.apiKeyPrefix = apiKey ? apiKey.substring(0, 15) + '...' : null
+    trace.steps.push('api_key_check: ' + (apiKey ? 'found' : 'MISSING'))
+
+    if (!apiKey) return trace
+
+    // Step 2: Fetch report
+    var supabase = createServerClient()
+    var { data: report, error: fetchError } = await supabase
+      .from('reports')
+      .select('id, title, summary, description, category, location_name, country, state_province, city, event_date, source_type, source_label, latitude, longitude, has_photo_video, has_official_report, witness_count, metadata')
+      .eq('id', reportId)
+      .single()
+
+    if (fetchError || !report) {
+      trace.fetchError = fetchError ? fetchError.message : 'no data returned'
+      trace.steps.push('fetch_report: FAILED')
+      return trace
+    }
+    trace.reportTitle = ((report as any).title || '').substring(0, 60)
+    trace.hasDescription = !!(report as any).description
+    trace.descriptionLength = ((report as any).description || '').length
+    trace.category = (report as any).category
+    trace.steps.push('fetch_report: OK')
+
+    // Step 3: Build prompts
+    var sourceText = (report as any).description || (report as any).summary || ''
+    var budget = computeAnalysisWordBudget(sourceText)
+    var userPrompt = buildUserPrompt(report, budget)
+    trace.systemPromptLength = SYSTEM_PROMPT.length
+    trace.userPromptLength = userPrompt.length
+    trace.analysisBudget = budget
+    trace.steps.push('build_prompts: OK (sys=' + SYSTEM_PROMPT.length + ', user=' + userPrompt.length + ')')
+
+    // Step 4: Make API call directly (single attempt, no retry)
+    var controller = new AbortController()
+    var timeoutId = setTimeout(function() { controller.abort() }, 50000)
+
+    var bodyObj = {
+      model: ANTHROPIC_MODEL,
+      max_tokens: 1200,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userPrompt }],
+      temperature: 0.4
+    }
+
+    var startTime = Date.now()
+    var resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify(bodyObj),
+      signal: controller.signal
+    })
+    clearTimeout(timeoutId)
+
+    var elapsed = Date.now() - startTime
+    trace.apiResponseStatus = resp.status
+    trace.apiResponseTime = elapsed + 'ms'
+
+    if (!resp.ok) {
+      var errBody = await resp.text().catch(function() { return '(no body)' })
+      trace.apiErrorBody = errBody.substring(0, 1000)
+      trace.steps.push('api_call: FAILED status=' + resp.status)
+      return trace
+    }
+
+    trace.steps.push('api_call: OK status=' + resp.status + ' in ' + elapsed + 'ms')
+
+    // Step 5: Parse response
+    var data = await resp.json()
+    trace.stopReason = data.stop_reason || 'unknown'
+    trace.inputTokens = data.usage ? data.usage.input_tokens : null
+    trace.outputTokens = data.usage ? data.usage.output_tokens : null
+
+    var rawText = (data.content && data.content[0] && data.content[0].text) ? data.content[0].text : null
+    trace.hasResponseText = !!rawText
+    trace.responseLength = rawText ? rawText.length : 0
+    trace.responsePreview = rawText ? rawText.substring(0, 500) : null
+
+    if (!rawText) {
+      trace.steps.push('parse_response: NO TEXT in response')
+      trace.rawContent = JSON.stringify(data.content || null).substring(0, 500)
+      return trace
+    }
+
+    trace.steps.push('parse_response: got ' + rawText.length + ' chars')
+
+    // Step 6: Parse JSON
+    var parsed = parseAnalysisJson(rawText)
+    trace.jsonParseSuccess = !!parsed
+    if (parsed) {
+      trace.steps.push('json_parse: OK')
+      trace.parsedFields = Object.keys(parsed)
+      trace.hookPreview = parsed.hook ? parsed.hook.substring(0, 80) : null
+    } else {
+      trace.steps.push('json_parse: FAILED')
+      trace.rawResponseTail = rawText.substring(Math.max(0, rawText.length - 200))
+    }
+
+    return trace
+  } catch (err: any) {
+    trace.exception = err.message || String(err)
+    trace.exceptionName = err.name || 'Error'
+    trace.steps.push('exception: ' + (err.message || String(err)))
+    return trace
+  }
+}
+
 export async function getParadocsAnalysisStats(): Promise<{
   total_approved: number
   with_narrative: number

@@ -12,7 +12,8 @@ import { createClient } from '@supabase/supabase-js'
 import {
   generateAndSaveParadocsAnalysis,
   generateAnalysisBatch,
-  getParadocsAnalysisStats
+  getParadocsAnalysisStats,
+  diagnoseAnalysisGeneration
 } from '@/lib/services/paradocs-analysis.service'
 
 function getSupabaseAdmin() {
@@ -81,6 +82,25 @@ export default async function handler(
 
     var { action, id, force, limit } = req.body
     var supabase = getSupabaseAdmin()
+
+    // Action: diagnose — run pipeline for one report and return full trace
+    if (action === 'diagnose') {
+      if (!id) {
+        // Pick first approved report if no ID provided
+        var { data: firstReport } = await supabase
+          .from('reports')
+          .select('id')
+          .eq('status', 'approved')
+          .order('created_at', { ascending: true })
+          .limit(1)
+        if (!firstReport || firstReport.length === 0) {
+          return res.status(404).json({ error: 'No approved reports found' })
+        }
+        id = firstReport[0].id
+      }
+      var trace = await diagnoseAnalysisGeneration(id)
+      return res.status(200).json({ success: true, trace: trace })
+    }
 
     // Action: stats — get analysis generation statistics
     if (action === 'stats') {
