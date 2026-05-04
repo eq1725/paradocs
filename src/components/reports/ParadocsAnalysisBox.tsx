@@ -50,6 +50,15 @@ interface Props {
   narrative: string | null   // paradocs_narrative (analysis text)
   assessment: ParadocsAssessment | null
   className?: string
+  /** Optional report metadata for dynamic empty state when analysis is pending */
+  reportMeta?: {
+    title?: string
+    category?: string
+    categoryLabel?: string
+    location?: string
+    eventDate?: string
+    sourceLabel?: string
+  }
 }
 
 function getLikelihoodStyle(likelihood: string): string {
@@ -58,7 +67,7 @@ function getLikelihoodStyle(likelihood: string): string {
   return 'bg-white/5 text-gray-500 border-white/10'
 }
 
-export default function ParadocsAnalysisBox({ narrative, assessment, className }: Props) {
+export default function ParadocsAnalysisBox({ narrative, assessment, className, reportMeta }: Props) {
   var _a = useState({
     explanations: false,
     phenomena: false
@@ -138,8 +147,20 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
     return function () { cancelled = true }
   }, [expandedSections, assessment])
 
-  // Graceful fallback when analysis hasn't been generated yet
+  // P2: Dynamic empty state — show metadata-derived context instead of generic "check back soon"
   if (!narrative && !assessment) {
+    // Build a contextual summary from available metadata
+    var contextParts: string[] = []
+    if (reportMeta) {
+      if (reportMeta.categoryLabel) contextParts.push(reportMeta.categoryLabel + ' case')
+      if (reportMeta.location) contextParts.push('reported from ' + reportMeta.location)
+      if (reportMeta.eventDate) contextParts.push('dating to ' + reportMeta.eventDate)
+      if (reportMeta.sourceLabel) contextParts.push('sourced from ' + reportMeta.sourceLabel)
+    }
+    var contextSummary = contextParts.length > 0
+      ? 'This ' + contextParts.join(', ') + ' is queued for deep analysis.'
+      : 'Analysis is being prepared for this report.'
+
     return (
       <div className={classNames('relative rounded-xl overflow-hidden mb-8', className)}>
         <div className="absolute inset-0 bg-gradient-to-br from-purple-900/30 via-gray-900/40 to-gray-900/50 rounded-xl" />
@@ -151,8 +172,11 @@ export default function ParadocsAnalysisBox({ narrative, assessment, className }
             </div>
             <h2 className="text-lg font-semibold text-white">Paradocs Analysis</h2>
           </div>
-          <p className="text-gray-500 text-sm">
-            Analysis is being prepared for this report. Check back soon.
+          <p className="text-gray-400 text-sm leading-relaxed">
+            {contextSummary}
+          </p>
+          <p className="text-gray-500 text-xs mt-2">
+            {'Our analysis engine reviews evidence, cross-references similar cases, and evaluates credibility signals. Check back soon.'}
           </p>
         </div>
       </div>

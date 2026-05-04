@@ -29,6 +29,9 @@ import { deriveCaseProfile } from '@/lib/caseProfile'
 import SourceAttribution from '@/components/reports/SourceAttribution'
 import FeaturedMediaCard from '@/components/reports/FeaturedMediaCard'
 import MediaMentionBanner from '@/components/reports/MediaMentionBanner'
+import StickyMobileBar from '@/components/reports/StickyMobileBar'
+import ReadNextCards from '@/components/reports/ReadNextCards'
+import { getTopRelatedReport } from '@/components/reports/ReadNextCards'
 import { SHOW_RESEARCH_PANELS } from '@/lib/features'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import { shouldShowEnvironmentalContext } from '@/lib/reports/environmental-visibility'
@@ -43,6 +46,10 @@ const ReportAIInsight = dynamic(
 )
 const ResearchHubPreview = dynamic(
   () => import('@/components/reports/ResearchHubPreview'),
+  { ssr: false }
+)
+const KeepExploring = dynamic(
+  () => import('@/components/reports/KeepExploring'),
   { ssr: false }
 )
 const FurtherReading = dynamic(
@@ -140,6 +147,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const [showAllTags, setShowAllTags] = useState(false)
   // showRationale state removed — credibility_signal in info grid is self-explanatory
   const [panelsExpanded, setPanelsExpanded] = useState(false)
+  const [nextReport, setNextReport] = useState<{ slug: string; title: string } | null>(null)
 
   // Load parent case report when this report belongs to a case group
   useEffect(() => {
@@ -174,6 +182,18 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     }
     loadParentCase()
   }, [report?.id])
+
+  // Load "next report" for StickyMobileBar CTA
+  useEffect(function () {
+    if (!report) { setNextReport(null); return }
+    var cancelled = false
+    getTopRelatedReport(report.id, report.category).then(function (result) {
+      if (!cancelled) setNextReport(result)
+    }).catch(function () {
+      if (!cancelled) setNextReport(null)
+    })
+    return function () { cancelled = true }
+  }, [report?.id, report?.category])
 
   useEffect(() => {
     if (slug) {
@@ -814,8 +834,24 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           </div>
         )}
 
+        {/* P1: Mobile hero image — full-bleed above title to maximise visual impact.
+            Only shown on small screens; desktop keeps image in its normal gallery position. */}
+        {media.length > 0 && media[0]?.url && (
+          <div className="md:hidden -mx-3 sm:-mx-4 mb-4">
+            <div className="relative w-full aspect-[16/9] bg-gray-900">
+              <img
+                src={media[0].url}
+                alt={report.title}
+                className="w-full h-full object-cover"
+                loading="eager"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-gray-900/60 via-transparent to-transparent" />
+            </div>
+          </div>
+        )}
+
         {/* Header */}
-        <header className="mb-8" data-tour-step="header">
+        <header className="mb-8 md:mb-8" data-tour-step="header">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4">
             {/* Content Type Badge */}
             <span className={classNames(
@@ -865,8 +901,8 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
              The feed_hook (above) provides original editorial intro text.
              Source content is only accessible via the "View Original" link. */}
 
-          {/* Meta info */}
-          <div className="flex flex-wrap gap-4 text-sm text-gray-400">
+          {/* Meta info — compact on mobile, full on desktop */}
+          <div className="flex flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm text-gray-400">
             {report.location_name && (
               <span className="flex items-center gap-1.5">
                 <MapPin className="w-4 h-4" />
@@ -918,22 +954,22 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               </span>
             )}
             {report.event_time && (
-              <span className="flex items-center gap-1.5">
+              <span className="hidden sm:flex items-center gap-1.5">
                 <Clock className="w-4 h-4" />
                 {(() => {
                   // Format "14:00:00" → "2:00 PM", pass through non-standard formats
-                  const match = report.event_time.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
+                  var match = report.event_time.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
                   if (!match) return report.event_time
-                  const h = parseInt(match[1], 10)
-                  const m = match[2]
-                  const period = h >= 12 ? 'PM' : 'AM'
-                  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+                  var h = parseInt(match[1], 10)
+                  var m = match[2]
+                  var period = h >= 12 ? 'PM' : 'AM'
+                  var h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
                   return h12 + ':' + m + ' ' + period
                 })()}
               </span>
             )}
             {report.witness_count > 1 && (
-              <span className="flex items-center gap-1.5" title={report.witness_count >= 10 ? 'Approximate count based on available records' : report.witness_count + ' documented witnesses'}>
+              <span className="hidden sm:flex items-center gap-1.5" title={report.witness_count >= 10 ? 'Approximate count based on available records' : report.witness_count + ' documented witnesses'}>
                 <Users className="w-4 h-4" />
                 {report.witness_count >= 10 ? '~' : ''}{report.witness_count} witnesses{report.witness_count >= 10 ? ' (est.)' : ''}
               </span>
@@ -946,11 +982,11 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             )}
           </div>
 
-          {/* Quick actions - Log prominently in header */}
+          {/* Quick actions - Log prominently in header (hidden on mobile — StickyMobileBar provides these) */}
           {user && (
-            <div className="flex items-center gap-3 mt-5">
+            <div className="hidden md:flex items-center gap-3 mt-5">
               <button
-                onClick={() => setLogModalOpen(true)}
+                onClick={function() { setLogModalOpen(true) }}
                 className={classNames(
                   'inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
                   isLogged
@@ -993,9 +1029,10 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           className="mb-6"
         />
 
-        {/* Hero Media Gallery — images only, shown compactly above TOC */}
+        {/* Hero Media Gallery — images only, shown compactly above TOC.
+            Hidden on mobile where the full-bleed hero image is shown above the title instead. */}
         {media.length > 0 && (
-          <div className="mb-8" data-tour-step="media">
+          <div className="hidden md:block mb-8" data-tour-step="media">
             <MediaGallery media={media} mode="images" />
           </div>
         )}
@@ -1113,6 +1150,14 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             <ParadocsAnalysisBox
               narrative={(report as any).paradocs_narrative || null}
               assessment={paradocsAssessment}
+              reportMeta={{
+                title: report.title,
+                category: report.category,
+                categoryLabel: categoryConfig.label,
+                location: report.location_name || '',
+                eventDate: report.event_date ? formatDate(report.event_date, 'MMMM yyyy') : '',
+                sourceLabel: (report as any).source_label || ''
+              }}
             />
 
             {/* Source Attribution — legally required footnote */}
@@ -1130,6 +1175,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                 reportId={report.id}
                 reportTitle={report.title}
                 reportCategory={report.category}
+                categoryLabel={categoryConfig.label}
                 isSubscribed={!!(userProfile && (userProfile.role === 'admin' || userProfile.role === 'moderator' || userProfile.role === 'enterprise'))}
                 isAuthenticated={!!user}
               />
@@ -1261,15 +1307,14 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           <ConnectionCards reportSlug={slug as string} caseGroup={(report as any).case_group} className="mb-8 sm:mb-10" />
         </div>
 
-        {/* Combined engagement + CTA block — one cohesive closing section */}
+        {/* Engagement actions row */}
         <div className="mb-4 rounded-xl bg-white/[0.03] border border-white/[0.06] overflow-hidden">
-          {/* Engagement actions row */}
           <div className="flex items-center justify-between px-4 py-3">
             {/* Left: Vote buttons */}
             <div className="flex items-center gap-1">
               <div className="flex items-center bg-white/[0.04] rounded-full">
                 <button
-                  onClick={() => handleVote(1)}
+                  onClick={function() { handleVote(1) }}
                   disabled={!user}
                   className={classNames(
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-l-full transition-all disabled:opacity-40',
@@ -1284,7 +1329,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                 </button>
                 <div className="w-px h-3.5 bg-white/10" />
                 <button
-                  onClick={() => handleVote(-1)}
+                  onClick={function() { handleVote(-1) }}
                   disabled={!user}
                   className={classNames(
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-r-full transition-all disabled:opacity-40',
@@ -1310,7 +1355,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             <div className="flex items-center gap-0.5">
               {user && (
                 <button
-                  onClick={() => setLogModalOpen(true)}
+                  onClick={function() { setLogModalOpen(true) }}
                   className={classNames(
                     'flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs transition-all',
                     isLogged
@@ -1350,7 +1395,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               </button>
               {user && (
                 <Link
-                  href={`/dashboard/journal/new?report_id=${report.id}&report_title=${encodeURIComponent(report.title)}&report_slug=${report.slug}&report_category=${report.category}`}
+                  href={'/dashboard/journal/new?report_id=' + report.id + '&report_title=' + encodeURIComponent(report.title) + '&report_slug=' + report.slug + '&report_category=' + report.category}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs text-gray-400 hover:text-amber-400 hover:bg-white/[0.04] transition-all"
                   title="Write journal entry"
                 >
@@ -1361,13 +1406,20 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             </div>
           </div>
         </div>
+
+        {/* P1: Inline "Read Next" cards — session depth driver */}
+        <ReadNextCards
+          reportId={report.id}
+          category={report.category}
+          className="border-t border-white/[0.06]"
+        />
           </article>
 
           {/* Sidebar with related reports and patterns */}
           <aside className="lg:w-80 flex-shrink-0 mt-8 lg:mt-0" data-tour-step="sidebar">
             {/* Mobile: collapsible toggle */}
             <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
+              onClick={function() { setSidebarOpen(!sidebarOpen) }}
               className="lg:hidden w-full flex items-center justify-between px-4 py-3 glass-card mb-4"
             >
               <span className="text-sm font-medium text-gray-300">Related Reports &amp; Patterns</span>
@@ -1423,38 +1475,13 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           </aside>
         </div>
 
-        {/* Contextual CTA — spans full width across article + sidebar */}
-        <div className="mt-6 sm:mt-8 mb-4">
-          <div className="relative overflow-hidden rounded-xl border border-purple-500/15 bg-gradient-to-r from-purple-500/[0.04] via-indigo-500/[0.04] to-purple-500/[0.04] p-5 sm:p-6 lg:p-8 text-center">
-            <div className="relative">
-              {(report as any).content_type === 'historical_case' || (report as any).content_type === 'research_analysis' || (report as any).content_type === 'news_discussion' ? (
-                <>
-                  <h3 className="text-lg font-semibold text-white mb-1.5">Help build the record</h3>
-                  <p className="text-gray-400 text-sm mb-4">Know of additional evidence or witness accounts related to this case?</p>
-                  <a
-                    href="/submit"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium text-white transition-all hover:scale-105"
-                    style={{ background: 'linear-gradient(135deg, #9000f0, #7a00cc)', boxShadow: '0 2px 12px rgba(144, 0, 240, 0.35)' }}
-                  >
-                    Contribute Research
-                  </a>
-                </>
-              ) : (
-                <>
-                  <h3 className="text-lg font-semibold text-white mb-1.5">Have you seen something similar?</h3>
-                  <p className="text-gray-400 text-sm mb-4">Your experience could help others understand the unexplained.</p>
-                  <a
-                    href="/submit"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium text-white transition-all hover:scale-105"
-                    style={{ background: 'linear-gradient(135deg, #9000f0, #7a00cc)', boxShadow: '0 2px 12px rgba(144, 0, 240, 0.35)' }}
-                  >
-                    Share Your Experience
-                  </a>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+        {/* P2: Keep Exploring — replaces old "Share Your Experience" CTA.
+            Drives session depth with same-category reports + small submit link. */}
+        <KeepExploring
+          reportId={report.id}
+          category={report.category}
+          categoryLabel={categoryConfig.label}
+        />
       </div>
 
       {/* Onboarding Tour Overlay */}
@@ -1482,11 +1509,20 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         {user && report && (
           <LogToConstellationWrapper
             isOpen={logModalOpen}
-            onClose={() => setLogModalOpen(false)}
+            onClose={function() { setLogModalOpen(false) }}
             report={report}
-            onLogged={(entry: any) => setIsLogged(!!entry)}
+            onLogged={function(entry: any) { setIsLogged(!!entry) }}
           />
         )}
+
+        {/* P1: Sticky mobile engagement bar — Save, Share, Next Report */}
+        <StickyMobileBar
+          isSaved={isSaved}
+          onSave={handleSave}
+          onShare={handleShare}
+          nextReport={nextReport}
+          copiedShare={copiedShare}
+        />
 
     </>
   )
