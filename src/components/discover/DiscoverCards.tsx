@@ -576,14 +576,25 @@ export function PhenomenonCard(props: {
   // (cold-open story: year + place + anonymized witness + twist).
   // Falls back to feed_hook (V6) → ai_summary for phenomena that
   // haven't been swept by the anchor-case generator yet.
-  var displayText = item.anchor_case_hook || item.feed_hook || item.ai_summary || ''
+  // Sentinel values starting with '__' (e.g. '__NEEDS_REVIEW__',
+  // '__INACTIVE_TEMPLATE__') are catalog-management markers and must
+  // never reach the user — guard treats them as absent for both the
+  // headline and the chip strip.
+  var anchorIsSentinel = !!item.anchor_case_hook
+    && item.anchor_case_hook.length >= 2
+    && item.anchor_case_hook.substring(0, 2) === '__'
+  var effectiveAnchor = anchorIsSentinel ? null : item.anchor_case_hook
+  var displayText = effectiveAnchor || item.feed_hook || item.ai_summary || ''
 
   // V8 Tier 1 — Three signal chips driven by anchor_when / anchor_where
   // / anchor_witness. Filtered to non-empty so we don't render gaps.
+  // Suppressed entirely when the anchor field is a sentinel.
   var anchorChips: string[] = []
-  if (item.anchor_when) anchorChips.push(item.anchor_when)
-  if (item.anchor_where) anchorChips.push(item.anchor_where)
-  if (item.anchor_witness) anchorChips.push(item.anchor_witness)
+  if (!anchorIsSentinel) {
+    if (item.anchor_when) anchorChips.push(item.anchor_when)
+    if (item.anchor_where) anchorChips.push(item.anchor_where)
+    if (item.anchor_witness) anchorChips.push(item.anchor_witness)
+  }
 
   return (
     <TodayCardShell
@@ -649,8 +660,10 @@ export function PhenomenonCard(props: {
 
         {/* V8 Tier 1 — "The unresolved part" line. Italic, slightly
             dimmed, sits between the headline and any body excerpt.
-            Closes the curiosity gap that the hook opens. */}
-        {!props.expanded && item.unresolved_tension && (
+            Closes the curiosity gap that the hook opens. Suppressed
+            when anchor field is a sentinel (no anchor case to tension
+            against). */}
+        {!props.expanded && !anchorIsSentinel && item.unresolved_tension && (
           <p className="text-[13px] italic font-sans text-gray-400 leading-relaxed border-l-2 border-white/15 pl-3">
             <span className="not-italic font-semibold text-gray-300 mr-1">{'The unresolved part:'}</span>
             {item.unresolved_tension}

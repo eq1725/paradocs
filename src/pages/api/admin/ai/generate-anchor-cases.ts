@@ -38,13 +38,34 @@ var ANTHROPIC_FALLBACK = 'claude-3-5-haiku-20241022'
 var SYSTEM_PROMPT = 'You write cold-open anchor cases for a paranormal investigation index. '
   + 'Each card opens like a documentary trailer — specific year, specific place, anonymized witness, '
   + 'specific action, then a twist. Think Unsolved Mysteries opening, not Wikipedia stub.\n\n'
+  + 'SCOPE — this index covers a wide range. The phenomenon you receive may be:\n'
+  + '  (a) A WITNESSED EVENT — UFO sighting, cryptid encounter, ghost case, NDE testimony. '
+  + 'Anchor on the most striking documented incident.\n'
+  + '  (b) A CONTEMPLATIVE PRACTICE — Buddhist meditation, Sufi dhikr, Shinto ritual, indigenous '
+  + 'ceremony. Anchor on the founding teacher / lineage / first textual reference / region of '
+  + 'origin and a specific physiological or cultural effect.\n'
+  + '  (c) AN ESOTERIC TRADITION — Tarot, Hermetic Qabalah, Yazidi practice, Golden Dawn ritual. '
+  + 'Anchor on the manuscript / school / first practitioner of record / the oldest extant lineage.\n'
+  + '  (d) A RESEARCH FRAMEWORK / DEVICE / DATABASE — psi research labs, EMF meters, ganzfeld '
+  + 'protocols, the PEAR archive. Anchor on the founding researcher / institution / year / first '
+  + 'major published finding or contested result.\n'
+  + '  (e) A FOLKLORIC ENTITY — La Sayona, Apotamkin, the Metoh-kangmi. Anchor on the cultural '
+  + 'origin (people / region / earliest documented account) and the most striking encounter '
+  + 'pattern from the surviving record.\n'
+  + 'Even when the phenomenon is conceptual rather than event-based, you MUST produce all 5 '
+  + 'fields anchored on its history. Do NOT decline. The user has decided this entry belongs in '
+  + 'the index — your job is to write a hook for it. If the input genuinely has zero anchorable '
+  + 'history (no founding date, no region, no first practitioner, no first study), use the '
+  + 'CATEGORY-level frame: "Across X cultures since Y century" + the most consistent reported '
+  + 'effect.\n\n'
   + 'PRIVACY (CRITICAL): NEVER use experiencer names from BFRO, NUFORC, NDERF, OBERF, Reddit, '
   + 'Erowid, Ghost archives, or any other private user-submitted archive — even if a name appears '
   + 'in the source data. Anonymize using witness role or count: "a vacationing surgeon", "two '
   + 'riders", "a forest ranger and her partner", "47 witnesses across 3 decades", "a flight crew '
-  + 'of 4". Names ONLY permitted when the case is on a major theatrical release, court filing, '
-  + 'or peer-reviewed publication AND the name is in the prompt input as "permitted_name". '
-  + 'Default = anonymize.\n\n'
+  + 'of 4". Names of historical figures, founding teachers, scientists, and academic researchers '
+  + 'who appear in published books, peer-reviewed papers, or major theatrical/documentary '
+  + 'releases ARE permitted (e.g. Hubel & Wiesel, William James, Padmasambhava, Aleister '
+  + 'Crowley, J.B. Rhine, Roger Patterson). Default for modern witnesses = anonymize.\n\n'
   + 'OUTPUT FORMAT — exactly 5 fields, each on its own line, with delimiter prefix:\n'
   + 'WHEN: <short label, 2-6 words. e.g. "October 1934", "Since 1950s", "1947", "1995-2024">\n'
   + 'WHERE: <short label, 2-6 words. e.g. "Loch Ness, Scotland", "Phoenix, AZ", "Pacific NW">\n'
@@ -373,6 +394,23 @@ export default async function handler(
 
       results.push({ id: p.id, name: p.name, success: true, parsed: parsedAnchor })
     } else {
+      // Refusal sentinel — Claude returned prose instead of structured
+      // output (typical when the phenomenon is genuinely off-topic for
+      // the index, e.g. cognitive-science seed templates that slipped
+      // into the catalog). Write a sentinel so the IS NULL filter no
+      // longer matches this row, unblocking the batch loop. The card
+      // render falls back to feed_hook → ai_summary when it sees a
+      // sentinel value (anchor_case_hook starting with '__').
+      await supabase
+        .from('phenomena')
+        .update({
+          anchor_case_hook: '__NEEDS_REVIEW__',
+          unresolved_tension: rawAnchorOutput
+            ? rawAnchorOutput.substring(0, 500)
+            : 'Empty Claude response',
+        })
+        .eq('id', p.id)
+
       results.push({ id: p.id, name: p.name, success: false, raw: rawAnchorOutput || undefined })
     }
 
