@@ -29,9 +29,7 @@ import { deriveCaseProfile } from '@/lib/caseProfile'
 import SourceAttribution from '@/components/reports/SourceAttribution'
 import FeaturedMediaCard from '@/components/reports/FeaturedMediaCard'
 import MediaMentionBanner from '@/components/reports/MediaMentionBanner'
-import StickyMobileBar from '@/components/reports/StickyMobileBar'
 import ReadNextCards from '@/components/reports/ReadNextCards'
-import { getTopRelatedReport } from '@/components/reports/ReadNextCards'
 import { SHOW_RESEARCH_PANELS } from '@/lib/features'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import { shouldShowEnvironmentalContext } from '@/lib/reports/environmental-visibility'
@@ -147,7 +145,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const [showAllTags, setShowAllTags] = useState(false)
   // showRationale state removed — credibility_signal in info grid is self-explanatory
   const [panelsExpanded, setPanelsExpanded] = useState(false)
-  const [nextReport, setNextReport] = useState<{ slug: string; title: string } | null>(null)
 
   // Load parent case report when this report belongs to a case group
   useEffect(() => {
@@ -182,18 +179,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     }
     loadParentCase()
   }, [report?.id])
-
-  // Load "next report" for StickyMobileBar CTA
-  useEffect(function () {
-    if (!report) { setNextReport(null); return }
-    var cancelled = false
-    getTopRelatedReport(report.id, report.category).then(function (result) {
-      if (!cancelled) setNextReport(result)
-    }).catch(function () {
-      if (!cancelled) setNextReport(null)
-    })
-    return function () { cancelled = true }
-  }, [report?.id, report?.category])
 
   useEffect(() => {
     if (slug) {
@@ -982,9 +967,9 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             )}
           </div>
 
-          {/* Quick actions - Log prominently in header (hidden on mobile — StickyMobileBar provides these) */}
+          {/* Quick actions - Log prominently in header */}
           {user && (
-            <div className="hidden md:flex items-center gap-3 mt-5">
+            <div className="flex items-center gap-3 mt-4 sm:mt-5">
               <button
                 onClick={function() { setLogModalOpen(true) }}
                 className={classNames(
@@ -1515,14 +1500,10 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           />
         )}
 
-        {/* P1: Sticky mobile engagement bar — Save, Share, Next Report */}
-        <StickyMobileBar
-          isSaved={isSaved}
-          onSave={handleSave}
-          onShare={handleShare}
-          nextReport={nextReport}
-          copiedShare={copiedShare}
-        />
+        {/* StickyMobileBar removed — conflicts with global bottom tab nav
+            (Today/Phenomena/Lab/Profile). Two fixed bottom bars is a HIG
+            violation and blocks app store submission. Engagement actions
+            live in the inline bar + header instead. */}
 
     </>
   )
