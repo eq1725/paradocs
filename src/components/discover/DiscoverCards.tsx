@@ -56,6 +56,15 @@ export interface PhenomenonItem {
   ai_description: string | null
   ai_quick_facts: QuickFacts | null
   feed_hook: string | null
+  // V8 Tier 1 — anchor-case fields. anchor_case_hook is the new lead
+  // (replaces feed_hook on the card when present). The three signal
+  // chips are derived from anchor_when/where/witness. unresolved_tension
+  // is the one-line contested-point line below the body.
+  anchor_case_hook: string | null
+  anchor_when: string | null
+  anchor_where: string | null
+  anchor_witness: string | null
+  unresolved_tension: string | null
   primary_image_url: string | null
   report_count: number
   primary_regions: string[] | null
@@ -563,7 +572,18 @@ export function PhenomenonCard(props: {
   var tensionItems: { value: string | number, label: string }[] = []
 
   var hasHero = !!item.primary_image_url
-  var displayText = item.feed_hook || item.ai_summary || ''
+  // V8 Tier 1 — anchor_case_hook is the new headline lead when present
+  // (cold-open story: year + place + anonymized witness + twist).
+  // Falls back to feed_hook (V6) → ai_summary for phenomena that
+  // haven't been swept by the anchor-case generator yet.
+  var displayText = item.anchor_case_hook || item.feed_hook || item.ai_summary || ''
+
+  // V8 Tier 1 — Three signal chips driven by anchor_when / anchor_where
+  // / anchor_witness. Filtered to non-empty so we don't render gaps.
+  var anchorChips: string[] = []
+  if (item.anchor_when) anchorChips.push(item.anchor_when)
+  if (item.anchor_where) anchorChips.push(item.anchor_where)
+  if (item.anchor_witness) anchorChips.push(item.anchor_witness)
 
   return (
     <TodayCardShell
@@ -608,9 +628,34 @@ export function PhenomenonCard(props: {
           {displayText || item.name}
         </h2>
 
-        {/* V8 Tier 0 — Chip strip + tension stat callout removed.
-            Tier 1 will replace with a WHEN | WHERE | WHAT chip strip
-            driven by the new anchor_case_* fields. */}
+        {/* V8 Tier 1 — WHEN | WHERE | WITNESS signal chips. Replaces
+            the V7 definitional credibility chip strip. Only renders
+            when the phenomenon has been swept by the anchor-case
+            generator. */}
+        {anchorChips.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {anchorChips.map(function (chip, ci) {
+              return (
+                <span
+                  key={'anchor-chip-' + ci}
+                  className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-sans font-medium bg-white/[0.05] border border-white/10 text-gray-300"
+                >
+                  {chip}
+                </span>
+              )
+            })}
+          </div>
+        )}
+
+        {/* V8 Tier 1 — "The unresolved part" line. Italic, slightly
+            dimmed, sits between the headline and any body excerpt.
+            Closes the curiosity gap that the hook opens. */}
+        {!props.expanded && item.unresolved_tension && (
+          <p className="text-[13px] italic font-sans text-gray-400 leading-relaxed border-l-2 border-white/15 pl-3">
+            <span className="not-italic font-semibold text-gray-300 mr-1">{'The unresolved part:'}</span>
+            {item.unresolved_tension}
+          </p>
+        )}
 
         {/* Element — Body excerpt (collapsed) or full expanded view */}
         {!props.expanded ? (

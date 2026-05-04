@@ -354,7 +354,7 @@ export default async function handler(
     if (phenIds.length > 0) {
       var { data: fullPhen } = await supabase
         .from('phenomena')
-        .select('id, name, slug, category, icon, ai_summary, ai_description, ai_quick_facts, feed_hook, primary_image_url, report_count, primary_regions, first_reported_date, aliases')
+        .select('id, name, slug, category, icon, ai_summary, ai_description, ai_quick_facts, feed_hook, anchor_case_hook, anchor_when, anchor_where, anchor_witness, unresolved_tension, primary_image_url, report_count, primary_regions, first_reported_date, aliases')
         .in('id', phenIds);
 
       if (fullPhen) {
@@ -488,6 +488,14 @@ export default async function handler(
           ai_description: p.ai_description,
           ai_quick_facts: p.ai_quick_facts,
           feed_hook: p.feed_hook || null,
+          // V8 Tier 1 — anchor-case fields (cold-open hook, signal
+          // chips, unresolved tension). Card uses these as the new
+          // lead when present; falls back to feed_hook otherwise.
+          anchor_case_hook: p.anchor_case_hook || null,
+          anchor_when: p.anchor_when || null,
+          anchor_where: p.anchor_where || null,
+          anchor_witness: p.anchor_witness || null,
+          unresolved_tension: p.unresolved_tension || null,
           primary_image_url: p.primary_image_url,
           report_count: p.report_count,
           primary_regions: p.primary_regions,
