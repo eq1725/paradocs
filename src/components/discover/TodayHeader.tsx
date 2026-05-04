@@ -3,13 +3,27 @@
 /**
  * TodayHeader — page header for /discover (Today).
  *
- * Replaces the old 36px counter strip with a real header that includes:
- *   - sr-only h1 ("Today") for SEO + a11y
- *   - lens chip strip (All / Trending / On This Date / Photo & Video / Recent)
- *   - category chip strip (full set, scrollable)
- *   - segmented progress bar (8 segments) + "N / Total" counter
- *   - "View as list →" link to /explore preserving lens
- *   - feedback flash zone (aria-live for "Saved" / "Dismissed" / "More like this")
+ * V7.4 — applied panel-review Tier 1 + Tier 2 simultaneously.
+ *
+ * Tier 1 changes:
+ *   - Utility row (feedback flash, streak chip, search, view-as-list,
+ *     ?-shortcuts) is now hidden on mobile (`hidden md:flex`). On
+ *     mobile the streak relocates to the card chrome cluster (top-
+ *     right of TodayCardShell), and search lives in the global app
+ *     bar's search icon. View-as-list and ? are desktop-only by intent.
+ *   - Lens + category strip padding tightened from py-2 → py-1.5.
+ *
+ * Tier 2 changes:
+ *   - Two parallel chip strips (lens + category) collapsed into ONE
+ *     ordered horizontal strip with an em-dash divider visually
+ *     separating the lens chips (left) from the category chips
+ *     (right). One chip style; active state differs by axis (lens =
+ *     primary-tinted, category = bold white fill).
+ *   - role="tablist" + role="tab" + aria-selected on every chip for
+ *     proper assistive-tech semantics.
+ *   - Selecting a category resets lens to 'all' (and selecting a lens
+ *     preserves the category) — eliminates the lens × category
+ *     combinatorial trap the IA panelist flagged.
  *
  * URL parameters honored:
  *   ?lens=trending|recent|on-this-date|photo-video
@@ -72,7 +86,9 @@ export function TodayHeader(props: {
   showShortcutsToggle?: boolean
   onToggleShortcuts?: () => void
   // V2 panel review additions
-  /** Optional streak count — when > 0, shows a streak chip top-right */
+  /** Optional streak count — passed through to the card chrome on
+   *  mobile via discover.tsx. The header itself only renders the
+   *  streak chip on md+ in the utility row. */
   streakDays?: number
   /** Native search overlay value (controlled) */
   searchQuery?: string
@@ -116,10 +132,16 @@ export function TodayHeader(props: {
     if (props.onSearchQueryChange) props.onSearchQueryChange('')
   }
 
-  // V4 QA: progress bar + X/total counter removed. They were anti-features
-  // for the Gaia cohort — "1/4853" reads as homework, not exploration. The
-  // streak chip + Today's Lead badge + lens chips already carry the
-  // daily-rhythm signal.
+  // Tier 2: Selecting a category resets lens to 'all' (handled in
+  // the parent's onCategoryChange so the reset is atomic — single
+  // state batch, single loadFeed). Selecting a lens preserves the
+  // current category.
+  function handleLensClick(lensKey: TodayLens) {
+    props.onLensChange(lensKey)
+  }
+  function handleCategoryClick(catKey: string | null) {
+    props.onCategoryChange(catKey)
+  }
 
   // Build a "View as list →" target preserving current lens/category
   var browseQuery: string[] = []
@@ -134,15 +156,26 @@ export function TodayHeader(props: {
       {/* sr-only h1 for accessibility + SEO */}
       <h1 className="sr-only">Today — Paradocs</h1>
 
-      {/* Lens chip strip — wrapped in fade-mask to hint at horizontal scroll */}
+      {/* V7.4 — Unified chip strip. Lens chips, em-dash divider, then
+          category chips. role="tablist" + role="tab" + aria-selected
+          gives assistive tech the right "filter selector" semantic.
+          Single horizontal scroll axis. Fade-mask hints at horizontal
+          overflow. */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide py-2 today-fade-mask-r">
+        <div
+          role="tablist"
+          aria-label="Filter Today"
+          className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-1.5 today-fade-mask-r"
+        >
+          {/* Lens chips — primary-tinted active state */}
           {LENSES.map(function (lens) {
             var isActive = props.lens === lens.key
             return (
               <button
-                key={lens.key}
-                onClick={function () { props.onLensChange(lens.key) }}
+                key={'lens-' + lens.key}
+                role="tab"
+                aria-selected={isActive}
+                onClick={function () { handleLensClick(lens.key) }}
                 className={
                   'flex-shrink-0 px-3 py-1 rounded-full text-[11px] font-sans font-medium transition-colors border ' +
                   (isActive
@@ -154,14 +187,22 @@ export function TodayHeader(props: {
               </button>
             )
           })}
-        </div>
-      </div>
 
-      {/* Category chip strip — also wrapped in fade-mask */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 today-fade-mask-r">
+          {/* Em-dash divider — visually separates "kind of view" from
+              "topic". aria-hidden because it carries no semantic
+              meaning for assistive tech. */}
+          <span
+            aria-hidden="true"
+            className="flex-shrink-0 select-none text-gray-700 text-base font-light px-1"
+          >
+            {'—'}
+          </span>
+
+          {/* Category chips — bold white active state */}
           <button
-            onClick={function () { props.onCategoryChange(null) }}
+            role="tab"
+            aria-selected={props.category === null}
+            onClick={function () { handleCategoryClick(null) }}
             className={
               'flex-shrink-0 px-3 py-1 rounded-full text-[11px] font-sans font-medium transition-colors border ' +
               (props.category === null
@@ -177,8 +218,10 @@ export function TodayHeader(props: {
             var isActive = props.category === cat
             return (
               <button
-                key={cat}
-                onClick={function () { props.onCategoryChange(cat) }}
+                key={'cat-' + cat}
+                role="tab"
+                aria-selected={isActive}
+                onClick={function () { handleCategoryClick(cat) }}
                 className={
                   'flex-shrink-0 px-3 py-1 rounded-full text-[11px] font-sans font-medium transition-colors border inline-flex items-center gap-1 ' +
                   (isActive
@@ -194,11 +237,17 @@ export function TodayHeader(props: {
         </div>
       </div>
 
-      {/* V4 QA: simplified utility row — feedback flash + streak chip + search +
-          view-as-list + (?) shortcuts toggle. No progress bar, no X/total counter.
-          The row stays tiny when nothing is happening (just the search icon
-          and view-as-list link). */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-2 pt-1">
+      {/* V7.4 — Utility row is now md+ only. On mobile the streak
+          chip moves into the card chrome (TodayCardShell), search
+          lives in the global app bar, and view-as-list / ? are
+          desktop conveniences. This saves ~28px of mobile chrome
+          and matches the Apple-News chrome budget the panel
+          recommended.
+
+          Desktop still gets the full utility row with feedback flash,
+          streak link, search, view-as-list, grid mode, and shortcut
+          hint. */}
+      <div className="hidden md:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-2 pt-1">
         <div className="flex items-center justify-end gap-3 min-h-[20px]">
           {/* Feedback flash zone — aria-live polite for screen readers */}
           <span
@@ -218,7 +267,7 @@ export function TodayHeader(props: {
           >
             {props.feedbackLabel || ''}
           </span>
-          {/* Streak chip — V5: now tappable, opens Lab streak history. */}
+          {/* Streak chip — desktop only. Mobile reads it from card chrome. */}
           {(typeof props.streakDays === 'number' && props.streakDays >= 2) ? (
             <Link
               href="/lab?tab=streak"
@@ -242,7 +291,7 @@ export function TodayHeader(props: {
           ) : null}
           <Link
             href={browseHref}
-            className="hidden sm:inline-flex text-[10px] font-sans font-medium text-gray-500 hover:text-primary-300 transition-colors flex-shrink-0"
+            className="inline-flex text-[10px] font-sans font-medium text-gray-500 hover:text-primary-300 transition-colors flex-shrink-0"
           >
             {'View as list →'}
           </Link>
@@ -261,7 +310,7 @@ export function TodayHeader(props: {
             <button
               onClick={props.onToggleShortcuts}
               className={
-                'hidden md:inline-flex w-5 h-5 items-center justify-center rounded-full border text-[10px] hover:text-white hover:bg-white/5 transition-colors flex-shrink-0 ' +
+                'inline-flex w-5 h-5 items-center justify-center rounded-full border text-[10px] hover:text-white hover:bg-white/5 transition-colors flex-shrink-0 ' +
                 (shortcutsPulsed
                   ? 'border-primary-400/60 text-primary-300 today-shortcut-pulse'
                   : 'border-white/10 text-gray-500')

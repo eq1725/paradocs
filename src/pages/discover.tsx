@@ -188,6 +188,34 @@ export default function DiscoverPage() {
     setCategoryFilter(qCat || null)
   }, [router.isReady, router.query.lens, router.query.category])
 
+  // V7.4 bonus — "On this day" as default opening lens when there's
+  // a strong match. Strategist's pitch: turns Paradocs into a daily-
+  // ritual app. Probes /api/discover/on-this-date once per session;
+  // if at least one match exists AND the URL has no explicit lens
+  // param (i.e. user landed on bare /discover), defaults the lens
+  // to 'on-this-date'. The probe response is cached server-side for
+  // 24 hours so repeated visits don't hit the DB.
+  var onThisDayProbedRef = useRef<boolean>(false)
+  useEffect(function () {
+    if (!router.isReady) return
+    if (onThisDayProbedRef.current) return
+    // Only auto-default when the user landed on bare /discover.
+    // If they explicitly chose a lens via URL, respect that.
+    if (router.query.lens) { onThisDayProbedRef.current = true; return }
+    onThisDayProbedRef.current = true
+    fetch('/api/discover/on-this-date')
+      .then(function (res) { return res.ok ? res.json() : null })
+      .then(function (data) {
+        if (data && Array.isArray(data.items) && data.items.length > 0) {
+          setLens('on-this-date')
+          // Don't push URL — keep /discover clean. The lens will
+          // sticky in this session via state; if the user reloads
+          // the bare URL the probe re-runs.
+        }
+      })
+      .catch(function () {})
+  }, [router.isReady])
+
   function pushQuery(nextLens: TodayLens, nextCat: string | null) {
     var q: Record<string, string> = {}
     if (nextLens && nextLens !== 'all') q.lens = nextLens
@@ -208,8 +236,13 @@ export default function DiscoverPage() {
     setTimeout(function () { loadFeed(0) }, 0)
   }
   function handleCategoryChange(next: string | null) {
+    // V7.4 Tier 2 — Selecting a category resets lens to 'all' to
+    // avoid the lens × category multiplicative trap (e.g. "On this
+    // day" + "Cryptids" → 1 result). This is single-state-batch so
+    // we only fire one loadFeed.
     setCategoryFilter(next)
-    pushQuery(lens, next)
+    if (lens !== 'all') setLens('all')
+    pushQuery('all', next)
     setIdx(0)
     setItems([])
     setFeedOffset(0)

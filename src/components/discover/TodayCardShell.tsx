@@ -136,6 +136,25 @@ export function TodayCardShell(props: TodayCardShellProps) {
         aria-hidden="true"
       />
 
+      {/* V7.4 — Streak chip relocated from TodayHeader utility row to
+          card chrome (mobile-only via md:hidden, suppressed on lead
+          card since the lead badge already encodes the streak as
+          "Today's lead · day N"). Sits left of the action cluster as
+          its own pill so the visual hierarchy stays clear: streak =
+          informational, action cluster = interactive. */}
+      {(typeof props.streakDays === 'number' && props.streakDays >= 2 && !props.isTodaysLead) && (
+        <div className="absolute top-3 left-3 z-50 md:hidden">
+          <span
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-[10px] font-sans font-semibold text-amber-300 backdrop-blur-md"
+            title={props.streakDays + ' day streak'}
+            aria-label={props.streakDays + ' day reading streak'}
+          >
+            <span aria-hidden="true">{'🔥'}</span>
+            {props.streakDays}
+          </span>
+        </div>
+      )}
+
       {/* Top-right chrome: Save + Share + Why-you-see-this.
           V6.9: bumped to z-50 so it always wins the stacking order against
           the sticky TodayHeader (z-30) — needed because in iOS PWA the
