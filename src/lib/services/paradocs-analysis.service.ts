@@ -742,7 +742,7 @@ export async function generateParadocsAnalysis(reportId: string): Promise<Parado
   console.log('[ParadocsAnalysis] Retrying for ' + reportId)
   await sleep(2000)
 
-  var retryResponse = await callClaude(SYSTEM_PROMPT, userPrompt, 500, 0.4)
+  var retryResponse = await callClaude(SYSTEM_PROMPT, userPrompt, 1200, 0.4)
   if (retryResponse) {
     var retryResult = parseAnalysisJson(retryResponse)
     if (retryResult) {
