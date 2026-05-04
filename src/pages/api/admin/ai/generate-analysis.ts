@@ -123,9 +123,9 @@ export default async function handler(
       })
     }
 
-    // Action: all_missing — batch generate for reports without analysis
+    // Action: all_missing — generate for reports without analysis
     if (action === 'all_missing') {
-      var queryLimit = limit || 100
+      var queryLimit = limit || 6
 
       var { data: reports, error: queryError } = await supabase
         .from('reports')
@@ -143,22 +143,33 @@ export default async function handler(
         return res.status(200).json({ success: true, message: 'All approved reports already have analysis', generated: 0 })
       }
 
-      var ids = reports.map(function(r) { return r.id })
-      var batchResult = await generateAnalysisBatch(ids, { force: false })
+      var mGenerated = 0
+      var mFailed = 0
+      var mErrors: string[] = []
+
+      for (var mi = 0; mi < reports.length; mi++) {
+        var mr = await generateAndSaveDirect(reports[mi].id)
+        if (mr.success) {
+          mGenerated++
+        } else {
+          mFailed++
+          mErrors.push(reports[mi].id + ': ' + (mr.error || 'unknown'))
+        }
+      }
 
       return res.status(200).json({
         success: true,
         total_queried: reports.length,
-        generated: batchResult.generated,
-        skipped: batchResult.skipped,
-        failed: batchResult.failed,
-        errors: batchResult.errors.slice(0, 10)
+        generated: mGenerated,
+        failed: mFailed,
+        errors: mErrors.slice(0, 10),
+        version: 'direct-v1'
       })
     }
 
-    // Action: all — force regenerate for all approved reports
+    // Action: all — force regenerate for all approved reports using direct path
     if (action === 'all') {
-      var allLimit = limit || 50
+      var allLimit = limit || 6
 
       var { data: allReports, error: allError } = await supabase
         .from('reports')
@@ -171,16 +182,27 @@ export default async function handler(
         return res.status(500).json({ error: 'Failed to query reports: ' + (allError?.message || 'unknown') })
       }
 
-      var allIds = allReports.map(function(r) { return r.id })
-      var allResult = await generateAnalysisBatch(allIds, { force: !!force })
+      var generated = 0
+      var failed = 0
+      var errors: string[] = []
+
+      for (var i = 0; i < allReports.length; i++) {
+        var r = await generateAndSaveDirect(allReports[i].id)
+        if (r.success) {
+          generated++
+        } else {
+          failed++
+          errors.push(allReports[i].id + ': ' + (r.error || 'unknown'))
+        }
+      }
 
       return res.status(200).json({
         success: true,
         total_queried: allReports.length,
-        generated: allResult.generated,
-        skipped: allResult.skipped,
-        failed: allResult.failed,
-        errors: allResult.errors.slice(0, 10)
+        generated: generated,
+        failed: failed,
+        errors: errors.slice(0, 10),
+        version: 'direct-v1'
       })
     }
 
