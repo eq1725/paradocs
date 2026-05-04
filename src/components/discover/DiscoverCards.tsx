@@ -550,16 +550,17 @@ export function PhenomenonCard(props: {
     badgeParts.push(item.primary_regions[0])
   }
 
-  // Credibility signals — note: report_count is intentionally NOT pushed here
-  // anymore (V4 QA). It was duplicating the stat callout below ("20 REPORTS").
+  // V8 Tier 0 — Pulled the credibility chip strip and the X REPORTS /
+  // danger callouts from the front-of-card per panel review. The chips
+  // were definitional ("Religious texts...", "Divine spiritual entity...")
+  // — three pieces of UI doing the same job as the headline. The X
+  // REPORTS callout was a number without context. The danger_level
+  // ("Angels: HIGH DANGER") read like a video-game stat sheet,
+  // damaging editorial credibility. Tier 1 will replace these with a
+  // proper WHEN | WHERE | WHAT chip strip driven by anchor_case_*
+  // fields. Until then: less is more.
   var credSignals: string[] = []
-  if (qf?.evidence_types) credSignals.push(qf.evidence_types)
-  if (qf?.classification) credSignals.push(qf.classification)
-
-  // Tension stats
   var tensionItems: { value: string | number, label: string }[] = []
-  if (item.report_count > 0) tensionItems.push({ value: item.report_count, label: 'reports' })
-  if (qf?.danger_level) tensionItems.push({ value: qf.danger_level.split(' ')[0], label: 'danger' })
 
   var hasHero = !!item.primary_image_url
   var displayText = item.feed_hook || item.ai_summary || ''
@@ -607,22 +608,11 @@ export function PhenomenonCard(props: {
           {displayText || item.name}
         </h2>
 
-        {/* Element 3 — Chip strip (credibility/evidence signals) */}
-        <CredibilityTags tags={credSignals} />
+        {/* V8 Tier 0 — Chip strip + tension stat callout removed.
+            Tier 1 will replace with a WHEN | WHERE | WHAT chip strip
+            driven by the new anchor_case_* fields. */}
 
-        {/* Element 4 — Optional 1-stat callout (single biggest number) */}
-        {!props.expanded && tensionItems.length > 0 && (
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl md:text-3xl font-display font-bold" style={{ color: catColor }}>
-              {tensionItems[0].value}
-            </span>
-            <span className="text-[10px] md:text-xs text-gray-400 font-sans uppercase tracking-wider">
-              {tensionItems[0].label}
-            </span>
-          </div>
-        )}
-
-        {/* Element 5 — Body excerpt (collapsed) or full expanded view */}
+        {/* Element — Body excerpt (collapsed) or full expanded view */}
         {!props.expanded ? (
           item.ai_summary && item.ai_summary !== displayText ? (
             <p className="text-sm text-gray-300 leading-relaxed font-sans">
@@ -655,12 +645,8 @@ export function PhenomenonCard(props: {
                     <span className="text-xs text-gray-200 font-sans">{qf.typical_encounter}</span>
                   </div>
                 )}
-                {qf.danger_level && (
-                  <div className="flex flex-col">
-                    <span className="text-[9px] text-gray-500 font-sans uppercase tracking-wider">Danger level</span>
-                    <span className="text-xs text-gray-200 font-sans">{qf.danger_level}</span>
-                  </div>
-                )}
+                {/* V8 Tier 0 — danger_level row deleted. Cultural footprint
+                    may replace this in a later tier; for now nothing. */}
                 {qf.notable_feature && (
                   <div className="flex flex-col col-span-2">
                     <span className="text-[9px] text-gray-500 font-sans uppercase tracking-wider">Notable feature</span>

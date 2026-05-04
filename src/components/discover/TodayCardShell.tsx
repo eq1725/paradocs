@@ -101,8 +101,11 @@ export function TodayCardShell(props: TodayCardShellProps) {
 
   return (
     <div className="relative h-full w-full overflow-hidden font-sans">
-      {/* Hero image backdrop — only when provided. 0.28 keeps the image
-          present without overpowering the dossier text layer. */}
+      {/* V8 Tier 0 — Hero opacity 0.28 → 0.45. Mobile Feed Designer
+          panelist: 'current 0.28 is so washed out the user doesn't
+          know what they're looking at — bump to 0.45 with a stronger
+          gradient scrim from the bottom only.' Image becomes the
+          atmosphere, not background noise. */}
       {props.heroImageUrl && (
         <div
           className="absolute inset-0 pointer-events-none"
@@ -110,20 +113,23 @@ export function TodayCardShell(props: TodayCardShellProps) {
             backgroundImage: 'url(' + props.heroImageUrl + ')',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            opacity: 0.28,
+            opacity: 0.45,
           }}
           aria-hidden="true"
         />
       )}
 
-      {/* Hero scrim — heavier at top + middle for unambiguous headline
-          legibility, lifts only at the bottom 25% to let imagery breathe. */}
+      {/* V8 Tier 0 — Inverted scrim. Previously heavier at top + middle
+          (which made the image disappear under text); now lighter at
+          the top so the image breathes, heavier from the headline-
+          bottom downward to keep dossier text fully legible. The
+          card's category gradient (below) handles top-down tinting. */}
       {props.heroImageUrl && (
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
             backgroundImage:
-              'linear-gradient(to bottom, rgba(10,10,20,0.55) 0%, rgba(10,10,20,0.78) 40%, rgba(10,10,20,0.95) 75%, rgba(10,10,20,0.98) 100%)',
+              'linear-gradient(to bottom, rgba(10,10,20,0.20) 0%, rgba(10,10,20,0.35) 25%, rgba(10,10,20,0.78) 60%, rgba(10,10,20,0.95) 85%, rgba(10,10,20,0.98) 100%)',
           }}
           aria-hidden="true"
         />
