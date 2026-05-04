@@ -29,7 +29,7 @@ import { deriveCaseProfile } from '@/lib/caseProfile'
 import SourceAttribution from '@/components/reports/SourceAttribution'
 import FeaturedMediaCard from '@/components/reports/FeaturedMediaCard'
 import MediaMentionBanner from '@/components/reports/MediaMentionBanner'
-import ReadNextCards from '@/components/reports/ReadNextCards'
+// ReadNextCards removed — consolidated into KeepExploring to avoid 4 redundant related-content sections
 import { SHOW_RESEARCH_PANELS } from '@/lib/features'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import { shouldShowEnvironmentalContext } from '@/lib/reports/environmental-visibility'
@@ -138,7 +138,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   const [savingReport, setSavingReport] = useState(false)
   const [copiedShare, setCopiedShare] = useState(false)
   const [userVote, setUserVote] = useState<1 | -1 | null>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  // sidebarOpen removed — mobile sidebar toggle eliminated in favour of KeepExploring
   const [logModalOpen, setLogModalOpen] = useState(false)
   const [isLogged, setIsLogged] = useState(false)
   const [parentCase, setParentCase] = useState<{ slug: string; title: string } | null>(null)
@@ -838,7 +838,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
         {/* Header */}
         <header className="mb-8 md:mb-8" data-tour-step="header">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4">
-            {/* Content Type Badge */}
+            {/* Content Type Badge — plain language for index reports (mass market) */}
             <span className={classNames(
               'px-3 py-1 rounded-full text-xs sm:text-sm font-medium border flex items-center gap-1.5',
               contentTypeConfig.bgColor,
@@ -846,8 +846,14 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               contentTypeConfig.borderColor
             )}>
               <span>{contentTypeConfig.icon}</span>
-              <span className="hidden sm:inline">{contentTypeConfig.label}</span>
-              <span className="sm:hidden">{contentTypeConfig.shortLabel}</span>
+              {isIndexReport ? (
+                <span>{reportContentType === 'experiencer_report' ? 'Personal Account' : reportContentType === 'historical_case' ? 'Historical Case' : reportContentType === 'research_analysis' ? 'Research' : reportContentType === 'news_discussion' ? 'News' : contentTypeConfig.shortLabel}</span>
+              ) : (
+                <>
+                  <span className="hidden sm:inline">{contentTypeConfig.label}</span>
+                  <span className="sm:hidden">{contentTypeConfig.shortLabel}</span>
+                </>
+              )}
             </span>
             {/* Featured Investigation — editorial distinction for curated showcases */}
             {report.featured && (
@@ -874,9 +880,10 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             {report.title}
           </h1>
 
-          {/* Feed hook lede — Paradocs editorial voice for index reports */}
+          {/* Feed hook lede — Paradocs editorial voice for index reports.
+              Slightly larger on mobile to emphasise the editorial hook. */}
           {isIndexReport && (report as any).feed_hook && (
-            <p className="text-base sm:text-lg text-gray-200 italic mb-4 leading-relaxed font-serif">
+            <p className="text-[17px] sm:text-lg text-gray-200 italic mb-4 leading-relaxed font-serif">
               {(report as any).feed_hook}
             </p>
           )}
@@ -906,21 +913,9 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                     parts.push(locName)
                   }
                   if (report.country) parts.push(report.country as string)
-                  var precision = meta.location_precision as string | undefined
-                  var precisionNote: string | null = null
-                  if (precision === 'state') precisionNote = 'state-level only'
-                  else if (precision === 'country') precisionNote = 'country-level only'
                   return (
                     <>
                       {parts.join(', ')}
-                      {precisionNote && (
-                        <span
-                          className="ml-1 text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-gray-500 font-sans uppercase tracking-wider"
-                          title="The source did not provide a specific city — the map pin is placed at the regional centroid"
-                        >
-                          {precisionNote}
-                        </span>
-                      )}
                     </>
                   )
                 })()}
@@ -929,13 +924,13 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             {report.event_date && (
               <span className="flex items-center gap-1.5">
                 <Calendar className="w-4 h-4" />
-                {(() => {
-                  const precision = (report as any).event_date_precision as string | undefined
-                  if (precision === 'year') return formatDate(report.event_date, 'yyyy')
+                {(function () {
+                  var precision = (report as any).event_date_precision as string | undefined
+                  if (precision === 'year') return 'Around ' + formatDate(report.event_date, 'yyyy')
                   if (precision === 'month') return formatDate(report.event_date, 'MMMM yyyy')
                   return formatDate(report.event_date, 'MMMM d, yyyy')
                 })()}
-                {report.event_date_approximate && ' (approximate)'}
+                {report.event_date_approximate && ' (approx.)'}
               </span>
             )}
             {report.event_time && (
@@ -999,31 +994,33 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           )}
         </header>
 
-        {/* Featured Media — prominent video/audio/document links */}
-        {media.length > 0 && (
+        {/* Featured Media — prominent video/audio/document links (curated: above body; index: deferred below analysis) */}
+        {isCurated && media.length > 0 && (
           <FeaturedMediaCard media={media} />
         )}
 
-        {/* Media Mention Banner — when description references video/photo but no media items */}
-        <MediaMentionBanner
-          description={report.description}
-          sourceUrl={report.source_url}
-          sourceLabel={report.source_label || report.source_type}
-          hasMediaItems={media.length > 0}
-          hasPhotoVideo={report.has_photo_video}
-          className="mb-6"
-        />
+        {/* Media Mention Banner — curated only above fold; index deferred */}
+        {isCurated && (
+          <MediaMentionBanner
+            description={report.description}
+            sourceUrl={report.source_url}
+            sourceLabel={report.source_label || report.source_type}
+            hasMediaItems={media.length > 0}
+            hasPhotoVideo={report.has_photo_video}
+            className="mb-6"
+          />
+        )}
 
-        {/* Hero Media Gallery — images only, shown compactly above TOC.
-            Hidden on mobile where the full-bleed hero image is shown above the title instead. */}
-        {media.length > 0 && (
+        {/* Hero Media Gallery — curated only (index reports use hero image above title on mobile) */}
+        {isCurated && media.length > 0 && (
           <div className="hidden md:block mb-8" data-tour-step="media">
             <MediaGallery media={media} mode="images" />
           </div>
         )}
 
-        {/* Location Intelligence Map — shown early for immediate geographic context */}
-        {report.latitude && report.longitude && (
+        {/* Location Map — curated reports show map early for context.
+            Index reports show it later (after analysis) and only when precision is meaningful. */}
+        {isCurated && report.latitude && report.longitude && (
           <div data-tour-step="location-map">
           <LocationMap
             reportSlug={slug as string}
@@ -1100,9 +1097,57 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           </>
         )}
 
-        {/* === INDEX MODEL MODE: Paradocs Analysis + Source Attribution + Research Hub Preview === */}
+        {/* === INDEX MODEL MODE ===
+            Analysis-first layout: Paradocs Analysis is the star content for
+            index reports \u2014 render it immediately after the header so mobile
+            users see it without scrolling past a map and chips. */}
         {isIndexReport && (
           <>
+            {/* 1. Paradocs Analysis Box \u2014 THE MAIN CONTENT */}
+            <ParadocsAnalysisBox
+              narrative={(report as any).paradocs_narrative || null}
+              assessment={paradocsAssessment}
+              reportMeta={{
+                title: report.title,
+                category: report.category,
+                categoryLabel: categoryConfig.label,
+                location: report.location_name || '',
+                eventDate: report.event_date ? formatDate(report.event_date, 'MMMM yyyy') : '',
+                sourceLabel: (report as any).source_label || ''
+              }}
+            />
+
+            {/* 2. Source Attribution \u2014 legally required footnote */}
+            {(report as any).source_url && (
+              <SourceAttribution
+                label={(report as any).source_label || ''}
+                url={(report as any).source_url}
+              />
+            )}
+
+            {/* 3. Privacy assurance */}
+            <p className="text-[11px] text-gray-600 mt-3 mb-6">
+              {'All personal details are anonymized. Paradocs never shares identifying information without explicit consent.'}
+            </p>
+
+            {/* 4. "Had a similar experience?" \u2014 journey step 2\u21923 conversion */}
+            <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-purple-500/[0.06] to-indigo-500/[0.06] border border-purple-500/15">
+              <p className="text-sm font-medium text-white mb-1">
+                {'Had a similar experience?'}
+              </p>
+              <p className="text-xs text-gray-400 mb-3">
+                {'Your account could help others make sense of ' + categoryConfig.label.toLowerCase() + ' experiences like this one.'}
+              </p>
+              <Link
+                href="/submit"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium text-white bg-purple-600 hover:bg-purple-500 transition-colors"
+              >
+                {'Share your experience'}
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            {/* 5. Case Profile Chips \u2014 supporting structured data */}
             {/* Universal Case Profile \u2014 structured facts for every adapter.
                 NDERF/OBERF gets the full NDE questionnaire; BFRO, NUFORC,
                 Erowid, Reddit, IANDS, Ghosts of America, etc. each get a
@@ -1131,30 +1176,38 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
               )
             })()}
 
-            {/* Paradocs Analysis Box — THE MAIN CONTENT for index reports */}
-            <ParadocsAnalysisBox
-              narrative={(report as any).paradocs_narrative || null}
-              assessment={paradocsAssessment}
-              reportMeta={{
-                title: report.title,
-                category: report.category,
-                categoryLabel: categoryConfig.label,
-                location: report.location_name || '',
-                eventDate: report.event_date ? formatDate(report.event_date, 'MMMM yyyy') : '',
-                sourceLabel: (report as any).source_label || ''
-              }}
+            {/* 6. Location Map — only when precision is city-level or better */}
+            {report.latitude && report.longitude && (function () {
+              var meta = (report as any).metadata || {}
+              var precision = meta.location_precision as string | undefined
+              if (precision === 'state' || precision === 'country') return null
+              return (
+                <div data-tour-step="location-map" className="mb-6">
+                  <LocationMap
+                    reportSlug={slug as string}
+                    reportTitle={report.title}
+                    latitude={report.latitude}
+                    longitude={report.longitude}
+                    className="max-h-[200px] sm:max-h-[280px] overflow-hidden rounded-xl"
+                  />
+                </div>
+              )
+            })()}
+
+            {/* 7. Featured Media — deferred below analysis for index reports */}
+            {media.length > 0 && (
+              <FeaturedMediaCard media={media} />
+            )}
+            <MediaMentionBanner
+              description={report.description}
+              sourceUrl={report.source_url}
+              sourceLabel={report.source_label || report.source_type}
+              hasMediaItems={media.length > 0}
+              hasPhotoVideo={report.has_photo_video}
+              className="mb-6"
             />
 
-            {/* Source Attribution — legally required footnote */}
-            {(report as any).source_url && (
-              <SourceAttribution
-                label={(report as any).source_label || ''}
-                url={(report as any).source_url}
-              />
-            )}
-
-            {/* Research Hub Preview — conversion carrot for free users.
-                Feature-flagged off in B1.5 while we rethink research surfaces. */}
+            {/* Research Hub Preview — feature-flagged */}
             {SHOW_RESEARCH_PANELS && (
               <ResearchHubPreview
                 reportId={report.id}
@@ -1168,30 +1221,39 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           </>
         )}
 
-        {/* Tags — compact, subtle discovery affordances */}
+        {/* Tags — curated reports: full tag display; index reports: compact related-topics */}
         {report.tags && report.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-6 sm:mb-8 items-center">
-            {(showAllTags ? report.tags : report.tags.slice(0, 8)).map((tag, i) => (
-              <Link
-                key={i}
-                href={`/search?q=${encodeURIComponent(tag)}`}
-                className="px-2.5 py-1 rounded-full text-[11px] bg-white/[0.04] text-gray-500 hover:bg-white/[0.08] hover:text-gray-300 transition-colors"
-              >
-                #{tag}
-              </Link>
-            ))}
-            {!showAllTags && report.tags.length > 8 && (
-              <button
-                onClick={function () { setShowAllTags(true) }}
-                className="px-2.5 py-1 rounded-full text-[11px] bg-white/[0.04] text-gray-500 hover:bg-white/[0.08] hover:text-gray-400 transition-colors"
-              >
-                +{report.tags.length - 8} more
-              </button>
+          <div className="mb-6 sm:mb-8">
+            {isIndexReport && (
+              <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Related topics</p>
             )}
+            <div className="flex flex-wrap gap-1.5 items-center">
+              {(showAllTags ? report.tags : report.tags.slice(0, 8)).map(function(tag, i) {
+                return (
+                  <Link
+                    key={i}
+                    href={'/search?q=' + encodeURIComponent(tag)}
+                    className="px-2.5 py-1 rounded-full text-[11px] bg-white/[0.04] text-gray-500 hover:bg-white/[0.08] hover:text-gray-300 transition-colors"
+                  >
+                    {tag}
+                  </Link>
+                )
+              })}
+              {!showAllTags && report.tags.length > 8 && (
+                <button
+                  onClick={function () { setShowAllTags(true) }}
+                  className="px-2.5 py-1 rounded-full text-[11px] bg-white/[0.04] text-gray-500 hover:bg-white/[0.08] hover:text-gray-400 transition-colors"
+                >
+                  {'+' + (report.tags.length - 8) + ' more'}
+                </button>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Info grid */}
+        {/* Info grid — curated reports only. Index reports already show this data
+            in the Paradocs Analysis header and Source Attribution. */}
+        {isCurated && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8" data-tour-step="info-grid">
           {/* Content Type */}
           <div className="glass-card p-3 sm:p-4">
@@ -1246,7 +1308,7 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             </div>
           </div>
         </div>
-
+        )}
 
         {/* Further Reading — Amazon affiliate book recommendations (curated reports only) */}
         {isCurated && (
@@ -1292,17 +1354,36 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           <ConnectionCards reportSlug={slug as string} caseGroup={(report as any).case_group} className="mb-8 sm:mb-10" />
         </div>
 
-        {/* Engagement actions row */}
+        {/* Social proof — shows engagement signals to build community feel */}
+        {(report.view_count > 10 || report.upvotes > 0) && (
+          <p className="text-xs text-gray-500 mb-3 flex items-center gap-3">
+            {report.view_count > 10 && (
+              <span className="flex items-center gap-1">
+                <Eye className="w-3 h-3" />
+                {report.view_count > 999 ? Math.round(report.view_count / 100) / 10 + 'k' : report.view_count}
+                {' viewed this'}
+              </span>
+            )}
+            {report.upvotes > 0 && (
+              <span className="flex items-center gap-1">
+                <ThumbsUp className="w-3 h-3" />
+                {report.upvotes + ' found this helpful'}
+              </span>
+            )}
+          </p>
+        )}
+
+        {/* Engagement actions row — all actions work for everyone.
+            Unauth users get a signup prompt on tap instead of disabled buttons. */}
         <div className="mb-4 rounded-xl bg-white/[0.03] border border-white/[0.06] overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3">
-            {/* Left: Vote buttons */}
+            {/* Left: Vote buttons — enabled for all users */}
             <div className="flex items-center gap-1">
               <div className="flex items-center bg-white/[0.04] rounded-full">
                 <button
-                  onClick={function() { handleVote(1) }}
-                  disabled={!user}
+                  onClick={function() { if (!user) { showToast('Sign in to vote', 'info'); router.push('/auth/login'); return } handleVote(1) }}
                   className={classNames(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-l-full transition-all disabled:opacity-40',
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-l-full transition-all',
                     userVote === 1
                       ? 'text-green-400 bg-green-500/10'
                       : 'text-gray-400 hover:text-green-400 hover:bg-white/[0.04]'
@@ -1314,10 +1395,9 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                 </button>
                 <div className="w-px h-3.5 bg-white/10" />
                 <button
-                  onClick={function() { handleVote(-1) }}
-                  disabled={!user}
+                  onClick={function() { if (!user) { showToast('Sign in to vote', 'info'); router.push('/auth/login'); return } handleVote(-1) }}
                   className={classNames(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-r-full transition-all disabled:opacity-40',
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-r-full transition-all',
                     userVote === -1
                       ? 'text-red-400 bg-red-500/10'
                       : 'text-gray-400 hover:text-red-400 hover:bg-white/[0.04]'
@@ -1328,15 +1408,9 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                   {report.downvotes > 0 && <span className="text-xs">{report.downvotes}</span>}
                 </button>
               </div>
-              {report.view_count > 0 && (
-                <span className="hidden sm:flex items-center gap-1 px-2 text-gray-500 text-xs">
-                  <Eye className="w-3 h-3" />
-                  {report.view_count > 999 ? Math.round(report.view_count / 100) / 10 + 'k' : report.view_count}
-                </span>
-              )}
             </div>
 
-            {/* Right: Utility actions */}
+            {/* Right: Utility actions — all enabled, unauth prompts login */}
             <div className="flex items-center gap-0.5">
               {user && (
                 <button
@@ -1354,10 +1428,10 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
                 </button>
               )}
               <button
-                onClick={handleSave}
-                disabled={!user || savingReport}
+                onClick={function() { if (!user) { showToast('Sign in to save reports', 'info'); router.push('/auth/login'); return } handleSave() }}
+                disabled={savingReport}
                 className={classNames(
-                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs transition-all disabled:opacity-40',
+                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs transition-all',
                   isSaved
                     ? 'text-primary-400 bg-primary-500/10'
                     : 'text-gray-400 hover:text-primary-400 hover:bg-white/[0.04]'
@@ -1392,32 +1466,32 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           </div>
         </div>
 
-        {/* P1: Inline "Read Next" cards — session depth driver */}
-        <ReadNextCards
-          reportId={report.id}
-          category={report.category}
-          className="border-t border-white/[0.06]"
-        />
+        {/* Track this category — notification on-ramp (journey step 5) */}
+        {!user && (
+          <div className="mb-4 flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+            <div className="flex-1 min-w-0 mr-3">
+              <p className="text-sm text-gray-300 font-medium">
+                {'Get notified about ' + categoryConfig.label.toLowerCase() + ' reports'}
+              </p>
+              <p className="text-xs text-gray-500">
+                {'New reports, pattern updates, and similar cases'}
+              </p>
+            </div>
+            <Link
+              href="/auth/login"
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-purple-300 bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20 transition-colors flex-shrink-0"
+            >
+              Follow
+            </Link>
+          </div>
+        )}
+
           </article>
 
-          {/* Sidebar with related reports and patterns */}
-          <aside className="lg:w-80 flex-shrink-0 mt-8 lg:mt-0" data-tour-step="sidebar">
-            {/* Mobile: collapsible toggle */}
-            <button
-              onClick={function() { setSidebarOpen(!sidebarOpen) }}
-              className="lg:hidden w-full flex items-center justify-between px-4 py-3 glass-card mb-4"
-            >
-              <span className="text-sm font-medium text-gray-300">Related Reports &amp; Patterns</span>
-              <ChevronDown className={classNames(
-                'w-4 h-4 text-gray-400 transition-transform',
-                sidebarOpen ? 'rotate-180' : ''
-              )} />
-            </button>
-
-            <div className={classNames(
-              'lg:sticky lg:top-20 space-y-6',
-              sidebarOpen ? 'block' : 'hidden lg:block'
-            )}>
+          {/* Sidebar — desktop only. Mobile discovery happens via KeepExploring below.
+              Removed mobile collapsible toggle to eliminate redundant related-content sections. */}
+          <aside className="hidden lg:block lg:w-80 flex-shrink-0" data-tour-step="sidebar">
+            <div className="lg:sticky lg:top-20 space-y-6">
               {/* Environmental Context & Research Data — desktop sidebar placement.
                   Environmental Context whitelist: cryptid/UFO/outdoor-ritual/outdoor-location.
                   AcademicObservationPanel is feature-flagged with the other research panels. */}
