@@ -188,33 +188,15 @@ export default function DiscoverPage() {
     setCategoryFilter(qCat || null)
   }, [router.isReady, router.query.lens, router.query.category])
 
-  // V7.4 bonus — "On this day" as default opening lens when there's
-  // a strong match. Strategist's pitch: turns Paradocs into a daily-
-  // ritual app. Probes /api/discover/on-this-date once per session;
-  // if at least one match exists AND the URL has no explicit lens
-  // param (i.e. user landed on bare /discover), defaults the lens
-  // to 'on-this-date'. The probe response is cached server-side for
-  // 24 hours so repeated visits don't hit the DB.
-  var onThisDayProbedRef = useRef<boolean>(false)
-  useEffect(function () {
-    if (!router.isReady) return
-    if (onThisDayProbedRef.current) return
-    // Only auto-default when the user landed on bare /discover.
-    // If they explicitly chose a lens via URL, respect that.
-    if (router.query.lens) { onThisDayProbedRef.current = true; return }
-    onThisDayProbedRef.current = true
-    fetch('/api/discover/on-this-date')
-      .then(function (res) { return res.ok ? res.json() : null })
-      .then(function (data) {
-        if (data && Array.isArray(data.items) && data.items.length > 0) {
-          setLens('on-this-date')
-          // Don't push URL — keep /discover clean. The lens will
-          // sticky in this session via state; if the user reloads
-          // the bare URL the probe re-runs.
-        }
-      })
-      .catch(function () {})
-  }, [router.isReady])
+  // V7.5 — Reverted V7.4's lens auto-switch. applyLens('on-this-date')
+  // filters the loaded feed-v2 batch by today's MM-DD, but feed-v2
+  // returns items ranked by personalization, not date — so the filter
+  // collapses the visible feed to ~0 cards on most days. Worse UX
+  // than not switching. The on-this-date promotion now happens via
+  // the special-card injection (position bumped from 2 → 1 below in
+  // fetchSpecialCards) so the on-this-date phenomenon appears as the
+  // 2nd card the user swipes to instead of the 3rd. That keeps the
+  // daily-ritual feel without breaking the rest of the feed.
 
   function pushQuery(nextLens: TodayLens, nextCat: string | null) {
     var q: Record<string, string> = {}
@@ -515,7 +497,12 @@ export default function DiscoverPage() {
         .then(function (res) { return res.ok ? res.json() : null })
         .then(function (data) {
           if (data && data.items && data.items.length > 0) {
-            pendingSpecialCards.current.push({ card: data.items[0] as OnThisDateData, position: 2 })
+            // V7.5 — bumped position 2 → 1 so the on-this-date card
+            // appears as the 2nd card the user swipes to (right after
+            // the Today's Lead phenomenon). This makes the daily-
+            // ritual hook discoverable on the first swipe rather than
+            // the third.
+            pendingSpecialCards.current.push({ card: data.items[0] as OnThisDateData, position: 1 })
           }
         })
         .catch(function () {})

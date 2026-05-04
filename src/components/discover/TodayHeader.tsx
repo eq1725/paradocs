@@ -188,15 +188,23 @@ export function TodayHeader(props: {
             )
           })}
 
-          {/* Em-dash divider — visually separates "kind of view" from
-              "topic". aria-hidden because it carries no semantic
-              meaning for assistive tech. */}
-          <span
+          {/* V7.5 — Per Visual Designer panelist's fallback after Chase
+              feedback that the em-dash read as decoration. Replaced
+              with: thin vertical rule + a small "BY TOPIC" label,
+              giving the divider a clear semantic anchor. Margin gap
+              on either side keeps it visually distinct from adjacent
+              chips. aria-hidden because the role="tablist" structure
+              already conveys this to assistive tech. */}
+          <div
             aria-hidden="true"
-            className="flex-shrink-0 select-none text-gray-700 text-base font-light px-1"
+            className="flex-shrink-0 inline-flex items-center gap-1.5 ml-1 mr-2 select-none"
           >
-            {'—'}
-          </span>
+            <span className="block w-px h-4 bg-white/15" />
+            <span className="text-[9px] font-sans font-semibold uppercase tracking-wider text-gray-500">
+              {'By topic'}
+            </span>
+            <span className="block w-px h-4 bg-white/15" />
+          </div>
 
           {/* Category chips — bold white active state */}
           <button
