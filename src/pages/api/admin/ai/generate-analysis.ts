@@ -13,7 +13,8 @@ import {
   generateAndSaveParadocsAnalysis,
   generateAnalysisBatch,
   getParadocsAnalysisStats,
-  diagnoseAnalysisGeneration
+  diagnoseAnalysisGeneration,
+  generateAndSaveDirect
 } from '@/lib/services/paradocs-analysis.service'
 
 function getSupabaseAdmin() {
@@ -108,15 +109,17 @@ export default async function handler(
       return res.status(200).json({ success: true, stats: stats })
     }
 
-    // Action: single — generate analysis for one report
+    // Action: single — generate analysis for one report using direct fetch pattern
     if (action === 'single') {
       if (!id) {
         return res.status(400).json({ error: 'Report ID required for single action' })
       }
-      var success = await generateAndSaveParadocsAnalysis(id)
+      var directResult = await generateAndSaveDirect(id)
       return res.status(200).json({
-        success: success,
-        reportId: id
+        success: directResult.success,
+        reportId: id,
+        error: directResult.error || undefined,
+        version: 'direct-v1'
       })
     }
 

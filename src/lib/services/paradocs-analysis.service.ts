@@ -1048,6 +1048,121 @@ export async function diagnoseAnalysisGeneration(reportId: string): Promise<Reco
   }
 }
 
+/**
+ * Generate and save using proven direct-fetch pattern (bypasses callClaude).
+ * This is the working path confirmed by diagnose.
+ */
+export async function generateAndSaveDirect(reportId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    var apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) return { success: false, error: 'No ANTHROPIC_API_KEY' }
+
+    var supabase = createServerClient()
+
+    // Fetch report
+    var { data: report, error: fetchError } = await supabase
+      .from('reports')
+      .select('id, title, summary, description, category, location_name, country, state_province, city, event_date, credibility, source_type, source_label, tags, latitude, longitude, has_photo_video, has_official_report, witness_count, metadata')
+      .eq('id', reportId)
+      .single()
+
+    if (fetchError || !report) {
+      return { success: false, error: 'Report not found: ' + (fetchError ? fetchError.message : 'no data') }
+    }
+
+    // Build prompts
+    var sourceText = (report as any).description || (report as any).summary || ''
+    var analysisWordBudget = computeAnalysisWordBudget(sourceText)
+    var userPrompt = buildUserPrompt(report, analysisWordBudget)
+
+    // Direct API call (proven working pattern)
+    var controller = new AbortController()
+    var timeoutId = setTimeout(function() { controller.abort() }, 50000)
+
+    var resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: ANTHROPIC_MODEL,
+        max_tokens: 1200,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userPrompt }],
+        temperature: 0.4
+      }),
+      signal: controller.signal
+    })
+
+    clearTimeout(timeoutId)
+
+    if (!resp.ok) {
+      var errText = await resp.text().catch(function() { return '' })
+      return { success: false, error: 'API ' + resp.status + ': ' + errText.substring(0, 200) }
+    }
+
+    var data = await resp.json()
+    var rawText = (data.content && data.content[0] && data.content[0].text) ? data.content[0].text.trim() : null
+    if (!rawText) {
+      return { success: false, error: 'Empty API response, stop_reason: ' + (data.stop_reason || 'none') }
+    }
+
+    // Parse JSON
+    var result = parseAnalysisJson(rawText)
+    if (!result) {
+      return { success: false, error: 'JSON parse failed. Raw tail: ' + rawText.substring(Math.max(0, rawText.length - 150)) }
+    }
+
+    // Trim analysis
+    var trimmed = trimAnalysisToWords(result.analysis, analysisWordBudget)
+    if (trimmed !== result.analysis) result.analysis = trimmed
+
+    // Save to DB
+    var assessmentData: Record<string, any> = {
+      pull_quote: result.pull_quote,
+      credibility_signal: result.credibility_signal,
+      mundane_explanations: result.mundane_explanations,
+      similar_phenomena: result.similar_phenomena
+    }
+    if (result.emotional_tone) assessmentData.emotional_tone = result.emotional_tone
+    if (result.suggested_category) assessmentData.suggested_category = result.suggested_category
+    if (result.discovery_tags && result.discovery_tags.length > 0) assessmentData.discovery_tags = result.discovery_tags
+
+    var updateData: Record<string, any> = {
+      feed_hook: result.hook,
+      feed_hook_generated_at: new Date().toISOString(),
+      paradocs_narrative: result.analysis,
+      paradocs_assessment: assessmentData,
+      paradocs_analysis_generated_at: new Date().toISOString(),
+      paradocs_analysis_model: ANTHROPIC_MODEL
+    }
+    if (result.emotional_tone) updateData.emotional_tone = result.emotional_tone
+    if (result.discovery_tags && result.discovery_tags.length > 0) updateData.ai_discovery_tags = result.discovery_tags
+
+    // Check category mismatch
+    if (result.suggested_category && result.suggested_category !== (report as any).category) {
+      updateData.suggested_category = result.suggested_category
+      updateData.category_mismatch = true
+    }
+
+    var { error: updateError } = await (supabase.from('reports') as any)
+      .update(updateData)
+      .eq('id', reportId)
+
+    if (updateError) {
+      return { success: false, error: 'DB save failed: ' + updateError.message }
+    }
+
+    console.log('[ParadocsAnalysis] Direct save OK for ' + reportId)
+    return { success: true }
+
+  } catch (err: any) {
+    return { success: false, error: 'Exception: ' + (err.message || String(err)) }
+  }
+}
+
 export async function getParadocsAnalysisStats(): Promise<{
   total_approved: number
   with_narrative: number
