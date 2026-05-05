@@ -900,12 +900,19 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               // a hung Anthropic call must not block ingestion. Calls
               // our own /api/admin/ai/generate-anchor-cases endpoint
               // with type=reports.
+              //
+              // V8.3 — Push copy generation runs AFTER anchor case
+              // because the push-copy prompt anchors on the
+              // anchor_case_hook + anchor_when/where/witness fields.
+              // Both calls are best-effort — failure of either is logged
+              // and ingestion continues.
               try {
                 var siteUrl = process.env.NEXT_PUBLIC_SITE_URL
                   || (process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : null)
                   || 'http://localhost:3000';
                 var adminKey = process.env.ADMIN_API_KEY;
                 if (adminKey) {
+                  // 1) Anchor case
                   var anchorResp = await fetch(siteUrl + '/api/admin/ai/generate-anchor-cases?type=reports', {
                     method: 'POST',
                     headers: {
@@ -917,8 +924,25 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                   if (!anchorResp.ok) {
                     console.log('[Ingestion] Anchor-case endpoint returned ' + anchorResp.status + ' for ' + slug);
                   }
+
+                  // 2) Push copy (depends on anchor case being populated)
+                  try {
+                    var pushResp = await fetch(siteUrl + '/api/admin/ai/generate-push-copy?type=reports', {
+                      method: 'POST',
+                      headers: {
+                        'x-admin-key': adminKey,
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({ action: 'single', id: insertedReport.id }),
+                    });
+                    if (!pushResp.ok) {
+                      console.log('[Ingestion] Push-copy endpoint returned ' + pushResp.status + ' for ' + slug);
+                    }
+                  } catch (pushError) {
+                    console.log('[Ingestion] Push-copy generation exception for ' + slug + ':', pushError);
+                  }
                 } else {
-                  console.log('[Ingestion] ADMIN_API_KEY missing; skipping anchor-case for ' + slug);
+                  console.log('[Ingestion] ADMIN_API_KEY missing; skipping anchor-case + push-copy for ' + slug);
                 }
               } catch (anchorError) {
                 console.log('[Ingestion] Anchor-case generation exception for ' + slug + ':', anchorError);
