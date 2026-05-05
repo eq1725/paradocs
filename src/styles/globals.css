@@ -131,16 +131,21 @@ body {
 
 /* Body scroll fade-mask — soft top + bottom fade so the user sees content
    continues without a hard edge. WebKit + standard mask-image. */
+/* V8.1.3 — Removed the 18px top fade-mask. It was literally clipping
+   the top of the category badge text (Chase QA: "the top of the text
+   is very clearly faded in"). The fade was meant as a scroll polish
+   but the badge is always at rest at the top of the scroll area, so
+   the fade was permanently hiding part of every card's first line.
+   Bottom fade kept as a scroll-bottom indicator for cards with
+   overflowing content. */
 .today-card-body {
   -webkit-mask-image: linear-gradient(to bottom,
-    transparent 0px,
-    rgba(0,0,0,1) 18px,
+    rgba(0,0,0,1) 0%,
     rgba(0,0,0,1) calc(100% - 18px),
     transparent 100%
   );
   mask-image: linear-gradient(to bottom,
-    transparent 0px,
-    rgba(0,0,0,1) 18px,
+    rgba(0,0,0,1) 0%,
     rgba(0,0,0,1) calc(100% - 18px),
     transparent 100%
   );

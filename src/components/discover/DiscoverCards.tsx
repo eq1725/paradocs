@@ -617,11 +617,18 @@ export function PhenomenonCard(props: {
       }
     >
       <div role="article" aria-label={'Encyclopedia entry: ' + (item.name || 'Phenomenon')} className="flex flex-col gap-3 md:gap-4 pt-1">
-        {/* Element 1 — Badge row (category + year + region, optional trending) */}
+        {/* Element 1 — Badge row (category + year + region, optional trending).
+            V8.1.3: badge text now near-white for legibility; only the
+            category icon carries catColor. Pale category colors like
+            religion_mythology (#fff176) read as "faded" against any
+            background; separating the color signal (icon) from the
+            label (text) keeps the badge readable at all times. */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
-            <CategoryIcon category={item.category as PhenomenonCategory} size={12} />
-            {' ' + badgeParts.join(' · ')}
+          <span className="inline-flex items-center gap-1.5 text-[10px] md:text-xs font-semibold uppercase tracking-widest text-gray-100">
+            <span className="inline-flex items-center" style={{ color: catColor }}>
+              <CategoryIcon category={item.category as PhenomenonCategory} size={12} />
+            </span>
+            <span>{badgeParts.join(' · ')}</span>
           </span>
           {item.report_count > 20 && (
             <span className="text-[9px] bg-primary-500/15 text-primary-400 px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">
