@@ -33,9 +33,13 @@ var SYSTEM_PROMPT = 'You write push notification copy for a paranormal investiga
   + 'public-figure / published-author witnesses (Patterson-Gimlin, Travis Walton, Hubel-Wiesel, '
   + 'William James) are permitted only when supplied via input. Default = anonymize.\n\n'
   + 'OUTPUT FORMAT — exactly one line, no label, no quotes:\n'
-  + '<= 90 characters total. Leads with the date OR the place (never the phenomenon name). '
-  + 'Compresses the anchor_case_hook into one declarative or curiosity-gap sentence. May end '
-  + 'with an arrow "→" if it fits. Examples:\n\n'
+  + 'STRICT 90-CHARACTER LIMIT. Count before answering. If you cannot finish a complete '
+  + 'thought in 90 chars, shorten the framing — never run over expecting truncation. The '
+  + 'output must end on a complete clause: a period, a question mark, an em-dash followed by '
+  + 'a phrase, or an arrow "→". Never end mid-clause with words like "No", "And", "But", or '
+  + 'a partial phrase.\n'
+  + 'Leads with the date OR the place (never the phenomenon name). Compresses the '
+  + 'anchor_case_hook into one declarative or curiosity-gap sentence. Examples (all under 90):\n\n'
   + '"October 1934, Loch Ness: a vacationing surgeon photographed a 60-foot silhouette →"\n'
   + '"On this day, 1947: the Roswell Daily Record retracted its alien-craft headline →"\n'
   + '"Phoenix, 1997: thousands saw a mile-wide V pass silently overhead. Still unexplained."\n'
@@ -130,21 +134,39 @@ async function callClaude(userPrompt: string): Promise<string | null> {
   return null
 }
 
-// Strip outer quotes the model occasionally adds despite instruction.
+// Strip outer quotes + truncate cleanly if the model overshoots 90.
+// Truncation prefers sentence-boundary cuts (period / question mark /
+// em-dash / arrow) over word-boundary cuts so we never end on a hanging
+// word like "No" or "And".
 function cleanCopy(raw: string): string {
   var s = raw.trim()
+  // Strip surrounding quotes
   if (s.length >= 2 && (s[0] === '"' || s[0] === "'")) {
     var last = s[s.length - 1]
     if (last === s[0]) s = s.substring(1, s.length - 1)
   }
-  // Truncate if model exceeded 90 chars (rare but defensive)
-  if (s.length > 110) {
-    var trimmed = s.substring(0, 87)
-    var lastSpace = trimmed.lastIndexOf(' ')
-    if (lastSpace > 50) trimmed = trimmed.substring(0, lastSpace)
-    s = trimmed + '…'
+  // If under 90 we're done
+  if (s.length <= 90) return s
+
+  // Look for the last sentence-terminating punctuation within the first 90
+  // chars. Acceptable terminators: period, question mark, em-dash followed by
+  // a non-space (rare in practice), arrow.
+  var window = s.substring(0, 90)
+  var sentenceTerminators = ['.', '?', '!', '→']
+  var bestCut = -1
+  for (var ti = 0; ti < sentenceTerminators.length; ti++) {
+    var idx = window.lastIndexOf(sentenceTerminators[ti])
+    if (idx > bestCut) bestCut = idx
   }
-  return s
+  // Require terminator after at least 30 chars to avoid degenerate cuts
+  if (bestCut >= 30) {
+    return s.substring(0, bestCut + 1)
+  }
+  // No good sentence break — fall back to word boundary with ellipsis
+  var trimmed = s.substring(0, 86)
+  var lastSpace = trimmed.lastIndexOf(' ')
+  if (lastSpace > 40) trimmed = trimmed.substring(0, lastSpace)
+  return trimmed + '…'
 }
 
 export default async function handler(
