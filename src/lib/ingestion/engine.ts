@@ -894,6 +894,36 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                 console.log('[Ingestion] Paradocs Analysis exception for ' + slug + ':', analysisError);
               }
 
+              // V9.0 — Anchor case generation. Produces the cold-open
+              // hook + WHEN/WHERE/WITNESS chips + unresolved tension that
+              // power the V8 visual layout on report cards. Best-effort:
+              // a hung Anthropic call must not block ingestion. Calls
+              // our own /api/admin/ai/generate-anchor-cases endpoint
+              // with type=reports.
+              try {
+                var siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+                  || (process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : null)
+                  || 'http://localhost:3000';
+                var adminKey = process.env.ADMIN_API_KEY;
+                if (adminKey) {
+                  var anchorResp = await fetch(siteUrl + '/api/admin/ai/generate-anchor-cases?type=reports', {
+                    method: 'POST',
+                    headers: {
+                      'x-admin-key': adminKey,
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ action: 'single', id: insertedReport.id }),
+                  });
+                  if (!anchorResp.ok) {
+                    console.log('[Ingestion] Anchor-case endpoint returned ' + anchorResp.status + ' for ' + slug);
+                  }
+                } else {
+                  console.log('[Ingestion] ADMIN_API_KEY missing; skipping anchor-case for ' + slug);
+                }
+              } catch (anchorError) {
+                console.log('[Ingestion] Anchor-case generation exception for ' + slug + ':', anchorError);
+              }
+
               // Brief pause before embedding
               await new Promise(function(resolve) { setTimeout(resolve, 500); });
 

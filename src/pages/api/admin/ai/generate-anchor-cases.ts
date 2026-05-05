@@ -35,7 +35,7 @@ import { createClient } from '@supabase/supabase-js'
 var ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001'
 var ANTHROPIC_FALLBACK = 'claude-3-5-haiku-20241022'
 
-var SYSTEM_PROMPT = 'You write cold-open anchor cases for a paranormal investigation index. '
+var SYSTEM_PROMPT_PHENOMENA = 'You write cold-open anchor cases for a paranormal investigation index. '
   + 'Each card opens like a documentary trailer — specific year, specific place, anonymized witness, '
   + 'specific action, then a twist. Think Unsolved Mysteries opening, not Wikipedia stub.\n\n'
   + 'SCOPE — this index covers a wide range. The phenomenon you receive may be:\n'
@@ -119,13 +119,84 @@ var SYSTEM_PROMPT = 'You write cold-open anchor cases for a paranormal investiga
   + 'or supernatural conclusion.\n\n'
   + 'Return ONLY the 5-line structured output. No preamble, no explanation, no quotes around values.'
 
+// V9.0 — Report-specific prompt. Reports are SINGLE EVENTS, not category-
+// level patterns. The hook should be specific to one date, one place, one
+// witness role, one event — never aggregate across cases. Privacy rule
+// holds: anonymize witness names from BFRO/NUFORC/NDERF/OBERF/Reddit/etc.
+var SYSTEM_PROMPT_REPORTS = 'You write cold-open anchor cases for a SINGLE eyewitness report or editorial article '
+  + 'on a paranormal investigation index. Each card opens like a documentary trailer — specific date, '
+  + 'specific place, anonymized witness role, specific action, then the most striking detail or '
+  + 'unresolved element.\n\n'
+  + 'PRIVACY (CRITICAL): NEVER use experiencer names from BFRO, NUFORC, NDERF, OBERF, Reddit, '
+  + 'Erowid, Ghost archives, or any other private user-submitted archive — even if a name appears '
+  + 'in the source narrative or metadata. Anonymize using witness role or count: "a driver", '
+  + '"two campers", "a flight crew of 4", "a couple driving home", "a hiker and her dog". '
+  + 'Names ONLY permitted when the input includes a "permitted_name" field (which it never does '
+  + 'by default). Default = anonymize.\n\n'
+  + 'OUTPUT FORMAT — exactly 5 fields, each on its own line, with delimiter prefix:\n'
+  + 'WHEN: <2-6 words. Use the most precise date the report supplies. e.g. "Aug 14, 2019", '
+  + '"Summer 2019", "October 1967", "March 2014">\n'
+  + 'WHERE: <2-6 words. City + region or city + country. e.g. "Squamish, BC", "Phoenix, AZ", '
+  + '"Pacific NW", "Cleveland Clinic, Ohio">\n'
+  + 'WITNESS: <2-5 words, anonymized role/count. e.g. "A driver", "Two campers", "A flight crew '
+  + 'of 4", "51 separate witnesses">\n'
+  + 'HOOK: <2-3 sentences, 35-65 words. Leads with date + place + anonymized witness role + '
+  + 'specific action from the report narrative. Ends with the most striking detail or contested '
+  + 'element. Self-contained — a reader who knows nothing about this report must understand the '
+  + 'event from the hook alone.>\n'
+  + 'TENSION: <one sentence, 12-25 words. The unresolved claim, contested point, missing piece, '
+  + 'or anomalous detail not yet explained. If the report has no clear tension element, write '
+  + '"(none)" — do NOT manufacture tension.>\n\n'
+  + 'RULES:\n'
+  + '- Every line starts with the field label and a colon.\n'
+  + '- HOOK leads with the date — start with "[Month Year]." or "[Year]." literally.\n'
+  + '- Past tense for the case description; present tense in tension framing.\n'
+  + '- BANNED words: mysterious, unexplained, shocking, terrifying, eerie, chilling, haunting, '
+  + 'bizarre, strange, peculiar, weird, otherworldly, supernatural (as adjective).\n'
+  + '- Do NOT generalize ("often reported", "many witnesses describe") — this is ONE report. '
+  + 'Stay specific to this case.\n'
+  + '- If the source narrative is too thin to extract a specific anchor, fall back on the title + '
+  + 'metadata — but never fabricate details.\n\n'
+  + 'EXAMPLES OF GOOD REPORT ANCHOR CASES:\n\n'
+  + 'BFRO bigfoot encounter:\n'
+  + 'WHEN: August 19, 2019\n'
+  + 'WHERE: Squamish, BC\n'
+  + 'WITNESS: A driver\n'
+  + 'HOOK: August 19, 2019. Highway 99 north of Squamish, British Columbia. A driver returning '
+  + 'from a hiking weekend reported a 7-foot bipedal figure crossing the road at dusk and '
+  + 'vanishing into dense forest. Pulling over, the driver found three deep impressions in soft '
+  + 'shoulder soil and photographed them at the scene.\n'
+  + 'TENSION: The impressions measured 16 inches long, but no usable plaster cast was obtained '
+  + 'before rain disturbed the site.\n\n'
+  + 'NDERF near-death account:\n'
+  + 'WHEN: March 2014\n'
+  + 'WHERE: Cleveland Clinic, Ohio\n'
+  + 'WITNESS: A cardiac surgery patient\n'
+  + 'HOOK: March 2014. Cleveland Clinic, Ohio. A patient in emergency cardiac surgery later '
+  + 'reported observing the procedure from above the operating table for roughly 11 minutes '
+  + 'during clinical death, accurately describing the surgical conversation. Both attending '
+  + 'surgeons confirmed the dialogue in subsequent interviews.\n'
+  + 'TENSION: The patient’s flat EEG during the observation period spans the longest documented '
+  + 'case of detailed verifiable awareness during isoelectric brain activity.\n\n'
+  + 'NUFORC UFO sighting:\n'
+  + 'WHEN: January 8, 2008\n'
+  + 'WHERE: Stephenville, TX\n'
+  + 'WITNESS: 51 separate witnesses\n'
+  + 'HOOK: January 8, 2008. Stephenville, Texas. Fifty-one separate witnesses across three counties '
+  + 'reported a silent low-flying object the size of a football field with no visible support '
+  + 'structure, accompanied by F-16s pursuing at high speed. FAA radar logs later corroborated '
+  + 'unidentified contacts traveling at 1,900 mph.\n'
+  + 'TENSION: The complete radar logs for the period have never been released to independent '
+  + 'investigators.\n\n'
+  + 'Return ONLY the 5-line structured output. No preamble, no explanation, no quotes around values.'
+
 function getSupabaseAdmin() {
   var supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   var supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
   return createClient(supabaseUrl, supabaseServiceKey)
 }
 
-function buildPrompt(phenomenon: any): string {
+function buildPhenomenonPrompt(phenomenon: any): string {
   var parts: string[] = []
 
   if (phenomenon.name) parts.push('Name: ' + phenomenon.name)
@@ -163,6 +234,54 @@ function buildPrompt(phenomenon: any): string {
   }
   if (phenomenon.feed_hook) {
     parts.push('\nPrior V6 feed hook (for tone reference, do not copy): ' + phenomenon.feed_hook)
+  }
+
+  return parts.join('\n')
+}
+
+// V9.0 — Build prompt for a SINGLE report (eyewitness account or editorial).
+// Different from phenomenon: this is one event, one date, one place, one
+// witness role. The Claude prompt should produce a specific anchor, not
+// aggregate across cases.
+function buildReportPrompt(report: any): string {
+  var parts: string[] = []
+
+  if (report.title) parts.push('Title: ' + report.title)
+  if (report.category) parts.push('Category: ' + report.category)
+  if (report.source_type) parts.push('Source type: ' + report.source_type)
+  if (report.source_label) parts.push('Source: ' + report.source_label)
+
+  if (report.event_date) {
+    var precision = report.event_date_precision || 'day'
+    parts.push('Event date: ' + report.event_date + ' (precision: ' + precision + ')')
+  }
+
+  // Location
+  var locationBits: string[] = []
+  if (report.city) locationBits.push(report.city)
+  if (report.state_province) locationBits.push(report.state_province)
+  if (report.country) locationBits.push(report.country)
+  if (report.location_name) locationBits.push(report.location_name)
+  if (locationBits.length > 0) parts.push('Location: ' + locationBits.join(', '))
+
+  if (report.has_physical_evidence) parts.push('Has physical evidence: yes')
+  if (report.has_photo_video) parts.push('Has photo/video evidence: yes')
+  if (report.credibility) parts.push('Credibility: ' + report.credibility)
+
+  if (report.summary) {
+    var sum = report.summary.length > 1500
+      ? report.summary.substring(0, 1500) + '...'
+      : report.summary
+    parts.push('\nSummary:\n' + sum)
+  }
+  if (report.paradocs_narrative) {
+    var nar = report.paradocs_narrative.length > 1500
+      ? report.paradocs_narrative.substring(0, 1500) + '...'
+      : report.paradocs_narrative
+    parts.push('\nParadocs editorial analysis:\n' + nar)
+  }
+  if (report.feed_hook) {
+    parts.push('\nPrior feed hook (tone reference, do not copy): ' + report.feed_hook)
   }
 
   return parts.join('\n')
@@ -209,13 +328,14 @@ function parseAnchorOutput(text: string): ParsedAnchor {
   return result
 }
 
-async function callClaude(userPrompt: string): Promise<string | null> {
+async function callClaude(userPrompt: string, type: 'phenomena' | 'reports'): Promise<string | null> {
   var apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     console.error('[AnchorCase] No ANTHROPIC_API_KEY found')
     return null
   }
 
+  var systemPrompt = type === 'reports' ? SYSTEM_PROMPT_REPORTS : SYSTEM_PROMPT_PHENOMENA
   var models = [ANTHROPIC_MODEL, ANTHROPIC_FALLBACK]
 
   for (var i = 0; i < models.length; i++) {
@@ -230,7 +350,7 @@ async function callClaude(userPrompt: string): Promise<string | null> {
         body: JSON.stringify({
           model: models[i],
           max_tokens: 600,
-          system: SYSTEM_PROMPT,
+          system: systemPrompt,
           messages: [{ role: 'user', content: userPrompt }],
         }),
       })
@@ -288,18 +408,34 @@ export default async function handler(
                (req.body && req.body.action) ||
                'batch_missing'
 
+  // V9.0 — type=phenomena (default) or type=reports. Switches the
+  // queried table, the prompt, and the order field.
+  var rawType = (req.query && (req.query.type as string)) ||
+                (req.body && req.body.type) ||
+                'phenomena'
+  var type: 'phenomena' | 'reports' = rawType === 'reports' ? 'reports' : 'phenomena'
+  var tableName = type === 'reports' ? 'reports' : 'phenomena'
+  // Reports order by event_date DESC (most recent first) so the most
+  // engaging cases get hooks first; phenomena order by report_count.
+  var orderField = type === 'reports' ? 'event_date' : 'report_count'
+  var nameField = type === 'reports' ? 'title' : 'name'
+  var selectFields = type === 'reports'
+    ? 'id, title, slug, category, source_type, source_label, event_date, event_date_precision, city, state_province, country, location_name, has_physical_evidence, has_photo_video, credibility, summary, paradocs_narrative, feed_hook'
+    : 'id, name, slug, category, icon, ai_summary, ai_description, ai_quick_facts, primary_regions, first_reported_date, report_count, aliases, feed_hook'
+
   // ---- Stats ----
   if (action === 'stats') {
     var { count: total } = await supabase
-      .from('phenomena')
+      .from(tableName)
       .select('id', { count: 'exact', head: true })
 
     var { count: withHook } = await supabase
-      .from('phenomena')
+      .from(tableName)
       .select('id', { count: 'exact', head: true })
       .not('anchor_case_hook', 'is', null)
 
     return res.status(200).json({
+      type: type,
       total: total || 0,
       with_anchor_hook: withHook || 0,
       missing: (total || 0) - (withHook || 0),
@@ -309,23 +445,23 @@ export default async function handler(
 
   // ---- Single ----
   if (action === 'single') {
-    var phenomenonId = req.body.id
-    if (!phenomenonId) {
+    var rowId = req.body.id
+    if (!rowId) {
       return res.status(400).json({ error: 'Missing id' })
     }
 
-    var { data: phenom } = await supabase
-      .from('phenomena')
+    var { data: row } = await supabase
+      .from(tableName)
       .select('*')
-      .eq('id', phenomenonId)
+      .eq('id', rowId)
       .single()
 
-    if (!phenom) {
-      return res.status(404).json({ error: 'Phenomenon not found' })
+    if (!row) {
+      return res.status(404).json({ error: type + ' not found' })
     }
 
-    var prompt = buildPrompt(phenom)
-    var rawOutput = await callClaude(prompt)
+    var prompt = type === 'reports' ? buildReportPrompt(row) : buildPhenomenonPrompt(row)
+    var rawOutput = await callClaude(prompt, type)
     if (!rawOutput) return res.status(500).json({ error: 'Failed to generate anchor case' })
 
     var parsed = parseAnchorOutput(rawOutput)
@@ -333,18 +469,28 @@ export default async function handler(
       return res.status(500).json({ error: 'Could not parse hook from output', raw: rawOutput })
     }
 
+    // Strip "(none)" tension marker — model uses it when no real tension exists
+    var tensionToSave = parsed.unresolved_tension && parsed.unresolved_tension.toLowerCase() !== '(none)'
+      ? parsed.unresolved_tension
+      : null
+
     await supabase
-      .from('phenomena')
+      .from(tableName)
       .update({
         anchor_case_hook: parsed.anchor_case_hook,
         anchor_when: parsed.anchor_when,
         anchor_where: parsed.anchor_where,
         anchor_witness: parsed.anchor_witness,
-        unresolved_tension: parsed.unresolved_tension,
+        unresolved_tension: tensionToSave,
       })
-      .eq('id', phenomenonId)
+      .eq('id', rowId)
 
-    return res.status(200).json({ id: phenomenonId, name: phenom.name, parsed: parsed, raw: rawOutput })
+    return res.status(200).json({
+      id: rowId,
+      name: (row as any)[nameField],
+      parsed: parsed,
+      raw: rawOutput,
+    })
   }
 
   // ---- Batch missing OR force_all ----
@@ -355,9 +501,9 @@ export default async function handler(
   var delay = (req.body && req.body.delay_ms) || 500
 
   var query = supabase
-    .from('phenomena')
-    .select('id, name, slug, category, icon, ai_summary, ai_description, ai_quick_facts, primary_regions, first_reported_date, report_count, aliases, feed_hook')
-    .order('report_count', { ascending: false })
+    .from(tableName)
+    .select(selectFields)
+    .order(orderField, { ascending: false, nullsFirst: false })
     .range(offset, offset + batchSize - 1)
 
   if (action !== 'force_all') {
@@ -367,42 +513,45 @@ export default async function handler(
   var { data: missing } = await query
 
   if (!missing || missing.length === 0) {
-    return res.status(200).json({ message: 'All phenomena have anchor cases', generated: 0 })
+    return res.status(200).json({ message: 'All ' + type + ' have anchor cases', generated: 0 })
   }
 
   var results: { id: string; name: string; success: boolean; parsed?: ParsedAnchor; raw?: string }[] = []
 
   for (var j = 0; j < missing.length; j++) {
-    var p = missing[j]
-    var userPrompt = buildPrompt(p)
-    var rawAnchorOutput = await callClaude(userPrompt)
+    var p = missing[j] as any
+    var userPrompt = type === 'reports' ? buildReportPrompt(p) : buildPhenomenonPrompt(p)
+    var rawAnchorOutput = await callClaude(userPrompt, type)
     var parsedAnchor: ParsedAnchor = rawAnchorOutput
       ? parseAnchorOutput(rawAnchorOutput)
       : { anchor_when: null, anchor_where: null, anchor_witness: null, anchor_case_hook: null, unresolved_tension: null }
 
     if (parsedAnchor.anchor_case_hook) {
+      // Strip "(none)" tension marker
+      var tensionForBatch = parsedAnchor.unresolved_tension && parsedAnchor.unresolved_tension.toLowerCase() !== '(none)'
+        ? parsedAnchor.unresolved_tension
+        : null
+
       await supabase
-        .from('phenomena')
+        .from(tableName)
         .update({
           anchor_case_hook: parsedAnchor.anchor_case_hook,
           anchor_when: parsedAnchor.anchor_when,
           anchor_where: parsedAnchor.anchor_where,
           anchor_witness: parsedAnchor.anchor_witness,
-          unresolved_tension: parsedAnchor.unresolved_tension,
+          unresolved_tension: tensionForBatch,
         })
         .eq('id', p.id)
 
-      results.push({ id: p.id, name: p.name, success: true, parsed: parsedAnchor })
+      results.push({ id: p.id, name: p[nameField], success: true, parsed: parsedAnchor })
     } else {
       // Refusal sentinel — Claude returned prose instead of structured
-      // output (typical when the phenomenon is genuinely off-topic for
-      // the index, e.g. cognitive-science seed templates that slipped
-      // into the catalog). Write a sentinel so the IS NULL filter no
-      // longer matches this row, unblocking the batch loop. The card
-      // render falls back to feed_hook → ai_summary when it sees a
-      // sentinel value (anchor_case_hook starting with '__').
+      // output. Write a sentinel so the IS NULL filter no longer matches
+      // this row, unblocking the batch loop. Card render falls back to
+      // feed_hook when it sees a sentinel value (anchor_case_hook starting
+      // with '__').
       await supabase
-        .from('phenomena')
+        .from(tableName)
         .update({
           anchor_case_hook: '__NEEDS_REVIEW__',
           unresolved_tension: rawAnchorOutput
@@ -411,7 +560,7 @@ export default async function handler(
         })
         .eq('id', p.id)
 
-      results.push({ id: p.id, name: p.name, success: false, raw: rawAnchorOutput || undefined })
+      results.push({ id: p.id, name: p[nameField], success: false, raw: rawAnchorOutput || undefined })
     }
 
     if (j < missing.length - 1 && delay > 0) {
@@ -422,6 +571,7 @@ export default async function handler(
   var successCount = results.filter(function (r) { return r.success }).length
 
   return res.status(200).json({
+    type: type,
     generated: successCount,
     failed: results.length - successCount,
     total_processed: results.length,

@@ -365,7 +365,7 @@ export default async function handler(
     if (reportIds.length > 0) {
       var { data: fullReports } = await (supabase
         .from('reports') as any)
-        .select('id, title, slug, summary, category, country, city, state_province, event_date, event_date_precision, credibility, upvotes, view_count, comment_count, has_photo_video, has_physical_evidence, content_type, location_name, source_type, source_label, created_at, phenomenon_type_id, feed_hook, paradocs_narrative, metadata')
+        .select('id, title, slug, summary, category, country, city, state_province, event_date, event_date_precision, credibility, upvotes, view_count, comment_count, has_photo_video, has_physical_evidence, content_type, location_name, source_type, source_label, created_at, phenomenon_type_id, feed_hook, paradocs_narrative, metadata, anchor_case_hook, anchor_when, anchor_where, anchor_witness, unresolved_tension')
         .in('id', reportIds);
 
       if (fullReports) {
@@ -523,6 +523,13 @@ export default async function handler(
           summary: safeSummary,
           feed_hook: r.feed_hook || null,
           paradocs_narrative: r.paradocs_narrative || null,
+          // V9.0 — anchor case fields. Card uses these as the new lead
+          // when present; falls back to feed_hook → summary otherwise.
+          anchor_case_hook: r.anchor_case_hook || null,
+          anchor_when: r.anchor_when || null,
+          anchor_where: r.anchor_where || null,
+          anchor_witness: r.anchor_witness || null,
+          unresolved_tension: r.unresolved_tension || null,
           category: r.category,
           country: r.country,
           city: r.city,

@@ -21,6 +21,7 @@
 
 import React, { useState } from 'react'
 import Link from 'next/link'
+import { FileText, Pen } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import type { PhenomenonCategory } from '@/lib/database.types'
@@ -126,6 +127,12 @@ export interface ReportItem {
   summary: string | null
   feed_hook: string | null
   paradocs_narrative: string | null
+  // V9.0 — Anchor case fields parallel to PhenomenonItem.
+  anchor_case_hook: string | null
+  anchor_when: string | null
+  anchor_where: string | null
+  anchor_witness: string | null
+  unresolved_tension: string | null
   category: string
   country: string | null
   city: string | null
@@ -262,13 +269,17 @@ function StatsRow(props: { items: { value: string | number, label: string }[], c
 //  Shared: Read Case button
 // =========================================================================
 
-export function ReadCaseButton(props: { onExpand: () => void }) {
+export function ReadCaseButton(props: { onExpand: () => void; label?: string }) {
+  // V9.0: optional `label` prop lets each card type provide its own
+  // verb (e.g. 'Read the Account' for reports, 'Read the Analysis'
+  // for editorials). Defaults to the original phenomenon verb.
+  var labelText = props.label || 'Read Case'
   return (
     <button
       onClick={props.onExpand}
       className="w-full md:w-auto md:px-8 py-2.5 md:py-3 rounded-lg border border-white/10 bg-white/[0.03] text-gray-400 text-xs md:text-sm font-sans font-medium uppercase tracking-widest hover:bg-white/[0.06] hover:text-gray-300 transition-colors flex-shrink-0 cursor-pointer"
     >
-      {'\u25BC Read Case'}
+      {'\u25BC ' + labelText}
     </button>
   )
 }
@@ -828,7 +839,42 @@ export function TextReportCard(props: {
   if (item.has_physical_evidence) credSignals.push('Physical Evidence')
 
   var hasHero = !!item.associated_image_url
-  var displayText = item.feed_hook || item.summary || ''
+  // V9.0 — anchor_case_hook is the new headline lead when present
+  // (cold-open story: date + place + anonymized witness + twist).
+  // Falls back to feed_hook → summary → title.
+  // Sentinel values starting with '__' are catalog-management markers
+  // and never reach the user.
+  var anchorIsSentinel = !!item.anchor_case_hook
+    && item.anchor_case_hook.length >= 2
+    && item.anchor_case_hook.substring(0, 2) === '__'
+  var effectiveAnchor = anchorIsSentinel ? null : item.anchor_case_hook
+  var displayText = effectiveAnchor || item.feed_hook || item.summary || ''
+
+  // V9.0 — Three signal chips: when, where, witness. Filtered to non-empty.
+  var anchorChips: string[] = []
+  if (!anchorIsSentinel) {
+    if (item.anchor_when) anchorChips.push(item.anchor_when)
+    if (item.anchor_where) anchorChips.push(item.anchor_where)
+    if (item.anchor_witness) anchorChips.push(item.anchor_witness)
+  }
+
+  // V9.0 — Type kicker. Editorials get a Pen icon + ANALYSIS · PARADOCS;
+  // everything else (BFRO, NUFORC, NDERF, OBERF, Reddit, etc.) is treated
+  // as eyewitness with a FileText icon + EYEWITNESS · {source_label}.
+  var isEditorial = item.source_type === 'editorial' || item.source_type === 'curated'
+  var kickerLabel: string
+  var KickerIcon: typeof FileText
+  if (isEditorial) {
+    kickerLabel = 'ANALYSIS · ' + (item.source_label || 'PARADOCS').toUpperCase()
+    KickerIcon = Pen
+  } else {
+    kickerLabel = 'EYEWITNESS · ' + (item.source_label || 'REPORT').toUpperCase()
+    KickerIcon = FileText
+  }
+
+  // CTA verb varies by type per panel recommendation.
+  var ctaVerb = isEditorial ? 'Read the Analysis' : 'Read the Account'
+
   // Universal case profile — falls back across every adapter (NDERF, OBERF,
   // BFRO, NUFORC, Erowid, Reddit, IANDS, Ghosts, …). Returns null when the
   // underlying metadata is too thin to render anything useful.
@@ -846,12 +892,6 @@ export function TextReportCard(props: {
   // Falls back to summary only for legacy curated sources where narrative is intentionally null.
   var expandedText = item.paradocs_narrative || (isLinkOnly(item.source_type) ? '' : item.summary) || ''
 
-  // Stats
-  var tensionItems: { value: string | number, label: string }[] = []
-  if (item.upvotes > 0) tensionItems.push({ value: item.upvotes, label: 'upvotes' })
-  if (item.view_count > 0) tensionItems.push({ value: item.view_count > 999 ? Math.round(item.view_count / 100) / 10 + 'k' : item.view_count, label: 'views' })
-  if (item.comment_count > 0) tensionItems.push({ value: item.comment_count, label: 'comments' })
-
   return (
     <TodayCardShell
       catColor={catColor}
@@ -866,56 +906,86 @@ export function TextReportCard(props: {
       whyReason={props.whyReason || null}
       cta={
         !props.expanded ? (
-          <ReadCaseButton onExpand={props.onExpand} />
+          <ReadCaseButton onExpand={props.onExpand} label={ctaVerb} />
         ) : (
           <CollapseButton onCollapse={props.onCollapse || function () {}} />
         )
       }
     >
-      <div role="article" aria-label={'Eyewitness report: ' + (item.title || 'Untitled')} className="flex flex-col gap-3 md:gap-4 pt-1">
-        {/* Element 1 — Badge row (category · year · location-trim) */}
+      <div role="article" aria-label={(isEditorial ? 'Editorial: ' : 'Eyewitness report: ') + (item.title || 'Untitled')} className="flex flex-col gap-3 md:gap-4 pt-1">
+        {/* Element 1 — Badge row (category · year · location-trim).
+            V9.0: text near-white, icon catColor (matches phenomena V8.1.3). */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
-            <CategoryIcon category={item.category as PhenomenonCategory} size={12} />
-            {' ' + badgeParts.join(' · ')}
+          <span className="inline-flex items-center gap-1.5 text-[10px] md:text-xs font-semibold uppercase tracking-widest text-gray-100">
+            <span className="inline-flex items-center" style={{ color: catColor }}>
+              <CategoryIcon category={item.category as PhenomenonCategory} size={12} />
+            </span>
+            <span>{badgeParts.join(' · ')}</span>
           </span>
-          {item.source_type && (
-            <SourceBadge
-              sourceType={item.source_type}
-              sourceLabel={item.source_label || undefined}
-              sourceUrl={(item as any).source_url || undefined}
-              variant="compact"
-            />
-          )}
         </div>
+
+        {/* V9.0 — Type kicker (EYEWITNESS · BFRO / ANALYSIS · PARADOCS).
+            Same primary-purple styling as phenomena's name kicker but
+            with a small lucide-react icon to differentiate type at a
+            200ms glance. Tappable to /report/{slug}. */}
+        {!props.expanded && (
+          <Link
+            href={'/report/' + item.slug}
+            onClick={function (e) { e.stopPropagation() }}
+            className="inline-flex items-center gap-1.5 self-start text-[14px] sm:text-[16px] md:text-[18px] font-display font-bold uppercase tracking-[0.18em] text-primary-400 hover:text-primary-300 transition-colors -mt-1 leading-tight"
+          >
+            <KickerIcon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" strokeWidth={2.4} />
+            <span>{kickerLabel}</span>
+          </Link>
+        )}
 
         {/* Element 2 — Headline (tap to expand) */}
         <h2
           onClick={!props.expanded ? props.onExpand : undefined}
           className={'font-display font-bold text-white leading-snug ' + (props.expanded ? 'text-xl md:text-2xl' : 'text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] cursor-pointer today-headline-hover')}
-          style={!props.expanded ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: hasHero ? 4 : 6, overflow: 'hidden' } : undefined}
+          style={!props.expanded ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: hasHero ? 5 : 7, overflow: 'hidden' } : undefined}
         >
           {displayText || item.title}
         </h2>
 
-        {/* Element 3 — Chip strip (evidence signals) */}
-        <CredibilityTags tags={credSignals} />
-
-        {/* Element 4 — Optional 1-stat callout */}
-        {!props.expanded && tensionItems.length > 0 && (
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl md:text-3xl font-display font-bold" style={{ color: catColor }}>
-              {tensionItems[0].value}
-            </span>
-            <span className="text-[10px] md:text-xs text-gray-400 font-sans uppercase tracking-wider">
-              {tensionItems[0].label}
-            </span>
+        {/* V9.0 — WHEN | WHERE | WITNESS signal chips driven by the new
+            anchor fields. Falls back gracefully to nothing when fields
+            haven't been populated yet (only renders chips that have
+            data). */}
+        {anchorChips.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {anchorChips.map(function (chip, ci) {
+              return (
+                <span
+                  key={'report-anchor-chip-' + ci}
+                  className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-sans font-medium bg-white/[0.05] border border-white/10 text-gray-300"
+                >
+                  {chip}
+                </span>
+              )
+            })}
+            {item.has_physical_evidence && (
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-sans font-medium bg-amber-500/15 border border-amber-400/30 text-amber-300">
+                Physical Evidence
+              </span>
+            )}
           </div>
         )}
 
-        {/* Element 5 — Body excerpt (sentence-boundary truncation) or expanded analysis */}
+        {/* V9.0 — "The unresolved part" line. Same treatment as phenomena. */}
+        {!props.expanded && !anchorIsSentinel && item.unresolved_tension && (
+          <p className="text-[13px] italic font-sans text-gray-400 leading-relaxed border-l-2 border-white/15 pl-3">
+            <span className="not-italic font-semibold text-gray-300 mr-1">{'The unresolved part:'}</span>
+            {item.unresolved_tension}
+          </p>
+        )}
+
+        {/* Element 5 — Body excerpt (collapsed) or expanded analysis.
+            V9.0: when an anchor_case_hook is present, the hook + tension
+            already carry the load — suppress the redundant body excerpt
+            on the collapsed view. The full narrative shows on expand. */}
         {!props.expanded ? (
-          item.summary ? (
+          (!effectiveAnchor && item.summary) ? (
             <p className="text-sm text-gray-300 leading-relaxed font-sans">
               {truncateAtSentence(item.summary, 80, 200)}
             </p>
@@ -934,7 +1004,7 @@ export function TextReportCard(props: {
               href={'/report/' + item.slug}
               className="inline-flex items-center gap-2 text-sm font-sans font-medium text-primary-400 hover:text-primary-300 transition-colors"
             >
-              {'View Full Report →'}
+              {(isEditorial ? 'View Full Analysis' : 'View Full Report') + ' →'}
             </Link>
           </div>
         )}
@@ -988,15 +1058,34 @@ export function MediaReportCard(props: {
   if (prettyDate) metaParts.push(prettyDate)
   if (item.source_label) metaParts.push(item.source_label)
 
-  // Low/Medium/High credibility labels are intentionally NOT surfaced in the
-  // UI anymore (QA/QC Apr 15 2026). Evidence flags are still shown because
-  // they are concrete, verifiable signals rather than coarse bucketing.
-  var credSignals: string[] = []
-  if (item.has_photo_video) credSignals.push('Photo/Video Evidence')
-  if (item.has_physical_evidence) credSignals.push('Physical Evidence')
+  // V9.0 — anchor case fields drive the new layout.
+  var anchorIsSentinel = !!item.anchor_case_hook
+    && item.anchor_case_hook.length >= 2
+    && item.anchor_case_hook.substring(0, 2) === '__'
+  var effectiveAnchor = anchorIsSentinel ? null : item.anchor_case_hook
 
   var hasHero = !!(item.primary_media && (item.primary_media.thumbnail_url || item.primary_media.url)) || !!item.associated_image_url
-  var displayText = item.feed_hook || item.summary || ''
+  var displayText = effectiveAnchor || item.feed_hook || item.summary || ''
+
+  var anchorChips: string[] = []
+  if (!anchorIsSentinel) {
+    if (item.anchor_when) anchorChips.push(item.anchor_when)
+    if (item.anchor_where) anchorChips.push(item.anchor_where)
+    if (item.anchor_witness) anchorChips.push(item.anchor_witness)
+  }
+
+  var isEditorial = item.source_type === 'editorial' || item.source_type === 'curated'
+  var kickerLabel: string
+  var KickerIcon: typeof FileText
+  if (isEditorial) {
+    kickerLabel = 'ANALYSIS · ' + (item.source_label || 'PARADOCS').toUpperCase()
+    KickerIcon = Pen
+  } else {
+    kickerLabel = 'EYEWITNESS · ' + (item.source_label || 'REPORT').toUpperCase()
+    KickerIcon = FileText
+  }
+  var ctaVerb = isEditorial ? 'Read the Analysis' : 'Read the Account'
+
   var unifiedProfile = deriveCaseProfile({
     source_type: item.source_type,
     metadata: item.metadata,
@@ -1008,10 +1097,6 @@ export function MediaReportCard(props: {
     credibility: item.credibility,
   })
   var expandedText = item.paradocs_narrative || (isLinkOnly(item.source_type) ? '' : item.summary) || ''
-
-  var tensionItems: { value: string | number, label: string }[] = []
-  if (item.upvotes > 0) tensionItems.push({ value: item.upvotes, label: 'upvotes' })
-  if (item.view_count > 0) tensionItems.push({ value: item.view_count > 999 ? Math.round(item.view_count / 100) / 10 + 'k' : item.view_count, label: 'views' })
 
   return (
     <TodayCardShell
@@ -1027,59 +1112,84 @@ export function MediaReportCard(props: {
       whyReason={props.whyReason || null}
       cta={
         !props.expanded ? (
-          <ReadCaseButton onExpand={props.onExpand} />
+          <ReadCaseButton onExpand={props.onExpand} label={ctaVerb} />
         ) : (
           <CollapseButton onCollapse={props.onCollapse || function () {}} />
         )
       }
     >
-      <div role="article" aria-label={'Eyewitness report with media: ' + (item.title || 'Untitled')} className="flex flex-col gap-3 md:gap-4 pt-1">
-        {/* Element 1 — Badge row + amber Evidence pill */}
+      <div role="article" aria-label={(isEditorial ? 'Editorial: ' : 'Eyewitness report with media: ') + (item.title || 'Untitled')} className="flex flex-col gap-3 md:gap-4 pt-1">
+        {/* Element 1 — Badge row + amber Evidence pill (V9.0 styling) */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 text-[10px] md:text-xs font-semibold uppercase tracking-widest" style={{ color: catColor }}>
-            <CategoryIcon category={item.category as PhenomenonCategory} size={12} />
-            {' ' + badgeParts.join(' · ')}
+          <span className="inline-flex items-center gap-1.5 text-[10px] md:text-xs font-semibold uppercase tracking-widest text-gray-100">
+            <span className="inline-flex items-center" style={{ color: catColor }}>
+              <CategoryIcon category={item.category as PhenomenonCategory} size={12} />
+            </span>
+            <span>{badgeParts.join(' · ')}</span>
           </span>
           <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-sans font-semibold uppercase tracking-wider">
             Evidence
           </span>
-          {item.source_type && (
-            <SourceBadge
-              sourceType={item.source_type}
-              sourceLabel={item.source_label || undefined}
-              sourceUrl={(item as any).source_url || undefined}
-              variant="compact"
-            />
-          )}
         </div>
+
+        {/* V9.0 — Type kicker (EYEWITNESS · {source} / ANALYSIS · PARADOCS) */}
+        {!props.expanded && (
+          <Link
+            href={'/report/' + item.slug}
+            onClick={function (e) { e.stopPropagation() }}
+            className="inline-flex items-center gap-1.5 self-start text-[14px] sm:text-[16px] md:text-[18px] font-display font-bold uppercase tracking-[0.18em] text-primary-400 hover:text-primary-300 transition-colors -mt-1 leading-tight"
+          >
+            <KickerIcon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" strokeWidth={2.4} />
+            <span>{kickerLabel}</span>
+          </Link>
+        )}
 
         {/* Element 2 — Headline (tap to expand) */}
         <h2
           onClick={!props.expanded ? props.onExpand : undefined}
           className={'font-display font-bold text-white leading-snug ' + (props.expanded ? 'text-xl md:text-2xl' : 'text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] cursor-pointer today-headline-hover')}
-          style={!props.expanded ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: hasHero ? 4 : 6, overflow: 'hidden' } : undefined}
+          style={!props.expanded ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: hasHero ? 5 : 7, overflow: 'hidden' } : undefined}
         >
           {displayText || item.title}
         </h2>
 
-        {/* Element 3 — Chip strip */}
-        <CredibilityTags tags={credSignals} />
-
-        {/* Element 4 — Optional 1-stat callout */}
-        {!props.expanded && tensionItems.length > 0 && (
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl md:text-3xl font-display font-bold text-amber-400">
-              {tensionItems[0].value}
-            </span>
-            <span className="text-[10px] md:text-xs text-gray-400 font-sans uppercase tracking-wider">
-              {tensionItems[0].label}
-            </span>
+        {/* V9.0 — WHEN | WHERE | WITNESS chips, plus evidence pills */}
+        {(anchorChips.length > 0 || item.has_photo_video || item.has_physical_evidence) && (
+          <div className="flex flex-wrap gap-1.5">
+            {anchorChips.map(function (chip, ci) {
+              return (
+                <span
+                  key={'media-anchor-chip-' + ci}
+                  className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-sans font-medium bg-white/[0.05] border border-white/10 text-gray-300"
+                >
+                  {chip}
+                </span>
+              )
+            })}
+            {item.has_photo_video && (
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-sans font-medium bg-amber-500/15 border border-amber-400/30 text-amber-300">
+                Photo/Video
+              </span>
+            )}
+            {item.has_physical_evidence && (
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-sans font-medium bg-amber-500/15 border border-amber-400/30 text-amber-300">
+                Physical Evidence
+              </span>
+            )}
           </div>
         )}
 
-        {/* Element 5 — Body excerpt or expanded view (with media thumbnail) */}
+        {/* V9.0 — Unresolved tension line */}
+        {!props.expanded && !anchorIsSentinel && item.unresolved_tension && (
+          <p className="text-[13px] italic font-sans text-gray-400 leading-relaxed border-l-2 border-white/15 pl-3">
+            <span className="not-italic font-semibold text-gray-300 mr-1">{'The unresolved part:'}</span>
+            {item.unresolved_tension}
+          </p>
+        )}
+
+        {/* Element 5 — Body excerpt (when no anchor) or expanded view */}
         {!props.expanded ? (
-          item.summary ? (
+          (!effectiveAnchor && item.summary) ? (
             <p className="text-sm text-gray-300 leading-relaxed font-sans">
               {truncateAtSentence(item.summary, 80, 200)}
             </p>
@@ -1111,7 +1221,7 @@ export function MediaReportCard(props: {
               href={'/report/' + item.slug}
               className="inline-flex items-center gap-2 text-sm font-sans font-medium text-primary-400 hover:text-primary-300 transition-colors"
             >
-              {'View Full Report →'}
+              {(isEditorial ? 'View Full Analysis' : 'View Full Report') + ' →'}
             </Link>
           </div>
         )}
