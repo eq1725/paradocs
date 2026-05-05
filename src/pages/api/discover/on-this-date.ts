@@ -32,15 +32,25 @@ export default async function handler(
     var month = now.getMonth() + 1 // JS months 0-indexed
     var day = now.getDate()
 
+    // V9.0.1 — Honor active category filter from the Today feed. Without
+    // this, the on-this-date card injection at position 1 could inject
+    // a Lucid Dreaming entry while the user is filtering Cryptids,
+    // breaking the topic-filter contract.
+    var categoryFilter = (req.query && (req.query.category as string)) || null
+
     // Query phenomena where first_reported_date matches today's month/day
     // Supabase doesn't support EXTRACT in .filter(), so we fetch all with dates
     // and filter in JS. For a small table (phenomena), this is fine.
-    var { data: phenomena, error } = await supabase
+    var phenQuery = supabase
       .from('phenomena')
       .select('id, name, slug, category, ai_summary, first_reported_date, ai_quick_facts')
       .eq('status', 'active')
       .not('first_reported_date', 'is', null)
       .not('ai_summary', 'is', null)
+
+    if (categoryFilter) phenQuery = phenQuery.eq('category', categoryFilter)
+
+    var { data: phenomena, error } = await phenQuery
 
     if (error) {
       console.error('[OnThisDate] Query error:', error)

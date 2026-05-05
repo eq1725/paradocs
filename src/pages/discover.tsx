@@ -492,8 +492,17 @@ export default function DiscoverPage() {
     if (specialCardsInjected.current) return
     var fetches: Promise<void>[] = []
 
+    // V9.0.1 — When a category filter is active, special-card endpoints
+    // must honor it. Without this, on-this-date at position 1 could
+    // inject a Lucid Dreaming card when the user is filtering Cryptids.
+    // Cluster cards are cross-category by design (they connect across
+    // multiple phenomena/categories) — when a single category is
+    // selected, we suppress cluster injection entirely rather than
+    // surface mixed-category content that breaks the filter.
+    var catParam = categoryFilter ? '?category=' + encodeURIComponent(categoryFilter) : ''
+
     fetches.push(
-      fetch('/api/discover/on-this-date')
+      fetch('/api/discover/on-this-date' + catParam)
         .then(function (res) { return res.ok ? res.json() : null })
         .then(function (data) {
           if (data && data.items && data.items.length > 0) {
@@ -508,17 +517,22 @@ export default function DiscoverPage() {
         .catch(function () {})
     )
 
-    fetches.push(
-      fetch('/api/discover/clusters')
-        .then(function (res) { return res.ok ? res.json() : null })
-        .then(function (data) {
-          if (data && data.clusters && data.clusters.length > 0) {
-            var clusterCard: ClusterCardData = Object.assign({}, data.clusters[0], { item_type: 'cluster' as const })
-            pendingSpecialCards.current.push({ card: clusterCard, position: 8 })
-          }
-        })
-        .catch(function () {})
-    )
+    // Skip cluster injection when a category is active — clusters
+    // intentionally cross categories and would break the topic-filter
+    // contract.
+    if (!categoryFilter) {
+      fetches.push(
+        fetch('/api/discover/clusters')
+          .then(function (res) { return res.ok ? res.json() : null })
+          .then(function (data) {
+            if (data && data.clusters && data.clusters.length > 0) {
+              var clusterCard: ClusterCardData = Object.assign({}, data.clusters[0], { item_type: 'cluster' as const })
+              pendingSpecialCards.current.push({ card: clusterCard, position: 8 })
+            }
+          })
+          .catch(function () {})
+      )
+    }
 
     Promise.all(fetches).then(function () {
       var promoSkip = userTier === 'pro' || userTier === 'enterprise' || getPromoDismissals() >= 2
