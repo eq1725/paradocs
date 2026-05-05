@@ -37,7 +37,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { Search, X, LayoutGrid } from 'lucide-react'
+import { Search, X, LayoutGrid, ChevronDown } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import type { PhenomenonCategory } from '@/lib/database.types'
@@ -101,6 +101,7 @@ export function TodayHeader(props: {
   var router = useRouter()
   var [searchOpen, setSearchOpen] = useState(false)
   var [shortcutsPulsed, setShortcutsPulsed] = useState(false)
+  var [topicsOpen, setTopicsOpen] = useState(false)
   var searchInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(function () {
@@ -156,94 +157,171 @@ export function TodayHeader(props: {
       {/* sr-only h1 for accessibility + SEO */}
       <h1 className="sr-only">Today — Paradocs</h1>
 
-      {/* V7.4 — Unified chip strip. Lens chips, em-dash divider, then
-          category chips. role="tablist" + role="tab" + aria-selected
-          gives assistive tech the right "filter selector" semantic.
-          Single horizontal scroll axis. Fade-mask hints at horizontal
-          overflow. */}
+      {/* V8.1 — Topics pill (left, opens bottom sheet) + horizontally
+          scrollable lens chips (right). Replaces the V7.4 unified
+          horizontal strip — that design hid the categories behind a
+          horizontal-scroll gesture that users wouldn't discover. The
+          Topics pill is now the most-prominent filter affordance, with
+          an explicit chevron signaling "tap to choose topic." Lens
+          chips remain inline for quick access since they're rarely
+          changed. */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-        <div
-          role="tablist"
-          aria-label="Filter Today"
-          className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-1.5 today-fade-mask-r"
-        >
-          {/* Lens chips — primary-tinted active state */}
-          {LENSES.map(function (lens) {
-            var isActive = props.lens === lens.key
-            return (
-              <button
-                key={'lens-' + lens.key}
-                role="tab"
-                aria-selected={isActive}
-                onClick={function () { handleLensClick(lens.key) }}
-                className={
-                  'flex-shrink-0 px-3 py-1 rounded-full text-[11px] font-sans font-medium transition-colors border ' +
-                  (isActive
-                    ? 'bg-primary-500/15 border-primary-500/40 text-primary-300'
-                    : 'bg-white/[0.03] border-white/10 text-gray-400 hover:bg-white/[0.06] hover:text-gray-200')
-                }
-              >
-                {lens.label}
-              </button>
-            )
-          })}
-
-          {/* V7.5 — Per Visual Designer panelist's fallback after Chase
-              feedback that the em-dash read as decoration. Replaced
-              with: thin vertical rule + a small "BY TOPIC" label,
-              giving the divider a clear semantic anchor. Margin gap
-              on either side keeps it visually distinct from adjacent
-              chips. aria-hidden because the role="tablist" structure
-              already conveys this to assistive tech. */}
-          <div
-            aria-hidden="true"
-            className="flex-shrink-0 inline-flex items-center gap-1.5 ml-1 mr-2 select-none"
-          >
-            <span className="block w-px h-4 bg-white/15" />
-            <span className="text-[9px] font-sans font-semibold uppercase tracking-wider text-gray-500">
-              {'By topic'}
-            </span>
-            <span className="block w-px h-4 bg-white/15" />
-          </div>
-
-          {/* Category chips — bold white active state */}
+        <div className="flex items-center gap-2 py-1.5">
+          {/* Topics pill — tappable, opens bottom sheet */}
           <button
-            role="tab"
-            aria-selected={props.category === null}
-            onClick={function () { handleCategoryClick(null) }}
+            type="button"
+            onClick={function () { setTopicsOpen(true) }}
+            aria-haspopup="dialog"
+            aria-expanded={topicsOpen}
+            aria-label={props.category
+              ? 'Topic: ' + (CATEGORY_CONFIG[props.category as PhenomenonCategory]?.label || props.category) + ' — tap to change'
+              : 'Choose a topic'}
             className={
-              'flex-shrink-0 px-3 py-1 rounded-full text-[11px] font-sans font-medium transition-colors border ' +
-              (props.category === null
-                ? 'bg-white/10 border-white/20 text-white'
-                : 'bg-white/[0.03] border-white/10 text-gray-500 hover:bg-white/[0.06] hover:text-gray-300')
+              'flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-sans font-semibold transition-colors border ' +
+              (props.category
+                ? 'bg-primary-500/20 border-primary-400/50 text-primary-200 hover:bg-primary-500/30'
+                : 'bg-white/[0.06] border-white/15 text-white hover:bg-white/[0.10]')
             }
           >
-            All categories
+            {props.category ? (
+              <>
+                <CategoryIcon category={props.category as PhenomenonCategory} size={11} />
+                <span>{CATEGORY_CONFIG[props.category as PhenomenonCategory]?.label || props.category}</span>
+                <span
+                  role="button"
+                  aria-label="Clear topic filter"
+                  onClick={function (e) { e.stopPropagation(); handleCategoryClick(null) }}
+                  className="ml-0.5 inline-flex w-3.5 h-3.5 items-center justify-center rounded-full hover:bg-white/15 cursor-pointer"
+                >
+                  <X className="w-2.5 h-2.5" />
+                </span>
+              </>
+            ) : (
+              <>
+                <span>{'All Topics'}</span>
+                <ChevronDown className="w-3 h-3 opacity-70" />
+              </>
+            )}
           </button>
-          {CATEGORY_KEYS.map(function (cat) {
-            var cfg = CATEGORY_CONFIG[cat]
-            if (!cfg) return null
-            var isActive = props.category === cat
-            return (
-              <button
-                key={'cat-' + cat}
-                role="tab"
-                aria-selected={isActive}
-                onClick={function () { handleCategoryClick(cat) }}
-                className={
-                  'flex-shrink-0 px-3 py-1 rounded-full text-[11px] font-sans font-medium transition-colors border inline-flex items-center gap-1 ' +
-                  (isActive
-                    ? 'bg-white/10 border-white/20 text-white'
-                    : 'bg-white/[0.03] border-white/10 text-gray-400 hover:bg-white/[0.06] hover:text-gray-200')
-                }
-              >
-                <CategoryIcon category={cat} size={11} />
-                {cfg.label}
-              </button>
-            )
-          })}
+
+          {/* Vertical separator between Topics pill and lens chips */}
+          <span aria-hidden="true" className="flex-shrink-0 block w-px h-4 bg-white/10 mx-0.5" />
+
+          {/* Lens chips — primary-tinted active state. Scrollable
+              within their own container if they overflow on narrow
+              screens; fade-mask hints at horizontal overflow. */}
+          <div
+            role="tablist"
+            aria-label="Filter view"
+            className="flex items-center gap-2 overflow-x-auto scrollbar-hide today-fade-mask-r min-w-0 flex-1"
+          >
+            {LENSES.map(function (lens) {
+              var isActive = props.lens === lens.key
+              return (
+                <button
+                  key={'lens-' + lens.key}
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={function () { handleLensClick(lens.key) }}
+                  className={
+                    'flex-shrink-0 px-3 py-1 rounded-full text-[11px] font-sans font-medium transition-colors border ' +
+                    (isActive
+                      ? 'bg-primary-500/15 border-primary-500/40 text-primary-300'
+                      : 'bg-white/[0.03] border-white/10 text-gray-400 hover:bg-white/[0.06] hover:text-gray-200')
+                  }
+                >
+                  {lens.label}
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
+
+      {/* V8.1 — Topics bottom-sheet picker. Opens from the bottom on
+          mobile (iOS-style drawer), centers on tablet+. Lists every
+          category with an icon. Tap selects + closes; tap "All topics"
+          clears. Tap backdrop or ✕ closes without changing. */}
+      {topicsOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={function () { setTopicsOpen(false) }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Choose topic"
+        >
+          <div
+            className="w-full md:max-w-md bg-gray-950 border-t md:border md:rounded-2xl border-white/10 shadow-2xl overflow-hidden"
+            onClick={function (e) { e.stopPropagation() }}
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 1rem)' }}
+          >
+            {/* Sheet header */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-3">
+              <div>
+                <h2 className="text-[15px] font-sans font-semibold text-white">{'Choose a topic'}</h2>
+                <p className="text-[11px] font-sans text-gray-400 mt-0.5">{'Filter today’s feed by what interests you'}</p>
+              </div>
+              <button
+                type="button"
+                onClick={function () { setTopicsOpen(false) }}
+                aria-label="Close"
+                className="w-8 h-8 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* All topics row */}
+            <button
+              type="button"
+              onClick={function () { handleCategoryClick(null); setTopicsOpen(false) }}
+              className={
+                'w-full flex items-center justify-between px-5 py-3 text-left transition-colors ' +
+                (props.category === null
+                  ? 'bg-primary-500/15 text-primary-200'
+                  : 'text-white hover:bg-white/5')
+              }
+            >
+              <span className="text-[14px] font-sans font-medium">{'All topics'}</span>
+              {props.category === null && (
+                <span className="text-[11px] font-sans text-primary-300">{'✓ Selected'}</span>
+              )}
+            </button>
+
+            <div className="border-t border-white/5" />
+
+            {/* Category list */}
+            <div className="max-h-[60vh] overflow-y-auto">
+              {CATEGORY_KEYS.map(function (cat) {
+                var cfg = CATEGORY_CONFIG[cat]
+                if (!cfg) return null
+                var isActive = props.category === cat
+                return (
+                  <button
+                    key={'topic-' + cat}
+                    type="button"
+                    onClick={function () { handleCategoryClick(cat); setTopicsOpen(false) }}
+                    className={
+                      'w-full flex items-center gap-3 px-5 py-3 text-left transition-colors ' +
+                      (isActive
+                        ? 'bg-primary-500/15 text-primary-200'
+                        : 'text-white hover:bg-white/5')
+                    }
+                  >
+                    <span className="flex-shrink-0 w-7 h-7 inline-flex items-center justify-center rounded-full bg-white/[0.04] border border-white/10">
+                      <CategoryIcon category={cat} size={14} />
+                    </span>
+                    <span className="flex-1 text-[14px] font-sans font-medium">{cfg.label}</span>
+                    {isActive && (
+                      <span className="text-[11px] font-sans text-primary-300">{'✓'}</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* V7.4 — Utility row is now md+ only. On mobile the streak
           chip moves into the card chrome (TodayCardShell), search
