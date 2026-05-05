@@ -553,6 +553,9 @@ export function PhenomenonCard(props: {
   streakDays?: number
   whyReason?: string | null
   nextCatColor?: string | null
+  isAnonymous?: boolean
+  signInNudgeDismissed?: boolean
+  onSignInNudgeDismiss?: () => void
 }) {
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
@@ -621,6 +624,9 @@ export function PhenomenonCard(props: {
       onShare={props.onShare}
       isTodaysLead={props.isTodaysLead}
       streakDays={props.streakDays}
+      isAnonymous={props.isAnonymous}
+      signInNudgeDismissed={props.signInNudgeDismissed}
+      onSignInNudgeDismiss={props.onSignInNudgeDismiss}
       whyReason={props.whyReason || null}
       cta={
         !props.expanded ? (
@@ -807,6 +813,9 @@ export function TextReportCard(props: {
   streakDays?: number
   whyReason?: string | null
   nextCatColor?: string | null
+  isAnonymous?: boolean
+  signInNudgeDismissed?: boolean
+  onSignInNudgeDismiss?: () => void
 }) {
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
@@ -907,6 +916,9 @@ export function TextReportCard(props: {
       onShare={props.onShare}
       isTodaysLead={props.isTodaysLead}
       streakDays={props.streakDays}
+      isAnonymous={props.isAnonymous}
+      signInNudgeDismissed={props.signInNudgeDismissed}
+      onSignInNudgeDismiss={props.onSignInNudgeDismiss}
       whyReason={props.whyReason || null}
       cta={
         !props.expanded ? (
@@ -1039,6 +1051,9 @@ export function MediaReportCard(props: {
   streakDays?: number
   whyReason?: string | null
   nextCatColor?: string | null
+  isAnonymous?: boolean
+  signInNudgeDismissed?: boolean
+  onSignInNudgeDismiss?: () => void
 }) {
   var item = props.item
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
@@ -1115,6 +1130,9 @@ export function MediaReportCard(props: {
       onShare={props.onShare}
       isTodaysLead={props.isTodaysLead}
       streakDays={props.streakDays}
+      isAnonymous={props.isAnonymous}
+      signInNudgeDismissed={props.signInNudgeDismissed}
+      onSignInNudgeDismiss={props.onSignInNudgeDismiss}
       whyReason={props.whyReason || null}
       cta={
         !props.expanded ? (

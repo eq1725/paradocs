@@ -68,6 +68,7 @@ import { useSessionContext } from '@/lib/hooks/useSessionContext'
 import { useGateStatus } from '@/lib/hooks/useGateStatus'
 import { useTodaySaves } from '@/lib/hooks/useTodaySaves'
 import { setTodayReturnMarker } from '@/lib/hooks/useTodayReturn'
+import { tickAnonStreak, clearAnonStreak, isNudgeDismissedToday, dismissNudgeForToday } from '@/lib/anonStreak'
 import { useABTest } from '@/lib/ab-testing'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
@@ -328,6 +329,16 @@ export default function DiscoverPage() {
 
   // --- Streak (for header chip, V2 #12) ---
   var [streakDays, setStreakDays] = useState<number>(0)
+  // V8 — sign-in nudge dismissed for today. Persisted to localStorage
+  // so the dismissal survives reloads but resurfaces tomorrow.
+  var [nudgeDismissed, setNudgeDismissed] = useState<boolean>(false)
+  useEffect(function () {
+    setNudgeDismissed(isNudgeDismissedToday())
+  }, [])
+  function handleNudgeDismiss() {
+    dismissNudgeForToday()
+    setNudgeDismissed(true)
+  }
   // searchQuery state lives near the top of the component (above displayItems)
 
   // --- V5-next: grid mode (desktop) ---
@@ -406,8 +417,16 @@ export default function DiscoverPage() {
   }
 
   // Pull streak data for the header chip (best-effort; quiet on failure).
+  // V8 — when user is anonymous, fall back to localStorage anonymous-streak
+  // tracking. tickAnonStreak ticks once per calendar day; the day-3
+  // nudge UI gates display on streakDays >= 3.
   useEffect(function () {
-    if (!user?.id) { setStreakDays(0); return }
+    if (!user?.id) {
+      // Anonymous — use localStorage streak
+      var anonDays = tickAnonStreak()
+      setStreakDays(anonDays)
+      return
+    }
     var aborted = false
     fetch('/api/user/streak')
       .then(function (res) { return res.ok ? res.json() : null })
@@ -1098,6 +1117,7 @@ export default function DiscoverPage() {
           user={user} onShowSignup={setShowSignupPromptCb}
           isSaved={savedNow} onSave={saveCb} onShare={shareCb}
           isTodaysLead={leadFlag} streakDays={streakDays} whyReason={why} nextCatColor={nextColor}
+          isAnonymous={!user?.id} signInNudgeDismissed={nudgeDismissed} onSignInNudgeDismiss={handleNudgeDismiss}
         />
       )
     }
@@ -1112,6 +1132,7 @@ export default function DiscoverPage() {
           user={user} onShowSignup={setShowSignupPromptCb}
           isSaved={savedNow} onSave={saveCb} onShare={shareCb}
           isTodaysLead={leadFlag} streakDays={streakDays} whyReason={why} nextCatColor={nextColor}
+          isAnonymous={!user?.id} signInNudgeDismissed={nudgeDismissed} onSignInNudgeDismiss={handleNudgeDismiss}
         />
       )
     }

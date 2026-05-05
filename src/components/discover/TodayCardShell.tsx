@@ -45,6 +45,16 @@ interface TodayCardShellProps {
   /** Optional streak day — if set and user has streak, the badge upgrades
    *  to "Today's lead · day N". Cross-cutting V5 panel review item. */
   streakDays?: number
+  /** V8 retention — when the user is anonymous and streakDays >= 3, the
+   *  card chrome surfaces a small dismissable "Sign in to save your
+   *  streak →" nudge below the streak chip. */
+  isAnonymous?: boolean
+  /** V8 retention — set true when the user has dismissed the nudge for
+   *  today; suppresses the inline link without affecting the streak chip. */
+  signInNudgeDismissed?: boolean
+  /** V8 retention — fired when the user taps × on the sign-in nudge.
+   *  Discover.tsx persists the dismissal in localStorage. */
+  onSignInNudgeDismiss?: () => void
   /** Optional "Why you're seeing this" reason — surfaced via small (i) icon */
   whyReason?: string | null
   /** Sticky bottom CTA — receives "saved" tint when isSaved */
@@ -153,9 +163,14 @@ export function TodayCardShell(props: TodayCardShellProps) {
           card since the lead badge already encodes the streak as
           "Today's lead · day N"). Sits left of the action cluster as
           its own pill so the visual hierarchy stays clear: streak =
-          informational, action cluster = interactive. */}
-      {(typeof props.streakDays === 'number' && props.streakDays >= 2 && !props.isTodaysLead) && (
-        <div className="absolute top-3 left-3 z-50 md:hidden">
+          informational, action cluster = interactive.
+          V8 retention — anonymous users only see the chip after day 3
+          (gated upstream in discover.tsx via shouldShowAnonStreakNudge);
+          when anonymous & day >= 3 & not dismissed, a small
+          "Sign in to save →" nudge sits beneath the chip. */}
+      {(typeof props.streakDays === 'number' && props.streakDays >= 2 && !props.isTodaysLead
+        && (!props.isAnonymous || props.streakDays >= 3)) && (
+        <div className="absolute top-3 left-3 z-50 md:hidden flex flex-col items-start gap-1">
           <span
             className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-[10px] font-sans font-semibold text-amber-300 backdrop-blur-md"
             title={props.streakDays + ' day streak'}
@@ -164,6 +179,29 @@ export function TodayCardShell(props: TodayCardShellProps) {
             <span aria-hidden="true">{'🔥'}</span>
             {props.streakDays}
           </span>
+          {/* V8 — sign-in nudge for anonymous users, day-3+, not yet
+              dismissed for today. Tasteful, dismissable, never blocking. */}
+          {props.isAnonymous && props.streakDays >= 3 && !props.signInNudgeDismissed && (
+            <span className="inline-flex items-center gap-1.5 pl-0.5 pr-1.5 py-0.5 rounded-full bg-black/45 backdrop-blur-md border border-white/10 text-[10px] font-sans text-amber-200">
+              <a
+                href="/login?redirect=/discover&intent=streak"
+                onClick={function (e) { e.stopPropagation() }}
+                className="hover:text-white transition-colors"
+              >
+                {'Sign in to save streak →'}
+              </a>
+              {props.onSignInNudgeDismiss && (
+                <button
+                  type="button"
+                  onClick={function (e) { e.stopPropagation(); if (props.onSignInNudgeDismiss) props.onSignInNudgeDismiss() }}
+                  aria-label="Dismiss sign-in nudge for today"
+                  className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-amber-200/60 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <span className="text-[10px] leading-none">{'×'}</span>
+                </button>
+              )}
+            </span>
+          )}
         </div>
       )}
 
