@@ -630,11 +630,14 @@ export function PhenomenonCard(props: {
           )}
         </div>
 
-        {/* Element 2 — Headline (tap to expand) */}
+        {/* Element 2 — Headline (tap to expand). V8 Tier 1.2: line clamp
+            bumped from 4→5 (hero) and 6→7 (no hero) so the new cold-open
+            anchor hooks aren't truncated mid-clause with "—..." after
+            the source list. */}
         <h2
           onClick={!props.expanded ? props.onExpand : undefined}
           className={'font-display font-bold text-white leading-snug ' + (props.expanded ? 'text-xl md:text-2xl' : 'text-lg sm:text-xl md:text-2xl lg:text-[1.7rem] cursor-pointer today-headline-hover')}
-          style={!props.expanded ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: hasHero ? 4 : 6, overflow: 'hidden' } : undefined}
+          style={!props.expanded ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: hasHero ? 5 : 7, overflow: 'hidden' } : undefined}
         >
           {displayText || item.name}
         </h2>
@@ -670,9 +673,17 @@ export function PhenomenonCard(props: {
           </p>
         )}
 
-        {/* Element — Body excerpt (collapsed) or full expanded view */}
+        {/* Element — Body excerpt (collapsed) or full expanded view.
+            V8 Tier 1.2: when an anchor_case_hook is present, the hook
+            and unresolved-tension lines already do the editorial job
+            of the collapsed card. Showing the encyclopedic ai_summary
+            below them is redundant ("Angels are spiritual beings
+            described across major world religions..." restates what
+            the headline already said). The summary moves to the
+            expanded view only — tap READ CASE to see the full
+            encyclopedic context. */}
         {!props.expanded ? (
-          item.ai_summary && item.ai_summary !== displayText ? (
+          (!effectiveAnchor && item.ai_summary && item.ai_summary !== displayText) ? (
             <p className="text-sm text-gray-300 leading-relaxed font-sans">
               {truncateAtSentence(item.ai_summary, 80, 200)}
             </p>
