@@ -630,6 +630,27 @@ export function PhenomenonCard(props: {
           )}
         </div>
 
+        {/* V8.1.1 — Phenomenon name kicker. Panel consensus 3-0: place
+            the name as a kicker between the category badge and the
+            hook headline (Editorial Director, Mobile UX Lead, Visual
+            Designer all explicitly recommended top placement).
+            - Smaller than headline so it doesn't compete (Visual
+              Designer's note).
+            - Primary purple for visibility against dark hero scrim.
+            - Uppercase tracking for kicker convention (Apple News /
+              NYT pattern).
+            - Tappable → /phenomena/{slug} (IA's note about making the
+              name a navigation anchor, not just a label). */}
+        {item.name && !props.expanded && (
+          <Link
+            href={'/phenomena/' + item.slug}
+            onClick={function (e) { e.stopPropagation() }}
+            className="inline-block self-start text-[12px] md:text-[13px] font-display font-bold uppercase tracking-[0.2em] text-primary-400 hover:text-primary-300 transition-colors -mt-1"
+          >
+            {item.name}
+          </Link>
+        )}
+
         {/* Element 2 — Headline (tap to expand). V8 Tier 1.2: line clamp
             bumped from 4→5 (hero) and 6→7 (no hero) so the new cold-open
             anchor hooks aren't truncated mid-clause with "—..." after

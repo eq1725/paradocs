@@ -151,8 +151,15 @@ export function TodayHeader(props: {
   var browseHref = '/explore' + (browseQuery.length > 0 ? '?' + browseQuery.join('&') : '')
 
   return (
-    // V6.7: bg opacity 0.85 → 0.97 so card content scrolling under the
-    // sticky header doesn't bleed through visually. Backdrop-blur stays on.
+    // V8.1.1: wrap return in a Fragment so the bottom-sheet can render
+    // OUTSIDE the sticky-below-header element. position:sticky creates
+    // a stacking context that clips position:fixed children — that's
+    // why "page goes black" when tapping All Topics in V8.1 — the
+    // sheet's overlay was being clipped to the header's bounds. Moving
+    // it out fixes both the click-trap and the visual clipping.
+    <>
+    {/* V6.7: bg opacity 0.85 → 0.97 so card content scrolling under the
+        sticky header doesn't bleed through visually. Backdrop-blur stays on. */}
     <div className="sticky-below-header bg-gray-950/97 backdrop-blur-md border-b border-white/5">
       {/* sr-only h1 for accessibility + SEO */}
       <h1 className="sr-only">Today — Paradocs</h1>
@@ -237,91 +244,6 @@ export function TodayHeader(props: {
           </div>
         </div>
       </div>
-
-      {/* V8.1 — Topics bottom-sheet picker. Opens from the bottom on
-          mobile (iOS-style drawer), centers on tablet+. Lists every
-          category with an icon. Tap selects + closes; tap "All topics"
-          clears. Tap backdrop or ✕ closes without changing. */}
-      {topicsOpen && (
-        <div
-          className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm"
-          onClick={function () { setTopicsOpen(false) }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Choose topic"
-        >
-          <div
-            className="w-full md:max-w-md bg-gray-950 border-t md:border md:rounded-2xl border-white/10 shadow-2xl overflow-hidden"
-            onClick={function (e) { e.stopPropagation() }}
-            style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 1rem)' }}
-          >
-            {/* Sheet header */}
-            <div className="flex items-center justify-between px-5 pt-5 pb-3">
-              <div>
-                <h2 className="text-[15px] font-sans font-semibold text-white">{'Choose a topic'}</h2>
-                <p className="text-[11px] font-sans text-gray-400 mt-0.5">{'Filter today’s feed by what interests you'}</p>
-              </div>
-              <button
-                type="button"
-                onClick={function () { setTopicsOpen(false) }}
-                aria-label="Close"
-                className="w-8 h-8 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* All topics row */}
-            <button
-              type="button"
-              onClick={function () { handleCategoryClick(null); setTopicsOpen(false) }}
-              className={
-                'w-full flex items-center justify-between px-5 py-3 text-left transition-colors ' +
-                (props.category === null
-                  ? 'bg-primary-500/15 text-primary-200'
-                  : 'text-white hover:bg-white/5')
-              }
-            >
-              <span className="text-[14px] font-sans font-medium">{'All topics'}</span>
-              {props.category === null && (
-                <span className="text-[11px] font-sans text-primary-300">{'✓ Selected'}</span>
-              )}
-            </button>
-
-            <div className="border-t border-white/5" />
-
-            {/* Category list */}
-            <div className="max-h-[60vh] overflow-y-auto">
-              {CATEGORY_KEYS.map(function (cat) {
-                var cfg = CATEGORY_CONFIG[cat]
-                if (!cfg) return null
-                var isActive = props.category === cat
-                return (
-                  <button
-                    key={'topic-' + cat}
-                    type="button"
-                    onClick={function () { handleCategoryClick(cat); setTopicsOpen(false) }}
-                    className={
-                      'w-full flex items-center gap-3 px-5 py-3 text-left transition-colors ' +
-                      (isActive
-                        ? 'bg-primary-500/15 text-primary-200'
-                        : 'text-white hover:bg-white/5')
-                    }
-                  >
-                    <span className="flex-shrink-0 w-7 h-7 inline-flex items-center justify-center rounded-full bg-white/[0.04] border border-white/10">
-                      <CategoryIcon category={cat} size={14} />
-                    </span>
-                    <span className="flex-1 text-[14px] font-sans font-medium">{cfg.label}</span>
-                    {isActive && (
-                      <span className="text-[11px] font-sans text-primary-300">{'✓'}</span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* V7.4 — Utility row is now md+ only. On mobile the streak
           chip moves into the card chrome (TodayCardShell), search
@@ -450,6 +372,94 @@ export function TodayHeader(props: {
         </div>
       )}
     </div>
+
+    {/* V8.1.1 — Topics bottom-sheet picker rendered OUTSIDE the
+        sticky-below-header element so position:fixed isn't clipped to
+        the sticky stacking context. Opens from the bottom on mobile
+        (iOS-style drawer), centers on tablet+. Lists every category
+        with an icon. Tap selects + closes; tap "All topics" clears.
+        Tap backdrop or ✕ closes without changing. */}
+    {topicsOpen && (
+      <div
+        className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm"
+        onClick={function () { setTopicsOpen(false) }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Choose topic"
+      >
+        <div
+          className="w-full md:max-w-md bg-gray-950 border-t md:border md:rounded-2xl border-white/10 shadow-2xl overflow-hidden"
+          onClick={function (e) { e.stopPropagation() }}
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 1rem)' }}
+        >
+          {/* Sheet header */}
+          <div className="flex items-center justify-between px-5 pt-5 pb-3">
+            <div>
+              <h2 className="text-[15px] font-sans font-semibold text-white">{'Choose a topic'}</h2>
+              <p className="text-[11px] font-sans text-gray-400 mt-0.5">{'Filter today’s feed by what interests you'}</p>
+            </div>
+            <button
+              type="button"
+              onClick={function () { setTopicsOpen(false) }}
+              aria-label="Close"
+              className="w-8 h-8 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* All topics row */}
+          <button
+            type="button"
+            onClick={function () { handleCategoryClick(null); setTopicsOpen(false) }}
+            className={
+              'w-full flex items-center justify-between px-5 py-3 text-left transition-colors ' +
+              (props.category === null
+                ? 'bg-primary-500/15 text-primary-200'
+                : 'text-white hover:bg-white/5')
+            }
+          >
+            <span className="text-[14px] font-sans font-medium">{'All topics'}</span>
+            {props.category === null && (
+              <span className="text-[11px] font-sans text-primary-300">{'✓ Selected'}</span>
+            )}
+          </button>
+
+          <div className="border-t border-white/5" />
+
+          {/* Category list */}
+          <div className="max-h-[60vh] overflow-y-auto">
+            {CATEGORY_KEYS.map(function (cat) {
+              var cfg = CATEGORY_CONFIG[cat]
+              if (!cfg) return null
+              var isActive = props.category === cat
+              return (
+                <button
+                  key={'topic-' + cat}
+                  type="button"
+                  onClick={function () { handleCategoryClick(cat); setTopicsOpen(false) }}
+                  className={
+                    'w-full flex items-center gap-3 px-5 py-3 text-left transition-colors ' +
+                    (isActive
+                      ? 'bg-primary-500/15 text-primary-200'
+                      : 'text-white hover:bg-white/5')
+                  }
+                >
+                  <span className="flex-shrink-0 w-7 h-7 inline-flex items-center justify-center rounded-full bg-white/[0.04] border border-white/10">
+                    <CategoryIcon category={cat} size={14} />
+                  </span>
+                  <span className="flex-1 text-[14px] font-sans font-medium">{cfg.label}</span>
+                  {isActive && (
+                    <span className="text-[11px] font-sans text-primary-300">{'✓'}</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 
