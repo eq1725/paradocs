@@ -597,14 +597,17 @@ export function PhenomenonCard(props: {
   var effectiveAnchor = anchorIsSentinel ? null : item.anchor_case_hook
   var displayText = effectiveAnchor || item.feed_hook || item.ai_summary || ''
 
-  // V8 Tier 1 — Three signal chips driven by anchor_when / anchor_where
-  // / anchor_witness. Filtered to non-empty so we don't render gaps.
-  // Suppressed entirely when the anchor field is a sentinel.
-  var anchorChips: string[] = []
+  // V9.1 — WHEN / WHERE / WHO labeled facts. Panel verdict (3.5/6) on
+  // chips vs labeled lines: chips were breaking when values exceeded
+  // ~2 words ("Captain and four officers, HMS Daedalus" wrapping inside
+  // a pill). Labels add editorial gravitas (case-file framing) and
+  // proper a11y semantics. WHO chosen over WITNESS so the parallel is
+  // WHEN/WHERE/WHO — also avoids "WITNESS · 47 witnesses" doubling.
+  var anchorFacts: { label: string; value: string }[] = []
   if (!anchorIsSentinel) {
-    if (item.anchor_when) anchorChips.push(item.anchor_when)
-    if (item.anchor_where) anchorChips.push(item.anchor_where)
-    if (item.anchor_witness) anchorChips.push(item.anchor_witness)
+    if (item.anchor_when) anchorFacts.push({ label: 'When', value: item.anchor_when })
+    if (item.anchor_where) anchorFacts.push({ label: 'Where', value: item.anchor_where })
+    if (item.anchor_witness) anchorFacts.push({ label: 'Who', value: item.anchor_witness })
   }
 
   return (
@@ -681,23 +684,24 @@ export function PhenomenonCard(props: {
           {displayText || item.name}
         </h2>
 
-        {/* V8 Tier 1 — WHEN | WHERE | WITNESS signal chips. Replaces
-            the V7 definitional credibility chip strip. Only renders
-            when the phenomenon has been swept by the anchor-case
-            generator. */}
-        {anchorChips.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {anchorChips.map(function (chip, ci) {
+        {/* V9.1 — WHEN / WHERE / WHO labeled facts. Replaces V8 chip
+            strip. Uses semantic <dl><dt><dd> for assistive tech.
+            Uppercase label kicker matches the phenomenon-name kicker
+            treatment for visual coherence. */}
+        {anchorFacts.length > 0 && (
+          <dl className="flex flex-col gap-1">
+            {anchorFacts.map(function (fact, ci) {
               return (
-                <span
-                  key={'anchor-chip-' + ci}
-                  className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-sans font-medium bg-white/[0.05] border border-white/10 text-gray-300"
-                >
-                  {chip}
-                </span>
+                <div key={'anchor-fact-' + ci} className="flex items-baseline gap-2 text-[13px] leading-snug">
+                  <dt className="text-[10px] font-sans font-semibold uppercase tracking-widest text-gray-500 shrink-0 min-w-[3rem]">
+                    {fact.label}
+                  </dt>
+                  <span aria-hidden="true" className="text-gray-700 shrink-0 text-[10px]">{'·'}</span>
+                  <dd className="text-gray-200 font-sans">{fact.value}</dd>
+                </div>
               )
             })}
-          </div>
+          </dl>
         )}
 
         {/* V8 Tier 1 — "The unresolved part" line. Italic, slightly
@@ -850,12 +854,12 @@ export function TextReportCard(props: {
   var effectiveAnchor = anchorIsSentinel ? null : item.anchor_case_hook
   var displayText = effectiveAnchor || item.feed_hook || item.summary || ''
 
-  // V9.0 — Three signal chips: when, where, witness. Filtered to non-empty.
-  var anchorChips: string[] = []
+  // V9.1 — Labeled facts (was V9.0 chips). See PhenomenonCard for rationale.
+  var anchorFacts: { label: string; value: string }[] = []
   if (!anchorIsSentinel) {
-    if (item.anchor_when) anchorChips.push(item.anchor_when)
-    if (item.anchor_where) anchorChips.push(item.anchor_where)
-    if (item.anchor_witness) anchorChips.push(item.anchor_witness)
+    if (item.anchor_when) anchorFacts.push({ label: 'When', value: item.anchor_when })
+    if (item.anchor_where) anchorFacts.push({ label: 'Where', value: item.anchor_where })
+    if (item.anchor_witness) anchorFacts.push({ label: 'Who', value: item.anchor_witness })
   }
 
   // V9.0 — Type kicker. Editorials get a Pen icon + ANALYSIS · PARADOCS;
@@ -948,27 +952,29 @@ export function TextReportCard(props: {
           {displayText || item.title}
         </h2>
 
-        {/* V9.0 — WHEN | WHERE | WITNESS signal chips driven by the new
-            anchor fields. Falls back gracefully to nothing when fields
-            haven't been populated yet (only renders chips that have
-            data). */}
-        {anchorChips.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {anchorChips.map(function (chip, ci) {
+        {/* V9.1 — WHEN / WHERE / WHO labeled facts. */}
+        {anchorFacts.length > 0 && (
+          <dl className="flex flex-col gap-1">
+            {anchorFacts.map(function (fact, ci) {
               return (
-                <span
-                  key={'report-anchor-chip-' + ci}
-                  className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-sans font-medium bg-white/[0.05] border border-white/10 text-gray-300"
-                >
-                  {chip}
-                </span>
+                <div key={'report-anchor-fact-' + ci} className="flex items-baseline gap-2 text-[13px] leading-snug">
+                  <dt className="text-[10px] font-sans font-semibold uppercase tracking-widest text-gray-500 shrink-0 min-w-[3rem]">
+                    {fact.label}
+                  </dt>
+                  <span aria-hidden="true" className="text-gray-700 shrink-0 text-[10px]">{'·'}</span>
+                  <dd className="text-gray-200 font-sans">{fact.value}</dd>
+                </div>
               )
             })}
-            {item.has_physical_evidence && (
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-sans font-medium bg-amber-500/15 border border-amber-400/30 text-amber-300">
-                Physical Evidence
-              </span>
-            )}
+          </dl>
+        )}
+
+        {/* Evidence pill — kept as a pill since it's a flag, not a fact */}
+        {item.has_physical_evidence && (
+          <div className="flex flex-wrap gap-1.5">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-sans font-medium bg-amber-500/15 border border-amber-400/30 text-amber-300">
+              Physical Evidence
+            </span>
           </div>
         )}
 
@@ -1067,11 +1073,11 @@ export function MediaReportCard(props: {
   var hasHero = !!(item.primary_media && (item.primary_media.thumbnail_url || item.primary_media.url)) || !!item.associated_image_url
   var displayText = effectiveAnchor || item.feed_hook || item.summary || ''
 
-  var anchorChips: string[] = []
+  var anchorFacts: { label: string; value: string }[] = []
   if (!anchorIsSentinel) {
-    if (item.anchor_when) anchorChips.push(item.anchor_when)
-    if (item.anchor_where) anchorChips.push(item.anchor_where)
-    if (item.anchor_witness) anchorChips.push(item.anchor_witness)
+    if (item.anchor_when) anchorFacts.push({ label: 'When', value: item.anchor_when })
+    if (item.anchor_where) anchorFacts.push({ label: 'Where', value: item.anchor_where })
+    if (item.anchor_witness) anchorFacts.push({ label: 'Who', value: item.anchor_witness })
   }
 
   var isEditorial = item.source_type === 'editorial' || item.source_type === 'curated'
@@ -1153,19 +1159,26 @@ export function MediaReportCard(props: {
           {displayText || item.title}
         </h2>
 
-        {/* V9.0 — WHEN | WHERE | WITNESS chips, plus evidence pills */}
-        {(anchorChips.length > 0 || item.has_photo_video || item.has_physical_evidence) && (
-          <div className="flex flex-wrap gap-1.5">
-            {anchorChips.map(function (chip, ci) {
+        {/* V9.1 — WHEN / WHERE / WHO labeled facts. */}
+        {anchorFacts.length > 0 && (
+          <dl className="flex flex-col gap-1">
+            {anchorFacts.map(function (fact, ci) {
               return (
-                <span
-                  key={'media-anchor-chip-' + ci}
-                  className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-sans font-medium bg-white/[0.05] border border-white/10 text-gray-300"
-                >
-                  {chip}
-                </span>
+                <div key={'media-anchor-fact-' + ci} className="flex items-baseline gap-2 text-[13px] leading-snug">
+                  <dt className="text-[10px] font-sans font-semibold uppercase tracking-widest text-gray-500 shrink-0 min-w-[3rem]">
+                    {fact.label}
+                  </dt>
+                  <span aria-hidden="true" className="text-gray-700 shrink-0 text-[10px]">{'·'}</span>
+                  <dd className="text-gray-200 font-sans">{fact.value}</dd>
+                </div>
               )
             })}
+          </dl>
+        )}
+
+        {/* Evidence pills — kept as pills since they're flags, not facts */}
+        {(item.has_photo_video || item.has_physical_evidence) && (
+          <div className="flex flex-wrap gap-1.5">
             {item.has_photo_video && (
               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-sans font-medium bg-amber-500/15 border border-amber-400/30 text-amber-300">
                 Photo/Video
