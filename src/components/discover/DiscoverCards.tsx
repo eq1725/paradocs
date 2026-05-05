@@ -645,7 +645,7 @@ export function PhenomenonCard(props: {
           <Link
             href={'/phenomena/' + item.slug}
             onClick={function (e) { e.stopPropagation() }}
-            className="inline-block self-start text-[12px] md:text-[13px] font-display font-bold uppercase tracking-[0.2em] text-primary-400 hover:text-primary-300 transition-colors -mt-1"
+            className="inline-block self-start text-[18px] sm:text-[20px] md:text-[22px] font-display font-bold uppercase tracking-[0.18em] text-primary-400 hover:text-primary-300 transition-colors -mt-1 leading-tight"
           >
             {item.name}
           </Link>

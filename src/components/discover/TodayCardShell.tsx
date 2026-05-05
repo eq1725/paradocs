@@ -92,11 +92,17 @@ export function TodayCardShell(props: TodayCardShellProps) {
     }
   }
 
-  // Top-down linear gradient at 22% alpha for visible category color.
-  // catColor is hex; we append alpha hex pair "38" (~22%) to the start.
+  // V8.1.2 — Category gradient wash. Per Chase QA: the previous 22%
+  // alpha at the very top dimmed the category badge ("RELIGION &
+  // MYTHOLOGY · GLOBAL" in pale yellow against pale-yellow tint = low
+  // contrast). Cleared the top 12% of the card so the badge sits on
+  // a clean background, then ramped up the category tint from 15%
+  // (subtle) at the headline area to fade to transparent below the
+  // chips. The category signal is still carried by the badge text +
+  // phenomenon kicker + bottom peek strip — the wash was redundant.
   var gradientStyle = {
     backgroundImage:
-      'linear-gradient(to bottom, ' + props.catColor + '38 0%, ' + props.catColor + '14 35%, transparent 65%)',
+      'linear-gradient(to bottom, transparent 0%, transparent 12%, ' + props.catColor + '20 25%, ' + props.catColor + '12 50%, transparent 75%)',
   }
 
   return (
