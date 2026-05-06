@@ -336,6 +336,43 @@ export default async function handler(
       else { typeStreak = 1; lastType = pick.item_type; }
     }
 
+    // ---- V9.2 — Pin Today's Lead to position 0 ----
+    // Only on offset=0 (first page) AND when no category filter is
+    // active (otherwise we'd break the V9.0.1 filter contract).
+    // Reads the daily_leads row for today's UTC date.
+    if (offset === 0 && !category) {
+      var todayUtcStr = new Date().toISOString().substring(0, 10);
+      var { data: leadRow } = await supabase
+        .from('daily_leads')
+        .select('phenomenon_id, report_id')
+        .eq('lead_date', todayUtcStr)
+        .maybeSingle();
+
+      if (leadRow) {
+        var leadId: string | null = leadRow.phenomenon_id || leadRow.report_id || null;
+        var leadType: 'phenomenon' | 'report' = leadRow.phenomenon_id ? 'phenomenon' : 'report';
+        if (leadId) {
+          var leadIdx = diversified.findIndex(function (d) { return d.id === leadId; });
+          if (leadIdx > 0) {
+            // Already in feed — move to position 0
+            var leadItem = diversified.splice(leadIdx, 1)[0];
+            diversified.unshift(leadItem);
+          } else if (leadIdx < 0) {
+            // Not in scored set (filtered out by quality or limit) —
+            // prepend a stub so the renderer fetches it from DB.
+            diversified.unshift({
+              id: leadId,
+              item_type: leadType,
+              category: '',
+              score: 99999,
+              created_at: undefined,
+            });
+          }
+          // leadIdx === 0 → already correctly positioned, no-op
+        }
+      }
+    }
+
     var totalAvailable = diversified.length;
 
     // ---- Paginate ----
