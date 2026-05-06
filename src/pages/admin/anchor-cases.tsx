@@ -17,7 +17,6 @@ import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { supabase } from '@/lib/supabase'
-import { useUser } from '@supabase/auth-helpers-react'
 
 interface AnchorRow {
   id: string
@@ -37,7 +36,6 @@ interface AnchorRow {
 
 export default function AnchorCasesAdminPage() {
   var router = useRouter()
-  var user = useUser()
 
   var [isAdmin, setIsAdmin] = useState(false)
   var [authChecked, setAuthChecked] = useState(false)
@@ -61,21 +59,22 @@ export default function AnchorCasesAdminPage() {
   var [regenerating, setRegenerating] = useState(false)
   var [statusMsg, setStatusMsg] = useState<string | null>(null)
 
-  // ---- Auth check ----
+  // ---- Auth check (raw supabase, matches /admin/index.tsx) ----
   useEffect(function () {
     var run = async function () {
-      if (!user) {
-        if (authChecked) router.push('/login?redirect=/admin/anchor-cases')
+      var { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) {
+        router.push('/login?redirect=/admin/anchor-cases')
         return
       }
-      if (user.email !== 'williamschaseh@gmail.com') {
+      if (session.user.email !== 'williamschaseh@gmail.com') {
         router.push('/')
         return
       }
       var { data: profile } = await supabase
         .from('profiles')
         .select('role')
-        .eq('id', user.id)
+        .eq('id', session.user.id)
         .single()
       if ((profile as any)?.role !== 'admin') {
         router.push('/')
@@ -84,7 +83,7 @@ export default function AnchorCasesAdminPage() {
       setIsAdmin(true)
     }
     run().finally(function () { setAuthChecked(true) })
-  }, [user, router])
+  }, [router])
 
   // ---- Search ----
   useEffect(function () {

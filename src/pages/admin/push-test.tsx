@@ -17,7 +17,6 @@ import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { supabase } from '@/lib/supabase'
-import { useUser } from '@supabase/auth-helpers-react'
 import {
   isPushSupported,
   getPushPermissionState,
@@ -27,7 +26,6 @@ import {
 
 export default function PushTestPage() {
   var router = useRouter()
-  var user = useUser()
 
   var [isAdmin, setIsAdmin] = useState(false)
   var [authChecked, setAuthChecked] = useState(false)
@@ -42,17 +40,33 @@ export default function PushTestPage() {
     setLog(function (prev) { return prev.concat(['[' + ts + '] ' + line]) })
   }
 
-  // Auth check
+  // Auth check — same pattern as /admin/index.tsx (raw supabase
+  // session, not the useUser() hook which requires a provider that
+  // isn't site-wide).
   useEffect(function () {
     var run = async function () {
-      if (!user) { if (authChecked) router.push('/login?redirect=/admin/push-test'); return }
-      if (user.email !== 'williamschaseh@gmail.com') { router.push('/'); return }
-      var { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-      if ((profile as any)?.role !== 'admin') { router.push('/'); return }
+      var { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) {
+        router.push('/login?redirect=/admin/push-test')
+        return
+      }
+      if (session.user.email !== 'williamschaseh@gmail.com') {
+        router.push('/')
+        return
+      }
+      var { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single()
+      if ((profile as any)?.role !== 'admin') {
+        router.push('/')
+        return
+      }
       setIsAdmin(true)
     }
     run().finally(function () { setAuthChecked(true) })
-  }, [user, router])
+  }, [router])
 
   // Initial state
   useEffect(function () {
