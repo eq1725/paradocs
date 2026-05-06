@@ -199,6 +199,17 @@ export default function ProfilePage() {
 
         {/* Quick links section */}
         <div className="space-y-2">
+          {/* V9.4.2 — Admin shortcut. Only renders for admin users so
+              regular accounts don't see it. Reaches /admin where the
+              full admin nav (Anchor Cases, Push Test, etc.) lives. */}
+          {user.role === 'admin' && (
+            <ProfileLink
+              href="/admin"
+              icon={Shield}
+              label="Admin Dashboard"
+              description="Catalog, ingestion, anchor cases, push tests"
+            />
+          )}
           <ProfileLink
             href="/dashboard/settings"
             icon={Settings}

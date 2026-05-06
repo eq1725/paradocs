@@ -488,6 +488,20 @@ export default function AdminDashboard() {
             <span className="mr-2">🧪</span>
             A/B Testing
           </Link>
+          <Link
+            href="/admin/anchor-cases"
+            className="px-4 py-3 font-medium transition-colors border-b-2 -mb-px whitespace-nowrap text-gray-400 border-transparent hover:text-amber-400 hover:border-amber-400"
+          >
+            <span className="mr-2">⚓</span>
+            Anchor Cases
+          </Link>
+          <Link
+            href="/admin/push-test"
+            className="px-4 py-3 font-medium transition-colors border-b-2 -mb-px whitespace-nowrap text-gray-400 border-transparent hover:text-cyan-400 hover:border-cyan-400"
+          >
+            <span className="mr-2">🔔</span>
+            Push Test
+          </Link>
         </div>
 
         {/* Overview Tab */}
