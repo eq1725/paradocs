@@ -108,12 +108,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ skipped: true, reason: 'no_push_copy', lead_date: leadDate })
   }
 
-  // 3) Active subscriptions on the daily_lead topic
+  // 3) Active subscriptions.
+  //
+  // V9.4.4 — dropped the .contains('topics', ['daily_lead']) filter
+  // for now. The Supabase JS client serializes the array parameter as
+  // JSON which doesn't match the Postgres TEXT[] @> operator semantics,
+  // so the filter returned 0 rows even when the row had topics =
+  // {daily_lead}. Since 'daily_lead' is currently the only topic
+  // (default in the migration), filter is YAGNI. Add back a proper
+  // per-topic filter using `.filter('topics', 'cs', '{topic_name}')`
+  // when there are multiple topics to choose from.
   var { data: subs } = await supabase
     .from('push_subscriptions')
-    .select('id, endpoint, p256dh, auth_secret, consecutive_failures')
+    .select('id, endpoint, p256dh, auth_secret, consecutive_failures, topics')
     .eq('is_active', true)
-    .contains('topics', ['daily_lead'])
+
+  // Filter out subscriptions that have an explicit topics array NOT
+  // containing 'daily_lead'. NULL or [] or contains 'daily_lead' all
+  // pass.
+  if (subs) {
+    subs = subs.filter(function (s: any) {
+      var t = s.topics
+      if (!t || (Array.isArray(t) && t.length === 0)) return true
+      if (Array.isArray(t)) return t.indexOf('daily_lead') >= 0
+      return true  // unexpected shape — assume opt-in
+    })
+  }
 
   if (!subs || subs.length === 0) {
     return res.status(200).json({ skipped: true, reason: 'no_subscribers', lead_date: leadDate })
