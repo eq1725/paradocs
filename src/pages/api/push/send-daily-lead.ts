@@ -67,12 +67,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   if (!isAuthed) return res.status(401).json({ error: 'Unauthorized' })
 
-  // VAPID config
-  var vapidPublic = process.env.VAPID_PUBLIC_KEY
+  // VAPID config — public key can come from either VAPID_PUBLIC_KEY
+  // or NEXT_PUBLIC_VAPID_PUBLIC_KEY (same value, only one needs to
+  // be set; NEXT_PUBLIC_ is required client-side and accessible
+  // server-side too).
+  var vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+    || process.env.VAPID_PUBLIC_KEY
   var vapidPrivate = process.env.VAPID_PRIVATE_KEY
   var vapidSubject = process.env.VAPID_SUBJECT || 'mailto:williamschaseh@gmail.com'
   if (!vapidPublic || !vapidPrivate) {
-    return res.status(500).json({ error: 'VAPID keys not configured' })
+    return res.status(500).json({
+      error: 'VAPID keys not configured',
+      details: {
+        public_set: !!vapidPublic,
+        private_set: !!vapidPrivate,
+      },
+    })
   }
   webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate)
 
