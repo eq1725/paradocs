@@ -22,6 +22,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@supabase/auth-helpers-nextjs'
 import webpush from 'web-push'
 
 function todayUTC(): string {
@@ -36,13 +37,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // Auth
+  // Auth — three accepted paths:
+  //   1. x-admin-key header matching ADMIN_API_KEY (curl admin tools)
+  //   2. Authorization: Bearer ${CRON_SECRET} (Vercel cron jobs)
+  //   3. Signed-in admin user via session cookie (admin test harness UI)
   var adminKey = req.headers['x-admin-key']
   var isAuthed = adminKey === process.env.ADMIN_API_KEY
   if (!isAuthed) {
     var authHeader = req.headers.authorization || ''
     var cronSecret = process.env.CRON_SECRET
     if (cronSecret && authHeader === 'Bearer ' + cronSecret) isAuthed = true
+  }
+  if (!isAuthed) {
+    // Try signed-in admin user (for the admin test harness)
+    try {
+      var userClient = createServerSupabaseClient({ req, res })
+      var { data: { session } } = await userClient.auth.getSession()
+      if (session?.user) {
+        var { data: profile } = await userClient
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single()
+        if ((profile as any)?.role === 'admin') isAuthed = true
+      }
+    } catch (e) {
+      // Fall through to 401
+    }
   }
   if (!isAuthed) return res.status(401).json({ error: 'Unauthorized' })
 
