@@ -109,13 +109,14 @@ function buildReportPrompt(r: any): string {
   return parts.join('\n')
 }
 
-async function callClaude(userPrompt: string): Promise<string | null> {
+async function callClaudeOnce(userPrompt: string, additionalSystem?: string): Promise<string | null> {
   var apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     console.error('[PushCopy] No ANTHROPIC_API_KEY found')
     return null
   }
   var models = [ANTHROPIC_MODEL, ANTHROPIC_FALLBACK]
+  var sysText = additionalSystem ? SYSTEM_PROMPT + '\n\n' + additionalSystem : SYSTEM_PROMPT
   for (var i = 0; i < models.length; i++) {
     try {
       var response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -128,7 +129,7 @@ async function callClaude(userPrompt: string): Promise<string | null> {
         body: JSON.stringify({
           model: models[i],
           max_tokens: 200,
-          system: SYSTEM_PROMPT,
+          system: sysText,
           messages: [{ role: 'user', content: userPrompt }],
         }),
       })
@@ -147,6 +148,34 @@ async function callClaude(userPrompt: string): Promise<string | null> {
     }
   }
   return null
+}
+
+// V8.3.4 — retry-on-overshoot wrapper. Claude Haiku doesn't reliably
+// count characters; first drafts often overshoot. If output is > 95
+// chars, retry once with explicit "previous was X chars, write a
+// 70-char version" instruction. Adds ~30% cost on overshoot rows in
+// exchange for clean copy.
+async function callClaude(userPrompt: string): Promise<string | null> {
+  var first = await callClaudeOnce(userPrompt)
+  if (!first) return null
+  // Strip surrounding quotes for length check
+  var firstClean = first.trim()
+  if (firstClean.length >= 2 && (firstClean[0] === '"' || firstClean[0] === "'")) {
+    var last = firstClean[firstClean.length - 1]
+    if (last === firstClean[0]) firstClean = firstClean.substring(1, firstClean.length - 1)
+  }
+  // Already clean enough — return as-is
+  if (firstClean.length <= 90) return first
+
+  // Overshoot — retry once with a stronger length constraint
+  var retrySystem = 'YOUR PREVIOUS ATTEMPT WAS ' + firstClean.length + ' CHARACTERS, WHICH IS TOO LONG. '
+    + 'Write a NEW version that is 70 characters or fewer. Drop adjectives, drop the "since" '
+    + 'framing if needed, drop one of the place / date / count details. The output must end in '
+    + 'a period within the first 80 characters. Previous attempt for reference (DO NOT just '
+    + 'truncate it):\n"' + firstClean + '"\n\nReturn ONLY the new shorter line.'
+  var second = await callClaudeOnce(userPrompt, retrySystem)
+  if (!second) return first  // Retry failed, use first attempt + cleanCopy fallback
+  return second
 }
 
 // Strip outer quotes + truncate cleanly if the model overshoots 90.
