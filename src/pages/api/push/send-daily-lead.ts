@@ -170,12 +170,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ skipped: true, reason: 'no_subscribers', lead_date: leadDate })
   }
 
-  // 4) Send to each
+  // 4) Send to each.
+  //
+  // V9.4.7 — iOS quirk: when notification.title matches the app name
+  // ('Paradocs'), iOS renders a redundant 'from Paradocs' subtitle on
+  // top of the auto-injected app-name header. Use the phenomenon name
+  // (or report title) as the title — the app name still appears via
+  // the system header, and the user gets a meaningful kicker:
+  //
+  //   Paradocs                    now    ← system app-name header
+  //   Shadow Person                       ← title (notification.title)
+  //   Since 1950s: 9,675 witnesses…       ← body (push_copy)
+  //
+  // Apple News and NYT use the same pattern.
+  var notifTitle = name || 'Today’s Lead'
   var notif = {
-    title: 'Paradocs',
+    title: notifTitle,
     body: pushCopy,
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/icon-192x192.png',
     data: {
       url: targetPath,
       lead_date: leadDate,
