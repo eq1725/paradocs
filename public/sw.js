@@ -77,3 +77,47 @@ self.addEventListener('fetch', function(event) {
     })
   );
 });
+
+// V9.4 — Web Push handlers.
+// Push event: incoming notification from /api/push/send-daily-lead.
+// Payload (JSON): { title, body, icon, badge, data: { url, ... } }.
+self.addEventListener('push', function(event) {
+  var payload;
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch (e) {
+    payload = { title: 'Paradocs', body: event.data ? event.data.text() : '' };
+  }
+  var title = payload.title || 'Paradocs';
+  var options = {
+    body: payload.body || '',
+    icon: payload.icon || '/icons/icon-192x192.png',
+    badge: payload.badge || '/icons/icon-192x192.png',
+    data: payload.data || {},
+    // iOS uses requireInteraction less aggressively, but still set:
+    requireInteraction: false,
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Click event: open the URL embedded in the notification's data.url.
+self.addEventListener('notificationclick', function(event) {
+  event.notification.close();
+  var targetUrl = (event.notification.data && event.notification.data.url) || '/discover';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+      // If a Paradocs window is already open, focus it and navigate.
+      for (var i = 0; i < clientList.length; i++) {
+        var client = clientList[i];
+        if (client.url.indexOf(self.location.origin) === 0 && 'focus' in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      // Otherwise open a new window.
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
+});

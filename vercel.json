@@ -18,6 +18,14 @@
     {
       "path": "/api/cron/weekly-deep-scan",
       "schedule": "0 6 * * 0"
+    },
+    {
+      "path": "/api/admin/leads/select-today",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/push/send-daily-lead",
+      "schedule": "0 13 * * *"
     }
   ]
 }
