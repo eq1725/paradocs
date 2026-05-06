@@ -150,32 +150,49 @@ async function callClaudeOnce(userPrompt: string, additionalSystem?: string): Pr
   return null
 }
 
-// V8.3.4 — retry-on-overshoot wrapper. Claude Haiku doesn't reliably
-// count characters; first drafts often overshoot. If output is > 95
-// chars, retry once with explicit "previous was X chars, write a
-// 70-char version" instruction. Adds ~30% cost on overshoot rows in
-// exchange for clean copy.
+function stripQuotes(text: string): string {
+  var s = text.trim()
+  if (s.length >= 2 && (s[0] === '"' || s[0] === "'")) {
+    var last = s[s.length - 1]
+    if (last === s[0]) s = s.substring(1, s.length - 1)
+  }
+  return s
+}
+
+// V8.3.5 — double-retry on overshoot. After the first sweep + V8.3.4
+// retry, ~14% of rows still truncated because both first AND retry
+// overshot 90 chars. This adds a SECOND retry at an even stricter
+// 60-char target if the first retry also overshoots. Three calls max
+// per row (cost only meaningful on the residual ~14%).
 async function callClaude(userPrompt: string): Promise<string | null> {
   var first = await callClaudeOnce(userPrompt)
   if (!first) return null
-  // Strip surrounding quotes for length check
-  var firstClean = first.trim()
-  if (firstClean.length >= 2 && (firstClean[0] === '"' || firstClean[0] === "'")) {
-    var last = firstClean[firstClean.length - 1]
-    if (last === firstClean[0]) firstClean = firstClean.substring(1, firstClean.length - 1)
-  }
-  // Already clean enough — return as-is
+  var firstClean = stripQuotes(first)
   if (firstClean.length <= 90) return first
 
-  // Overshoot — retry once with a stronger length constraint
-  var retrySystem = 'YOUR PREVIOUS ATTEMPT WAS ' + firstClean.length + ' CHARACTERS, WHICH IS TOO LONG. '
-    + 'Write a NEW version that is 70 characters or fewer. Drop adjectives, drop the "since" '
+  // Retry 1: target 65 chars
+  var retry1 = 'YOUR PREVIOUS ATTEMPT WAS ' + firstClean.length + ' CHARACTERS, WHICH IS TOO LONG. '
+    + 'Write a NEW version that is 65 characters or fewer. Drop adjectives, drop the "since" '
     + 'framing if needed, drop one of the place / date / count details. The output must end in '
-    + 'a period within the first 80 characters. Previous attempt for reference (DO NOT just '
+    + 'a period within the first 75 characters. Previous attempt for reference (DO NOT just '
     + 'truncate it):\n"' + firstClean + '"\n\nReturn ONLY the new shorter line.'
-  var second = await callClaudeOnce(userPrompt, retrySystem)
-  if (!second) return first  // Retry failed, use first attempt + cleanCopy fallback
-  return second
+  var second = await callClaudeOnce(userPrompt, retry1)
+  if (!second) return first
+  var secondClean = stripQuotes(second)
+  if (secondClean.length <= 90) return second
+
+  // Retry 2: nuclear 50-char target — cut as much as needed
+  var retry2 = 'YOUR PREVIOUS TWO ATTEMPTS WERE BOTH TOO LONG. Write a NEW version that is 50 '
+    + 'CHARACTERS OR FEWER. Cut ruthlessly. Drop the source citation, drop adjectives, drop '
+    + 'one of date/place/count entirely. The output MUST end in a period or arrow within the '
+    + 'first 60 characters. Previous attempts for reference (DO NOT truncate either one — '
+    + 'compose a new shorter line):\n'
+    + 'Attempt 1: "' + firstClean + '"\n'
+    + 'Attempt 2: "' + secondClean + '"\n\n'
+    + 'Return ONLY the new shorter line.'
+  var third = await callClaudeOnce(userPrompt, retry2)
+  if (!third) return second  // Both retries failed, return second-shortest
+  return third
 }
 
 // Strip outer quotes + truncate cleanly if the model overshoots 90.
