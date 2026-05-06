@@ -68,7 +68,7 @@ import { useSessionContext } from '@/lib/hooks/useSessionContext'
 import { useGateStatus } from '@/lib/hooks/useGateStatus'
 import { useTodaySaves } from '@/lib/hooks/useTodaySaves'
 import { setTodayReturnMarker } from '@/lib/hooks/useTodayReturn'
-import { tickAnonStreak, clearAnonStreak, isNudgeDismissedToday, dismissNudgeForToday } from '@/lib/anonStreak'
+import { tickAnonStreak, readAnonStreak, clearAnonStreak, isNudgeDismissedToday, dismissNudgeForToday } from '@/lib/anonStreak'
 import { useABTest } from '@/lib/ab-testing'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
@@ -420,6 +420,10 @@ export default function DiscoverPage() {
   // V8 — when user is anonymous, fall back to localStorage anonymous-streak
   // tracking. tickAnonStreak ticks once per calendar day; the day-3
   // nudge UI gates display on streakDays >= 3.
+  // V8.4 — when user transitions from anonymous to signed-in, migrate
+  // any localStorage streak count to their server-side user_streaks
+  // record via /api/user/streak-bootstrap, then clear localStorage so
+  // the bootstrap doesn't fire repeatedly.
   useEffect(function () {
     if (!user?.id) {
       // Anonymous — use localStorage streak
@@ -428,15 +432,47 @@ export default function DiscoverPage() {
       return
     }
     var aborted = false
-    fetch('/api/user/streak')
-      .then(function (res) { return res.ok ? res.json() : null })
-      .then(function (data) {
-        if (aborted) return
-        if (data && data.streak && typeof data.streak.current_streak === 'number') {
-          setStreakDays(data.streak.current_streak)
-        }
+
+    // V8.4 — bootstrap any anon streak first, BEFORE fetching server
+    // streak. If a count was tracked client-side, migrate it.
+    var pendingAnonDays = readAnonStreak()
+
+    function fetchServerStreak() {
+      return fetch('/api/user/streak')
+        .then(function (res) { return res.ok ? res.json() : null })
+        .then(function (data) {
+          if (aborted) return
+          if (data && data.streak && typeof data.streak.current_streak === 'number') {
+            setStreakDays(data.streak.current_streak)
+          }
+        })
+        .catch(function () {})
+    }
+
+    if (pendingAnonDays >= 1) {
+      fetch('/api/user/streak-bootstrap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ anon_days: pendingAnonDays }),
       })
-      .catch(function () {})
+        .then(function (res) { return res.ok ? res.json() : null })
+        .then(function (data) {
+          // Whether migrated or skipped, clear localStorage so we
+          // don't keep re-bootstrapping on every visit.
+          clearAnonStreak()
+          if (aborted) return
+          // Read fresh server state after bootstrap completes.
+          return fetchServerStreak()
+        })
+        .catch(function () {
+          // Bootstrap failed — still try to fetch server streak. Don't
+          // clear localStorage so a retry can happen on the next visit.
+          if (!aborted) fetchServerStreak()
+        })
+    } else {
+      fetchServerStreak()
+    }
+
     return function () { aborted = true }
   }, [user?.id])
 
