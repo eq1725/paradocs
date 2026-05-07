@@ -204,18 +204,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(413).json({ error: 'Image too large', maxBytes: MAX_BYTES })
   }
 
-  // 3. Process via sharp — strip EXIF, resize, convert to WebP.
-  //    NOTE: sharp's withMetadata strips by default in newer versions;
-  //    we re-encode to WebP which inherently drops EXIF anyway. Don't
-  //    pass `{ exif: {} }` — that's the wrong syntax for newer sharp
-  //    and was throwing 'Could not process image' even on valid JPEGs.
-  let processed: Buffer
+  // 3. Process via sharp — produce two outputs:
+  //    a. JPEG for AWS Rekognition (it only accepts JPEG/PNG, not WebP)
+  //    b. WebP for storage (better compression at the same quality)
+  //    Both are 256x256 cover-cropped from the same source. Re-encoding
+  //    inherently drops EXIF metadata so no separate strip needed.
+  let jpegForScan: Buffer
+  let webpForStorage: Buffer
   try {
-    processed = await sharp(raw, { failOn: 'none' })
+    const base = sharp(raw, { failOn: 'none' })
       .rotate() // auto-orient based on EXIF before re-encoding
       .resize(256, 256, { fit: 'cover', position: 'center' })
-      .webp({ quality: 90 })
-      .toBuffer()
+    const [j, w] = await Promise.all([
+      base.clone().jpeg({ quality: 85 }).toBuffer(),
+      base.clone().webp({ quality: 90 }).toBuffer(),
+    ])
+    jpegForScan = j
+    webpForStorage = w
   } catch (err: any) {
     console.error('[AvatarUpload] sharp error:', err?.message, 'mime:', mime, 'bytes:', raw.length)
     return res.status(422).json({ error: 'Could not process image. Try a JPEG or PNG.' })
@@ -238,7 +243,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         },
       })
       const cmd = new DetectModerationLabelsCommand({
-        Image: { Bytes: processed },
+        // Rekognition only accepts JPEG/PNG — pass the JPEG variant.
+        // The WebP version (smaller) goes to Storage below.
+        Image: { Bytes: jpegForScan },
         MinConfidence: 30, // capture queue-band labels too
       })
       const out = await client.send(cmd)
@@ -274,7 +281,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const filename = userId + '/' + crypto.randomUUID() + '.webp'
   const { error: uploadErr } = await admin.storage
     .from('avatars-user')
-    .upload(filename, processed, {
+    .upload(filename, webpForStorage, {
       contentType: 'image/webp',
       cacheControl: '3600',
       upsert: false,
