@@ -151,23 +151,45 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // when there are multiple topics to choose from.
   var { data: subs } = await supabase
     .from('push_subscriptions')
-    .select('id, endpoint, p256dh, auth_secret, consecutive_failures, topics')
+    .select('id, endpoint, p256dh, auth_secret, consecutive_failures, topics, last_active_at')
     .eq('is_active', true)
+
+  // V9.4.10 — activity-aware cooldown. Skip subscriptions where the
+  // user opened the app in the last 4 hours. Avoids the "I'm already
+  // reading and you're pinging me about today's lead" noise. Override
+  // via ?force=true query param for manual admin sends.
+  var force = !!((req.body && req.body.force) || (req.query && req.query.force === 'true'))
+  var cooldownHours = 4
+  var cooldownCutoff = Date.now() - cooldownHours * 60 * 60 * 1000
+  var skippedRecent = 0
 
   // Filter out subscriptions that have an explicit topics array NOT
   // containing 'daily_lead'. NULL or [] or contains 'daily_lead' all
-  // pass.
+  // pass. Then apply cooldown filter unless ?force=true.
   if (subs) {
     subs = subs.filter(function (s: any) {
       var t = s.topics
-      if (!t || (Array.isArray(t) && t.length === 0)) return true
-      if (Array.isArray(t)) return t.indexOf('daily_lead') >= 0
-      return true  // unexpected shape — assume opt-in
+      var topicMatch = !t || (Array.isArray(t) && t.length === 0) || (Array.isArray(t) && t.indexOf('daily_lead') >= 0)
+      if (!topicMatch) return false
+      if (force) return true
+      if (s.last_active_at) {
+        var lastActiveMs = new Date(s.last_active_at).getTime()
+        if (!isNaN(lastActiveMs) && lastActiveMs > cooldownCutoff) {
+          skippedRecent++
+          return false
+        }
+      }
+      return true
     })
   }
 
   if (!subs || subs.length === 0) {
-    return res.status(200).json({ skipped: true, reason: 'no_subscribers', lead_date: leadDate })
+    return res.status(200).json({
+      skipped: true,
+      reason: skippedRecent > 0 ? 'all_subs_within_cooldown' : 'no_subscribers',
+      lead_date: leadDate,
+      cooldown_skipped: skippedRecent,
+    })
   }
 
   // 4) Send to each.

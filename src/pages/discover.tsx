@@ -503,6 +503,26 @@ export default function DiscoverPage() {
     return function () { aborted = true }
   }, [user?.id])
 
+  // V9.4.10 — push cooldown heartbeat. Fires once per /discover
+  // mount to bump last_active_at on the caller's push_subscriptions
+  // row(s). The send-daily-lead cron then skips subscriptions where
+  // last_active_at is < 4 hours old (avoids the "I'm already
+  // reading and you're pinging me" noise). Fire-and-forget; no UI.
+  useEffect(function () {
+    var anonClientId: string | null = null
+    try {
+      if (typeof window !== 'undefined') {
+        anonClientId = localStorage.getItem('paradocs_anon_client_id')
+      }
+    } catch (e) {}
+    fetch('/api/push/heartbeat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ anon_client_id: anonClientId }),
+    }).catch(function () {})
+  }, [user?.id])
+
   // =========================================================================
   //  Onboarding + first-run gesture tutorial
   // =========================================================================
