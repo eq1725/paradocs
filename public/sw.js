@@ -1,8 +1,18 @@
 // Paradocs Service Worker — minimal, hand-rolled
 // Primary purpose: satisfy Chrome PWA installability + basic app shell caching
 // No workbox, no next-pwa
+//
+// Cache versioning — bump CACHE_NAME any time we ship a major chrome
+// or layout change so existing users automatically get a clean slate.
+// The activate handler below deletes any cache whose name doesn't
+// match the current CACHE_NAME, evicting all stale assets in one pass.
+//
+// History:
+//   v1 — initial install (Session 13 nav unification)
+//   v2 — V9.6 account-surface unification (drop DashboardLayout from
+//        /account/*, AccountNav strip, new pricing tiers)
 
-var CACHE_NAME = 'paradocs-v1';
+var CACHE_NAME = 'paradocs-v2';
 var APP_SHELL = [
   '/',
   '/manifest.json',
