@@ -24,8 +24,9 @@
  */
 
 import React, { useEffect, useState } from 'react'
-import { Check, X, Loader2 } from 'lucide-react'
+import { Check, X, Loader2, Plus } from 'lucide-react'
 import { classNames } from '@/lib/utils'
+import CustomAvatarUpload from '@/components/account/CustomAvatarUpload'
 
 interface CuratedAvatar {
   slug: string
@@ -50,6 +51,8 @@ export default function AvatarSelector(props: AvatarSelectorProps) {
   var [activeCategory, setActiveCategory] = useState<string>('travelers')
   var [loading, setLoading] = useState(true)
   var [error, setError] = useState<string | null>(null)
+  // V9.7 P2 — custom upload modal state.
+  var [showCustomUpload, setShowCustomUpload] = useState(false)
 
   useEffect(function () {
     var cancelled = false
@@ -134,8 +137,18 @@ export default function AvatarSelector(props: AvatarSelectorProps) {
             })}
           </div>
 
-          {/* Avatar grid */}
+          {/* Avatar grid — V9.7 P2: +Custom tile leads on every category
+              tab. Clicking it opens the upload + crop modal. */}
           <div className="grid grid-cols-4 sm:grid-cols-6 gap-3 sm:gap-4">
+            <button
+              type="button"
+              onClick={function () { setShowCustomUpload(true) }}
+              aria-label="Upload your own image"
+              className="group relative aspect-square rounded-xl flex flex-col items-center justify-center gap-1 bg-gradient-to-br from-purple-600/20 to-purple-900/10 border-2 border-dashed border-purple-500/40 hover:border-purple-400 hover:bg-purple-600/25 transition-all"
+            >
+              <Plus className="w-6 h-6 text-purple-300 group-hover:text-purple-200" />
+              <span className="text-[10px] font-medium text-purple-200">Upload</span>
+            </button>
             {activeAvatars.map(function (av) {
               var selected = props.currentAvatar === av.image_url
               return (
@@ -170,10 +183,20 @@ export default function AvatarSelector(props: AvatarSelectorProps) {
           </div>
 
           <p className="text-[11px] text-gray-500 text-center mt-5">
-            More avatar options coming soon, including custom uploads.
+            Upload your own image or pick from the curated set above.
           </p>
         </>
       )}
+
+      {/* V9.7 P2 — custom upload + crop modal. Renders on top of this
+          card; closes itself on success. */}
+      <CustomAvatarUpload
+        open={showCustomUpload}
+        onClose={function () { setShowCustomUpload(false) }}
+        onApproved={function (url) {
+          props.onSelect(url)
+        }}
+      />
     </div>
   )
 }
