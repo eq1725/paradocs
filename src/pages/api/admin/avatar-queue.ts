@@ -16,7 +16,6 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { createServerSupabaseClient } from '@supabase/auth-helpers-nextjs'
 import { createClient } from '@supabase/supabase-js'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -24,25 +23,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // Admin auth
-  var userClient = createServerSupabaseClient({ req, res })
-  var { data: { session } } = await userClient.auth.getSession()
-  if (!session?.user) return res.status(401).json({ error: 'Not authenticated' })
+  // V9.7.4 — accept Authorization Bearer token (the client sends it)
+  // instead of cookie-based session pickup which wasn't reliable
+  // through Vercel.
+  var authHeader = req.headers.authorization || ''
+  var accessToken = authHeader.indexOf('Bearer ') === 0 ? authHeader.slice(7) : ''
+  if (!accessToken) return res.status(401).json({ error: 'Not authenticated' })
 
-  var { data: profile } = await (userClient
-    .from('profiles') as any)
-    .select('role')
-    .eq('id', session.user.id)
-    .single()
-  if (!profile || (profile as any).role !== 'admin') {
-    return res.status(403).json({ error: 'Admin only' })
-  }
-
-  // Service-role to read all rows.
   var admin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+
+  var { data: userData, error: authErr } = await admin.auth.getUser(accessToken)
+  if (authErr || !userData?.user) {
+    return res.status(401).json({ error: 'Not authenticated' })
+  }
+
+  var { data: profile } = await (admin
+    .from('profiles') as any)
+    .select('role')
+    .eq('id', userData.user.id)
+    .single()
+  if (!profile || (profile as any).role !== 'admin') {
+    return res.status(403).json({ error: 'Admin only' })
+  }
 
   var { data, error } = await (admin
     .from('profiles') as any)

@@ -136,7 +136,7 @@ export default function AvatarReviewPage() {
             </div>
           )}
 
-          {!loading && !unauthorized && items.length === 0 && (
+          {!loading && !unauthorized && !error && items.length === 0 && (
             <div className="p-10 bg-gray-900 rounded-xl border border-gray-800 text-center">
               <Check className="w-10 h-10 mx-auto text-emerald-400 mb-3" />
               <p className="text-white font-medium">Queue is clear.</p>

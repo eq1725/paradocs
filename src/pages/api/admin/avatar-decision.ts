@@ -18,7 +18,6 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { createServerSupabaseClient } from '@supabase/auth-helpers-nextjs'
 import { createClient } from '@supabase/supabase-js'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -26,15 +25,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // Admin auth
-  var userClient = createServerSupabaseClient({ req, res })
-  var { data: { session } } = await userClient.auth.getSession()
-  if (!session?.user) return res.status(401).json({ error: 'Not authenticated' })
+  // V9.7.4 — Bearer token auth (matches /api/admin/avatar-queue and
+  // /api/user/avatar/upload). Cookie-based pickup wasn't reliable.
+  var authHeader = req.headers.authorization || ''
+  var accessToken = authHeader.indexOf('Bearer ') === 0 ? authHeader.slice(7) : ''
+  if (!accessToken) return res.status(401).json({ error: 'Not authenticated' })
 
-  var { data: adminProfile } = await (userClient
+  var admin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  var { data: userData, error: authErr } = await admin.auth.getUser(accessToken)
+  if (authErr || !userData?.user) {
+    return res.status(401).json({ error: 'Not authenticated' })
+  }
+
+  var { data: adminProfile } = await (admin
     .from('profiles') as any)
     .select('role')
-    .eq('id', session.user.id)
+    .eq('id', userData.user.id)
     .single()
   if (!adminProfile || (adminProfile as any).role !== 'admin') {
     return res.status(403).json({ error: 'Admin only' })
@@ -45,11 +55,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!userId || (decision !== 'approved' && decision !== 'rejected')) {
     return res.status(400).json({ error: 'Missing user_id or decision' })
   }
-
-  var admin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
 
   // Look up the pending state.
   var { data: target } = await (admin
