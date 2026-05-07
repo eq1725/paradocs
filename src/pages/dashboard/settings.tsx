@@ -147,6 +147,12 @@ export default function SettingsPage() {
     smart_alerts: true
   })
 
+  // V9.5 P2.3 — track an as-saved snapshot so the sticky bottom bar
+  // can show 'Unsaved changes' state. We compare via JSON.stringify on
+  // each render — cheap given the small object shape and avoids
+  // hand-wiring per-field dirty flags.
+  const [savedSnapshot, setSavedSnapshot] = useState<string>('')
+
   // Personalization state
   const {
     data: personalization,
@@ -206,9 +212,21 @@ export default function SettingsPage() {
           if (data.notification_settings) {
             setNotifications(data.notification_settings)
           }
+          // V9.5 P2.3 — capture the as-saved snapshot for the sticky
+          // bottom save bar's dirty-state detection.
+          setSavedSnapshot(JSON.stringify({
+            profile: data,
+            notifications: data.notification_settings ?? {
+              email_new_comments: true,
+              email_report_updates: true,
+              email_weekly_digest: false,
+              email_marketing: false,
+              smart_alerts: true,
+            },
+          }))
         } else {
           // Create default profile
-          setProfile({
+          const defaultProfile = {
             id: session.user.id,
             username: null,
             display_name: null,
@@ -219,7 +237,18 @@ export default function SettingsPage() {
             // discoverable in the researcher graph. They can flip
             // it off in Privacy below at any time.
             constellation_public: true,
-          })
+          }
+          setProfile(defaultProfile)
+          setSavedSnapshot(JSON.stringify({
+            profile: defaultProfile,
+            notifications: {
+              email_new_comments: true,
+              email_report_updates: true,
+              email_weekly_digest: false,
+              email_marketing: false,
+              smart_alerts: true,
+            },
+          }))
         }
       } catch (err) {
         console.error('Error fetching profile:', err)
@@ -264,6 +293,10 @@ export default function SettingsPage() {
       // Dispatch event to notify other components (like DashboardLayout sidebar) to refresh
       window.dispatchEvent(new CustomEvent('profile-updated'))
 
+      // V9.5 P2.3 — refresh the saved snapshot so the sticky bar
+      // returns to the 'all saved' state after a successful save.
+      setSavedSnapshot(JSON.stringify({ profile, notifications }))
+
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
@@ -273,6 +306,10 @@ export default function SettingsPage() {
       setSaving(false)
     }
   }
+
+  // V9.5 P2.3 — derive dirty state from the snapshot. Recomputed on
+  // every render via JSON.stringify of the small object shape.
+  const isDirty = savedSnapshot !== '' && savedSnapshot !== JSON.stringify({ profile, notifications })
 
   const handleSavePersonalization = async () => {
     setSaving(true)
@@ -352,7 +389,17 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout title="Settings">
-      <div className="max-w-3xl space-y-6">
+      <div className="max-w-3xl mx-auto space-y-6 pb-24 md:pb-28">
+        {/* V9.5 P2.2 — kicker masthead. Mirrors the Profile/Subscription
+            pattern so the account surface feels unified. */}
+        <div>
+          <p className="text-[10px] font-semibold tracking-widest uppercase text-gray-500 mb-1">Account · Settings</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">Settings</h1>
+          <p className="text-sm text-gray-400 mt-1">
+            Profile, notifications, privacy, and personalization.
+          </p>
+        </div>
+
         {/* Profile Settings */}
         <SettingsSection
           title="Profile"
@@ -864,25 +911,49 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* Save Button */}
-        <div className="flex justify-end pb-6 sm:pb-0">
-          <button
-            onClick={handleSaveProfile}
-            disabled={saving}
-            className="flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-3.5 sm:py-3 bg-purple-600 hover:bg-purple-500 active:bg-purple-500 text-white font-medium rounded-xl sm:rounded-lg transition-colors disabled:opacity-50"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="w-5 h-5" />
-                Save Settings
-              </>
-            )}
-          </button>
+      </div>
+
+      {/* V9.5 P2.3 — sticky bottom save bar. Activates when there are
+          unsaved changes (profile or notifications). Sits above the
+          mobile bottom-tab bar and covers the desktop scroll area's
+          right edge. The full-section save buttons inside each
+          SettingsSection still work for granular saves; this bar is
+          the always-on safety net. */}
+      <div
+        className={[
+          'fixed left-0 right-0 z-40 transition-all duration-200 ease-out',
+          // sit above the mobile bottom tab bar (h-16 + safe-area)
+          'bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] md:bottom-0',
+          'md:left-64',
+          isDirty
+            ? 'translate-y-0 opacity-100 pointer-events-auto'
+            : 'translate-y-full opacity-0 pointer-events-none',
+        ].join(' ')}
+      >
+        <div className="bg-gray-900/95 backdrop-blur border-t border-gray-800 px-4 sm:px-6 py-3 sm:py-3.5">
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0 animate-pulse" />
+              <span className="text-sm text-gray-300 truncate">Unsaved changes</span>
+            </div>
+            <button
+              onClick={handleSaveProfile}
+              disabled={saving}
+              className="flex items-center gap-2 px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-50 flex-shrink-0"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Save changes
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </DashboardLayout>

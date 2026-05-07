@@ -356,133 +356,149 @@ export default function SubscriptionPage() {
     )
   }
 
+  // V9.5 P2.4 — derive a single primary CTA + tagline based on the
+  // user's current subscription state. Replaces the old 4-tier grid as
+  // the visual anchor of this page; tier comparison is moved below.
+  var isFreeTier = !tierName || tierName === 'free'
+  var isPaidActive = subscription?.status === 'active' && !isFreeTier
+  var renewDate = subscription?.current_period_end
+    ? new Date(subscription.current_period_end).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
+    : null
+
   return (
     <DashboardLayout title="Subscription">
-      {/* Current Plan Overview */}
-      <div className="p-6 bg-gray-900 rounded-xl border border-gray-800 mb-8">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="p-4 bg-purple-600/20 rounded-xl">
-              <CreditCard className="w-8 h-8 text-purple-400" />
+      {/* V9.5 P2.2 — kicker header. Mirrors the masthead pattern used
+          on Profile so the account surface feels unified. */}
+      <div className="max-w-3xl mx-auto">
+        <p className="text-[10px] font-semibold tracking-widest uppercase text-gray-500 mb-1">Account · Billing</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">Subscription</h1>
+        <p className="text-sm text-gray-400 mt-1 mb-8">
+          Manage your plan, usage, and billing.
+        </p>
+
+        {/* V9.5 P2.4 — Current Plan hero. Single source of truth for
+            "what state am I in" + a single primary CTA. The 4-tier grid
+            below stays as the comparison reference. */}
+        <div className="p-6 sm:p-7 bg-gradient-to-br from-purple-950/40 to-gray-900 rounded-2xl border border-purple-800/30 mb-8">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-purple-600/20 rounded-xl flex-shrink-0">
+              <CreditCard className="w-7 h-7 text-purple-400" />
             </div>
-            <div>
-              <div className="flex items-center gap-3 mb-1">
-                <h2 className="text-xl font-semibold text-white">
-                  Current Plan
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 mb-2 flex-wrap">
+                <h2 className="text-lg sm:text-xl font-semibold text-white">
+                  {isFreeTier ? 'You’re on Free' : 'You’re on ' + (subscription?.tier?.display_name || tierName)}
                 </h2>
                 {tierName && <TierBadge tier={tierName} size="md" />}
               </div>
-              <p className="text-gray-400">
-                {subscription?.status === 'active' ? (
-                  <>
-                    Your subscription is active
-                    {subscription?.current_period_end && (
-                      <> · Renews {new Date(subscription.current_period_end).toLocaleDateString()}</>
-                    )}
-                  </>
+              <p className="text-sm text-gray-300 leading-relaxed">
+                {isPaidActive && renewDate ? (
+                  <>Your subscription renews on <span className="text-white font-medium">{renewDate}</span>.</>
+                ) : isFreeTier ? (
+                  <>Upgrade to unlock unlimited saves, AI insights, and priority support.</>
                 ) : (
-                  'Manage your subscription below'
+                  <>Manage your subscription below.</>
                 )}
               </p>
+
+              {/* Primary CTA based on state */}
+              <div className="mt-4 flex flex-wrap gap-3">
+                {isFreeTier ? (
+                  <a
+                    href="#available-plans"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors"
+                  >
+                    See plans
+                    <ArrowRight className="w-4 h-4" />
+                  </a>
+                ) : (
+                  <>
+                    {/* V9.5 P4.2 placeholder — Stripe customer portal lives
+                        in Phase 4. For now this scrolls to the comparison
+                        grid so users can change tier. */}
+                    <a
+                      href="#available-plans"
+                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white text-sm font-semibold rounded-full transition-colors"
+                    >
+                      Change plan
+                    </a>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Quick stats */}
-          <div className="flex flex-wrap gap-6">
-            {usage && limits && (
-              <>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-white">
-                    {usage.reports_submitted}
-                    <span className="text-sm text-gray-500">
-                      /{limits.reports_per_month === -1 ? '∞' : limits.reports_per_month}
-                    </span>
-                  </p>
-                  <p className="text-xs text-gray-400">Reports this month</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-white">
-                    {usage.reports_saved}
-                    <span className="text-sm text-gray-500">
-                      /{limits.saved_reports_max === -1 ? '∞' : limits.saved_reports_max}
-                    </span>
-                  </p>
-                  <p className="text-xs text-gray-400">Saved reports</p>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Usage meters */}
-        {usage && limits && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 pt-6 border-t border-gray-800">
-            <UsageMeter
-              label="Reports Submitted"
-              current={usage.reports_submitted}
-              limit={limits.reports_per_month}
-              size="sm"
-            />
-            <UsageMeter
-              label="Saved Reports"
-              current={usage.reports_saved}
-              limit={limits.saved_reports_max}
-              size="sm"
-            />
-            {limits.api_calls_per_month > 0 && (
+          {/* Usage meters — tightened from 3-column to a single readable row */}
+          {usage && limits && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6 pt-6 border-t border-purple-800/30">
               <UsageMeter
-                label="API Calls"
-                current={usage.api_calls_made}
-                limit={limits.api_calls_per_month}
+                label="Reports submitted"
+                current={usage.reports_submitted}
+                limit={limits.reports_per_month}
                 size="sm"
               />
-            )}
-          </div>
-        )}
-      </div>
+              <UsageMeter
+                label="Saved reports"
+                current={usage.reports_saved}
+                limit={limits.saved_reports_max}
+                size="sm"
+              />
+              {limits.api_calls_per_month > 0 && (
+                <UsageMeter
+                  label="API calls"
+                  current={usage.api_calls_made}
+                  limit={limits.api_calls_per_month}
+                  size="sm"
+                />
+              )}
+            </div>
+          )}
+        </div>
 
-      {/* Plan Selection */}
-      <h3 className="text-lg font-semibold text-white mb-6">Available Plans</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {tiers
-          .filter(t => t.is_active)
-          .sort((a, b) => a.sort_order - b.sort_order)
-          .map(tier => (
-            <TierCard
-              key={tier.id}
-              tier={tier}
-              isCurrentTier={tier.name === tierName}
-              onSelect={handleTierChange}
-              loading={changingTier === tier.id}
-            />
-          ))}
-      </div>
+        {/* Plan Selection — V9.5 P2.4 made responsive max 2-col so cards
+            stop squeezing on tablets. Anchor for in-page CTA jumps. */}
+        <h3 id="available-plans" className="text-[10px] font-semibold tracking-widest uppercase text-gray-500 mb-3">Compare plans</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+          {tiers
+            .filter(t => t.is_active)
+            .sort((a, b) => a.sort_order - b.sort_order)
+            .map(tier => (
+              <TierCard
+                key={tier.id}
+                tier={tier}
+                isCurrentTier={tier.name === tierName}
+                onSelect={handleTierChange}
+                loading={changingTier === tier.id}
+              />
+            ))}
+        </div>
 
-      {/* FAQ / Info */}
-      <div className="mt-12 p-6 bg-gray-900 rounded-xl border border-gray-800">
-        <h3 className="text-lg font-semibold text-white mb-4">
-          Frequently Asked Questions
-        </h3>
-        <div className="space-y-4">
-          <div>
-            <h4 className="text-white font-medium mb-1">Can I upgrade or downgrade at any time?</h4>
-            <p className="text-gray-400 text-sm">
-              Yes! You can change your plan at any time. Upgrades take effect immediately,
-              and downgrades take effect at the end of your current billing period.
-            </p>
-          </div>
-          <div>
-            <h4 className="text-white font-medium mb-1">What happens to my data if I downgrade?</h4>
-            <p className="text-gray-400 text-sm">
-              Your data is never deleted. However, if you exceed the limits of your new plan,
-              you won't be able to create new reports or save more reports until you're within limits.
-            </p>
-          </div>
-          <div>
-            <h4 className="text-white font-medium mb-1">Do you offer refunds?</h4>
-            <p className="text-gray-400 text-sm">
-              We offer a 14-day money-back guarantee on all paid plans. Contact support for assistance.
-            </p>
+        {/* FAQ / Info */}
+        <div className="mt-10 sm:mt-12 p-6 bg-gray-900 rounded-2xl border border-gray-800">
+          <h3 className="text-lg font-semibold text-white mb-4">
+            Frequently Asked Questions
+          </h3>
+          <div className="space-y-4">
+            <div>
+              <h4 className="text-white font-medium mb-1">Can I upgrade or downgrade at any time?</h4>
+              <p className="text-gray-400 text-sm">
+                Yes. You can change your plan at any time. Upgrades take effect immediately,
+                and downgrades take effect at the end of your current billing period.
+              </p>
+            </div>
+            <div>
+              <h4 className="text-white font-medium mb-1">What happens to my data if I downgrade?</h4>
+              <p className="text-gray-400 text-sm">
+                Your data is never deleted. However, if you exceed the limits of your new plan,
+                you won&apos;t be able to create new reports or save more reports until you&apos;re within limits.
+              </p>
+            </div>
+            <div>
+              <h4 className="text-white font-medium mb-1">Do you offer refunds?</h4>
+              <p className="text-gray-400 text-sm">
+                We offer a 14-day money-back guarantee on all paid plans. Contact support for assistance.
+              </p>
+            </div>
           </div>
         </div>
       </div>
