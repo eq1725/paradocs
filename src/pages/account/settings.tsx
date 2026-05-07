@@ -1176,35 +1176,46 @@ export default function SettingsPage() {
           </div>
         </SettingsSection>
 
-        {/* About */}
+        {/* About — V9.6.4: dropped 'Beta' label and rewrote tagline
+            with brand voice. Section description now hints at what's
+            actually here (mission + terms + credits) instead of the
+            generic 'App information and legal'. */}
         <SettingsSection
           title="About"
-          description="App information and legal"
+          description="Mission, terms, and credits"
           icon={Info}
         >
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-gray-400 mb-3">
-                <strong className="text-white">Paradocs Beta</strong>
+          <div className="space-y-5">
+            <div className="space-y-3">
+              <p className="text-base font-semibold text-white">Paradocs</p>
+              <p className="text-sm text-gray-300 leading-relaxed">
+                An open index of the world&apos;s unexplained phenomena. UFO encounters, cryptid sightings, near-death experiences, hauntings, and the rest of the strange — drawn from primary sources, organized by pattern, and built so you can read, save, and connect across decades of evidence.
               </p>
-              <p className="text-sm text-gray-400">
-                Paradocs is a collaborative platform for paranormal phenomenon documentation and analysis.
+              <p className="text-xs text-gray-500 italic">
+                Built for researchers, skeptics, and the genuinely curious.
               </p>
             </div>
-            <div className="flex gap-3">
-              <a
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <Link
                 href="/terms"
                 className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
               >
                 Terms of Service
-              </a>
-              <span className="text-gray-600">•</span>
-              <a
+              </Link>
+              <span className="text-gray-600" aria-hidden="true">•</span>
+              <Link
                 href="/privacy"
                 className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
               >
                 Privacy Policy
-              </a>
+              </Link>
+              <span className="text-gray-600" aria-hidden="true">•</span>
+              <Link
+                href="/about"
+                className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
+              >
+                About Paradocs
+              </Link>
             </div>
           </div>
         </SettingsSection>
