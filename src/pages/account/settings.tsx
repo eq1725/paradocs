@@ -527,10 +527,49 @@ export default function SettingsPage() {
     )
   }
 
+  // V9.6.2 — anchor pills live inside the AccountNav sticky container
+  // as children, so the two nav rows stack with no gap. Defining the
+  // markup as a variable keeps the render tree readable below.
+  var anchorPillsRow = (
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-2">
+      <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
+        {[
+          { id: 'profile', label: 'Profile' },
+          { id: 'notifications', label: 'Notifications' },
+          { id: 'privacy', label: 'Privacy' },
+          { id: 'data', label: 'Your Data' },
+          { id: 'location', label: 'Location' },
+          { id: 'interests', label: 'Interests' },
+        ].map((item) => {
+          // V9.6 Tier 2 — active state is driven by the
+          // IntersectionObserver above; aria-current='location' is
+          // for screen readers; the visual chip styling is for sighted
+          // users.
+          var active = activeAnchor === item.id
+          return (
+            <a
+              key={item.id}
+              href={'#' + item.id}
+              aria-current={active ? 'location' : undefined}
+              className={
+                'flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ' +
+                (active
+                  ? 'text-white bg-purple-600/25 border border-purple-500/60'
+                  : 'text-gray-300 bg-gray-900/80 border border-gray-800 hover:border-purple-500/40 hover:text-white')
+              }
+            >
+              {item.label}
+            </a>
+          )
+        })}
+      </div>
+    </div>
+  )
+
   return (
     <>
       <Head><title>Settings | Paradocs</title></Head>
-      <AccountNav />
+      <AccountNav>{anchorPillsRow}</AccountNav>
       <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-6 space-y-6 pb-24 md:pb-28">
         {/* V9.5 P2.2 — kicker masthead. Mirrors the Profile/Subscription
             pattern so the account surface feels unified. */}
@@ -554,50 +593,6 @@ export default function SettingsPage() {
           <StatusChip label="Streak" value={statusStrip.streak === 0 ? '—' : statusStrip.streak + 'd'} />
           <StatusChip label="Joined" value={statusStrip.joinedYear || '—'} />
         </div>
-
-        {/* V9.5 P3.5 — anchor-link nav. Sticky on desktop so users can
-            jump between sections; scrolls horizontally on mobile. Uses
-            in-page hashes (no router.push) for instant scroll. */}
-        <nav
-          // V9.6.1 — sticky offset budgets two stacked sticky bars:
-          // global Layout header (h-14 mobile / h-16 desktop) + the
-          // now-also-sticky AccountNav strip (~3rem). Total ~6.5rem
-          // mobile / 7rem desktop. Anchor pills tuck right below
-          // AccountNav so the user always sees both layers of nav.
-          className="-mx-4 sm:mx-0 px-4 sm:px-0 sticky top-[6.5rem] md:top-[7rem] z-10 -mt-2 mb-2 bg-gray-950/90 backdrop-blur-md"
-        >
-          <div className="flex gap-1.5 overflow-x-auto pb-2 -mb-2 scrollbar-none">
-            {[
-              { id: 'profile', label: 'Profile' },
-              { id: 'notifications', label: 'Notifications' },
-              { id: 'privacy', label: 'Privacy' },
-              { id: 'data', label: 'Your Data' },
-              { id: 'location', label: 'Location' },
-              { id: 'interests', label: 'Interests' },
-            ].map((item) => {
-              // V9.6 Tier 2 — active state is driven by the
-              // IntersectionObserver above; aria-current='location'
-              // satisfies WCAG and screen readers, the visual border +
-              // text color satisfies sighted users.
-              var active = activeAnchor === item.id
-              return (
-                <a
-                  key={item.id}
-                  href={'#' + item.id}
-                  aria-current={active ? 'location' : undefined}
-                  className={
-                    'flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ' +
-                    (active
-                      ? 'text-white bg-purple-600/25 border border-purple-500/60'
-                      : 'text-gray-300 bg-gray-900/80 border border-gray-800 hover:border-purple-500/40 hover:text-white')
-                  }
-                >
-                  {item.label}
-                </a>
-              )
-            })}
-          </div>
-        </nav>
 
         {/* Profile Settings */}
         <SettingsSection

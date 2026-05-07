@@ -28,6 +28,15 @@ interface AccountNavProps {
    * fight the global header for horizontal space. Defaults to true.
    */
   compactOnMobile?: boolean
+  /**
+   * V9.6.2 — optional secondary row stacked directly under the
+   * tab strip and inside the same sticky container. Used by the
+   * Settings page for the in-page anchor pills (Profile /
+   * Notifications / Privacy / etc.). Stacking them inside the
+   * same sticky element eliminates the visual gap that appeared
+   * when AccountNav and the pills were separate sticky elements.
+   */
+  children?: React.ReactNode
 }
 
 var ITEMS = [
@@ -41,47 +50,53 @@ export default function AccountNav(props: AccountNavProps) {
   var compact = props.compactOnMobile !== false
 
   return (
-    <nav
-      aria-label="Account sections"
-      // V9.6.1 — sticky just below the global Layout header (h-14
-      // mobile / h-16 desktop) so the account section selector stays
-      // visible as the page scrolls. Without this, AccountNav would
-      // disappear and the anchor pills below would float in mid-air
-      // at their `top-[7rem]` offset that budgeted for AccountNav.
-      // Switched bg from /40 to /90 + tighter blur so it reads as
-      // an opaque chrome bar when stuck instead of a transparent ghost.
-      className="sticky top-14 md:top-16 z-20 border-b border-gray-800/70 bg-gray-950/90 backdrop-blur-md"
+    // V9.6.2 — sticky container holds BOTH the tab strip and any
+    // optional `children` (e.g. the in-page anchor pills on /account/
+    // settings) so they scroll as one unit. Eliminates the visual
+    // gap that appeared when AccountNav and the pills were separate
+    // sticky elements at fragile pixel offsets. One opaque background
+    // + one bottom border, no in-between transparency for content to
+    // peek through.
+    <div
+      className="sticky top-14 md:top-16 z-20 bg-gray-950/95 backdrop-blur-md border-b border-gray-800/70"
     >
-      <div className="max-w-3xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center gap-1 sm:gap-2 -mb-px overflow-x-auto scrollbar-none">
-          {ITEMS.map(function (item) {
-            var active = item.match(router.pathname)
-            var Icon = item.icon
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? 'page' : undefined}
-                className={
-                  'relative inline-flex items-center gap-2 px-3 sm:px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ' +
-                  (active
-                    ? 'text-white'
-                    : 'text-gray-400 hover:text-gray-200')
-                }
-              >
-                <Icon className={'w-4 h-4 ' + (compact ? '' : 'sm:hidden')} aria-hidden="true" />
-                <span className={compact ? 'hidden sm:inline' : ''}>{item.label}</span>
-                {active && (
-                  <span
-                    className="absolute bottom-0 left-2 right-2 h-0.5 bg-purple-500 rounded-full"
-                    aria-hidden="true"
-                  />
-                )}
-              </Link>
-            )
-          })}
+      <nav aria-label="Account sections">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center gap-1 sm:gap-2 -mb-px overflow-x-auto scrollbar-none">
+            {ITEMS.map(function (item) {
+              var active = item.match(router.pathname)
+              var Icon = item.icon
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? 'page' : undefined}
+                  className={
+                    'relative inline-flex items-center gap-2 px-3 sm:px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ' +
+                    (active
+                      ? 'text-white'
+                      : 'text-gray-400 hover:text-gray-200')
+                  }
+                >
+                  <Icon className={'w-4 h-4 ' + (compact ? '' : 'sm:hidden')} aria-hidden="true" />
+                  <span className={compact ? 'hidden sm:inline' : ''}>{item.label}</span>
+                  {active && (
+                    <span
+                      className="absolute bottom-0 left-2 right-2 h-0.5 bg-purple-500 rounded-full"
+                      aria-hidden="true"
+                    />
+                  )}
+                </Link>
+              )
+            })}
+          </div>
         </div>
-      </div>
-    </nav>
+      </nav>
+      {props.children && (
+        <div className="border-t border-gray-800/40">
+          {props.children}
+        </div>
+      )}
+    </div>
   )
 }
