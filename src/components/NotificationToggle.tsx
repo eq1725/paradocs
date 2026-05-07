@@ -32,6 +32,70 @@ interface NotificationToggleProps {
   mode?: 'row' | 'full'
 }
 
+/**
+ * V9.5 P1.2 — platform detection for the 'denied' re-enable copy.
+ *
+ * Returns one of:
+ *   'ios-standalone' — iOS PWA installed via Add to Home Screen
+ *   'ios-browser'    — Mobile Safari on iOS (rare for push, but covered)
+ *   'android'        — Android browser or PWA
+ *   'desktop'        — every other browser
+ *
+ * Runs only on client; on the server returns 'desktop' as a safe default.
+ */
+function detectPlatform(): 'ios-standalone' | 'ios-browser' | 'android' | 'desktop' {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return 'desktop'
+  var ua = navigator.userAgent || ''
+  var isIOS = /iPad|iPhone|iPod/.test(ua) || (ua.indexOf('Mac') >= 0 && (navigator as any).maxTouchPoints > 1)
+  var isAndroid = /Android/.test(ua)
+  var isStandalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches
+  if (isIOS && isStandalone) return 'ios-standalone'
+  if (isIOS) return 'ios-browser'
+  if (isAndroid) return 'android'
+  return 'desktop'
+}
+
+function browserName(): string {
+  if (typeof navigator === 'undefined') return 'your browser'
+  var ua = navigator.userAgent || ''
+  if (/Edg\//.test(ua)) return 'Edge'
+  if (/Chrome\//.test(ua) && !/Edg\//.test(ua)) return 'Chrome'
+  if (/Firefox\//.test(ua)) return 'Firefox'
+  if (/Safari\//.test(ua) && !/Chrome\//.test(ua)) return 'Safari'
+  return 'your browser'
+}
+
+function deniedShortLabel(platform: ReturnType<typeof detectPlatform>): string {
+  if (platform === 'ios-standalone' || platform === 'ios-browser') return 'Disabled in iOS Settings'
+  return 'Disabled in browser settings'
+}
+
+function deniedHelpCopy(platform: ReturnType<typeof detectPlatform>): React.ReactNode {
+  if (platform === 'ios-standalone' || platform === 'ios-browser') {
+    return (
+      <>You denied notifications at the iOS level. To re-enable: open <strong>iOS Settings &rarr; Notifications &rarr; Paradocs</strong>, then toggle <strong>Allow Notifications</strong>.</>
+    )
+  }
+  if (platform === 'android') {
+    return (
+      <>You denied notifications. To re-enable: open <strong>Android Settings &rarr; Apps &rarr; Paradocs &rarr; Notifications</strong>, or in your browser open the site info menu and allow notifications.</>
+    )
+  }
+  return (
+    <>You denied notifications in {browserName()}. To re-enable: click the lock or site-info icon next to the URL, find <strong>Notifications</strong>, and switch to <strong>Allow</strong>. You may need to reload the page.</>
+  )
+}
+
+function deniedRequestErrorCopy(platform: ReturnType<typeof detectPlatform>): string {
+  if (platform === 'ios-standalone' || platform === 'ios-browser') {
+    return 'You denied at the OS level. Re-enable in iOS Settings → Paradocs → Notifications.'
+  }
+  if (platform === 'android') {
+    return 'You denied notifications. Re-enable in Android Settings → Apps → Paradocs → Notifications, or in your browser site settings.'
+  }
+  return 'You denied notifications in ' + browserName() + '. Re-enable from the lock/site-info icon next to the URL, then reload.'
+}
+
 export default function NotificationToggle(props: NotificationToggleProps) {
   var mode = props.mode || 'full'
 
@@ -39,11 +103,13 @@ export default function NotificationToggle(props: NotificationToggleProps) {
   var [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('unsupported')
   var [busy, setBusy] = useState(false)
   var [error, setError] = useState<string | null>(null)
+  var [platform, setPlatform] = useState<ReturnType<typeof detectPlatform>>('desktop')
 
   function refreshState() {
     var sup = isPushSupported()
     setSupported(sup)
     setPermission(getPushPermissionState())
+    setPlatform(detectPlatform())
   }
 
   useEffect(function () {
@@ -57,7 +123,7 @@ export default function NotificationToggle(props: NotificationToggleProps) {
       .then(function (result) {
         if (!result.subscribed) {
           if (result.denied) {
-            setError('You denied at the OS level. Re-enable in iOS Settings → Paradocs → Notifications.')
+            setError(deniedRequestErrorCopy(platform))
           } else if (result.unsupported) {
             setError('Push not supported in this browser.')
           } else if (result.error) {
@@ -94,7 +160,7 @@ export default function NotificationToggle(props: NotificationToggleProps) {
     statusTone = 'on'
     primaryAction = { label: 'Disable', onClick: handleDisable }
   } else if (permission === 'denied') {
-    statusLabel = 'Disabled in iOS Settings'
+    statusLabel = deniedShortLabel(platform)
     statusTone = 'denied'
     primaryAction = null
   } else {
@@ -202,7 +268,7 @@ export default function NotificationToggle(props: NotificationToggleProps) {
 
           {permission === 'denied' && (
             <p className="text-[12px] text-amber-300 mt-3 leading-relaxed">
-              You denied notifications at the iOS level. To re-enable: open <strong>iOS Settings &rarr; Notifications &rarr; Paradocs</strong>, then toggle <strong>Allow Notifications</strong>.
+              {deniedHelpCopy(platform)}
             </p>
           )}
 

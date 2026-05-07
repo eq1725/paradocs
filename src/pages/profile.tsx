@@ -43,11 +43,17 @@ export default function ProfilePage() {
   var router = useRouter()
   var [user, setUser] = useState<any>(null)
   var [loading, setLoading] = useState(true)
+  /**
+   * V9.5 P1.4 — replaced hypothesis/corroboration counts (which we
+   * never tracked) with Saved / Reports / Streak / Joined. Streak
+   * comes from /api/user/stats.streak.current; Joined is the year of
+   * the profile's created_at.
+   */
   var [stats, setStats] = useState({
     saved_count: 0,
     report_count: 0,
-    hypothesis_count: 0,
-    corroboration_count: 0,
+    streak_days: 0,
+    joined_year: '' as string | number,
   })
 
   useEffect(function() {
@@ -70,7 +76,10 @@ export default function ProfilePage() {
             setLoading(false)
           })
 
-        // Fetch basic stats (saved count, report count)
+        // V9.5 P1.4 — read the actual nested shape returned by
+        // /api/user/stats. The old code was reading top-level
+        // {saved_count, report_count, hypothesis_count} fields that
+        // don't exist on the response, so the box always showed zeros.
         fetch('/api/user/stats', {
           headers: { Authorization: 'Bearer ' + session.access_token }
         })
@@ -80,12 +89,18 @@ export default function ProfilePage() {
           })
           .then(function(data) {
             if (data) {
+              var memberSince = data.profile && data.profile.member_since
+              var joinedYear: string | number = ''
+              if (memberSince) {
+                var d = new Date(memberSince)
+                if (!isNaN(d.getTime())) joinedYear = d.getUTCFullYear()
+              }
               setStats(function(prev) {
                 return {
-                  saved_count: data.saved_count || prev.saved_count,
-                  report_count: data.report_count || prev.report_count,
-                  hypothesis_count: data.hypothesis_count || prev.hypothesis_count,
-                  corroboration_count: data.corroboration_count || prev.corroboration_count,
+                  saved_count: (data.saved && data.saved.total) || prev.saved_count,
+                  report_count: (data.reports && data.reports.total) || prev.report_count,
+                  streak_days: (data.streak && data.streak.current) || prev.streak_days,
+                  joined_year: joinedYear || prev.joined_year,
                 }
               })
             }
@@ -189,12 +204,20 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Stats row */}
+          {/* V9.5 P1.4 — Stats row. Dropped Hypotheses + Corroborations
+              (never tracked in our model) for Streak + Joined, which
+              actually reflect researcher activity + tenure. */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-gray-800">
             <StatBox label="Saved" value={stats.saved_count} />
             <StatBox label="Reports" value={stats.report_count} />
-            <StatBox label="Hypotheses" value={stats.hypothesis_count} />
-            <StatBox label="Corroborations" value={stats.corroboration_count} />
+            <StatBox
+              label={stats.streak_days === 1 ? 'Day streak' : 'Day streak'}
+              value={stats.streak_days}
+            />
+            <StatBox
+              label="Joined"
+              value={stats.joined_year || '—'}
+            />
           </div>
         </div>
 
@@ -284,7 +307,7 @@ export default function ProfilePage() {
   )
 }
 
-function StatBox(props: { label: string; value: number }) {
+function StatBox(props: { label: string; value: number | string }) {
   return (
     <div className="text-center">
       <p className="text-lg sm:text-xl font-bold text-white">{props.value}</p>

@@ -6,6 +6,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createServerClient } from '@/lib/supabase'
 import { getSubscriptionWithUsage } from '@/lib/subscription'
+import { getStreak } from '@/lib/services/streak.service'
 
 export default async function handler(
   req: NextApiRequest,
@@ -63,6 +64,17 @@ export default async function handler(
       .from('saved_reports')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
+
+    // V9.5 P1.4 — also count saved phenomena (V8 expansion). Profile
+    // page renders the combined number; dashboard ignores it for now.
+    let savedPhenomena = 0
+    try {
+      const { count: spCount } = await supabase
+        .from('saved_phenomena')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+      savedPhenomena = spCount || 0
+    } catch {}
 
     // Get subscription and usage
     const subscriptionData = await getSubscriptionWithUsage(user.id)
@@ -229,6 +241,15 @@ export default async function handler(
       return true
     }).slice(0, 5)
 
+    // V9.5 P1.4 — pull streak for the Profile stats box. Falls back
+    // to 0 if the streak table isn't populated yet (anonymous days
+    // bridged via localStorage on the client).
+    let streakDays = 0
+    try {
+      const s = await getStreak(user.id)
+      if (s) streakDays = s.current_streak || 0
+    } catch {}
+
     const stats = {
       profile: {
         username: profile?.username,
@@ -244,7 +265,12 @@ export default async function handler(
         rejected: (totalReports || 0) - (pendingReports || 0) - (approvedReports || 0)
       },
       saved: {
-        total: savedReports || 0
+        total: (savedReports || 0) + savedPhenomena,
+        reports: savedReports || 0,
+        phenomena: savedPhenomena,
+      },
+      streak: {
+        current: streakDays,
       },
       constellation: constellationData,
       journal: journalData,

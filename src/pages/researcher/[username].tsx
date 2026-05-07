@@ -128,12 +128,23 @@ export default function ResearcherProfile() {
   if (data.private) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-center max-w-sm">
+        <div className="text-center max-w-sm px-6">
           <Lock className="w-12 h-12 text-gray-600 mx-auto mb-4" />
           <h1 className="text-white text-xl font-bold mb-2">
             {data.profile.displayName}&apos;s Constellation
           </h1>
           <p className="text-gray-500 mb-4">This researcher&apos;s profile is private.</p>
+          {/* V9.5 P1.3 — owner-aware hint. We don't have a definitive
+              owner check here (the API doesn't return the profile id
+              when private), so we phrase it as a question. Visitors
+              who aren't the owner can ignore it. */}
+          <p className="text-xs text-gray-600 mb-6">
+            Looking at your own profile?{' '}
+            <Link href="/dashboard/settings" className="text-primary-400 hover:text-primary-300 underline">
+              Make it public in Settings
+            </Link>
+            .
+          </p>
           <Link href="/explore" className="text-primary-400 hover:text-primary-300">
             ← Back to Explore
           </Link>

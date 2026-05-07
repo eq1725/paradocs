@@ -33,7 +33,6 @@ import { CATEGORY_CONFIG, COUNTRIES, getRegionsForCountry } from '@/lib/constant
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import NotificationToggle from '@/components/NotificationToggle'
 import type { PhenomenonCategory } from '@/lib/database.types'
-import type { PhenomenonCategory } from '@/lib/database.types'
 
 interface UserProfile {
   id: string
@@ -42,6 +41,9 @@ interface UserProfile {
   avatar_url: string | null
   bio: string | null
   website: string | null
+  // V9.5 P1.3 — controls visibility of /researcher/[username]
+  // public profile and Constellation map. NULL == FALSE in DB.
+  constellation_public?: boolean | null
 }
 
 interface NotificationSettings {
@@ -212,7 +214,11 @@ export default function SettingsPage() {
             display_name: null,
             avatar_url: null,
             bio: null,
-            website: null
+            website: null,
+            // V9.5 P1.3 — new users default to public so they're
+            // discoverable in the researcher graph. They can flip
+            // it off in Privacy below at any time.
+            constellation_public: true,
           })
         }
       } catch (err) {
@@ -247,6 +253,9 @@ export default function SettingsPage() {
           bio: profile.bio,
           website: profile.website,
           notification_settings: notifications,
+          // V9.5 P1.3 — visibility flag controlled by the toggle in
+          // the Privacy section below.
+          constellation_public: profile.constellation_public ?? false,
           updated_at: new Date().toISOString()
         })
 
@@ -512,22 +521,58 @@ export default function SettingsPage() {
           description="Control your privacy settings"
           icon={Shield}
         >
-          <div className="space-y-4">
-            <p className="text-gray-400 text-sm">
-              Your email address is never shared publicly. Only your display name and
-              username are visible to other users.
+          <div className="space-y-5">
+            {/* V9.5 P1.3 — Public profile visibility toggle. Backed by
+                profiles.constellation_public. New users default to TRUE
+                so they're discoverable; existing users may have FALSE
+                from the legacy default. */}
+            <Toggle
+              label="Public researcher profile"
+              description="Allow others to view your saves, theories, and Constellation map at /researcher/your-username. Email is never shared either way."
+              checked={profile?.constellation_public ?? false}
+              onChange={(checked) => setProfile((p) => p ? { ...p, constellation_public: checked } : p)}
+            />
+            <p className="text-xs text-gray-500 pl-12 sm:pl-14 -mt-2">
+              {profile?.constellation_public
+                ? 'Currently public — anyone with your @username can view your profile.'
+                : 'Currently private — your researcher profile shows a "private" notice to visitors.'}
             </p>
-            <div className="p-4 bg-gray-800 rounded-lg">
-              <p className="text-sm text-gray-300">
-                <strong>Data Export:</strong> You can request a copy of all your data
-                at any time. Contact support@paradocs.com to request an export.
+
+            <button
+              onClick={handleSaveProfile}
+              disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Save Privacy Settings
+                </>
+              )}
+            </button>
+
+            <div className="pt-4 border-t border-gray-800 space-y-4">
+              <p className="text-gray-400 text-sm">
+                Your email address is never shared publicly. Only your display name and
+                username are visible to other users.
               </p>
-            </div>
-            <div className="p-4 bg-gray-800 rounded-lg">
-              <p className="text-sm text-gray-300">
-                <strong>Account Deletion:</strong> If you wish to delete your account
-                and all associated data, please contact support@paradocs.com.
-              </p>
+              <div className="p-4 bg-gray-800 rounded-lg">
+                <p className="text-sm text-gray-300">
+                  <strong>Data Export:</strong> You can request a copy of all your data
+                  at any time. Contact support@paradocs.com to request an export.
+                </p>
+              </div>
+              <div className="p-4 bg-gray-800 rounded-lg">
+                <p className="text-sm text-gray-300">
+                  <strong>Account Deletion:</strong> If you wish to delete your account
+                  and all associated data, please contact support@paradocs.com.
+                </p>
+              </div>
             </div>
           </div>
         </SettingsSection>
