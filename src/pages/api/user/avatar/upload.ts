@@ -44,12 +44,36 @@ import { RekognitionClient, DetectModerationLabelsCommand } from '@aws-sdk/clien
 
 export const config = {
   api: {
-    bodyParser: {
-      // We expect raw image bytes; cap a touch above the 2MB user-facing
-      // limit so we have headroom for metadata + cropping artifacts.
-      sizeLimit: '3mb',
-    },
+    // V9.7.3 — disable bodyParser so we can read raw image bytes
+    // ourselves. Next.js's built-in parser only reliably handles
+    // JSON / text / urlencoded; for application/octet-stream it
+    // either leaves req.body undefined or coerces to a string,
+    // which breaks sharp downstream with 'Could not process image'.
+    bodyParser: false,
   },
+}
+
+/**
+ * Read the raw request stream into a Buffer. Caps at maxBytes so a
+ * malicious client can't OOM the function.
+ */
+async function readRawBody(req: NextApiRequest, maxBytes: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    var chunks: Buffer[] = []
+    var total = 0
+    req.on('data', (chunk: Buffer | string) => {
+      var buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+      total += buf.length
+      if (total > maxBytes) {
+        reject(new Error('PAYLOAD_TOO_LARGE'))
+        req.destroy()
+        return
+      }
+      chunks.push(buf)
+    })
+    req.on('end', () => resolve(Buffer.concat(chunks)))
+    req.on('error', (err: any) => reject(err))
+  })
 }
 
 // Hard-reject labels at this threshold or above (out of 100).
@@ -162,7 +186,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!ALLOWED_MIME.some(m => mime.indexOf(m) === 0)) {
     return res.status(415).json({ error: 'Unsupported image type', mime })
   }
-  const raw = req.body as Buffer
+  // V9.7.3 — read raw bytes from the request stream ourselves since
+  // bodyParser is disabled in the route config above.
+  let raw: Buffer
+  try {
+    raw = await readRawBody(req, MAX_BYTES + 256 * 1024) // 256KB headroom
+  } catch (err: any) {
+    if (err?.message === 'PAYLOAD_TOO_LARGE') {
+      return res.status(413).json({ error: 'Image too large', maxBytes: MAX_BYTES })
+    }
+    return res.status(400).json({ error: 'Could not read upload' })
+  }
   if (!raw || !raw.length) {
     return res.status(400).json({ error: 'Empty body' })
   }
@@ -171,16 +205,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // 3. Process via sharp — strip EXIF, resize, convert to WebP.
+  //    NOTE: sharp's withMetadata strips by default in newer versions;
+  //    we re-encode to WebP which inherently drops EXIF anyway. Don't
+  //    pass `{ exif: {} }` — that's the wrong syntax for newer sharp
+  //    and was throwing 'Could not process image' even on valid JPEGs.
   let processed: Buffer
   try {
-    processed = await sharp(raw)
-      .rotate() // auto-orient based on EXIF before stripping
+    processed = await sharp(raw, { failOn: 'none' })
+      .rotate() // auto-orient based on EXIF before re-encoding
       .resize(256, 256, { fit: 'cover', position: 'center' })
       .webp({ quality: 90 })
-      .withMetadata({ exif: {} } as any) // strip GPS + camera metadata
       .toBuffer()
   } catch (err: any) {
-    console.error('[AvatarUpload] sharp error:', err?.message)
+    console.error('[AvatarUpload] sharp error:', err?.message, 'mime:', mime, 'bytes:', raw.length)
     return res.status(422).json({ error: 'Could not process image. Try a JPEG or PNG.' })
   }
 
