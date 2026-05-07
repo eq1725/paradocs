@@ -41,7 +41,15 @@ export default function Layout({ children }: LayoutProps) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
       checkUser()
     })
-    return () => subscription.unsubscribe()
+    // V9.7.1 — listen for the 'profile-updated' event that
+    // /account/settings dispatches after a save. Without this, the
+    // top-nav avatar showed the pre-save value until next page load.
+    const handleProfileUpdated = () => { checkUser() }
+    window.addEventListener('profile-updated', handleProfileUpdated)
+    return () => {
+      subscription.unsubscribe()
+      window.removeEventListener('profile-updated', handleProfileUpdated)
+    }
   }, [])
 
   async function checkUser() {

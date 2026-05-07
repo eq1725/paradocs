@@ -204,8 +204,12 @@ export function Avatar(props: {
   var avatar = props.avatar
   var className = props.className || ''
 
-  // 1. URL — render <img> with circular crop. Treat anything starting
-  //    with '/' or 'http' as a URL.
+  // 1. URL — render <img> inside a circular container.
+  //    V9.7.1 — switched object-cover → object-contain + 12% inset
+  //    so the curated icons (which are square, content-edge-bleeding)
+  //    fit inside the circle without their corners getting clipped.
+  //    object-cover was cropping wide icons (e.g. Peace flag) into
+  //    fragments. Treat anything starting with '/' or 'http' as a URL.
   if (avatar && (avatar.indexOf('/') === 0 || avatar.indexOf('http') === 0)) {
     return (
       <div
@@ -219,7 +223,7 @@ export function Avatar(props: {
         <img
           src={avatar}
           alt={(props.fallback || 'avatar') + ' avatar'}
-          className="w-full h-full object-cover"
+          className="w-[88%] h-[88%] object-contain"
         />
       </div>
     )
