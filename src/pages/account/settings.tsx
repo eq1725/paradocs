@@ -559,10 +559,12 @@ export default function SettingsPage() {
             jump between sections; scrolls horizontally on mobile. Uses
             in-page hashes (no router.push) for instant scroll. */}
         <nav
-          // V9.6 T1.1 — sticky offset matches the global Layout header
-          // (h-14 mobile / h-16 desktop) plus the AccountNav strip
-          // (~h-12). Together those eat ~7rem on mobile, ~7.5rem desktop.
-          className="-mx-4 sm:mx-0 px-4 sm:px-0 sticky top-[7rem] md:top-[7.5rem] z-10 -mt-2 mb-2 bg-gray-950/85 backdrop-blur-sm"
+          // V9.6.1 — sticky offset budgets two stacked sticky bars:
+          // global Layout header (h-14 mobile / h-16 desktop) + the
+          // now-also-sticky AccountNav strip (~3rem). Total ~6.5rem
+          // mobile / 7rem desktop. Anchor pills tuck right below
+          // AccountNav so the user always sees both layers of nav.
+          className="-mx-4 sm:mx-0 px-4 sm:px-0 sticky top-[6.5rem] md:top-[7rem] z-10 -mt-2 mb-2 bg-gray-950/90 backdrop-blur-md"
         >
           <div className="flex gap-1.5 overflow-x-auto pb-2 -mb-2 scrollbar-none">
             {[

@@ -43,7 +43,14 @@ export default function AccountNav(props: AccountNavProps) {
   return (
     <nav
       aria-label="Account sections"
-      className="border-b border-gray-800/70 bg-gray-950/40 backdrop-blur-sm"
+      // V9.6.1 — sticky just below the global Layout header (h-14
+      // mobile / h-16 desktop) so the account section selector stays
+      // visible as the page scrolls. Without this, AccountNav would
+      // disappear and the anchor pills below would float in mid-air
+      // at their `top-[7rem]` offset that budgeted for AccountNav.
+      // Switched bg from /40 to /90 + tighter blur so it reads as
+      // an opaque chrome bar when stuck instead of a transparent ghost.
+      className="sticky top-14 md:top-16 z-20 border-b border-gray-800/70 bg-gray-950/90 backdrop-blur-md"
     >
       <div className="max-w-3xl mx-auto px-4 sm:px-6">
         <div className="flex items-center gap-1 sm:gap-2 -mb-px overflow-x-auto scrollbar-none">
