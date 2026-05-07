@@ -69,6 +69,7 @@ import { useGateStatus } from '@/lib/hooks/useGateStatus'
 import { useTodaySaves } from '@/lib/hooks/useTodaySaves'
 import { setTodayReturnMarker } from '@/lib/hooks/useTodayReturn'
 import { tickAnonStreak, readAnonStreak, clearAnonStreak, isNudgeDismissedToday, dismissNudgeForToday } from '@/lib/anonStreak'
+import { NotificationOptInPrompt, shouldAutoShowPrePrompt } from '@/components/discover/NotificationOptInPrompt'
 import { useABTest } from '@/lib/ab-testing'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
@@ -326,6 +327,12 @@ export default function DiscoverPage() {
   // --- Save → Lab celebration loop (V2 panel review #20) ---
   var saveCountRef = useRef(0)
   var [celebrationToast, setCelebrationToast] = useState<string | null>(null)
+  // V9.4.8 — push notification opt-in pre-prompt. Triggers ONCE on
+  // first save event (panel: highest-leverage intent moment). Pulls
+  // a sample push_copy from the first saved phenomenon for the
+  // preview card.
+  var [showPushPrompt, setShowPushPrompt] = useState(false)
+  var [pushPromptSample, setPushPromptSample] = useState<{ title: string; body: string } | null>(null)
 
   // --- Streak (for header chip, V2 #12) ---
   var [streakDays, setStreakDays] = useState<number>(0)
@@ -731,6 +738,30 @@ export default function DiscoverPage() {
         : nextCount + ' cases saved — visit Lab to organize'
       setCelebrationToast(msg)
       setTimeout(function () { setCelebrationToast(null) }, 4000)
+    }
+
+    // V9.4.8 — first-save trigger for the push notification opt-in
+    // pre-prompt. Per panel: this is the single highest-intent moment
+    // for the ask. Fires once per browser/device via localStorage
+    // gate. Defers ~700ms so the bookmark-fill animation lands first
+    // (the user "feels the save" before the prompt appears).
+    if (nextCount === 1 && shouldAutoShowPrePrompt()) {
+      var sampleTitle = (item.item_type === 'phenomenon')
+        ? ((item as any).name || null)
+        : ((item as any).title || null)
+      var sampleBody = (item as any).push_copy
+        || (item as any).anchor_case_hook
+        || (item as any).feed_hook
+        || null
+      // Strip sentinel
+      if (sampleBody && typeof sampleBody === 'string' && sampleBody.substring(0, 2) === '__') {
+        sampleBody = null
+      }
+      setPushPromptSample({
+        title: sampleTitle || 'Shadow Person',
+        body: sampleBody || 'Since 1950s: 9,675 witnesses across continents report identical dark humanoid figures.',
+      })
+      setTimeout(function () { setShowPushPrompt(true) }, 700)
     }
   }
 
@@ -1631,6 +1662,19 @@ export default function DiscoverPage() {
           </div>
         </div>
       )}
+
+      {/* V9.4.8 — Notification opt-in pre-prompt. Auto-fires after
+          first save event (panel: highest-intent moment). One ask
+          per device, ever — markPrePromptShown() on open. */}
+      <NotificationOptInPrompt
+        isOpen={showPushPrompt}
+        onClose={function () { setShowPushPrompt(false) }}
+        sampleTitle={pushPromptSample?.title || null}
+        samplePushCopy={pushPromptSample?.body || null}
+        onSubscribed={function () {
+          flash('✦ Notifications enabled')
+        }}
+      />
 
       {/* First-run Collapse tooltip (V2 panel review #15) — appears once, only
           the first time the user expands a card */}

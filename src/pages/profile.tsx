@@ -37,6 +37,7 @@ import {
 import { Avatar } from '@/components/AvatarSelector'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
+import NotificationToggle from '@/components/NotificationToggle'
 
 export default function ProfilePage() {
   var router = useRouter()
@@ -210,6 +211,9 @@ export default function ProfilePage() {
               description="Catalog, ingestion, anchor cases, push tests"
             />
           )}
+          {/* V9.4.8 — Push notification status row. Hides itself on
+              browsers without push support. */}
+          <NotificationToggle mode="row" />
           <ProfileLink
             href="/dashboard/settings"
             icon={Settings}

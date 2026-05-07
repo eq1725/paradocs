@@ -31,6 +31,7 @@ import { supabase } from '@/lib/supabase'
 import { usePersonalization } from '@/lib/hooks/usePersonalization'
 import { CATEGORY_CONFIG, COUNTRIES, getRegionsForCountry } from '@/lib/constants'
 import CategoryIcon from '@/components/ui/CategoryIcon'
+import NotificationToggle from '@/components/NotificationToggle'
 import type { PhenomenonCategory } from '@/lib/database.types'
 import type { PhenomenonCategory } from '@/lib/database.types'
 
@@ -464,6 +465,13 @@ export default function SettingsPage() {
           description="Choose what you want to be notified about"
           icon={Bell}
         >
+          {/* V9.4.8 — Web Push (Today's Lead) toggle. Sits at the top
+              of the notifications section since it's the most-engaging
+              notification we offer. Self-hides on browsers without
+              push support. */}
+          <div className="mb-6">
+            <NotificationToggle mode="full" />
+          </div>
           <div className="space-y-6">
             <Toggle
               label="New comments on my reports"
