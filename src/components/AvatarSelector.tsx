@@ -1,34 +1,43 @@
 'use client'
 
-import React, { useState } from 'react'
-import { Check, X } from 'lucide-react'
+/**
+ * AvatarSelector — V9.7 Phase 1.
+ *
+ * Curated avatar library, fetched from /api/avatars/curated which is
+ * backed by the curated_avatars Supabase table. Replaces the
+ * hardcoded emoji+color grid that lived here previously.
+ *
+ * Categories (Travelers · Cosmos · Mystics · Symbols · Researchers)
+ * render as tabs across the top; the active tab's avatars fill a
+ * grid below. Clicking an avatar selects + saves immediately so
+ * users don't have to chase a separate Save button — the modal closes
+ * and the parent's onSelect fires with the image URL.
+ *
+ * Backward compatibility: the Avatar helper component below renders
+ * three formats:
+ *   1. URL strings (V9.7+) — '/avatars/curated/alien-head.webp'
+ *   2. Legacy emoji+color — '👽:bg-primary-600'
+ *   3. Legacy emoji-only — '👽'
+ * Falls back to the user's display-name initial if none match.
+ *
+ * SWC: var, function expressions, string concat for compatibility.
+ */
+
+import React, { useEffect, useState } from 'react'
+import { Check, X, Loader2 } from 'lucide-react'
 import { classNames } from '@/lib/utils'
 
-// Paranormal-themed emoji options
-const AVATAR_EMOJIS = [
-  // Paranormal
-  '👽', '🛸', '👻', '🦇', '🌙', '⭐', '🔮', '🪬',
-  // Creatures
-  '🐺', '🦉', '🐙', '🦑', '🐍', '🕷️', '🦂', '🐉',
-  // Mystical
-  '✨', '💫', '🌟', '🔥', '❄️', '⚡', '🌀', '💎',
-  // Nature
-  '🌲', '🌊', '🏔️', '🌋', '🌑', '🌕', '☄️', '🌌',
-  // Misc
-  '🎭', '🗿', '🏛️', '🔭', '📡', '🧬', '🧿', '⚗️',
-]
+interface CuratedAvatar {
+  slug: string
+  name: string
+  image_url: string
+}
 
-// Color options for background
-const AVATAR_COLORS = [
-  { name: 'Purple', value: 'bg-primary-600', textColor: 'text-white' },
-  { name: 'Blue', value: 'bg-blue-600', textColor: 'text-white' },
-  { name: 'Green', value: 'bg-emerald-600', textColor: 'text-white' },
-  { name: 'Red', value: 'bg-red-600', textColor: 'text-white' },
-  { name: 'Orange', value: 'bg-orange-600', textColor: 'text-white' },
-  { name: 'Pink', value: 'bg-pink-600', textColor: 'text-white' },
-  { name: 'Cyan', value: 'bg-cyan-600', textColor: 'text-white' },
-  { name: 'Gray', value: 'bg-gray-600', textColor: 'text-white' },
-]
+interface CuratedCategory {
+  key: string
+  label: string
+  avatars: CuratedAvatar[]
+}
 
 interface AvatarSelectorProps {
   currentAvatar?: string | null
@@ -36,140 +45,205 @@ interface AvatarSelectorProps {
   onClose?: () => void
 }
 
-export default function AvatarSelector({ currentAvatar, onSelect, onClose }: AvatarSelectorProps) {
-  // Parse current avatar (format: "emoji:color" or just "emoji")
-  const parseAvatar = (avatar: string | null | undefined) => {
-    if (!avatar) return { emoji: '👽', color: AVATAR_COLORS[0].value }
-    const parts = avatar.split(':')
-    return {
-      emoji: parts[0] || '👽',
-      color: parts[1] || AVATAR_COLORS[0].value
-    }
+export default function AvatarSelector(props: AvatarSelectorProps) {
+  var [categories, setCategories] = useState<CuratedCategory[]>([])
+  var [activeCategory, setActiveCategory] = useState<string>('travelers')
+  var [loading, setLoading] = useState(true)
+  var [error, setError] = useState<string | null>(null)
+
+  useEffect(function () {
+    var cancelled = false
+    fetch('/api/avatars/curated')
+      .then(function (r) {
+        if (!r.ok) throw new Error('Failed to load avatars')
+        return r.json()
+      })
+      .then(function (data) {
+        if (cancelled) return
+        var cats = (data && data.categories) || []
+        setCategories(cats)
+        if (cats.length > 0) setActiveCategory(cats[0].key)
+        setLoading(false)
+      })
+      .catch(function (err: any) {
+        if (cancelled) return
+        setError(err?.message || 'Could not load avatars')
+        setLoading(false)
+      })
+    return function () { cancelled = true }
+  }, [])
+
+  function handlePick(imageUrl: string) {
+    props.onSelect(imageUrl)
   }
 
-  const parsed = parseAvatar(currentAvatar)
-  const [selectedEmoji, setSelectedEmoji] = useState(parsed.emoji)
-  const [selectedColor, setSelectedColor] = useState(parsed.color)
-
-  const handleSave = () => {
-    onSelect(`${selectedEmoji}:${selectedColor}`)
-  }
+  var activeAvatars: CuratedAvatar[] = []
+  var found = categories.find(function (c) { return c.key === activeCategory })
+  if (found) activeAvatars = found.avatars
 
   return (
-    <div className="glass-card p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-medium text-white">Choose Your Avatar</h3>
-        {onClose && (
-          <button onClick={onClose} className="p-1 hover:bg-white/10 rounded">
+    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 sm:p-6">
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h3 className="text-lg font-semibold text-white">Choose your avatar</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Pick one — it&apos;ll save automatically.</p>
+        </div>
+        {props.onClose && (
+          <button
+            type="button"
+            onClick={props.onClose}
+            className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+            aria-label="Close avatar picker"
+          >
             <X className="w-5 h-5 text-gray-400" />
           </button>
         )}
       </div>
 
-      {/* Preview */}
-      <div className="flex justify-center mb-6">
-        <div className={classNames(
-          'w-24 h-24 rounded-full flex items-center justify-center text-5xl',
-          selectedColor
-        )}>
-          {selectedEmoji}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 text-gray-500 animate-spin" />
         </div>
-      </div>
+      )}
 
-      {/* Color Selection */}
-      <div className="mb-6">
-        <label className="block text-sm text-gray-400 mb-3">Background Color</label>
-        <div className="flex flex-wrap gap-2">
-          {AVATAR_COLORS.map((color) => (
-            <button
-              key={color.value}
-              onClick={() => setSelectedColor(color.value)}
-              className={classNames(
-                'w-8 h-8 rounded-full transition-all',
-                color.value,
-                selectedColor === color.value
-                  ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-900'
-                  : 'hover:scale-110'
-              )}
-              title={color.name}
-            />
-          ))}
-        </div>
-      </div>
+      {error && !loading && (
+        <div className="py-8 text-center text-sm text-amber-300">{error}</div>
+      )}
 
-      {/* Emoji Selection */}
-      <div className="mb-6">
-        <label className="block text-sm text-gray-400 mb-3">Choose an Icon</label>
-        <div className="grid grid-cols-8 gap-2 max-h-48 overflow-y-auto p-2 bg-white/5 rounded-lg">
-          {AVATAR_EMOJIS.map((emoji) => (
-            <button
-              key={emoji}
-              onClick={() => setSelectedEmoji(emoji)}
-              className={classNames(
-                'w-10 h-10 text-2xl rounded-lg flex items-center justify-center transition-all',
-                selectedEmoji === emoji
-                  ? 'bg-primary-600 ring-2 ring-primary-400'
-                  : 'hover:bg-white/10'
-              )}
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
-      </div>
+      {!loading && !error && categories.length > 0 && (
+        <>
+          {/* Category tabs */}
+          <div className="flex gap-1 sm:gap-1.5 mb-4 -mx-1 overflow-x-auto scrollbar-none pb-1">
+            {categories.map(function (cat) {
+              var active = cat.key === activeCategory
+              return (
+                <button
+                  key={cat.key}
+                  type="button"
+                  onClick={function () { setActiveCategory(cat.key) }}
+                  className={
+                    'flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ' +
+                    (active
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700')
+                  }
+                >
+                  {cat.label}
+                </button>
+              )
+            })}
+          </div>
 
-      {/* Save Button */}
-      <button
-        onClick={handleSave}
-        className="w-full btn btn-primary flex items-center justify-center gap-2"
-      >
-        <Check className="w-4 h-4" />
-        Save Avatar
-      </button>
+          {/* Avatar grid */}
+          <div className="grid grid-cols-4 sm:grid-cols-6 gap-3 sm:gap-4">
+            {activeAvatars.map(function (av) {
+              var selected = props.currentAvatar === av.image_url
+              return (
+                <button
+                  key={av.slug}
+                  type="button"
+                  onClick={function () { handlePick(av.image_url) }}
+                  aria-label={'Select ' + av.name + ' avatar'}
+                  className={
+                    'group relative aspect-square rounded-xl flex items-center justify-center transition-all ' +
+                    (selected
+                      ? 'bg-purple-600/20 border-2 border-purple-500'
+                      : 'bg-gray-800 border-2 border-transparent hover:border-gray-700 hover:bg-gray-800/60')
+                  }
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={av.image_url}
+                    alt={av.name}
+                    className="w-3/4 h-3/4 object-contain"
+                    loading="lazy"
+                  />
+                  {selected && (
+                    <span className="absolute top-1 right-1 w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center">
+                      <Check className="w-3 h-3 text-white" />
+                    </span>
+                  )}
+                  <span className="sr-only">{av.name}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          <p className="text-[11px] text-gray-500 text-center mt-5">
+            More avatar options coming soon, including custom uploads.
+          </p>
+        </>
+      )}
     </div>
   )
 }
 
-// Helper component to display an avatar
-export function Avatar({
-  avatar,
-  fallback,
-  size = 'md',
-  className = ''
-}: {
+/**
+ * Avatar — renderer used everywhere across the app to display a
+ * user's avatar at a consistent size + treatment.
+ *
+ * Render priority:
+ *   1. URL avatar (V9.7+)         — '/avatars/...' or 'https://...'
+ *   2. Legacy emoji+color         — '👽:bg-primary-600'
+ *   3. Legacy emoji-only          — '👽'
+ *   4. Display-name initial       — 'C'
+ */
+export function Avatar(props: {
   avatar?: string | null
   fallback?: string
   size?: 'sm' | 'md' | 'lg' | 'xl'
   className?: string
 }) {
-  const sizeClasses = {
+  var size = props.size || 'md'
+  var sizeClasses: Record<string, string> = {
     sm: 'w-6 h-6 text-sm',
     md: 'w-8 h-8 text-lg',
     lg: 'w-12 h-12 text-2xl',
-    xl: 'w-16 h-16 text-3xl'
+    xl: 'w-16 h-16 sm:w-20 sm:h-20 text-3xl',
   }
+  var avatar = props.avatar
+  var className = props.className || ''
 
-  // Parse avatar string (format: "emoji:bg-color-class")
-  if (avatar && avatar.includes(':')) {
-    const [emoji, bgColor] = avatar.split(':')
-    // Validate that emoji is actually a valid emoji from our list
-    if (AVATAR_EMOJIS.includes(emoji)) {
-      return (
-        <div className={classNames(
-          'rounded-full flex items-center justify-center',
+  // 1. URL — render <img> with circular crop. Treat anything starting
+  //    with '/' or 'http' as a URL.
+  if (avatar && (avatar.indexOf('/') === 0 || avatar.indexOf('http') === 0)) {
+    return (
+      <div
+        className={classNames(
+          'rounded-full overflow-hidden bg-gray-800 flex items-center justify-center',
           sizeClasses[size],
-          bgColor || 'bg-primary-600',
           className
-        )}>
-          {emoji}
-        </div>
-      )
-    }
-    // Invalid emoji format, fall through to fallback
+        )}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={avatar}
+          alt={(props.fallback || 'avatar') + ' avatar'}
+          className="w-full h-full object-cover"
+        />
+      </div>
+    )
   }
 
-  // Just an emoji without color
-  if (avatar && AVATAR_EMOJIS.includes(avatar)) {
+  // 2. Legacy emoji+color format ("👽:bg-primary-600").
+  if (avatar && avatar.indexOf(':') > -1) {
+    var parts = avatar.split(':')
+    var emoji = parts[0]
+    var bgColor = parts[1] || 'bg-primary-600'
+    return (
+      <div className={classNames(
+        'rounded-full flex items-center justify-center',
+        sizeClasses[size],
+        bgColor,
+        className
+      )}>
+        {emoji}
+      </div>
+    )
+  }
+
+  // 3. Legacy emoji-only.
+  if (avatar && avatar.length <= 4 /* emoji char or two */) {
     return (
       <div className={classNames(
         'rounded-full flex items-center justify-center bg-primary-600',
@@ -181,14 +255,15 @@ export function Avatar({
     )
   }
 
-  // Fallback to initial letter
+  // 4. Initial fallback.
+  var initial = (props.fallback || 'U').charAt(0).toUpperCase()
   return (
     <div className={classNames(
       'rounded-full flex items-center justify-center bg-primary-600 font-medium text-white',
       sizeClasses[size],
       className
     )}>
-      {fallback?.[0]?.toUpperCase() || 'U'}
+      {initial}
     </div>
   )
 }
