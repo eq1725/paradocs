@@ -114,9 +114,16 @@ function SettingsSection({
   return (
     <div
       id={id}
-      // V9.5 P3.5 — scroll-margin-top so the section anchors don't
-      // hide behind the desktop top bar (h-16 = 64px) when jumped to.
-      className="p-4 sm:p-6 bg-gray-900 rounded-xl border border-gray-800 scroll-mt-20 md:scroll-mt-24"
+      // V9.6.3 — scroll-margin-top sized for the full sticky chrome
+      // stack: global Layout header (h-14 mobile / h-16 desktop) +
+      // AccountNav container (~80-90px after V9.6.2 stacked the
+      // anchor pills under the tab strip). Total ~9rem mobile, 10rem
+      // desktop. The +0.5rem of breathing room on each side is so
+      // the section heading sits below the sticky bar instead of
+      // flush against it. Without this, clicking an anchor pill (e.g.
+      // 'Privacy') scrolled the section title under the sticky bar
+      // and left it cut off.
+      className="p-4 sm:p-6 bg-gray-900 rounded-xl border border-gray-800 scroll-mt-[9.5rem] md:scroll-mt-[10.5rem]"
     >
       <div className="flex items-start gap-3 sm:gap-4 mb-5 sm:mb-6">
         <div className="p-2.5 sm:p-3 bg-gray-800 rounded-lg">
