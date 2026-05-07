@@ -55,7 +55,7 @@ export default async function handler(
       if (!process.env.STRIPE_SECRET_KEY) {
         return res.status(200).json({
           url: (process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com') +
-            '/dashboard/settings?checkout=mock&plan=' + plan,
+            '/account/settings?checkout=mock&plan=' + plan,
           mock: true
         });
       }
@@ -70,7 +70,7 @@ export default async function handler(
       // Stripe not installed \u2014 return mock checkout
       return res.status(200).json({
         url: (process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com') +
-          '/dashboard/settings?checkout=mock&plan=' + plan,
+          '/account/settings?checkout=mock&plan=' + plan,
         mock: true
       });
     }
@@ -109,8 +109,8 @@ export default async function handler(
       customer: customerId,
       mode: 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: baseUrl + '/dashboard/settings?checkout=success&plan=' + plan,
-      cancel_url: baseUrl + '/dashboard/settings?checkout=cancelled',
+      success_url: baseUrl + '/account/settings?checkout=success&plan=' + plan,
+      cancel_url: baseUrl + '/account/settings?checkout=cancelled',
       metadata: {
         supabase_user_id: user.id,
         plan: plan,

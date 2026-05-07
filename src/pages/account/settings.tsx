@@ -55,18 +55,25 @@ interface NotificationSettings {
 }
 
 function SettingsSection({
+  id,
   title,
   description,
   icon: Icon,
   children
 }: {
+  id?: string
   title: string
   description: string
   icon: React.ElementType
   children: React.ReactNode
 }) {
   return (
-    <div className="p-4 sm:p-6 bg-gray-900 rounded-xl border border-gray-800">
+    <div
+      id={id}
+      // V9.5 P3.5 — scroll-margin-top so the section anchors don't
+      // hide behind the desktop top bar (h-16 = 64px) when jumped to.
+      className="p-4 sm:p-6 bg-gray-900 rounded-xl border border-gray-800 scroll-mt-20 md:scroll-mt-24"
+    >
       <div className="flex items-start gap-3 sm:gap-4 mb-5 sm:mb-6">
         <div className="p-2.5 sm:p-3 bg-gray-800 rounded-lg">
           <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400" />
@@ -400,8 +407,33 @@ export default function SettingsPage() {
           </p>
         </div>
 
+        {/* V9.5 P3.5 — anchor-link nav. Sticky on desktop so users can
+            jump between sections; scrolls horizontally on mobile. Uses
+            in-page hashes (no router.push) for instant scroll. */}
+        <nav className="-mx-4 sm:mx-0 px-4 sm:px-0 sticky top-16 md:top-16 z-10 -mt-2 mb-2 bg-gray-950/85 backdrop-blur-sm">
+          <div className="flex gap-1.5 overflow-x-auto pb-2 -mb-2 scrollbar-none">
+            {[
+              { href: '#profile', label: 'Profile' },
+              { href: '#notifications', label: 'Notifications' },
+              { href: '#privacy', label: 'Privacy' },
+              { href: '#data', label: 'Your Data' },
+              { href: '#location', label: 'Location' },
+              { href: '#interests', label: 'Interests' },
+            ].map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium text-gray-300 bg-gray-900/80 border border-gray-800 hover:border-purple-500/40 hover:text-white transition-colors"
+              >
+                {item.label}
+              </a>
+            ))}
+          </div>
+        </nav>
+
         {/* Profile Settings */}
         <SettingsSection
+          id="profile"
           title="Profile"
           description="Manage your public profile information"
           icon={User}
@@ -517,6 +549,7 @@ export default function SettingsPage() {
 
         {/* Notification Settings */}
         <SettingsSection
+          id="notifications"
           title="Notifications"
           description="Choose what you want to be notified about"
           icon={Bell}
@@ -564,6 +597,7 @@ export default function SettingsPage() {
 
         {/* Privacy Settings */}
         <SettingsSection
+          id="privacy"
           title="Privacy"
           description="Control your privacy settings"
           icon={Shield}
@@ -603,23 +637,60 @@ export default function SettingsPage() {
               )}
             </button>
 
-            <div className="pt-4 border-t border-gray-800 space-y-4">
+            <div className="pt-4 border-t border-gray-800">
               <p className="text-gray-400 text-sm">
-                Your email address is never shared publicly. Only your display name and
-                username are visible to other users.
+                {/* V9.5 P3.4 — strengthened explainer per panel review.
+                    Data Export + Account Deletion moved to the dedicated
+                    Your Data section below. */}
+                Your email address is never shared publicly. Only your
+                <strong className="text-gray-300"> display name</strong> and
+                <strong className="text-gray-300"> username</strong> are visible
+                to other users on your public researcher profile. Saves and
+                Constellation entries are visible only when the toggle above
+                is turned on.
               </p>
-              <div className="p-4 bg-gray-800 rounded-lg">
-                <p className="text-sm text-gray-300">
-                  <strong>Data Export:</strong> You can request a copy of all your data
-                  at any time. Contact support@paradocs.com to request an export.
+            </div>
+          </div>
+        </SettingsSection>
+
+        {/* V9.5 P3.3 — Your Data section. Hosts download + deletion
+            entry points in their own SettingsSection so users find
+            them by skim instead of buried at the bottom of Privacy. */}
+        <SettingsSection
+          id="data"
+          title="Your Data"
+          description="Export, manage, and remove your data"
+          icon={Info}
+        >
+          <div className="space-y-4">
+            <div className="p-4 bg-gray-800/60 rounded-lg flex items-start gap-3">
+              <div className="flex-1">
+                <h4 className="text-sm font-medium text-white">Download your data</h4>
+                <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                  Get a JSON export of your profile, saves, reports, and Constellation entries.
+                  Email&apos;d to your account address within 24 hours.
                 </p>
               </div>
-              <div className="p-4 bg-gray-800 rounded-lg">
-                <p className="text-sm text-gray-300">
-                  <strong>Account Deletion:</strong> If you wish to delete your account
-                  and all associated data, please contact support@paradocs.com.
+              <a
+                href="mailto:support@paradocs.com?subject=Data%20export%20request"
+                className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs font-medium rounded-lg transition-colors"
+              >
+                Request export
+              </a>
+            </div>
+            <div className="p-4 bg-gray-800/60 rounded-lg flex items-start gap-3">
+              <div className="flex-1">
+                <h4 className="text-sm font-medium text-white">Delete your account</h4>
+                <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                  Permanently delete your profile, saves, and Constellation. This cannot be undone.
                 </p>
               </div>
+              <a
+                href="mailto:support@paradocs.com?subject=Account%20deletion%20request"
+                className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-900/40 hover:bg-red-900/60 border border-red-700/40 text-red-200 text-xs font-medium rounded-lg transition-colors"
+              >
+                Request deletion
+              </a>
             </div>
           </div>
         </SettingsSection>
@@ -635,7 +706,7 @@ export default function SettingsPage() {
               View and manage your subscription plan, check usage limits, and update billing details.
             </p>
             <Link
-              href="/dashboard/subscription"
+              href="/account/subscription"
               className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors"
             >
               View Subscription
@@ -646,6 +717,7 @@ export default function SettingsPage() {
 
         {/* Location Preferences */}
         <SettingsSection
+          id="location"
           title="Location Preferences"
           description="Share your location for personalized insights"
           icon={MapPin}
@@ -797,6 +869,7 @@ export default function SettingsPage() {
 
         {/* Phenomenon Interests */}
         <SettingsSection
+          id="interests"
           title="Phenomenon Interests"
           description="Select categories you're interested in for personalized recommendations"
           icon={Sparkles}

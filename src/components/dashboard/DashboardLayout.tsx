@@ -74,8 +74,8 @@ var navGroups: NavGroup[] = [
     label: 'Tools',
     items: [
       { href: '/dashboard/insights', label: 'AI Insights', icon: Sparkles, requiredTier: ['basic', 'pro', 'enterprise'] },
-      { href: '/dashboard/subscription', label: 'Subscription', icon: CreditCard },
-      { href: '/dashboard/settings', label: 'Settings', icon: Settings },
+      { href: '/account/subscription', label: 'Subscription', icon: CreditCard },
+      { href: '/account/settings', label: 'Settings', icon: Settings },
     ]
   }
 ]

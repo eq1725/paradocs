@@ -61,15 +61,21 @@ const nextConfig = {
         destination: '/lab',
         permanent: true,
       },
+      // V9.5 P3.1 — account surface lives at /account/*. The previous
+      // redirects sent /dashboard/settings → /profile (Session A1 UX
+      // Consolidation), which along with browser-cached 301 was the
+      // reason clicking Account Settings or Subscription appeared to
+      // do nothing — the route silently bounced back to the page the
+      // user was already on. New canonical home is /account/*.
       {
         source: '/dashboard/settings',
-        destination: '/profile',
-        permanent: true,
+        destination: '/account/settings',
+        permanent: false,
       },
       {
         source: '/dashboard/subscription',
-        destination: '/profile',
-        permanent: true,
+        destination: '/account/subscription',
+        permanent: false,
       },
       // Session A2: Explore Consolidation — absorbed routes
       {

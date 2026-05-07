@@ -140,7 +140,7 @@ export default function ResearcherProfile() {
               who aren't the owner can ignore it. */}
           <p className="text-xs text-gray-600 mb-6">
             Looking at your own profile?{' '}
-            <Link href="/dashboard/settings" className="text-primary-400 hover:text-primary-300 underline">
+            <Link href="/account/settings" className="text-primary-400 hover:text-primary-300 underline">
               Make it public in Settings
             </Link>
             .

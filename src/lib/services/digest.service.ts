@@ -248,7 +248,7 @@ export async function generateUserDigest(
     sections,
     total_new_reports: totalNewResult.count || 0,
     top_category: topCategory,
-    unsubscribe_url: `${baseUrl}/dashboard/settings`,
+    unsubscribe_url: `${baseUrl}/account/settings`,
   }
 }
 

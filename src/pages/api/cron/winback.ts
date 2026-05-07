@@ -199,7 +199,7 @@ function generateWinbackEmail1(name: string, planName: string, reports: any[], b
     '</div></div>' +
     '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">Meanwhile, these reports are trending:</p>' +
     '<table width="100%" cellpadding="0" cellspacing="0" style="margin: 16px 0;">' + reportList + '</table>',
-    baseUrl + '/dashboard/settings',
+    baseUrl + '/account/settings',
     'Reactivate Your Plan',
     baseUrl
   );
@@ -216,7 +216,7 @@ function generateWinbackEmail2(name: string, planName: string, baseUrl: string) 
     '<div style="color: #9ca3af; font-size: 13px; margin-top: 8px;">Use code: <span style="color: #f97316; font-weight: 600;">COMEBACK20</span></div>' +
     '</div>' +
     '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">Your saved reports, collections, and research journal are all still here, exactly as you left them.</p>',
-    baseUrl + '/dashboard/settings',
+    baseUrl + '/account/settings',
     'Claim Your 20% Off',
     baseUrl
   );
@@ -260,7 +260,7 @@ function emailShell(content: string, ctaUrl: string, ctaText: string, baseUrl: s
     '<a href="' + ctaUrl + '" style="display: inline-block; background: linear-gradient(135deg, #7c3aed, #a855f7); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 15px;">' +
     ctaText + '</a></td></tr>' +
     '<tr><td style="padding: 32px 0 16px 0; border-top: 1px solid #1f2937; text-align: center;">' +
-    '<a href="' + baseUrl + '/dashboard/settings" style="color: #6b7280; font-size: 12px; text-decoration: underline;">Unsubscribe</a>' +
+    '<a href="' + baseUrl + '/account/settings" style="color: #6b7280; font-size: 12px; text-decoration: underline;">Unsubscribe</a>' +
     '<p style="color: #374151; font-size: 11px; margin: 16px 0 0 0;">&copy; 2026 Paradocs</p>' +
     '</td></tr></table></td></tr></table></body></html>';
 }

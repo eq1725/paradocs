@@ -58,7 +58,7 @@ export default async function handler(
 
     var session = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: baseUrl + '/dashboard/subscription'
+      return_url: baseUrl + '/account/subscription'
     });
 
     return res.status(200).json({ url: session.url });

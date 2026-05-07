@@ -106,7 +106,7 @@ export default function SuggestedNextSteps(props: SuggestedNextStepsProps) {
       iconBg: 'bg-yellow-500/10',
       title: 'Unlock AI pattern detection',
       description: 'Pro researchers get AI-powered insights that find connections across your evidence.',
-      href: '/dashboard/subscription',
+      href: '/account/subscription',
       ctaLabel: 'See Plans',
     })
   }

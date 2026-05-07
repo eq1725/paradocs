@@ -288,7 +288,7 @@ export default function DigestsPage() {
                 streak updates, and activity in your followed categories.
               </p>
               <Link
-                href="/dashboard/settings"
+                href="/account/settings"
                 className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors"
               >
                 <Settings className="w-4 h-4" />

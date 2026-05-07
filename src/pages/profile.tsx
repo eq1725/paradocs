@@ -237,14 +237,16 @@ export default function ProfilePage() {
           {/* V9.4.8 — Push notification status row. Hides itself on
               browsers without push support. */}
           <NotificationToggle mode="row" />
+          {/* V9.5 P3.1 — /account/* is canonical. /dashboard/* still
+              works via 302 redirect in next.config.js. */}
           <ProfileLink
-            href="/dashboard/settings"
+            href="/account/settings"
             icon={Settings}
             label="Account Settings"
-            description="Profile, notifications, preferences"
+            description="Profile, notifications, privacy"
           />
           <ProfileLink
-            href="/dashboard/subscription"
+            href="/account/subscription"
             icon={CreditCard}
             label="Subscription"
             description="Manage your plan and billing"

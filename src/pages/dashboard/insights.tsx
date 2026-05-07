@@ -185,7 +185,7 @@ export default function InsightsPage() {
         title: 'Set Up Location',
         description: 'Share your location to see paranormal activity and patterns near you. Your location is never shared publicly.',
         icon: MapPin,
-        link: '/dashboard/settings'
+        link: '/account/settings'
       })
     } else if (insights?.activityMetrics) {
       // Show real activity metrics based on user's location
@@ -220,7 +220,7 @@ export default function InsightsPage() {
         title: 'Select Your Interests',
         description: 'Tell us which phenomena interest you most to get personalized pattern recommendations.',
         icon: Star,
-        link: '/dashboard/settings'
+        link: '/account/settings'
       })
     } else {
       // Show trending in their interests (Option 2)

@@ -11,8 +11,11 @@ import { ToastProvider } from '@/components/Toast'
 // Pages that should NOT have the main app layout (nav, footer, etc.)
 const STANDALONE_PAGES = ['/beta-access', '/survey']
 
-// Pages/routes that have their own complete layout (like DashboardLayout)
-const CUSTOM_LAYOUT_PREFIXES = ['/dashboard']
+// Pages/routes that have their own complete layout (like DashboardLayout).
+// V9.5 P3.1 — /account/* is the new canonical home for settings +
+// subscription; both pages still wrap in DashboardLayout for now, so
+// the prefix list needs to include it.
+const CUSTOM_LAYOUT_PREFIXES = ['/dashboard', '/account']
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter()

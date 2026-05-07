@@ -665,7 +665,7 @@ export default function DashboardPage() {
             </>
           )}
           <Link
-            href="/dashboard/subscription"
+            href="/account/subscription"
             className="text-purple-400 hover:text-purple-300 flex items-center gap-1 ml-auto flex-shrink-0 transition-colors"
           >
             {'Manage '}

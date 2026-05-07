@@ -6,7 +6,7 @@
  * Two render modes:
  *   - mode="row"     — compact status row for Profile (single line,
  *                      label + status pill + chevron action).
- *   - mode="full"    — full settings card for /dashboard/settings
+ *   - mode="full"    — full settings card for /account/settings
  *                      (title + description + toggle + helper text).
  *
  * Permission states handled:

@@ -204,7 +204,7 @@ function emailWrap(content: string, ctaUrl: string, ctaText: string, baseUrl: st
     '<a href="' + ctaUrl + '" style="display: inline-block; background: linear-gradient(135deg, #7c3aed, #a855f7); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 15px;">' +
     ctaText + '</a></td></tr>' +
     '<tr><td style="padding: 32px 0 16px 0; border-top: 1px solid #1f2937; text-align: center;">' +
-    '<a href="' + baseUrl + '/dashboard/settings" style="color: #6b7280; font-size: 12px; text-decoration: underline;">Unsubscribe</a>' +
+    '<a href="' + baseUrl + '/account/settings" style="color: #6b7280; font-size: 12px; text-decoration: underline;">Unsubscribe</a>' +
     '<p style="color: #374151; font-size: 11px; margin: 16px 0 0 0;">&copy; 2026 Paradocs</p>' +
     '</td></tr></table></td></tr></table></body></html>';
 }

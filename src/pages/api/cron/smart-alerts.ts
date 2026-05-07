@@ -242,7 +242,7 @@ function generateAlertEmail(user: any, matches: any[]) {
     'Explore More Reports</a></td></tr>' +
     '<tr><td style="padding: 32px 0 16px 0; border-top: 1px solid #1f2937; text-align: center;">' +
     '<p style="color: #4b5563; font-size: 12px; margin: 0 0 8px 0;">You receive these because smart alerts are enabled.</p>' +
-    '<a href="' + baseUrl + '/dashboard/settings" style="color: #6b7280; font-size: 12px; text-decoration: underline;">Manage alert preferences</a>' +
+    '<a href="' + baseUrl + '/account/settings" style="color: #6b7280; font-size: 12px; text-decoration: underline;">Manage alert preferences</a>' +
     '</td></tr></table></td></tr></table></body></html>';
 }
 
