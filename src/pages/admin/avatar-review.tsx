@@ -74,6 +74,14 @@ export default function AvatarReviewPage() {
       if (!resp.ok) throw new Error(data.error || 'Decision failed')
       // Optimistically remove from list.
       setItems(function (prev) { return prev.filter(function (it) { return it.id !== userId }) })
+      // V9.7.7 — broadcast a profile-updated event so the global
+      // Layout (and DashboardLayout) refresh their cached user data.
+      // This catches the case where an admin approves their OWN
+      // pending avatar — without this, the top-nav avatar stays
+      // stale until the next page-level checkUser fires.
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('profile-updated'))
+      }
     } catch (err: any) {
       setError(err?.message || 'Action failed')
     } finally {
