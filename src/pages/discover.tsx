@@ -480,6 +480,26 @@ export default function DiscoverPage() {
       fetchServerStreak()
     }
 
+    // V9.4.9 — claim any anonymous push subscriptions for this user.
+    // The anon_client_id is set the first time pushNotifications.ts
+    // requests permission. If the user subscribed anonymously, then
+    // signed in, this attributes their existing push_subscriptions
+    // row to their user_id. Idempotent — calling on every sign-in
+    // is fine; second call updates 0 rows.
+    try {
+      var anonClientId = (typeof window !== 'undefined')
+        ? localStorage.getItem('paradocs_anon_client_id')
+        : null
+      if (anonClientId) {
+        fetch('/api/push/claim-anon-subscriptions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ anon_client_id: anonClientId }),
+        }).catch(function () {})
+      }
+    } catch (e) {}
+
     return function () { aborted = true }
   }, [user?.id])
 
