@@ -647,12 +647,20 @@ export default function SettingsPage() {
                     Replaces the separate 'Change Avatar' text button.
                     Keeps a small "Change" link below for keyboard / a11y
                     discoverability. */
-                <div className="flex items-center gap-5">
+                <div className="flex items-center gap-3 sm:gap-4">
                   <button
                     type="button"
                     onClick={() => setShowAvatarSelector(true)}
                     aria-label="Change avatar"
-                    className="group relative w-20 h-20 sm:w-24 sm:h-24 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                    // V9.6.5 — tightened gap from gap-5 → gap-3/gap-4
+                    // and dropped avatar button size from w-20/24 to
+                    // w-16/20 so the row reads as a tight cluster
+                    // instead of a sparse two-element layout. The
+                    // larger w-20/24 worked when the avatar was the
+                    // primary affordance, but with the 'Change avatar'
+                    // text right beside it we don't need the visual
+                    // weight to land as hard.
+                    className="group relative w-16 h-16 sm:w-20 sm:h-20 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900"
                   >
                     <Avatar
                       avatar={profile?.avatar_url}
