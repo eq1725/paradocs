@@ -82,9 +82,21 @@ export default function AvatarReviewPage() {
   }
 
   function topLabel(score: any): string {
-    if (!score || !score.labels || !Array.isArray(score.labels)) return '—'
+    if (!score) return '—'
+    // V9.7.5 — surface the reason field when Rekognition errored.
+    // 'rekognition_error' means the scanner couldn't reach AWS, so
+    // the upload is queued for human review as a safety fallback.
+    // 'No flags' means Rekognition ran cleanly and found nothing —
+    // those should auto-approve, so seeing them here is a bug worth
+    // logging.
+    if (score.reason === 'rekognition_error') {
+      return 'Scanner errored — review manually'
+    }
+    if (!score.labels || !Array.isArray(score.labels)) return '—'
     var labels = score.labels as Array<{ Name?: string; Confidence?: number }>
-    if (labels.length === 0) return 'No flags'
+    if (labels.length === 0) {
+      return score.reason ? 'Reason: ' + score.reason : 'No flags (unexpected — should auto-approve)'
+    }
     var top = labels.reduce(function (best, cur) {
       if (!best) return cur
       return (cur.Confidence || 0) > (best.Confidence || 0) ? cur : best
