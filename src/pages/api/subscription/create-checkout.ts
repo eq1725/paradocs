@@ -10,14 +10,22 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createServerClient } from '@/lib/supabase';
 
-// Stripe price IDs (test mode) with env var override
+// Stripe price IDs sourced from env vars only.
+//
+// V9.6 — dropped the hardcoded test-mode Price ID fallbacks
+// (price_1T1HGT…) that were left over from the original $9.99/$29.99
+// pricing. Now that the public pricing is $5.99/$14.99 (V9.6 T1.2),
+// those old test prices would charge the wrong amount if they ever
+// resolved against a live Stripe key. Any unset env var falls
+// through to the mock-checkout branch below, which is the safe
+// behaviour while Stripe products are being reconfigured.
 var STRIPE_PRICES: Record<string, string> = {
-  basic_monthly: process.env.STRIPE_PRICE_BASIC_MONTHLY || 'price_1T1HGTHMHkQBcyeVDyKOX9fC',
-  basic_yearly: process.env.STRIPE_PRICE_BASIC_YEARLY || 'price_1T1HGTHMHkQBcyeVQdtTr9ko',
-  pro_monthly: process.env.STRIPE_PRICE_PRO_MONTHLY || 'price_1T1HGbHMHkQBcyeVbgm9hrb7',
-  pro_yearly: process.env.STRIPE_PRICE_PRO_YEARLY || 'price_1T1HGbHMHkQBcyeVZWetRS39',
-  enterprise_monthly: process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY || 'price_1T2EDxHMHkQBcyeVcVsNEN7V',
-  enterprise_yearly: process.env.STRIPE_PRICE_ENTERPRISE_YEARLY || 'price_1T2EDxHMHkQBcyeVz3RMH74K',
+  basic_monthly: process.env.STRIPE_PRICE_BASIC_MONTHLY || '',
+  basic_yearly: process.env.STRIPE_PRICE_BASIC_YEARLY || '',
+  pro_monthly: process.env.STRIPE_PRICE_PRO_MONTHLY || '',
+  pro_yearly: process.env.STRIPE_PRICE_PRO_YEARLY || '',
+  enterprise_monthly: process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY || '',
+  enterprise_yearly: process.env.STRIPE_PRICE_ENTERPRISE_YEARLY || '',
 };
 
 export default async function handler(
@@ -51,15 +59,16 @@ export default async function handler(
     var priceId = STRIPE_PRICES[priceKey];
 
     if (!priceId) {
-      // If no Stripe prices configured, return mock checkout for development
-      if (!process.env.STRIPE_SECRET_KEY) {
-        return res.status(200).json({
-          url: (process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com') +
-            '/account/settings?checkout=mock&plan=' + plan,
-          mock: true
-        });
-      }
-      return res.status(400).json({ error: 'Invalid plan or interval' });
+      // V9.6 — no env var configured for this plan/interval. Always
+      // fall back to the mock-checkout URL regardless of whether
+      // STRIPE_SECRET_KEY is set, so we never charge users at the
+      // wrong (legacy) price while Stripe products are being set up.
+      return res.status(200).json({
+        url: (process.env.NEXT_PUBLIC_SITE_URL || 'https://beta.discoverparadocs.com') +
+          '/account/settings?checkout=mock&plan=' + plan,
+        mock: true,
+        reason: 'stripe_price_not_configured'
+      });
     }
 
     // Dynamic import of Stripe to avoid issues if not installed
