@@ -38,7 +38,6 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { createServerSupabaseClient } from '@supabase/auth-helpers-nextjs'
 import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
 import { RekognitionClient, DetectModerationLabelsCommand } from '@aws-sdk/client-rekognition'
@@ -138,18 +137,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // 1. Auth
-  let userClient
-  try {
-    userClient = createServerSupabaseClient({ req, res })
-  } catch {
-    return res.status(500).json({ error: 'Auth client init failed' })
-  }
-  const { data: { session } } = await userClient.auth.getSession()
-  if (!session?.user) {
+  // 1. Auth — accept Authorization Bearer token (preferred, what
+  //    the client sends) and fall back to no-auth → reject. The
+  //    cookie-based session pickup wasn't reliably working for
+  //    octet-stream POSTs, so we explicitly use the access token
+  //    the same way the admin endpoints do.
+  const authHeader = req.headers.authorization || ''
+  const accessToken = authHeader.indexOf('Bearer ') === 0 ? authHeader.slice(7) : ''
+  if (!accessToken) {
     return res.status(401).json({ error: 'Not authenticated' })
   }
-  const userId = session.user.id
+  const authClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+  const { data: userData, error: authErr } = await authClient.auth.getUser(accessToken)
+  if (authErr || !userData?.user) {
+    return res.status(401).json({ error: 'Not authenticated' })
+  }
+  const userId = userData.user.id
 
   // 2. Read body. Client sends raw bytes with X-Mime header.
   const mime = (req.headers['x-mime'] as string) || (req.headers['content-type'] as string) || ''

@@ -25,6 +25,7 @@
 import React, { useState, useCallback } from 'react'
 import { X, Upload, Loader2, AlertCircle, Check } from 'lucide-react'
 import Cropper from 'react-easy-crop'
+import { supabase } from '@/lib/supabase'
 
 interface CustomAvatarUploadProps {
   open: boolean
@@ -111,11 +112,23 @@ export default function CustomAvatarUpload(props: CustomAvatarUploadProps) {
     setError(null)
     try {
       var blob = await getCroppedBlob(imageSrc, croppedAreaPixels)
+      // V9.7 P2 — fetch the access token directly so we can pass it
+      // as a Bearer header. Cookie-based auth wasn't reliable for
+      // octet-stream POSTs in the deployed environment; explicit
+      // Bearer mirrors what /api/admin/avatar-decision does.
+      var sessionResp = await supabase.auth.getSession()
+      var token = sessionResp.data.session?.access_token
+      if (!token) {
+        setError('You need to be signed in to upload an avatar.')
+        setBusy(false)
+        return
+      }
       var resp = await fetch('/api/user/avatar/upload', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/octet-stream',
           'X-Mime': 'image/jpeg',
+          Authorization: 'Bearer ' + token,
         },
         body: blob,
       })
