@@ -65,14 +65,15 @@ interface NotificationSettings {
  * us localised output for free.
  */
 function RelativeTime({ date }: { date: Date }) {
-  var [tick, setTick] = useState(0)
+  // V9.6 Tier 2 — destructured-ignore on the value half: we only
+  // need the setter to bump state every 30s so React re-renders and
+  // recomputes diff against Date.now(). The actual elapsed time
+  // comes from `date`, not the tick value, so we never read it.
+  var [, setTick] = useState(0)
   useEffect(() => {
     var t = setInterval(() => setTick((x) => x + 1), 30000)
     return () => clearInterval(t)
   }, [])
-  // Use tick in a no-op so the linter doesn't warn about unused state.
-  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-  void tick
   var diffMs = Date.now() - date.getTime()
   var diffSec = Math.floor(diffMs / 1000)
   if (diffSec < 60) return <>just now</>
