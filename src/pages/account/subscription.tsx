@@ -20,7 +20,9 @@ import {
   Loader2,
   ArrowRight
 } from 'lucide-react'
-import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
+// V9.6 T1.1 — /account/* uses default Layout + AccountNav, not DashboardLayout.
+import Head from 'next/head'
+import AccountNav from '@/components/account/AccountNav'
 import { TierBadge } from '@/components/dashboard/TierBadge'
 import { UsageMeter } from '@/components/dashboard/UsageMeter'
 import { useSubscription } from '@/lib/hooks/useSubscription'
@@ -368,28 +370,34 @@ export default function SubscriptionPage() {
 
   if (loading || subscriptionLoading) {
     return (
-      <DashboardLayout title="Subscription">
-        <div className="animate-pulse space-y-8">
+      <>
+        <Head><title>Subscription | Paradocs</title></Head>
+        <AccountNav />
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 animate-pulse space-y-8">
           <div className="h-48 bg-gray-900 rounded-xl" />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className="h-96 bg-gray-900 rounded-xl" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-80 bg-gray-900 rounded-xl" />
             ))}
           </div>
         </div>
-      </DashboardLayout>
+      </>
     )
   }
 
   if (error) {
     return (
-      <DashboardLayout title="Subscription">
-        <div className="p-8 text-center bg-gray-900 rounded-xl">
-          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <p className="text-white font-medium mb-2">Error Loading Subscription</p>
-          <p className="text-gray-400">{error}</p>
+      <>
+        <Head><title>Subscription | Paradocs</title></Head>
+        <AccountNav />
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+          <div className="p-8 text-center bg-gray-900 rounded-xl">
+            <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+            <p className="text-white font-medium mb-2">Error Loading Subscription</p>
+            <p className="text-gray-400">{error}</p>
+          </div>
         </div>
-      </DashboardLayout>
+      </>
     )
   }
 
@@ -403,11 +411,14 @@ export default function SubscriptionPage() {
     : null
 
   return (
-    <DashboardLayout title="Subscription">
+    <>
+      <Head><title>Subscription | Paradocs</title></Head>
+      <AccountNav />
       {/* V9.5 P2.2 — kicker header. Mirrors the masthead pattern used
           on Profile so the account surface feels unified. */}
-      <div className="max-w-3xl mx-auto">
-        <p className="text-[10px] font-semibold tracking-widest uppercase text-gray-500 mb-1">Account · Billing</p>
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+        {/* V9.6 Tier 3 — eyebrow contrast bumped from gray-500 → gray-400 for AA */}
+        <p className="text-[10px] font-semibold tracking-widest uppercase text-gray-400 mb-1">Account · Billing</p>
         <h1 className="text-2xl sm:text-3xl font-bold text-white">Subscription</h1>
         <p className="text-sm text-gray-400 mt-1 mb-8">
           Manage your plan, usage, and billing.
@@ -432,11 +443,31 @@ export default function SubscriptionPage() {
                 {isPaidActive && renewDate ? (
                   <>Your subscription renews on <span className="text-white font-medium">{renewDate}</span>.</>
                 ) : isFreeTier ? (
-                  <>Upgrade to unlock unlimited saves, AI insights, and priority support.</>
+                  <>Upgrade for more saves, AI insights, and priority support.</>
                 ) : (
                   <>Manage your subscription below.</>
                 )}
               </p>
+
+              {/* V9.6 Tier 3 — Free hero benefit chips. Three icon-led
+                  chips above the See plans CTA convert better than a
+                  single sentence per the panel reference data. */}
+              {isFreeTier && (
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.04] border border-white/10 rounded-lg">
+                    <Star className="w-4 h-4 text-amber-300 flex-shrink-0" />
+                    <span className="text-xs text-gray-200">Unlimited saves</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.04] border border-white/10 rounded-lg">
+                    <Zap className="w-4 h-4 text-purple-300 flex-shrink-0" />
+                    <span className="text-xs text-gray-200">AI insights</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.04] border border-white/10 rounded-lg">
+                    <Check className="w-4 h-4 text-emerald-300 flex-shrink-0" />
+                    <span className="text-xs text-gray-200">Priority support</span>
+                  </div>
+                </div>
+              )}
 
               {/* Primary CTA based on state */}
               <div className="mt-4 flex flex-wrap gap-3">
@@ -521,9 +552,10 @@ export default function SubscriptionPage() {
         {/* Plan Selection — V9.5 P2.4 made responsive max 2-col so cards
             stop squeezing on tablets. Anchor for in-page CTA jumps. */}
         <h3 id="available-plans" className="text-[10px] font-semibold tracking-widest uppercase text-gray-500 mb-3">Compare plans</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
           {tiers
-            .filter(t => t.is_active)
+            // V9.6 T1.2 — Enterprise is admin-only; never show to users.
+            .filter(t => t.is_active && t.name !== 'enterprise')
             .sort((a, b) => a.sort_order - b.sort_order)
             .map(tier => (
               <TierCard
@@ -647,6 +679,6 @@ export default function SubscriptionPage() {
           </div>
         </div>
       )}
-    </DashboardLayout>
+    </>
   )
 }

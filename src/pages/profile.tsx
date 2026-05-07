@@ -38,6 +38,8 @@ import { Avatar } from '@/components/AvatarSelector'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
 import NotificationToggle from '@/components/NotificationToggle'
+// V9.6 T1.1 — shared secondary nav across the account surface.
+import AccountNav from '@/components/account/AccountNav'
 
 export default function ProfilePage() {
   var router = useRouter()
@@ -173,6 +175,8 @@ export default function ProfilePage() {
       <Head>
         <title>{user.display_name || user.username || 'Profile'} | Paradocs</title>
       </Head>
+
+      <AccountNav />
 
       <div className="max-w-2xl mx-auto px-4 py-6 sm:py-10">
         {/* Profile card */}

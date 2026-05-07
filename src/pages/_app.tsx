@@ -12,10 +12,10 @@ import { ToastProvider } from '@/components/Toast'
 const STANDALONE_PAGES = ['/beta-access', '/survey']
 
 // Pages/routes that have their own complete layout (like DashboardLayout).
-// V9.5 P3.1 — /account/* is the new canonical home for settings +
-// subscription; both pages still wrap in DashboardLayout for now, so
-// the prefix list needs to include it.
-const CUSTOM_LAYOUT_PREFIXES = ['/dashboard', '/account']
+// V9.6 — /account/* is now under the default Layout (same as /profile)
+// with an in-page AccountNav strip. Reserves DashboardLayout for /lab
+// and /admin where the sidebar still has actual destinations.
+const CUSTOM_LAYOUT_PREFIXES = ['/dashboard']
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter()

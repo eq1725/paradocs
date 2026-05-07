@@ -25,7 +25,11 @@ import {
   CreditCard,
   ArrowRight
 } from 'lucide-react'
-import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
+// V9.6 T1.1 — /account/* now uses the default global Layout
+// (provided by _app.tsx) instead of DashboardLayout. AccountNav is
+// the secondary nav strip that replaces the legacy sidebar.
+import Head from 'next/head'
+import AccountNav from '@/components/account/AccountNav'
 import AvatarSelector, { Avatar } from '@/components/AvatarSelector'
 import { supabase } from '@/lib/supabase'
 import { usePersonalization } from '@/lib/hooks/usePersonalization'
@@ -52,6 +56,45 @@ interface NotificationSettings {
   email_weekly_digest: boolean
   email_marketing: boolean
   smart_alerts: boolean
+}
+
+/**
+ * V9.6 Tier 2 — relative-time pill for the 'Saved Xm ago' indicator.
+ * Re-renders every 30 seconds so the label stays accurate without
+ * being chatty. Intl.RelativeTimeFormat is widely supported and gives
+ * us localised output for free.
+ */
+function RelativeTime({ date }: { date: Date }) {
+  var [tick, setTick] = useState(0)
+  useEffect(() => {
+    var t = setInterval(() => setTick((x) => x + 1), 30000)
+    return () => clearInterval(t)
+  }, [])
+  // Use tick in a no-op so the linter doesn't warn about unused state.
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  void tick
+  var diffMs = Date.now() - date.getTime()
+  var diffSec = Math.floor(diffMs / 1000)
+  if (diffSec < 60) return <>just now</>
+  var diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return <>{diffMin}m ago</>
+  var diffHr = Math.floor(diffMin / 60)
+  if (diffHr < 24) return <>{diffHr}h ago</>
+  return <>{date.toLocaleDateString()}</>
+}
+
+/**
+ * V9.6 Tier 2 — small contextual chip for the researcher status strip.
+ * Renders 'value · label' on a muted ground. Designed to read as page
+ * context, not as a primary stat block (Profile owns that).
+ */
+function StatusChip({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-900/60 border border-gray-800">
+      <span className="text-xs font-semibold text-white">{value}</span>
+      <span className="text-[10px] uppercase tracking-wider text-gray-500">{label}</span>
+    </div>
+  )
 }
 
 function SettingsSection({
@@ -159,6 +202,21 @@ export default function SettingsPage() {
   // each render — cheap given the small object shape and avoids
   // hand-wiring per-field dirty flags.
   const [savedSnapshot, setSavedSnapshot] = useState<string>('')
+
+  // V9.6 Tier 2 — active anchor section for the sticky in-page nav.
+  // Updated by IntersectionObserver below so screen readers and the
+  // visible pill state both know which section is in view.
+  const [activeAnchor, setActiveAnchor] = useState<string>('profile')
+
+  // V9.6 Tier 2 — track when the profile last saved so the sticky bar
+  // can show 'Saved Xm ago' instead of being silent in the idle state.
+  const [savedAt, setSavedAt] = useState<Date | null>(null)
+
+  // V9.6 Tier 2 — researcher status strip data. Pulled from
+  // /api/user/stats (same endpoint Profile uses). Lazy-loaded.
+  const [statusStrip, setStatusStrip] = useState<{
+    saved: number; reports: number; streak: number; joinedYear: string | number;
+  }>({ saved: 0, reports: 0, streak: 0, joinedYear: '' })
 
   // Personalization state
   const {
@@ -268,6 +326,40 @@ export default function SettingsPage() {
     fetchProfile()
   }, [router])
 
+  // V9.6 Tier 2 — load researcher status data for the strip below the
+  // kicker. Uses /api/user/stats (same endpoint Profile uses). Failure
+  // is silent — strip just shows zeros, which is correct for new
+  // accounts.
+  useEffect(() => {
+    var cancelled = false
+    async function load() {
+      try {
+        var { data: { session } } = await supabase.auth.getSession()
+        if (!session) return
+        var resp = await fetch('/api/user/stats', {
+          headers: { Authorization: 'Bearer ' + session.access_token },
+        })
+        if (!resp.ok) return
+        var data = await resp.json()
+        if (cancelled) return
+        var memberSince = data.profile && data.profile.member_since
+        var joinedYear: string | number = ''
+        if (memberSince) {
+          var d = new Date(memberSince)
+          if (!isNaN(d.getTime())) joinedYear = d.getUTCFullYear()
+        }
+        setStatusStrip({
+          saved: (data.saved && data.saved.total) || 0,
+          reports: (data.reports && data.reports.total) || 0,
+          streak: (data.streak && data.streak.current) || 0,
+          joinedYear: joinedYear,
+        })
+      } catch { /* silent */ }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
   const handleSaveProfile = async () => {
     if (!profile) return
 
@@ -303,6 +395,9 @@ export default function SettingsPage() {
       // V9.5 P2.3 — refresh the saved snapshot so the sticky bar
       // returns to the 'all saved' state after a successful save.
       setSavedSnapshot(JSON.stringify({ profile, notifications }))
+      // V9.6 Tier 2 — record the save timestamp for the 'Saved Xm ago'
+      // indicator on the sticky bar idle state.
+      setSavedAt(new Date())
 
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
@@ -317,6 +412,41 @@ export default function SettingsPage() {
   // V9.5 P2.3 — derive dirty state from the snapshot. Recomputed on
   // every render via JSON.stringify of the small object shape.
   const isDirty = savedSnapshot !== '' && savedSnapshot !== JSON.stringify({ profile, notifications })
+
+  // V9.6 Tier 2 — IntersectionObserver tracks which section is in view
+  // and sets activeAnchor + aria-current='location' on the matching
+  // anchor pill. Threshold of 0.4 means a section "becomes active"
+  // when 40% of it is visible — picks up faster than 0.5 but doesn't
+  // flicker between adjacent short sections.
+  useEffect(() => {
+    if (loading) return
+    if (typeof window === 'undefined' || !('IntersectionObserver' in window)) return
+    var SECTION_IDS = ['profile', 'notifications', 'privacy', 'data', 'location', 'interests']
+    var observer = new IntersectionObserver(
+      (entries) => {
+        // Pick the most-visible section among those currently intersecting.
+        var visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)
+        if (visible.length > 0 && visible[0].target instanceof HTMLElement) {
+          var id = (visible[0].target as HTMLElement).id
+          if (id) setActiveAnchor(id)
+        }
+      },
+      {
+        // ~25% top margin so the activation point is roughly the upper
+        // third of the viewport (matches where the eye lands after a
+        // pill click + scroll-mt-20 offset).
+        rootMargin: '-25% 0px -55% 0px',
+        threshold: [0, 0.25, 0.5, 0.75, 1],
+      }
+    )
+    SECTION_IDS.forEach((id) => {
+      var el = document.getElementById(id)
+      if (el) observer.observe(el)
+    })
+    return () => { observer.disconnect() }
+  }, [loading])
 
   const handleSavePersonalization = async () => {
     setSaving(true)
@@ -384,50 +514,85 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <DashboardLayout title="Settings">
-        <div className="space-y-6">
+      <>
+        <Head><title>Settings | Paradocs</title></Head>
+        <AccountNav />
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">
           {[1, 2, 3].map(i => (
             <div key={i} className="h-64 bg-gray-900 rounded-xl animate-pulse" />
           ))}
         </div>
-      </DashboardLayout>
+      </>
     )
   }
 
   return (
-    <DashboardLayout title="Settings">
-      <div className="max-w-3xl mx-auto space-y-6 pb-24 md:pb-28">
+    <>
+      <Head><title>Settings | Paradocs</title></Head>
+      <AccountNav />
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-6 space-y-6 pb-24 md:pb-28">
         {/* V9.5 P2.2 — kicker masthead. Mirrors the Profile/Subscription
             pattern so the account surface feels unified. */}
         <div>
-          <p className="text-[10px] font-semibold tracking-widest uppercase text-gray-500 mb-1">Account · Settings</p>
+          {/* V9.6 Tier 3 — bumped eyebrow contrast from text-gray-500
+              to text-gray-400 to clear AA at small sizes. */}
+          <p className="text-[10px] font-semibold tracking-widest uppercase text-gray-400 mb-1">Account · Settings</p>
           <h1 className="text-2xl sm:text-3xl font-bold text-white">Settings</h1>
           <p className="text-sm text-gray-400 mt-1">
             Profile, notifications, privacy, and personalization.
           </p>
         </div>
 
+        {/* V9.6 Tier 2 — researcher status strip. Reframes the page as
+            'this is YOUR account' rather than 'this is system config.'
+            Same data shape as the Profile stats box; presented as a
+            chip row here for context, not as the page's primary content. */}
+        <div className="flex flex-wrap items-center gap-2 -mt-3">
+          <StatusChip label="Saved" value={statusStrip.saved} />
+          <StatusChip label="Reports" value={statusStrip.reports} />
+          <StatusChip label="Streak" value={statusStrip.streak === 0 ? '—' : statusStrip.streak + 'd'} />
+          <StatusChip label="Joined" value={statusStrip.joinedYear || '—'} />
+        </div>
+
         {/* V9.5 P3.5 — anchor-link nav. Sticky on desktop so users can
             jump between sections; scrolls horizontally on mobile. Uses
             in-page hashes (no router.push) for instant scroll. */}
-        <nav className="-mx-4 sm:mx-0 px-4 sm:px-0 sticky top-16 md:top-16 z-10 -mt-2 mb-2 bg-gray-950/85 backdrop-blur-sm">
+        <nav
+          // V9.6 T1.1 — sticky offset matches the global Layout header
+          // (h-14 mobile / h-16 desktop) plus the AccountNav strip
+          // (~h-12). Together those eat ~7rem on mobile, ~7.5rem desktop.
+          className="-mx-4 sm:mx-0 px-4 sm:px-0 sticky top-[7rem] md:top-[7.5rem] z-10 -mt-2 mb-2 bg-gray-950/85 backdrop-blur-sm"
+        >
           <div className="flex gap-1.5 overflow-x-auto pb-2 -mb-2 scrollbar-none">
             {[
-              { href: '#profile', label: 'Profile' },
-              { href: '#notifications', label: 'Notifications' },
-              { href: '#privacy', label: 'Privacy' },
-              { href: '#data', label: 'Your Data' },
-              { href: '#location', label: 'Location' },
-              { href: '#interests', label: 'Interests' },
-            ].map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium text-gray-300 bg-gray-900/80 border border-gray-800 hover:border-purple-500/40 hover:text-white transition-colors"
-              >
-                {item.label}
-              </a>
-            ))}
+              { id: 'profile', label: 'Profile' },
+              { id: 'notifications', label: 'Notifications' },
+              { id: 'privacy', label: 'Privacy' },
+              { id: 'data', label: 'Your Data' },
+              { id: 'location', label: 'Location' },
+              { id: 'interests', label: 'Interests' },
+            ].map((item) => {
+              // V9.6 Tier 2 — active state is driven by the
+              // IntersectionObserver above; aria-current='location'
+              // satisfies WCAG and screen readers, the visual border +
+              // text color satisfies sighted users.
+              var active = activeAnchor === item.id
+              return (
+                <a
+                  key={item.id}
+                  href={'#' + item.id}
+                  aria-current={active ? 'location' : undefined}
+                  className={
+                    'flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ' +
+                    (active
+                      ? 'text-white bg-purple-600/25 border border-purple-500/60'
+                      : 'text-gray-300 bg-gray-900/80 border border-gray-800 hover:border-purple-500/40 hover:text-white')
+                  }
+                >
+                  {item.label}
+                </a>
+              )
+            })}
           </div>
         </nav>
 
@@ -439,11 +604,10 @@ export default function SettingsPage() {
           icon={User}
         >
           <div className="space-y-4">
-            {/* Avatar Selection */}
+            {/* Avatar Selection — V9.6 Tier 2: removed redundant <label>
+                since the new layout puts the 'Avatar' label inline with
+                the tap-target. */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Avatar
-              </label>
               {showAvatarSelector ? (
                 <AvatarSelector
                   currentAvatar={profile?.avatar_url}
@@ -473,19 +637,50 @@ export default function SettingsPage() {
                   onClose={() => setShowAvatarSelector(false)}
                 />
               ) : (
-                <div className="flex items-center gap-4">
-                  <Avatar
-                    avatar={profile?.avatar_url}
-                    fallback={profile?.display_name || profile?.username || 'U'}
-                    size="xl"
-                  />
+                /* V9.6 Tier 2 — avatar IS the affordance now. Tap-on-
+                    avatar with a camera icon overlay on hover/focus.
+                    Replaces the separate 'Change Avatar' text button.
+                    Keeps a small "Change" link below for keyboard / a11y
+                    discoverability. */
+                <div className="flex items-center gap-5">
                   <button
                     type="button"
                     onClick={() => setShowAvatarSelector(true)}
-                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-sm text-white transition-colors"
+                    aria-label="Change avatar"
+                    className="group relative w-20 h-20 sm:w-24 sm:h-24 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900"
                   >
-                    Change Avatar
+                    <Avatar
+                      avatar={profile?.avatar_url}
+                      fallback={profile?.display_name || profile?.username || 'U'}
+                      size="xl"
+                    />
+                    {/* Hover/focus overlay — semi-transparent dark with
+                        a centered camera glyph. Always visible on mobile
+                        (touch can't hover) via the responsive class. */}
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-0 rounded-full bg-black/55 opacity-0 group-hover:opacity-100 group-focus:opacity-100 sm:opacity-0 transition-opacity flex items-center justify-center"
+                    >
+                      <Palette className="w-6 h-6 text-white" />
+                    </span>
+                    {/* Mobile-only persistent edit dot in lower-right */}
+                    <span
+                      aria-hidden="true"
+                      className="sm:hidden absolute bottom-0 right-0 w-7 h-7 rounded-full bg-purple-600 border-2 border-gray-900 flex items-center justify-center"
+                    >
+                      <Palette className="w-3.5 h-3.5 text-white" />
+                    </span>
                   </button>
+                  <div className="flex flex-col items-start">
+                    <p className="text-sm font-medium text-white">Avatar</p>
+                    <button
+                      type="button"
+                      onClick={() => setShowAvatarSelector(true)}
+                      className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
+                    >
+                      Change avatar
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -613,11 +808,27 @@ export default function SettingsPage() {
               checked={profile?.constellation_public ?? false}
               onChange={(checked) => setProfile((p) => p ? { ...p, constellation_public: checked } : p)}
             />
-            <p className="text-xs text-gray-500 pl-12 sm:pl-14 -mt-2">
-              {profile?.constellation_public
-                ? 'Currently public — anyone with your @username can view your profile.'
-                : 'Currently private — your researcher profile shows a "private" notice to visitors.'}
-            </p>
+            <div className="pl-12 sm:pl-14 -mt-2 flex flex-wrap items-center gap-2">
+              <p className="text-xs text-gray-500">
+                {profile?.constellation_public
+                  ? 'Currently public — anyone with your @username can view your profile.'
+                  : 'Currently private — your researcher profile shows a "private" notice to visitors.'}
+              </p>
+              {/* V9.6 Tier 4 — View-as-public link. Opens /researcher/
+                  [username] in a new tab so users can preview what
+                  others see. Hidden when the profile is private and
+                  username isn't set yet. */}
+              {profile?.username && (
+                <a
+                  href={'/researcher/' + profile.username}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-purple-400 hover:text-purple-300 underline"
+                >
+                  View as public ↗
+                </a>
+              )}
+            </div>
 
             <button
               onClick={handleSaveProfile}
@@ -637,18 +848,42 @@ export default function SettingsPage() {
               )}
             </button>
 
+            {/* V9.6 Tier 2 — Privacy 'nutrition label'. Replaces the
+                prose blurb with a structured 3-row grid so the legibility
+                of what's public vs what's never shared scans in seconds.
+                Inspired by Apple's privacy nutrition labels in the App
+                Store. */}
             <div className="pt-4 border-t border-gray-800">
-              <p className="text-gray-400 text-sm">
-                {/* V9.5 P3.4 — strengthened explainer per panel review.
-                    Data Export + Account Deletion moved to the dedicated
-                    Your Data section below. */}
-                Your email address is never shared publicly. Only your
-                <strong className="text-gray-300"> display name</strong> and
-                <strong className="text-gray-300"> username</strong> are visible
-                to other users on your public researcher profile. Saves and
-                Constellation entries are visible only when the toggle above
-                is turned on.
-              </p>
+              <p className="text-[10px] font-semibold tracking-widest uppercase text-gray-500 mb-3">What others see</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3 bg-emerald-950/20 border border-emerald-900/40 rounded-lg">
+                  <p className="text-[11px] font-semibold text-emerald-300 uppercase tracking-wider mb-2">Always public</p>
+                  <ul className="space-y-1 text-xs text-gray-300">
+                    <li>Display name</li>
+                    <li>@username</li>
+                    <li>Avatar</li>
+                    <li>Profile bio</li>
+                  </ul>
+                </div>
+                <div className="p-3 bg-amber-950/15 border border-amber-900/40 rounded-lg">
+                  <p className="text-[11px] font-semibold text-amber-300 uppercase tracking-wider mb-2">Conditional</p>
+                  <ul className="space-y-1 text-xs text-gray-300">
+                    <li>Saves</li>
+                    <li>Theories</li>
+                    <li>Constellation map</li>
+                  </ul>
+                  <p className="text-[10px] text-gray-500 mt-2">Gated by the toggle above.</p>
+                </div>
+                <div className="p-3 bg-gray-900/60 border border-gray-800 rounded-lg">
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Never shared</p>
+                  <ul className="space-y-1 text-xs text-gray-300">
+                    <li>Email address</li>
+                    <li>Exact location</li>
+                    <li>Payment info</li>
+                    <li>IP address</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
         </SettingsSection>
@@ -988,17 +1223,20 @@ export default function SettingsPage() {
 
       {/* V9.5 P2.3 — sticky bottom save bar. Activates when there are
           unsaved changes (profile or notifications). Sits above the
-          mobile bottom-tab bar and covers the desktop scroll area's
-          right edge. The full-section save buttons inside each
+          mobile bottom-tab bar; on desktop it spans the full viewport
+          since /account/* no longer uses DashboardLayout's sidebar
+          (V9.6 T1.1). The full-section save buttons inside each
           SettingsSection still work for granular saves; this bar is
           the always-on safety net. */}
+      {/* V9.6 Tier 2 — sticky bar now has two states: dirty (orange dot +
+          Save changes button) and idle-with-recent-save ('Saved Xm
+          ago', no CTA). Cross-fades between states (Tier 4). */}
       <div
         className={[
-          'fixed left-0 right-0 z-40 transition-all duration-200 ease-out',
+          'fixed left-0 right-0 z-40 transition-all duration-300 ease-out',
           // sit above the mobile bottom tab bar (h-16 + safe-area)
           'bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] md:bottom-0',
-          'md:left-64',
-          isDirty
+          (isDirty || savedAt)
             ? 'translate-y-0 opacity-100 pointer-events-auto'
             : 'translate-y-full opacity-0 pointer-events-none',
         ].join(' ')}
@@ -1006,29 +1244,42 @@ export default function SettingsPage() {
         <div className="bg-gray-900/95 backdrop-blur border-t border-gray-800 px-4 sm:px-6 py-3 sm:py-3.5">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0 animate-pulse" />
-              <span className="text-sm text-gray-300 truncate">Unsaved changes</span>
+              <span
+                className={
+                  'w-2 h-2 rounded-full flex-shrink-0 transition-colors ' +
+                  (isDirty ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400')
+                }
+              />
+              <span className="text-sm text-gray-300 truncate">
+                {isDirty
+                  ? 'Unsaved changes'
+                  : savedAt
+                    ? <>Saved <RelativeTime date={savedAt} /></>
+                    : 'All changes saved'}
+              </span>
             </div>
-            <button
-              onClick={handleSaveProfile}
-              disabled={saving}
-              className="flex items-center gap-2 px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-50 flex-shrink-0"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Saving…
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  Save changes
-                </>
-              )}
-            </button>
+            {isDirty && (
+              <button
+                onClick={handleSaveProfile}
+                disabled={saving}
+                className="flex items-center gap-2 px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-50 flex-shrink-0"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Save changes
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
-    </DashboardLayout>
+    </>
   )
 }

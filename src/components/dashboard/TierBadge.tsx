@@ -42,11 +42,16 @@ const tierConfig: Record<TierName, {
     borderColor: 'border-purple-700',
     icon: Zap
   },
+  // V9.6 T1.3 — enterprise is admin-only and never surfaced to users
+  // (the public tier list filters it out). Internally we still show it
+  // in the user card for admin accounts so they know what tier they're
+  // on, but we relabel it 'Admin' and tone the badge down so it doesn't
+  // scream against the rest of the muted-grey chrome.
   enterprise: {
-    label: 'Enterprise',
-    bgColor: 'bg-amber-900/50',
-    textColor: 'text-amber-300',
-    borderColor: 'border-amber-700',
+    label: 'Admin',
+    bgColor: 'bg-gray-800',
+    textColor: 'text-gray-300',
+    borderColor: 'border-gray-700',
     icon: Building
   }
 }

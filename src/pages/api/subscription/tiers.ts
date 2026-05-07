@@ -17,9 +17,16 @@ export default async function handler(
   try {
     const tiers = await getSubscriptionTiers()
 
+    // V9.6 T1.2 — enterprise is admin-only and not surfaced to users.
+    // It still exists in the DB (for internal/admin tier overrides)
+    // but the public tier list shows free / basic / pro only.
+    const visible = (tiers || []).filter(function (t: any) {
+      return t && t.name !== 'enterprise'
+    })
+
     return res.status(200).json({
-      tiers,
-      count: tiers.length
+      tiers: visible,
+      count: visible.length
     })
   } catch (error) {
     console.error('Error fetching tiers:', error)

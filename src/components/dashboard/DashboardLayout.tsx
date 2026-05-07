@@ -26,7 +26,9 @@ import {
   ChevronLeft,
   LogOut,
   Bell,
-  FlaskConical
+  FlaskConical,
+  Flame,
+  User
 } from 'lucide-react'
 import { useSubscription } from '@/lib/hooks/useSubscription'
 import { TierBadge } from './TierBadge'
@@ -52,28 +54,26 @@ interface NavGroup {
   items: NavItem[]
 }
 
+// V9.6 T1.3 — sidebar reduced to canonical destinations only.
+// The pre-Lab IA had eight items (Overview, Research Hub, My
+// Constellation, Journal, Saved Reports, My Reports, Weekly Digests,
+// AI Insights) all of which 301 to /lab now per next.config.js. The
+// dashboard sidebar is essentially unreachable post-V9.6 (account pages
+// no longer wrap in DashboardLayout, and /dashboard/* paths all
+// redirect), but we trim the nav so admin users opening a stray
+// dashboard URL don't see ghost destinations.
 var navGroups: NavGroup[] = [
   {
-    label: 'Research',
+    label: 'Workspace',
     items: [
-      { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-      { href: '/dashboard/research-hub', label: 'Research Hub', icon: FlaskConical },
-      { href: '/dashboard/constellation', label: 'My Constellation', icon: Stars },
-      { href: '/dashboard/journal', label: 'Journal', icon: BookOpen },
+      { href: '/discover', label: 'Today', icon: Flame as React.ElementType },
+      { href: '/lab', label: 'Lab', icon: FlaskConical },
     ]
   },
   {
-    label: 'Library',
+    label: 'Account',
     items: [
-      { href: '/dashboard/saved', label: 'Saved Reports', icon: Bookmark },
-      { href: '/dashboard/reports', label: 'My Reports', icon: FileText },
-      { href: '/dashboard/digests', label: 'Weekly Digests', icon: Newspaper },
-    ]
-  },
-  {
-    label: 'Tools',
-    items: [
-      { href: '/dashboard/insights', label: 'AI Insights', icon: Sparkles, requiredTier: ['basic', 'pro', 'enterprise'] },
+      { href: '/profile', label: 'Profile', icon: User as React.ElementType },
       { href: '/account/subscription', label: 'Subscription', icon: CreditCard },
       { href: '/account/settings', label: 'Settings', icon: Settings },
     ]
@@ -244,12 +244,16 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
             </nav>
 
             {/* Footer */}
+            {/* V9.6 T1.3 — Sign Out is destructive, give it distinct
+                affordance: tinted hover state, smaller text, and a
+                subtle top divider so it reads as an exit, not as
+                another nav item. */}
             <div className="p-4 border-t border-gray-800">
               <button
                 onClick={handleSignOut}
-                className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-sm text-gray-500 hover:text-red-300 hover:bg-red-950/20 transition-colors"
               >
-                <LogOut className="w-5 h-5" />
+                <LogOut className="w-4 h-4" />
                 <span>Sign Out</span>
               </button>
             </div>
