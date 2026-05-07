@@ -268,6 +268,9 @@ export default function SubscriptionPage() {
   const [loading, setLoading] = useState(true)
   const [changingTier, setChangingTier] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // V9.5 P4.2 + P4.3 — manage billing portal redirect + retention modal
+  const [openingPortal, setOpeningPortal] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
 
   useEffect(() => {
     const fetchTiers = async () => {
@@ -326,6 +329,40 @@ export default function SubscriptionPage() {
       showToast('error', result.error || 'Failed to change subscription')
     } else {
       await refresh()
+    }
+  }
+
+  // V9.5 P4.2 — open the Stripe Billing Portal. Server (api/subscription/
+  // billing-portal) creates a session and returns a URL we redirect to.
+  // Used for managing payment methods, viewing invoices, and (when paid
+  // through the cancellation flow) cancelling.
+  const openBillingPortal = async () => {
+    setOpeningPortal(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        showToast('error', 'You need to be signed in to manage billing.')
+        setOpeningPortal(false)
+        return
+      }
+      const resp = await fetch('/api/subscription/billing-portal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + session.access_token,
+        },
+      })
+      const data = await resp.json()
+      if (data.url) {
+        window.location.href = data.url
+        return
+      }
+      showToast('error', data.error || 'Failed to open billing portal.')
+    } catch (err) {
+      console.error('[Subscription] portal error:', err)
+      showToast('error', 'Something went wrong opening the billing portal.')
+    } finally {
+      setOpeningPortal(false)
     }
   }
 
@@ -413,15 +450,41 @@ export default function SubscriptionPage() {
                   </a>
                 ) : (
                   <>
-                    {/* V9.5 P4.2 placeholder — Stripe customer portal lives
-                        in Phase 4. For now this scrolls to the comparison
-                        grid so users can change tier. */}
+                    {/* V9.5 P4.2 — primary 'Manage billing' opens the
+                        Stripe customer portal where users can update
+                        payment methods, view invoices, and cancel. */}
+                    <button
+                      type="button"
+                      onClick={openBillingPortal}
+                      disabled={openingPortal}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-60"
+                    >
+                      {openingPortal ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Opening…
+                        </>
+                      ) : (
+                        <>Manage billing</>
+                      )}
+                    </button>
                     <a
                       href="#available-plans"
                       className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white text-sm font-semibold rounded-full transition-colors"
                     >
                       Change plan
                     </a>
+                    {/* V9.5 P4.3 — cancellation enters retention modal,
+                        not a direct portal redirect. After confirming,
+                        the modal opens the same Stripe portal where
+                        Stripe handles the actual cancel action. */}
+                    <button
+                      type="button"
+                      onClick={() => setShowCancelModal(true)}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 text-gray-400 hover:text-gray-200 text-sm font-medium rounded-full transition-colors"
+                    >
+                      Cancel subscription
+                    </button>
                   </>
                 )}
               </div>
@@ -502,6 +565,88 @@ export default function SubscriptionPage() {
           </div>
         </div>
       </div>
+
+      {/* V9.5 P4.3 — cancellation retention modal. Shows the user
+          what they'll lose, then offers a single 'Continue to cancel'
+          path that opens the Stripe billing portal where Stripe
+          handles the actual cancel. The retention copy is generic
+          rather than tier-specific so we don't have to reason about
+          which features apply to which tier — we just hit the headline
+          benefits everyone gets on a paid plan. */}
+      {showCancelModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={() => setShowCancelModal(false)}
+        >
+          <div
+            className="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl p-6 sm:p-7"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancel-modal-title"
+          >
+            <div className="flex items-start gap-3 mb-4">
+              <div className="p-2 bg-amber-600/15 rounded-lg flex-shrink-0">
+                <AlertCircle className="w-6 h-6 text-amber-400" />
+              </div>
+              <div className="flex-1">
+                <h3 id="cancel-modal-title" className="text-lg font-semibold text-white">
+                  Before you cancel
+                </h3>
+                <p className="text-sm text-gray-400 mt-0.5">
+                  Here&apos;s what you&apos;ll lose access to:
+                </p>
+              </div>
+            </div>
+
+            <ul className="space-y-2.5 mb-6 ml-1">
+              <li className="flex items-start gap-2 text-sm text-gray-300">
+                <X className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
+                <span>Unlimited saves and Constellation entries</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-gray-300">
+                <X className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
+                <span>AI insights and pattern detection on your saves</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-gray-300">
+                <X className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
+                <span>Priority support and bulk import tools</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-gray-300">
+                <X className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
+                <span>Your existing data stays — limits just kick in again</span>
+              </li>
+            </ul>
+
+            <p className="text-xs text-gray-500 mb-5 leading-relaxed">
+              Your subscription stays active through the end of the current billing period
+              {renewDate ? <> (until <strong className="text-gray-400">{renewDate}</strong>)</> : null}.
+              You can resubscribe at any time.
+            </p>
+
+            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setShowCancelModal(false)}
+                className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors"
+              >
+                Keep my plan
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCancelModal(false)
+                  openBillingPortal()
+                }}
+                disabled={openingPortal}
+                className="px-5 py-2.5 bg-transparent border border-gray-700 hover:border-red-500/50 text-gray-300 hover:text-red-300 text-sm font-medium rounded-full transition-colors disabled:opacity-60"
+              >
+                {openingPortal ? 'Opening…' : 'Continue to cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   )
 }
