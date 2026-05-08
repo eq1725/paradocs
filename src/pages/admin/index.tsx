@@ -496,6 +496,14 @@ export default function AdminDashboard() {
               />
             </div>
 
+            {/* V9.9.2 — Review Queues row. Quick access to the four
+                moderation surfaces from the dashboard, with their
+                live pending counts. The AdminLayout sub-nav has the
+                same destinations, but a tile-style card on the
+                dashboard surfaces them prominently when you first
+                land. */}
+            <ReviewQueuesRow />
+
             {/* Two Column Layout: Source Health + Activity Feed */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <SourceHealthGrid
@@ -1315,5 +1323,119 @@ export default function AdminDashboard() {
           </section>
         )}
     </AdminLayout>
+  )
+}
+
+/**
+ * V9.9.2 — Review Queues row on the admin index dashboard.
+ *
+ * Four tiles linking to the moderation queues with live pending
+ * counts pulled from /api/admin/queue-counts (same endpoint the
+ * AdminLayout sub-nav badges use). Each tile shows: icon + title,
+ * pending count (large), and a one-line subtitle.
+ *
+ * Reports / Media / Avatars / Bios. Clicking any tile navigates to
+ * the corresponding admin queue page.
+ */
+function ReviewQueuesRow() {
+  const [counts, setCounts] = useState<{ reports: number; media: number; avatars: number; bios: number }>({
+    reports: 0, media: 0, avatars: 0, bios: 0,
+  })
+
+  useEffect(function () {
+    var cancelled = false
+    async function fetchCounts() {
+      try {
+        var { data: { session } } = await supabase.auth.getSession()
+        if (!session) return
+        var resp = await fetch('/api/admin/queue-counts', {
+          headers: { Authorization: 'Bearer ' + session.access_token },
+        })
+        if (!resp.ok) return
+        var data = await resp.json()
+        if (!cancelled) setCounts({
+          reports: data.reports || 0,
+          media: data.media || 0,
+          avatars: data.avatars || 0,
+          bios: data.bios || 0,
+        })
+      } catch { /* silent */ }
+    }
+    fetchCounts()
+    var t = setInterval(fetchCounts, 60000)
+    return function () { cancelled = true; clearInterval(t) }
+  }, [])
+
+  var tiles = [
+    {
+      href: '/admin/report-review',
+      title: 'Reports',
+      subtitle: 'Pending submitted reports',
+      count: counts.reports,
+      accent: 'border-green-500/30 hover:border-green-400 bg-gradient-to-br from-green-950/30 to-gray-900/40',
+      countColor: 'text-green-300',
+      icon: '📋',
+    },
+    {
+      href: '/admin/media-review',
+      title: 'Media',
+      subtitle: 'Image + media uploads',
+      count: counts.media,
+      accent: 'border-blue-500/30 hover:border-blue-400 bg-gradient-to-br from-blue-950/30 to-gray-900/40',
+      countColor: 'text-blue-300',
+      icon: '🖼️',
+    },
+    {
+      href: '/admin/avatar-review',
+      title: 'Avatars',
+      subtitle: 'Custom avatar uploads',
+      count: counts.avatars,
+      accent: 'border-purple-500/30 hover:border-purple-400 bg-gradient-to-br from-purple-950/30 to-gray-900/40',
+      countColor: 'text-purple-300',
+      icon: '👤',
+    },
+    {
+      href: '/admin/bio-review',
+      title: 'Bios',
+      subtitle: 'User profile bios flagged',
+      count: counts.bios,
+      accent: 'border-amber-500/30 hover:border-amber-400 bg-gradient-to-br from-amber-950/30 to-gray-900/40',
+      countColor: 'text-amber-300',
+      icon: '💬',
+    },
+  ]
+
+  return (
+    <div>
+      <h2 className="text-[10px] font-semibold tracking-widest uppercase text-gray-400 mb-3">Review Queues</h2>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {tiles.map(function (tile) {
+          return (
+            <Link
+              key={tile.href}
+              href={tile.href}
+              className={
+                'block rounded-xl border p-4 sm:p-5 transition-all ' + tile.accent
+              }
+            >
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <span className="text-2xl" aria-hidden="true">{tile.icon}</span>
+                {tile.count > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-2 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-200 border border-amber-400/30" aria-label={tile.count + ' pending'}>
+                    {tile.count > 99 ? '99+' : tile.count}
+                  </span>
+                )}
+              </div>
+              <p className="text-base font-semibold text-white">{tile.title}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{tile.subtitle}</p>
+              <p className={'text-2xl font-bold mt-2 ' + tile.countColor}>
+                {tile.count}
+                <span className="text-xs font-normal text-gray-500 ml-1">pending</span>
+              </p>
+            </Link>
+          )
+        })}
+      </div>
+    </div>
   )
 }
