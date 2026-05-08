@@ -26,6 +26,16 @@
   </head>
   <body style="margin:0;padding:0;background:#0a0a0f;font-family:'Changa','Helvetica Neue',Helvetica,Arial,sans-serif;color:#e5e7eb;">
 
+    <!-- V9.11.5 #6 — preheader / preview text. Hidden in the rendered
+         email (display:none + zero-size + opacity:0 + mso-hide), but
+         Gmail / Apple Mail / Outlook web pick it up as the inbox-list
+         preview line. Industry data: a strong preheader lifts open
+         rate 5-10% on auth emails. Keep ~80 chars to fit Gmail's
+         preview window. -->
+    <span style="display:none !important;visibility:hidden;mso-hide:all;font-size:1px;color:#0a0a0f;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
+      One tap and you&rsquo;re in. The link expires in 1 hour.
+    </span>
+
     <!-- Google Fonts: Changa (body) + Changa One (wordmark). Survives in
          most modern clients (Gmail web, Apple Mail). When stripped by
          strict clients, fallbacks below kick in. -->
@@ -45,7 +55,7 @@
                   Paradocs<span style="color:#a855f7;">.</span>
                 </p>
                 <p style="margin:8px 0 0 0;font-family:'Changa','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:#a855f7;">
-                  Sign in link
+                  Welcome
                 </p>
               </td>
             </tr>
@@ -54,10 +64,10 @@
             <tr>
               <td style="padding:24px 32px 8px 32px;font-family:'Changa','Helvetica Neue',Helvetica,Arial,sans-serif;">
                 <h1 style="margin:0 0 12px 0;font-family:'Changa','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:24px;line-height:1.25;font-weight:700;color:#ffffff;">
-                  One tap to finish your first report.
+                  One tap and you&rsquo;re in.
                 </h1>
                 <p style="margin:0 0 12px 0;font-family:'Changa','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#cbd5e1;">
-                  You started sharing an experience on Paradocs. Tap the button below to confirm your email and we&rsquo;ll match your report against millions of others in the archive.
+                  Tap the button below to confirm your email. If you started sharing an experience, we&rsquo;ll save it and find similar reports in the archive. If not &mdash; there&rsquo;s plenty waiting for you.
                 </p>
                 <p style="margin:0;font-family:'Changa','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.55;color:#94a3b8;">
                   This link expires in 1 hour and only works once.
@@ -98,7 +108,7 @@
                     <tr>
                       <td valign="top" style="padding:0 0 12px 0;">
                         <span style="display:inline-block;width:20px;color:#a855f7;font-weight:700;font-family:'Changa','Helvetica Neue',Helvetica,Arial,sans-serif;">1.</span>
-                        <span style="font-family:'Changa','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#cbd5e1;">We save your report and run it through RADAR.</span>
+                        <span style="font-family:'Changa','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#cbd5e1;">If you shared an experience, we save it and run it through RADAR.</span>
                       </td>
                     </tr>
                     <tr>
@@ -141,8 +151,11 @@
                 <p style="margin:0 0 8px 0;font-family:'Changa','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:12px;color:#64748b;">
                   Didn&rsquo;t request this? You can safely ignore this email &mdash; no account is created until you tap the link.
                 </p>
-                <p style="margin:0;font-family:'Changa','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11px;color:#475569;">
+                <p style="margin:0 0 8px 0;font-family:'Changa','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11px;color:#475569;">
                   Paradocs &middot; A documentary archive of unexplained experience.
+                </p>
+                <p style="margin:0;font-family:'Changa','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11px;color:#475569;">
+                  <a href="{{ .SiteURL }}/account/settings" style="color:#475569;text-decoration:underline;">Manage email preferences</a>
                 </p>
               </td>
             </tr>
