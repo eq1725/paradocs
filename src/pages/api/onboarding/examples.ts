@@ -66,14 +66,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
-  // Filter to short summaries + bucket by category.
+  // V9.11.3 #6 — clean editorial noise out of the user-facing examples.
+  //
+  // Real summaries in our DB sometimes start with bracketed editorial
+  // tags ("[Class B]", "[UFO]", "[NUFORC]") or have leading source-name
+  // prefixes ("MUFON Case 12345 — "). These look unprofessional in the
+  // onboarding carousel where new users are forming first impressions.
+  // We strip the noise where we can; if a summary still looks ugly
+  // (still has unbalanced brackets, very ALL-CAPS, contains URLs), we
+  // skip it entirely and let the next candidate take its slot.
+  function cleanSummary(raw: string): string | null {
+    var s = (raw || '').toString().trim()
+    if (!s) return null
+    // Strip leading bracketed tags: "[Class B]", "[UFO]", "[NUFORC]"
+    s = s.replace(/^\s*(?:\[[^\]]{1,40}\]\s*[-–—:]?\s*)+/g, '').trim()
+    // Strip leading "MUFON case 1234 — ", "Report 1234: ", etc.
+    s = s.replace(/^(?:[A-Z][A-Za-z]{1,12}\s+(?:case|report|sighting)\s+#?\d+\s*[-–—:]\s*)/i, '').trim()
+    // Strip leading "Date submitted: ..." preamble
+    s = s.replace(/^date\s+(?:submitted|reported)\s*:?\s*[A-Za-z0-9\s,/.-]+?[—:-]\s*/i, '').trim()
+    // Reject anything still containing brackets — too noisy.
+    if (/[\[\]]/.test(s)) return null
+    // Reject if it looks like a URL or contains one.
+    if (/https?:\/\//i.test(s)) return null
+    // Reject if more than 70% uppercase letters (likely shouting headline).
+    var letters = s.replace(/[^A-Za-z]/g, '')
+    if (letters.length > 20) {
+      var upper = (letters.match(/[A-Z]/g) || []).length
+      if (upper / letters.length > 0.7) return null
+    }
+    // Capitalise first letter if needed.
+    if (s.length > 0 && /[a-z]/.test(s[0])) {
+      s = s[0].toUpperCase() + s.slice(1)
+    }
+    if (s.length < 30 || s.length > 200) return null
+    return s
+  }
+
+  // Filter to clean short summaries + bucket by category.
   var byCategory: Record<string, Example[]> = {}
   ;(candidates || []).forEach(function (row: any) {
-    var summary = (row.summary || '').toString().trim()
-    if (summary.length < 30 || summary.length > 200) return
+    var summary = cleanSummary(row.summary || '')
+    if (!summary) return
     var cat = row.category || 'unexplained_event'
     if (!byCategory[cat]) byCategory[cat] = []
-    byCategory[cat].push({ id: row.id, title: row.title, summary, category: cat })
+    byCategory[cat].push({ id: row.id, title: row.title || '', summary, category: cat })
   })
 
   // Pick one random from each category, prefer paranormal categories,
@@ -98,6 +134,52 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!pool || pool.length === 0) continue
     var pick = pool[Math.floor(Math.random() * pool.length)]
     examples.push(pick)
+  }
+
+  // V9.11.3 #6 — curated fallback if real-DB filtering leaves us thin.
+  // These are hand-written, brand-safe examples in case every candidate
+  // for a category is editorial noise. Generic enough to fit any
+  // visitor without being attributable.
+  if (examples.length < 4) {
+    var curated: Example[] = [
+      {
+        id: 'curated-1',
+        title: '',
+        summary: 'It was around midnight when three lights moved in formation across the sky, then split off in different directions instantly. No sound at all.',
+        category: 'ufos_aliens',
+      },
+      {
+        id: 'curated-2',
+        title: '',
+        summary: 'I woke up unable to move and felt a heavy presence at the edge of the bed. It lasted maybe a minute but felt much longer.',
+        category: 'consciousness_practices',
+      },
+      {
+        id: 'curated-3',
+        title: '',
+        summary: 'My grandmother passed away that morning. That night a clock she had given me, that hadn’t worked in years, started chiming on its own.',
+        category: 'psychic_phenomena',
+      },
+      {
+        id: 'curated-4',
+        title: '',
+        summary: 'We were hiking when something tall and hunched stepped between two trees, watched us, and walked away without a sound. We didn’t finish the trail.',
+        category: 'cryptids',
+      },
+      {
+        id: 'curated-5',
+        title: '',
+        summary: 'Every time I walked into the upstairs hallway of the old house I felt watched. Cold spots, doors closing, footsteps when I was the only one home.',
+        category: 'ghosts_hauntings',
+      },
+    ]
+    var have = new Set(examples.map(function (e) { return e.category }))
+    for (var c of curated) {
+      if (examples.length >= 5) break
+      if (have.has(c.category)) continue
+      examples.push(c)
+      have.add(c.category)
+    }
   }
 
   res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900')

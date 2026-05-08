@@ -546,11 +546,11 @@ export default function StartPage() {
       <div className="min-h-[100dvh] bg-gradient-to-b from-gray-950 via-purple-950/20 to-gray-950 text-white">
         <div className="max-w-xl mx-auto px-4 sm:px-6 pt-6 sm:pt-12 pb-24">
 
-          {/* Brand strip */}
-          <div className="mb-6 sm:mb-10 flex items-center justify-between">
-            <Link href="/" className="font-brand text-xl sm:text-2xl tracking-tight">
-              Paradocs<span className="text-purple-500">.</span>
-            </Link>
+          {/* V9.11.3 #7 — wordmark dropped; the top nav already shows
+              "Paradocs." on every page. Step indicator stays so users
+              can see which step of the funnel they're on. Keep the
+              container so the spacing rhythm doesn't change. */}
+          <div className="mb-6 sm:mb-10 flex items-center justify-end">
             <StepIndicator step={step} />
           </div>
 
@@ -821,10 +821,12 @@ export default function StartPage() {
                 <div>
                   <p className="text-sm font-medium text-white mb-2">Who can see this report?</p>
                   <div className="grid grid-cols-3 gap-2">
+                    {/* V9.11.3 #1 — labels are plain-language because new
+                        users haven't met "RADAR" yet. */}
                     <VisibilityChip
                       active={draft.visibility === 'radar_only'}
                       icon={<Telescope className="w-4 h-4" />}
-                      label="RADAR only"
+                      label="Match only"
                       sub="default"
                       onClick={function () { setDraft(function (d) { return { ...d, visibility: 'radar_only' } }) }}
                     />
@@ -842,8 +844,8 @@ export default function StartPage() {
                     />
                   </div>
                   <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
-                    {draft.visibility === 'radar_only' && 'Visible only when other users have similar experiences. Not in the public feed.'}
-                    {draft.visibility === 'public' && 'Anyone can read your report from the browse feed.'}
+                    {draft.visibility === 'radar_only' && 'Used only to find other people with similar experiences. Not shown in the public browse feed.'}
+                    {draft.visibility === 'public' && 'Anyone can read your report from the public browse feed.'}
                     {draft.visibility === 'private' && 'Only you and our research team can see this.'}
                   </p>
                 </div>
@@ -866,6 +868,13 @@ export default function StartPage() {
                   <p className="text-xs text-red-200">{error}</p>
                 </div>
               )}
+
+              {/* V9.11.3 #8 — reassurance that one report isn't a cap.
+                  Reduces anxiety for users who have multiple experiences
+                  but feel they need to pick the "right" one for signup. */}
+              <p className="text-[11px] text-gray-500 text-center px-4 leading-relaxed">
+                You can share more experiences anytime from your account.
+              </p>
 
               {/* Continue + Skip */}
               <div className="space-y-3 pt-2">
