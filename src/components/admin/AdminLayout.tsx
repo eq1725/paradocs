@@ -28,7 +28,7 @@ import Link from 'next/link'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
 import {
-  LayoutDashboard, FileText, Image as ImageIcon, UserCircle, Anchor, FlaskConical, Bell, Loader2, Shield,
+  LayoutDashboard, FileText, Image as ImageIcon, UserCircle, MessageSquare, Anchor, FlaskConical, Bell, Loader2, Shield,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -46,7 +46,7 @@ interface NavPill {
   href: string
   label: string
   icon: React.ElementType
-  badgeKey?: 'reports' | 'media' | 'avatars' | 'anchors'
+  badgeKey?: 'reports' | 'media' | 'avatars' | 'bios' | 'anchors'
   match: (path: string) => boolean
 }
 
@@ -55,6 +55,9 @@ var NAV_ITEMS: NavPill[] = [
   { href: '/admin/report-review', label: 'Reports', icon: FileText, badgeKey: 'reports', match: (p) => p.indexOf('/admin/report-review') === 0 },
   { href: '/admin/media-review', label: 'Media', icon: ImageIcon, badgeKey: 'media', match: (p) => p.indexOf('/admin/media-review') === 0 },
   { href: '/admin/avatar-review', label: 'Avatars', icon: UserCircle, badgeKey: 'avatars', match: (p) => p.indexOf('/admin/avatar-review') === 0 },
+  // V9.9.1 — Bios pill added alongside Avatars. Same moderation pattern,
+  // different content type.
+  { href: '/admin/bio-review', label: 'Bios', icon: MessageSquare, badgeKey: 'bios', match: (p) => p.indexOf('/admin/bio-review') === 0 },
   { href: '/admin/anchor-cases', label: 'Anchors', icon: Anchor, match: (p) => p.indexOf('/admin/anchor-cases') === 0 },
   { href: '/admin/ab-testing', label: 'A/B', icon: FlaskConical, match: (p) => p.indexOf('/admin/ab-testing') === 0 },
   { href: '/admin/push-test', label: 'Push', icon: Bell, match: (p) => p.indexOf('/admin/push-test') === 0 },
@@ -64,12 +67,13 @@ interface QueueCounts {
   reports: number
   media: number
   avatars: number
+  bios: number
   anchors: number
 }
 
 export default function AdminLayout(props: AdminLayoutProps) {
   var router = useRouter()
-  var [counts, setCounts] = useState<QueueCounts>({ reports: 0, media: 0, avatars: 0, anchors: 0 })
+  var [counts, setCounts] = useState<QueueCounts>({ reports: 0, media: 0, avatars: 0, bios: 0, anchors: 0 })
   var [authLoading, setAuthLoading] = useState(true)
   var [authorized, setAuthorized] = useState(false)
 

@@ -51,13 +51,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // Run all count queries in parallel.
-  var [pendingReports, pendingAvatars] = await Promise.all([
+  var [pendingReports, pendingAvatars, pendingBios] = await Promise.all([
     (admin.from('reports') as any)
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending'),
     (admin.from('profiles') as any)
       .select('id', { count: 'exact', head: true })
       .eq('avatar_pending_review', true),
+    // V9.9.1 — bios queue count
+    (admin.from('profiles') as any)
+      .select('id', { count: 'exact', head: true })
+      .eq('bio_pending_review', true),
   ])
 
   res.setHeader('Cache-Control', 'private, max-age=30')
@@ -65,6 +69,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     reports: pendingReports.count || 0,
     media: 0, // V9.8 P2 placeholder — wire up when media queue gets a status column
     avatars: pendingAvatars.count || 0,
+    bios: pendingBios.count || 0,
     anchors: 0, // anchor-cases is an editor, no queue
   })
 }
