@@ -22,6 +22,14 @@ export default function LoginPage() {
   const [message, setMessage] = useState('')
 
   useEffect(() => {
+    // V9.11.2 — direct hits on /login?mode=signup are an old funnel.
+    // Funnel signup intent through /start so every new account is
+    // preceded by an experience-share prompt.
+    if (typeof router.query.mode === 'string' && router.query.mode === 'signup') {
+      router.replace('/start')
+      return
+    }
+
     // Check if already logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
@@ -238,15 +246,19 @@ export default function LoginPage() {
                   </button>
                 </div>
 
+                {/* V9.11.2 — route signup intent through /start so every
+                    new account is preceded by an experience-share prompt
+                    (or the explicit "share later" skip). The /login route
+                    is for returning users only. */}
                 <div className="mt-6 text-center text-sm">
                   <p className="text-gray-400">
-                    {"Don't have an account? "}
-                    <button
-                      onClick={() => setMode('signup')}
-                      className="text-primary-400 hover:text-primary-300"
+                    {"New to Paradocs? "}
+                    <Link
+                      href="/start"
+                      className="text-primary-400 hover:text-primary-300 font-medium"
                     >
-                      Sign up
-                    </button>
+                      Share your first experience &rarr;
+                    </Link>
                   </p>
                 </div>
               </>

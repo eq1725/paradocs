@@ -10,10 +10,14 @@ export default function AuthCallback() {
     // Handle the OAuth callback
     const handleCallback = async () => {
       try {
-        // Get the intended redirect from the URL or default to home
+        // Get the intended redirect from the URL or default to home.
+        // Accept both 'redirect' (legacy) and 'next' (V9.11 onboarding flow)
+        // for backward compatibility — the onboarding /start flow sends
+        // ?next=/start?from=auth so the magic-link click resumes the funnel
+        // (RADAR reveal step) instead of dumping the user on the homepage.
         const params = new URLSearchParams(window.location.search)
         const hashParams = new URLSearchParams(window.location.hash.substring(1))
-        const redirectTo = params.get('redirect') || '/'
+        const redirectTo = params.get('next') || params.get('redirect') || '/'
 
         // Check for error in URL (OAuth error)
         const errorParam = params.get('error') || hashParams.get('error')
@@ -53,6 +57,38 @@ export default function AuthCallback() {
             router.push('/login')
             return
           }
+        }
+
+        // V9.11.2 — new-user redirect.
+        //
+        // After auth is set, check whether this user has a populated
+        // profile. If the profile.username is empty, they're new — they
+        // probably came from /login (which doesn't pass auth metadata)
+        // without ever filling out the experience-share funnel. Route
+        // them through /start so we capture their first experience
+        // before dropping them on the marketing/discover pages.
+        //
+        // Privacy-safe: this check happens AFTER the magic-link click,
+        // so we never leak account-existence information at the email
+        // submit step.
+        try {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('username')
+              .eq('id', user.id)
+              .maybeSingle()
+            const hasUsername = !!(profile as any)?.username
+            const targetIsStart = redirectTo.indexOf('/start') === 0
+            if (!hasUsername && !targetIsStart) {
+              router.push('/start?from=auth')
+              return
+            }
+          }
+        } catch (e) {
+          // Non-fatal; fall through to the originally requested redirect.
+          console.warn('Profile check failed in callback:', e)
         }
 
         // Success - redirect to intended destination

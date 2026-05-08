@@ -98,7 +98,7 @@ export default function AcceptInvitePage() {
                 Sign in to accept
               </Link>
               <p className="text-[10px] text-gray-600 mt-3">
-                Don&apos;t have an account yet? <Link href={'/signup?next=' + encodeURIComponent('/cases/invite/' + token)} className="text-primary-300 hover:text-primary-200">Create one</Link>.
+                Don&apos;t have an account yet? <Link href="/start" className="text-primary-300 hover:text-primary-200">Create one</Link>.
               </p>
             </>
           )}

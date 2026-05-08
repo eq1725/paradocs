@@ -109,7 +109,7 @@ export default function DataProofCTA() {
           </p>
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
-              href="/login"
+              href="/start"
               className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-primary-500 hover:bg-primary-400 text-white font-semibold transition-colors text-base"
             >
               <LogIn className="w-5 h-5" />

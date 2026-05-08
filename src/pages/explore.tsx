@@ -1063,7 +1063,7 @@ function ExploreBrowseMode() {
                             <h3 className="text-lg sm:text-xl font-bold text-white mb-2">Enjoying what you see?</h3>
                             <p className="text-sm text-gray-400 max-w-lg">Create a free account to save reports, get personalized recommendations, and receive weekly digests of new discoveries.</p>
                           </div>
-                          <Link href="/login" className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-500 text-white rounded-full font-medium text-sm transition-colors whitespace-nowrap flex-shrink-0">
+                          <Link href="/start" className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-500 text-white rounded-full font-medium text-sm transition-colors whitespace-nowrap flex-shrink-0">
                             <UserPlus className="w-4 h-4" /> Create Free Account
                           </Link>
                         </div>

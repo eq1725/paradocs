@@ -1639,7 +1639,7 @@ export default function DiscoverPage() {
               {signupPromptBody()}
             </p>
             <Link
-              href="/login?redirect=/discover"
+              href="/start"
               className="block w-full py-3 bg-primary-600 hover:bg-primary-500 active:bg-primary-500 text-white rounded-full font-medium transition-colors mb-3"
             >
               Create Free Account

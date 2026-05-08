@@ -229,7 +229,7 @@ export default function StoryPage(props: StoryProps) {
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <a
-                href={'/auth/signup?redirect=/report/' + (report.slug || report.id)}
+                href="/start"
                 className="px-8 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-violet-600 text-white font-semibold text-sm hover:from-purple-700 hover:to-violet-700 transition-all shadow-lg shadow-purple-900/30"
               >
                 Sign Up Free

@@ -45,7 +45,9 @@ import { moderateExperience } from '@/lib/services/text-moderation-experience.se
 interface SubmitPayload {
   description: string                 // required, 30-2000 chars
   title?: string                      // optional, auto-generated if missing
-  category?: string                   // optional, defaults to 'unexplained_event'
+  category?: string                   // optional, defaults to 'combination'
+  /** V9.11.1 — primary phenomenon_types FK (from /start picker). */
+  phenomenon_type_id?: string | null
   event_date?: string | null          // YYYY-MM-DD or null
   location_name?: string | null
   city?: string | null
@@ -129,7 +131,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Build the report row.
   var title = (p.title || '').toString().trim() || makeTitle(description)
   var summary = description.slice(0, 200) + (description.length > 200 ? '…' : '')
-  var category = (p.category || 'unexplained_event').toString()
+  // V9.11.1 — default to canonical 'combination' (catch-all category) instead
+  // of the legacy 'unexplained_event' string the prerelease used.
+  var category = (p.category || 'combination').toString()
   var slug = makeSlug(title, userId.replace(/-/g, ''))
 
   // Pending mod → status='pending' so admin sees it before public render.
@@ -167,6 +171,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (typeof p.has_photo_video === 'boolean') insert.has_photo_video = p.has_photo_video
   if (p.evidence_summary) insert.evidence_summary = p.evidence_summary
   if (Array.isArray(p.tags) && p.tags.length > 0) insert.tags = p.tags
+  if (p.phenomenon_type_id) insert.phenomenon_type_id = p.phenomenon_type_id
   insert.onboarding_first_report = true
 
   var { data: inserted, error: insertErr } = await (admin
@@ -178,6 +183,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (insertErr) {
     console.error('[OnboardingSubmit] insert error:', insertErr.message)
     return res.status(500).json({ ok: false, error: 'Failed to save your experience. Try again.' })
+  }
+
+  // V9.11.1 — when a primary phenomenon_type was picked, also write the
+  // join-table row so the report shows up in /phenomena/[slug] feeds and
+  // the dashboard counts. /submit does the same; we mirror it.
+  if (p.phenomenon_type_id) {
+    try {
+      await (admin.from('report_tags') as any).insert({
+        report_id: (inserted as any).id,
+        phenomenon_type_id: p.phenomenon_type_id,
+        is_primary: true,
+        relevance_score: 1.0,
+      })
+    } catch (e: any) {
+      // Non-fatal; the report still exists.
+      console.error('[OnboardingSubmit] report_tags insert failed:', e?.message)
+    }
   }
 
   return res.status(200).json({

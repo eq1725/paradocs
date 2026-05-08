@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import Head from 'next/head'
+import { useRouter } from 'next/router'
 import { Search } from 'lucide-react'
 import { useABTest } from '@/lib/ab-testing'
+import { supabase } from '@/lib/supabase'
 import QuickNavStrip from '@/components/homepage/QuickNavStrip'
 import FeedShowcase from '@/components/homepage/FeedShowcase'
 import MapShowcase from '@/components/homepage/MapShowcase'
@@ -115,6 +117,8 @@ var HERO_VARIANTS: Record<string, { headline: string; subheadline: string }> = {
 }
 
 export default function Home() {
+  var router = useRouter()
+
   // A/B test for hero headline — 5 variants defined in admin/ab-testing.tsx
   var heroTest = useABTest('hero_headline', ['A', 'B', 'C', 'D', 'E'])
   var heroContent = HERO_VARIANTS[heroTest.variant] || HERO_VARIANTS.B
@@ -123,12 +127,63 @@ export default function Home() {
   var [isSearchFocused, setIsSearchFocused] = useState(false)
   var animatedPlaceholder = useAnimatedPlaceholder(isSearchFocused || searchQuery.length > 0)
 
+  // Render gate: while we decide whether to redirect to /start (cold visitor)
+  // or /discover (signed-in returning user), we render nothing to avoid
+  // flashing the marketing page. Set to true once we've confirmed this user
+  // should see the homepage.
+  var [showHome, setShowHome] = useState(false)
+
+  // V9.11.2 #E — first-run redirect.
+  //
+  // - ?force_home=1 in the URL skips the redirect entirely (use this when
+  //   linking to the marketing page from email blasts, press kits, etc.).
+  // - localStorage flags 'paradocs_onboarding_skipped_v1' or
+  //   'paradocs_onboarding_complete_v1' mean the user has already
+  //   passed through the funnel — show them the homepage.
+  // - Any active Supabase session = returning user → /discover.
+  // - Otherwise = cold visitor → /start.
+  useEffect(function () {
+    if (typeof window === 'undefined') return
+    var params = new URLSearchParams(window.location.search)
+    if (params.has('force_home')) { setShowHome(true); return }
+    var skipped = false
+    var completed = false
+    try {
+      skipped = localStorage.getItem('paradocs_onboarding_skipped_v1') === '1'
+      completed = localStorage.getItem('paradocs_onboarding_complete_v1') === '1'
+    } catch {}
+    if (skipped || completed) { setShowHome(true); return }
+    supabase.auth.getSession().then(function (s) {
+      if (s && s.data && s.data.session) {
+        router.replace('/discover')
+        return
+      }
+      router.replace('/start')
+    }).catch(function () {
+      // If session check fails for any reason, fail open — show homepage.
+      setShowHome(true)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
     if (searchQuery.trim()) {
       heroTest.trackConversion('search')
       window.location.href = '/explore?mode=search&q=' + encodeURIComponent(searchQuery)
     }
+  }
+
+  // V9.11.2 #E \u2014 render gate. If we haven't decided yet, show a tiny
+  // loader (full-bleed dark) so the marketing hero doesn't flash before
+  // the redirect fires. This effectively makes redirected users see
+  // nothing on / instead of a quarter-second of homepage content.
+  if (!showHome) {
+    return (
+      <div className="min-h-[100dvh] bg-gray-950 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-400" />
+      </div>
+    )
   }
 
   return (

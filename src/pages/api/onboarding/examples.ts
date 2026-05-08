@@ -77,8 +77,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   })
 
   // Pick one random from each category, prefer paranormal categories,
-  // cap at 5 total. Order: ufo, ghost, cryptid, psychic, then anything.
-  var preferred = ['ufo_uap', 'ghost_haunting', 'cryptid', 'psychic_paranormal', 'unexplained_event', 'mystery_location', 'other']
+  // cap at 5 total. Order: UFO, ghosts, cryptid, psychic, then anything.
+  // V9.11.1 — uses canonical PhenomenonCategory slugs (the prerelease
+  // used legacy 'ufo_uap'/'ghost_haunting' strings that didn't exist
+  // in the reports table, so the preference list never matched).
+  var preferred = [
+    'ufos_aliens',
+    'ghosts_hauntings',
+    'cryptids',
+    'psychic_phenomena',
+    'consciousness_practices',
+    'religion_mythology',
+    'esoteric_practices',
+    'combination',
+  ]
   var examples: Example[] = []
   for (var cat of preferred) {
     if (examples.length >= 5) break

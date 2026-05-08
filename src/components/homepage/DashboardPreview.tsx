@@ -107,7 +107,7 @@ export default function DashboardPreview() {
 
             <div className="flex flex-col sm:flex-row gap-3">
               <Link
-                href="/login?reason=research"
+                href="/start"
                 className={classNames(
                   'inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg',
                   'bg-primary-500 hover:bg-primary-600 text-white font-medium transition-colors'

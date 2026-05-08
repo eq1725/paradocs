@@ -31,9 +31,13 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import {
   Sparkles, ArrowRight, Loader2, Check, X, Mail, ChevronDown, ChevronUp,
-  EyeOff, Eye, Globe, Lock, AlertCircle, Telescope,
+  EyeOff, Eye, Globe, Lock, AlertCircle, Telescope, Search,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { PhenomenonCategory, PhenomenonType } from '@/lib/database.types'
+import { CATEGORY_CONFIG } from '@/lib/constants'
+import { classNames } from '@/lib/utils'
+import CategoryIcon from '@/components/ui/CategoryIcon'
 
 // ---------------------------------------------------------------- types
 
@@ -47,7 +51,10 @@ type Step =
 
 interface ExperienceDraft {
   description: string
-  category: string
+  /** Canonical PhenomenonCategory slug (e.g. 'ufos_aliens', 'ghosts_hauntings'). */
+  category: PhenomenonCategory | ''
+  /** Optional FK into phenomenon_types — set when the user picks a specific type. */
+  phenomenon_type_id: string
   event_date: string
   location_name: string
   visibility: 'radar_only' | 'public' | 'private'
@@ -79,16 +86,38 @@ interface MatchedReport {
 const DRAFT_KEY = 'paradocs_onboarding_draft_v1'
 const ACCOUNT_KEY = 'paradocs_onboarding_account_v1'
 const SKIP_KEY = 'paradocs_onboarding_skipped_v1'
+/**
+ * Set when a user picks "Or create my account, share later" — they want
+ * an account but didn't write a report. The post-auth flow reads this
+ * and skips the submit step so the user lands on /discover with an
+ * empty account instead of having an incomplete draft auto-submitted.
+ */
+const ACCOUNT_ONLY_KEY = 'paradocs_onboarding_account_only_v1'
+/**
+ * Set after a successful first-report submit OR an account-only signup.
+ * The /index.tsx first-run redirect treats this as "user has been
+ * through the funnel — show them the homepage as a returning visitor
+ * instead of bouncing them back to /start."
+ */
+const COMPLETE_KEY = 'paradocs_onboarding_complete_v1'
 
-const CATEGORY_OPTIONS = [
-  { value: 'ufo_uap', label: 'UFO / UAP', icon: '🛸' },
-  { value: 'ghost_haunting', label: 'Ghost / Haunting', icon: '👻' },
-  { value: 'cryptid', label: 'Cryptid', icon: '🦶' },
-  { value: 'psychic_paranormal', label: 'Psychic / Spiritual', icon: '🔮' },
-  { value: 'unexplained_event', label: 'Unexplained Event', icon: '✨' },
-  { value: 'mystery_location', label: 'Mystery Location', icon: '📍' },
-  { value: 'other', label: 'Other', icon: '❓' },
-]
+/**
+ * Editorial-only types that should never appear in the user-facing picker.
+ * Mirrors the same filter as /submit so /start stays consistent. Editorial
+ * types are headlines/tags used by ingestion ("Notable Case", "Historical
+ * Sighting") — the user should pick a personal-experience type.
+ */
+function isEditorialType(name: string, slug: string | null): boolean {
+  var n = name.toLowerCase()
+  var s = (slug || '').toLowerCase()
+  if (n.indexOf('historical ') === 0) return true
+  if (/\b(notable|infamous|classic|famous)\s+(case|report|incident)/i.test(name)) return true
+  var locSlugs = ['bermuda-triangle', 'skinwalker-ranch', 'ley-line']
+  if (locSlugs.indexOf(s) !== -1) return true
+  var locNames = ['bermuda triangle', 'skinwalker ranch', 'ley line']
+  if (locNames.indexOf(n) !== -1) return true
+  return false
+}
 
 // ---------------------------------------------------------------- helpers
 
@@ -126,12 +155,19 @@ export default function StartPage() {
   var [draft, setDraft] = useState<ExperienceDraft>({
     description: '',
     category: '',
+    phenomenon_type_id: '',
     event_date: '',
     location_name: '',
     visibility: 'radar_only',
     share_anonymously: false,
   })
   var [showDeep, setShowDeep] = useState(false)
+
+  // Phenomenon-type picker state (V9.11.1 — replaces the old emoji chip strip)
+  var [phenomenonTypes, setPhenomenonTypes] = useState<PhenomenonType[]>([])
+  var [typeSearch, setTypeSearch] = useState('')
+  var [typeSearchFocused, setTypeSearchFocused] = useState(false)
+  var [showBrowseCategories, setShowBrowseCategories] = useState(false)
 
   // Account state (step 2)
   var [account, setAccount] = useState<AccountDraft>({
@@ -173,6 +209,24 @@ export default function StartPage() {
       // Need a session; check + advance.
       supabase.auth.getSession().then(function (s) {
         if (s.data.session) {
+          // V9.11.2 — if user picked "share later", skip submit + go to /discover
+          // even if there's a draft. They may have typed something then changed
+          // their mind; honor their final choice.
+          var accountOnly = (function () {
+            try { return localStorage.getItem(ACCOUNT_ONLY_KEY) === '1' } catch { return false }
+          })()
+          if (accountOnly) {
+            try {
+              localStorage.removeItem(ACCOUNT_ONLY_KEY)
+              // V9.11.2 #F — they've finished onboarding (just without
+              // a first report). Mark complete so / doesn't bounce them.
+              localStorage.setItem(COMPLETE_KEY, '1')
+            } catch {}
+            clearDraft()
+            router.replace('/discover')
+            return
+          }
+
           // Have auth + draft → submit; have auth + no draft → reveal nothing
           if (d && d.description.trim().length >= 30) {
             setStep('submit')
@@ -211,6 +265,83 @@ export default function StartPage() {
       })
       .catch(function () { /* silent */ })
   }, [step])
+
+  // ---------------- phenomenon types fetch (for the picker)
+
+  useEffect(function () {
+    if (step !== 'experience') return
+    if (phenomenonTypes.length > 0) return
+    supabase
+      .from('phenomenon_types')
+      .select('*')
+      .order('name')
+      .then(function (res: any) {
+        if (res && Array.isArray(res.data)) setPhenomenonTypes(res.data as PhenomenonType[])
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step])
+
+  // Picker derived state -----------------------------------------------------
+
+  var submittableTypes = phenomenonTypes.filter(function (t) {
+    return !isEditorialType(t.name, t.slug)
+  })
+
+  var selectedType: PhenomenonType | undefined = draft.phenomenon_type_id
+    ? phenomenonTypes.find(function (t) { return t.id === draft.phenomenon_type_id })
+    : undefined
+
+  var selectedCategoryConfig = draft.category
+    ? CATEGORY_CONFIG[draft.category as PhenomenonCategory]
+    : undefined
+
+  // Types that match the chosen category (used in the "narrow it down" select).
+  var filteredTypes = submittableTypes.filter(function (t) {
+    return !draft.category || t.category === draft.category
+  })
+
+  // Smart search across all types.
+  var typeSearchResults: PhenomenonType[] = (function () {
+    var q = typeSearch.trim().toLowerCase()
+    if (q.length < 2) return []
+    var words = q.split(/\s+/).filter(function (w) { return w.length >= 2 })
+    var scored = submittableTypes
+      .map(function (t) {
+        var name = t.name.toLowerCase()
+        var slug = (t.slug || '').toLowerCase()
+        var score = 0
+        if (name === q) score += 100
+        if (name.indexOf(q) === 0) score += 50
+        if (name.indexOf(q) !== -1) score += 20
+        if (slug.indexOf(q) !== -1) score += 10
+        words.forEach(function (w) {
+          if (name.indexOf(w) !== -1) score += 5
+        })
+        return { t: t, score: score }
+      })
+      .filter(function (s) { return s.score > 0 })
+      .sort(function (a, b) { return b.score - a.score })
+      .slice(0, 8)
+    return scored.map(function (s) { return s.t })
+  })()
+
+  function selectTypeFromSearch(type: PhenomenonType) {
+    setDraft(function (d) {
+      return {
+        ...d,
+        category: (type.category as PhenomenonCategory) || d.category,
+        phenomenon_type_id: type.id,
+      }
+    })
+    setTypeSearch('')
+    setTypeSearchFocused(false)
+    setShowBrowseCategories(false)
+  }
+
+  function clearTypeSelection() {
+    setDraft(function (d) { return { ...d, category: '', phenomenon_type_id: '' } })
+    setTypeSearch('')
+  }
 
   // Rotate the example carousel.
   useEffect(function () {
@@ -262,6 +393,22 @@ export default function StartPage() {
   function handleSkip() {
     try { localStorage.setItem(SKIP_KEY, '1') } catch {}
     router.replace('/discover')
+  }
+
+  /**
+   * "Or create my account, share later" path.
+   * The user wants an account but isn't ready to share an experience.
+   * Clears the draft so the post-auth flow doesn't auto-submit anything,
+   * sets the ACCOUNT_ONLY flag so we know to route to /discover instead
+   * of the RADAR reveal, and advances to step 2 (email/username).
+   */
+  function handleAccountOnly() {
+    try {
+      localStorage.setItem(ACCOUNT_ONLY_KEY, '1')
+      localStorage.removeItem(DRAFT_KEY)
+    } catch {}
+    setDraft(function (d) { return { ...d, description: '', phenomenon_type_id: '', category: '' } })
+    setStep('account')
   }
 
   // ---------------- step 2 → step 3
@@ -331,7 +478,11 @@ export default function StartPage() {
           },
           body: JSON.stringify({
             description: draft.description,
-            category: draft.category || 'unexplained_event',
+            // Default to 'combination' when uncategorised — that's the
+            // catch-all PhenomenonCategory, replaces the deprecated
+            // 'unexplained_event' string used in V9.11 prerelease.
+            category: draft.category || 'combination',
+            phenomenon_type_id: draft.phenomenon_type_id || null,
             event_date: draft.event_date || null,
             location_name: draft.location_name || null,
             visibility: draft.visibility,
@@ -345,11 +496,14 @@ export default function StartPage() {
         }
         setReportId(result.report_id)
         setReportSlug(result.slug)
+        // V9.11.2 #F — mark the funnel as completed so future homepage
+        // visits don't bounce this user back to /start.
+        try { localStorage.setItem(COMPLETE_KEY, '1') } catch {}
 
         // Now request matches.
         try {
           var matchUrl = '/api/constellation/match?report_id=' + encodeURIComponent(result.report_id) +
-                         '&category=' + encodeURIComponent(draft.category || 'unexplained_event') +
+                         '&category=' + encodeURIComponent(draft.category || 'combination') +
                          '&description=' + encodeURIComponent(draft.description.slice(0, 500)) +
                          '&limit=8'
           var mResp = await fetch(matchUrl, {
@@ -386,7 +540,7 @@ export default function StartPage() {
     <>
       <Head>
         <title>Share your experience · Paradocs</title>
-        <meta name="description" content="Researchers join Paradocs by sharing one experience they can't explain. Find similar reports from across the archive." />
+        <meta name="description" content="Join Paradocs by sharing one experience you can't explain. We'll match yours against millions of others in the archive." />
       </Head>
 
       <div className="min-h-[100dvh] bg-gradient-to-b from-gray-950 via-purple-950/20 to-gray-950 text-white">
@@ -408,7 +562,7 @@ export default function StartPage() {
                   What did you see?
                 </h1>
                 <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed">
-                  Researchers join Paradocs by sharing one experience they can&apos;t explain. We&apos;ll match yours against thousands of others in the archive.
+                  Join Paradocs by sharing one experience you can&apos;t explain. We&apos;ll match yours against millions of others in the archive.
                 </p>
               </div>
 
@@ -445,32 +599,182 @@ export default function StartPage() {
                 </div>
               </div>
 
-              {/* Category */}
+              {/* What did you experience? — phenomenology picker (V9.11.1).
+                  Mirrors the /submit pattern: search-first, browse-by-category fallback.
+                  Replaces the deprecated emoji chip strip. */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Closest category <span className="text-gray-500 font-normal">(optional)</span>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  What did you experience? <span className="text-gray-500 font-normal">(optional)</span>
                 </label>
-                <div className="flex flex-wrap gap-2">
-                  {CATEGORY_OPTIONS.map(function (c) {
-                    var active = draft.category === c.value
-                    return (
+                <p className="text-xs text-gray-500 mb-3">
+                  Search for an experience type, or browse by category.
+                </p>
+
+                {draft.category && selectedType ? (
+                  /* Type selected — show chip with category context */
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className={classNames(
+                      'flex items-center gap-2 px-3 py-2 rounded-lg border',
+                      selectedCategoryConfig
+                        ? selectedCategoryConfig.bgColor + ' border-current ' + selectedCategoryConfig.color
+                        : 'bg-white/5 border-white/10'
+                    )}>
+                      <CategoryIcon category={draft.category as PhenomenonCategory} size={16} />
+                      <span className="text-sm font-medium text-white">{selectedType.name}</span>
+                      <span className="text-xs text-gray-400">in {selectedCategoryConfig?.label}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearTypeSelection}
+                      className="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition-colors"
+                    >
+                      <X className="w-3 h-3" /> Change
+                    </button>
+                  </div>
+                ) : draft.category && !selectedType ? (
+                  /* Category-only — chip + optional narrow-it-down dropdown */
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className={classNames(
+                        'flex items-center gap-2 px-3 py-2 rounded-lg border',
+                        selectedCategoryConfig
+                          ? selectedCategoryConfig.bgColor + ' border-current ' + selectedCategoryConfig.color
+                          : 'bg-white/5 border-white/10'
+                      )}>
+                        <CategoryIcon category={draft.category as PhenomenonCategory} size={16} />
+                        <span className="text-sm font-medium text-white">
+                          {selectedCategoryConfig?.label}
+                        </span>
+                      </div>
                       <button
-                        key={c.value}
                         type="button"
-                        onClick={function () { setDraft(function (d) { return { ...d, category: active ? '' : c.value } }) }}
-                        className={
-                          'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ' +
-                          (active
-                            ? 'bg-purple-600 text-white border border-purple-500'
-                            : 'bg-gray-900 text-gray-300 border border-gray-700 hover:border-purple-500/40')
-                        }
+                        onClick={clearTypeSelection}
+                        className="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition-colors"
                       >
-                        <span>{c.icon}</span>
-                        {c.label}
+                        <X className="w-3 h-3" /> Change
                       </button>
-                    )
-                  })}
-                </div>
+                    </div>
+                    {filteredTypes.length > 0 && (
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">
+                          Narrow it down (optional)
+                        </label>
+                        <select
+                          value={draft.phenomenon_type_id}
+                          onChange={function (e) {
+                            var v = e.target.value
+                            setDraft(function (d) { return { ...d, phenomenon_type_id: v } })
+                          }}
+                          className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
+                        >
+                          <option value="">Select a specific type…</option>
+                          {filteredTypes.map(function (type) {
+                            return (
+                              <option key={type.id} value={type.id}>{type.name}</option>
+                            )
+                          })}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Nothing selected — search input + browse-by-category */
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={typeSearch}
+                        onChange={function (e) { setTypeSearch(e.target.value) }}
+                        onFocus={function () { setTypeSearchFocused(true) }}
+                        onBlur={function () { setTimeout(function () { setTypeSearchFocused(false) }, 200) }}
+                        placeholder="e.g. lucid dream, shadow figure, abduction…"
+                        className="w-full bg-gray-900/80 border border-gray-700 rounded-lg pl-10 pr-8 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                      />
+                      {typeSearch && (
+                        <button
+                          type="button"
+                          onClick={function () { setTypeSearch('') }}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      {typeSearchFocused && typeSearch.length >= 2 && (
+                        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-gray-900 border border-white/10 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+                          {typeSearchResults.length > 0 ? (
+                            typeSearchResults.map(function (type) {
+                              var catConfig = CATEGORY_CONFIG[type.category as PhenomenonCategory]
+                              return (
+                                <button
+                                  key={type.id}
+                                  type="button"
+                                  onClick={function () { selectTypeFromSearch(type) }}
+                                  className="w-full text-left px-4 py-3 hover:bg-white/5 transition-colors flex items-center justify-between gap-3 border-b border-white/5 last:border-0"
+                                >
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <CategoryIcon category={type.category as PhenomenonCategory} size={16} />
+                                    <span className="text-sm text-white truncate">{type.name}</span>
+                                  </div>
+                                  {catConfig && (
+                                    <span className={classNames(
+                                      'text-xs px-2 py-0.5 rounded-full shrink-0',
+                                      catConfig.bgColor, catConfig.color
+                                    )}>
+                                      {catConfig.label}
+                                    </span>
+                                  )}
+                                </button>
+                              )
+                            })
+                          ) : (
+                            <div className="px-4 py-3 text-sm text-gray-500">
+                              No matching types. Try different keywords or browse by category below.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={function () { setShowBrowseCategories(function (v) { return !v }) }}
+                      className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+                    >
+                      <ChevronDown className={classNames(
+                        'w-4 h-4 transition-transform',
+                        showBrowseCategories ? 'rotate-180' : ''
+                      )} />
+                      Or browse by category
+                    </button>
+
+                    {showBrowseCategories && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {Object.entries(CATEGORY_CONFIG).map(function (entry) {
+                          var key = entry[0]
+                          var config = entry[1]
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={function () {
+                                setDraft(function (d) {
+                                  return { ...d, category: key as PhenomenonCategory, phenomenon_type_id: '' }
+                                })
+                                setShowBrowseCategories(false)
+                              }}
+                              className="p-3 rounded-lg border text-left transition-all bg-white/5 border-white/10 hover:border-purple-500/40"
+                            >
+                              <CategoryIcon category={key as PhenomenonCategory} size={20} />
+                              <p className="mt-1 text-sm font-medium text-white">{config.label}</p>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Tier 2 — Deep details (collapsed) */}
@@ -574,13 +878,31 @@ export default function StartPage() {
                   Continue
                   <ArrowRight className="w-4 h-4" />
                 </button>
-                <button
-                  type="button"
-                  onClick={handleSkip}
-                  className="w-full text-center text-sm text-gray-400 hover:text-gray-200 transition-colors py-2"
-                >
-                  Browse Paradocs first →
-                </button>
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={handleSkip}
+                    className="text-sm text-gray-400 hover:text-gray-200 transition-colors py-1"
+                  >
+                    Browse Paradocs first →
+                  </button>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    No account needed to browse.
+                  </p>
+                </div>
+                {/* V9.11.2 — secondary path: account without an experience.
+                    Smaller, lower-contrast than the primary skip (panel
+                    consensus: keep two-skips visually weighted by intent
+                    frequency). */}
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={handleAccountOnly}
+                    className="text-xs text-gray-500 hover:text-gray-300 transition-colors underline-offset-2 hover:underline"
+                  >
+                    Or create my account, share later →
+                  </button>
+                </div>
                 <p className="text-[10px] text-gray-500 text-center px-4 leading-relaxed">
                   By sharing, you agree to our <Link href="/terms" className="underline hover:text-gray-300">Terms</Link> and <Link href="/privacy" className="underline hover:text-gray-300">Privacy Policy</Link>.
                 </p>
@@ -589,7 +911,13 @@ export default function StartPage() {
           )}
 
           {/* ============= STEP 2 — ACCOUNT ============= */}
-          {step === 'account' && (
+          {step === 'account' && (() => {
+            // V9.11.2 — different headline depending on whether the user
+            // is sharing an experience now ("one more step") or skipped
+            // straight to account creation ("share later").
+            var accountOnly = false
+            try { accountOnly = localStorage.getItem(ACCOUNT_ONLY_KEY) === '1' } catch {}
+            return (
             <div className="space-y-6">
               <div>
                 <button
@@ -597,13 +925,15 @@ export default function StartPage() {
                   onClick={function () { setStep('experience') }}
                   className="text-sm text-gray-400 hover:text-white mb-3 inline-flex items-center gap-1"
                 >
-                  ← Back to your experience
+                  ← Back
                 </button>
                 <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
-                  One more step.
+                  {accountOnly ? 'Create your account.' : 'One more step.'}
                 </h1>
                 <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed">
-                  We&apos;ll save your experience and email you a magic link to sign in. No password to remember.
+                  {accountOnly
+                    ? 'We’ll email you a magic link to sign in. No password to remember. You can share your experience anytime.'
+                    : 'We’ll save your experience and email you a magic link to sign in. No password to remember.'}
                 </p>
               </div>
 
@@ -706,7 +1036,8 @@ export default function StartPage() {
                 We use magic links so you don&apos;t have to remember another password.
               </p>
             </div>
-          )}
+            )
+          })()}
 
           {/* ============= STEP 3 — CHECK EMAIL ============= */}
           {step === 'check-email' && (

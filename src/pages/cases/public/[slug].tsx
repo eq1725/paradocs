@@ -106,7 +106,7 @@ export default function PublicCaseFilePage({ caseFile, owner, artifacts, notFoun
               <span>Paradocs</span>
             </Link>
             <Link
-              href="/signup"
+              href="/start"
               className="text-xs font-medium px-3 py-1.5 rounded-lg text-primary-300 bg-primary-600/10 border border-primary-500/20 hover:bg-primary-600/20 transition-colors"
             >
               Start your own research
@@ -173,7 +173,7 @@ export default function PublicCaseFilePage({ caseFile, owner, artifacts, notFoun
               cryptid report, and paranormal source on the internet.
             </p>
             <Link
-              href="/signup"
+              href="/start"
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-primary-600 hover:bg-primary-500 transition-colors"
             >
               Start researching
