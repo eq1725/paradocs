@@ -31,13 +31,19 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import {
   Sparkles, ArrowRight, Loader2, Check, X, Mail, ChevronDown, ChevronUp,
-  EyeOff, Eye, Globe, Lock, AlertCircle, Telescope, Search,
+  EyeOff, Eye, Globe, Lock, AlertCircle, Telescope, Search, Calendar,
+  MapPin, Users, FileText, Camera, Locate, Upload, Image as ImageIcon, Film, Music,
 } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { PhenomenonCategory, PhenomenonType } from '@/lib/database.types'
-import { CATEGORY_CONFIG } from '@/lib/constants'
+import { CATEGORY_CONFIG, COUNTRIES, US_STATES } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
 import CategoryIcon from '@/components/ui/CategoryIcon'
+
+// Lazy-loaded so the Leaflet bundle (~50KB) only ships when the user
+// expands the "Where" section.
+const LocationPicker = dynamic(() => import('@/components/LocationPicker'), { ssr: false })
 
 // ---------------------------------------------------------------- types
 
@@ -55,8 +61,36 @@ interface ExperienceDraft {
   category: PhenomenonCategory | ''
   /** Optional FK into phenomenon_types — set when the user picks a specific type. */
   phenomenon_type_id: string
+  /** Cross-disciplinary tagging — additional phenomenon_types beyond the primary. */
+  additional_type_ids: string[]
+
+  // V9.11.3 #2-5 — deep details (all optional).
+  // When did this happen?
   event_date: string
+  event_date_precision: 'exact' | 'month' | 'year' | 'decade'
+  event_time: string
+  duration_minutes: string
+
+  // Where did this happen?
   location_name: string
+  location_description: string
+  country: string
+  state_province: string
+  city: string
+  latitude: string
+  longitude: string
+
+  // Witnesses
+  witness_count: string
+  submitter_was_witness: boolean
+
+  // Evidence
+  has_physical_evidence: boolean
+  has_photo_video: boolean
+  has_official_report: boolean
+  evidence_summary: string
+
+  // Privacy
   visibility: 'radar_only' | 'public' | 'private'
   share_anonymously: boolean
 }
@@ -121,6 +155,45 @@ function isEditorialType(name: string, slug: string | null): boolean {
 
 // ---------------------------------------------------------------- helpers
 
+/**
+ * Upload pending media files to Supabase Storage + write report_media rows.
+ * Mirrors the pattern in /components/ImageUpload.tsx but adapted for the
+ * onboarding flow where uploads are deferred until after auth.
+ */
+async function uploadPendingMedia(
+  files: File[],
+  reportId: string,
+  userId: string
+): Promise<void> {
+  for (var i = 0; i < files.length; i++) {
+    var file = files[i]
+    var ext = (file.name.match(/\.([a-z0-9]+)$/i) || [])[1] || 'bin'
+    var path = userId + '/' + reportId + '/' + Date.now() + '-' + i + '.' + ext
+
+    var { error: uploadErr } = await supabase.storage
+      .from('report-media')
+      .upload(path, file, { contentType: file.type, upsert: false })
+    if (uploadErr) {
+      console.warn('[Onboarding] storage upload failed:', uploadErr.message)
+      continue
+    }
+    var { data: urlData } = supabase.storage.from('report-media').getPublicUrl(path)
+    var publicUrl = (urlData && urlData.publicUrl) || ''
+    var mediaType = file.type.indexOf('image/') === 0 ? 'image'
+                  : file.type.indexOf('video/') === 0 ? 'video'
+                  : 'image'
+
+    await (supabase.from('report_media') as any).insert({
+      report_id: reportId,
+      media_type: mediaType,
+      url: publicUrl,
+      caption: null,
+      is_primary: i === 0,
+      uploaded_by: userId,
+    })
+  }
+}
+
 function saveDraft(draft: ExperienceDraft) {
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)) } catch {}
 }
@@ -156,18 +229,53 @@ export default function StartPage() {
     description: '',
     category: '',
     phenomenon_type_id: '',
+    additional_type_ids: [],
     event_date: '',
+    event_date_precision: 'exact',
+    event_time: '',
+    duration_minutes: '',
     location_name: '',
+    location_description: '',
+    country: '',
+    state_province: '',
+    city: '',
+    latitude: '',
+    longitude: '',
+    witness_count: '1',
+    submitter_was_witness: false,
+    has_physical_evidence: false,
+    has_photo_video: false,
+    has_official_report: false,
+    evidence_summary: '',
     visibility: 'radar_only',
     share_anonymously: false,
   })
-  var [showDeep, setShowDeep] = useState(false)
 
   // Phenomenon-type picker state (V9.11.1 — replaces the old emoji chip strip)
   var [phenomenonTypes, setPhenomenonTypes] = useState<PhenomenonType[]>([])
   var [typeSearch, setTypeSearch] = useState('')
   var [typeSearchFocused, setTypeSearchFocused] = useState(false)
   var [showBrowseCategories, setShowBrowseCategories] = useState(false)
+
+  // V9.11.3 — deep-detail picker state.
+  var [openSections, setOpenSections] = useState<{
+    when: boolean; where: boolean; witnesses: boolean; related: boolean; evidence: boolean
+  }>({ when: false, where: false, witnesses: false, related: false, evidence: false })
+
+  // Related phenomena (cross-disciplinary tagging)
+  var [typeAssociations, setTypeAssociations] = useState<{ type_id: string; score: number }[]>([])
+  var [relatedSearch, setRelatedSearch] = useState('')
+  var [showAllRelated, setShowAllRelated] = useState(false)
+
+  // Geolocation state
+  var [geolocating, setGeolocating] = useState(false)
+  var [geoError, setGeoError] = useState('')
+
+  // Pending media — staged in memory, uploaded after auth completes.
+  // We can't persist File objects in localStorage, so the user has to
+  // re-attach if they bounce away and come back via magic link. That's
+  // an acceptable trade-off — most onboarders attach last anyway.
+  var [pendingMedia, setPendingMedia] = useState<File[]>([])
 
   // Account state (step 2)
   var [account, setAccount] = useState<AccountDraft>({
@@ -280,6 +388,98 @@ export default function StartPage() {
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
+
+  // V9.11.3 — fetch type-associations when the primary phenomenon_type
+  // changes so we can suggest related phenomena in the "Related" section.
+  useEffect(function () {
+    if (!draft.phenomenon_type_id) {
+      setTypeAssociations([])
+      return
+    }
+    var typeId = draft.phenomenon_type_id
+    ;(supabase.from('phenomenon_type_associations') as any)
+      .select('type_id_a, type_id_b, association_score')
+      .or('type_id_a.eq.' + typeId + ',type_id_b.eq.' + typeId)
+      .order('association_score', { ascending: false })
+      .limit(10)
+      .then(function (res: any) {
+        if (res && Array.isArray(res.data)) {
+          var mapped = res.data.map(function (row: any) {
+            return {
+              type_id: row.type_id_a === typeId ? row.type_id_b : row.type_id_a,
+              score: row.association_score,
+            }
+          })
+          setTypeAssociations(mapped)
+        }
+      })
+  }, [draft.phenomenon_type_id])
+
+  // V9.11.3 — geolocation handler for the "Where" section's "Use my
+  // current location" button. Reverse-geocodes via OpenStreetMap so we
+  // can pre-fill country / state / city alongside lat/lng.
+  async function detectLocation() {
+    if (!navigator.geolocation) {
+      setGeoError('Geolocation is not supported by your browser')
+      return
+    }
+    setGeolocating(true)
+    setGeoError('')
+    try {
+      var position = await new Promise<GeolocationPosition>(function (resolve, reject) {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: false,
+          timeout: 10000,
+          maximumAge: 300000,
+        })
+      })
+      var lat = position.coords.latitude
+      var lng = position.coords.longitude
+      setDraft(function (d) {
+        return { ...d, latitude: lat.toFixed(6), longitude: lng.toFixed(6) }
+      })
+      try {
+        var res = await fetch(
+          'https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lng + '&format=json&accept-language=en',
+          { headers: { 'User-Agent': 'Paradocs-Onboarding/1.0' } }
+        )
+        if (res.ok) {
+          var data = await res.json()
+          var addr = data.address || {}
+          var rawCountry = addr.country || ''
+          var nameMap: any = {
+            'United States of America': 'United States',
+            'United Kingdom of Great Britain and Northern Ireland': 'United Kingdom',
+            'Russian Federation': 'Russia',
+          }
+          var mapped = nameMap[rawCountry] || rawCountry
+          var knownCountry = COUNTRIES.indexOf(mapped) !== -1 ? mapped : (rawCountry ? 'Other' : '')
+          var city = addr.city || addr.town || addr.village || addr.municipality || ''
+          var stateName = ''
+          if (knownCountry === 'United States' && addr.state) {
+            stateName = addr.state.replace(/^State of /i, '')
+            if (US_STATES.indexOf(stateName) === -1) stateName = ''
+          }
+          setDraft(function (d) {
+            return {
+              ...d,
+              country: knownCountry || d.country,
+              state_province: stateName || d.state_province,
+              city: city || d.city,
+            }
+          })
+        }
+      } catch {}
+    } catch (err: any) {
+      var msg = 'Could not detect location. Please enter manually.'
+      if (err && err.code === 1) msg = 'Location access denied. Please enable in browser settings or enter manually.'
+      else if (err && err.code === 2) msg = 'Location unavailable. Please enter manually.'
+      else if (err && err.code === 3) msg = 'Location request timed out. Please try again.'
+      setGeoError(msg)
+    } finally {
+      setGeolocating(false)
+    }
+  }
 
   // Picker derived state -----------------------------------------------------
 
@@ -483,8 +683,26 @@ export default function StartPage() {
             // 'unexplained_event' string used in V9.11 prerelease.
             category: draft.category || 'combination',
             phenomenon_type_id: draft.phenomenon_type_id || null,
+            additional_type_ids: draft.additional_type_ids,
+            // V9.11.3 — deep details. The API normalises empty strings
+            // to nulls so empty optional fields don't pollute the row.
             event_date: draft.event_date || null,
+            event_date_precision: draft.event_date_precision,
+            event_time: draft.event_time || null,
+            duration_minutes: draft.duration_minutes ? parseInt(draft.duration_minutes, 10) : null,
             location_name: draft.location_name || null,
+            location_description: draft.location_description || null,
+            country: draft.country || null,
+            state_province: draft.state_province || null,
+            city: draft.city || null,
+            latitude: draft.latitude || null,
+            longitude: draft.longitude || null,
+            witness_count: draft.witness_count ? parseInt(draft.witness_count, 10) : null,
+            submitter_was_witness: draft.submitter_was_witness,
+            has_physical_evidence: draft.has_physical_evidence,
+            has_photo_video: draft.has_photo_video,
+            has_official_report: draft.has_official_report,
+            evidence_summary: draft.evidence_summary || null,
             visibility: draft.visibility,
             share_anonymously: draft.share_anonymously,
           }),
@@ -499,6 +717,18 @@ export default function StartPage() {
         // V9.11.2 #F — mark the funnel as completed so future homepage
         // visits don't bounce this user back to /start.
         try { localStorage.setItem(COMPLETE_KEY, '1') } catch {}
+
+        // V9.11.3 — upload any media files staged during step 1. Best-
+        // effort: if upload fails we still proceed to the RADAR reveal
+        // because the report itself is saved. User can re-attach later
+        // from the report editor.
+        if (pendingMedia.length > 0 && result.report_id) {
+          try {
+            await uploadPendingMedia(pendingMedia, result.report_id, session.user.id)
+          } catch (e: any) {
+            console.warn('[Onboarding] media upload failed:', e?.message)
+          }
+        }
 
         // Now request matches.
         try {
@@ -777,41 +1007,586 @@ export default function StartPage() {
                 )}
               </div>
 
-              {/* Tier 2 — Deep details (collapsed) */}
-              <div className="border-t border-gray-800/50 pt-4">
-                <button
-                  type="button"
-                  onClick={function () { setShowDeep(function (v) { return !v }) }}
-                  className="flex items-center gap-2 text-sm text-purple-300 hover:text-purple-200 transition-colors"
+              {/* V9.11.3 #2-5 — five topic-grouped expandable sections.
+                  All optional; collapsed by default; each header shows
+                  a "Filled" badge once the user adds anything inside.
+                  Mass-market visitors leave them closed (30-second flow).
+                  Experienced witnesses see the full depth available
+                  without being forced to use it (panel consensus). */}
+              <div className="border-t border-gray-800/50 pt-3 space-y-2">
+                <p className="text-[11px] font-semibold tracking-widest uppercase text-gray-500 mb-1">
+                  Add more details (optional)
+                </p>
+
+                {/* ── WHEN ─────────────────────────────────────────── */}
+                <DetailSection
+                  open={openSections.when}
+                  onToggle={function () { setOpenSections(function (s) { return { ...s, when: !s.when } }) }}
+                  icon={<Calendar className="w-4 h-4" />}
+                  title="When did this happen?"
+                  preview="Date, time, duration"
+                  filled={!!(draft.event_date || draft.event_time || draft.duration_minutes)}
                 >
-                  {showDeep ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  Add more details
-                  <span className="text-xs text-gray-500">(when, where — optional)</span>
-                </button>
-                {showDeep && (
-                  <div className="mt-4 space-y-3">
+                  <div className="space-y-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-400 mb-1">When did this happen?</label>
+                      <label className="block text-xs font-medium text-gray-400 mb-1.5">
+                        How precisely do you remember?
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                        {[
+                          { v: 'exact', l: 'Exact date' },
+                          { v: 'month', l: 'Month + year' },
+                          { v: 'year', l: 'Year only' },
+                          { v: 'decade', l: 'Approx. decade' },
+                        ].map(function (o) {
+                          var active = draft.event_date_precision === o.v
+                          return (
+                            <button
+                              key={o.v}
+                              type="button"
+                              onClick={function () {
+                                setDraft(function (d) {
+                                  return { ...d, event_date_precision: o.v as any, event_date: '', event_time: '' }
+                                })
+                              }}
+                              className={
+                                'px-2 py-1.5 rounded-lg text-xs font-medium transition-colors border ' +
+                                (active
+                                  ? 'bg-purple-600 text-white border-purple-500'
+                                  : 'bg-gray-900/60 text-gray-300 border-gray-700 hover:border-purple-500/40')
+                              }
+                            >
+                              {o.l}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {draft.event_date_precision === 'exact' && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-400 mb-1">Date</label>
+                          <input
+                            type="date"
+                            value={draft.event_date}
+                            max={new Date().toISOString().split('T')[0]}
+                            onChange={function (e) { setDraft(function (d) { return { ...d, event_date: e.target.value } }) }}
+                            className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-400 mb-1">Time <span className="text-gray-600">(optional)</span></label>
+                          <input
+                            type="time"
+                            value={draft.event_time}
+                            onChange={function (e) { setDraft(function (d) { return { ...d, event_time: e.target.value } }) }}
+                            className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {draft.event_date_precision === 'month' && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">Month + year</label>
+                        <input
+                          type="month"
+                          value={draft.event_date}
+                          onChange={function (e) { setDraft(function (d) { return { ...d, event_date: e.target.value } }) }}
+                          className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+                    )}
+
+                    {draft.event_date_precision === 'year' && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">Year</label>
+                        <select
+                          value={draft.event_date}
+                          onChange={function (e) { setDraft(function (d) { return { ...d, event_date: e.target.value } }) }}
+                          className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
+                        >
+                          <option value="">Select a year</option>
+                          {(function () {
+                            var y = new Date().getFullYear()
+                            var arr: number[] = []
+                            for (var i = y; i >= 1900; i--) arr.push(i)
+                            return arr
+                          })().map(function (y) {
+                            return <option key={y} value={String(y)}>{y}</option>
+                          })}
+                        </select>
+                      </div>
+                    )}
+
+                    {draft.event_date_precision === 'decade' && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">Approximate decade</label>
+                        <select
+                          value={draft.event_date}
+                          onChange={function (e) { setDraft(function (d) { return { ...d, event_date: e.target.value } }) }}
+                          className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
+                        >
+                          <option value="">Select a decade</option>
+                          {(function () {
+                            var y = Math.floor(new Date().getFullYear() / 10) * 10
+                            var arr: string[] = []
+                            for (var i = y; i >= 1900; i -= 10) arr.push(i + 's')
+                            return arr
+                          })().map(function (d) {
+                            return <option key={d} value={d}>{d}</option>
+                          })}
+                        </select>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1">
+                        Duration <span className="text-gray-600">(minutes, optional)</span>
+                      </label>
                       <input
-                        type="text"
-                        value={draft.event_date}
-                        onChange={function (e) { setDraft(function (d) { return { ...d, event_date: e.target.value } }) }}
-                        placeholder="e.g. Summer 1998, March 12 2003"
-                        className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                        type="number"
+                        min="0"
+                        value={draft.duration_minutes}
+                        onChange={function (e) { setDraft(function (d) { return { ...d, duration_minutes: e.target.value } }) }}
+                        placeholder="e.g. 5"
+                        className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                       />
                     </div>
+                  </div>
+                </DetailSection>
+
+                {/* ── WHERE ────────────────────────────────────────── */}
+                <DetailSection
+                  open={openSections.where}
+                  onToggle={function () { setOpenSections(function (s) { return { ...s, where: !s.where } }) }}
+                  icon={<MapPin className="w-4 h-4" />}
+                  title="Where did this happen?"
+                  preview="Country, city, map pin"
+                  filled={!!(draft.country || draft.city || draft.location_name || draft.latitude)}
+                >
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      onClick={detectLocation}
+                      disabled={geolocating}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-600/20 text-purple-300 border border-purple-500/30 hover:bg-purple-600/30 transition-colors disabled:opacity-50"
+                    >
+                      {geolocating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Locate className="w-3 h-3" />}
+                      Use my current location
+                    </button>
+                    {geoError && (
+                      <p className="text-[11px] text-red-300">{geoError}</p>
+                    )}
+
                     <div>
-                      <label className="block text-xs font-medium text-gray-400 mb-1">Where (city or area)</label>
+                      <label className="block text-xs font-medium text-gray-400 mb-1">
+                        Country <span className="text-gray-600">(optional)</span>
+                      </label>
+                      <select
+                        value={draft.country}
+                        onChange={function (e) { setDraft(function (d) { return { ...d, country: e.target.value } }) }}
+                        className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
+                      >
+                        <option value="">Select a country</option>
+                        {COUNTRIES.map(function (c) {
+                          return <option key={c} value={c}>{c}</option>
+                        })}
+                      </select>
+                    </div>
+
+                    {draft.country === 'United States' && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">State</label>
+                        <select
+                          value={draft.state_province}
+                          onChange={function (e) { setDraft(function (d) { return { ...d, state_province: e.target.value } }) }}
+                          className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
+                        >
+                          <option value="">Select a state</option>
+                          {US_STATES.map(function (s) {
+                            return <option key={s} value={s}>{s}</option>
+                          })}
+                        </select>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1">City / Town</label>
+                      <input
+                        type="text"
+                        value={draft.city}
+                        onChange={function (e) { setDraft(function (d) { return { ...d, city: e.target.value } }) }}
+                        placeholder="e.g. Phoenix"
+                        className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1">
+                        Specific location name <span className="text-gray-600">(optional)</span>
+                      </label>
                       <input
                         type="text"
                         value={draft.location_name}
                         onChange={function (e) { setDraft(function (d) { return { ...d, location_name: e.target.value } }) }}
-                        placeholder="e.g. Phoenix, AZ"
-                        className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                        placeholder="e.g. Phoenix Sky Harbor, Highway 51"
+                        className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                       />
                     </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1">
+                        Describe the location <span className="text-gray-600">(optional)</span>
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={draft.location_description}
+                        onChange={function (e) { setDraft(function (d) { return { ...d, location_description: e.target.value } }) }}
+                        placeholder="Rural area, near a lake, suburban neighborhood…"
+                        className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1">
+                        Pin the location on the map <span className="text-gray-600">(optional)</span>
+                      </label>
+                      <div className="rounded-lg overflow-hidden border border-gray-700">
+                        <LocationPicker
+                          latitude={draft.latitude}
+                          longitude={draft.longitude}
+                          onLocationChange={function (lat: string, lng: string) {
+                            setDraft(function (d) { return { ...d, latitude: lat, longitude: lng } })
+                          }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        Click the map to drop a pin, or fill the city above to auto-locate.
+                      </p>
+                    </div>
                   </div>
-                )}
+                </DetailSection>
+
+                {/* ── WITNESSES ────────────────────────────────────── */}
+                <DetailSection
+                  open={openSections.witnesses}
+                  onToggle={function () { setOpenSections(function (s) { return { ...s, witnesses: !s.witnesses } }) }}
+                  icon={<Users className="w-4 h-4" />}
+                  title="Witnesses"
+                  preview="How many, were you one of them"
+                  filled={!!(draft.witness_count && draft.witness_count !== '1') || draft.submitter_was_witness}
+                >
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1">Number of witnesses</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={draft.witness_count}
+                        onChange={function (e) { setDraft(function (d) { return { ...d, witness_count: e.target.value } }) }}
+                        className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                    <label className="flex items-start gap-2 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        checked={draft.submitter_was_witness}
+                        onChange={function (e) { setDraft(function (d) { return { ...d, submitter_was_witness: e.target.checked } }) }}
+                        className="w-4 h-4 mt-0.5 accent-purple-500"
+                      />
+                      <span className="text-gray-200 leading-snug">
+                        I personally witnessed this event
+                        <span className="block text-[11px] text-gray-500 mt-0.5">
+                          Helps us prioritize first-hand reports in the archive.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                </DetailSection>
+
+                {/* ── RELATED PHENOMENA ────────────────────────────── */}
+                <DetailSection
+                  open={openSections.related}
+                  onToggle={function () { setOpenSections(function (s) { return { ...s, related: !s.related } }) }}
+                  icon={<Sparkles className="w-4 h-4" />}
+                  title="Related experiences"
+                  preview="Other phenomena that overlapped"
+                  filled={draft.additional_type_ids.length > 0}
+                >
+                  {(function () {
+                    // Suggested types from primary-type associations.
+                    var suggestedTypes = typeAssociations
+                      .map(function (a) { return phenomenonTypes.find(function (t) { return t.id === a.type_id }) })
+                      .filter(function (t): t is PhenomenonType {
+                        return !!t && t.id !== draft.phenomenon_type_id && !isEditorialType(t.name, t.slug)
+                      })
+                      .slice(0, 5)
+
+                    var rq = relatedSearch.trim().toLowerCase()
+                    var rqWords = rq.split(/\s+/).filter(function (w) { return w.length >= 2 })
+                    var crossTypes = submittableTypes.filter(function (t) {
+                      return t.id !== draft.phenomenon_type_id
+                    })
+                    var relatedSearchResults = rq.length >= 2
+                      ? crossTypes
+                          .map(function (t) {
+                            var name = t.name.toLowerCase()
+                            var desc = (t.description || '').toLowerCase()
+                            var score = 0
+                            if (name === rq) score = 100
+                            else if (name.indexOf(rq) === 0) score = 80
+                            else if (name.indexOf(rq) !== -1) score = 60
+                            else if (desc.indexOf(rq) !== -1) score = 30
+                            if (score === 0 && rqWords.length > 1) {
+                              var nameHits = rqWords.filter(function (w) { return name.indexOf(w) !== -1 }).length
+                              if (nameHits === rqWords.length) score = 55
+                              else if (nameHits > 0) score = 40
+                            }
+                            return { type: t, score: score }
+                          })
+                          .filter(function (r) { return r.score > 0 })
+                          .sort(function (a, b) { return b.score - a.score })
+                          .slice(0, 10)
+                          .map(function (r) { return r.type })
+                      : []
+
+                    function renderTypeRow(type: PhenomenonType) {
+                      var isSelected = draft.additional_type_ids.indexOf(type.id) !== -1
+                      return (
+                        <button
+                          key={type.id}
+                          type="button"
+                          onClick={function () {
+                            setDraft(function (d) {
+                              var ids = isSelected
+                                ? d.additional_type_ids.filter(function (id) { return id !== type.id })
+                                : d.additional_type_ids.concat([type.id])
+                              return { ...d, additional_type_ids: ids }
+                            })
+                          }}
+                          className={classNames(
+                            'w-full text-left px-3 py-2 rounded-lg transition-colors flex items-start gap-3',
+                            isSelected
+                              ? 'bg-purple-500/15 border border-purple-500/40'
+                              : 'hover:bg-white/5 border border-transparent'
+                          )}
+                        >
+                          <div className={classNames(
+                            'w-4 h-4 rounded border flex items-center justify-center shrink-0 mt-0.5',
+                            isSelected ? 'bg-purple-500 border-purple-500' : 'border-gray-500'
+                          )}>
+                            {isSelected && <Check className="w-3 h-3 text-white" />}
+                          </div>
+                          <div className="min-w-0">
+                            <span className={classNames(
+                              'text-sm block',
+                              isSelected ? 'text-purple-200 font-medium' : 'text-gray-300'
+                            )}>
+                              {type.name}
+                            </span>
+                            {type.description && (
+                              <span className="text-[11px] text-gray-500 block mt-0.5 leading-snug">
+                                {type.description}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      )
+                    }
+
+                    return (
+                      <div className="space-y-3">
+                        <p className="text-xs text-gray-400">
+                          Did your experience also involve any of these? Search or pick from suggestions.
+                        </p>
+
+                        {draft.additional_type_ids.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {draft.additional_type_ids.map(function (id) {
+                              var t = phenomenonTypes.find(function (pt) { return pt.id === id })
+                              if (!t) return null
+                              return (
+                                <span
+                                  key={id}
+                                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40"
+                                >
+                                  {t.name}
+                                  <button
+                                    type="button"
+                                    onClick={function () {
+                                      setDraft(function (d) {
+                                        return { ...d, additional_type_ids: d.additional_type_ids.filter(function (x) { return x !== id }) }
+                                      })
+                                    }}
+                                    className="hover:text-white ml-0.5"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </span>
+                              )
+                            })}
+                          </div>
+                        )}
+
+                        {suggestedTypes.length > 0 && !relatedSearch && (
+                          <div>
+                            <p className="text-[11px] text-gray-500 mb-1.5">
+                              Others with similar experiences also reported:
+                            </p>
+                            <div className="space-y-0.5 bg-white/5 rounded-lg border border-white/10 p-2">
+                              {suggestedTypes.map(renderTypeRow)}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                          <input
+                            type="text"
+                            value={relatedSearch}
+                            onChange={function (e) { setRelatedSearch(e.target.value) }}
+                            placeholder="Search related phenomena (e.g. sleep paralysis, telepathy, missing time)"
+                            className="w-full bg-gray-900/80 border border-gray-700 rounded-lg pl-10 pr-10 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                          />
+                          {relatedSearch && (
+                            <button
+                              type="button"
+                              onClick={function () { setRelatedSearch('') }}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+
+                        {relatedSearch.length >= 2 && (
+                          <div className="bg-white/5 rounded-lg border border-white/10 p-2">
+                            {relatedSearchResults.length > 0 ? (
+                              <div className="space-y-0.5">
+                                {relatedSearchResults.map(renderTypeRow)}
+                              </div>
+                            ) : (
+                              <p className="text-[11px] text-gray-500 p-2 text-center">
+                                No matches for &ldquo;{relatedSearch}&rdquo;
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {!relatedSearch && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={function () { setShowAllRelated(function (v) { return !v }) }}
+                              className="flex items-center gap-2 text-xs text-gray-400 hover:text-white transition-colors"
+                            >
+                              <ChevronDown className={classNames(
+                                'w-3 h-3 transition-transform',
+                                showAllRelated ? 'rotate-180' : ''
+                              )} />
+                              Browse all by category
+                            </button>
+                            {showAllRelated && (
+                              <div className="max-h-72 overflow-y-auto space-y-3 p-3 bg-white/5 rounded-lg border border-white/10">
+                                {Object.entries(CATEGORY_CONFIG)
+                                  .filter(function (entry) { return entry[0] !== draft.category })
+                                  .map(function (entry) {
+                                    var catKey = entry[0]
+                                    var catConfig = entry[1]
+                                    var catTypes = crossTypes.filter(function (t) { return t.category === catKey })
+                                    if (catTypes.length === 0) return null
+                                    return (
+                                      <div key={catKey}>
+                                        <p className="text-[11px] text-gray-400 font-medium flex items-center gap-1 mb-1.5 sticky top-0 bg-gray-950/80 py-1 rounded">
+                                          <CategoryIcon category={catKey as PhenomenonCategory} size={12} /> {catConfig.label}
+                                        </p>
+                                        <div className="space-y-0.5 ml-1">
+                                          {catTypes.map(renderTypeRow)}
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )
+                  })()}
+                </DetailSection>
+
+                {/* ── EVIDENCE ─────────────────────────────────────── */}
+                <DetailSection
+                  open={openSections.evidence}
+                  onToggle={function () { setOpenSections(function (s) { return { ...s, evidence: !s.evidence } }) }}
+                  icon={<Camera className="w-4 h-4" />}
+                  title="Evidence"
+                  preview="Photos, video, physical artifacts"
+                  filled={
+                    draft.has_physical_evidence || draft.has_photo_video || draft.has_official_report ||
+                    !!draft.evidence_summary || pendingMedia.length > 0
+                  }
+                >
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <label className="flex items-start gap-2 cursor-pointer text-sm">
+                        <input
+                          type="checkbox"
+                          checked={draft.has_photo_video}
+                          onChange={function (e) { setDraft(function (d) { return { ...d, has_photo_video: e.target.checked } }) }}
+                          className="w-4 h-4 mt-0.5 accent-purple-500"
+                        />
+                        <span className="text-gray-200">I have photos or video</span>
+                      </label>
+                      <label className="flex items-start gap-2 cursor-pointer text-sm">
+                        <input
+                          type="checkbox"
+                          checked={draft.has_physical_evidence}
+                          onChange={function (e) { setDraft(function (d) { return { ...d, has_physical_evidence: e.target.checked } }) }}
+                          className="w-4 h-4 mt-0.5 accent-purple-500"
+                        />
+                        <span className="text-gray-200">I have physical evidence (an object, residue, etc.)</span>
+                      </label>
+                      <label className="flex items-start gap-2 cursor-pointer text-sm">
+                        <input
+                          type="checkbox"
+                          checked={draft.has_official_report}
+                          onChange={function (e) { setDraft(function (d) { return { ...d, has_official_report: e.target.checked } }) }}
+                          className="w-4 h-4 mt-0.5 accent-purple-500"
+                        />
+                        <span className="text-gray-200">There&apos;s an official report (police, military, news)</span>
+                      </label>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1">
+                        Describe the evidence <span className="text-gray-600">(optional)</span>
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={draft.evidence_summary}
+                        onChange={function (e) { setDraft(function (d) { return { ...d, evidence_summary: e.target.value } }) }}
+                        placeholder="Brief notes — what kind of evidence, when collected, where stored…"
+                        className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1">
+                        Attach photos / videos <span className="text-gray-600">(optional)</span>
+                      </label>
+                      <PendingMediaPicker
+                        files={pendingMedia}
+                        onChange={setPendingMedia}
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        Files upload after you confirm your email.
+                      </p>
+                    </div>
+                  </div>
+                </DetailSection>
               </div>
 
               {/* Visibility + anonymous */}
@@ -1172,6 +1947,159 @@ function StepIndicator({ step }: { step: Step }) {
           />
         )
       })}
+    </div>
+  )
+}
+
+/**
+ * Collapsible accordion for one of the five "Add more details" sections.
+ * Header always visible: icon + title + preview (small subtitle when
+ * collapsed) + a green "Filled" badge once the user adds something
+ * inside. Body is the children; renders only when open so heavy
+ * subtrees (like the LocationPicker map) don't load until expanded.
+ */
+function DetailSection(props: {
+  open: boolean
+  onToggle: () => void
+  icon: React.ReactNode
+  title: string
+  preview: string
+  filled: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div className={
+      'rounded-xl border transition-colors ' +
+      (props.open
+        ? 'border-purple-500/30 bg-gray-900/40'
+        : 'border-gray-800/60 bg-gray-900/20 hover:border-gray-700/80')
+    }>
+      <button
+        type="button"
+        onClick={props.onToggle}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left"
+      >
+        <span className={props.open ? 'text-purple-300' : 'text-gray-500'}>{props.icon}</span>
+        <span className="flex-1 min-w-0">
+          <span className="text-sm font-medium text-white block">{props.title}</span>
+          {!props.open && (
+            <span className="text-[11px] text-gray-500 block leading-snug">{props.preview}</span>
+          )}
+        </span>
+        {props.filled && (
+          <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-green-400 bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded-full">
+            <Check className="w-3 h-3" /> Filled
+          </span>
+        )}
+        {props.open
+          ? <ChevronUp className="w-4 h-4 text-gray-400" />
+          : <ChevronDown className="w-4 h-4 text-gray-500" />}
+      </button>
+      {props.open && (
+        <div className="px-4 pb-4 pt-1 border-t border-gray-800/60">
+          {props.children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Pre-auth media picker: stages File objects in memory. The actual
+ * upload happens AFTER the magic-link click in start.tsx's submit
+ * effect, when we have a Supabase session.
+ *
+ * Limits: max 4 files, 10MB each, image+video MIME only. Generates
+ * an object-URL preview thumbnail per file so the user can see what
+ * they're attaching before signing in.
+ */
+function PendingMediaPicker(props: {
+  files: File[]
+  onChange: (files: File[]) => void
+}) {
+  var [previews, setPreviews] = useState<Record<string, string>>({})
+
+  // Build preview URLs whenever the file list changes; revoke old ones.
+  useEffect(function () {
+    var next: Record<string, string> = {}
+    props.files.forEach(function (f) {
+      var key = f.name + '|' + f.size
+      if (previews[key]) {
+        next[key] = previews[key]
+      } else if (f.type.indexOf('image/') === 0) {
+        next[key] = URL.createObjectURL(f)
+      }
+    })
+    Object.keys(previews).forEach(function (k) {
+      if (!next[k]) URL.revokeObjectURL(previews[k])
+    })
+    setPreviews(next)
+    return function () {
+      // No cleanup here — revocation handled on next change.
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.files])
+
+  function handleSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    var picked = Array.from(e.target.files || [])
+    var combined = props.files.concat(picked).slice(0, 4)
+    var filtered = combined.filter(function (f) {
+      if (f.size > 10 * 1024 * 1024) return false
+      if (f.type.indexOf('image/') !== 0 && f.type.indexOf('video/') !== 0) return false
+      return true
+    })
+    props.onChange(filtered)
+    e.target.value = ''
+  }
+
+  function removeAt(i: number) {
+    props.onChange(props.files.filter(function (_f, idx) { return idx !== i }))
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {props.files.map(function (f, i) {
+          var key = f.name + '|' + f.size
+          var isImage = f.type.indexOf('image/') === 0
+          return (
+            <div key={i} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-900 border border-gray-800">
+              {isImage && previews[key]
+                ? <img src={previews[key]} alt="" className="w-full h-full object-cover" />
+                : <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-gray-500">
+                    <Film className="w-5 h-5" />
+                    <span className="text-[10px] truncate w-full text-center px-1">{f.name}</span>
+                  </div>}
+              <button
+                type="button"
+                onClick={function () { removeAt(i) }}
+                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-red-600/80"
+                aria-label="Remove"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )
+        })}
+        {props.files.length < 4 && (
+          <label className="aspect-square rounded-lg border-2 border-dashed border-gray-700 hover:border-purple-500/50 bg-gray-900/40 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors">
+            <Upload className="w-4 h-4 text-gray-500" />
+            <span className="text-[10px] text-gray-500">Add</span>
+            <input
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              onChange={handleSelect}
+              className="hidden"
+            />
+          </label>
+        )}
+      </div>
+      {props.files.length > 0 && (
+        <p className="text-[10px] text-gray-500">
+          {props.files.length} of 4 attached · 10 MB max each
+        </p>
+      )}
     </div>
   )
 }

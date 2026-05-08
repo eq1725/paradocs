@@ -48,21 +48,33 @@ interface SubmitPayload {
   category?: string                   // optional, defaults to 'combination'
   /** V9.11.1 — primary phenomenon_types FK (from /start picker). */
   phenomenon_type_id?: string | null
-  event_date?: string | null          // YYYY-MM-DD or null
+  /** V9.11.3 — cross-disciplinary tags (writes to report_tags). */
+  additional_type_ids?: string[]
+
+  // V9.11.3 — deep-details fields (all optional)
+  event_date?: string | null          // YYYY-MM-DD or year/decade string
+  event_date_precision?: 'exact' | 'month' | 'year' | 'decade'
+  event_time?: string | null
+  duration_minutes?: number | null
+
   location_name?: string | null
+  location_description?: string | null
   city?: string | null
   state_province?: string | null
   country?: string | null
   latitude?: string | null
   longitude?: string | null
-  visibility?: 'radar_only' | 'public' | 'private'   // first-report privacy
-  share_anonymously?: boolean         // hide identity on RADAR
-  // Tier 2 (deep) optional fields:
-  witness_count?: number
-  duration_minutes?: number
+
+  witness_count?: number | null
+  submitter_was_witness?: boolean
+
   has_physical_evidence?: boolean
   has_photo_video?: boolean
+  has_official_report?: boolean
   evidence_summary?: string | null
+
+  visibility?: 'radar_only' | 'public' | 'private'   // first-report privacy
+  share_anonymously?: boolean         // hide identity on RADAR
   tags?: string[]
 }
 
@@ -158,18 +170,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               : p.visibility === 'public' ? 'public'
               : 'radar_only',
   }
-  if (p.event_date) insert.event_date = p.event_date
+  // V9.11.3 — date precision is mutually exclusive: exact dates go in
+  // `event_date`, anything else goes in `event_date_raw` so we don't
+  // pretend we have day-precision when the user said "2003" or "1990s".
+  // Mirrors the /submit page's column write pattern.
+  if (p.event_date) {
+    var prec = p.event_date_precision || 'exact'
+    if (prec === 'exact') {
+      insert.event_date = p.event_date
+      insert.event_date_precision = 'exact'
+      insert.event_date_approximate = false
+      if (p.event_time) insert.event_time = p.event_time
+    } else {
+      insert.event_date_raw = p.event_date
+      insert.event_date_precision = prec
+      insert.event_date_approximate = true
+    }
+  }
+  if (typeof p.duration_minutes === 'number') insert.event_duration_minutes = p.duration_minutes
+  if (typeof p.witness_count === 'number') insert.witness_count = p.witness_count
+  if (typeof p.submitter_was_witness === 'boolean') insert.submitter_was_witness = p.submitter_was_witness
+
   if (p.location_name) insert.location_name = p.location_name
+  if (p.location_description) insert.location_description = p.location_description
   if (p.city) insert.city = p.city
   if (p.state_province) insert.state_province = p.state_province
   if (p.country) insert.country = p.country
   if (p.latitude) insert.latitude = parseFloat(p.latitude)
   if (p.longitude) insert.longitude = parseFloat(p.longitude)
-  if (typeof p.witness_count === 'number') insert.witness_count = p.witness_count
-  if (typeof p.duration_minutes === 'number') insert.duration_minutes = p.duration_minutes
+
   if (typeof p.has_physical_evidence === 'boolean') insert.has_physical_evidence = p.has_physical_evidence
   if (typeof p.has_photo_video === 'boolean') insert.has_photo_video = p.has_photo_video
+  if (typeof p.has_official_report === 'boolean') insert.has_official_report = p.has_official_report
   if (p.evidence_summary) insert.evidence_summary = p.evidence_summary
+
   if (Array.isArray(p.tags) && p.tags.length > 0) insert.tags = p.tags
   if (p.phenomenon_type_id) insert.phenomenon_type_id = p.phenomenon_type_id
   insert.onboarding_first_report = true
@@ -188,16 +222,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // V9.11.1 — when a primary phenomenon_type was picked, also write the
   // join-table row so the report shows up in /phenomena/[slug] feeds and
   // the dashboard counts. /submit does the same; we mirror it.
+  // V9.11.3 — also write any additional_type_ids as non-primary tags
+  // (cross-disciplinary tagging from the "Related experiences" section).
+  var tagRows: any[] = []
   if (p.phenomenon_type_id) {
-    try {
-      await (admin.from('report_tags') as any).insert({
+    tagRows.push({
+      report_id: (inserted as any).id,
+      phenomenon_type_id: p.phenomenon_type_id,
+      is_primary: true,
+      relevance_score: 1.0,
+    })
+  }
+  if (Array.isArray(p.additional_type_ids)) {
+    var seen: Record<string, boolean> = {}
+    if (p.phenomenon_type_id) seen[p.phenomenon_type_id] = true
+    p.additional_type_ids.forEach(function (id) {
+      if (!id || seen[id]) return
+      seen[id] = true
+      tagRows.push({
         report_id: (inserted as any).id,
-        phenomenon_type_id: p.phenomenon_type_id,
-        is_primary: true,
-        relevance_score: 1.0,
+        phenomenon_type_id: id,
+        is_primary: false,
+        relevance_score: 0.8,
       })
+    })
+  }
+  if (tagRows.length > 0) {
+    try {
+      await (admin.from('report_tags') as any).insert(tagRows)
     } catch (e: any) {
-      // Non-fatal; the report still exists.
       console.error('[OnboardingSubmit] report_tags insert failed:', e?.message)
     }
   }
