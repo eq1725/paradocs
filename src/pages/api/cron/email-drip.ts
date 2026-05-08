@@ -109,7 +109,7 @@ export default async function handler(
           var html3 = generateDripEmail3(signup.email, trendingReports, baseUrl);
           var result3 = await sendEmail({
             to: signup.email,
-            subject: 'Create your free account - your research awaits',
+            subject: 'Create your free Paradocs account',
             html: html3,
             tags: [{ name: 'type', value: 'drip-3' }]
           });
@@ -148,7 +148,7 @@ function generateDripEmail1(email: string, reports: any[], baseUrl: string) {
     '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">You just joined the world\'s largest database of paranormal phenomena. ' +
     'Here are some of our most-viewed reports to get you started:</p>' +
     '<table width="100%" cellpadding="0" cellspacing="0" style="margin: 16px 0;">' + reportList + '</table>' +
-    '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">Create a free account to save reports, get personalized recommendations, and join our research community.</p>',
+    '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">Create a free account to save reports, get personalized recommendations, and join our community.</p>',
     baseUrl + '/explore',
     'Start Exploring',
     baseUrl
@@ -159,7 +159,7 @@ function generateDripEmail2(email: string, report: any, baseUrl: string) {
   var summary = report.summary ? report.summary.substring(0, 200) + '...' : '';
   return emailWrap(
     '<h2 style="color: #e5e7eb; font-size: 20px; margin: 0 0 16px 0;">While you were away...</h2>' +
-    '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">This report is getting a lot of attention from our research community:</p>' +
+    '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">This report is getting a lot of attention from our community:</p>' +
     '<div style="padding: 16px; background: #1e1b2e; border-radius: 8px; border-left: 3px solid #8b5cf6; margin: 16px 0;">' +
     '<a href="' + baseUrl + '/report/' + report.slug + '" style="color: #c084fc; text-decoration: none; font-weight: 600; font-size: 17px;">' +
     esc(report.title) + '</a>' +
@@ -175,17 +175,17 @@ function generateDripEmail2(email: string, report: any, baseUrl: string) {
 
 function generateDripEmail3(email: string, reports: any[], baseUrl: string) {
   return emailWrap(
-    '<h2 style="color: #e5e7eb; font-size: 20px; margin: 0 0 16px 0;">Your Research Dashboard Awaits</h2>' +
+    '<h2 style="color: #e5e7eb; font-size: 20px; margin: 0 0 16px 0;">Your Paradocs dashboard is waiting</h2>' +
     '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">With a free Paradocs account, you get:</p>' +
     '<div style="padding: 16px; background: #1e1b2e; border-radius: 8px; margin: 16px 0;">' +
     '<div style="color: #d1d5db; font-size: 14px; line-height: 2;">' +
     '<span style="color: #c084fc;">&#x2713;</span> Save and organize reports into collections<br>' +
     '<span style="color: #c084fc;">&#x2713;</span> Get personalized AI-curated recommendations<br>' +
-    '<span style="color: #c084fc;">&#x2713;</span> Ask the Unknown - your AI research assistant<br>' +
+    '<span style="color: #c084fc;">&#x2713;</span> Ask the Unknown — your AI assistant<br>' +
     '<span style="color: #c084fc;">&#x2713;</span> Weekly digest of reports matching your interests<br>' +
-    '<span style="color: #c084fc;">&#x2713;</span> Research journal for tracking your investigations' +
+    '<span style="color: #c084fc;">&#x2713;</span> A journal for tracking what you find' +
     '</div></div>' +
-    '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">Join ' + (reports.length > 0 ? 'thousands of' : 'our growing community of') + ' researchers exploring the unexplained.</p>',
+    '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">Join ' + (reports.length > 0 ? 'thousands of' : 'our growing community of') + ' people exploring the unexplained.</p>',
     baseUrl + '/login',
     'Create Free Account',
     baseUrl

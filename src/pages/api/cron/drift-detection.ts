@@ -107,7 +107,7 @@ export default async function handler(
 
         var html = generateDriftEmail(name, longestStreak, trendingReports, baseUrl);
         var subject = longestStreak > 3
-          ? 'Your ' + longestStreak + '-day research streak is at risk'
+          ? 'Your ' + longestStreak + '-day exploration streak is at risk'
           : 'New reports are waiting for you';
 
         var emailResult = await sendEmail({
@@ -140,7 +140,7 @@ function generateDriftEmail(name: string, longestStreak: number, reports: any[],
   if (longestStreak > 3) {
     streakSection = '<div style="padding: 16px; background: #1e1b2e; border-radius: 8px; text-align: center; margin: 16px 0;">' +
       '<div style="font-size: 36px; font-weight: 700; color: #f97316;">&#x1F525; ' + longestStreak + '</div>' +
-      '<div style="color: #9ca3af; font-size: 13px; margin-top: 4px;">Your longest research streak (days)</div>' +
+      '<div style="color: #9ca3af; font-size: 13px; margin-top: 4px;">Your longest exploration streak (days)</div>' +
       '<div style="color: #d1d5db; font-size: 14px; margin-top: 8px;">Don\'t let it fade. One visit keeps your streak alive.</div>' +
       '</div>';
   }
@@ -161,13 +161,13 @@ function generateDriftEmail(name: string, longestStreak: number, reports: any[],
     '<tr><td style="text-align: center; padding: 32px 0 24px 0;">' +
     '<h1 style="color: #c084fc; font-size: 24px; margin: 0; letter-spacing: 1px;">PARADOCS</h1></td></tr>' +
     '<tr><td><h2 style="color: #e5e7eb; font-size: 20px; margin: 0 0 16px 0;">We miss you, ' + esc(name) + '</h2>' +
-    '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">The unexplained doesn\'t take breaks, and neither should your research. Here\'s what you\'ve been missing:</p>' +
+    '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">The unexplained doesn\'t take breaks. Here\'s what you\'ve been missing:</p>' +
     streakSection +
     '<table width="100%" cellpadding="0" cellspacing="0" style="margin: 16px 0;">' + reportList + '</table>' +
     '</td></tr>' +
     '<tr><td style="text-align: center; padding: 24px 0;">' +
     '<a href="' + baseUrl + '/dashboard" style="display: inline-block; background: linear-gradient(135deg, #7c3aed, #a855f7); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 15px;">' +
-    'Resume Your Research</a></td></tr>' +
+    'Resume exploring</a></td></tr>' +
     '<tr><td style="padding: 32px 0 16px 0; border-top: 1px solid #1f2937; text-align: center;">' +
     '<a href="' + baseUrl + '/account/settings" style="color: #6b7280; font-size: 12px; text-decoration: underline;">Manage email preferences</a>' +
     '<p style="color: #374151; font-size: 11px; margin: 16px 0 0 0;">&copy; 2026 Paradocs</p>' +

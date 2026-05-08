@@ -128,7 +128,7 @@ export default function LoginPage() {
       : 'Welcome Back'
 
   const pageSubtitle = mode === 'signup'
-    ? 'Join the paranormal research community'
+    ? 'Join the Paradocs community'
     : mode === 'forgot'
       ? 'Enter your email to reset your password'
       : 'Sign in to continue your exploration'

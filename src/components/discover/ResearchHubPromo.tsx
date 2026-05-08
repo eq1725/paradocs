@@ -29,7 +29,7 @@ interface ResearchHubPromoProps {
 var BENEFITS = [
   { icon: Network,   label: 'Cross-reference', detail: 'Connect cases across categories, regions, decades' },
   { icon: Compass,   label: 'Pattern detection', detail: 'AI finds emergent patterns across millions of reports' },
-  { icon: Lightbulb, label: 'Build your RADAR', detail: 'Save your own case files, share with researchers' },
+  { icon: Lightbulb, label: 'Build your RADAR', detail: 'Save your own case files, share with the community' },
 ]
 
 export function ResearchHubPromo(props: ResearchHubPromoProps) {

@@ -246,7 +246,7 @@ export default function StoryPage(props: StoryProps) {
 
           {/* Social proof */}
           <div className="mt-12 text-center">
-            <p className="text-gray-500 text-sm mb-4">Join researchers tracking the unexplained</p>
+            <p className="text-gray-500 text-sm mb-4">Join people tracking the unexplained</p>
             <div className="flex justify-center gap-8">
               <div className="text-center">
                 <p className="text-2xl font-bold text-white">2,800+</p>

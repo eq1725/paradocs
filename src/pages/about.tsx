@@ -79,8 +79,8 @@ export default function AboutPage() {
             <p className="text-gray-400 leading-relaxed">
               We believe that by collecting and organizing these accounts in one place,
               patterns may emerge that individual reports could never reveal. Whether you're
-              a curious skeptic, an open-minded researcher, or someone who's had their own
-              unexplained experience, Paradocs provides the tools to explore these mysteries
+              a curious skeptic, an open-minded explorer, or someone who's had their own
+              unexplained experience, Paradocs gives you the tools to explore these mysteries
               with rigor and transparency.
             </p>
           </div>

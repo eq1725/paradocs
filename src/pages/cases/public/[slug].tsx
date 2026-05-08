@@ -82,9 +82,9 @@ export default function PublicCaseFilePage({ caseFile, owner, artifacts, notFoun
   }
 
   const title = caseFile.title
-  const ownerName = owner?.displayName || owner?.username || 'A Paradocs researcher'
+  const ownerName = owner?.displayName || owner?.username || 'A Paradocs member'
   const shareDesc = caseFile.description
-    || `A paranormal research case file with ${artifacts.length} ${artifacts.length === 1 ? 'source' : 'sources'}, curated by ${ownerName}.`
+    || `A paranormal case file with ${artifacts.length} ${artifacts.length === 1 ? 'source' : 'sources'}, curated by ${ownerName}.`
 
   return (
     <>
@@ -109,7 +109,7 @@ export default function PublicCaseFilePage({ caseFile, owner, artifacts, notFoun
               href="/start"
               className="text-xs font-medium px-3 py-1.5 rounded-lg text-primary-300 bg-primary-600/10 border border-primary-500/20 hover:bg-primary-600/20 transition-colors"
             >
-              Start your own research
+              Start your own case file
             </Link>
           </div>
         </header>
@@ -166,7 +166,7 @@ export default function PublicCaseFilePage({ caseFile, owner, artifacts, notFoun
         <div className="max-w-4xl mx-auto px-4 sm:px-6 pb-12">
           <div className="rounded-xl border border-primary-500/20 bg-gradient-to-r from-primary-600/10 to-primary-500/5 p-5 text-center">
             <h2 className="text-white font-semibold text-base mb-1">
-              Build your own paranormal research library
+              Build your own paranormal library
             </h2>
             <p className="text-xs text-gray-400 max-w-md mx-auto mb-3">
               Paradocs helps you save, organize, and discover patterns across every UAP sighting,
@@ -176,7 +176,7 @@ export default function PublicCaseFilePage({ caseFile, owner, artifacts, notFoun
               href="/start"
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-primary-600 hover:bg-primary-500 transition-colors"
             >
-              Start researching
+              Get started
             </Link>
           </div>
         </div>

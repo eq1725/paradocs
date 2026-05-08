@@ -2,7 +2,7 @@
  * API: POST /api/cron/winback
  *
  * Win-back email sequence for churned paid users.
- * Email 1 (Day 3 after churn): "We miss your research" + what they're missing
+ * Email 1 (Day 3 after churn): "We miss you" + what they're missing
  * Email 2 (Day 10): Special offer / discount
  * Email 3 (Day 21): Final "door is always open" + community highlights
  * Max 1 sequence per user per 90 days.
@@ -119,11 +119,11 @@ export default async function handler(
         var planName = sub.plan_name || 'Pro';
 
         if (stage === 0 && daysSinceChurn >= 3) {
-          // Email 1: "We miss your research"
+          // Email 1: "We miss you"
           var html1 = generateWinbackEmail1(name, planName, trendingReports.slice(0, 3), baseUrl);
           var result1 = await sendEmail({
             to: profile.email,
-            subject: 'Your research tools are waiting, ' + name,
+            subject: 'Your Paradocs tools are waiting, ' + name,
             html: html1,
             tags: [{ name: 'type', value: 'winback-1' }]
           });
@@ -188,14 +188,14 @@ function generateWinbackEmail1(name: string, planName: string, reports: any[], b
   }).join('');
 
   return emailShell(
-    '<h2 style="color: #e5e7eb; font-size: 20px; margin: 0 0 16px 0;">We miss your research, ' + esc(name) + '</h2>' +
+    '<h2 style="color: #e5e7eb; font-size: 20px; margin: 0 0 16px 0;">We miss you, ' + esc(name) + '</h2>' +
     '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">Since you left, our community has been busy. Here are some things you\'re missing with your ' + esc(planName) + ' access:</p>' +
     '<div style="padding: 16px; background: #1e1b2e; border-radius: 8px; margin: 16px 0;">' +
     '<div style="color: #d1d5db; font-size: 14px; line-height: 2;">' +
-    '<span style="color: #f97316;">\u2717</span> Unlimited AI research assistant queries<br>' +
+    '<span style="color: #f97316;">\u2717</span> Unlimited AI assistant queries<br>' +
     '<span style="color: #f97316;">\u2717</span> Advanced pattern detection across reports<br>' +
     '<span style="color: #f97316;">\u2717</span> Priority access to new features<br>' +
-    '<span style="color: #f97316;">\u2717</span> Research journal with AI summaries' +
+    '<span style="color: #f97316;">\u2717</span> A journal with AI summaries' +
     '</div></div>' +
     '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">Meanwhile, these reports are trending:</p>' +
     '<table width="100%" cellpadding="0" cellspacing="0" style="margin: 16px 0;">' + reportList + '</table>',
@@ -215,7 +215,7 @@ function generateWinbackEmail2(name: string, planName: string, baseUrl: string) 
     '<div style="color: #d1d5db; font-size: 15px;">your first month back on ' + esc(planName) + '</div>' +
     '<div style="color: #9ca3af; font-size: 13px; margin-top: 8px;">Use code: <span style="color: #f97316; font-weight: 600;">COMEBACK20</span></div>' +
     '</div>' +
-    '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">Your saved reports, collections, and research journal are all still here, exactly as you left them.</p>',
+    '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">Your saved reports, collections, and journal are all still here, exactly as you left them.</p>',
     baseUrl + '/account/settings',
     'Claim Your 20% Off',
     baseUrl
@@ -239,7 +239,7 @@ function generateWinbackEmail3(name: string, totalReports: number, reports: any[
     '<div style="font-size: 32px; font-weight: 700; color: #c084fc;">' + totalReports.toLocaleString() + '+</div>' +
     '<div style="color: #9ca3af; font-size: 13px; margin-top: 4px;">reports in the Paradocs database</div>' +
     '</div>' +
-    '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">The community is growing, and the mysteries keep coming. Your research contributions and saved work are preserved and waiting for you.</p>' +
+    '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">The community is growing, and the mysteries keep coming. Your contributions and saved work are preserved and waiting for you.</p>' +
     reportSnippet +
     '<p style="color: #d1d5db; font-size: 15px; line-height: 1.6;">Free accounts still get access to browse and read. Whenever you\'re ready to dive deeper, we\'ll be here.</p>',
     baseUrl + '/explore',

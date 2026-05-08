@@ -67,7 +67,7 @@ export default function FourPillars() {
     {
       icon: <Sparkles className="w-6 h-6" />,
       title: 'AI Intelligence',
-      description: 'Our AI reads every report so you don\u2019t have to. It cross-references sightings across time and geography to surface patterns invisible to any single researcher\u2014clustering hotspots, linking similar encounters, and flagging anomalies that deserve a closer look.',
+      description: 'Our AI reads every report so you don\u2019t have to. It cross-references sightings across time and geography to surface patterns no single person could spot\u2014clustering hotspots, linking similar encounters, and flagging anomalies that deserve a closer look.',
       ctaText: 'Uncover patterns',
       ctaHref: '/insights',
       badge: undefined

@@ -800,7 +800,7 @@ export default function StartPage() {
               {examples.length > 0 && (
                 <div className="bg-purple-950/30 border border-purple-800/30 rounded-xl px-4 py-3">
                   <p className="text-[10px] font-semibold tracking-widest uppercase text-purple-400 mb-1">
-                    Other researchers shared
+                    Others shared
                   </p>
                   <p className="text-sm text-gray-200 italic leading-snug">
                     &ldquo;{examples[exampleIndex]?.summary}&rdquo;
@@ -1747,7 +1747,7 @@ export default function StartPage() {
                   autoComplete="name"
                   value={account.display_name}
                   onChange={function (e) { setAccount(function (a) { return { ...a, display_name: e.target.value } }) }}
-                  placeholder="Researcher"
+                  placeholder="Your name"
                   className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-3 text-base placeholder-gray-500 focus:outline-none focus:border-purple-500"
                 />
               </div>
@@ -1877,7 +1877,7 @@ export default function StartPage() {
                 <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed px-2">
                   {matches.length > 0
                     ? 'We found ' + matchStats.total + ' similar reports across our archive of ' + (matchStats.database || 0).toLocaleString() + ' phenomena.'
-                    : 'Your report is the first of its kind we\'ve seen. As more researchers join, we\'ll surface matches here.'}
+                    : 'Your report is the first of its kind we\'ve seen. As more people share, we\'ll surface matches here.'}
                 </p>
               </div>
 
