@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import Head from 'next/head'
+import AdminLayout from '@/components/admin/AdminLayout'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Image, Check, X, Download, Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -700,22 +700,11 @@ export default function MediaReviewPage() {
   var categoryConfig = CATEGORY_CONFIG;
 
   return (
-    <>
-      <Head>
-        <title>Media Review - Admin - Paradocs</title>
-      </Head>
-
-      <div className="min-h-screen bg-gray-950">
-        {/* Header */}
-        <div className="bg-gray-900 border-b border-gray-800 sticky top-0 z-10">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            <div className="flex items-center justify-between mb-6">
-              <h1 className="text-3xl font-bold text-white">Media Review</h1>
-              <Link href="/admin" className="text-gray-400 hover:text-white text-sm">
-                Back to Admin
-              </Link>
-            </div>
-
+    <AdminLayout title="Media Review" subtitle="Review media uploads and profile images.">
+      {/* V9.8 T1 — masthead handled by AdminLayout. The legacy
+          sticky header that was here is gone; sticky chrome now
+          comes from AdminLayout itself. */}
+      <div className="mb-6">
             {/* Profile Review Stats (shown when in profile-review mode) */}
             {viewMode === 'profile-review' && profileStats && (
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
@@ -985,10 +974,10 @@ export default function MediaReviewPage() {
               </div>
             )}
           </div>
-        </div>
 
-        {/* Main Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Main Content — V9.8 T1: AdminLayout provides max-w-7xl
+            container; dropped the redundant wrapper div here. */}
+        <div className="py-4">
 
           {/* ===== PROFILE REVIEW MODE ===== */}
           {viewMode === 'profile-review' && (
@@ -1455,7 +1444,6 @@ export default function MediaReviewPage() {
             </div>
           )}
         </div>
-      </div>
-    </>
+    </AdminLayout>
   );
 }

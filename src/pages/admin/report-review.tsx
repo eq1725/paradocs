@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import Head from 'next/head'
+import AdminLayout from '@/components/admin/AdminLayout'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Check, X, ChevronLeft, ChevronRight, ExternalLink, Eye, Filter, ArrowLeft, CheckCircle, XCircle, Clock, AlertTriangle, User, Database } from 'lucide-react'
@@ -319,48 +319,31 @@ export default function ReportReview() {
   var totalPages = Math.ceil(total / LIMIT)
 
   return (
-    <>
-      <Head>
-        <title>Report Review - Paradocs Admin</title>
-      </Head>
-      <div className="min-h-screen bg-gray-950 text-white">
-        {/* Header */}
-        <div className="border-b border-gray-800 bg-gray-900/50">
-          <div className="max-w-7xl mx-auto px-4 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Link href="/admin" className="text-gray-400 hover:text-white transition-colors">
-                  <ArrowLeft className="w-5 h-5" />
-                </Link>
-                <div>
-                  <h1 className="text-xl font-semibold">Report Review</h1>
-                  <p className="text-sm text-gray-400">Review, approve, or reject reports</p>
-                </div>
-              </div>
-              {stats && (
-                <div className="flex gap-4 text-sm">
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-yellow-400" />
-                    <span className="text-yellow-400 font-medium">{(stats.pending || 0) + (stats.pending_review || 0)}</span>
-                    <span className="text-gray-500">pending</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle className="w-4 h-4 text-green-400" />
-                    <span className="text-green-400 font-medium">{stats.approved}</span>
-                    <span className="text-gray-500">approved</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <XCircle className="w-4 h-4 text-red-400" />
-                    <span className="text-red-400 font-medium">{stats.rejected}</span>
-                    <span className="text-gray-500">rejected</span>
-                  </div>
-                </div>
-              )}
+    <AdminLayout title="Reports" subtitle="Review, approve, or reject submitted reports.">
+      <div className="text-white">
+        {/* Stats summary row — was in masthead before V9.8, now its own
+            row at the top of the page body. */}
+        {stats && (
+          <div className="flex flex-wrap gap-4 text-sm mb-6">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 border border-gray-800 rounded-full">
+              <Clock className="w-4 h-4 text-yellow-400" />
+              <span className="text-yellow-400 font-medium">{(stats.pending || 0) + (stats.pending_review || 0)}</span>
+              <span className="text-gray-400">pending</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 border border-gray-800 rounded-full">
+              <CheckCircle className="w-4 h-4 text-green-400" />
+              <span className="text-green-400 font-medium">{stats.approved}</span>
+              <span className="text-gray-400">approved</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 border border-gray-800 rounded-full">
+              <XCircle className="w-4 h-4 text-red-400" />
+              <span className="text-red-400 font-medium">{stats.rejected}</span>
+              <span className="text-gray-400">rejected</span>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="max-w-7xl mx-auto px-4 py-6">
+        <div>
           {/* Message */}
           {message && (
             <div className={classNames(
@@ -863,6 +846,6 @@ export default function ReportReview() {
           )}
         </div>
       </div>
-    </>
+    </AdminLayout>
   )
 }
