@@ -13,10 +13,9 @@
  */
 
 import React, { useEffect, useState } from 'react'
-import Head from 'next/head'
-import Link from 'next/link'
-import { Loader2, Check, X, AlertCircle, ArrowLeft, Shield } from 'lucide-react'
+import { Loader2, Check, X, AlertCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import AdminLayout from '@/components/admin/AdminLayout'
 
 interface QueueItem {
   id: string
@@ -114,28 +113,12 @@ export default function AvatarReviewPage() {
   }
 
   return (
-    <>
-      <Head><title>Avatar Review · Admin</title></Head>
-      <div className="min-h-screen bg-gray-950">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-          <Link href="/admin" className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors mb-6">
-            <ArrowLeft className="w-4 h-4" />
-            Back to admin
-          </Link>
-
-          <div className="flex items-start gap-3 mb-8">
-            <div className="p-2.5 bg-purple-600/20 rounded-lg">
-              <Shield className="w-6 h-6 text-purple-400" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Avatar review queue</h1>
-              <p className="text-sm text-gray-400 mt-0.5">
-                Custom avatar uploads that AWS Rekognition flagged as borderline.
-                Approve to make visible, reject to delete.
-              </p>
-            </div>
-          </div>
-
+    <AdminLayout
+      title="Avatar Review"
+      subtitle="Custom avatar uploads that AWS Rekognition flagged as borderline. Approve to make visible, reject to delete."
+      narrow
+    >
+      <div>
           {loading && (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="w-6 h-6 text-gray-500 animate-spin" />
@@ -202,23 +185,29 @@ export default function AvatarReviewPage() {
                       )}
                     </div>
 
+                    {/* V9.8 T2 — bumped buttons from py-1.5 → py-2.5 to
+                        clear the 44px Apple HIG touch target on mobile.
+                        Operators approve dozens at a time; bigger
+                        buttons mean fewer mis-taps. */}
                     <div className="flex flex-col gap-2 flex-shrink-0">
                       <button
                         type="button"
                         onClick={function () { decide(item.id, 'approved') }}
                         disabled={busy}
-                        className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-full disabled:opacity-50"
+                        aria-label={'Approve avatar for ' + (item.display_name || item.username || 'user')}
+                        className="inline-flex items-center justify-center gap-1.5 min-w-[88px] px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-full disabled:opacity-50 transition-colors"
                       >
-                        {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                         Approve
                       </button>
                       <button
                         type="button"
                         onClick={function () { decide(item.id, 'rejected') }}
                         disabled={busy}
-                        className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-red-900/40 hover:bg-red-900/60 border border-red-800/50 text-red-200 text-xs font-semibold rounded-full disabled:opacity-50"
+                        aria-label={'Reject avatar for ' + (item.display_name || item.username || 'user')}
+                        className="inline-flex items-center justify-center gap-1.5 min-w-[88px] px-4 py-2.5 bg-red-900/40 hover:bg-red-900/60 border border-red-800/50 text-red-200 text-xs font-semibold rounded-full disabled:opacity-50 transition-colors"
                       >
-                        {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
                         Reject
                       </button>
                     </div>
@@ -227,8 +216,7 @@ export default function AvatarReviewPage() {
               })}
             </div>
           )}
-        </div>
       </div>
-    </>
+    </AdminLayout>
   )
 }

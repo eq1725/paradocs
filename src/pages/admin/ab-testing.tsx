@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import Head from 'next/head'
-import Link from 'next/link'
+import AdminLayout from '@/components/admin/AdminLayout'
 import { supabase } from '@/lib/supabase'
 
 interface ABEvent {
@@ -161,28 +160,16 @@ export default function ABTestingDashboard() {
   }
 
   return (
-    <>
-      <Head>
-        <title>A/B Testing Dashboard - Paradocs Admin</title>
-      </Head>
-      <div className="min-h-screen bg-gray-900 text-white">
-        <div className="max-w-7xl mx-auto px-4 py-8">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <Link href="/admin" className="text-gray-400 hover:text-white transition-colors">
-                  ← Admin Dashboard
-                </Link>
-              </div>
-              <h1 className="text-3xl font-bold">🧪 A/B Testing Dashboard</h1>
-              <p className="text-gray-400 mt-1">Monitor experiments and conversion rates</p>
-            </div>
+    <AdminLayout title="A/B Testing" subtitle="Monitor experiments and conversion rates">
+      <div className="text-white">
+          {/* V9.8 T1 — refresh button moved into the page body since
+              AdminLayout owns the masthead. */}
+          <div className="flex justify-end mb-4">
             <button
               onClick={function() { loadABData() }}
               className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors"
             >
-              🔄 Refresh Data
+              Refresh data
             </button>
           </div>
 
@@ -392,8 +379,7 @@ export default function ABTestingDashboard() {
               )}
             </div>
           )}
-        </div>
       </div>
-    </>
+    </AdminLayout>
   )
 }

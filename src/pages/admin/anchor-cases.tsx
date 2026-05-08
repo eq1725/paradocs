@@ -15,7 +15,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import Head from 'next/head'
+import AdminLayout from '@/components/admin/AdminLayout'
 import { supabase } from '@/lib/supabase'
 
 interface AnchorRow {
@@ -191,28 +191,15 @@ export default function AnchorCasesAdminPage() {
       .finally(function () { setRegenerating(false) })
   }
 
-  if (!authChecked) {
-    return <div className="min-h-screen bg-gray-950 text-gray-400 p-8">Checking auth…</div>
-  }
-  if (!isAdmin) {
-    return <div className="min-h-screen bg-gray-950 text-gray-400 p-8">Not authorized.</div>
-  }
+  // V9.8 T1 — auth handled by AdminLayout (renders 'Admin access
+  // required' gate when non-admin). Drop the duplicate shells.
 
   return (
-    <>
-      <Head>
-        <title>Anchor Cases · Paradocs Admin</title>
-      </Head>
-      <div className="min-h-screen bg-gray-950 text-white p-4 md:p-8">
-        <div className="max-w-7xl mx-auto">
-          <header className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold font-display">Anchor Cases Editor</h1>
-              <p className="text-sm text-gray-400 mt-1">Edit hooks, WHEN/WHERE/WHO chips, unresolved tension, and push copy. Regenerate via Claude with one tap.</p>
-            </div>
-            <a href="/admin" className="text-sm text-primary-400 hover:text-primary-300">← Back to Admin</a>
-          </header>
-
+    <AdminLayout
+      title="Anchor Cases"
+      subtitle="Edit hooks, WHEN/WHERE/WHO chips, unresolved tension, and push copy. Regenerate via Claude with one tap."
+    >
+      <div className="text-white">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* LEFT — Search & results */}
             <section className="bg-gray-900/50 border border-white/10 rounded-xl p-4">
@@ -362,9 +349,8 @@ export default function AnchorCasesAdminPage() {
               )}
             </section>
           </div>
-        </div>
       </div>
-    </>
+    </AdminLayout>
   )
 }
 

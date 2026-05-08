@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import Head from 'next/head'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
+import AdminLayout from '@/components/admin/AdminLayout'
 import StatsCard from '@/components/admin/StatsCard'
 import ActivityFeed from '@/components/admin/ActivityFeed'
 import SourceHealthGrid from '@/components/admin/SourceHealthGrid'
@@ -402,34 +402,28 @@ export default function AdminDashboard() {
                           stats?.healthStatus === 'warning' ? '🟡' : '🔴'
 
   return (
-    <>
-      <Head>
-        <title>Command Center - Paradocs</title>
-      </Head>
-
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3">
-              Ingestion Command Center
-              <span className="text-2xl">{healthIndicator}</span>
-            </h1>
-            <p className="text-gray-400 mt-1">
-              Monitor and control data ingestion across all sources
-            </p>
-          </div>
+    <AdminLayout
+      title={'Overview ' + healthIndicator}
+      subtitle="Monitor and control data ingestion across all sources."
+    >
+        {/* V9.8 T1 — Run-all button moved into page body since
+            AdminLayout owns the masthead. Section tab nav below
+            shows only INTERNAL dashboard sections (Overview, Users,
+            Content, Activity, Quality, Sources, Jobs); the
+            cross-tool links (Reports, Media, Avatars, Anchors, A/B,
+            Push) now live in AdminLayout's sticky sub-nav. */}
+        <div className="flex justify-end mb-4">
           <button
             onClick={() => triggerIngestion()}
             disabled={ingesting !== null}
-            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-lg shadow-green-500/20"
+            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-lg shadow-green-500/20"
           >
             {ingesting === 'all' ? (
               <span className="flex items-center gap-2">
-                <span className="animate-spin">⟳</span> Running All Sources...
+                <span className="animate-spin">⟳</span> Running All Sources…
               </span>
             ) : (
-              '🚀 Run All Ingestion'
+              'Run All Ingestion'
             )}
           </button>
         </div>
@@ -443,7 +437,8 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* Tab Navigation */}
+        {/* Section tab navigation — internal dashboard sections only.
+            Cross-tool nav lives in AdminLayout above. */}
         <div className="flex gap-2 mb-6 border-b border-gray-700 overflow-x-auto scrollbar-hide">
           {[
             { id: 'overview', label: 'Overview', icon: '📊' },
@@ -467,41 +462,6 @@ export default function AdminDashboard() {
               {tab.label}
             </button>
           ))}
-          <Link
-            href="/admin/report-review"
-            className="px-4 py-3 font-medium transition-colors border-b-2 -mb-px whitespace-nowrap text-gray-400 border-transparent hover:text-green-400 hover:border-green-400"
-          >
-            <span className="mr-2">✅</span>
-            Review Reports
-          </Link>
-          <Link
-            href="/admin/media-review"
-            className="px-4 py-3 font-medium transition-colors border-b-2 -mb-px whitespace-nowrap text-gray-400 border-transparent hover:text-blue-400 hover:border-blue-400"
-          >
-            <span className="mr-2">🖼️</span>
-            Media Review
-          </Link>
-          <Link
-            href="/admin/ab-testing"
-            className="px-4 py-3 font-medium transition-colors border-b-2 -mb-px whitespace-nowrap text-gray-400 border-transparent hover:text-purple-400 hover:border-purple-400"
-          >
-            <span className="mr-2">🧪</span>
-            A/B Testing
-          </Link>
-          <Link
-            href="/admin/anchor-cases"
-            className="px-4 py-3 font-medium transition-colors border-b-2 -mb-px whitespace-nowrap text-gray-400 border-transparent hover:text-amber-400 hover:border-amber-400"
-          >
-            <span className="mr-2">⚓</span>
-            Anchor Cases
-          </Link>
-          <Link
-            href="/admin/push-test"
-            className="px-4 py-3 font-medium transition-colors border-b-2 -mb-px whitespace-nowrap text-gray-400 border-transparent hover:text-cyan-400 hover:border-cyan-400"
-          >
-            <span className="mr-2">🔔</span>
-            Push Test
-          </Link>
         </div>
 
         {/* Overview Tab */}
@@ -1354,7 +1314,6 @@ export default function AdminDashboard() {
             </div>
           </section>
         )}
-      </div>
-    </>
+    </AdminLayout>
   )
 }

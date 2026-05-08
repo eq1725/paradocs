@@ -15,8 +15,8 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import Head from 'next/head'
 import { supabase } from '@/lib/supabase'
+import AdminLayout from '@/components/admin/AdminLayout'
 import {
   isPushSupported,
   getPushPermissionState,
@@ -152,22 +152,12 @@ export default function PushTestPage() {
     setBusy(false)
   }
 
-  if (!authChecked) return <div className="min-h-screen bg-gray-950 text-gray-400 p-8">Checking auth…</div>
-  if (!isAdmin) return <div className="min-h-screen bg-gray-950 text-gray-400 p-8">Not authorized.</div>
+  // V9.8 T1 — auth handled by AdminLayout; remove the duplicate
+  // 'Checking auth…' / 'Not authorized.' shells.
 
   return (
-    <>
-      <Head><title>Push Test · Paradocs Admin</title></Head>
-      <div className="min-h-screen bg-gray-950 text-white p-4 md:p-8">
-        <div className="max-w-3xl mx-auto">
-          <header className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold font-display">Push Notification Test</h1>
-              <p className="text-sm text-gray-400 mt-1">End-to-end V9.4 delivery harness.</p>
-            </div>
-            <a href="/admin" className="text-sm text-primary-400 hover:text-primary-300">← Back to Admin</a>
-          </header>
-
+    <AdminLayout title="Push Test" subtitle="End-to-end V9.4 delivery harness." narrow>
+      <div className="text-white">
           <section className="bg-gray-900/50 border border-white/10 rounded-xl p-4 mb-4">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-3">Status</h2>
             <ul className="text-sm space-y-1 font-mono">
@@ -231,8 +221,7 @@ export default function PushTestPage() {
               )}
             </div>
           </section>
-        </div>
       </div>
-    </>
+    </AdminLayout>
   )
 }
