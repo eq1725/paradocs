@@ -418,6 +418,12 @@ export default function StartPage() {
   // V9.11.3 — geolocation handler for the "Where" section's "Use my
   // current location" button. Reverse-geocodes via OpenStreetMap so we
   // can pre-fill country / state / city alongside lat/lng.
+  //
+  // V9.11.5 #1 — bump timeout to 20s + auto-retry once on timeout.
+  // Mobile getCurrentPosition often takes 10-15s indoors when GPS is
+  // cold. The original 10s timeout was too aggressive; we now allow
+  // 20s + a single retry that doubles to 30s. maximumAge is also
+  // expanded so a recent fix is reused if available.
   async function detectLocation() {
     if (!navigator.geolocation) {
       setGeoError('Geolocation is not supported by your browser')
@@ -425,14 +431,29 @@ export default function StartPage() {
     }
     setGeolocating(true)
     setGeoError('')
-    try {
-      var position = await new Promise<GeolocationPosition>(function (resolve, reject) {
+
+    function getOnce(timeoutMs: number): Promise<GeolocationPosition> {
+      return new Promise<GeolocationPosition>(function (resolve, reject) {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: false,
-          timeout: 10000,
-          maximumAge: 300000,
+          timeout: timeoutMs,
+          maximumAge: 600000, // 10 min cache — recent fix is fine
         })
       })
+    }
+
+    try {
+      var position: GeolocationPosition
+      try {
+        position = await getOnce(20000)
+      } catch (firstErr: any) {
+        // Retry once on timeout (code 3) with a longer window.
+        if (firstErr && firstErr.code === 3) {
+          position = await getOnce(30000)
+        } else {
+          throw firstErr
+        }
+      }
       var lat = position.coords.latitude
       var lng = position.coords.longitude
       setDraft(function (d) {
@@ -471,10 +492,14 @@ export default function StartPage() {
         }
       } catch {}
     } catch (err: any) {
-      var msg = 'Could not detect location. Please enter manually.'
-      if (err && err.code === 1) msg = 'Location access denied. Please enable in browser settings or enter manually.'
-      else if (err && err.code === 2) msg = 'Location unavailable. Please enter manually.'
-      else if (err && err.code === 3) msg = 'Location request timed out. Please try again.'
+      var msg = 'Couldn\'t pin down your location automatically. You can fill the city below instead.'
+      if (err && err.code === 1) {
+        msg = 'Location access was denied. Enable it in your browser settings, or fill the city below.'
+      } else if (err && err.code === 2) {
+        msg = 'Your device couldn\'t determine its position. Fill the city below instead.'
+      } else if (err && err.code === 3) {
+        msg = 'Still couldn\'t get a location fix. Try again outdoors, or fill the city below.'
+      }
       setGeoError(msg)
     } finally {
       setGeolocating(false)
@@ -651,7 +676,7 @@ export default function StartPage() {
       if (otpErr) throw otpErr
       setStep('check-email')
     } catch (err: any) {
-      setError(err?.message || 'Could not send magic link.')
+      setError(err?.message || 'Couldn\'t send the sign-in link. Try again?')
     } finally {
       setBusy(false)
     }
@@ -1716,8 +1741,8 @@ export default function StartPage() {
                 </h1>
                 <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed">
                   {accountOnly
-                    ? 'We’ll email you a magic link to sign in. No password to remember. You can share your experience anytime.'
-                    : 'We’ll save your experience and email you a magic link to sign in. No password to remember.'}
+                    ? 'We’ll email you a one-tap sign-in link. No password to remember. You can share your experience anytime.'
+                    : 'We’ll save your experience and email you a one-tap sign-in link. No password to remember.'}
                 </p>
               </div>
 
@@ -1817,7 +1842,7 @@ export default function StartPage() {
               </button>
 
               <p className="text-[10px] text-gray-500 text-center leading-relaxed">
-                We use magic links so you don&apos;t have to remember another password.
+                We email a one-tap sign-in link instead of asking you for a password.
               </p>
             </div>
             )
@@ -1832,8 +1857,8 @@ export default function StartPage() {
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold">Check your email.</h1>
                 <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed">
-                  We sent a magic link to <strong className="text-white">{account.email}</strong>.
-                  Click it to sign in and we&apos;ll save your experience.
+                  We sent a sign-in link to <strong className="text-white">{account.email}</strong>.
+                  Tap it to confirm your email and we&apos;ll save your experience.
                 </p>
               </div>
               <div className="space-y-2">
@@ -1851,15 +1876,55 @@ export default function StartPage() {
           {/* ============= STEP 4 — SUBMITTING ============= */}
           {step === 'submit' && (
             <div className="text-center py-12 space-y-6">
-              <Loader2 className="w-10 h-10 text-purple-300 animate-spin mx-auto" />
-              <p className="text-base text-gray-200">
-                {busy ? 'Saving your experience…' : 'Searching the archive…'}
-              </p>
+              {/* V9.11.5 — only spin while we're actually working. When
+                  an error has fired, drop the loader and show a recovery
+                  path back to step 1 so the user isn't trapped. */}
+              {!error && (
+                <>
+                  <Loader2 className="w-10 h-10 text-purple-300 animate-spin mx-auto" />
+                  <p className="text-base text-gray-200">
+                    {busy ? 'Saving your experience…' : 'Searching the archive…'}
+                  </p>
+                </>
+              )}
               {error && (
-                <div className="flex items-start gap-2 p-3 bg-red-950/30 border border-red-900/50 rounded-lg text-left">
-                  <AlertCircle className="w-4 h-4 text-red-300 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-red-200">{error}</p>
-                </div>
+                <>
+                  <div className="inline-flex w-12 h-12 rounded-full bg-red-950/30 border border-red-900/50 items-center justify-center mx-auto">
+                    <AlertCircle className="w-6 h-6 text-red-300" />
+                  </div>
+                  <div className="space-y-2">
+                    <h2 className="text-lg sm:text-xl font-semibold text-white">
+                      We hit a snag.
+                    </h2>
+                    <p className="text-sm text-gray-300 max-w-sm mx-auto leading-relaxed">
+                      {error}
+                    </p>
+                  </div>
+                  <div className="space-y-2 max-w-xs mx-auto">
+                    <button
+                      type="button"
+                      onClick={function () {
+                        setError(null)
+                        setStep('experience')
+                      }}
+                      className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors"
+                    >
+                      Edit my description
+                    </button>
+                    <button
+                      type="button"
+                      onClick={function () {
+                        // Re-trigger the submit effect by leaving + re-entering step.
+                        setError(null)
+                        setStep('account')
+                        setTimeout(function () { setStep('submit') }, 0)
+                      }}
+                      className="w-full text-sm text-gray-400 hover:text-gray-200 transition-colors py-2"
+                    >
+                      Or try saving again
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           )}
