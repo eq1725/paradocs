@@ -62,7 +62,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     targetSelector: '[data-tour-step="header"]',
     title: 'Your Investigation Awaits',
-    description: 'That\'s the tour! Your Dashboard has even more — a Constellation Map of connected phenomena, Research Streaks, an Investigation Journal, and personalized Weekly Reports. Go explore.',
+    description: 'That\'s the tour! Your Lab has even more — your RADAR of connected phenomena, Research Streaks, an Investigation Journal, and personalized Weekly Reports. Go explore.',
     icon: <LayoutDashboard className="w-5 h-5" />,
   },
 ]

@@ -131,7 +131,7 @@ export default function ResearcherProfile() {
         <div className="text-center max-w-sm px-6">
           <Lock className="w-12 h-12 text-gray-600 mx-auto mb-4" />
           <h1 className="text-white text-xl font-bold mb-2">
-            {data.profile.displayName}&apos;s Constellation
+            {data.profile.displayName}&apos;s RADAR
           </h1>
           <p className="text-gray-500 mb-4">This researcher&apos;s profile is private.</p>
           {/* V9.5 P1.3 — owner-aware hint. We don't have a definitive
@@ -210,9 +210,9 @@ export default function ResearcherProfile() {
   return (
     <>
       <Head>
-        <title>{profile.displayName}&apos;s Constellation | Paradocs</title>
+        <title>{profile.displayName}&apos;s RADAR | Paradocs</title>
         <meta name="description" content={ogDescription} />
-        <meta property="og:title" content={`${profile.displayName}'s Constellation | Paradocs`} />
+        <meta property="og:title" content={`${profile.displayName}'s RADAR | Paradocs`} />
         <meta property="og:description" content={ogDescription} />
         <meta property="og:type" content="profile" />
         <meta property="og:url" content={`https://beta.discoverparadocs.com/researcher/${username}`} />
@@ -472,7 +472,7 @@ export default function ResearcherProfile() {
           {/* Footer */}
           <div className="text-center py-8 border-t border-gray-800">
             <p className="text-gray-500 text-sm mb-3">
-              Build your own constellation on Paradocs
+              Build your own RADAR on Paradocs
             </p>
             <Link
               href="/explore"

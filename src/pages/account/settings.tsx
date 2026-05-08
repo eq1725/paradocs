@@ -885,7 +885,7 @@ export default function SettingsPage() {
                 from the legacy default. */}
             <Toggle
               label="Public researcher profile"
-              description="Allow others to view your saves, theories, and Constellation map at /researcher/your-username. Email is never shared either way."
+              description="Allow others to view your saves, theories, and RADAR view at /researcher/your-username. Email is never shared either way."
               checked={profile?.constellation_public ?? false}
               onChange={(checked) => setProfile((p) => p ? { ...p, constellation_public: checked } : p)}
             />
@@ -951,7 +951,7 @@ export default function SettingsPage() {
                   <ul className="space-y-1 text-xs text-gray-300">
                     <li>Saves</li>
                     <li>Theories</li>
-                    <li>Constellation map</li>
+                    <li>RADAR view</li>
                   </ul>
                   <p className="text-[10px] text-gray-500 mt-2">Gated by the toggle above.</p>
                 </div>
@@ -983,7 +983,7 @@ export default function SettingsPage() {
               <div className="flex-1">
                 <h4 className="text-sm font-medium text-white">Download your data</h4>
                 <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
-                  Get a JSON export of your profile, saves, reports, and Constellation entries.
+                  Get a JSON export of your profile, saves, reports, and RADAR data.
                   Email&apos;d to your account address within 24 hours.
                 </p>
               </div>
@@ -998,7 +998,7 @@ export default function SettingsPage() {
               <div className="flex-1">
                 <h4 className="text-sm font-medium text-white">Delete your account</h4>
                 <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
-                  Permanently delete your profile, saves, and Constellation. This cannot be undone.
+                  Permanently delete your profile, saves, and RADAR data. This cannot be undone.
                 </p>
               </div>
               <a

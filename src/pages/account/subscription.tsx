@@ -634,7 +634,7 @@ export default function SubscriptionPage() {
             <ul className="space-y-2.5 mb-6 ml-1">
               <li className="flex items-start gap-2 text-sm text-gray-300">
                 <X className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
-                <span>Unlimited saves and Constellation entries</span>
+                <span>Unlimited saves and RADAR pins</span>
               </li>
               <li className="flex items-start gap-2 text-sm text-gray-300">
                 <X className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />

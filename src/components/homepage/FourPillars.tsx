@@ -75,7 +75,7 @@ export default function FourPillars() {
     {
       icon: <LayoutDashboard className="w-6 h-6" />,
       title: 'Research Workspace',
-      description: 'Build case files, collect evidence, and visualize connections with the Constellation graph. Whether you\u2019re tracking a local legend or mapping a nationwide wave, this is your command center for serious investigation.',
+      description: 'Build case files, collect evidence, and visualize connections on your RADAR. Whether you\u2019re tracking a local legend or mapping a nationwide wave, this is your command center for serious investigation.',
       ctaText: 'Build a case file',
       ctaHref: '/dashboard',
       badge: 'Pro'

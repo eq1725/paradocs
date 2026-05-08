@@ -48,7 +48,7 @@ export default function DashboardPreview() {
                 />
                 <FeatureItem
                   icon={<MapPin className="w-5 h-5" />}
-                  title="Constellation"
+                  title="RADAR"
                   description="Map connections between reports and see the bigger picture"
                 />
                 <FeatureItem
