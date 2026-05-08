@@ -44,7 +44,10 @@ interface UserProfile {
   display_name: string | null
   avatar_url: string | null
   bio: string | null
-  website: string | null
+  // V9.9 P1 — website kept in interface as deprecated field. Form
+  // input + save payload no longer touch it. Existing values stay
+  // in the DB but are no longer surfaced to the user.
+  website?: string | null
   // V9.5 P1.3 — controls visibility of /researcher/[username]
   // public profile and Constellation map. NULL == FALSE in DB.
   constellation_public?: boolean | null
@@ -226,6 +229,14 @@ export default function SettingsPage() {
     saved: number; reports: number; streak: number; joinedYear: string | number;
   }>({ saved: 0, reports: 0, streak: 0, joinedYear: '' })
 
+  // V9.9 P2 — username availability state. Debounced check on input
+  // change. 'idle' until first user input; 'checking' during fetch;
+  // resolves to one of available/taken/invalid/self.
+  const [usernameStatus, setUsernameStatus] = useState<
+    'idle' | 'checking' | 'available' | 'taken' | 'invalid' | 'self'
+  >('idle')
+  const [usernameReason, setUsernameReason] = useState<string>('')
+
   // Personalization state
   const {
     data: personalization,
@@ -334,6 +345,30 @@ export default function SettingsPage() {
     fetchProfile()
   }, [router])
 
+  // V9.9 P2 — debounced username availability check. Fires 500ms
+  // after the input settles. Skips empty / unchanged values to
+  // avoid noisy network calls.
+  useEffect(() => {
+    var u = (profile?.username || '').trim()
+    if (!u) { setUsernameStatus('idle'); setUsernameReason(''); return }
+    setUsernameStatus('checking')
+    var t = setTimeout(async () => {
+      try {
+        var { data: { session } } = await supabase.auth.getSession()
+        var headers: any = {}
+        if (session) headers.Authorization = 'Bearer ' + session.access_token
+        var resp = await fetch('/api/user/username-check?u=' + encodeURIComponent(u), { headers })
+        var data = await resp.json()
+        if (!data?.ok) { setUsernameStatus('idle'); setUsernameReason(''); return }
+        setUsernameStatus(data.status)
+        setUsernameReason(data.reason || '')
+      } catch {
+        setUsernameStatus('idle')
+      }
+    }, 500)
+    return () => clearTimeout(t)
+  }, [profile?.username])
+
   // V9.6 Tier 2 — load researcher status data for the strip below the
   // kicker. Uses /api/user/stats (same endpoint Profile uses). Failure
   // is silent — strip just shows zeros, which is correct for new
@@ -379,23 +414,36 @@ export default function SettingsPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
 
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({
-          id: session.user.id,
+      // V9.9 P3 — route through /api/user/profile-update so the bio
+      // gets moderated server-side via Claude Haiku. Endpoint also
+      // surfaces clean errors for username collisions (409) and bio
+      // rejections (422 with friendly message).
+      const resp = await fetch('/api/user/profile-update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + session.access_token,
+        },
+        body: JSON.stringify({
           username: profile.username,
           display_name: profile.display_name,
           avatar_url: profile.avatar_url,
           bio: profile.bio,
-          website: profile.website,
           notification_settings: notifications,
-          // V9.5 P1.3 — visibility flag controlled by the toggle in
-          // the Privacy section below.
           constellation_public: profile.constellation_public ?? false,
-          updated_at: new Date().toISOString()
-        })
-
-      if (error) throw error
+        }),
+      })
+      const result = await resp.json()
+      if (!resp.ok || !result.ok) {
+        throw new Error(result.error || 'Failed to save')
+      }
+      // V9.9 P3 — surface the queue notice when the bio went to
+      // pending review. The save still succeeded, but the user
+      // should know an admin will look at it.
+      if (result.decision === 'pending') {
+        setSuccess(true)
+        setTimeout(() => setSuccess(false), 5000)
+      }
 
       // Dispatch event to notify other components (like DashboardLayout sidebar) to refresh
       window.dispatchEvent(new CustomEvent('profile-updated'))
@@ -718,9 +766,37 @@ export default function SettingsPage() {
                   value={profile?.username || ''}
                   onChange={(e) => setProfile(p => p ? { ...p, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') } : null)}
                   placeholder="username"
-                  className="w-full pl-8 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                  className={
+                    'w-full pl-8 pr-10 py-2 bg-gray-800 border rounded-lg text-white placeholder-gray-500 focus:outline-none transition-colors ' +
+                    (usernameStatus === 'taken' || usernameStatus === 'invalid'
+                      ? 'border-red-500/60 focus:border-red-500'
+                      : usernameStatus === 'available'
+                        ? 'border-emerald-500/60 focus:border-emerald-500'
+                        : 'border-gray-700 focus:border-purple-500')
+                  }
                 />
+                {/* V9.9 P2 — inline availability indicator. */}
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs">
+                  {usernameStatus === 'checking' && (
+                    <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />
+                  )}
+                  {usernameStatus === 'available' && (
+                    <span className="text-emerald-400" aria-label="Username available">✓</span>
+                  )}
+                  {usernameStatus === 'self' && (
+                    <span className="text-gray-500 text-[10px]" aria-label="Your current username">current</span>
+                  )}
+                  {(usernameStatus === 'taken' || usernameStatus === 'invalid') && (
+                    <span className="text-red-400" aria-label="Username unavailable">✗</span>
+                  )}
+                </span>
               </div>
+              {(usernameStatus === 'taken' || usernameStatus === 'invalid') && usernameReason && (
+                <p className="text-xs text-red-300 mt-1.5">{usernameReason}</p>
+              )}
+              {usernameStatus === 'available' && (
+                <p className="text-xs text-emerald-300 mt-1.5">Available — yours to claim.</p>
+              )}
             </div>
 
             <div>
@@ -736,18 +812,14 @@ export default function SettingsPage() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Website
-              </label>
-              <input
-                type="url"
-                value={profile?.website || ''}
-                onChange={(e) => setProfile(p => p ? { ...p, website: e.target.value } : null)}
-                placeholder="https://yoursite.com"
-                className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-              />
-            </div>
+            {/* V9.9 P1 — Website field removed per panel review.
+                Was being collected but never displayed publicly
+                anywhere (broken contract with users + moderation
+                liability we weren't enforcing). DB column kept
+                intact for safety; will re-add when we have an
+                established researcher base + budget to moderate
+                URLs properly (link-shortener + domain blocklist
+                + nofollow). */}
           </div>
         </SettingsSection>
 
@@ -1281,8 +1353,12 @@ export default function SettingsPage() {
             {isDirty && (
               <button
                 onClick={handleSaveProfile}
-                disabled={saving}
+                // V9.9 P2 — block save when username is taken/invalid.
+                // Postgres would reject the upsert with a unique-
+                // violation anyway; this gives clearer UX upstream.
+                disabled={saving || usernameStatus === 'taken' || usernameStatus === 'invalid'}
                 className="flex items-center gap-2 px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-50 flex-shrink-0"
+                title={usernameStatus === 'taken' ? 'Username is taken' : usernameStatus === 'invalid' ? 'Username is invalid' : undefined}
               >
                 {saving ? (
                   <>
