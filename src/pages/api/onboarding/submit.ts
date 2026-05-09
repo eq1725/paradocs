@@ -24,14 +24,16 @@
  *        status         — 'approved' if moderation clean, 'pending' if PENDING
  *                         (admins can review later via /admin/report-review)
  *        submitted_by   — current user id
- *        is_anonymous   — from `share_anonymously` toggle
+ *        anonymous_submission — from `share_anonymously` toggle (column name matches /submit.tsx)
  *        visibility     — 'radar_only' | 'public' | 'private' (mapped to
  *                         existing visibility column or new one)
  *   5. Return { ok, report_id, slug, decision }
  *
  * Frontend then triggers a RADAR match call against the new report_id.
  *
- * Note: schema uses 'is_anonymous' (column exists per /submit form).
+ * Note: schema uses `anonymous_submission` (matches /submit.tsx). Earlier
+ * versions of this file mistakenly used `is_anonymous` which doesn't exist
+ * in the reports table — fixed in V9.11.5.
  * Visibility uses status='approved' as the default public state and
  * an explicit `is_private` flag for the RADAR-only / private modes
  * — actual schema impl matches the existing patterns of
@@ -161,7 +163,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     category,
     status,
     submitted_by: userId,
-    is_anonymous: !!p.share_anonymously,
+    anonymous_submission: !!p.share_anonymously,
     // Visibility-related — we store an extra column to mark RADAR-only
     // vs public reports. Approved + visibility='radar_only' means the
     // report appears in RADAR matching but doesn't show in the public
