@@ -429,6 +429,42 @@ export default function StartPage() {
   // cold. The original 10s timeout was too aggressive; we now allow
   // 20s + a single retry that doubles to 30s. maximumAge is also
   // expanded so a recent fix is reused if available.
+
+  // V9.11.5 #15 — auto-geocode on city/state/country change.
+  // When the user manually picks city + (optionally) state + country,
+  // forward-geocode via Nominatim and update lat/lng so the map below
+  // re-centers on the chosen location. Debounced 800ms so we don't
+  // hammer Nominatim on every keystroke.
+  useEffect(function () {
+    if (step !== 'experience') return
+    if (!draft.city) return
+    var t = setTimeout(async function () {
+      try {
+        var q = [draft.city, draft.state_province, draft.country].filter(Boolean).join(', ')
+        var res = await fetch(
+          'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(q) + '&format=json&limit=1',
+          { headers: { 'User-Agent': 'Paradocs-Onboarding/1.0' } }
+        )
+        if (!res.ok) return
+        var data = await res.json()
+        if (Array.isArray(data) && data.length > 0) {
+          var lat = parseFloat(data[0].lat).toFixed(6)
+          var lng = parseFloat(data[0].lon).toFixed(6)
+          // Always update — if the user changes city, the map should
+          // follow. If they want a precise pin, they can drop one
+          // after, and a subsequent city change will overwrite that
+          // (acceptable trade-off; precision pin is uncommon vs. city
+          // changes).
+          setDraft(function (d) { return { ...d, latitude: lat, longitude: lng } })
+        }
+      } catch {
+        // Silent fail — user can still drop a pin manually.
+      }
+    }, 800)
+    return function () { clearTimeout(t) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.city, draft.state_province, draft.country, step])
+
   async function detectLocation() {
     if (!navigator.geolocation) {
       setGeoError('Geolocation is not supported by your browser')
@@ -531,27 +567,79 @@ export default function StartPage() {
   })
 
   // Smart search across all types.
+  /**
+   * V9.11.5 #14 — search synonyms.
+   * Mass-market users type "ufo", "alien", "ghost" — but our DB types
+   * have brand-aligned names like "Mass Sighting", "Close Encounter
+   * Type 3", "Apparition". Without synonym mapping the search returns
+   * nothing for the most common queries. Each synonym key expands the
+   * effective query to also match the type's category, description,
+   * and these alias terms.
+   */
+  var SEARCH_SYNONYMS: Record<string, string[]> = {
+    ufo:    ['uap', 'craft', 'disc', 'triangle', 'sighting', 'light', 'orb', 'aliens'],
+    ufos:   ['uap', 'craft', 'disc', 'triangle', 'sighting', 'light', 'orb', 'aliens'],
+    uap:    ['ufo', 'craft', 'disc', 'triangle', 'sighting'],
+    alien:  ['extraterrestrial', 'abduction', 'encounter', 'contactee', 'grey', 'nordic', 'reptilian', 'craft', 'ufo'],
+    aliens: ['extraterrestrial', 'abduction', 'encounter', 'contactee', 'grey', 'nordic', 'reptilian', 'craft', 'ufo'],
+    abduction: ['alien', 'extraterrestrial', 'encounter', 'taken', 'missing time'],
+    sighting: ['encounter', 'observation', 'witness', 'craft', 'figure', 'object'],
+    ghost:  ['apparition', 'haunting', 'spirit', 'specter', 'poltergeist', 'phantom'],
+    ghosts: ['apparition', 'haunting', 'spirit', 'specter', 'poltergeist', 'phantom'],
+    haunted: ['haunting', 'apparition', 'ghost', 'spirit'],
+    psychic: ['telepathy', 'precognition', 'esp', 'clairvoyance', 'medium'],
+    nde:    ['near death', 'tunnel', 'light', 'after life'],
+    obe:    ['out of body', 'astral', 'projection'],
+    cryptid: ['bigfoot', 'sasquatch', 'creature', 'unknown animal', 'monster'],
+    bigfoot: ['cryptid', 'sasquatch', 'creature'],
+    demon:  ['demonic', 'entity', 'oppression', 'possession'],
+  }
+
   var typeSearchResults: PhenomenonType[] = (function () {
     var q = typeSearch.trim().toLowerCase()
     if (q.length < 2) return []
     var words = q.split(/\s+/).filter(function (w) { return w.length >= 2 })
+
+    // Expand query with synonyms for any matching word.
+    var expandedTerms: string[] = words.slice()
+    words.forEach(function (w) {
+      var syns = SEARCH_SYNONYMS[w]
+      if (syns) expandedTerms = expandedTerms.concat(syns)
+    })
+    // Dedupe.
+    expandedTerms = Array.from(new Set(expandedTerms))
+
     var scored = submittableTypes
       .map(function (t) {
         var name = t.name.toLowerCase()
         var slug = (t.slug || '').toLowerCase()
+        var desc = (t.description || '').toLowerCase()
+        var category = (t.category || '').toLowerCase()
         var score = 0
+
+        // Direct query match (highest weight) — name first, then slug.
         if (name === q) score += 100
         if (name.indexOf(q) === 0) score += 50
         if (name.indexOf(q) !== -1) score += 20
         if (slug.indexOf(q) !== -1) score += 10
-        words.forEach(function (w) {
-          if (name.indexOf(w) !== -1) score += 5
+        // Description + category match — softer, helps when type names
+        // don't include the user's literal search term.
+        if (desc.indexOf(q) !== -1) score += 8
+        if (category.indexOf(q) !== -1) score += 6
+
+        // Per-word matches across expanded synonym set.
+        expandedTerms.forEach(function (term) {
+          if (term === q) return // already counted above
+          if (name.indexOf(term) !== -1) score += 4
+          if (desc.indexOf(term) !== -1) score += 2
+          if (category.indexOf(term) !== -1) score += 2
         })
+
         return { t: t, score: score }
       })
       .filter(function (s) { return s.score > 0 })
       .sort(function (a, b) { return b.score - a.score })
-      .slice(0, 8)
+      .slice(0, 10)
     return scored.map(function (s) { return s.t })
   })()
 
