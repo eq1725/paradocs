@@ -626,6 +626,11 @@ export default function StartPage() {
       setError('Please describe your experience in at least 30 characters.')
       return
     }
+    // V9.11.5 #13 — Clear any stale ACCOUNT_ONLY_KEY from a prior
+    // "share later" test in this browser. Without this, the post-auth
+    // handler sees the stale flag and routes the user straight to
+    // /discover, skipping their actual submit + RADAR reveal.
+    try { localStorage.removeItem(ACCOUNT_ONLY_KEY) } catch {}
     saveDraft(draft)
     setStep('account')
   }
