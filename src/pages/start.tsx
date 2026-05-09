@@ -433,12 +433,13 @@ export default function StartPage() {
   var [examples, setExamples] = useState<Example[]>([])
   var [exampleIndex, setExampleIndex] = useState(0)
 
-  // V9.11.5 #27 — archive stats for the trust signal under H1.
-  // Live counts so the value scales with ingestion (Chase will reach
-  // ~4,500 phenomena post-ingestion; we want this to read accurately
-  // as that lands instead of becoming stale hardcoded copy).
-  var [archiveStats, setArchiveStats] = useState<{ phenomena: number; reports: number }>({
-    phenomena: 0,
+  // V9.11.5 #27.2 — archive stats for the trust signal under H1.
+  // Reports is the magnitude that scales with ingestion (MUFON, NUFORC,
+  // BFRO, Reddit, YouTube + user submissions, eventually millions).
+  // The encyclopedia/schema (phenomenon_types, phenomena) is held by
+  // /lab and curated by us — it's not what users care to hear about
+  // when deciding to share their experience.
+  var [archiveStats, setArchiveStats] = useState<{ reports: number }>({
     reports: 0,
   })
 
@@ -526,29 +527,21 @@ export default function StartPage() {
       .catch(function () { /* silent */ })
   }, [step])
 
-  // ---------------- archive stats fetch (V9.11.5 #27)
-  // V9.11.5 #27.1 — fixed: count from `phenomena` (the encyclopedia
-  // of specific named phenomena: Bigfoot, Mothman, Phoenix Lights,
-  // etc. — auto-generated from ingested reports, sits underneath
-  // the 11 high-level categories) NOT `phenomenon_types` (the
-  // taxonomy, only ~150 rows). Phenomena scales into the thousands
-  // post-ingestion which is the magnitude Chase wants the trust
-  // signal to convey.
+  // ---------------- archive stats fetch (V9.11.5 #27.2)
+  // Approved-reports count only. Reports = the data magnitude that
+  // grows with mass ingestion. The encyclopedia/schema is curated
+  // and not the right number for a public trust signal.
   useEffect(function () {
     if (step !== 'experience') return
-    if (archiveStats.phenomena > 0) return // already loaded
-    Promise.all([
-      // Active only — excludes merged duplicates and archived rows
-      // so we don't inflate the trust signal with stale entries.
-      (supabase.from('phenomena') as any).select('id', { count: 'exact', head: true }).eq('status', 'active'),
-      (supabase.from('reports') as any).select('id', { count: 'exact', head: true }).eq('status', 'approved'),
-    ]).then(function (results: any[]) {
-      var pCount = (results[0] && results[0].count) || 0
-      var rCount = (results[1] && results[1].count) || 0
-      if (pCount > 0 || rCount > 0) {
-        setArchiveStats({ phenomena: pCount, reports: rCount })
-      }
-    }).catch(function () { /* silent — trust signal is optional UX */ })
+    if (archiveStats.reports > 0) return // already loaded
+    ;(supabase.from('reports') as any)
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'approved')
+      .then(function (result: any) {
+        var rCount = (result && result.count) || 0
+        if (rCount > 0) setArchiveStats({ reports: rCount })
+      })
+      .catch(function () { /* silent — trust signal is optional UX */ })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
 
@@ -1135,13 +1128,18 @@ export default function StartPage() {
                 <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed">
                   Share what you experienced. We&apos;ll show you who else has &mdash; matched against millions of reports in the archive.
                 </p>
-                {/* V9.11.5 #27 — trust signal. Live counts from the
-                    archive; reads accurately as ingestion grows. */}
-                {(archiveStats.phenomena > 0 || archiveStats.reports > 0) && (
+                {/* V9.11.5 #27.2 — trust signal: reports-only.
+                    Reports = the actual data magnitude — MUFON, NUFORC,
+                    BFRO, Reddit, YouTube ingestion + user submissions —
+                    will grow into the millions. The phenomena/encyclopedia
+                    count is the SCHEMA and stays fixed or shrinks during
+                    MVP cleanup, so showing it would shrink the trust
+                    signal as we optimize. Threshold of 1,000 keeps a low
+                    pre-ingestion value from undermining the message. */}
+                {archiveStats.reports >= 1000 && (
                   <p className="text-[11px] text-gray-500 mt-3 flex items-center gap-1.5">
                     <span className="inline-block w-1 h-1 rounded-full bg-purple-400" />
-                    Matched against {archiveStats.reports > 0 ? archiveStats.reports.toLocaleString() + ' reports across ' : ''}
-                    {archiveStats.phenomena.toLocaleString()}+ phenomena.
+                    {archiveStats.reports.toLocaleString()}+ reports already in the archive.
                   </p>
                 )}
               </div>
