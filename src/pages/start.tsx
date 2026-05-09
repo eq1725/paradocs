@@ -1123,7 +1123,7 @@ export default function StartPage() {
             <div className="space-y-6">
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
-                  What did you experience?
+                  What have you experienced that you can&rsquo;t explain?
                 </h1>
                 <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed">
                   Share what you experienced. We&apos;ll show you who else has &mdash; matched against millions of reports in the archive.
@@ -1196,12 +1196,16 @@ export default function StartPage() {
                 </div>
               </div>
 
-              {/* What did you experience? — phenomenology picker (V9.11.1).
+              {/* Phenomenology picker (V9.11.1).
                   Mirrors the /submit pattern: search-first, browse-by-category fallback.
-                  Replaces the deprecated emoji chip strip. */}
+                  Replaces the deprecated emoji chip strip.
+                  V9.11.5 #28 — relabeled "What kind of experience was it?"
+                  to avoid colliding with the new H1 ("What have you
+                  experienced that you can't explain?"). The H1 asks them
+                  to describe; this asks them to categorize. */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">
-                  What did you experience? <span className="text-gray-500 font-normal">(optional)</span>
+                  What kind of experience was it? <span className="text-gray-500 font-normal">(optional)</span>
                 </label>
                 <p className="text-xs text-gray-500 mb-3">
                   Search for an experience type, or browse by category.
