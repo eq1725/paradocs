@@ -159,6 +159,67 @@ function isEditorialType(name: string, slug: string | null): boolean {
   return false
 }
 
+/**
+ * V9.11.5 #17 — friendly name resolution for the phenomenology picker.
+ *
+ * Database type names use field-of-study terminology (Hynek's CE-1
+ * through CE-5, MJ-12, NDE/OBE/STE acronyms, etc.). Mass-market users
+ * don't decode that jargon. Map known jargon names to plain-English
+ * labels so the picker reads naturally — falling back to the original
+ * name when no override exists.
+ *
+ * Returns:
+ *   { primary: string, secondary?: string }
+ * The picker UI shows `primary` prominently and `secondary` as a
+ * smaller subtitle.
+ */
+function friendlyTypeName(name: string, description: string | null): { primary: string; secondary?: string } {
+  // Hynek Close Encounter scale.
+  var hynekMap: Record<string, { primary: string; secondary: string }> = {
+    'CE-1': { primary: 'Saw a UFO up close',                      secondary: 'Close Encounter, first kind' },
+    'CE-2': { primary: 'UFO that left physical traces',           secondary: 'Close Encounter, second kind' },
+    'CE-3': { primary: 'Saw a UFO and its occupants',             secondary: 'Close Encounter, third kind' },
+    'CE-4': { primary: 'UFO abduction',                           secondary: 'Close Encounter, fourth kind' },
+    'CE-5': { primary: 'Communication with UFO occupants',        secondary: 'Close Encounter, fifth kind' },
+  }
+  // Match any "CE-N: Close Encounter ..." style name.
+  var hynekMatch = name.match(/^CE-(\d):/)
+  if (hynekMatch) {
+    var key = 'CE-' + hynekMatch[1]
+    var m = hynekMap[key]
+    if (m) return { primary: m.primary, secondary: m.secondary }
+  }
+
+  // Other known acronym-style jargon.
+  var aliasMap: Record<string, { primary: string; secondary: string }> = {
+    'NDE': { primary: 'Near-death experience',     secondary: 'NDE' },
+    'OBE': { primary: 'Out-of-body experience',    secondary: 'OBE' },
+    'STE': { primary: 'Spiritually transformative experience', secondary: 'STE' },
+    'EVP': { primary: 'Voice or sound recording',  secondary: 'EVP — Electronic Voice Phenomenon' },
+    'UAP': { primary: 'Saw a UAP',                 secondary: 'Unidentified Aerial Phenomenon' },
+  }
+  var trimmed = name.trim()
+  if (aliasMap[trimmed]) {
+    return { primary: aliasMap[trimmed].primary, secondary: aliasMap[trimmed].secondary }
+  }
+  // Names like "NDE — Tunnel Experience" → strip prefix, prepend friendly.
+  var dashedAlias = trimmed.match(/^(NDE|OBE|STE|EVP|UAP)\s*[—–-]\s*(.+)$/i)
+  if (dashedAlias) {
+    var prefix = dashedAlias[1].toUpperCase()
+    var rest = dashedAlias[2]
+    if (aliasMap[prefix]) {
+      return { primary: rest, secondary: aliasMap[prefix].primary }
+    }
+  }
+
+  // Default: name as primary, short description as secondary if available.
+  var desc = (description || '').trim()
+  if (desc && desc.length <= 90) {
+    return { primary: name, secondary: desc }
+  }
+  return { primary: name }
+}
+
 // ---------------------------------------------------------------- helpers
 
 /**
@@ -984,7 +1045,7 @@ export default function StartPage() {
                         : 'bg-white/5 border-white/10'
                     )}>
                       <CategoryIcon category={draft.category as PhenomenonCategory} size={16} />
-                      <span className="text-sm font-medium text-white">{selectedType.name}</span>
+                      <span className="text-sm font-medium text-white">{friendlyTypeName(selectedType.name, selectedType.description).primary}</span>
                       <span className="text-xs text-gray-400">in {selectedCategoryConfig?.label}</span>
                     </div>
                     <button
@@ -1034,7 +1095,7 @@ export default function StartPage() {
                           <option value="">Select a specific type…</option>
                           {filteredTypes.map(function (type) {
                             return (
-                              <option key={type.id} value={type.id}>{type.name}</option>
+                              <option key={type.id} value={type.id}>{friendlyTypeName(type.name, type.description).primary}</option>
                             )
                           })}
                         </select>
@@ -1070,16 +1131,22 @@ export default function StartPage() {
                           {typeSearchResults.length > 0 ? (
                             typeSearchResults.map(function (type) {
                               var catConfig = CATEGORY_CONFIG[type.category as PhenomenonCategory]
+                              var friendly = friendlyTypeName(type.name, type.description)
                               return (
                                 <button
                                   key={type.id}
                                   type="button"
                                   onClick={function () { selectTypeFromSearch(type) }}
-                                  className="w-full text-left px-4 py-3 hover:bg-white/5 transition-colors flex items-center justify-between gap-3 border-b border-white/5 last:border-0"
+                                  className="w-full text-left px-4 py-3 hover:bg-white/5 transition-colors flex items-start justify-between gap-3 border-b border-white/5 last:border-0"
                                 >
-                                  <div className="flex items-center gap-3 min-w-0">
+                                  <div className="flex items-start gap-3 min-w-0 flex-1">
                                     <CategoryIcon category={type.category as PhenomenonCategory} size={16} />
-                                    <span className="text-sm text-white truncate">{type.name}</span>
+                                    <div className="min-w-0 flex-1">
+                                      <span className="text-sm text-white block truncate">{friendly.primary}</span>
+                                      {friendly.secondary && (
+                                        <span className="text-[11px] text-gray-500 block truncate leading-snug mt-0.5">{friendly.secondary}</span>
+                                      )}
+                                    </div>
                                   </div>
                                   {catConfig && (
                                     <span className={classNames(
@@ -1514,17 +1581,24 @@ export default function StartPage() {
                             {isSelected && <Check className="w-3 h-3 text-white" />}
                           </div>
                           <div className="min-w-0">
-                            <span className={classNames(
-                              'text-sm block',
-                              isSelected ? 'text-purple-200 font-medium' : 'text-gray-300'
-                            )}>
-                              {type.name}
-                            </span>
-                            {type.description && (
-                              <span className="text-[11px] text-gray-500 block mt-0.5 leading-snug">
-                                {type.description}
-                              </span>
-                            )}
+                            {(function () {
+                              var f = friendlyTypeName(type.name, type.description)
+                              return (
+                                <>
+                                  <span className={classNames(
+                                    'text-sm block',
+                                    isSelected ? 'text-purple-200 font-medium' : 'text-gray-300'
+                                  )}>
+                                    {f.primary}
+                                  </span>
+                                  {f.secondary && (
+                                    <span className="text-[11px] text-gray-500 block mt-0.5 leading-snug">
+                                      {f.secondary}
+                                    </span>
+                                  )}
+                                </>
+                              )
+                            })()}
                           </div>
                         </button>
                       )
