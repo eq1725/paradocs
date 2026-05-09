@@ -235,8 +235,14 @@ export default function Layout({ children }: LayoutProps) {
         {children}
       </main>
 
+      {/* V9.11.5 #26 — footer hidden on /start (the onboarding funnel
+          is goal-focused; footer chrome distracts and dilutes the
+          single primary CTA). Still visible on every other page md+. */}
       {/* Footer — hidden on mobile (bottom tab nav replaces it); visible md+ */}
-      <footer className="hidden md:block border-t border-white/5 bg-black/30 backdrop-blur">
+      <footer className={classNames(
+        'hidden md:block border-t border-white/5 bg-black/30 backdrop-blur',
+        router.pathname === '/start' && 'md:!hidden'
+      )}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="col-span-2 md:col-span-1">

@@ -1090,10 +1090,10 @@ export default function StartPage() {
             <div className="space-y-6">
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
-                  What did you see?
+                  What did you experience?
                 </h1>
                 <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed">
-                  Join Paradocs by sharing one experience you can&apos;t explain. We&apos;ll match yours against millions of others in the archive.
+                  Share what you experienced. We&apos;ll show you who else has &mdash; matched against millions of reports in the archive.
                 </p>
               </div>
 
@@ -1125,7 +1125,12 @@ export default function StartPage() {
                   className="w-full bg-gray-900/80 border border-gray-700 rounded-xl p-4 text-base placeholder-gray-500 focus:outline-none focus:border-purple-500 leading-relaxed resize-none"
                 />
                 <div className="flex justify-between text-xs text-gray-500 mt-1.5 px-1">
-                  <span>{draft.description.length < 30 ? (30 - draft.description.length) + ' more characters needed' : '✓ Long enough'}</span>
+                  <span>{
+                    draft.description.length === 0 ? 'A few sentences is plenty.'
+                    : draft.description.length < 30 ? 'A few more words…'
+                    : draft.description.length < 100 ? '✓ Good — keep going if you want.'
+                    : '✓ Great detail — better matches with more.'
+                  }</span>
                   <span>{draft.description.length} / 2000</span>
                 </div>
               </div>
