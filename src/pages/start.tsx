@@ -151,7 +151,13 @@ function isEditorialType(name: string, slug: string | null): boolean {
   var n = name.toLowerCase()
   var s = (slug || '').toLowerCase()
   if (n.indexOf('historical ') === 0) return true
-  if (/\b(notable|infamous|classic|famous)\s+(case|report|incident)/i.test(name)) return true
+  // V9.11.5 #23 — bug fix. Original regex required notable/famous/etc.
+  // immediately followed by case/report/incident. That misses 'Notable
+  // ESP Case' (notable + ESP + case with a word between). Relaxed to
+  // match the words anywhere in the name with arbitrary content
+  // between, so 'Notable ESP Case' / 'Famous UFO Report' / 'Classic
+  // Roswell Incident' all get filtered.
+  if (/\b(notable|infamous|classic|famous)\b.*\b(case|report|incident)\b/i.test(name)) return true
   var locSlugs = ['bermuda-triangle', 'skinwalker-ranch', 'ley-line']
   if (locSlugs.indexOf(s) !== -1) return true
   var locNames = ['bermuda triangle', 'skinwalker ranch', 'ley line']
@@ -270,6 +276,11 @@ function friendlyTypeName(name: string, description: string | null): { primary: 
     'synchronicity':  { primary: 'Meaningful coincidence',                 secondary: 'Synchronicity' },
     'kundalini':      { primary: 'Spiritual energy awakening',             secondary: 'Kundalini awakening' },
     'kundalini awakening': { primary: 'Spiritual energy awakening',        secondary: 'Kundalini awakening' },
+    // V9.11.5 #23
+    'levitation':     { primary: 'Floating off the ground',                secondary: 'Levitation' },
+    'levitating':     { primary: 'Floating off the ground',                secondary: 'Levitation' },
+    'sensory deprivation': { primary: 'Float tank or isolation experience', secondary: 'Sensory deprivation' },
+    'sensory deprivation experience': { primary: 'Float tank or isolation experience', secondary: 'Sensory deprivation' },
   }
   var lower = trimmed.toLowerCase()
   if (greekLatinMap[lower]) {
@@ -719,6 +730,12 @@ export default function StartPage() {
     cryptid: ['bigfoot', 'sasquatch', 'creature', 'unknown animal', 'monster'],
     bigfoot: ['cryptid', 'sasquatch', 'creature'],
     demon:  ['demonic', 'entity', 'oppression', 'possession'],
+    // V9.11.5 #23 — levitation cluster
+    levitation:  ['floating', 'hovering', 'telekinesis', 'psychokinesis', 'astral projection', 'obe', 'out of body'],
+    levitating:  ['floating', 'hovering', 'telekinesis', 'psychokinesis'],
+    floating:    ['levitation', 'hovering', 'astral projection', 'obe', 'out of body'],
+    float:       ['levitation', 'hovering', 'floating'],
+    hovering:    ['levitation', 'floating', 'craft', 'orb'],
   }
 
   var typeSearchResults: PhenomenonType[] = (function () {
@@ -765,8 +782,29 @@ export default function StartPage() {
       })
       .filter(function (s) { return s.score > 0 })
       .sort(function (a, b) { return b.score - a.score })
-      .slice(0, 10)
-    return scored.map(function (s) { return s.t })
+
+    // V9.11.5 #23 — dedupe near-identical names. The DB has cases
+    // like "Sensory Deprivation" + "Sensory Deprivation Experience"
+    // which both surface for the same query. Collapse them by
+    // canonicalising the name (lowercase, drop trailing
+    // ' Experience' / ' Phenomenon' / ' Event'), then keep only
+    // the highest-scoring entry per canonical key.
+    function canonicalKey(rawName: string): string {
+      return rawName
+        .toLowerCase()
+        .replace(/\s+(experience|experiences|phenomenon|phenomena|event|events)\s*$/i, '')
+        .trim()
+    }
+    var seenKeys: Record<string, boolean> = {}
+    var deduped: typeof scored = []
+    for (var entry of scored) {
+      var key = canonicalKey(entry.t.name)
+      if (seenKeys[key]) continue
+      seenKeys[key] = true
+      deduped.push(entry)
+      if (deduped.length >= 10) break
+    }
+    return deduped.map(function (s) { return s.t })
   })()
 
   function selectTypeFromSearch(type: PhenomenonType) {
