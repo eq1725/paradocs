@@ -33,6 +33,7 @@ import {
   Sparkles, ArrowRight, Loader2, Check, X, Mail, ChevronDown, ChevronUp,
   EyeOff, Eye, Globe, Lock, AlertCircle, Telescope, Search, Calendar,
   MapPin, Users, FileText, Camera, Locate, Upload, Image as ImageIcon, Film, Music,
+  ShieldCheck,
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
@@ -432,6 +433,15 @@ export default function StartPage() {
   var [examples, setExamples] = useState<Example[]>([])
   var [exampleIndex, setExampleIndex] = useState(0)
 
+  // V9.11.5 #27 — archive stats for the trust signal under H1.
+  // Live counts so the value scales with ingestion (Chase will reach
+  // ~4,500 phenomena post-ingestion; we want this to read accurately
+  // as that lands instead of becoming stale hardcoded copy).
+  var [archiveStats, setArchiveStats] = useState<{ phenomena: number; reports: number }>({
+    phenomena: 0,
+    reports: 0,
+  })
+
   // Submit + reveal state
   var [busy, setBusy] = useState(false)
   var [error, setError] = useState<string | null>(null)
@@ -494,7 +504,7 @@ export default function StartPage() {
 
     // Already signed in + no draft? Just redirect to lab.
     supabase.auth.getSession().then(function (s) {
-      if (s.data.session && (!d || d.description.trim().length < 30)) {
+      if (s.data.session && (!d || d.description.trim().length < 50)) {
         // They're signed in already; onboarding doesn't apply.
         router.replace('/lab')
       }
@@ -514,6 +524,23 @@ export default function StartPage() {
         }
       })
       .catch(function () { /* silent */ })
+  }, [step])
+
+  // ---------------- archive stats fetch (V9.11.5 #27)
+  useEffect(function () {
+    if (step !== 'experience') return
+    if (archiveStats.phenomena > 0) return // already loaded
+    Promise.all([
+      (supabase.from('phenomenon_types') as any).select('id', { count: 'exact', head: true }),
+      (supabase.from('reports') as any).select('id', { count: 'exact', head: true }).eq('status', 'approved'),
+    ]).then(function (results: any[]) {
+      var pCount = (results[0] && results[0].count) || 0
+      var rCount = (results[1] && results[1].count) || 0
+      if (pCount > 0 || rCount > 0) {
+        setArchiveStats({ phenomena: pCount, reports: rCount })
+      }
+    }).catch(function () { /* silent — trust signal is optional UX */ })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
 
   // ---------------- phenomenon types fetch (for the picker)
@@ -878,8 +905,12 @@ export default function StartPage() {
 
   function continueToAccount() {
     setError(null)
-    if (draft.description.trim().length < 30) {
-      setError('Please describe your experience in at least 30 characters.')
+    // V9.11.5 #27 — Min length 30 → 50 (panel verdict). 30 chars is barely
+    // a sentence; 50 is roughly a sentence with one descriptor and produces
+    // meaningfully better RADAR matches without pushing real users away
+    // (most descriptions in our corpus run >> 50 chars).
+    if (draft.description.trim().length < 50) {
+      setError('Add a few more words so we can find good matches — even one extra sentence helps.')
       return
     }
     // V9.11.5 #13 — Clear any stale ACCOUNT_ONLY_KEY from a prior
@@ -1095,6 +1126,15 @@ export default function StartPage() {
                 <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed">
                   Share what you experienced. We&apos;ll show you who else has &mdash; matched against millions of reports in the archive.
                 </p>
+                {/* V9.11.5 #27 — trust signal. Live counts from the
+                    archive; reads accurately as ingestion grows. */}
+                {(archiveStats.phenomena > 0 || archiveStats.reports > 0) && (
+                  <p className="text-[11px] text-gray-500 mt-3 flex items-center gap-1.5">
+                    <span className="inline-block w-1 h-1 rounded-full bg-purple-400" />
+                    Matched against {archiveStats.reports > 0 ? archiveStats.reports.toLocaleString() + ' reports across ' : ''}
+                    {archiveStats.phenomena.toLocaleString()}+ phenomena.
+                  </p>
+                )}
               </div>
 
               {/* Examples carousel */}
@@ -1124,14 +1164,28 @@ export default function StartPage() {
                   maxLength={2000}
                   className="w-full bg-gray-900/80 border border-gray-700 rounded-xl p-4 text-base placeholder-gray-500 focus:outline-none focus:border-purple-500 leading-relaxed resize-none"
                 />
-                <div className="flex justify-between text-xs text-gray-500 mt-1.5 px-1">
-                  <span>{
+                {/* V9.11.5 #27 — staged inline rewards. Each tier
+                    gives the user a small dopamine hit for adding
+                    detail, reinforcing the high-quality-report goal
+                    without ever gating completion. Color subtly
+                    escalates from neutral grey → emerald → purple. */}
+                <div className="flex justify-between text-xs mt-1.5 px-1">
+                  <span className={
+                    draft.description.length === 0 ? 'text-gray-500'
+                    : draft.description.length < 50 ? 'text-gray-500'
+                    : draft.description.length < 100 ? 'text-emerald-400'
+                    : draft.description.length < 250 ? 'text-emerald-300'
+                    : draft.description.length < 500 ? 'text-purple-300'
+                    : 'text-purple-200'
+                  }>{
                     draft.description.length === 0 ? 'A few sentences is plenty.'
-                    : draft.description.length < 30 ? 'A few more words…'
+                    : draft.description.length < 50 ? 'A few more words…'
                     : draft.description.length < 100 ? '✓ Good — keep going if you want.'
-                    : '✓ Great detail — better matches with more.'
+                    : draft.description.length < 250 ? '✓ Great detail — your RADAR will sharpen.'
+                    : draft.description.length < 500 ? '✓✓ Strong report — better matches incoming.'
+                    : '★ This will match deeply across the archive.'
                   }</span>
-                  <span>{draft.description.length} / 2000</span>
+                  <span className="text-gray-500">{draft.description.length} / 2000</span>
                 </div>
               </div>
 
@@ -1905,7 +1959,16 @@ export default function StartPage() {
 
               {/* Visibility + anonymous */}
               <div className="bg-gray-900/40 border border-gray-800/60 rounded-xl p-4 space-y-3">
-                <p className="text-[10px] font-semibold tracking-widest uppercase text-gray-400">Privacy</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold tracking-widest uppercase text-gray-400">Privacy</p>
+                  {/* V9.11.5 #27 — Moderation reassurance. Calms users who
+                      worry the public feed is a free-for-all, and signals
+                      that we filter abuse / doxx / hate before publish. */}
+                  <p className="text-[10px] text-gray-500 flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-purple-400/70" />
+                    Reviewed before publish
+                  </p>
+                </div>
 
                 <div>
                   <p className="text-sm font-medium text-white mb-2">Who can see this report?</p>
@@ -1936,6 +1999,13 @@ export default function StartPage() {
                     {draft.visibility === 'radar_only' && 'Used only to find other people with similar experiences. Not shown in the public browse feed.'}
                     {draft.visibility === 'public' && 'Anyone can read your report from the public browse feed.'}
                     {draft.visibility === 'private' && 'Only you and our research team can see this.'}
+                  </p>
+                  {/* V9.11.5 #27 — Plain-language moderation note. We screen
+                      for abuse, doxxing of private individuals, and hate
+                      content; everything else is welcome regardless of how
+                      strange it sounds. */}
+                  <p className="text-[11px] text-gray-500 mt-1.5 leading-relaxed">
+                    We review reports for abuse, doxxing, and content targeting individuals — not for whether your experience seems strange.
                   </p>
                 </div>
 
@@ -1970,7 +2040,7 @@ export default function StartPage() {
                 <button
                   type="button"
                   onClick={continueToAccount}
-                  disabled={draft.description.trim().length < 30}
+                  disabled={draft.description.trim().length < 50}
                   className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-40"
                 >
                   Continue
