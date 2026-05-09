@@ -126,7 +126,7 @@ var VERDICT_DOTS: Record<string, string> = {
 }
 
 var ACTIVITY_TYPE_CONFIG: Record<string, { icon: React.ElementType; label: string; color: string }> = {
-  constellation_entry: { icon: Star, label: 'Logged to constellation', color: 'text-amber-400' },
+  constellation_entry: { icon: Star, label: 'Logged to RADAR', color: 'text-amber-400' },
   journal_entry: { icon: PenTool, label: 'Journal entry', color: 'text-blue-400' },
   connection: { icon: Link2, label: 'Drew connection', color: 'text-green-400' },
   theory: { icon: Lightbulb, label: 'Created theory', color: 'text-purple-400' },
@@ -592,9 +592,9 @@ export default function DashboardPage() {
               <Star className="w-5 h-5 text-purple-500/50" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-400">Your Constellation</p>
+              <p className="text-sm font-medium text-gray-400">Your RADAR</p>
               <p className="text-xs text-gray-500">
-                Log your first 5 items to build your research constellation map
+                Log your first 5 items to build your RADAR
               </p>
             </div>
             <Link

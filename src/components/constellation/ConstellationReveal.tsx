@@ -892,7 +892,7 @@ export default function ConstellationReveal({
             </svg>
             <div className="cv2-idle-veil" />
             <div className="cv2-idle-fg">
-              <div className="cv2-eyebrow">Paradocs · Constellation</div>
+              <div className="cv2-eyebrow">Paradocs · RADAR</div>
               <h1 className="cv2-idle-h1">
                 You are not alone<br />in what you<br /><em>experienced.</em>
               </h1>

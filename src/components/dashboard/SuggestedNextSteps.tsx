@@ -92,10 +92,10 @@ export default function SuggestedNextSteps(props: SuggestedNextStepsProps) {
       icon: Star,
       iconColor: 'text-amber-400',
       iconBg: 'bg-amber-500/10',
-      title: 'Start your constellation',
-      description: 'Log items to your constellation map to visualize connections across your research.',
+      title: 'Start your RADAR',
+      description: 'Log items to your RADAR to visualize connections across your reports.',
       href: '/dashboard/constellation',
-      ctaLabel: 'View Constellation',
+      ctaLabel: 'View RADAR',
     })
   }
 

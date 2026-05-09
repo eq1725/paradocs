@@ -728,7 +728,7 @@ export default function ExperienceOnboarding({
               {submitting ? (
                 <><Loader2 className="w-4 h-4 inline mr-2 animate-spin" />Submitting...</>
               ) : (
-                'Submit & See Your Constellation'
+                'Submit & See Your RADAR'
               )}
             </button>
           )}

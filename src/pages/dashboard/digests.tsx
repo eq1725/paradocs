@@ -261,7 +261,7 @@ export default function DigestsPage() {
             href="/dashboard/constellation"
             className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-6 py-3 rounded-lg font-medium transition-colors"
           >
-            Explore Your Constellation →
+            Explore Your RADAR →
           </Link>
         </div>
       </DashboardLayout>

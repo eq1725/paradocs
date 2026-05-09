@@ -764,10 +764,10 @@ export function ConstellationView({
             <Stars className="w-5 h-5 text-indigo-400" />
           </div>
         </div>
-        <h2 className="text-2xl font-bold text-white mb-3">Unlock Your Constellation</h2>
+        <h2 className="text-2xl font-bold text-white mb-3">Unlock Your RADAR</h2>
         <p className="text-gray-400 mb-2 max-w-md">
-          Add at least 5 artifacts to your Research Hub to unlock the Constellation view.
-          Each piece of evidence becomes a star in your personal research universe.
+          Add at least 5 artifacts to your Research Hub to unlock the RADAR view.
+          Each piece of evidence becomes a star in your personal map of unexplained.
         </p>
         <p className="text-gray-500 text-sm mb-6">
           {artifacts.length} / 5 artifacts added

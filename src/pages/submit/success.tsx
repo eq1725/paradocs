@@ -31,7 +31,7 @@ export default function SubmitSuccessPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/lab?tab=constellation" className="btn btn-primary">
               <Eye className="w-4 h-4" />
-              See Your Constellation
+              See Your RADAR
             </Link>
             <Link href="/submit" className="btn btn-secondary">
               <PlusCircle className="w-4 h-4" />

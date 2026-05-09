@@ -36,11 +36,11 @@ const FEATURES: FeatureStep[] = [
   {
     icon: <Stars className="w-8 h-8" />,
     emoji: '✦',
-    title: 'Your Constellation Map',
-    description: 'See your research universe come alive. Each phenomenon you explore becomes a star — watch connections form between UFOs, cryptids, ghosts, and more as you dive deeper into the unknown.',
+    title: 'Your RADAR',
+    description: 'See your map of unexplained come alive. Each phenomenon you explore becomes a star — watch connections form between UFOs, cryptids, ghosts, and more as you dive deeper into the unknown.',
     color: '#a855f7',
     glowColor: 'rgba(168, 85, 247, 0.15)',
-    cta: 'View My Constellation',
+    cta: 'View My RADAR',
     href: '/dashboard/constellation',
   },
   {
