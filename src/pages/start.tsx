@@ -2276,8 +2276,13 @@ export default function StartPage() {
 // ---------------------------------------------------------------- subcomponents
 
 function StepIndicator({ step }: { step: Step }) {
-  // Visual progress dots — only on the user-facing pre-auth steps.
-  var visible: Step[] = ['experience', 'account', 'check-email']
+  // V9.11.5 #19 — progress dots only on the two pre-auth steps where
+  // the user is actively doing something on this device. The
+  // 'check-email' step is a hand-off (waiting for the email tap), so
+  // a progress indicator there suggests there's more to do here when
+  // there isn't. Submit/reveal/done states have their own UI affordances
+  // and don't need the dots either.
+  var visible: Step[] = ['experience', 'account']
   if (visible.indexOf(step) === -1) return null
   var idx = visible.indexOf(step)
   return (
