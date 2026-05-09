@@ -73,7 +73,10 @@ const AcademicObservationPanel = dynamic(
 )
 // ReportPhenomena removed from report page â tagging lives in admin/dashboard instead
 import FormattedDescription from '@/components/FormattedDescription'
-import OnboardingTour, { hasCompletedOnboarding } from '@/components/OnboardingTour'
+// V9.11.5 #21 — OnboardingTour deprecated. The V9.11 onboarding funnel
+// (/start → magic link → RADAR reveal → /lab) does the educational job;
+// the inline 9-step tour over the report page was redundant + carried
+// V9.11.4-deprecated 'Investigation/Researcher' jargon. Removed entirely.
 import AskTheUnknown from '@/components/AskTheUnknown'
 // Mobile components available but not used here — Layout.tsx provides global nav
 // import { MobileHeader, MobileBottomTabs } from '@/components/mobile'
@@ -133,7 +136,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   // Comment state retained for data compatibility — UI removed from report pages
   const [newComment, setNewComment] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
-  const [showTour, setShowTour] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
   const [savedId, setSavedId] = useState<string | null>(null)
   const [savingReport, setSavingReport] = useState(false)
@@ -217,20 +219,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
   }, [slug])
 
   // Check if onboarding tour should be shown
-  useEffect(() => {
-    if (!slug || loading || !report) return
-
-    const params = new URLSearchParams(window.location.search)
-    const tourRequested = params.get('tour') === 'true'
-    const alreadySeen = hasCompletedOnboarding()
-
-    if (tourRequested || (!alreadySeen && slug === 'the-roswell-incident-july-1947-showcase')) {
-      // Small delay to let the page fully render before starting tour
-      const timer = setTimeout(() => setShowTour(true), 800)
-      return () => clearTimeout(timer)
-    }
-  }, [slug, loading, report])
-
   async function checkUser() {
     const { data: { session } } = await supabase.auth.getSession()
     const currentUser = session?.user || null
@@ -326,7 +314,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
     setUserVote(null)
     setIsSaved(false)
     setSavedId(null)
-    setSidebarOpen(false)
     setParentCase(null)
     try {
       let reportData: any = null
@@ -1598,21 +1585,6 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
           categoryLabel={categoryConfig.label}
         />
       </div>
-
-      {/* Onboarding Tour Overlay */}
-      {showTour && (
-        <OnboardingTour
-          onComplete={() => {
-            setShowTour(false)
-            // Clean up tour query param if present
-            const url = new URL(window.location.href)
-            if (url.searchParams.has('tour')) {
-              url.searchParams.delete('tour')
-              window.history.replaceState({}, '', url.pathname)
-            }
-          }}
-        />
-      )}
 
         <AskTheUnknown
           contextType="report"
