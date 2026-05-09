@@ -40,6 +40,7 @@ import { PhenomenonCategory, PhenomenonType } from '@/lib/database.types'
 import { CATEGORY_CONFIG, COUNTRIES, US_STATES } from '@/lib/constants'
 import { classNames } from '@/lib/utils'
 import CategoryIcon from '@/components/ui/CategoryIcon'
+import RadarVisualization from '@/components/radar/RadarVisualization'
 
 // Lazy-loaded so the Leaflet bundle (~50KB) only ships when the user
 // expands the "Where" section.
@@ -2038,10 +2039,38 @@ export default function StartPage() {
           )}
 
           {/* ============= STEP 5 — RADAR REVEAL ============= */}
+          {/* V9.11.5 #16 — animated mini-RADAR replaces the previous
+              static list. Panel-driven (Onboarding/retention, Brand
+              strategist, UX writer, CRO, Visual designer/motion).
+              Visualisation IS the payoff; cards beneath are supporting. */}
           {step === 'reveal' && (
             <div className="space-y-6">
-              <div className="text-center pt-4">
-                <Sparkles className="w-8 h-8 text-purple-300 mx-auto mb-3" />
+              {/* Mini-RADAR visualization */}
+              <div className="flex justify-center pt-2">
+                <RadarVisualization
+                  mode="reveal"
+                  matches={matches.map(function (m) {
+                    return {
+                      id: m.id,
+                      title: m.title,
+                      slug: m.slug,
+                      category: m.category,
+                      match_score: m.match_score,
+                    }
+                  })}
+                  user={{
+                    latitude: draft.latitude ? parseFloat(draft.latitude) : null,
+                    longitude: draft.longitude ? parseFloat(draft.longitude) : null,
+                  }}
+                  size={300}
+                  centerLabel="YOU"
+                  onMatchClick={function (m) {
+                    if (typeof window !== 'undefined') window.location.href = '/report/' + m.slug
+                  }}
+                />
+              </div>
+
+              <div className="text-center">
                 <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
                   {matches.length > 0
                     ? 'You\'re not alone.'
@@ -2049,14 +2078,15 @@ export default function StartPage() {
                 </h1>
                 <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed px-2">
                   {matches.length > 0
-                    ? 'We found ' + matches.length + ' similar report' + (matches.length === 1 ? '' : 's') + ' across our archive of ' + (matchStats.database || 0).toLocaleString() + ' phenomena.'
+                    ? (matches.length === 1 ? '1 person' : matches.length + ' people') + ' reported something that overlaps with yours. Across ' + (matchStats.database || 0).toLocaleString() + ' patterns to explore.'
                     : 'Your report is the first of its kind we\'ve seen. As more people share, we\'ll surface matches here.'}
                 </p>
               </div>
 
+              {/* Top 3 match cards (preview only — full list lives in /lab) */}
               {matches.length > 0 && (
                 <div className="space-y-2">
-                  {matches.slice(0, 6).map(function (m) {
+                  {matches.slice(0, 3).map(function (m) {
                     return (
                       <Link
                         key={m.id}
@@ -2073,21 +2103,27 @@ export default function StartPage() {
                       </Link>
                     )
                   })}
+                  {matches.length > 3 && (
+                    <p className="text-[11px] text-gray-500 text-center pt-1">
+                      + {matches.length - 3} more in your RADAR
+                    </p>
+                  )}
                 </div>
               )}
 
-              <div className="space-y-2 pt-2">
+              {/* Single primary CTA per CRO-panel consensus */}
+              <div className="pt-2">
                 <Link
                   href="/lab"
                   className="block w-full text-center px-6 py-3.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors"
                 >
-                  Open my Lab →
+                  Explore your RADAR →
                 </Link>
                 <Link
                   href="/discover"
-                  className="block w-full text-center text-sm text-gray-400 hover:text-gray-200 py-2"
+                  className="block w-full text-center text-xs text-gray-500 hover:text-gray-300 py-3 mt-1"
                 >
-                  Browse the feed
+                  browse the feed
                 </Link>
               </div>
             </div>
