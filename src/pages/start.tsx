@@ -788,11 +788,15 @@ export default function StartPage() {
   }
 
   // Rotate the example carousel.
+  // V9.11.5 #22 — bumped 5s → 9s. Mass-market readers couldn't finish
+  // a 30-50 word example in 5s; the rotation felt like the page was
+  // racing them. 9s gives comfortable read time without making the
+  // carousel feel static.
   useEffect(function () {
     if (examples.length < 2) return
     var t = setInterval(function () {
       setExampleIndex(function (i) { return (i + 1) % examples.length })
-    }, 5000)
+    }, 9000)
     return function () { clearInterval(t) }
   }, [examples])
 
