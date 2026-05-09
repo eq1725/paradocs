@@ -2180,9 +2180,13 @@ export default function StartPage() {
           {/* V9.11.5 #16 — animated mini-RADAR replaces the previous
               static list. Panel-driven (Onboarding/retention, Brand
               strategist, UX writer, CRO, Visual designer/motion).
-              Visualisation IS the payoff; cards beneath are supporting. */}
+              Visualisation IS the payoff; cards beneath are supporting.
+              V9.11.5 #20 — vertically center the reveal content so the
+              full payoff (radar + headline + match cards + CTA) sits
+              in the viewport on first paint. Without this the H1 and
+              CTA were pushed below the fold on standard laptop heights. */}
           {step === 'reveal' && (
-            <div className="space-y-6">
+            <div className="space-y-6 flex flex-col justify-center min-h-[calc(100dvh-200px)] -mt-6 sm:-mt-12">
               {/* Mini-RADAR visualization */}
               <div className="flex justify-center pt-2">
                 <RadarVisualization
