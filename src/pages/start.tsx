@@ -1556,23 +1556,18 @@ export default function StartPage() {
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-medium text-gray-400 mb-1">
-                        Pin the location on the map <span className="text-gray-600">(optional)</span>
-                      </label>
-                      <div className="rounded-lg overflow-hidden border border-gray-700">
-                        <LocationPicker
-                          latitude={draft.latitude}
-                          longitude={draft.longitude}
-                          onLocationChange={function (lat: string, lng: string) {
-                            setDraft(function (d) { return { ...d, latitude: lat, longitude: lng } })
-                          }}
-                        />
-                      </div>
-                      <p className="text-[10px] text-gray-500 mt-1">
-                        Click the map to drop a pin, or fill the city above to auto-locate.
-                      </p>
-                    </div>
+                    {/* V9.11.5 #25 — LocationPicker provides its own
+                        internal label (with live coords) + hint copy.
+                        Wrapper label/hint were duplicating those, so
+                        the section showed the same string twice. Just
+                        render the component directly. */}
+                    <LocationPicker
+                      latitude={draft.latitude}
+                      longitude={draft.longitude}
+                      onLocationChange={function (lat: string, lng: string) {
+                        setDraft(function (d) { return { ...d, latitude: lat, longitude: lng } })
+                      }}
+                    />
                   </div>
                 </DetailSection>
 
