@@ -114,7 +114,12 @@ interface MatchedReport {
   slug: string
   category: string
   match_score: number
-  match_dimensions: string[]
+  /**
+   * V9.11.5 #10 — the API returns objects {label, score}, NOT plain
+   * strings. Earlier the type was wrong and `.join(', ')` produced
+   * "[object Object], [object Object]" in the rendered match list.
+   */
+  match_dimensions: Array<{ label: string; score: number }>
 }
 
 const DRAFT_KEY = 'paradocs_onboarding_draft_v1'
@@ -1951,7 +1956,7 @@ export default function StartPage() {
                 </h1>
                 <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed px-2">
                   {matches.length > 0
-                    ? 'We found ' + matchStats.total + ' similar reports across our archive of ' + (matchStats.database || 0).toLocaleString() + ' phenomena.'
+                    ? 'We found ' + matches.length + ' similar report' + (matches.length === 1 ? '' : 's') + ' across our archive of ' + (matchStats.database || 0).toLocaleString() + ' phenomena.'
                     : 'Your report is the first of its kind we\'ve seen. As more people share, we\'ll surface matches here.'}
                 </p>
               </div>
@@ -1967,7 +1972,10 @@ export default function StartPage() {
                       >
                         <p className="text-sm font-medium text-white truncate">{m.title}</p>
                         <p className="text-[11px] text-gray-500 mt-0.5">
-                          {Math.round(m.match_score * 100)}% match · {m.match_dimensions.join(', ')}
+                          {Math.round(m.match_score * 100)}% match
+                          {m.match_dimensions && m.match_dimensions.length > 0 && (
+                            <> · {m.match_dimensions.map(function (d) { return d.label }).join(', ')}</>
+                          )}
                         </p>
                       </Link>
                     )

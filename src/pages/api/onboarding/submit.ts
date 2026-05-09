@@ -163,6 +163,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     category,
     status,
     submitted_by: userId,
+    // V9.11.5 #11 — without this, /lab's RADAR tab couldn't find the
+    // user's onboarding submission (it filters source_type='user_submission')
+    // and showed the legacy ExperienceOnboarding intake on top of the
+    // already-submitted report. Mirrors what /submit.tsx writes.
+    source_type: 'user_submission',
     anonymous_submission: !!p.share_anonymously,
     // Visibility-related — we store an extra column to mark RADAR-only
     // vs public reports. Approved + visibility='radar_only' means the
