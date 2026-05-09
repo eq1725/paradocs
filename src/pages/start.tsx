@@ -527,11 +527,20 @@ export default function StartPage() {
   }, [step])
 
   // ---------------- archive stats fetch (V9.11.5 #27)
+  // V9.11.5 #27.1 — fixed: count from `phenomena` (the encyclopedia
+  // of specific named phenomena: Bigfoot, Mothman, Phoenix Lights,
+  // etc. — auto-generated from ingested reports, sits underneath
+  // the 11 high-level categories) NOT `phenomenon_types` (the
+  // taxonomy, only ~150 rows). Phenomena scales into the thousands
+  // post-ingestion which is the magnitude Chase wants the trust
+  // signal to convey.
   useEffect(function () {
     if (step !== 'experience') return
     if (archiveStats.phenomena > 0) return // already loaded
     Promise.all([
-      (supabase.from('phenomenon_types') as any).select('id', { count: 'exact', head: true }),
+      // Active only — excludes merged duplicates and archived rows
+      // so we don't inflate the trust signal with stale entries.
+      (supabase.from('phenomena') as any).select('id', { count: 'exact', head: true }).eq('status', 'active'),
       (supabase.from('reports') as any).select('id', { count: 'exact', head: true }).eq('status', 'approved'),
     ]).then(function (results: any[]) {
       var pCount = (results[0] && results[0].count) || 0
