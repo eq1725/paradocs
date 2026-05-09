@@ -585,6 +585,16 @@ export default function StartPage() {
     el.style.height = Math.min(el.scrollHeight, 480) + 'px'
   }, [draft.description])
 
+  // V9.11.5 — scroll to top on every step change. Without this, users
+  // who scrolled deep into Step 1 (deep-detail sections) inherit that
+  // scroll position when Step 2/3/4 renders, hiding the new step's
+  // header behind the sticky nav.
+  useEffect(function () {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    }
+  }, [step])
+
   // Username availability (V9.9 P2 reuse).
   useEffect(function () {
     if (step !== 'account') return
