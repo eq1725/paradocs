@@ -190,26 +190,90 @@ function friendlyTypeName(name: string, description: string | null): { primary: 
     if (m) return { primary: m.primary, secondary: m.secondary }
   }
 
-  // Other known acronym-style jargon.
+  // V9.11.5 #18 — comprehensive jargon coverage.
+  // Acronyms and field-of-study terms get plain-English primaries.
+  // Keys are matched case-insensitively against the trimmed name.
   var aliasMap: Record<string, { primary: string; secondary: string }> = {
-    'NDE': { primary: 'Near-death experience',     secondary: 'NDE' },
-    'OBE': { primary: 'Out-of-body experience',    secondary: 'OBE' },
-    'STE': { primary: 'Spiritually transformative experience', secondary: 'STE' },
-    'EVP': { primary: 'Voice or sound recording',  secondary: 'EVP — Electronic Voice Phenomenon' },
-    'UAP': { primary: 'Saw a UAP',                 secondary: 'Unidentified Aerial Phenomenon' },
+    // NDE family
+    'NDE':   { primary: 'Near-death experience',                  secondary: 'NDE' },
+    'OBE':   { primary: 'Out-of-body experience',                 secondary: 'OBE' },
+    'SOBE':  { primary: 'Sudden out-of-body experience',          secondary: 'SOBE' },
+    'STE':   { primary: 'Spiritually transformative experience',  secondary: 'STE' },
+    'DBV':   { primary: 'Deathbed vision',                        secondary: 'DBV' },
+    'ADC':   { primary: 'After-death communication',              secondary: 'ADC' },
+    'NELE':  { primary: 'Near-end-of-life experience',            secondary: 'NELE' },
+    // UFO / aerial
+    'UAP':   { primary: 'Saw a UAP',                              secondary: 'Unidentified Aerial Phenomenon' },
+    'UFO':   { primary: 'Saw a UFO',                              secondary: 'Unidentified Flying Object' },
+    'IFO':   { primary: 'Identified flying object',               secondary: 'IFO' },
+    'BOL':   { primary: 'Ball of light',                          secondary: 'BOL' },
+    // Government / official
+    'AATIP': { primary: 'Government UAP study (AATIP)',           secondary: 'Advanced Aerospace Threat Identification Program' },
+    'AARO':  { primary: 'Government UAP office (AARO)',           secondary: 'All-domain Anomaly Resolution Office' },
+    'AAWSAP':{ primary: 'Government UAP study (AAWSAP)',          secondary: 'Advanced Aerospace Weapon System Applications Program' },
+    'MJ-12': { primary: 'Majestic 12 documents',                  secondary: 'Alleged secret committee' },
+    // Audio / electronic
+    'EVP':   { primary: 'Voice or sound recording',               secondary: 'EVP — Electronic Voice Phenomenon' },
+    'ITC':   { primary: 'Spirit communication via electronics',   secondary: 'ITC — Instrumental TransCommunication' },
+    // Psychic / parapsychology
+    'ESP':   { primary: 'Extrasensory perception',                secondary: 'ESP' },
+    'PK':    { primary: 'Mind-over-matter ability',               secondary: 'PK — Psychokinesis' },
+    'AC':    { primary: 'Anomalous cognition',                    secondary: 'AC' },
+    'RV':    { primary: 'Remote viewing',                         secondary: 'RV' },
+    // Drug-induced
+    'DMT':   { primary: 'DMT experience',                         secondary: 'N,N-Dimethyltryptamine' },
+    '5-MEO-DMT': { primary: '5-MeO-DMT experience',               secondary: '5-Methoxy-N,N-dimethyltryptamine' },
+    'LSD':   { primary: 'LSD experience',                         secondary: 'Lysergic acid diethylamide' },
+    'AYAHUASCA': { primary: 'Ayahuasca experience',               secondary: 'Plant-medicine ceremony' },
   }
   var trimmed = name.trim()
-  if (aliasMap[trimmed]) {
-    return { primary: aliasMap[trimmed].primary, secondary: aliasMap[trimmed].secondary }
+  var upper = trimmed.toUpperCase()
+  if (aliasMap[upper]) {
+    return { primary: aliasMap[upper].primary, secondary: aliasMap[upper].secondary }
   }
   // Names like "NDE — Tunnel Experience" → strip prefix, prepend friendly.
-  var dashedAlias = trimmed.match(/^(NDE|OBE|STE|EVP|UAP)\s*[—–-]\s*(.+)$/i)
+  var dashedAlias = trimmed.match(/^(NDE|OBE|STE|EVP|UAP|ITC|RV|PK|ESP|DMT|MJ-12)\s*[—–-]\s*(.+)$/i)
   if (dashedAlias) {
     var prefix = dashedAlias[1].toUpperCase()
     var rest = dashedAlias[2]
     if (aliasMap[prefix]) {
       return { primary: rest, secondary: aliasMap[prefix].primary }
     }
+  }
+
+  // Field-of-study Latin/Greek terms — single-word phenomena that are
+  // technical but mass-market users probably haven't heard.
+  var greekLatinMap: Record<string, { primary: string; secondary: string }> = {
+    'clairaudience':  { primary: 'Hearing voices or sounds others can\'t', secondary: 'Clairaudience' },
+    'clairsentience': { primary: 'Sensing things you shouldn\'t know',     secondary: 'Clairsentience' },
+    'clairvoyance':   { primary: 'Seeing things at a distance',            secondary: 'Clairvoyance' },
+    'precognition':   { primary: 'Knowing what will happen',               secondary: 'Precognition' },
+    'retrocognition': { primary: 'Seeing into the past',                   secondary: 'Retrocognition' },
+    'telepathy':      { primary: 'Mind-to-mind communication',             secondary: 'Telepathy' },
+    'telekinesis':    { primary: 'Moving objects with the mind',           secondary: 'Telekinesis' },
+    'psychokinesis':  { primary: 'Moving objects with the mind',           secondary: 'Psychokinesis' },
+    'doppelganger':   { primary: 'Saw a double of a living person',        secondary: 'Doppelgänger' },
+    'doppelgänger':   { primary: 'Saw a double of a living person',        secondary: 'Doppelgänger' },
+    'apparition':     { primary: 'Saw a ghost or figure',                  secondary: 'Apparition' },
+    'poltergeist':    { primary: 'Objects moving on their own',            secondary: 'Poltergeist (German: noisy ghost)' },
+    'hypnagogic':     { primary: 'Visions while falling asleep',           secondary: 'Hypnagogic state' },
+    'hypnopompic':    { primary: 'Visions while waking up',                secondary: 'Hypnopompic state' },
+    'sleep paralysis':{ primary: 'Awake but unable to move',               secondary: 'Sleep paralysis' },
+    'shadow people':  { primary: 'Saw a shadow figure',                    secondary: 'Shadow people' },
+    'hat man':        { primary: 'Saw a tall figure in a hat',             secondary: 'The Hat Man' },
+    'astral projection':{ primary: 'Out-of-body travel',                   secondary: 'Astral projection' },
+    'lucid dream':    { primary: 'Dream you knew was a dream',             secondary: 'Lucid dream' },
+    'lucid dreams':   { primary: 'Dream you knew was a dream',             secondary: 'Lucid dream' },
+    'lucid dreaming': { primary: 'Dream you knew was a dream',             secondary: 'Lucid dream' },
+    'déjà vu':        { primary: 'Sense you\'ve lived this moment before', secondary: 'Déjà vu' },
+    'deja vu':        { primary: 'Sense you\'ve lived this moment before', secondary: 'Déjà vu' },
+    'synchronicity':  { primary: 'Meaningful coincidence',                 secondary: 'Synchronicity' },
+    'kundalini':      { primary: 'Spiritual energy awakening',             secondary: 'Kundalini awakening' },
+    'kundalini awakening': { primary: 'Spiritual energy awakening',        secondary: 'Kundalini awakening' },
+  }
+  var lower = trimmed.toLowerCase()
+  if (greekLatinMap[lower]) {
+    return greekLatinMap[lower]
   }
 
   // Default: name as primary, short description as secondary if available.
