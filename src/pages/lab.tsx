@@ -42,6 +42,9 @@ import {
   ThumbsUp,
   ThumbsDown,
   Clock,
+  Send,
+  Loader2,
+  ExternalLink,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
@@ -463,6 +466,170 @@ function YourSignalTab() {
       <p className="text-[11px] text-gray-500 text-center pt-2">
         Your Signal regenerates when you share a new experience or when significant new reports land in the archive.
         Your thumbs help us tune what shows up here.
+      </p>
+
+      {/* V9.13 Phase 3.A — Ask the Unknown */}
+      <AskTheUnknown />
+    </div>
+  )
+}
+
+/**
+ * V9.13 Phase 3.A — Personalized Q&A surface.
+ *
+ * One question at a time, Sonnet-backed, citing reports from the
+ * user's matched corpus. Single-turn (no chat history); each
+ * question is independent. Tonal rules + safety / off-topic
+ * refusals enforced by the system prompt; the UI just renders
+ * what Sonnet returns.
+ */
+function AskTheUnknown() {
+  var [question, setQuestion] = useState('')
+  var [asking, setAsking] = useState(false)
+  var [answer, setAnswer] = useState<string | null>(null)
+  var [citations, setCitations] = useState<Array<{ id: string; slug: string; title: string }>>([])
+  var [refused, setRefused] = useState(false)
+  var [error, setError] = useState<string | null>(null)
+
+  function reset() {
+    setAnswer(null)
+    setCitations([])
+    setRefused(false)
+    setError(null)
+  }
+
+  async function ask(e: React.FormEvent) {
+    e.preventDefault()
+    var q = question.trim()
+    if (q.length < 3 || asking) return
+    setAsking(true)
+    reset()
+    try {
+      var s = await supabase.auth.getSession()
+      var token = s.data.session ? s.data.session.access_token : null
+      if (!token) { setError('Sign in to ask.'); setAsking(false); return }
+      var resp = await fetch('/api/lab/ask-the-unknown', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ question: q }),
+      })
+      var data = await resp.json()
+      if (!resp.ok) {
+        setError(data.error || 'Couldn\'t reach the AI.')
+      } else {
+        setAnswer(data.answer)
+        setCitations(data.citations || [])
+        setRefused(!!data.refused)
+      }
+    } catch (e: any) {
+      setError(e.message || 'Network error')
+    } finally {
+      setAsking(false)
+    }
+  }
+
+  // V9.13 — render citations inline by replacing [id] tokens with
+  // numbered superscripts that link to the cited report. Sonnet
+  // returns IDs in [uuid] form; we map each unique cited ID to a
+  // 1-based number for readability.
+  function renderAnswer(text: string): React.ReactNode {
+    if (!text) return null
+    var idToNumber: Record<string, number> = {}
+    citations.forEach(function (c, i) { idToNumber[c.id] = i + 1 })
+    var parts: React.ReactNode[] = []
+    var rest = text
+    var citationPattern = /\[([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]/i
+    var i = 0
+    while (true) {
+      var m = rest.match(citationPattern)
+      if (!m) { parts.push(rest); break }
+      var id = m[1]
+      var before = rest.substring(0, m.index)
+      parts.push(<span key={'t-' + i}>{before}</span>)
+      var n = idToNumber[id]
+      var match = citations.find(function (c) { return c.id === id })
+      if (n && match) {
+        parts.push(
+          <a
+            key={'c-' + i}
+            href={'/report/' + match.slug}
+            className="text-purple-300 hover:text-purple-200 align-super text-[10px] font-semibold ml-0.5"
+            aria-label={'Citation ' + n + ': ' + match.title}
+          >[{n}]</a>
+        )
+      }
+      rest = rest.substring((m.index || 0) + m[0].length)
+      i++
+    }
+    return parts
+  }
+
+  return (
+    <div className="mt-2 bg-purple-950/15 border border-purple-800/40 rounded-xl p-4 space-y-3">
+      <div className="flex items-center gap-1.5">
+        <Sparkles className="w-3 h-3 text-purple-400" />
+        <p className="text-[10px] font-semibold tracking-widest uppercase text-purple-400">
+          Ask the Unknown
+        </p>
+      </div>
+      <p className="text-sm text-gray-300 leading-relaxed">
+        Ask anything about your experience or how it fits across the archive. The AI cites real reports.
+      </p>
+
+      <form onSubmit={ask} className="flex gap-2">
+        <input
+          type="text"
+          value={question}
+          onChange={function (e) { setQuestion(e.target.value) }}
+          placeholder="e.g. What's unusual about my report compared to others nearby?"
+          maxLength={500}
+          className="flex-1 bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm placeholder-gray-500 focus:outline-none focus:border-purple-500"
+        />
+        <button
+          type="submit"
+          disabled={asking || question.trim().length < 3}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-sm font-semibold transition-colors"
+        >
+          {asking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+          <span className="hidden sm:inline">{asking ? 'Asking…' : 'Ask'}</span>
+        </button>
+      </form>
+
+      {error && (
+        <p className="text-xs text-red-300">{error}</p>
+      )}
+
+      {answer && (
+        <div className={
+          'p-3 rounded-lg ' +
+          (refused
+            ? 'bg-amber-950/20 border border-amber-800/40 text-amber-100'
+            : 'bg-gray-900/60 border border-gray-800/60')
+        }>
+          <p className="text-sm text-gray-100 leading-relaxed whitespace-pre-line">
+            {renderAnswer(answer)}
+          </p>
+          {!refused && citations.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-white/5 space-y-1">
+              <p className="text-[10px] font-semibold tracking-widest uppercase text-gray-500">Citations</p>
+              {citations.map(function (c, i) {
+                return (
+                  <a
+                    key={c.id}
+                    href={'/report/' + c.slug}
+                    className="block text-[12px] text-purple-300 hover:text-purple-200 transition-colors"
+                  >
+                    [{i + 1}] {c.title} <ExternalLink className="inline-block w-3 h-3 align-text-bottom" />
+                  </a>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      <p className="text-[10px] text-gray-500 leading-relaxed">
+        Limited to {20} questions per day. No medical, legal, or psychiatric advice.
       </p>
     </div>
   )
