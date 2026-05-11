@@ -23,6 +23,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
+import { generateDidYouKnow, DidYouKnowPayload } from '@/lib/services/your-signal-ai.service'
 
 var SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 var SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -308,8 +309,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     generateContext(svc, userReport),
   ])
 
-  // Card 3 — Phase 1.C will replace this with a Sonnet call.
-  var didYouKnow = { pending: true, model: null }
+  // Card 3 — Phase 1.C — Sonnet call. Runs SECOND because it depends
+  // on the three deterministic payloads as context. We let it fall
+  // back to the pending placeholder if the call fails (no API key,
+  // network error, unparseable response) so the response always
+  // returns something useful.
+  var didYouKnowResult: DidYouKnowPayload | null = null
+  try {
+    var typeNameLookup: string | null = null
+    if (userReport.phenomenon_type_id) {
+      var t = await svc.from('phenomenon_types').select('name').eq('id', userReport.phenomenon_type_id).single()
+      typeNameLookup = (t && t.data && t.data.name) || null
+    }
+    didYouKnowResult = await generateDidYouKnow({
+      userReport: {
+        title: userReport.title,
+        description: userReport.description,
+        summary: userReport.summary,
+        category: userReport.category,
+        type_name: typeNameLookup,
+        event_date: userReport.event_date,
+        location_name: null, // resolved separately if needed; not critical for V1
+      },
+      fingerprint: fingerprint,
+      cluster: cluster,
+      context: context,
+    })
+  } catch (aiErr) {
+    console.warn('your-signal: Sonnet generation failed:', aiErr)
+  }
+
+  var didYouKnow: any = didYouKnowResult || { pending: true, model: null }
 
   // 4. Write to cache (upsert).
   try {
@@ -320,7 +350,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       cluster_payload: cluster,
       did_you_know_payload: didYouKnow,
       context_payload: context,
-      ai_model_used: null,
+      ai_model_used: didYouKnowResult ? didYouKnowResult.model : null,
+      ai_input_tokens: didYouKnowResult ? didYouKnowResult.input_tokens : null,
+      ai_output_tokens: didYouKnowResult ? didYouKnowResult.output_tokens : null,
+      ai_cost_usd: didYouKnowResult ? didYouKnowResult.cost_usd : null,
       generated_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     }, { onConflict: 'user_id,report_id' })

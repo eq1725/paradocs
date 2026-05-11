@@ -2409,6 +2409,18 @@ export default function StartPage() {
                 </div>
               )}
 
+              {/* V9.11.6 Phase 1.C — peer-connection opt-in. Placed
+                  HERE (between the match cards and the CTA) because
+                  this is the moment of peak emotional resonance
+                  ("there are 47 others like me") and the moment users
+                  are most likely to say yes to connection. Defaults
+                  off; one tap toggles on; written to
+                  profiles.allow_peer_connection. Quiet, dismissible,
+                  controllable later from Settings. */}
+              {matches.length > 0 && (
+                <PeerConnectionOptIn />
+              )}
+
               {/* Single primary CTA per CRO-panel consensus */}
               <div className="pt-2">
                 <Link
@@ -2434,6 +2446,104 @@ export default function StartPage() {
 }
 
 // ---------------------------------------------------------------- subcomponents
+
+/**
+ * V9.11.6 Phase 1.C — peer-connection opt-in.
+ *
+ * Shown on the post-RADAR reveal step when matches exist. Lets the
+ * user opt into receiving connection requests from other users with
+ * similar matched experiences — without forcing a decision at
+ * submission time (decision fatigue) or burying it in Settings
+ * (low discoverability).
+ *
+ * Writes to profiles.allow_peer_connection. Default FALSE; one tap
+ * sets TRUE. After opt-in, shows a quiet confirmation; the toggle
+ * remains visible so users can flip back off without leaving the
+ * page. Errors are silent and non-blocking — the reveal flow must
+ * never feel like it's gating on a network call.
+ */
+function PeerConnectionOptIn() {
+  var [state, setState] = useState<'idle' | 'saving' | 'on' | 'off' | 'error'>('idle')
+
+  // Load current value on mount so we render the right state if the
+  // user revisits this screen (e.g. after coming back from /lab).
+  useEffect(function () {
+    supabase.auth.getSession().then(function (s) {
+      var session = s.data.session
+      if (!session) return
+      ;(supabase.from('profiles') as any)
+        .select('allow_peer_connection')
+        .eq('id', session.user.id)
+        .single()
+        .then(function (result: any) {
+          if (result && result.data) {
+            setState(result.data.allow_peer_connection ? 'on' : 'off')
+          } else {
+            setState('off')
+          }
+        })
+    })
+  }, [])
+
+  function toggle() {
+    if (state === 'saving') return
+    var nextOn = state !== 'on'
+    setState('saving')
+    supabase.auth.getSession().then(function (s) {
+      var session = s.data.session
+      if (!session) { setState('error'); return }
+      ;(supabase.from('profiles') as any)
+        .update({ allow_peer_connection: nextOn })
+        .eq('id', session.user.id)
+        .then(function (result: any) {
+          if (result && result.error) { setState('error'); return }
+          setState(nextOn ? 'on' : 'off')
+        })
+    })
+  }
+
+  return (
+    <div className="bg-gray-900/50 border border-gray-800/60 rounded-xl p-3.5">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-white font-medium leading-snug">
+            Open to hearing from others?
+          </p>
+          <p className="text-[12px] text-gray-400 mt-1 leading-relaxed">
+            When someone&rsquo;s experience matches yours, they can ask to compare notes &mdash; mediated through Paradocs, never your direct contact info. You can change this anytime in Settings.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-pressed={state === 'on'}
+          aria-label={state === 'on' ? 'Disable peer connection' : 'Enable peer connection'}
+          disabled={state === 'saving'}
+          className={
+            'flex-shrink-0 w-11 h-6 rounded-full transition-colors relative ' +
+            (state === 'on' ? 'bg-purple-600' : 'bg-gray-700') +
+            (state === 'saving' ? ' opacity-60 cursor-wait' : '')
+          }
+        >
+          <span
+            className={
+              'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200 ' +
+              (state === 'on' ? 'translate-x-5' : 'translate-x-0')
+            }
+          />
+        </button>
+      </div>
+      {state === 'on' && (
+        <p className="text-[11px] text-emerald-400 mt-2 flex items-center gap-1">
+          <Check className="w-3 h-3" /> You&rsquo;re open to connecting.
+        </p>
+      )}
+      {state === 'error' && (
+        <p className="text-[11px] text-red-300 mt-2">Couldn&rsquo;t save &mdash; tap to retry.</p>
+      )}
+    </div>
+  )
+}
 
 function StepIndicator({ step }: { step: Step }) {
   // V9.11.5 #19 — progress dots only on the two pre-auth steps where
