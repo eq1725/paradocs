@@ -56,6 +56,13 @@ interface RadarVisualizationProps {
   filter?: 'all' | 'high' | 'nearby'
   /** Click handler for a match dot — typically navigates to /report/[slug]. */
   onMatchClick?: (match: RadarMatch) => void
+  /**
+   * V9.11.5 #31 — click handler for the YOU center node. Lets the
+   * parent open an inline preview of the user's own report, scroll
+   * to it, etc. When provided, the YOU node renders with a pointer
+   * cursor and an accessible role.
+   */
+  onCenterClick?: () => void
   /** Container size in px. Component is responsive within. */
   size?: number
   /** Optional — when set, displayed as a label under the user node (e.g. 'YOU'). */
@@ -152,6 +159,7 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
     mode,
     filter = 'all',
     onMatchClick,
+    onCenterClick,
     size = 360,
     centerLabel = 'YOU',
     className,
@@ -315,7 +323,15 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
             transition: 'opacity 600ms ease-out, transform 700ms cubic-bezier(.4,1.6,.6,1)',
             transform: revealStage >= 2 ? 'scale(1)' : 'scale(0.4)',
             transformOrigin: '0 0',
+            cursor: onCenterClick ? 'pointer' : 'default',
           }}
+          role={onCenterClick ? 'button' : undefined}
+          tabIndex={onCenterClick ? 0 : undefined}
+          aria-label={onCenterClick ? 'Your report — open preview' : undefined}
+          onClick={onCenterClick ? () => onCenterClick() : undefined}
+          onKeyDown={onCenterClick ? (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onCenterClick() }
+          } : undefined}
         >
           {/* Outer pulsing halo */}
           {!reducedMotion && (
@@ -324,6 +340,10 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
               fill="url(#user-glow)"
               style={{ animation: 'radar-user-halo 2.4s ease-in-out infinite' }}
             />
+          )}
+          {/* Invisible hit target — makes the YOU dot easier to tap on mobile */}
+          {onCenterClick && (
+            <circle r={20} fill="transparent" />
           )}
           {/* Inner solid */}
           <circle r={10} fill="#a855f7" />

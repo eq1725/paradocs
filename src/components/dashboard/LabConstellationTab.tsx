@@ -18,7 +18,7 @@ import { useRouter } from 'next/router'
 import { supabase } from '@/lib/supabase'
 import { getApiBase } from '@/lib/utils'
 import dynamic from 'next/dynamic'
-import { ChevronDown, MapPin, Calendar, ExternalLink, Users, Camera } from 'lucide-react'
+import { ChevronDown, MapPin, Calendar, ExternalLink, Users, Camera, Plus, User as UserIcon } from 'lucide-react'
 
 // Dynamic imports for SSR-incompatible components
 var ConstellationReveal = dynamic(
@@ -234,7 +234,12 @@ function PolishedRadarView(props: {
   // card expands the corresponding card in place rather than
   // navigating away. Same UX on mobile + desktop.
   var [expandedId, setExpandedId] = useState<string | null>(null)
+  // V9.11.5 #31 — own-report expand state. Mirrors expandedId but
+  // for the user's own "YOU" report; lives above the filter chips
+  // so users always know what they shared.
+  var [ownExpanded, setOwnExpanded] = useState(false)
   var cardRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  var ownCardRef = useRef<HTMLDivElement | null>(null)
 
   // V9.11.5 #30 — Nearby in MILES for US-majority demographic.
   // Earth radius 3959 mi; 500 mi captures regional clusters
@@ -287,6 +292,27 @@ function PolishedRadarView(props: {
     return 'Every match in your RADAR, ranked by overall similarity to your experience.'
   })()
 
+  // V9.11.5 #31 — YOU dot click handler. Expands the user's own
+  // report card and scrolls to it. Same affordance pattern as the
+  // match-card clicks so users learn one mental model.
+  function handleOwnOpen() {
+    setOwnExpanded(function (prev) { return !prev })
+    setTimeout(function () {
+      if (ownCardRef.current) ownCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 80)
+  }
+
+  // V9.11.5 #31 — derived display fields for the user's own report.
+  // userExperience.type_name is the phenomenology label they picked
+  // (e.g. "UFO Sighting"); falls back to category if missing.
+  var ownTitle = props.userExperience.type_name || props.userExperience.category || 'Your experience'
+  var ownDescription = (props.userExperience.description || '').trim()
+  var ownSnippet = ownDescription.length > 240
+    ? ownDescription.substring(0, 240).trim() + '…'
+    : ownDescription
+  var ownLocation = props.userExperience.location || ''
+  var ownYear = props.userExperience.year ? String(props.userExperience.year) : ''
+
   return (
     <div className="px-4 sm:px-6 py-6 max-w-3xl mx-auto">
       <div className="flex justify-center mb-6">
@@ -312,7 +338,91 @@ function PolishedRadarView(props: {
           size={420}
           centerLabel="YOU"
           onMatchClick={function (m) { handleMatchOpen(m.id) }}
+          onCenterClick={handleOwnOpen}
         />
+      </div>
+
+      {/* V9.11.5 #31 — "Share another experience" inline CTA.
+          Existing users with one or more reports often have more
+          to share but were getting funneled only through the small
+          header "Submit Report" button. This puts the affordance
+          where the action makes sense — right after the RADAR. */}
+      <div className="flex justify-center mb-5">
+        <a
+          href="/submit"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600/15 border border-purple-500/40 text-sm text-purple-200 hover:bg-purple-600/25 hover:text-white transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Share another experience
+        </a>
+      </div>
+
+      {/* V9.11.5 #31 — Your Report card. Always visible above the
+          filter chips; expandable for the full description and
+          facts. Clicking the YOU dot on the radar also expands
+          this card and scrolls it into view. */}
+      <div
+        ref={ownCardRef}
+        className={
+          'bg-purple-950/15 border rounded-xl mb-5 transition-colors ' +
+          (ownExpanded ? 'border-purple-500/60' : 'border-purple-800/40 hover:border-purple-600/60')
+        }
+      >
+        <button
+          type="button"
+          onClick={handleOwnOpen}
+          aria-expanded={ownExpanded}
+          className="w-full text-left p-3 flex items-start gap-3"
+        >
+          <div className="w-8 h-8 rounded-full bg-purple-600/30 border border-purple-500/40 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <UserIcon className="w-4 h-4 text-purple-200" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold tracking-widest uppercase text-purple-400 mb-0.5">
+              Your report
+            </p>
+            <p className="text-sm font-medium text-white truncate">{ownTitle}</p>
+            {!ownExpanded && ownSnippet && (
+              <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-1">
+                {ownSnippet}
+              </p>
+            )}
+          </div>
+          <ChevronDown
+            className={
+              'w-4 h-4 text-gray-400 flex-shrink-0 mt-1.5 transition-transform duration-200 ' +
+              (ownExpanded ? 'rotate-180' : '')
+            }
+          />
+        </button>
+
+        {ownExpanded && (
+          <div className="px-3 pb-3 pt-1 border-t border-purple-800/40 space-y-3">
+            {ownDescription && (
+              <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-line">
+                &ldquo;{ownDescription}&rdquo;
+              </p>
+            )}
+            {(ownLocation || ownYear) && (
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[11px] text-gray-400">
+                {ownLocation && (
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin className="w-3 h-3" /> {ownLocation}
+                  </span>
+                )}
+                {ownYear && (
+                  <span className="inline-flex items-center gap-1">
+                    <Calendar className="w-3 h-3" /> {ownYear}
+                  </span>
+                )}
+              </div>
+            )}
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              This is the report we&rsquo;re matching against. To edit it or share another
+              experience, use the buttons above.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Filter chips */}
