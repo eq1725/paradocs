@@ -2218,7 +2218,13 @@ export default function StartPage() {
             )
           })()}
 
-          {/* ============= STEP 3 — CHECK EMAIL ============= */}
+          {/* ============= STEP 3 — CHECK EMAIL =============
+              V9.11.5 #30 — Panel-driven copy revamp. Replaces the
+              transactional "we'll save your experience" with a
+              preview of what users actually unlock when they tap
+              the link. Builds anticipation during dead time, eases
+              passwordless anxiety, and hints at the archive scale
+              + community without requiring a hardcoded number. */}
           {step === 'check-email' && (
             <div className="text-center py-8 space-y-6">
               <div className="inline-flex w-16 h-16 rounded-full bg-purple-600/20 border border-purple-500/30 items-center justify-center">
@@ -2226,11 +2232,38 @@ export default function StartPage() {
               </div>
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold">Check your email.</h1>
-                <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed">
-                  We sent a sign-in link to <strong className="text-white">{account.email}</strong>.
-                  Tap it to confirm your email and we&apos;ll save your experience.
+                <p className="text-sm sm:text-base text-gray-300 mt-3 leading-relaxed">
+                  We sent a one-tap sign-in link to{' '}
+                  <strong className="text-white">{account.email}</strong>.
                 </p>
               </div>
+
+              {/* Preview of what they unlock — anticipation builder */}
+              <div className="max-w-sm mx-auto text-left bg-gray-900/40 border border-gray-800/60 rounded-xl p-4 space-y-2.5">
+                <p className="text-[10px] font-semibold tracking-widest uppercase text-purple-400">
+                  Once you tap the link
+                </p>
+                <ul className="space-y-2 text-sm text-gray-200 leading-relaxed">
+                  <li className="flex items-start gap-2.5">
+                    <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                    <span>Your experience joins the archive</span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                    <span>We surface others who&rsquo;ve had something like it</span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                    <span>Your personal RADAR maps patterns across thousands of reports</span>
+                  </li>
+                </ul>
+              </div>
+
+              <p className="text-[11px] text-gray-500 max-w-sm mx-auto leading-relaxed">
+                No password to remember &mdash; your email keeps your account safe.
+                If you don&rsquo;t see it in a minute, check your spam folder.
+              </p>
+
               <div className="space-y-2">
                 <button
                   type="button"

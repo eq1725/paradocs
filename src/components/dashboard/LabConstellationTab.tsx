@@ -13,11 +13,12 @@
  * SWC: Uses var + function(){} for compatibility.
  */
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '@/lib/supabase'
 import { getApiBase } from '@/lib/utils'
 import dynamic from 'next/dynamic'
+import { ChevronDown, MapPin, Calendar, ExternalLink, Users, Camera } from 'lucide-react'
 
 // Dynamic imports for SSR-incompatible components
 var ConstellationReveal = dynamic(
@@ -205,6 +206,21 @@ export default function LabConstellationTab() {
 
 // ── New polished RADAR view (V9.11.5 #16) ────────────────────────────────────
 
+/**
+ * V9.11.5 #30 — Compact event-date formatter for inline match
+ * previews. Examples: "Mar 1972", "Aug 12, 1997". If parsing
+ * fails (string is empty / non-date / placeholder), returns ''.
+ */
+function formatEventDate(raw: string): string {
+  if (!raw) return ''
+  var d = new Date(raw)
+  if (isNaN(d.getTime())) return ''
+  var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  var hasDay = raw.length >= 10 // ISO YYYY-MM-DD has a real day
+  if (hasDay) return months[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear()
+  return months[d.getUTCMonth()] + ' ' + d.getUTCFullYear()
+}
+
 function PolishedRadarView(props: {
   userExperience: UserExperience
   matches: MatchedReport[]
@@ -214,6 +230,17 @@ function PolishedRadarView(props: {
 }) {
   var [filter, setFilter] = useState<'all' | 'high' | 'nearby'>('all')
   var [notifyToast, setNotifyToast] = useState<string | null>(null)
+  // V9.11.5 #30 — inline match preview state. Clicking a dot or
+  // card expands the corresponding card in place rather than
+  // navigating away. Same UX on mobile + desktop.
+  var [expandedId, setExpandedId] = useState<string | null>(null)
+  var cardRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+  // V9.11.5 #30 — Nearby in MILES for US-majority demographic.
+  // Earth radius 3959 mi; 500 mi captures regional clusters
+  // (cryptid corridors, UFO hotspot zones) better than 310 mi
+  // (the mathematical conversion of the prior 500 km default).
+  var NEARBY_RADIUS_MI = 500
 
   // Apply filter to compute the visible-match count.
   var visibleMatches = (function () {
@@ -222,14 +249,14 @@ function PolishedRadarView(props: {
       if (typeof props.userExperience.latitude !== 'number' || typeof props.userExperience.longitude !== 'number') return []
       return props.matches.filter(function (m: any) {
         if (typeof m.latitude !== 'number' || typeof m.longitude !== 'number') return false
-        var R = 6371
+        var R = 3959 // Earth radius in miles
         var dLat = (m.latitude - (props.userExperience.latitude as number)) * Math.PI / 180
         var dLng = (m.longitude - (props.userExperience.longitude as number)) * Math.PI / 180
         var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
           Math.cos((props.userExperience.latitude as number) * Math.PI / 180) *
           Math.cos((m.latitude as number) * Math.PI / 180) *
           Math.sin(dLng / 2) * Math.sin(dLng / 2)
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) <= 500
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) <= NEARBY_RADIUS_MI
       })
     }
     return props.matches
@@ -241,6 +268,24 @@ function PolishedRadarView(props: {
         ? 'bg-purple-600/30 border-purple-500/60 text-white'
         : 'bg-gray-900/40 border-gray-700/60 text-gray-400 hover:text-gray-200')
   }
+
+  function handleMatchOpen(id: string) {
+    setExpandedId(function (prev) { return prev === id ? null : id })
+    setTimeout(function () {
+      var el = cardRefs.current[id]
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 80)
+  }
+
+  // V9.11.5 #30 — Filter explainer caption. Always visible below
+  // the chip strip; updates based on selected filter so users
+  // never have to guess what each filter actually does or what
+  // dimensions are being matched against.
+  var filterCaption = (function () {
+    if (filter === 'high') return 'High Match: similarity score ≥ 50% across phenomenon type, location, time period, and description.'
+    if (filter === 'nearby') return 'Nearby: reports within ' + NEARBY_RADIUS_MI + ' miles of your experience location.'
+    return 'Every match in your RADAR, ranked by overall similarity to your experience.'
+  })()
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-3xl mx-auto">
@@ -266,14 +311,12 @@ function PolishedRadarView(props: {
           filter={filter}
           size={420}
           centerLabel="YOU"
-          onMatchClick={function (m) {
-            if (typeof window !== 'undefined') window.location.href = '/report/' + m.slug
-          }}
+          onMatchClick={function (m) { handleMatchOpen(m.id) }}
         />
       </div>
 
       {/* Filter chips */}
-      <div className="flex justify-center gap-2 mb-4 flex-wrap">
+      <div className="flex justify-center gap-2 mb-2 flex-wrap">
         <button type="button" onClick={function () { setFilter('all') }} className={chipClass(filter === 'all')}>
           All reports
         </button>
@@ -284,6 +327,11 @@ function PolishedRadarView(props: {
           Nearby
         </button>
       </div>
+
+      {/* V9.11.5 #30 — Filter explainer caption */}
+      <p className="text-[11px] text-gray-500 text-center mb-5 leading-relaxed max-w-md mx-auto px-2">
+        {filterCaption}
+      </p>
 
       {/* Match-count + ambient stats */}
       <div className="flex items-center justify-between gap-3 mb-4 px-1">
@@ -311,34 +359,128 @@ function PolishedRadarView(props: {
         </button>
       </div>
 
-      {/* Match list (filtered) */}
+      {/* Match list (filtered) — V9.11.5 #30 inline expansion */}
       <div className="space-y-2">
         {visibleMatches.length === 0 && (
           <div className="text-center py-8 text-sm text-gray-500">
             {filter === 'nearby'
-              ? 'No matches within 500km. Try All or High match.'
+              ? 'No matches within ' + NEARBY_RADIUS_MI + ' miles. Try All or High match.'
               : filter === 'high'
-                ? 'No matches with score ≥ 50%. Try All.'
+                ? 'No matches with similarity ≥ 50%. Try All.'
                 : 'Listening for matches across the archive…'}
           </div>
         )}
         {visibleMatches.slice(0, 12).map(function (m: any) {
+          var isOpen = expandedId === m.id
+          var dimensions = (Array.isArray(m.match_dimensions) ? m.match_dimensions : []) as any[]
+          var snippet = (m.summary || m.description || '').trim()
+          if (snippet.length > 240) snippet = snippet.substring(0, 240).trim() + '…'
+          var locationStr = m.location_description ||
+            ([m.city, m.state_province, m.country].filter(function (s: string | null) { return !!s }).join(', '))
+          var dateStr = m.event_date ? formatEventDate(m.event_date) : ''
+
           return (
-            <a
+            <div
               key={m.id}
-              href={'/report/' + m.slug}
-              className="block p-3 bg-gray-900/60 border border-gray-800/60 rounded-xl hover:border-purple-500/40 transition-colors"
+              ref={function (el) { cardRefs.current[m.id] = el }}
+              className={
+                'bg-gray-900/60 border rounded-xl transition-colors ' +
+                (isOpen ? 'border-purple-500/50' : 'border-gray-800/60 hover:border-gray-700/80')
+              }
             >
-              <p className="text-sm font-medium text-white truncate">{m.title}</p>
-              <p className="text-[11px] text-gray-500 mt-0.5">
-                {Math.round(m.match_score * 100)}% match
-                {Array.isArray(m.match_dimensions) && m.match_dimensions.length > 0 && (
-                  <> · {m.match_dimensions.map(function (d: any) {
-                    return typeof d === 'string' ? d : (d && d.label) || ''
-                  }).filter(function (s: string) { return !!s }).join(', ')}</>
-                )}
-              </p>
-            </a>
+              <button
+                type="button"
+                onClick={function () { handleMatchOpen(m.id) }}
+                aria-expanded={isOpen}
+                className="w-full text-left p-3 flex items-start gap-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-white truncate">{m.title}</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    {Math.round(m.match_score * 100)}% match
+                    {dimensions.length > 0 && (
+                      <> &middot; {dimensions.map(function (d: any) {
+                        return typeof d === 'string' ? d : (d && d.label) || ''
+                      }).filter(function (s: string) { return !!s }).join(', ')}</>
+                    )}
+                  </p>
+                </div>
+                <ChevronDown
+                  className={
+                    'w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5 transition-transform duration-200 ' +
+                    (isOpen ? 'rotate-180' : '')
+                  }
+                />
+              </button>
+
+              {/* Expansion panel */}
+              {isOpen && (
+                <div className="px-3 pb-3 pt-1 border-t border-gray-800/60 space-y-3">
+                  {snippet && (
+                    <p className="text-sm text-gray-200 leading-relaxed">
+                      &ldquo;{snippet}&rdquo;
+                    </p>
+                  )}
+
+                  {/* Per-dimension match breakdown */}
+                  {dimensions.length > 0 && (
+                    <div className="space-y-1.5">
+                      {dimensions.slice(0, 4).map(function (d: any, i: number) {
+                        if (typeof d === 'string') return null
+                        var pct = Math.round((d.score || 0) * 100)
+                        return (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className="text-[11px] text-gray-400 w-32 flex-shrink-0 truncate">{d.label}</span>
+                            <div className="flex-1 h-1.5 bg-gray-800 rounded overflow-hidden">
+                              <div
+                                className="h-full bg-purple-500/70"
+                                style={{ width: pct + '%' }}
+                              />
+                            </div>
+                            <span className="text-[10px] text-gray-500 w-9 text-right">{pct}%</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Facts row */}
+                  {(locationStr || dateStr || m.witness_count || m.has_photo_video) && (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[11px] text-gray-400">
+                      {locationStr && (
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="w-3 h-3" /> {locationStr}
+                        </span>
+                      )}
+                      {dateStr && (
+                        <span className="inline-flex items-center gap-1">
+                          <Calendar className="w-3 h-3" /> {dateStr}
+                        </span>
+                      )}
+                      {m.witness_count && m.witness_count > 0 && (
+                        <span className="inline-flex items-center gap-1">
+                          <Users className="w-3 h-3" /> {m.witness_count} {m.witness_count === 1 ? 'witness' : 'witnesses'}
+                        </span>
+                      )}
+                      {m.has_photo_video && (
+                        <span className="inline-flex items-center gap-1 text-emerald-400">
+                          <Camera className="w-3 h-3" /> Has evidence
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* View full report */}
+                  <a
+                    href={'/report/' + m.slug}
+                    className="inline-flex items-center gap-1.5 text-xs text-purple-300 hover:text-purple-200 transition-colors pt-1"
+                  >
+                    View full report
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              )}
+            </div>
           )
         })}
         {visibleMatches.length > 12 && (
