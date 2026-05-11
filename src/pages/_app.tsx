@@ -53,8 +53,16 @@ export default function App({ Component, pageProps }: AppProps) {
 
         {/* V10 — branded PWA icons: purple bg + Changa ExtraBold P.
             Apple HIG: default apple-touch-icon should be 180x180.
-            Older devices request 152 (iPad), 167 (iPad Pro). */}
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3" />
+            Older devices request 152 (iPad), 167 (iPad Pro).
+
+            iOS Safari aggressively caches the canonical
+            /apple-touch-icon.png path and IGNORES query strings on
+            it (well-documented WebKit quirk). To force a refetch
+            without telling users to clear their cache, we point the
+            default href at a versioned filename — Safari has never
+            seen this URL before, so the old cache entry can't
+            shadow it. Bump the suffix on future icon changes. */}
+        <link rel="apple-touch-icon" href="/apple-touch-icon-v3.png" />
         <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180x180.png?v=3" />
         <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-167x167.png?v=3" />
         <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png?v=3" />
