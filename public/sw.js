@@ -16,8 +16,11 @@
 //        next page load — without this bump the cache-first .png
 //        rule below keeps serving stale icons forever even though
 //        the network has new ones.
+//   v4 — V10 favicon rebrand follow-up. Versioned favicon paths
+//        (/favicon-v3.ico, /favicon-v3.svg) so the browser tab icon
+//        also refreshes without users clearing their cache.
 
-var CACHE_NAME = 'paradocs-v3';
+var CACHE_NAME = 'paradocs-v4';
 var APP_SHELL = [
   '/',
   '/manifest.json',
@@ -25,6 +28,8 @@ var APP_SHELL = [
   '/icons/icon-512x512.png',
   '/icons/icon-180x180.png',
   '/apple-touch-icon-v3.png',
+  '/favicon-v3.ico',
+  '/favicon-v3.svg',
 ];
 
 // Install: pre-cache app shell

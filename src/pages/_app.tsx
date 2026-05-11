@@ -39,8 +39,13 @@ export default function App({ Component, pageProps }: AppProps) {
 
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 
-        <link rel="icon" href="/favicon.ico?v=3" sizes="32x32" />
-        <link rel="icon" href="/favicon.svg?v=3" type="image/svg+xml" />
+        {/* V10 — versioned filenames bypass browser favicon cache.
+            Browsers cache /favicon.ico aggressively at the canonical
+            path and ignore ?v= query strings (same WebKit/Blink quirk
+            we hit with apple-touch-icon). Versioning the path forces
+            a fresh fetch. Bump the suffix on future icon changes. */}
+        <link rel="icon" href="/favicon-v3.ico" sizes="32x32" />
+        <link rel="icon" href="/favicon-v3.svg" type="image/svg+xml" />
 
         <link rel="manifest" href="/manifest.json?v=3" />
 
