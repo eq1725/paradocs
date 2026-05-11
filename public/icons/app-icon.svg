@@ -1,22 +1,17 @@
 <!--
-  Paradocs PWA app icon — V10 rebrand
-  Purple brand gradient (a855f7 → 7c3aed) with Changa ExtraBold "P".
-  PNG renders at every required size are generated from outputs/build_icons.py
-  and live alongside this file (icon-{16,32,...,512}x{...}.png). This SVG
-  is the canonical source — regenerate the PNGs if you change it.
+  Paradocs PWA app icon — V10.1 rebrand
+  Black bg (#0a0a14) + purple Changa ExtraBold "P" (#a855f7).
+  Matches the splash-screen aesthetic for visual coherence
+  between launch and home-screen. PNG renders at every required
+  size live alongside this file; regenerate with
+  outputs/build_icons.py if you change this source.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#a855f7"/>
-      <stop offset="100%" stop-color="#7c3aed"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="#0a0a14"/>
   <text
     x="256"
     y="256"
-    fill="#ffffff"
+    fill="#a855f7"
     font-family="Changa, 'Helvetica Neue', Helvetica, Arial, sans-serif"
     font-weight="800"
     font-size="380"

@@ -19,17 +19,27 @@
 //   v4 — V10 favicon rebrand follow-up. Versioned favicon paths
 //        (/favicon-v3.ico, /favicon-v3.svg) so the browser tab icon
 //        also refreshes without users clearing their cache.
+//   v5 — V10.1 icon flip (purple bg → black bg + purple P) for
+//        visual coherence with the splash screen. New paths:
+//        favicon-v4.{ico,svg}, apple-touch-icon-v4.png, splash/*.
+//        Pre-caches the most common splash sizes so the launch
+//        screen shows even on cold start.
 
-var CACHE_NAME = 'paradocs-v4';
+var CACHE_NAME = 'paradocs-v5';
 var APP_SHELL = [
   '/',
   '/manifest.json',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
   '/icons/icon-180x180.png',
-  '/apple-touch-icon-v3.png',
-  '/favicon-v3.ico',
-  '/favicon-v3.svg',
+  '/apple-touch-icon-v4.png',
+  '/favicon-v4.ico',
+  '/favicon-v4.svg',
+  // Pre-cache the most-common iPhone splash sizes so the launch
+  // screen is instant on cold open. Other sizes load on first paint.
+  '/splash/splash-1170x2532.png',  // iPhone 16/15/14/13/12
+  '/splash/splash-1179x2556.png',  // iPhone 16 Pro / 15 Pro / 14 Pro
+  '/splash/splash-1290x2796.png',  // iPhone 16 Pro Max / 15 Pro Max / 14 Pro Max
 ];
 
 // Install: pre-cache app shell
