@@ -33,6 +33,7 @@ import type { PhenomenonCategory } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
 import AskTheUnknown from '@/components/AskTheUnknown'
 import PhenomenonMiniMap from '@/components/PhenomenonMiniMap'
+import YourSignalForPhenomenon from '@/components/phenomena/YourSignalForPhenomenon'
 import { BackToTodayBar } from '@/components/discover/BackToTodayBar'
 
 interface Phenomenon {
@@ -392,6 +393,15 @@ export default function PhenomenonPage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* V10 Phase 4.D — Personalized callout when this user
+              has reports connected to this phenomenon. Silent
+              (renders nothing) for anonymous users or no-match
+              cases. Sits inside the hero container so it stays
+              above the tab strip. */}
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4">
+            <YourSignalForPhenomenon slug={phenomenon.slug} />
           </div>
         </div>
 
