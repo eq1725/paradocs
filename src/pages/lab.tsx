@@ -27,7 +27,6 @@ import {
   Bookmark,
   FolderOpen,
   Map as MapIcon,
-  BookOpen,
   Settings,
   Bell,
   PlusCircle,
@@ -38,6 +37,8 @@ import {
   ChevronRight,
   LogIn,
   Telescope,
+  Activity,
+  Sparkles,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
@@ -50,7 +51,12 @@ import { useLabData } from '@/lib/hooks/useLabData'
 import { Star } from 'lucide-react'
 
 // Tab definitions
-var TAB_KEYS = ['constellation', 'saves', 'cases', 'map', 'notes'] as const
+// V9.11.6 — Notes tab deprecated in favor of "Your Signal" — AI-driven
+// personal pattern analysis surface (4 insight cards generated from
+// the user's report against the broader ingested archive). The journal
+// feature is removed from the build per product call: low value in the
+// current user journey vs the AI insights replacing it.
+var TAB_KEYS = ['constellation', 'saves', 'cases', 'map', 'signal'] as const
 type TabKey = typeof TAB_KEYS[number]
 
 var TAB_CONFIG: Record<string, { label: string; mobileLabel?: string; icon: typeof Star }> = {
@@ -58,7 +64,7 @@ var TAB_CONFIG: Record<string, { label: string; mobileLabel?: string; icon: type
   saves: { label: 'Saves', icon: Bookmark },
   cases: { label: 'Cases', icon: FolderOpen },
   map: { label: 'My Map', icon: MapIcon },
-  notes: { label: 'Notes', icon: BookOpen },
+  signal: { label: 'Your Signal', mobileLabel: 'Signal', icon: Activity },
 }
 
 export default function LabPage() {
@@ -76,7 +82,16 @@ export default function LabPage() {
   // Read tab from URL query
   useEffect(function() {
     var tabFromQuery = router.query.tab as string
-    if (tabFromQuery && TAB_KEYS.includes(tabFromQuery as TabKey)) {
+    if (!tabFromQuery) return
+    // V9.11.6 — backwards-compat: ?tab=notes → ?tab=signal so any
+    // bookmarks / push-notification deep links from the legacy
+    // journal era still land somewhere useful.
+    if (tabFromQuery === 'notes') {
+      setActiveTab('signal')
+      router.replace({ query: { ...router.query, tab: 'signal' } }, undefined, { shallow: true })
+      return
+    }
+    if (TAB_KEYS.includes(tabFromQuery as TabKey)) {
       setActiveTab(tabFromQuery as TabKey)
     }
   }, [router.query.tab])
@@ -284,7 +299,7 @@ export default function LabPage() {
                     onRefresh={lab.refresh}
                   />
                 )}
-                {activeTab === 'notes' && <NotesTab />}
+                {activeTab === 'signal' && <YourSignalTab />}
               </div>
             )}
           </div>
@@ -324,164 +339,154 @@ function UnauthenticatedPrompt() {
 // NOTES TAB — Journal entries with inline create/edit
 // ─────────────────────────────────────────────────────────────────
 
-function NotesTab() {
-  var [entries, setEntries] = useState<any[]>([])
-  var [loading, setLoading] = useState(true)
-  var [total, setTotal] = useState(0)
-  var [page, setPage] = useState(1)
-  var [search, setSearch] = useState('')
-  var [searchInput, setSearchInput] = useState('')
-  var limit = 10
+/**
+ * Your Signal tab — V9.11.6
+ *
+ * Replaces the deprecated Notes/journal tab with an AI-driven
+ * personalized pattern-analysis surface. Each user sees four
+ * insight cards generated from their report(s) against the
+ * broader ingested archive:
+ *
+ *   1. Your fingerprint   — top dimensions where your report
+ *                            matches the archive most strongly.
+ *   2. Patterns near you  — geographic + temporal clusters your
+ *                            experience fits into.
+ *   3. Did you know       — single surprising AI-surfaced fact
+ *                            (Sonnet, cached 7 days per report).
+ *   4. Across the archive — broader pattern context that places
+ *                            your report in a bigger picture.
+ *
+ * Phase 1.A (this commit) — tab scaffold + placeholder cards.
+ * Phase 1.B (next commit) — deterministic generators for cards
+ *                            1, 2, 4 + the GET /api/lab/your-signal
+ *                            endpoint.
+ * Phase 1.C — Sonnet integration for card 3 + caching layer +
+ *              peer-connection opt-in surface at post-RADAR reveal.
+ *
+ * Tone rule (panel): we ALWAYS say "your report shares patterns
+ * with…" never "your report exhibits…". This is documentation,
+ * not diagnosis.
+ */
+function YourSignalTab() {
+  var [hasReport, setHasReport] = useState<boolean | null>(null)
 
-  var fetchEntries = useCallback(async function() {
-    setLoading(true)
-    try {
-      // Use the journal service API
-      var sessionResult = await supabase.auth.getSession()
-      var token = sessionResult.data.session?.access_token
-      if (!token) { setLoading(false); return }
+  useEffect(function () {
+    supabase.auth.getSession().then(function (sessionResult) {
+      var session = sessionResult.data.session
+      if (!session) { setHasReport(false); return }
+      ;(supabase.from('reports') as any)
+        .select('id', { count: 'exact', head: true })
+        .eq('submitted_by', session.user.id)
+        .then(function (result: any) {
+          var count = (result && result.count) || 0
+          setHasReport(count > 0)
+        })
+    })
+  }, [])
 
-      var url = '/api/user/journal?page=' + page + '&limit=' + limit
-      if (search) {
-        url += '&search=' + encodeURIComponent(search)
-      }
-
-      var res = await fetch(url, {
-        headers: { Authorization: 'Bearer ' + token }
-      })
-      if (res.ok) {
-        var data = await res.json()
-        setEntries(data.entries || [])
-        setTotal(data.total || 0)
-      }
-    } catch (err) {
-      console.error('Error fetching journal entries:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [page, search])
-
-  useEffect(function() {
-    fetchEntries()
-  }, [fetchEntries])
-
-  var totalPages = Math.ceil(total / limit)
-
-  var handleSearch = function(e: React.FormEvent) {
-    e.preventDefault()
-    setSearch(searchInput)
-    setPage(1)
+  if (hasReport === null) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
   }
 
-  return (
-    <div>
-      {/* Search + New Entry row */}
-      <div className="flex items-center gap-3 mb-6">
-        <form onSubmit={handleSearch} className="flex-1">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-            <input
-              type="text"
-              placeholder="Search notes..."
-              value={searchInput}
-              onChange={function(e) { setSearchInput(e.target.value) }}
-              className="w-full pl-10 pr-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-primary-600 transition-colors"
-            />
-          </div>
-        </form>
+  // Empty state — turn into a growth lever rather than a dead end.
+  if (!hasReport) {
+    return (
+      <div className="text-center py-16 max-w-md mx-auto">
+        <div className="inline-flex w-12 h-12 rounded-full bg-purple-600/20 border border-purple-500/30 items-center justify-center mb-4">
+          <Activity className="w-6 h-6 text-purple-300" />
+        </div>
+        <h3 className="text-lg font-semibold text-white mb-2">Your Signal grows with your story</h3>
+        <p className="text-sm text-gray-400 leading-relaxed mb-6">
+          Share an experience and we&rsquo;ll surface emergent patterns from across
+          the archive that connect to it &mdash; geographic clusters, temporal
+          rhythms, signatures that recur across thousands of reports.
+        </p>
         <Link
-          href="/dashboard/journal/new"
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white bg-primary-600 hover:bg-primary-500 transition-colors whitespace-nowrap"
+          href="/start"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-purple-600 hover:bg-purple-500 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">New Note</span>
+          Share your first experience
         </Link>
       </div>
+    )
+  }
 
-      {/* Content */}
-      {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : entries.length === 0 ? (
-        <div className="text-center py-16">
-          <BookOpen className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-white mb-2">No notes yet</h3>
-          <p className="text-sm text-gray-400 max-w-sm mx-auto mb-6">
-            Keep an investigation journal. Record observations, link reports, and track your research.
-          </p>
-          <Link
-            href="/dashboard/journal/new"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-primary-600 hover:bg-primary-500 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Create your first note
-          </Link>
-        </div>
-      ) : (
-        <>
-          <div className="space-y-3">
-            {entries.map(function(entry: any) {
-              return (
-                <Link
-                  key={entry.id}
-                  href={'/dashboard/journal/' + entry.id}
-                  className="block p-4 bg-gray-900/80 border border-gray-800 rounded-xl hover:border-primary-600/40 hover:bg-gray-900 transition-all"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className="text-sm font-semibold text-white line-clamp-1">
-                      {entry.title || 'Untitled Note'}
-                    </h3>
-                    <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
-                      {entry.created_at ? new Date(entry.created_at).toLocaleDateString() : ''}
-                    </span>
-                  </div>
-                  {entry.content && (
-                    <p className="text-xs text-gray-400 line-clamp-2">{entry.content}</p>
-                  )}
-                  {entry.tags && entry.tags.length > 0 && (
-                    <div className="flex gap-1.5 mt-2">
-                      {entry.tags.slice(0, 3).map(function(tag: string) {
-                        return (
-                          <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
-                            {tag}
-                          </span>
-                        )
-                      })}
-                      {entry.tags.length > 3 && (
-                        <span className="text-[10px] text-gray-500">+{entry.tags.length - 3}</span>
-                      )}
-                    </div>
-                  )}
-                </Link>
-              )
-            })}
-          </div>
+  // Phase 1.A — scaffolded cards. Real insight content lands in
+  // Phase 1.B. Rendering the structure now lets us iterate on
+  // copy / layout / mobile sizing before the data is live.
+  return (
+    <div className="space-y-5 max-w-3xl mx-auto">
+      <div>
+        <h2 className="text-xl font-bold text-white">Your Signal</h2>
+        <p className="text-sm text-gray-400 mt-1 leading-relaxed">
+          Personalized patterns surfaced from your report against the broader archive.
+        </p>
+      </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-6">
-              <button
-                onClick={function() { setPage(Math.max(1, page - 1)) }}
-                disabled={page <= 1}
-                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-sm text-gray-400">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                onClick={function() { setPage(Math.min(totalPages, page + 1)) }}
-                disabled={page >= totalPages}
-                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-        </>
-      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <SignalCardPlaceholder
+          kicker="Your fingerprint"
+          title="Strongest signal across the archive"
+          coming="Coming online soon"
+        />
+        <SignalCardPlaceholder
+          kicker="Patterns near you"
+          title="Geographic & temporal cluster"
+          coming="Coming online soon"
+        />
+        <SignalCardPlaceholder
+          kicker="Did you know"
+          title="What the AI is seeing about reports like yours"
+          coming="Coming online soon"
+          highlight
+        />
+        <SignalCardPlaceholder
+          kicker="Across the archive"
+          title="Broader pattern context"
+          coming="Coming online soon"
+        />
+      </div>
+
+      <p className="text-[11px] text-gray-500 text-center pt-2">
+        Your Signal regenerates when you share a new experience or when significant new reports land in the archive.
+      </p>
+    </div>
+  )
+}
+
+function SignalCardPlaceholder(props: { kicker: string; title: string; coming: string; highlight?: boolean }) {
+  return (
+    <div
+      className={
+        'rounded-xl border p-4 ' +
+        (props.highlight
+          ? 'bg-purple-950/15 border-purple-800/40'
+          : 'bg-gray-900/40 border-gray-800/60')
+      }
+    >
+      <div className="flex items-center gap-1.5 mb-2">
+        {props.highlight && <Sparkles className="w-3 h-3 text-purple-400" />}
+        <p className={
+          'text-[10px] font-semibold tracking-widest uppercase ' +
+          (props.highlight ? 'text-purple-400' : 'text-gray-400')
+        }>
+          {props.kicker}
+        </p>
+      </div>
+      <p className="text-sm font-medium text-white leading-snug mb-3">
+        {props.title}
+      </p>
+      <div className="space-y-2">
+        <div className="h-2 bg-gray-800/80 rounded animate-pulse" style={{ width: '92%' }} />
+        <div className="h-2 bg-gray-800/80 rounded animate-pulse" style={{ width: '76%' }} />
+        <div className="h-2 bg-gray-800/80 rounded animate-pulse" style={{ width: '60%' }} />
+      </div>
+      <p className="text-[10px] text-gray-500 mt-3 italic">{props.coming}</p>
     </div>
   )
 }
