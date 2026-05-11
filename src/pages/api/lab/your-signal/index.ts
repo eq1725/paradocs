@@ -386,6 +386,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   var feedbackMiss = await loadFeedback()
 
+  // V9.13 Phase 3.B — People Like You. Surface up to 3 opted-in
+  // peers whose reports overlap on phenomenon_type or category.
+  // We never cache this — opt-ins change frequently as users sign
+  // up. Lightweight enough to recompute per visit.
+  var peers = await loadPeers(svc, user!.id, userReport!)
+
   return res.status(200).json({
     has_report: true,
     report_id: userReport.id,
@@ -396,5 +402,93 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     did_you_know: didYouKnow,
     context: context,
     feedback: feedbackMiss,
+    peers: peers,
   })
+}
+
+/**
+ * V9.13 Phase 3.B — opted-in peers for the "People like you" card.
+ *
+ * Filters reports to:
+ *   - Same phenomenon_type as the user's report (preferred),
+ *     else same category
+ *   - Not the user's own report
+ *   - status = approved
+ *   - Effective allow_peer_connection = TRUE (via the
+ *     report_peer_visibility view)
+ *
+ * Then dedupes by user_id (one peer per person, latest report
+ * wins), joins profile fields, returns up to 3.
+ *
+ * Returns { count_opted_in_total, sample: [...] } — total tells
+ * the user "X others are open"; sample renders the cards.
+ */
+async function loadPeers(svc: any, currentUserId: string, userReport: any) {
+  try {
+    var filterCol = userReport.phenomenon_type_id ? 'phenomenon_type_id' : 'category'
+    var filterVal = userReport.phenomenon_type_id || userReport.category
+    if (!filterVal) return { count_opted_in_total: 0, sample: [] }
+
+    // Pull candidate reports (recent, approved, same type/category, not us).
+    var query = await svc.from('reports')
+      .select('id, slug, title, submitted_by, created_at')
+      .eq(filterCol, filterVal)
+      .eq('status', 'approved')
+      .neq('submitted_by', currentUserId)
+      .order('created_at', { ascending: false })
+      .limit(200)
+    var candidates: any[] = (query && query.data) || []
+    if (candidates.length === 0) return { count_opted_in_total: 0, sample: [] }
+
+    var candidateIds = candidates.map(function (r: any) { return r.id })
+
+    // Check effective peer visibility per report.
+    var vizResult = await svc.from('report_peer_visibility')
+      .select('report_id, user_id, effective_allow_peer')
+      .in('report_id', candidateIds)
+    var allowedReportIds: Record<string, boolean> = {}
+    ;((vizResult && vizResult.data) || []).forEach(function (v: any) {
+      if (v.effective_allow_peer) allowedReportIds[v.report_id] = true
+    })
+
+    var optedIn = candidates.filter(function (r: any) { return allowedReportIds[r.id] })
+    var optedInCount = optedIn.length
+
+    // Dedupe by user_id (one peer per person, latest report wins).
+    var seen: Record<string, boolean> = {}
+    var deduped: any[] = []
+    for (var i = 0; i < optedIn.length && deduped.length < 3; i++) {
+      var r = optedIn[i]
+      if (seen[r.submitted_by]) continue
+      seen[r.submitted_by] = true
+      deduped.push(r)
+    }
+    if (deduped.length === 0) return { count_opted_in_total: optedInCount, sample: [] }
+
+    // Join profile preview fields.
+    var userIds = deduped.map(function (r: any) { return r.submitted_by })
+    var profResult = await svc.from('profiles')
+      .select('id, username, display_name, avatar_url')
+      .in('id', userIds)
+    var profileMap: Record<string, any> = {}
+    ;((profResult && profResult.data) || []).forEach(function (p: any) { profileMap[p.id] = p })
+
+    var sample = deduped.map(function (r: any) {
+      var p = profileMap[r.submitted_by] || {}
+      return {
+        user_id: r.submitted_by,
+        report_id: r.id,
+        report_slug: r.slug,
+        report_title: r.title || '(untitled)',
+        username: p.username || null,
+        display_name: p.display_name || null,
+        avatar_url: p.avatar_url || null,
+      }
+    })
+
+    return { count_opted_in_total: optedInCount, sample: sample }
+  } catch (e: any) {
+    console.warn('your-signal: peers load failed:', e && e.message)
+    return { count_opted_in_total: 0, sample: [], error: true }
+  }
 }

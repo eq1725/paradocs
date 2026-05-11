@@ -45,6 +45,8 @@ import {
   Send,
   Loader2,
   ExternalLink,
+  Users,
+  Heart,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
@@ -461,6 +463,11 @@ function YourSignalTab() {
         <ClusterCard data={data.cluster} reportId={data.report_id} initialRating={(data.feedback && data.feedback.cluster) || null} />
         <DidYouKnowCard data={data.did_you_know} reportId={data.report_id} initialRating={(data.feedback && data.feedback.did_you_know) || null} />
         <ContextCard data={data.context} reportId={data.report_id} initialRating={(data.feedback && data.feedback.context) || null} />
+        {/* V9.13 Phase 3.B — full-width on mobile, spans both cols
+            on desktop so the peer cards have breathing room. */}
+        <div className="sm:col-span-2">
+          <PeopleLikeYouCard data={data.peers} />
+        </div>
       </div>
 
       <p className="text-[11px] text-gray-500 text-center pt-2">
@@ -864,6 +871,175 @@ function DidYouKnowCard(props: { data: any; reportId: string; initialRating: Rat
         <p className="text-[11px] text-gray-400 mt-2">
           Based on {d.supporting_count.toLocaleString()} archived reports.
         </p>
+      )}
+    </SignalCardShell>
+  )
+}
+
+/**
+ * V9.13 Phase 3.B — People Like You.
+ *
+ * Surfaces up to 3 opted-in peers whose reports overlap with the
+ * user's. Each card has a "Reach out privately" button that opens
+ * an inline composer for the intro message. Submitting sends a
+ * connection_request; the recipient sees it in /connections.
+ *
+ * Empty-state copy is intentional: if no peers have opted in yet,
+ * we don't show emptiness — we frame it as "you're early; as
+ * more people like you opt in, they'll appear here."
+ */
+function PeopleLikeYouCard(props: { data: any }) {
+  var d = props.data || {}
+  var sample: any[] = Array.isArray(d.sample) ? d.sample : []
+  var [composerFor, setComposerFor] = useState<string | null>(null)
+  var [intro, setIntro] = useState('')
+  var [sending, setSending] = useState(false)
+  var [sentToUserIds, setSentToUserIds] = useState<Record<string, 'pending' | 'rejected'>>({})
+  var [sendError, setSendError] = useState<string | null>(null)
+  var [rejectionReason, setRejectionReason] = useState<string | null>(null)
+
+  function openComposer(userId: string) {
+    setComposerFor(userId)
+    setIntro('')
+    setSendError(null)
+    setRejectionReason(null)
+  }
+  function closeComposer() {
+    setComposerFor(null)
+    setIntro('')
+    setSendError(null)
+    setRejectionReason(null)
+  }
+
+  async function send(peer: any) {
+    if (intro.trim().length < 10) { setSendError('Add a few more words so they know why you’re reaching out.'); return }
+    setSending(true)
+    setSendError(null)
+    setRejectionReason(null)
+    try {
+      var s = await supabase.auth.getSession()
+      var token = s.data.session ? s.data.session.access_token : null
+      if (!token) { setSendError('Sign in to reach out.'); setSending(false); return }
+      var resp = await fetch('/api/connections/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({
+          to_user_id: peer.user_id,
+          about_report: peer.report_id,
+          intro_message: intro.trim(),
+        }),
+      })
+      var dataResp = await resp.json()
+      if (!resp.ok) {
+        setSendError(dataResp.error || 'Failed to send request.')
+      } else if (dataResp.status === 'rejected_moderation') {
+        setSentToUserIds(function (prev) { var n: Record<string, 'pending' | 'rejected'> = {}; Object.keys(prev).forEach(function (k) { n[k] = prev[k] }); n[peer.user_id] = 'rejected'; return n })
+        setRejectionReason(dataResp.reason || 'Your intro didn\'t pass review.')
+      } else {
+        setSentToUserIds(function (prev) { var n: Record<string, 'pending' | 'rejected'> = {}; Object.keys(prev).forEach(function (k) { n[k] = prev[k] }); n[peer.user_id] = 'pending'; return n })
+        closeComposer()
+      }
+    } catch (e: any) {
+      setSendError(e.message || 'Network error')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <SignalCardShell kicker="People like you">
+      {!sample.length ? (
+        <p className="text-sm text-gray-300 leading-snug">
+          No peers have opted into matching yet for your phenomenon. As more
+          people like you opt in (from the post-RADAR screen), they&rsquo;ll
+          appear here. You can also enable peer matching from your account
+          settings.
+        </p>
+      ) : (
+        <>
+          <p className="text-sm text-gray-300 leading-snug mb-3">
+            <span className="font-semibold text-purple-300">{d.count_opted_in_total}</span>{' '}
+            {d.count_opted_in_total === 1 ? 'person has' : 'people have'} shared
+            similar experiences and opted into peer matching. Here are{' '}
+            {sample.length === 1 ? 'the closest match' : 'a few of the closest matches'}:
+          </p>
+          <ul className="space-y-2">
+            {sample.map(function (peer: any) {
+              var name = peer.display_name || peer.username || 'A fellow experiencer'
+              var sentStatus = sentToUserIds[peer.user_id]
+              return (
+                <li key={peer.user_id} className="bg-gray-900/40 border border-gray-800/60 rounded-lg p-3 flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-full bg-gray-800 overflow-hidden flex-shrink-0 flex items-center justify-center text-sm text-gray-400">
+                    {peer.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={peer.avatar_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      (name[0] || '?').toUpperCase()
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-white truncate">{name}</p>
+                    <p className="text-[11px] text-gray-500 truncate">
+                      Wrote: &ldquo;{peer.report_title}&rdquo;
+                    </p>
+                    {composerFor === peer.user_id ? (
+                      <div className="mt-2 space-y-2">
+                        <textarea
+                          value={intro}
+                          onChange={function (e) { setIntro(e.target.value) }}
+                          placeholder="A short note about why you're reaching out…"
+                          rows={3}
+                          maxLength={1000}
+                          className="w-full bg-gray-950 border border-gray-700 rounded-lg p-2 text-xs placeholder-gray-500 focus:outline-none focus:border-purple-500 leading-relaxed"
+                        />
+                        <p className="text-[10px] text-gray-500">
+                          Paradocs delivers your note privately; your contact info is never shared. They can accept or decline.
+                        </p>
+                        <div className="flex items-center justify-end gap-2">
+                          <button type="button" onClick={closeComposer} className="text-xs text-gray-400 hover:text-gray-200 px-2 py-1">Cancel</button>
+                          <button
+                            type="button"
+                            onClick={function () { send(peer) }}
+                            disabled={sending || intro.trim().length < 10}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs font-semibold"
+                          >
+                            {sending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                            {sending ? 'Sending…' : 'Send'}
+                          </button>
+                        </div>
+                        {sendError && <p className="text-[11px] text-red-300">{sendError}</p>}
+                        {rejectionReason && (
+                          <p className="text-[11px] text-amber-300">Didn&rsquo;t pass review: {rejectionReason}</p>
+                        )}
+                      </div>
+                    ) : sentStatus === 'pending' ? (
+                      <p className="text-[11px] text-emerald-400 mt-1 inline-flex items-center gap-1">
+                        <Heart className="w-3 h-3" /> Request sent. They can accept or decline.
+                      </p>
+                    ) : sentStatus === 'rejected' ? (
+                      <button
+                        onClick={function () { openComposer(peer.user_id) }}
+                        className="text-[11px] text-amber-300 hover:text-amber-200 underline mt-1"
+                      >
+                        Edit and resend
+                      </button>
+                    ) : (
+                      <button
+                        onClick={function () { openComposer(peer.user_id) }}
+                        className="mt-2 inline-flex items-center gap-1 text-xs text-purple-300 hover:text-purple-200 transition-colors"
+                      >
+                        <Users className="w-3 h-3" /> Reach out privately
+                      </button>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+          <p className="text-[11px] text-gray-500 mt-3">
+            Manage incoming requests at <Link href="/connections" className="text-purple-300 hover:text-purple-200 underline">Connections</Link>.
+          </p>
+        </>
       )}
     </SignalCardShell>
   )
