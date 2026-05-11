@@ -1,0 +1,344 @@
+/**
+ * GET /api/lab/your-signal
+ *
+ * V9.11.6 Phase 1.B — returns the 4-card "Your Signal" insight
+ * payload for the signed-in user's most recent report.
+ *
+ * Card 1 — Your fingerprint   (deterministic, this commit)
+ * Card 2 — Patterns near you  (deterministic, this commit)
+ * Card 3 — Did you know       (placeholder until Phase 1.C — Sonnet)
+ * Card 4 — Across the archive (deterministic, this commit)
+ *
+ * Caching: per-user-per-report in public.your_signal_insights with
+ * a 7-day TTL. Cache is keyed by (user_id, report_id) and bypassed
+ * with ?fresh=1 (admin / debug). Cache is invalidated implicitly
+ * when expires_at passes OR when the user shares a new report (the
+ * primary key changes).
+ *
+ * Tone rule: never diagnostic. Say "your report shares X with…",
+ * not "your report exhibits X". This is documentation, not therapy.
+ *
+ * SWC compat: uses var + function() form.
+ */
+
+import type { NextApiRequest, NextApiResponse } from 'next'
+import { createClient } from '@supabase/supabase-js'
+
+var SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+var SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+var SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+
+// Geographic cluster radius for Card 2 — matches the "Nearby" filter
+// on the RADAR view (V9.11.5 #30 — 500 mi). Card 2 uses a TIGHTER
+// 100-mile window for "patterns near you" because that's where we
+// want true regional clustering (cryptid corridors, urban hotspots)
+// vs. the broader cross-state radius the RADAR's Nearby uses.
+var CLUSTER_RADIUS_MI = 100
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function haversineMi(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  var R = 3959 // Earth radius in miles
+  var dLat = (lat2 - lat1) * Math.PI / 180
+  var dLng = (lng2 - lng1) * Math.PI / 180
+  var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2)
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
+                   'July', 'August', 'September', 'October', 'November', 'December']
+
+// ── Card 1: Your fingerprint ──────────────────────────────────────────────
+
+async function generateFingerprint(svc: any, userReport: any) {
+  // Count overlapping reports along three axes:
+  //   - same phenomenon_type
+  //   - same category
+  //   - same evidence signal (has_photo_video / witness_count > 1)
+  // Pick the strongest axis and frame the user's report against it.
+
+  var phenomenonTypeId = userReport.phenomenon_type_id
+  var category = userReport.category
+  var hasEvidence = !!userReport.has_photo_video
+  var manyWitnesses = (userReport.witness_count || 0) > 1
+
+  var typeCount = 0
+  var categoryCount = 0
+  var typeLabel = ''
+
+  if (phenomenonTypeId) {
+    var r1 = await svc.from('reports')
+      .select('id', { count: 'exact', head: true })
+      .eq('phenomenon_type_id', phenomenonTypeId)
+      .eq('status', 'approved')
+      .neq('id', userReport.id)
+    typeCount = (r1 && r1.count) || 0
+
+    var t = await svc.from('phenomenon_types').select('name').eq('id', phenomenonTypeId).single()
+    typeLabel = (t && t.data && t.data.name) || ''
+  }
+
+  if (category) {
+    var r2 = await svc.from('reports')
+      .select('id', { count: 'exact', head: true })
+      .eq('category', category)
+      .eq('status', 'approved')
+      .neq('id', userReport.id)
+    categoryCount = (r2 && r2.count) || 0
+  }
+
+  // Pick the strongest axis.
+  var axis: 'type' | 'category' | 'evidence' = 'category'
+  var count = categoryCount
+  var label = category || 'this signature'
+
+  if (phenomenonTypeId && typeCount >= 3) {
+    // Prefer type when it has meaningful sample size — more specific.
+    axis = 'type'
+    count = typeCount
+    label = typeLabel || label
+  }
+
+  // Evidence axis as a tiebreaker / colorful framing for visual-evidence
+  // reports.
+  var evidenceCount = 0
+  if (hasEvidence) {
+    var r3 = await svc.from('reports')
+      .select('id', { count: 'exact', head: true })
+      .eq('has_photo_video', true)
+      .eq('status', 'approved')
+      .neq('id', userReport.id)
+    evidenceCount = (r3 && r3.count) || 0
+  }
+
+  return {
+    axis: axis,
+    primary_label: label,
+    primary_count: count,
+    type_count: typeCount,
+    category_count: categoryCount,
+    evidence_count: evidenceCount,
+    has_evidence: hasEvidence,
+    many_witnesses: manyWitnesses,
+  }
+}
+
+// ── Card 2: Patterns near you ─────────────────────────────────────────────
+
+async function generateCluster(svc: any, userReport: any) {
+  var lat = userReport.latitude
+  var lng = userReport.longitude
+  if (typeof lat !== 'number' || typeof lng !== 'number') {
+    return { skipped: true, reason: 'no_location' }
+  }
+
+  // Pull a generous regional candidate set; haversine-filter in-process.
+  // Bounding-box pre-filter dramatically reduces the candidate set.
+  var latDelta = CLUSTER_RADIUS_MI / 69 // ~69 mi per degree of latitude
+  var lngDelta = CLUSTER_RADIUS_MI / (69 * Math.cos(lat * Math.PI / 180) || 1)
+
+  var query = await svc.from('reports')
+    .select('id, latitude, longitude, event_date')
+    .eq('status', 'approved')
+    .neq('id', userReport.id)
+    .gte('latitude', lat - latDelta)
+    .lte('latitude', lat + latDelta)
+    .gte('longitude', lng - lngDelta)
+    .lte('longitude', lng + lngDelta)
+    .limit(2000)
+
+  var candidates = (query && query.data) || []
+
+  var nearbyReports = candidates.filter(function (r: any) {
+    if (typeof r.latitude !== 'number' || typeof r.longitude !== 'number') return false
+    return haversineMi(lat, lng, r.latitude, r.longitude) <= CLUSTER_RADIUS_MI
+  })
+
+  // Compute year range of dated nearby reports.
+  var years: number[] = []
+  nearbyReports.forEach(function (r: any) {
+    if (r.event_date) {
+      var y = new Date(r.event_date).getUTCFullYear()
+      if (!isNaN(y) && y > 1700 && y < 2100) years.push(y)
+    }
+  })
+  years.sort(function (a, b) { return a - b })
+
+  return {
+    skipped: false,
+    nearby_count: nearbyReports.length,
+    radius_mi: CLUSTER_RADIUS_MI,
+    year_min: years.length > 0 ? years[0] : null,
+    year_max: years.length > 0 ? years[years.length - 1] : null,
+    dated_count: years.length,
+  }
+}
+
+// ── Card 4: Across the archive ────────────────────────────────────────────
+
+async function generateContext(svc: any, userReport: any) {
+  // Find when reports of the same phenomenon_type peak across the
+  // archive, and contextualize the user's event_date inside that.
+  var phenomenonTypeId = userReport.phenomenon_type_id
+  var category = userReport.category
+
+  if (!phenomenonTypeId && !category) {
+    return { skipped: true, reason: 'no_classification' }
+  }
+
+  var queryBuilder = svc.from('reports')
+    .select('event_date')
+    .eq('status', 'approved')
+    .not('event_date', 'is', null)
+
+  if (phenomenonTypeId) queryBuilder = queryBuilder.eq('phenomenon_type_id', phenomenonTypeId)
+  else if (category)    queryBuilder = queryBuilder.eq('category', category)
+
+  var result = await queryBuilder.limit(5000)
+  var rows = (result && result.data) || []
+
+  if (rows.length < 10) {
+    return { skipped: true, reason: 'insufficient_data', sample_size: rows.length }
+  }
+
+  // Month-of-year histogram (0-indexed, Jan = 0).
+  var monthBuckets = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  rows.forEach(function (r: any) {
+    var d = new Date(r.event_date)
+    if (!isNaN(d.getTime())) monthBuckets[d.getUTCMonth()]++
+  })
+
+  // Peak month + share.
+  var peakMonth = 0
+  var peakCount = monthBuckets[0]
+  for (var i = 1; i < 12; i++) {
+    if (monthBuckets[i] > peakCount) { peakCount = monthBuckets[i]; peakMonth = i }
+  }
+  var totalDated = monthBuckets.reduce(function (a, b) { return a + b }, 0)
+  var peakPct = totalDated > 0 ? Math.round((peakCount / totalDated) * 100) : 0
+
+  // User's month (if event_date present).
+  var userMonth: number | null = null
+  if (userReport.event_date) {
+    var ud = new Date(userReport.event_date)
+    if (!isNaN(ud.getTime())) userMonth = ud.getUTCMonth()
+  }
+
+  return {
+    skipped: false,
+    label: phenomenonTypeId ? 'phenomenon_type' : 'category',
+    peak_month_index: peakMonth,
+    peak_month_name: MONTH_NAMES[peakMonth],
+    peak_share_pct: peakPct,
+    user_month_index: userMonth,
+    user_month_name: userMonth !== null ? MONTH_NAMES[userMonth] : null,
+    user_matches_peak: userMonth !== null && userMonth === peakMonth,
+    sample_size: totalDated,
+  }
+}
+
+// ── Handler ───────────────────────────────────────────────────────────────
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // Auth — bearer token in the Authorization header (matches our other
+  // /api/user/* endpoints' convention).
+  var authHeader = req.headers.authorization || ''
+  var token = authHeader.replace(/^Bearer\s+/i, '').trim()
+  if (!token) return res.status(401).json({ error: 'Not authenticated' })
+
+  var authClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: 'Bearer ' + token } },
+  })
+  var userResult = await authClient.auth.getUser(token)
+  var user = userResult.data.user
+  if (!user) return res.status(401).json({ error: 'Invalid session' })
+
+  // Service-role client for the actual queries (bypasses RLS so we can
+  // aggregate across the archive without leaking other users' data —
+  // we never return per-row archive content, only aggregates).
+  var svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+  // 1. Find the user's most recent report.
+  var reportResult = await svc.from('reports')
+    .select('id, phenomenon_type_id, category, latitude, longitude, event_date, event_time, has_photo_video, witness_count, description, summary, title')
+    .eq('submitted_by', user.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  var userReport = reportResult.data
+  if (!userReport) {
+    return res.status(200).json({ has_report: false })
+  }
+
+  // 2. Cache lookup unless ?fresh=1.
+  var fresh = req.query.fresh === '1'
+  if (!fresh) {
+    var cacheResult = await svc.from('your_signal_insights')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('report_id', userReport.id)
+      .gt('expires_at', new Date().toISOString())
+      .limit(1)
+      .single()
+    if (cacheResult.data) {
+      return res.status(200).json({
+        has_report: true,
+        report_id: userReport.id,
+        cached: true,
+        generated_at: cacheResult.data.generated_at,
+        fingerprint:   cacheResult.data.fingerprint_payload,
+        cluster:       cacheResult.data.cluster_payload,
+        did_you_know:  cacheResult.data.did_you_know_payload,
+        context:       cacheResult.data.context_payload,
+      })
+    }
+  }
+
+  // 3. Generate the deterministic cards in parallel.
+  var [fingerprint, cluster, context] = await Promise.all([
+    generateFingerprint(svc, userReport),
+    generateCluster(svc, userReport),
+    generateContext(svc, userReport),
+  ])
+
+  // Card 3 — Phase 1.C will replace this with a Sonnet call.
+  var didYouKnow = { pending: true, model: null }
+
+  // 4. Write to cache (upsert).
+  try {
+    await svc.from('your_signal_insights').upsert({
+      user_id: user.id,
+      report_id: userReport.id,
+      fingerprint_payload: fingerprint,
+      cluster_payload: cluster,
+      did_you_know_payload: didYouKnow,
+      context_payload: context,
+      ai_model_used: null,
+      generated_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    }, { onConflict: 'user_id,report_id' })
+  } catch (cacheErr) {
+    // Cache writes are best-effort. Don't fail the response if the
+    // cache table is missing or RLS blocks us — the user still gets
+    // their insights, they just get regenerated on next visit.
+    console.warn('your-signal: cache write failed:', cacheErr)
+  }
+
+  return res.status(200).json({
+    has_report: true,
+    report_id: userReport.id,
+    cached: false,
+    generated_at: new Date().toISOString(),
+    fingerprint: fingerprint,
+    cluster: cluster,
+    did_you_know: didYouKnow,
+    context: context,
+  })
+}

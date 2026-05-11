@@ -368,23 +368,34 @@ function UnauthenticatedPrompt() {
  * not diagnosis.
  */
 function YourSignalTab() {
-  var [hasReport, setHasReport] = useState<boolean | null>(null)
+  var [data, setData] = useState<any>(null)
+  var [loading, setLoading] = useState(true)
+  var [error, setError] = useState<string | null>(null)
 
   useEffect(function () {
-    supabase.auth.getSession().then(function (sessionResult) {
-      var session = sessionResult.data.session
-      if (!session) { setHasReport(false); return }
-      ;(supabase.from('reports') as any)
-        .select('id', { count: 'exact', head: true })
-        .eq('submitted_by', session.user.id)
-        .then(function (result: any) {
-          var count = (result && result.count) || 0
-          setHasReport(count > 0)
+    function load() {
+      setLoading(true)
+      setError(null)
+      supabase.auth.getSession().then(function (sessionResult) {
+        var session = sessionResult.data.session
+        if (!session) {
+          setData({ has_report: false })
+          setLoading(false)
+          return
+        }
+        fetch('/api/lab/your-signal', {
+          headers: { Authorization: 'Bearer ' + session.access_token },
         })
-    })
+          .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('Failed to load Your Signal')) })
+          .then(function (payload) { setData(payload) })
+          .catch(function (err) { setError(err.message || 'Failed to load') })
+          .finally(function () { setLoading(false) })
+      })
+    }
+    load()
   }, [])
 
-  if (hasReport === null) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
@@ -392,8 +403,22 @@ function YourSignalTab() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="text-center py-16 max-w-md mx-auto">
+        <p className="text-sm text-red-300 mb-3">{error}</p>
+        <button
+          onClick={function () { window.location.reload() }}
+          className="text-xs text-purple-300 hover:text-purple-200 underline"
+        >
+          Try again
+        </button>
+      </div>
+    )
+  }
+
   // Empty state — turn into a growth lever rather than a dead end.
-  if (!hasReport) {
+  if (!data || !data.has_report) {
     return (
       <div className="text-center py-16 max-w-md mx-auto">
         <div className="inline-flex w-12 h-12 rounded-full bg-purple-600/20 border border-purple-500/30 items-center justify-center mb-4">
@@ -416,9 +441,6 @@ function YourSignalTab() {
     )
   }
 
-  // Phase 1.A — scaffolded cards. Real insight content lands in
-  // Phase 1.B. Rendering the structure now lets us iterate on
-  // copy / layout / mobile sizing before the data is live.
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
       <div>
@@ -429,27 +451,10 @@ function YourSignalTab() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <SignalCardPlaceholder
-          kicker="Your fingerprint"
-          title="Strongest signal across the archive"
-          coming="Coming online soon"
-        />
-        <SignalCardPlaceholder
-          kicker="Patterns near you"
-          title="Geographic & temporal cluster"
-          coming="Coming online soon"
-        />
-        <SignalCardPlaceholder
-          kicker="Did you know"
-          title="What the AI is seeing about reports like yours"
-          coming="Coming online soon"
-          highlight
-        />
-        <SignalCardPlaceholder
-          kicker="Across the archive"
-          title="Broader pattern context"
-          coming="Coming online soon"
-        />
+        <FingerprintCard data={data.fingerprint} />
+        <ClusterCard data={data.cluster} />
+        <DidYouKnowCard data={data.did_you_know} />
+        <ContextCard data={data.context} />
       </div>
 
       <p className="text-[11px] text-gray-500 text-center pt-2">
@@ -459,7 +464,13 @@ function YourSignalTab() {
   )
 }
 
-function SignalCardPlaceholder(props: { kicker: string; title: string; coming: string; highlight?: boolean }) {
+// ── Card components ─────────────────────────────────────────────────
+
+function SignalCardShell(props: {
+  kicker: string
+  highlight?: boolean
+  children: React.ReactNode
+}) {
   return (
     <div
       className={
@@ -478,15 +489,146 @@ function SignalCardPlaceholder(props: { kicker: string; title: string; coming: s
           {props.kicker}
         </p>
       </div>
-      <p className="text-sm font-medium text-white leading-snug mb-3">
-        {props.title}
-      </p>
-      <div className="space-y-2">
-        <div className="h-2 bg-gray-800/80 rounded animate-pulse" style={{ width: '92%' }} />
-        <div className="h-2 bg-gray-800/80 rounded animate-pulse" style={{ width: '76%' }} />
-        <div className="h-2 bg-gray-800/80 rounded animate-pulse" style={{ width: '60%' }} />
-      </div>
-      <p className="text-[10px] text-gray-500 mt-3 italic">{props.coming}</p>
+      {props.children}
     </div>
+  )
+}
+
+function FingerprintCard(props: { data: any }) {
+  var d = props.data || {}
+  // Strongest signal is `primary_label` with `primary_count` other reports.
+  if (!d.primary_label || !d.primary_count) {
+    return (
+      <SignalCardShell kicker="Your fingerprint">
+        <p className="text-sm text-gray-300 leading-snug">
+          Your report joins the archive. As more reports cluster around its
+          phenomenon type, your fingerprint will sharpen.
+        </p>
+      </SignalCardShell>
+    )
+  }
+  return (
+    <SignalCardShell kicker="Your fingerprint">
+      <p className="text-sm text-white leading-snug">
+        Your report shares its{' '}
+        <span className="font-semibold text-purple-300">{d.primary_label}</span>{' '}
+        signature with{' '}
+        <span className="font-semibold text-purple-300">{d.primary_count.toLocaleString()}</span>{' '}
+        other report{d.primary_count === 1 ? '' : 's'} in the archive.
+      </p>
+      {d.has_evidence && d.evidence_count > 0 && (
+        <p className="text-[11px] text-gray-400 mt-2">
+          Your report also carries photo / video evidence &mdash; one of{' '}
+          {d.evidence_count.toLocaleString()} evidenced reports archived.
+        </p>
+      )}
+    </SignalCardShell>
+  )
+}
+
+function ClusterCard(props: { data: any }) {
+  var d = props.data || {}
+  if (d.skipped) {
+    return (
+      <SignalCardShell kicker="Patterns near you">
+        <p className="text-sm text-gray-300 leading-snug">
+          {d.reason === 'no_location'
+            ? 'Add a location to your report to see how your experience sits inside regional clusters.'
+            : 'Not enough data near your location yet. Check back as the archive grows.'}
+        </p>
+      </SignalCardShell>
+    )
+  }
+  if (!d.nearby_count) {
+    return (
+      <SignalCardShell kicker="Patterns near you">
+        <p className="text-sm text-gray-300 leading-snug">
+          Your area is sparsely documented &mdash; you may be the first to log
+          an experience here. As nearby reports arrive, this card will surface
+          the patterns.
+        </p>
+      </SignalCardShell>
+    )
+  }
+  var yearRange = (d.year_min && d.year_max && d.year_min !== d.year_max)
+    ? d.year_min + '–' + d.year_max
+    : (d.year_min ? String(d.year_min) : '')
+  return (
+    <SignalCardShell kicker="Patterns near you">
+      <p className="text-sm text-white leading-snug">
+        <span className="font-semibold text-purple-300">{d.nearby_count.toLocaleString()}</span>{' '}
+        report{d.nearby_count === 1 ? '' : 's'} within ~{d.radius_mi} miles of your experience
+        {yearRange && (<>
+          {' '}— spanning <span className="font-semibold text-purple-300">{yearRange}</span>
+        </>)}.
+      </p>
+    </SignalCardShell>
+  )
+}
+
+function DidYouKnowCard(props: { data: any }) {
+  var d = props.data || {}
+  // Phase 1.B placeholder — Sonnet integration lands in Phase 1.C.
+  if (d.pending) {
+    return (
+      <SignalCardShell kicker="Did you know" highlight>
+        <p className="text-sm text-gray-300 leading-snug">
+          The AI is reading the archive for surprising correlations connected
+          to your experience. This card lights up once a pattern emerges that
+          only Paradocs can see.
+        </p>
+        <p className="text-[10px] text-gray-500 mt-3 italic">
+          AI insight coming online soon.
+        </p>
+      </SignalCardShell>
+    )
+  }
+  // Phase 1.C will provide { headline, body, supporting_count } payload.
+  return (
+    <SignalCardShell kicker="Did you know" highlight>
+      <p className="text-sm text-white leading-snug">
+        {d.headline || d.body || '—'}
+      </p>
+      {d.supporting_count && (
+        <p className="text-[11px] text-gray-400 mt-2">
+          Based on {d.supporting_count.toLocaleString()} archived reports.
+        </p>
+      )}
+    </SignalCardShell>
+  )
+}
+
+function ContextCard(props: { data: any }) {
+  var d = props.data || {}
+  if (d.skipped) {
+    return (
+      <SignalCardShell kicker="Across the archive">
+        <p className="text-sm text-gray-300 leading-snug">
+          {d.reason === 'insufficient_data'
+            ? 'Not enough reports tagged with this phenomenon yet. As more arrive, broader patterns will surface here.'
+            : 'Add a phenomenon type to your report and we’ll show you how it patterns across the wider archive.'}
+        </p>
+      </SignalCardShell>
+    )
+  }
+  var label = d.peak_month_name || ''
+  var pct = d.peak_share_pct || 0
+  var youLine = ''
+  if (d.user_month_name) {
+    youLine = d.user_matches_peak
+      ? 'Yours was logged in ' + d.user_month_name + ' — right inside that peak.'
+      : 'Yours was logged in ' + d.user_month_name + '.'
+  }
+  return (
+    <SignalCardShell kicker="Across the archive">
+      <p className="text-sm text-white leading-snug">
+        Reports like yours peak in{' '}
+        <span className="font-semibold text-purple-300">{label}</span>{' '}
+        <span className="text-gray-400">({pct}% of dated reports).</span>
+      </p>
+      {youLine && (
+        <p className="text-[11px] text-gray-300 mt-2">{youLine}</p>
+      )}
+    </SignalCardShell>
   )
 }
