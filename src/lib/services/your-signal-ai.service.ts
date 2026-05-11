@@ -91,24 +91,106 @@ var SYSTEM_PROMPT = [
   '   "Reports cluster in October" is fine. "Reports cluster in October',
   '   because of harvest moon energy" is not.',
   '',
-  '5. LENGTH: 1-2 sentences, 30-60 words total.',
+  '5. FORWARD-LOOKING IS OK, OCCASIONALLY. If today\'s astronomical',
+  '   context (provided in the user prompt) coincides meaningfully with',
+  '   the archive pattern (e.g., a peak month matches an upcoming new',
+  '   moon, or the user is in a meteor-shower window), you may produce',
+  '   a predictive insight: "Reports in your region cluster around new',
+  '   moons; the next one is in 11 days." Treat predictive insights as',
+  '   pattern observations, not as causal claims. Use them sparingly:',
+  '   only when the astronomical context plausibly relates to the data.',
   '',
-  '6. NO BOLD, italics, emoji, headers, or markdown. Plain text only.',
+  '6. LENGTH: 1-2 sentences, 30-60 words total.',
   '',
-  '7. RESPONSE FORMAT: a single JSON object, no preamble, no code fences:',
+  '7. NO BOLD, italics, emoji, headers, or markdown. Plain text only.',
+  '',
+  '8. RESPONSE FORMAT: a single JSON object, no preamble, no code fences:',
   '   {',
   '     "headline": "1-2 sentence insight referencing concrete numbers",',
   '     "supporting_context": "1 short clause explaining how to read it,',
   '         optional, or null",',
-  '     "supporting_count": <number of underlying reports referenced, or null>',
+  '     "supporting_count": <number of underlying reports referenced, or null>,',
+  '     "is_predictive": <true if the insight references upcoming dates/events, else false>',
   '   }',
   '',
-  '8. If the input data is too sparse to produce a meaningful insight',
+  '9. If the input data is too sparse to produce a meaningful insight',
   '   (e.g., no phenomenon type, no location, fewer than 5 archive',
   '   matches), respond with headline = "Your Signal is still building',
   '   as more reports cluster around yours. Check back as the archive',
-  '   grows." and supporting_count = null.',
+  '   grows." and supporting_count = null and is_predictive = false.',
 ].join('\n')
+
+// ── Astronomical context for forward-looking insights ─────────────────
+
+/**
+ * Lunar phase approximation. Reference new moon: January 6, 2000,
+ * 18:14 UTC. Synodic month: 29.530588 days. Good to ±1 day, which is
+ * plenty for "next new moon is in 11 days" framing.
+ */
+function lunarContext(now: Date): { daysUntilNewMoon: number; daysUntilFullMoon: number; currentPhase: string } {
+  var ref = Date.UTC(2000, 0, 6, 18, 14, 0)
+  var SYN = 29.530588
+  var days = (now.getTime() - ref) / 86400000
+  var inCycle = days - Math.floor(days / SYN) * SYN // 0 .. SYN
+  var daysUntilNew = SYN - inCycle
+  var daysUntilFull = inCycle < SYN / 2 ? (SYN / 2 - inCycle) : (SYN + SYN / 2 - inCycle)
+  var phase = 'waxing'
+  if (inCycle < 1.5 || inCycle > SYN - 1.5) phase = 'new'
+  else if (Math.abs(inCycle - SYN / 2) < 1.5) phase = 'full'
+  else if (inCycle < SYN / 2) phase = 'waxing'
+  else phase = 'waning'
+  return {
+    daysUntilNewMoon: Math.round(daysUntilNew),
+    daysUntilFullMoon: Math.round(daysUntilFull),
+    currentPhase: phase,
+  }
+}
+
+/**
+ * Major meteor showers — name + active window (UTC). Coverage is the
+ * top-ten showers by typical zenith hourly rate. Approximate; meant
+ * to give Sonnet "you're in the Perseid peak window" context, not
+ * astronomical-grade dates.
+ */
+var METEOR_SHOWERS = [
+  { name: 'Quadrantids',     start: { m: 1,  d: 1 },  end: { m: 1,  d: 5 } },
+  { name: 'Lyrids',          start: { m: 4,  d: 19 }, end: { m: 4,  d: 25 } },
+  { name: 'Eta Aquariids',   start: { m: 5,  d: 4 },  end: { m: 5,  d: 8 } },
+  { name: 'Perseids',        start: { m: 8,  d: 10 }, end: { m: 8,  d: 14 } },
+  { name: 'Draconids',       start: { m: 10, d: 7 },  end: { m: 10, d: 9 } },
+  { name: 'Orionids',        start: { m: 10, d: 20 }, end: { m: 10, d: 24 } },
+  { name: 'Leonids',         start: { m: 11, d: 15 }, end: { m: 11, d: 19 } },
+  { name: 'Geminids',        start: { m: 12, d: 12 }, end: { m: 12, d: 16 } },
+  { name: 'Ursids',          start: { m: 12, d: 21 }, end: { m: 12, d: 24 } },
+]
+
+function activeMeteorShower(now: Date): string | null {
+  var m = now.getUTCMonth() + 1
+  var d = now.getUTCDate()
+  for (var i = 0; i < METEOR_SHOWERS.length; i++) {
+    var s = METEOR_SHOWERS[i]
+    if (m === s.start.m && d >= s.start.d && (s.start.m === s.end.m ? d <= s.end.d : true)) return s.name
+    if (m === s.end.m && s.start.m !== s.end.m && d <= s.end.d) return s.name
+    if (s.start.m !== s.end.m && m > s.start.m && m < s.end.m) return s.name
+  }
+  return null
+}
+
+function formatAstronomicalContext(now: Date): string {
+  var lunar = lunarContext(now)
+  var shower = activeMeteorShower(now)
+  var lines: string[] = []
+  lines.push("Today's date: " + now.toISOString().slice(0, 10) + ' (UTC)')
+  lines.push('Lunar phase: ' + lunar.currentPhase +
+    '; next new moon in ~' + lunar.daysUntilNewMoon + ' days' +
+    '; next full moon in ~' + lunar.daysUntilFullMoon + ' days')
+  if (shower) {
+    lines.push('Active meteor shower window: ' + shower)
+  } else {
+    lines.push('Active meteor shower window: none')
+  }
+  return lines.join('\n')
+}
 
 function buildUserPrompt(input: GenerateInput): string {
   var r = input.userReport
@@ -159,6 +241,10 @@ function buildUserPrompt(input: GenerateInput): string {
     lines.push('- User matches the peak month: ' + (ctx.user_matches_peak ? 'yes' : 'no'))
     if (ctx.sample_size) lines.push('- Sample size (dated reports of this type): ' + ctx.sample_size)
   }
+  lines.push('')
+
+  lines.push('ASTRONOMICAL CONTEXT (use sparingly, only when it plausibly relates to the data):')
+  lines.push(formatAstronomicalContext(new Date()))
   lines.push('')
 
   lines.push('Now produce the Did-you-know insight as a single JSON object per the system prompt.')

@@ -39,6 +39,9 @@ import {
   Telescope,
   Activity,
   Sparkles,
+  ThumbsUp,
+  ThumbsDown,
+  Clock,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
@@ -451,14 +454,15 @@ function YourSignalTab() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <FingerprintCard data={data.fingerprint} />
-        <ClusterCard data={data.cluster} />
-        <DidYouKnowCard data={data.did_you_know} />
-        <ContextCard data={data.context} />
+        <FingerprintCard data={data.fingerprint} reportId={data.report_id} initialRating={(data.feedback && data.feedback.fingerprint) || null} />
+        <ClusterCard data={data.cluster} reportId={data.report_id} initialRating={(data.feedback && data.feedback.cluster) || null} />
+        <DidYouKnowCard data={data.did_you_know} reportId={data.report_id} initialRating={(data.feedback && data.feedback.did_you_know) || null} />
+        <ContextCard data={data.context} reportId={data.report_id} initialRating={(data.feedback && data.feedback.context) || null} />
       </div>
 
       <p className="text-[11px] text-gray-500 text-center pt-2">
         Your Signal regenerates when you share a new experience or when significant new reports land in the archive.
+        Your thumbs help us tune what shows up here.
       </p>
     </div>
   )
@@ -466,40 +470,121 @@ function YourSignalTab() {
 
 // ── Card components ─────────────────────────────────────────────────
 
+type CardType = 'fingerprint' | 'cluster' | 'did_you_know' | 'context'
+type Rating = 'up' | 'down' | null
+
+/**
+ * V9.12 Phase 2.A — thumbs feedback row. Optimistic update (set
+ * state first, hit the API in the background, roll back on error).
+ * Tapping the active thumb again clears the rating ("un-rate").
+ */
+function ThumbsRow(props: { reportId: string; cardType: CardType; initialRating: Rating }) {
+  var [rating, setRating] = useState<Rating>(props.initialRating)
+  var [busy, setBusy] = useState(false)
+
+  function setAndSend(next: Rating) {
+    if (busy) return
+    var prev = rating
+    setRating(next)
+    setBusy(true)
+    supabase.auth.getSession().then(function (s) {
+      var token = s.data.session ? s.data.session.access_token : null
+      if (!token) { setRating(prev); setBusy(false); return }
+      fetch('/api/lab/your-signal/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ report_id: props.reportId, card_type: props.cardType, rating: next }),
+      })
+        .then(function (r) { if (!r.ok) throw new Error('feedback save failed') })
+        .catch(function () { setRating(prev) })
+        .finally(function () { setBusy(false) })
+    })
+  }
+
+  function onUp()   { setAndSend(rating === 'up' ? null : 'up') }
+  function onDown() { setAndSend(rating === 'down' ? null : 'down') }
+
+  return (
+    <div className="flex items-center gap-1 mt-3 pt-3 border-t border-white/5">
+      <span className="text-[10px] text-gray-500 mr-1">Was this useful?</span>
+      <button
+        type="button"
+        onClick={onUp}
+        aria-label="Mark useful"
+        aria-pressed={rating === 'up'}
+        disabled={busy}
+        className={
+          'p-1.5 rounded-md transition-colors ' +
+          (rating === 'up'
+            ? 'text-emerald-400 bg-emerald-500/10'
+            : 'text-gray-500 hover:text-gray-300 hover:bg-white/5')
+        }
+      >
+        <ThumbsUp className="w-3.5 h-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={onDown}
+        aria-label="Mark not useful"
+        aria-pressed={rating === 'down'}
+        disabled={busy}
+        className={
+          'p-1.5 rounded-md transition-colors ' +
+          (rating === 'down'
+            ? 'text-red-300 bg-red-500/10'
+            : 'text-gray-500 hover:text-gray-300 hover:bg-white/5')
+        }
+      >
+        <ThumbsDown className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  )
+}
+
 function SignalCardShell(props: {
   kicker: string
   highlight?: boolean
+  reportId?: string
+  cardType?: CardType
+  initialRating?: Rating
+  trailingTag?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
     <div
       className={
-        'rounded-xl border p-4 ' +
+        'rounded-xl border p-4 flex flex-col ' +
         (props.highlight
           ? 'bg-purple-950/15 border-purple-800/40'
           : 'bg-gray-900/40 border-gray-800/60')
       }
     >
-      <div className="flex items-center gap-1.5 mb-2">
-        {props.highlight && <Sparkles className="w-3 h-3 text-purple-400" />}
-        <p className={
-          'text-[10px] font-semibold tracking-widest uppercase ' +
-          (props.highlight ? 'text-purple-400' : 'text-gray-400')
-        }>
-          {props.kicker}
-        </p>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-center gap-1.5">
+          {props.highlight && <Sparkles className="w-3 h-3 text-purple-400" />}
+          <p className={
+            'text-[10px] font-semibold tracking-widest uppercase ' +
+            (props.highlight ? 'text-purple-400' : 'text-gray-400')
+          }>
+            {props.kicker}
+          </p>
+        </div>
+        {props.trailingTag}
       </div>
-      {props.children}
+      <div className="flex-1">{props.children}</div>
+      {props.reportId && props.cardType && (
+        <ThumbsRow reportId={props.reportId} cardType={props.cardType} initialRating={props.initialRating || null} />
+      )}
     </div>
   )
 }
 
-function FingerprintCard(props: { data: any }) {
+function FingerprintCard(props: { data: any; reportId: string; initialRating: Rating }) {
   var d = props.data || {}
   // Strongest signal is `primary_label` with `primary_count` other reports.
   if (!d.primary_label || !d.primary_count) {
     return (
-      <SignalCardShell kicker="Your fingerprint">
+      <SignalCardShell kicker="Your fingerprint" reportId={props.reportId} cardType="fingerprint" initialRating={props.initialRating}>
         <p className="text-sm text-gray-300 leading-snug">
           Your report joins the archive. As more reports cluster around its
           phenomenon type, your fingerprint will sharpen.
@@ -508,7 +593,7 @@ function FingerprintCard(props: { data: any }) {
     )
   }
   return (
-    <SignalCardShell kicker="Your fingerprint">
+    <SignalCardShell kicker="Your fingerprint" reportId={props.reportId} cardType="fingerprint" initialRating={props.initialRating}>
       <p className="text-sm text-white leading-snug">
         Your report shares its{' '}
         <span className="font-semibold text-purple-300">{d.primary_label}</span>{' '}
@@ -526,11 +611,11 @@ function FingerprintCard(props: { data: any }) {
   )
 }
 
-function ClusterCard(props: { data: any }) {
+function ClusterCard(props: { data: any; reportId: string; initialRating: Rating }) {
   var d = props.data || {}
   if (d.skipped) {
     return (
-      <SignalCardShell kicker="Patterns near you">
+      <SignalCardShell kicker="Patterns near you" reportId={props.reportId} cardType="cluster" initialRating={props.initialRating}>
         <p className="text-sm text-gray-300 leading-snug">
           {d.reason === 'no_location'
             ? 'Add a location to your report to see how your experience sits inside regional clusters.'
@@ -541,7 +626,7 @@ function ClusterCard(props: { data: any }) {
   }
   if (!d.nearby_count) {
     return (
-      <SignalCardShell kicker="Patterns near you">
+      <SignalCardShell kicker="Patterns near you" reportId={props.reportId} cardType="cluster" initialRating={props.initialRating}>
         <p className="text-sm text-gray-300 leading-snug">
           Your area is sparsely documented &mdash; you may be the first to log
           an experience here. As nearby reports arrive, this card will surface
@@ -554,7 +639,7 @@ function ClusterCard(props: { data: any }) {
     ? d.year_min + '–' + d.year_max
     : (d.year_min ? String(d.year_min) : '')
   return (
-    <SignalCardShell kicker="Patterns near you">
+    <SignalCardShell kicker="Patterns near you" reportId={props.reportId} cardType="cluster" initialRating={props.initialRating}>
       <p className="text-sm text-white leading-snug">
         <span className="font-semibold text-purple-300">{d.nearby_count.toLocaleString()}</span>{' '}
         report{d.nearby_count === 1 ? '' : 's'} within ~{d.radius_mi} miles of your experience
@@ -566,12 +651,22 @@ function ClusterCard(props: { data: any }) {
   )
 }
 
-function DidYouKnowCard(props: { data: any }) {
+function DidYouKnowCard(props: { data: any; reportId: string; initialRating: Rating }) {
   var d = props.data || {}
-  // Phase 1.B placeholder — Sonnet integration lands in Phase 1.C.
+  // V9.12 Phase 2.B — show a forward-looking pill when Sonnet flagged
+  // the insight as predictive (is_predictive: true). Makes it clear
+  // when a "Did you know" is a *forecast* vs. a backward-looking
+  // observation.
+  var predictiveTag = d.is_predictive ? (
+    <span className="inline-flex items-center gap-1 text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-full px-1.5 py-0.5">
+      <Clock className="w-2.5 h-2.5" /> Forward-looking
+    </span>
+  ) : undefined
+
+  // Phase 1.B / 1.C placeholder state — no Sonnet yet or Sonnet failed.
   if (d.pending) {
     return (
-      <SignalCardShell kicker="Did you know" highlight>
+      <SignalCardShell kicker="Did you know" highlight reportId={props.reportId} cardType="did_you_know" initialRating={props.initialRating}>
         <p className="text-sm text-gray-300 leading-snug">
           The AI is reading the archive for surprising correlations connected
           to your experience. This card lights up once a pattern emerges that
@@ -583,13 +678,22 @@ function DidYouKnowCard(props: { data: any }) {
       </SignalCardShell>
     )
   }
-  // Phase 1.C will provide { headline, body, supporting_count } payload.
   return (
-    <SignalCardShell kicker="Did you know" highlight>
+    <SignalCardShell
+      kicker="Did you know"
+      highlight
+      reportId={props.reportId}
+      cardType="did_you_know"
+      initialRating={props.initialRating}
+      trailingTag={predictiveTag}
+    >
       <p className="text-sm text-white leading-snug">
         {d.headline || d.body || '—'}
       </p>
-      {d.supporting_count && (
+      {d.supporting_context && (
+        <p className="text-[11px] text-gray-400 mt-2">{d.supporting_context}</p>
+      )}
+      {d.supporting_count && !d.supporting_context && (
         <p className="text-[11px] text-gray-400 mt-2">
           Based on {d.supporting_count.toLocaleString()} archived reports.
         </p>
@@ -598,11 +702,11 @@ function DidYouKnowCard(props: { data: any }) {
   )
 }
 
-function ContextCard(props: { data: any }) {
+function ContextCard(props: { data: any; reportId: string; initialRating: Rating }) {
   var d = props.data || {}
   if (d.skipped) {
     return (
-      <SignalCardShell kicker="Across the archive">
+      <SignalCardShell kicker="Across the archive" reportId={props.reportId} cardType="context" initialRating={props.initialRating}>
         <p className="text-sm text-gray-300 leading-snug">
           {d.reason === 'insufficient_data'
             ? 'Not enough reports tagged with this phenomenon yet. As more arrive, broader patterns will surface here.'
@@ -620,7 +724,7 @@ function ContextCard(props: { data: any }) {
       : 'Yours was logged in ' + d.user_month_name + '.'
   }
   return (
-    <SignalCardShell kicker="Across the archive">
+    <SignalCardShell kicker="Across the archive" reportId={props.reportId} cardType="context" initialRating={props.initialRating}>
       <p className="text-sm text-white leading-snug">
         Reports like yours peak in{' '}
         <span className="font-semibold text-purple-300">{label}</span>{' '}

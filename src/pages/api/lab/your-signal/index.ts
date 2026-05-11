@@ -278,6 +278,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ has_report: false })
   }
 
+  // V9.12 Phase 2.A — load any existing thumbs feedback for this
+  // user+report so the UI renders the correct initial state. Best-
+  // effort; falls back to empty object on error.
+  async function loadFeedback(): Promise<Record<string, 'up' | 'down'>> {
+    try {
+      var feedbackResult = await svc.from('your_signal_feedback')
+        .select('card_type, rating')
+        .eq('user_id', user!.id)
+        .eq('report_id', userReport!.id)
+      var out: Record<string, 'up' | 'down'> = {}
+      var rows: any[] = (feedbackResult && feedbackResult.data) || []
+      rows.forEach(function (r: any) { out[r.card_type] = r.rating })
+      return out
+    } catch (e) {
+      return {}
+    }
+  }
+
   // 2. Cache lookup unless ?fresh=1.
   var fresh = req.query.fresh === '1'
   if (!fresh) {
@@ -289,6 +307,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .limit(1)
       .single()
     if (cacheResult.data) {
+      var feedbackHit = await loadFeedback()
       return res.status(200).json({
         has_report: true,
         report_id: userReport.id,
@@ -298,6 +317,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         cluster:       cacheResult.data.cluster_payload,
         did_you_know:  cacheResult.data.did_you_know_payload,
         context:       cacheResult.data.context_payload,
+        feedback:      feedbackHit,
       })
     }
   }
@@ -364,6 +384,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.warn('your-signal: cache write failed:', cacheErr)
   }
 
+  var feedbackMiss = await loadFeedback()
+
   return res.status(200).json({
     has_report: true,
     report_id: userReport.id,
@@ -373,5 +395,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     cluster: cluster,
     did_you_know: didYouKnow,
     context: context,
+    feedback: feedbackMiss,
   })
 }
