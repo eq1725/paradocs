@@ -72,11 +72,21 @@ export default function App({ Component, pageProps }: AppProps) {
             orientation) tuple. Android handles splash automatically
             via manifest.json background_color + largest icon. */}
 
-        {/* iPhone 16 Pro Max / 15 Pro Max / 14 Pro Max — 430×932 @3x */}
+        {/* iPhone 16 Pro Max — 440×956 @3x (new size, not the 430×932
+            of earlier Pro Max generations). */}
+        <link rel="apple-touch-startup-image" href="/splash/splash-1320x2868.png" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+        <link rel="apple-touch-startup-image" href="/splash/splash-2868x1320.png" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+
+        {/* iPhone 16 Pro — 402×874 @3x (new size, not the 393×852 of
+            iPhone 15 Pro / 14 Pro). */}
+        <link rel="apple-touch-startup-image" href="/splash/splash-1206x2622.png" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+        <link rel="apple-touch-startup-image" href="/splash/splash-2622x1206.png" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
+
+        {/* iPhone 15 Pro Max / 14 Pro Max — 430×932 @3x */}
         <link rel="apple-touch-startup-image" href="/splash/splash-1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
         <link rel="apple-touch-startup-image" href="/splash/splash-2796x1290.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
 
-        {/* iPhone 16 Pro / 15 Pro / 14 Pro — 393×852 @3x */}
+        {/* iPhone 15 Pro / 14 Pro — 393×852 @3x */}
         <link rel="apple-touch-startup-image" href="/splash/splash-1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
         <link rel="apple-touch-startup-image" href="/splash/splash-2556x1179.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" />
 
@@ -115,6 +125,12 @@ export default function App({ Component, pageProps }: AppProps) {
         {/* iPad 10.2" — 810×1080 @2x */}
         <link rel="apple-touch-startup-image" href="/splash/splash-1620x2160.png" media="(device-width: 810px) and (device-height: 1080px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
         <link rel="apple-touch-startup-image" href="/splash/splash-2160x1620.png" media="(device-width: 810px) and (device-height: 1080px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" />
+
+        {/* Fallback splash for any unmatched iOS device. Older iOS
+            versions treat a media-less apple-touch-startup-image as
+            a universal default. The 1170×2532 PNG (iPhone 12-class)
+            scales reasonably on any phone-sized viewport. */}
+        <link rel="apple-touch-startup-image" href="/splash/splash-1170x2532.png" />
 
         <meta name="apple-mobile-web-app-capable" content="yes" />
 

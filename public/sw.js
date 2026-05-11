@@ -24,8 +24,11 @@
 //        favicon-v4.{ico,svg}, apple-touch-icon-v4.png, splash/*.
 //        Pre-caches the most common splash sizes so the launch
 //        screen shows even on cold start.
+//   v6 — Adds iPhone 16 Pro (1206×2622) and 16 Pro Max (1320×2868)
+//        splash sizes + a universal fallback link tag for any
+//        iOS device that doesn't match a media query.
 
-var CACHE_NAME = 'paradocs-v5';
+var CACHE_NAME = 'paradocs-v6';
 var APP_SHELL = [
   '/',
   '/manifest.json',

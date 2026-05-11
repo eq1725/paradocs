@@ -35,11 +35,15 @@ ACCENT = (168, 85, 247)    # #a855f7 purple-500
 # (width, height) — both portrait and landscape variants for each device.
 # Covers ~95% of in-use iOS devices as of 2026.
 SIZES = [
-    # iPhone 16 Pro Max / 15 Pro Max / 14 Pro Max
+    # iPhone 16 Pro Max — 1320×2868 @3x (440×956 logical) — ACTUAL spec
+    (1320, 2868), (2868, 1320),
+    # iPhone 16 Pro — 1206×2622 @3x (402×874 logical) — ACTUAL spec
+    (1206, 2622), (2622, 1206),
+    # iPhone 15 Pro Max / 14 Pro Max — 1290×2796 @3x (430×932 logical)
     (1290, 2796), (2796, 1290),
-    # iPhone 16 Pro / 15 Pro / 14 Pro
+    # iPhone 15 Pro / 14 Pro — 1179×2556 @3x (393×852 logical)
     (1179, 2556), (2556, 1179),
-    # iPhone 16 / 15 / 14 / 13 / 12
+    # iPhone 16 / 15 / 14 / 13 / 12 — 1170×2532 @3x (390×844 logical)
     (1170, 2532), (2532, 1170),
     # iPhone 14 Plus / 13 Pro Max / 12 Pro Max / 11 Pro Max / XS Max
     (1284, 2778), (2778, 1284),
