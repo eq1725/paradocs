@@ -18,6 +18,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { MessageCircle, Send, Reply, Trash2, AlertCircle, Loader2 } from 'lucide-react'
+import ResonanceButton from './ResonanceButton'
 
 interface Author {
   user_id: string
@@ -142,6 +143,14 @@ export default function ReportComments(props: Props) {
 
   return (
     <section className="mt-12 pt-8 border-t border-white/10">
+      {/* V10 Phase 4.A — Resonance sits above the Discussion
+          header so the one-tap social signal is the first thing
+          users see after the article. Lower-friction than typing
+          a comment; aggregates a louder social proof number. */}
+      <div className="mb-6">
+        <ResonanceButton slug={props.slug} />
+      </div>
+
       <div className="flex items-center gap-2 mb-6">
         <MessageCircle className="w-5 h-5 text-purple-300" />
         <h2 className="text-lg font-semibold text-white">
