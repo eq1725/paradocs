@@ -52,9 +52,9 @@ const SPLASH_CSS = `
 }
 `.trim()
 
-// Inline script: keeps splash visible at least 600ms so the brand
-// moment lands; then fades out and removes. Uses requestIdleCallback
-// + setTimeout fallback so it doesn't fight first-paint timing.
+// Inline script: keeps splash visible at least 1200ms so the
+// wordmark moment fully lands (doubled from initial 600ms after
+// Chase's feedback that it flashed too fast).
 const SPLASH_REMOVE_JS = `
 (function(){
   if (!window.matchMedia) return;
@@ -64,7 +64,7 @@ const SPLASH_REMOVE_JS = `
   var start = Date.now();
   function hide() {
     var elapsed = Date.now() - start;
-    var wait = Math.max(0, 600 - elapsed);
+    var wait = Math.max(0, 1200 - elapsed);
     setTimeout(function() {
       splash.classList.add('hide');
       setTimeout(function() { splash.parentNode && splash.parentNode.removeChild(splash); }, 360);
