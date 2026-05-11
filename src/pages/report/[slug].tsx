@@ -22,6 +22,7 @@ import MediaGallery from '@/components/MediaGallery'
 import ReadingProgress from '@/components/ReadingProgress'
 import ArticleTableOfContents from '@/components/ArticleTableOfContents'
 import ParadocsAnalysisBox from '@/components/reports/ParadocsAnalysisBox'
+import ReportComments from '@/components/reports/ReportComments'
 import type { ParadocsAssessment } from '@/components/reports/ParadocsAnalysisBox'
 import { CaseProfileChips } from '@/components/discover/DiscoverCards'
 import { BackToTodayBar } from '@/components/discover/BackToTodayBar'
@@ -1528,6 +1529,12 @@ export default function ReportPage({ slug: propSlug, initialReport, initialMedia
             </Link>
           </div>
         )}
+
+          {/* V9.12 Phase 2.D — public comment thread. Inside <article>
+              so it sits in the main reading column on both mobile
+              and desktop. Authenticated post; anyone reads; new
+              comments run through moderateText() before publish. */}
+          {report.slug && <ReportComments slug={report.slug} />}
 
           </article>
 
