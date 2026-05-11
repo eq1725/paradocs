@@ -1,36 +1,26 @@
+<!--
+  Paradocs PWA app icon — V10 rebrand
+  Purple brand gradient (a855f7 → 7c3aed) with Changa ExtraBold "P".
+  PNG renders at every required size are generated from outputs/build_icons.py
+  and live alongside this file (icon-{16,32,...,512}x{...}.png). This SVG
+  is the canonical source — regenerate the PNGs if you change it.
+-->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#16163a"/>
-      <stop offset="100%" stop-color="#0c0c1d"/>
-    </linearGradient>
-    <linearGradient id="pGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#c084fc"/>
-      <stop offset="50%" stop-color="#9000f0"/>
-      <stop offset="100%" stop-color="#6500a8"/>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
     </linearGradient>
   </defs>
-
-  <!-- Background -->
   <rect width="512" height="512" fill="url(#bg)"/>
-
-  <!-- Clean bold P - exactly centered -->
-  <!-- Bounding box: 180w x 260h, centered in 512x512 -->
-  <!-- x offset: (512-180)/2 = 166, y offset: (512-260)/2 = 126 -->
-  <path d="
-    M 166 126
-    L 166 386
-    L 226 386
-    L 226 296
-    L 286 296
-    Q 346 296 346 211
-    Q 346 126 286 126
-    Z
-    M 226 181
-    L 271 181
-    Q 291 181 291 211
-    Q 291 241 271 241
-    L 226 241
-    Z
-  " fill="url(#pGrad)" fill-rule="evenodd"/>
+  <text
+    x="256"
+    y="256"
+    fill="#ffffff"
+    font-family="Changa, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+    font-weight="800"
+    font-size="380"
+    text-anchor="middle"
+    dominant-baseline="central"
+  >P</text>
 </svg>
