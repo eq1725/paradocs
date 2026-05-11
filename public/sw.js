@@ -11,13 +11,20 @@
 //   v1 — initial install (Session 13 nav unification)
 //   v2 — V9.6 account-surface unification (drop DashboardLayout from
 //        /account/*, AccountNav strip, new pricing tiers)
+//   v3 — V10 icon rebrand. Bump forces all clients (including iOS
+//        PWA installs) to evict the cached old black-with-P icon on
+//        next page load — without this bump the cache-first .png
+//        rule below keeps serving stale icons forever even though
+//        the network has new ones.
 
-var CACHE_NAME = 'paradocs-v2';
+var CACHE_NAME = 'paradocs-v3';
 var APP_SHELL = [
   '/',
   '/manifest.json',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
+  '/icons/icon-180x180.png',
+  '/apple-touch-icon-v3.png',
 ];
 
 // Install: pre-cache app shell
