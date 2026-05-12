@@ -92,6 +92,15 @@ export async function summarizeArtifact(input: SummarizeInput): Promise<Artifact
     }
     // Strip surrounding quotes / formatting Haiku occasionally adds.
     text = stripWrapping(text)
+
+    // V10.3.1 — anti-hallucination sentinel. If the model determined
+    // the inputs were too sparse to summarize without fabricating,
+    // it returns INSUFFICIENT. We respect that and abstain, letting
+    // the caller fall back to whatever raw description exists.
+    if (/^\s*insufficient\s*$/i.test(text) || text.toUpperCase().startsWith('INSUFFICIENT')) {
+      return { summary: null, source: 'fallback', durationMs: Date.now() - started, hadInput }
+    }
+
     if (text.length > MAX_SUMMARY_CHARS) {
       text = truncateAtSentence(text, MAX_SUMMARY_CHARS)
     }
@@ -123,23 +132,31 @@ function buildPrompt(args: {
   }
 
   return [
-    'You are writing a short documentary-style summary for a paranormal-research archive entry.',
-    'Below is the information available about an external source that a researcher saved.',
-    'Write a 2-3 sentence summary, max 320 characters total, that describes what the source is and what it documents.',
+    'You are paraphrasing a source description for a paranormal-research archive entry.',
+    'Below is ONLY the information available about an external source that a researcher saved.',
+    'Your job is to write a faithful 2-3 sentence paraphrase of what is in that information — nothing more.',
     '',
-    'Rules:',
-    '- Past tense for any sightings or events ("witnesses observed", "a researcher documented").',
-    '- Documentary tone. No editorializing. No hype.',
-    '- No exclamation marks. No emoji.',
-    '- Do NOT invent details that aren\'t in the input — if information is missing, write a more general but accurate summary.',
+    'CRITICAL ANTI-FABRICATION RULES:',
+    '- Every claim in your summary MUST be directly supported by the provided title, description, or page snippet. Nothing else.',
+    '- If the input is too thin to write 2 sentences without making things up, return EXACTLY this single word and nothing else: INSUFFICIENT',
+    '- Do NOT add details that are not present in the input — no invented dates, locations, witnesses, behaviors, outcomes, or context. None.',
+    '- Do NOT use your general knowledge to fill in what a typical case of this type looks like. We do NOT want a generic template; we want a faithful paraphrase of THIS specific input.',
+    '- Do NOT name people, places, or events that are not explicitly in the input.',
+    '- If the input mentions a general location ("Pennsylvania"), do not narrow it ("a wooded area near Pittsburgh"). If it mentions a year, do not invent a month. If it mentions an animal, do not invent a description.',
+    '- When the input is sparse, write a more GENERAL but accurate paraphrase — never compensate with invented specificity.',
+    '',
+    'VOICE RULES (only after the anti-fabrication rules are satisfied):',
+    '- Hedge framing: refer to the source itself, not the events as facts. Use phrases like "the source documents", "the page describes", "the report records", "according to the entry", "the writeup notes".',
+    '- Past tense for sightings or events ("the source describes a sighting witnesses reported in 1998").',
+    '- Documentary tone. No hype, no editorializing, no exclamation marks, no emoji.',
     '- Do NOT include the URL in the summary.',
     '- Do NOT start with "This is" or "This article".',
-    '- Just return the summary text, no preamble, no quotes, no markdown.',
+    '- Just return the summary text, no preamble, no quotes, no markdown. Or return INSUFFICIENT.',
     '',
     'AVAILABLE INFORMATION:',
     parts.join('\n'),
     '',
-    'SUMMARY:',
+    'FAITHFUL PARAPHRASE (or INSUFFICIENT):',
   ].join('\n')
 }
 
