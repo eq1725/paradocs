@@ -28,7 +28,7 @@ import Link from 'next/link'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
 import {
-  LayoutDashboard, FileText, Image as ImageIcon, UserCircle, MessageSquare, Anchor, FlaskConical, Bell, Loader2, Shield, Users,
+  LayoutDashboard, FileText, Image as ImageIcon, UserCircle, MessageSquare, Anchor, FlaskConical, Bell, Loader2, Shield, Users, ShieldCheck,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -65,6 +65,8 @@ var NAV_ITEMS: NavPill[] = [
   // threshold tuning. Lets Chase verify the IDF-weighted scoring
   // is producing meaningful matches without redeploying.
   { href: '/admin/researcher-overlap', label: 'Overlap', icon: Users, match: (p) => p.indexOf('/admin/researcher-overlap') === 0 },
+  // V10.4 — AI rewrite audit / claim-check failure queue.
+  { href: '/admin/ai-audit', label: 'AI Audit', icon: ShieldCheck, match: (p) => p.indexOf('/admin/ai-audit') === 0 },
 ]
 
 interface QueueCounts {

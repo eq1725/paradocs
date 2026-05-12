@@ -20,6 +20,7 @@
  */
 
 import { createServerClient } from '../supabase'
+import { verifyAndAuditRewrite, PROMPT_VERSION } from '@/lib/ai/rewrite-pipeline'
 
 var ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001'
 var ANTHROPIC_FALLBACK = 'claude-3-5-haiku-20241022'
@@ -90,7 +91,28 @@ var VOICE_RULES = '\n\nWRITING STYLE (CRITICAL — your output must not read as 
 // System Prompt — Single unified call
 // ============================================
 
-var SYSTEM_PROMPT = 'You are the editorial intelligence behind Paradocs, the world\'s most credible '
+// V10.4 — anti-fabrication preamble injected at the top of the
+// system prompt. These rules OVERRIDE every other instruction
+// below. They mirror the unified rewrite-pipeline.ts preamble
+// so paradocs-analysis runs under the same anti-hallucination
+// regime as artifact-summary, feed-hook, and answer_line.
+var ANTI_FABRICATION_PREAMBLE = 'CRITICAL ANTI-FABRICATION RULES (read first; these override every other rule below):\n'
+  + '- Every factual claim in your output MUST be directly supported by the report data you receive. Nothing else.\n'
+  + '- If a field cannot be filled without fabrication, return EXACTLY the string "INSUFFICIENT" for that field (still inside the JSON structure).\n'
+  + '- Do NOT invent dates, locations, witnesses, behaviors, outcomes, or contextual details that are not in the source.\n'
+  + '- Do NOT use general knowledge to fill in what a typical case of this type looks like. We do NOT want a generic template; we want a faithful analysis of THIS specific source.\n'
+  + '- Do NOT narrow general details (source says "Pennsylvania", do not write "near Pittsburgh"). Do NOT invent months when only a year is given.\n'
+  + '- When the source is sparse, write a more GENERAL but accurate analysis — never compensate with invented specificity.\n'
+  + '- Pattern context references ("This corridor has produced 12 similar reports since 2019") are only allowed when explicitly provided in the report data — never invent statistics.\n\n'
+  + 'ANONYMIZATION RULES (apply even when the source contains identifying details):\n'
+  + '- NEVER include the submitter\'s real name. Witnesses roll up to counts ("a hiker", "two witnesses", "a family").\n'
+  + '- NEVER include exact street addresses. Locations resolve to city / region / state precision only.\n'
+  + '- NEVER include full dates. Use month + year, or just year, depending on what the source committed to.\n'
+  + '- NEVER include exact times. Use part-of-day ("late evening", "after midnight") when the source has minute precision.\n'
+  + '- NEVER include phone numbers, email addresses, or other contact info, regardless of whether the source contains them.\n\n'
+
+var SYSTEM_PROMPT = ANTI_FABRICATION_PREAMBLE
+  + 'You are the editorial intelligence behind Paradocs, the world\'s most credible '
   + 'paranormal research platform. Your job is to write the Paradocs Analysis for a submitted report.\n\n'
   + 'EPISTEMIC STANCE (read this before anything else):\n'
   + '- Paradocs treats anecdotal reports as primary data. The platform exists to surface patterns '
@@ -697,6 +719,93 @@ function parseAnalysisJson(text: string): ParadocsAnalysisResult | null {
 }
 
 // ============================================
+// V10.4 — per-field claim-check + audit log
+// ============================================
+
+/**
+ * Run claim-check on every text field in a generated analysis
+ * result. Failed fields are SET TO NULL so the render layer can
+ * decide what to fall back to (the existing UI already handles
+ * null narrative / null pull_quote etc.). Every field — pass or
+ * fail — gets an ai_rewrite_audit row.
+ *
+ * Returns the (possibly partially-nullified) result.
+ */
+async function claimCheckAnalysisFields(
+  result: ParadocsAnalysisResult,
+  sourceText: string,
+  reportId: string,
+): Promise<{ result: ParadocsAnalysisResult; failures: string[] }> {
+  var failures: string[] = []
+  if (!sourceText || !sourceText.trim()) {
+    // No source to check against — fail OPEN, log everything as bypassed.
+    // The pipeline lib's verifyAndAuditRewrite handles this internally.
+  }
+
+  // Fields to verify, with their target output_field labels for
+  // the audit log.
+  var fields: Array<{ key: keyof ParadocsAnalysisResult; outputField: string; text: string | null }> = [
+    { key: 'hook',                 outputField: 'reports.feed_hook',                                  text: result.hook || null },
+    { key: 'analysis',             outputField: 'reports.paradocs_narrative',                         text: result.analysis || null },
+    { key: 'pull_quote',           outputField: 'reports.paradocs_assessment.pull_quote',             text: result.pull_quote || null },
+    { key: 'credibility_signal',   outputField: 'reports.paradocs_assessment.credibility_signal',     text: result.credibility_signal || null },
+  ]
+
+  for (var f = 0; f < fields.length; f++) {
+    var field = fields[f]
+    if (!field.text || !field.text.trim()) continue
+
+    try {
+      var check = await verifyAndAuditRewrite({
+        output: field.text,
+        sourceText: sourceText,
+        outputField: field.outputField,
+        promptVersion: 'paradocs-analysis-' + PROMPT_VERSION,
+        model: ANTHROPIC_MODEL,
+        reportId: reportId,
+      })
+      if (!check.passed) {
+        failures.push(field.key as string)
+        // Null out the failed field — render layer handles missing fields.
+        ;(result as any)[field.key] = null
+      }
+    } catch (err: any) {
+      console.warn('[ParadocsAnalysis] claim-check error for ' + field.key + ':', err.message || err)
+      // Fail-open on error — keep the output text.
+    }
+  }
+
+  // Verify each mundane_explanation reasoning + explanation text too.
+  if (Array.isArray(result.mundane_explanations)) {
+    for (var m = 0; m < result.mundane_explanations.length; m++) {
+      var me = result.mundane_explanations[m]
+      if (!me.reasoning) continue
+      try {
+        var meCheck = await verifyAndAuditRewrite({
+          output: (me.explanation || '') + ' — ' + (me.reasoning || ''),
+          sourceText: sourceText,
+          outputField: 'reports.paradocs_assessment.mundane_explanations[' + m + ']',
+          promptVersion: 'paradocs-analysis-' + PROMPT_VERSION,
+          model: ANTHROPIC_MODEL,
+          reportId: reportId,
+        })
+        if (!meCheck.passed) {
+          failures.push('mundane_explanation[' + m + ']')
+          // Mark for removal rather than nullify in place.
+          ;(me as any)._failed = true
+        }
+      } catch (err: any) {
+        console.warn('[ParadocsAnalysis] claim-check error for mundane_explanation[' + m + ']:', err.message || err)
+      }
+    }
+    // Drop failed mundane_explanations entirely.
+    result.mundane_explanations = result.mundane_explanations.filter(function(me: any) { return !me._failed })
+  }
+
+  return { result, failures }
+}
+
+// ============================================
 // Core Generation
 // ============================================
 
@@ -792,7 +901,21 @@ export async function generateAndSaveParadocsAnalysis(reportId: string): Promise
         continue
       }
 
+      // V10.4 — claim-check every text field against the source.
+      // Failed fields are nulled out so we never ship fabricated
+      // claims to users. Each call writes an ai_rewrite_audit row.
       var supabase = createServerClient()
+      var { data: sourceRow } = await (supabase.from('reports') as any)
+        .select('description, summary, category')
+        .eq('id', reportId)
+        .single()
+      var sourceForCheck = ((sourceRow && sourceRow.description) || (sourceRow && sourceRow.summary) || '').toString()
+      var reportCategory = (sourceRow && sourceRow.category) || null
+      var checked = await claimCheckAnalysisFields(result, sourceForCheck, reportId)
+      result = checked.result
+      if (checked.failures.length > 0) {
+        console.warn('[ParadocsAnalysis] claim-check failed for fields: ' + checked.failures.join(', ') + ' (report ' + reportId + ')')
+      }
 
       // Build the assessment object (stored as JSONB)
       var assessmentData: Record<string, any> = {
@@ -814,7 +937,7 @@ export async function generateAndSaveParadocsAnalysis(reportId: string): Promise
       // Only write to columns known to exist in the schema.
       // New fields (emotional_tone, suggested_category, discovery_tags, category_mismatch)
       // are stored inside paradocs_assessment JSONB.
-      if (result.suggested_category && result.suggested_category !== (report as any).category) {
+      if (result.suggested_category && reportCategory && result.suggested_category !== reportCategory) {
         assessmentData.category_mismatch = true
       }
 
@@ -1103,6 +1226,15 @@ export async function generateAndSaveDirect(reportId: string): Promise<{ success
     // Trim analysis
     var trimmed = trimAnalysisToWords(result.analysis, analysisWordBudget)
     if (trimmed !== result.analysis) result.analysis = trimmed
+
+    // V10.4 — claim-check every text field against the source.
+    // Failed fields get nulled out before persistence; audit log
+    // captures each call so admin can spot regressions.
+    var checked2 = await claimCheckAnalysisFields(result, sourceText, reportId)
+    result = checked2.result
+    if (checked2.failures.length > 0) {
+      console.warn('[ParadocsAnalysis] direct path claim-check failed: ' + checked2.failures.join(', ') + ' (report ' + reportId + ')')
+    }
 
     // Save to DB
     var assessmentData: Record<string, any> = {

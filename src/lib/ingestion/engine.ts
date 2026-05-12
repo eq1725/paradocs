@@ -13,6 +13,7 @@ import {
 } from './filters';
 import { generateAndSaveFeedHook } from '../services/feed-hook.service';
 import { generateAndSaveParadocsAnalysis } from '../services/paradocs-analysis.service';
+import { generateAndSaveAnswerLine } from '../services/answer-line.service';
 import { generateCompellingTitle } from '../services/compelling-title.service';
 import { embedReport } from '../services/embedding.service';
 import { enrichReport } from './enrichment/report-enricher';
@@ -892,6 +893,17 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                 }
               } catch (analysisError) {
                 console.log('[Ingestion] Paradocs Analysis exception for ' + slug + ':', analysisError);
+              }
+
+              // V10.4 Phase 1.6 — answer_line (one-sentence faithful summary)
+              // for the new mobile-first report page. Generated through the
+              // unified rewrite-pipeline so it goes through anti-fabrication
+              // + claim-citation + audit log. Best-effort: failure doesn't
+              // block ingestion (UI handles null answer_line gracefully).
+              try {
+                await generateAndSaveAnswerLine(insertedReport.id);
+              } catch (answerError) {
+                console.log('[Ingestion] answer_line generation failed for ' + slug + ':', answerError);
               }
 
               // V9.0 — Anchor case generation. Produces the cold-open

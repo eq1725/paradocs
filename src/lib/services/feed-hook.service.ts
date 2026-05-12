@@ -1,69 +1,55 @@
 /**
- * Feed Hook Generation Service
+ * Feed Hook Generation Service — V10.4 refactor
  *
- * Generates compelling 2-3 sentence hooks for the Discover feed
- * using Claude Haiku. Each hook creates irresistible curiosity
- * about a report, optimized for the feed card experience.
+ * Generates the 2-sentence "feed hook" copy used on the Today
+ * discovery feed (DiscoverCards). Each hook stops a reader
+ * mid-scroll AND makes sense to someone who has never heard of
+ * this specific case before.
  *
- * Session 10: Data Ingestion & Pipeline
+ * V10.4: delegates to src/lib/ai/rewrite-pipeline.ts so the
+ * hook goes through the SAME anti-fabrication + anonymization
+ * + claim-citation + audit-log pipeline as every other AI
+ * rewrite. The tone rules (banned words, category voice,
+ * length constraints) are passed in as extraInstructions.
+ *
+ * Public API preserved — the ingestion engine and admin
+ * regeneration endpoints keep calling the same functions.
  */
 
 import { createServerClient } from '../supabase'
+import { rewriteWithGuardrails } from '@/lib/ai/rewrite-pipeline'
 
-var ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001'
-var ANTHROPIC_FALLBACK = 'claude-3-5-haiku-20241022'
-
-// V6 prompt — content/UX panel review revision (May 2026).
-// For REPORTS the title usually carries identification (location + year),
-// but the hook still needs to be self-contained and lead with the
-// concrete subject. The Gaia cohort hasn't memorized case names like
-// 'Roswell' or 'Rendlesham' — the hook must still make sense to them.
-var SYSTEM_PROMPT = 'You write two-sentence hooks for individual reports on a paranormal investigation index. '
-  + 'Each hook must stop a paranormal-curious adult mid-scroll AND make sense to someone who has never '
-  + 'heard of this specific case before. Self-contained, never assumes prior knowledge.\n\n'
-  + 'FORMAT — exactly two sentences:\n'
-  + 'Sentence 1 (IDENTIFICATION + EVENT): What kind of event happened, where, and roughly when, in '
-  + 'plain language. Lead with the kind of phenomenon (UFO encounter, cryptid sighting, ghost '
-  + 'observation, NDE, etc.) and the concrete who/where/when. The reader should know what category '
-  + 'of thing this is within the first 8 words.\n'
-  + 'Sentence 2 (HOOK): The single most striking detail or unresolved tension — the impossible '
-  + 'detail, the contradiction, the thing that doesn\u2019t fit. This is what makes them tap.\n\n'
-  + 'CRITICAL — A reader who has never heard of this case must still understand what happened. '
-  + 'The case name ("Roswell", "Rendlesham", etc.) is additional information, NOT an anchor.\n\n'
-  + 'RULES:\n'
-  + '- 30-55 words total. Two complete sentences.\n'
-  + '- Present tense always.\n'
-  + '- NEVER include precise clock times (e.g. "at 21:19 local time"). Vague time references are fine.\n'
-  + '- BANNED words: mysterious, unexplained, shocking, terrifying, eerie, chilling, haunting, bizarre, strange, peculiar.\n'
-  + '- BANNED patterns: rhetorical questions, "This report...", "Known as...", "What if...", "Could this be...".\n'
-  + '- No editorial opinions. No spoilers. No meta-commentary. Do NOT mention Paradocs.\n\n'
-  + 'CATEGORY TONE (applied to Sentence 2):\n'
-  + '- ufos_aliens: Cockpit-clinical. Altitude, airspeed, radar lock, witness credentials.\n'
-  + '- cryptids: Field-biologist. Stride length, cast quality, habitat range.\n'
-  + '- ghosts_hauntings: Architectural. Room dimensions, construction date, temperature differentials.\n'
-  + '- psychic_phenomena: Lab-report. Sample size, sigma value, replication status.\n'
-  + '- psychological_experiences: Phenomenology-precise. Duration, lucidity, after-effects.\n'
-  + '- consciousness_practices: Physiological. Heart rate, brain wave frequency, duration of state.\n'
-  + '- Other: Always lead with the most concrete detail available.\n\n'
-  + 'EXAMPLES OF GOOD V6 HOOKS:\n'
-  + '- "A UFO encounter over Iran in 1976 involving two F-4 fighter pilots scrambled to intercept. Both jets '
-  + 'lost instrumentation when they approached the object — and one captured the entire encounter on radar."\n'
-  + '- "A Bigfoot footprint cast pulled from Blue Creek Mountain, Oregon, in 1967. Forensic analysis showed '
-  + 'dermal ridges no known primate produces — and the Smithsonian still has it in storage."\n'
-  + '- "A near-death experience reported by a cardiac arrest patient in Minneapolis, 1989. The patient '
-  + 'recounted overhearing a conversation that had taken place in the operating room while she was clinically dead."\n\n'
-  + 'EXAMPLES OF BAD V5 HOOKS:\n'
-  + '- "Four military witnesses photograph the moon over Pennsylvania." (No category, no tension.)\n'
-  + '- "Three Navy pilots tracked it on infrared." (What is "it"?)\n'
-  + '- "Something unexplained happens at an old house in Vermont." (Banned word, no specifics.)\n\n'
-  + 'Return ONLY the hook text. No quotes, no labels, no explanation.'
+const HOOK_TONE_INSTRUCTIONS = [
+  'You are writing a TWO-SENTENCE hook for the Paradocs discovery feed (Today tab).',
+  'Goal: stop a paranormal-curious adult mid-scroll AND make sense to someone who has never heard of this specific case before.',
+  '',
+  'FORMAT — exactly two sentences (30-55 words total):',
+  '  Sentence 1 (IDENTIFICATION + EVENT): What kind of event the source describes, where, and roughly when, in plain language. Lead with the kind of phenomenon (UFO encounter, cryptid sighting, ghost observation, NDE, etc.) and the concrete who/where/when within the first 8 words. Use hedge voice — "the source describes…", "the report records…".',
+  '  Sentence 2 (HOOK): The single most striking detail or unresolved tension that appears IN THE SOURCE — never invented. The impossible detail, the contradiction, the thing that does not fit. This is what makes the reader tap.',
+  '',
+  'TONE RULES:',
+  '- BANNED words: mysterious, unexplained, shocking, terrifying, eerie, chilling, haunting, bizarre, strange, peculiar.',
+  '- BANNED patterns: rhetorical questions, "This report…", "Known as…", "What if…", "Could this be…".',
+  '- No editorial opinions. No spoilers. No meta-commentary. Do NOT mention Paradocs.',
+  '',
+  'CATEGORY TONE (applied to Sentence 2 when relevant):',
+  '- ufos_aliens: cockpit-clinical. Altitude, airspeed, radar lock, witness credentials.',
+  '- cryptids: field-biologist. Stride length, cast quality, habitat range.',
+  '- ghosts_hauntings: architectural. Room dimensions, construction date, temperature differentials.',
+  '- psychic_phenomena: lab-report. Sample size, sigma value, replication status.',
+  '- psychological_experiences: phenomenology-precise. Duration, lucidity, after-effects.',
+  '- consciousness_practices: physiological. Heart rate, brain wave frequency, duration of state.',
+  '',
+  'IMPORTANT: every concrete detail (altitude, sample size, room dimensions, etc.) MUST appear in the source. If the source does not contain enough material for a faithful 2-sentence hook, return INSUFFICIENT.',
+].join('\n')
 
 /**
- * Build the user prompt with all available report data
+ * Build the source-text packet that the rewrite pipeline will
+ * paraphrase. Everything goes into a single block; we keep field
+ * labels so the model can lean on what's most concrete.
  */
-function buildUserPrompt(report: any): string {
-  var parts: string[] = []
-
+function buildSourceText(report: any): string {
+  const parts: string[] = []
   if (report.title) parts.push('Title: ' + report.title)
   if (report.category) parts.push('Category: ' + report.category)
   if (report.location_name) parts.push('Location: ' + report.location_name)
@@ -72,123 +58,63 @@ function buildUserPrompt(report: any): string {
   if (report.city) parts.push('City: ' + report.city)
   if (report.event_date) parts.push('Date: ' + report.event_date)
   if (report.credibility) parts.push('Credibility: ' + report.credibility)
-  if (report.source_type) parts.push('Source: ' + report.source_type)
+  if (report.source_type) parts.push('Source type: ' + report.source_type)
   if (report.summary) parts.push('Summary: ' + report.summary)
-
-  // Include description but truncate to ~2000 chars to keep costs down
   if (report.description) {
-    var desc = report.description.length > 2000
+    const desc = report.description.length > 2000
       ? report.description.substring(0, 2000) + '...'
       : report.description
-    parts.push('\nFull Report:\n' + desc)
+    parts.push('\nFull source text:\n' + desc)
   }
-
   return parts.join('\n')
 }
 
 /**
- * Call Claude Haiku to generate a feed hook
- */
-async function callClaude(userPrompt: string): Promise<string | null> {
-  var apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) {
-    console.error('[FeedHook] No ANTHROPIC_API_KEY found')
-    return null
-  }
-
-  var models = [ANTHROPIC_MODEL, ANTHROPIC_FALLBACK]
-
-  for (var m = 0; m < models.length; m++) {
-    try {
-      var resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-          model: models[m],
-          max_tokens: 200,
-          system: SYSTEM_PROMPT,
-          messages: [{ role: 'user', content: userPrompt }]
-        })
-      })
-
-      if (!resp.ok) {
-        var errText = await resp.text()
-        console.error('[FeedHook] API error with ' + models[m] + ': ' + resp.status + ' ' + errText)
-        continue
-      }
-
-      var data = await resp.json()
-      if (data.content && data.content.length > 0 && data.content[0].text) {
-        var hook = data.content[0].text.trim()
-
-        // Validate hook quality
-        if (hook.length < 30) {
-          console.warn('[FeedHook] Hook too short, skipping: ' + hook.substring(0, 50))
-          return null
-        }
-        if (hook.length > 250) {
-          // Truncate to ~55 words if too long
-          var words = hook.split(/\s+/)
-          if (words.length > 55) {
-            hook = words.slice(0, 50).join(' ') + '...'
-          }
-        }
-
-        // Strip quotes if the model wrapped it
-        if ((hook.startsWith('"') && hook.endsWith('"')) ||
-            (hook.startsWith("'") && hook.endsWith("'"))) {
-          hook = hook.slice(1, -1)
-        }
-
-        return hook
-      }
-    } catch (err) {
-      console.error('[FeedHook] Error with model ' + models[m] + ':', err)
-      continue
-    }
-  }
-
-  return null
-}
-
-/**
  * Generate a feed hook for a report and save it to the database.
- * Returns the generated hook text, or null if generation failed.
+ * Returns the hook text or null on failure.
  */
 export async function generateAndSaveFeedHook(reportId: string): Promise<string | null> {
-  var supabase = createServerClient()
+  const supabase = createServerClient()
 
-  // Fetch report data
-  var { data: report, error: fetchError } = await supabase
+  const { data: report, error: fetchError } = await supabase
     .from('reports')
     .select('id, title, summary, description, category, location_name, country, state_province, city, event_date, credibility, source_type')
     .eq('id', reportId)
     .single()
-
   if (fetchError || !report) {
     console.error('[FeedHook] Report not found: ' + reportId)
     return null
   }
 
-  // Build prompt and generate
-  var userPrompt = buildUserPrompt(report)
-  var hook = await callClaude(userPrompt)
+  const sourceText = buildSourceText(report)
 
-  if (!hook) {
-    console.warn('[FeedHook] Failed to generate hook for report: ' + reportId)
+  const result = await rewriteWithGuardrails({
+    mode: 'faithful_paraphrase',
+    sourceText,
+    task: 'Write the two-sentence feed hook described below. Lead Sentence 1 with the phenomenon type, place, and rough date. Lead Sentence 2 with the most striking faithful detail from the source.',
+    extraInstructions: HOOK_TONE_INSTRUCTIONS,
+    maxChars: 280, // ~55 words at avg word length
+    anonymize: true,
+    outputField: 'reports.feed_hook',
+    reportId,
+    maxTokens: 220,
+  })
+
+  if (!result.output) {
+    console.warn('[FeedHook] generation produced no output for ' + reportId + ' (reason=' + result.reason + ')')
     return null
   }
 
-  // Save to database
-  var { error: updateError } = await supabase
-    .from('reports')
+  // Reject too-short outputs (the V6 rule).
+  if (result.output.length < 30) {
+    console.warn('[FeedHook] Hook too short, skipping: ' + result.output.substring(0, 50))
+    return null
+  }
+
+  const { error: updateError } = await (supabase.from('reports') as any)
     .update({
-      feed_hook: hook,
-      feed_hook_generated_at: new Date().toISOString()
+      feed_hook: result.output,
+      feed_hook_generated_at: new Date().toISOString(),
     })
     .eq('id', reportId)
 
@@ -197,37 +123,33 @@ export async function generateAndSaveFeedHook(reportId: string): Promise<string 
     return null
   }
 
-  return hook
+  return result.output
 }
 
 /**
- * Generate hooks for a batch of report IDs.
- * Includes rate limiting to avoid API throttling.
+ * Batch generation with rate limiting.
  */
 export async function generateHooksBatch(
   reportIds: string[],
-  options?: { delayMs?: number; batchSize?: number; force?: boolean }
+  options?: { delayMs?: number; batchSize?: number; force?: boolean },
 ): Promise<{ generated: number; skipped: number; failed: number; errors: string[] }> {
-  var supabase = createServerClient()
-  var delay = options?.delayMs || 200
-  var batchSize = options?.batchSize || 15
-  var force = options?.force || false
-  var stats = { generated: 0, skipped: 0, failed: 0, errors: [] as string[] }
+  const supabase = createServerClient()
+  const delay = options?.delayMs || 200
+  const batchSize = options?.batchSize || 15
+  const force = options?.force || false
+  const stats = { generated: 0, skipped: 0, failed: 0, errors: [] as string[] }
 
-  for (var i = 0; i < reportIds.length; i += batchSize) {
-    var batch = reportIds.slice(i, i + batchSize)
+  for (let i = 0; i < reportIds.length; i += batchSize) {
+    const batch = reportIds.slice(i, i + batchSize)
 
-    for (var j = 0; j < batch.length; j++) {
-      var reportId = batch[j]
+    for (let j = 0; j < batch.length; j++) {
+      const reportId = batch[j]
 
-      // Check if already has hook (unless force)
       if (!force) {
-        var { data: existing } = await supabase
-          .from('reports')
+        const { data: existing } = await (supabase.from('reports') as any)
           .select('feed_hook')
           .eq('id', reportId)
           .single()
-
         if (existing && existing.feed_hook) {
           stats.skipped++
           continue
@@ -235,7 +157,7 @@ export async function generateHooksBatch(
       }
 
       try {
-        var hook = await generateAndSaveFeedHook(reportId)
+        const hook = await generateAndSaveFeedHook(reportId)
         if (hook) {
           stats.generated++
         } else {
@@ -247,15 +169,13 @@ export async function generateHooksBatch(
         stats.errors.push('Report ' + reportId + ': ' + (err.message || 'unknown error'))
       }
 
-      // Rate limiting delay between individual calls
       if (j < batch.length - 1) {
-        await new Promise(function(resolve) { setTimeout(resolve, delay) })
+        await new Promise<void>(resolve => setTimeout(resolve, delay))
       }
     }
 
-    // Longer delay between batches
     if (i + batchSize < reportIds.length) {
-      await new Promise(function(resolve) { setTimeout(resolve, 2000) })
+      await new Promise<void>(resolve => setTimeout(resolve, 2000))
     }
   }
 
@@ -263,7 +183,7 @@ export async function generateHooksBatch(
 }
 
 /**
- * Get feed hook generation statistics
+ * Coverage stats for the admin dashboard.
  */
 export async function getFeedHookStats(): Promise<{
   total_approved: number
@@ -271,26 +191,26 @@ export async function getFeedHookStats(): Promise<{
   without_hooks: number
   coverage_pct: number
 }> {
-  var supabase = createServerClient()
+  const supabase = createServerClient()
 
-  var { count: totalApproved } = await supabase
+  const { count: totalApproved } = await supabase
     .from('reports')
     .select('*', { count: 'exact', head: true })
     .eq('status', 'approved')
 
-  var { count: withHooks } = await supabase
+  const { count: withHooks } = await supabase
     .from('reports')
     .select('*', { count: 'exact', head: true })
     .eq('status', 'approved')
     .not('feed_hook', 'is', null)
 
-  var total = totalApproved || 0
-  var hooks = withHooks || 0
+  const total = totalApproved || 0
+  const with_ = withHooks || 0
 
   return {
     total_approved: total,
-    with_hooks: hooks,
-    without_hooks: total - hooks,
-    coverage_pct: total > 0 ? Math.round((hooks / total) * 1000) / 10 : 0
+    with_hooks: with_,
+    without_hooks: total - with_,
+    coverage_pct: total > 0 ? Math.round((with_ / total) * 100) : 0,
   }
 }
