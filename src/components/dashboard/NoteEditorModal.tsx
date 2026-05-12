@@ -198,8 +198,14 @@ export default function NoteEditorModal({ entry, allEntries, onClose, onSaved }:
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm sm:p-6 overflow-y-auto"
       onClick={onClose}
     >
+      {/* QA #5 (V10.2) — use dvh (dynamic viewport height) on
+          mobile so the modal shrinks when iOS soft keyboard pops up,
+          keeping the Edit notes header + toolbar in view. The
+          previous h-[92vh] used static vh which ignores keyboard
+          and pushed the modal header off the top of the screen
+          once the editor autofocused and triggered the keyboard. */}
       <div
-        className="w-full sm:max-w-4xl bg-gray-950 border border-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[92vh] sm:h-auto sm:max-h-[min(85vh,900px)] sm:min-h-[600px]"
+        className="w-full sm:max-w-4xl bg-gray-950 border border-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[92dvh] sm:h-auto sm:max-h-[min(85vh,900px)] sm:min-h-[600px]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}

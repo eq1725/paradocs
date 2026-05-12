@@ -202,13 +202,18 @@ export default function LabSavesTab({
         </button>
       )}
 
-      {/* Case files filter row */}
+      {/* Case files filter row.
+          QA #7 (V10.2) — hideCreate so the "+ New" chip doesn't
+          appear here. Cases tab is the canonical create-folder
+          surface; duplicating it on Saves caused confusion about
+          where folders live. */}
       {caseFiles.length > 0 && (
         <CaseFileBar
           caseFiles={caseFiles}
           selectedCaseFileId={selectedCaseFileId}
           onSelectCaseFile={setSelectedCaseFileId}
           onMutate={onRefresh}
+          hideCreate
         />
       )}
 

@@ -231,7 +231,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     var { data: userData } = await supabase.auth.getUser(token)
     if (userData?.user) {
       userId = userData.user.id
-      // TODO: Check subscription tier for Pro access
+      // QA #1 (V10.2) — Actually check tier + admin role so paid /
+      // admin users aren't paywalled at FREE_UNLOCKED. Previously
+      // this was a TODO and admins saw locked matches in /lab RADAR.
+      try {
+        var profResp = await supabase
+          .from('profiles')
+          .select('role, subscription_tier')
+          .eq('id', userId)
+          .single()
+        var prof = profResp && (profResp.data as any)
+        if (prof) {
+          var role = prof.role
+          var tier = prof.subscription_tier
+          if (role === 'admin' || tier === 'basic' || tier === 'pro' || tier === 'enterprise') {
+            isPro = true
+          }
+        }
+      } catch (_) { /* leave isPro=false if profile lookup fails */ }
     }
   }
 
