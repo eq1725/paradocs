@@ -52,8 +52,8 @@ const SPLASH_CSS = `
 }
 `.trim()
 
-// Inline script: keeps splash visible at least 1200ms so the
-// wordmark moment fully lands (doubled from initial 600ms after
+// Inline script: keeps splash visible at least 1500ms so the
+// wordmark moment fully lands (600ms → 1200ms → 1500ms after
 // Chase's feedback that it flashed too fast).
 const SPLASH_REMOVE_JS = `
 (function(){
@@ -64,7 +64,7 @@ const SPLASH_REMOVE_JS = `
   var start = Date.now();
   function hide() {
     var elapsed = Date.now() - start;
-    var wait = Math.max(0, 1200 - elapsed);
+    var wait = Math.max(0, 1500 - elapsed);
     setTimeout(function() {
       splash.classList.add('hide');
       setTimeout(function() { splash.parentNode && splash.parentNode.removeChild(splash); }, 360);
