@@ -34,7 +34,11 @@ interface ParadocsAnalysisResult {
   analysis: string
   pull_quote: string
   credibility_signal: string
-  mundane_explanations: Array<{
+  // V10.6 — new shape replacing mundane_explanations + likelihood.
+  frames?: Array<{ label: string; body: string }>
+  open_questions?: string[]
+  // Legacy — preserved for backward compat reads of pre-V10.6 reports.
+  mundane_explanations?: Array<{
     explanation: string
     likelihood: 'high' | 'medium' | 'low'
     reasoning: string
@@ -140,7 +144,8 @@ var SYSTEM_PROMPT = ANTI_FABRICATION_PREAMBLE
   + '  "analysis": "<4-6 sentences, max 120 words, evidence-first editorial context>",\n'
   + '  "pull_quote": "<1 sentence, max 20 words, the screenshot-worthy line>",\n'
   + '  "credibility_signal": "<1 phrase, max 8 words>",\n'
-  + '  "mundane_explanations": [{"explanation": "...", "likelihood": "high|medium|low", "reasoning": "..."}],\n'
+  + '  "frames": [{"label": "2-4 word lens name", "body": "2-4 sentence framing, ~40-80 words"}],\n'
+  + '  "open_questions": ["<one inquiry-voice question, 10-20 words>"],\n'
   + '  "similar_phenomena": ["phenomenon 1", "phenomenon 2"],\n'
   + '  "emotional_tone": "frightening|awe_inspiring|ambiguous|clinical|unsettling|hopeful",\n'
   + '  "suggested_category": "<the category YOU think fits best, from the allowed list>",\n'
@@ -241,23 +246,79 @@ var SYSTEM_PROMPT = ANTI_FABRICATION_PREAMBLE
   + '"Structured questionnaire response with cross-validated elements".\n'
   + '- If the report is genuinely thin (short, vague, no specifics), use: '
   + '"Brief account, limited detail" rather than implying falsehood.\n\n'
-  + 'ALTERNATIVE EXPLANATIONS (field name: "mundane_explanations"):\n'
-  + '- Provide 1-3. They do NOT all have to be reductive/materialist — a range of framings is the goal.\n'
-  + '- Mix classical explanations (misidentification, sleep paralysis, pareidolia, hoax, coincidence, '
-  + 'weather, known aircraft, psychological state) with non-classical ones when relevant '
-  + '(thought-form manifestation, observer-influenced synchronicity, consciousness-at-distance, '
-  + 'precognitive resonance). Both are alternative framings worth showing the reader.\n'
-  + '- Be specific to THIS report, grounded in its actual details. Generic labels are not acceptable.\n'
-  + '- LIKELIHOOD LABELING — BE CONSERVATIVE:\n'
-  + '  * "high" is RARE. Only use it when the report itself contains specific, concrete evidence that '
-  + 'directly supports that explanation (e.g. witness mentions being half-asleep AND describes classic '
-  + 'sleep-paralysis symptoms; or the "craft" is explicitly described as blinking navigation lights in '
-  + 'standard aircraft configuration). "High" must clear a strong-evidence bar, not a hunch.\n'
-  + '  * "medium" is the default when the explanation is plausible but not directly evidenced.\n'
-  + '  * "low" when the explanation is worth listing for completeness but the report\'s details argue '
-  + 'against it.\n'
-  + '  * If you are tempted to write "high" because the explanation "usually fits cases like this," '
-  + 'downgrade to "medium." Base rates across a category are not specific evidence in THIS report.\n\n'
+  + 'FRAMES (field name: "frames") — V10.6 — THIS IS THE MOST IMPORTANT SECTION:\n'
+  + 'We are NOT in the business of trying to prove something was something else. Paradocs does not '
+  + 'rank explanations or push readers toward debunking. Instead we offer multiple lenses through '
+  + 'which a thoughtful reader can hold this case. Each lens has equal standing. No ranking. No '
+  + 'likelihoods. No "more likely" or "less likely". The point is enrichment, not adjudication.\n'
+  + '\n'
+  + 'FRAME COUNT: Provide 2-3 frames. (Three is preferred when the case has enough texture.)\n'
+  + '\n'
+  + 'WHAT A FRAME LOOKS LIKE:\n'
+  + '- label: 2-4 words, starts with "Through the ___", "Through ___", or a sharp noun phrase '
+  + '("Material taxonomy", "Pattern recurrence", "Cultural memory"). Feels like a researcher\'s '
+  + 'note-card tab.\n'
+  + '- body: 2-4 sentences (40-80 words). Lead with a SPECIFIC SENSORY OR MATERIAL DETAIL from the '
+  + 'source. Then say what THIS case looks like through that lens. End with a beat of texture — a '
+  + 'pattern reference, a sharp implication, a comparative detail. Short declaratives. Active voice.\n'
+  + '\n'
+  + 'EXAMPLES OF GOOD FRAMES (study the voice carefully):\n'
+  + '  GOOD label: "Material taxonomy"\n'
+  + '  GOOD body: "Memory foil that springs flat without creasing. I-beams etched with symbols no '
+  + 'one recognized. Twelve independent witnesses described the same anomalous properties across '
+  + '75 years of military denial. Whatever the source, the material taxonomy is what makes Roswell '
+  + 'durable."\n'
+  + '\n'
+  + '  GOOD label: "Pattern recurrence"\n'
+  + '  GOOD body: "Recovery cases involving materials that defy era-known aerospace cluster in the '
+  + 'late 1940s. The 509th Bomb Group\'s proximity and the same-day retraction of the original press '
+  + 'release fit a response pattern Paradocs has tracked through Aztec, Kingman, and Kecksburg."\n'
+  + '\n'
+  + '  GOOD label: "Consciousness lens"\n'
+  + '  GOOD body: "The witness had spent months in deliberate telepathic contact attempts before the '
+  + 'sighting. Through this lens, the temporal proximity of sustained intention and anomalous '
+  + 'experience is itself the data point — not a contaminant. Paradocs tracks this pattern across '
+  + 'hundreds of contact-initiated reports.\n'
+  + '\n'
+  + '  GOOD label: "Cultural memory"\n'
+  + '  GOOD body: "Roswell migrated from desert news item to the foundational text of post-WWII UFO '
+  + 'mythology by the late 1980s, riding the post-Watergate appetite for institutional doubt. The '
+  + 'case\'s evolving testimony tracks American anxiety about what the government knows and won\'t say."\n'
+  + '\n'
+  + '  GOOD label: "Through the materials"\n'
+  + '  GOOD body: "The 8-foot bipedal figure left 17-inch tracks that disappeared mid-stride. Crusted '
+  + 'mud took the cast cleanly; the trail stops at a clearing with no continuation in any direction. '
+  + 'Through this lens, the locomotion data is what argues against conventional zoology."\n'
+  + '\n'
+  + 'BANNED FRAME PATTERNS — do NOT do any of these:\n'
+  + '  * Lead a frame body with "Under this reading", "Through this lens", or any other framing-meta '
+  + 'opener. Lead with the SPECIFIC DETAIL. The label IS the framing-meta.\n'
+  + '  * Words/phrases: "alternative explanation", "more likely", "less likely", "skeptical reading", '
+  + '"prosaic", "mundane", "conventional explanation", "debunking", "ruling out", "rules out", '
+  + '"can be explained by", "could be explained by", "remains untestable", "remains unverifiable".\n'
+  + '  * Hedge-soup: "could potentially indicate that perhaps the witness may have…". Use short, '
+  + 'declarative sentences. Active voice. Concrete > general.\n'
+  + '  * Ranking frames against each other. They are equally-held.\n'
+  + '  * Treating mind-matter interaction, sustained intention, synchronicity, or consciousness '
+  + 'phenomena as suspect or contaminating. They are valid lenses.\n'
+  + '  * Vague generic frames like "Skeptical lens" with no concrete detail from THIS case. Every '
+  + 'frame body MUST contain at least one specific detail from the source.\n'
+  + '\n'
+  + 'OPEN QUESTIONS (field name: "open_questions") — V10.6:\n'
+  + 'One question — sometimes two if the case is rich. Inquiry voice. The kind of question a research '
+  + 'team would argue about over beer. Frame as "What ___?" "Could ___?" "How would ___?". NOT '
+  + '"Was it really ___?". 10-20 words each.\n'
+  + '\n'
+  + 'EXAMPLES OF GOOD OPEN QUESTIONS:\n'
+  + '  GOOD: "What forensic test today would distinguish a black-budget recovery from a non-terrestrial '
+  + 'debris field?"\n'
+  + '  GOOD: "How often does sustained intention precede sighting in the broader corpus, and is the '
+  + 'temporal window patterned?"\n'
+  + '  GOOD: "What would corroborate the locomotion data — a second cast set, gait analysis, terrain '
+  + 'reconstruction?"\n'
+  + '  BAD: "Was this really an alien encounter?" (binary, adversarial)\n'
+  + '  BAD: "Did the witness experience what they claim?" (treats source as suspect)\n'
+  + '\n'
   + 'SIMILAR PHENOMENA:\n'
   + '- Name real paranormal phenomena categories (e.g. "shadow people", "orbs", "missing time").\n\n'
   + 'SUGGESTED CATEGORY:\n'
@@ -675,6 +736,23 @@ function parseAnalysisJson(text: string): ParadocsAnalysisResult | null {
     // Ensure defaults
     if (!parsed.pull_quote) parsed.pull_quote = ''
     if (!parsed.credibility_signal) parsed.credibility_signal = 'Unverified account'
+    // V10.6 — frames + open_questions are the new editorial shape.
+    if (!Array.isArray(parsed.frames)) parsed.frames = []
+    parsed.frames = parsed.frames
+      .filter(function(f: any) { return f && typeof f === 'object' && typeof f.label === 'string' && typeof f.body === 'string' })
+      .map(function(f: any) { return { label: f.label.trim(), body: f.body.trim() } })
+      .filter(function(f: any) { return f.label.length > 0 && f.body.length > 0 })
+      .slice(0, 3)
+    if (!Array.isArray(parsed.open_questions)) parsed.open_questions = []
+    parsed.open_questions = parsed.open_questions
+      .map(function(q: any) {
+        if (typeof q === 'string') return q.trim()
+        if (q && typeof q.question === 'string') return q.question.trim()
+        return ''
+      })
+      .filter(function(q: string) { return q.length > 0 })
+      .slice(0, 2)
+    // Legacy field — left empty when the model uses the new shape.
     if (!Array.isArray(parsed.mundane_explanations)) parsed.mundane_explanations = []
     if (!Array.isArray(parsed.similar_phenomena)) parsed.similar_phenomena = []
 
@@ -918,10 +996,17 @@ export async function generateAndSaveParadocsAnalysis(reportId: string): Promise
       }
 
       // Build the assessment object (stored as JSONB)
+      // V10.6 — writes both legacy + new shape. Legacy field
+      // (mundane_explanations) stays in the JSONB but the model
+      // outputs an empty array under the new prompt; the report
+      // page no longer renders it. New fields (frames +
+      // open_questions) drive the analysis section render.
       var assessmentData: Record<string, any> = {
         pull_quote: result.pull_quote,
         credibility_signal: result.credibility_signal,
-        mundane_explanations: result.mundane_explanations,
+        frames: result.frames || [],
+        open_questions: result.open_questions || [],
+        mundane_explanations: result.mundane_explanations || [],
         similar_phenomena: result.similar_phenomena
       }
       if (result.emotional_tone) {
@@ -1237,10 +1322,14 @@ export async function generateAndSaveDirect(reportId: string): Promise<{ success
     }
 
     // Save to DB
+    // V10.6 — writes both legacy + new shape. See note in
+    // generateAndSaveParadocsAnalysis above for rationale.
     var assessmentData: Record<string, any> = {
       pull_quote: result.pull_quote,
       credibility_signal: result.credibility_signal,
-      mundane_explanations: result.mundane_explanations,
+      frames: result.frames || [],
+      open_questions: result.open_questions || [],
+      mundane_explanations: result.mundane_explanations || [],
       similar_phenomena: result.similar_phenomena
     }
     if (result.emotional_tone) assessmentData.emotional_tone = result.emotional_tone

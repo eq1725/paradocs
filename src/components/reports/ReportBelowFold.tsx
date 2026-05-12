@@ -1,39 +1,42 @@
 'use client'
 
 /**
- * ReportBelowFold — V10.4 Phase 2.3
+ * ReportBelowFold — V10.6
  *
- * The collapsed-by-default lower section of the new report
- * page. Three sub-sections behind one disclosure each so casual
- * mobile users see a clean page; power-users expand what they
- * want.
+ * Collapsed-by-default lower section of the report page. Two
+ * sub-sections (down from three after V10.6 consolidations):
  *
- *   1. Paradocs Analysis
- *      - Pull quote (italic blockquote)
- *      - Alternative explanations (was "mundane_explanations")
- *      Credibility signal is DROPPED per Chase's V10.4 call —
- *      we no longer surface that field anywhere on the page.
+ *   1. Paradocs analysis
+ *      - Through multiple lenses (frames — 2-3 equal-weighted
+ *        interpretive lenses, NO ranking, NO debunking)
+ *      - Worth chasing (open questions — 1-2 inquiry-voice
+ *        questions to argue about)
+ *      - Pull quote rendered INLINE above the source block,
+ *        not in this disclosure.
  *
- *   2. Related reports — up to 5, no duplicate of the chip
- *      cluster's category-filter link. Subsumes KeepExploring.
+ *   2. Discussion — existing ReportComments
  *
- *   3. Comments — existing ReportComments component.
+ * V10.6 dropped:
+ *   - The Related Reports accordion (now rendered as a visible
+ *     5-card grid in the main flow by ReportRelatedReports.tsx).
+ *   - The "Alternative explanations" + likelihood badges
+ *     pattern entirely (Chase: "we are not in the business of
+ *     trying to prove something was something else").
  *
- * Each section is a native <details>/<summary> so users without
- * JS still get the disclosure. JS upgrades the chevron + smooth
- * height transition.
+ * Backward compat: when an existing report has only legacy
+ * `mundane_explanations` and no `frames` yet, the analysis
+ * section shows a small "Editorial framing being refreshed"
+ * note instead of debunking copy. New reports + backfilled
+ * reports use the frames + questions shape.
  */
 
-import React, { useEffect, useState } from 'react'
-import Link from 'next/link'
+import React, { useState } from 'react'
 import {
-  ChevronDown, MessageSquare, BookOpen, Sparkles,
-  CircleCheck, CircleAlert, CircleHelp,
+  ChevronDown, MessageSquare, Sparkles,
 } from 'lucide-react'
 
 const ReportComments = (() => {
   try {
-    // Dynamic require so server bundle doesn't pull it when not needed.
     return require('./ReportComments').default
   } catch {
     return null
@@ -56,21 +59,32 @@ export interface RelatedReport {
   thumbnail_url?: string | null
 }
 
+export interface ReportFrame {
+  label: string
+  body: string
+}
+
 export interface ReportBelowFoldProps {
   reportSlug: string
   pullQuote?: string | null
+  /** V10.6 — equal-weighted interpretive lenses. */
+  frames?: ReportFrame[]
+  /** V10.6 — open questions to chase. */
+  openQuestions?: string[]
+  /** V10.6 — legacy field. Only consulted as a "regen pending" fallback. */
   alternativeExplanations?: AlternativeExplanation[]
+  /** Deprecated — kept in props for caller compat but no longer rendered. */
   relatedReports?: RelatedReport[]
   className?: string
 }
 
 export default function ReportBelowFold(props: ReportBelowFoldProps) {
-  const hasAnalysis =
-    (props.pullQuote && props.pullQuote.trim().length > 0) ||
-    (props.alternativeExplanations && props.alternativeExplanations.length > 0)
-  const hasRelated = (props.relatedReports || []).length > 0
+  const hasFrames = (props.frames || []).length > 0
+  const hasQuestions = (props.openQuestions || []).length > 0
+  const hasLegacyAlt = !hasFrames && !hasQuestions && (props.alternativeExplanations || []).length > 0
+  const hasAnalysis = hasFrames || hasQuestions || hasLegacyAlt
 
-  if (!hasAnalysis && !hasRelated && !ReportComments) return null
+  if (!hasAnalysis && !ReportComments) return null
 
   return (
     <section className={'space-y-3 ' + (props.className || '')}>
@@ -78,25 +92,14 @@ export default function ReportBelowFold(props: ReportBelowFoldProps) {
         <Disclosure
           title="Paradocs analysis"
           icon={Sparkles}
-          subtle="Editorial framing, alternative explanations"
+          subtle={hasFrames ? 'Multiple lenses · open questions' : 'Editorial framing'}
           variant="analysis"
         >
           <AnalysisInner
-            pullQuote={props.pullQuote || null}
-            alternativeExplanations={props.alternativeExplanations || []}
+            frames={props.frames || []}
+            openQuestions={props.openQuestions || []}
+            legacyExplanations={hasLegacyAlt ? (props.alternativeExplanations || []) : []}
           />
-        </Disclosure>
-      )}
-
-      {hasRelated && (
-        <Disclosure
-          id="related-reports"
-          title="Related reports"
-          icon={BookOpen}
-          subtle={(props.relatedReports || []).length + ' nearby cases'}
-          variant="related"
-        >
-          <RelatedInner items={props.relatedReports || []} />
         </Disclosure>
       )}
 
@@ -118,29 +121,18 @@ export default function ReportBelowFold(props: ReportBelowFoldProps) {
 
 // ── Disclosure shell ────────────────────────────────────────
 
-type DisclosureVariant = 'analysis' | 'related' | 'discussion'
+type DisclosureVariant = 'analysis' | 'discussion'
 
 const VARIANT_STYLES: Record<DisclosureVariant, {
   container: string
   iconTint: string
   iconBg: string
 }> = {
-  // V10.5 — Premium gradient border for Analysis. It's the substance
-  // of the page; this signals "tap me, this is the depth".
   analysis: {
     container: 'rounded-xl border border-purple-700/40 bg-gradient-to-br from-purple-950/40 via-gray-900/60 to-gray-900/40 overflow-hidden ring-1 ring-purple-500/10',
     iconTint: 'text-purple-300',
     iconBg: 'bg-purple-600/20 border border-purple-500/40',
   },
-  // Discovery feel for Related — cyan accent matches the chip
-  // palette used elsewhere in the app for cross-disciplinary links.
-  related: {
-    container: 'rounded-xl border border-cyan-700/30 bg-cyan-950/[0.04] overflow-hidden',
-    iconTint: 'text-cyan-300',
-    iconBg: 'bg-cyan-600/15 border border-cyan-500/30',
-  },
-  // Chat treatment for Discussion — neutral but with the speech-
-  // bubble icon highlighted.
   discussion: {
     container: 'rounded-xl border border-gray-800 bg-gray-900/40 overflow-hidden',
     iconTint: 'text-gray-300',
@@ -190,98 +182,63 @@ function Disclosure(props: {
 
 // ── Analysis section ────────────────────────────────────────
 
-function AnalysisInner(props: { pullQuote: string | null; alternativeExplanations: AlternativeExplanation[] }) {
-  // V10.5 — pull quote is now rendered INLINE above the source block
-  // (see ReportPullQuote) so it isn't gated behind this disclosure.
-  // We keep the prop in the signature for backward compat but only
-  // render it as a small reminder up top when the disclosure opens.
+function AnalysisInner(props: {
+  frames: ReportFrame[]
+  openQuestions: string[]
+  legacyExplanations: AlternativeExplanation[]
+}) {
+  // V10.6 — when a report has not yet been regenerated through
+  // the new pipeline, frames + open_questions will both be
+  // empty. Surface a tiny notice rather than fall back to the
+  // debunking-pattern legacy view.
+  const hasNewShape = props.frames.length > 0 || props.openQuestions.length > 0
+
+  if (!hasNewShape) {
+    return (
+      <p className="text-[12px] text-gray-500 italic leading-relaxed">
+        Editorial framing for this case is being refreshed under our new
+        multi-lens approach. Check back shortly.
+      </p>
+    )
+  }
+
   return (
-    <div className="space-y-4">
-      {props.alternativeExplanations.length > 0 && (
+    <div className="space-y-5">
+      {props.frames.length > 0 && (
         <div>
-          <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-2">
-            Alternative explanations
+          <p className="text-[10px] uppercase tracking-widest font-semibold text-purple-300/80 mb-3">
+            Through multiple lenses
           </p>
-          <ul className="space-y-2.5">
-            {props.alternativeExplanations.map((ae, i) => (
-              <li key={i} className="rounded-lg bg-gray-950/40 border border-gray-800/60 p-3">
-                <div className="flex items-start gap-2">
-                  {ae.likelihood && <LikelihoodBadge likelihood={ae.likelihood} />}
-                  <p className="text-sm text-white leading-snug font-medium flex-1 min-w-0">
-                    {ae.explanation}
-                  </p>
-                </div>
-                {ae.reasoning && (
-                  <p className="text-[12px] text-gray-400 leading-relaxed mt-1.5">{ae.reasoning}</p>
-                )}
+          <ul className="space-y-4">
+            {props.frames.map((f, i) => (
+              <li key={i} className="border-l-2 border-purple-500/30 pl-3">
+                <h4 className="text-[13px] font-semibold text-white leading-tight mb-1">
+                  {f.label}
+                </h4>
+                <p className="text-sm text-gray-200 leading-relaxed">
+                  {f.body}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {props.openQuestions.length > 0 && (
+        <div className="pt-2 border-t border-white/[0.05]">
+          <p className="text-[10px] uppercase tracking-widest font-semibold text-amber-300/80 mb-3">
+            Worth chasing
+          </p>
+          <ul className="space-y-2">
+            {props.openQuestions.map((q, i) => (
+              <li key={i} className="text-sm text-gray-200 leading-relaxed">
+                <span className="text-amber-300/70 mr-2">→</span>
+                {q}
               </li>
             ))}
           </ul>
         </div>
       )}
     </div>
-  )
-}
-
-function LikelihoodBadge({ likelihood }: { likelihood: 'high' | 'medium' | 'low' }) {
-  // V10.5 — color + icon encoding. Previous treatment had medium and
-  // low looking nearly identical (both gray). Now:
-  //   High   = red CircleCheck (strong-evidence — rare per the
-  //            paradocs-analysis prompt's "high is RARE" rule)
-  //   Medium = amber CircleHelp (plausible but not directly evidenced)
-  //   Low    = slate CircleAlert (worth listing but details argue
-  //            against it)
-  const config = {
-    high:   { tint: 'bg-rose-500/20 border-rose-500/50 text-rose-200',     Icon: CircleCheck },
-    medium: { tint: 'bg-amber-500/15 border-amber-500/40 text-amber-200', Icon: CircleHelp },
-    low:    { tint: 'bg-slate-500/15 border-slate-500/30 text-slate-300', Icon: CircleAlert },
-  }[likelihood]
-  const Icon = config.Icon
-  return (
-    <span
-      className={'inline-flex items-center gap-1 flex-shrink-0 mt-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ' + config.tint}
-      aria-label={'Likelihood: ' + likelihood}
-    >
-      <Icon className="w-2.5 h-2.5" />
-      {likelihood}
-    </span>
-  )
-}
-
-// ── Related section ─────────────────────────────────────────
-
-function RelatedInner(props: { items: RelatedReport[] }) {
-  return (
-    <ul className="space-y-1.5">
-      {props.items.slice(0, 5).map(r => (
-        <li key={r.id}>
-          <Link
-            href={'/report/' + r.slug}
-            className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors group"
-          >
-            {r.thumbnail_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={r.thumbnail_url}
-                alt=""
-                className="w-12 h-12 rounded-md object-cover bg-gray-900 flex-shrink-0 border border-gray-800"
-                loading="lazy"
-                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-md bg-gray-900 border border-gray-800 flex-shrink-0" aria-hidden />
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="text-sm text-white font-medium truncate group-hover:text-purple-200 transition-colors">
-                {r.title}
-              </p>
-              <p className="text-[11px] text-gray-500 truncate">
-                {[r.category, r.location_name, r.event_date].filter(Boolean).join(' · ')}
-              </p>
-            </div>
-          </Link>
-        </li>
-      ))}
-    </ul>
   )
 }

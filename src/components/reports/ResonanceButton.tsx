@@ -86,11 +86,13 @@ export default function ResonanceButton(props: Props) {
     }
   }
 
+  // V10.6 — copy revision per Chase: "I had something like this"
+  // is a fragment. Complete sentence reads more naturally.
   var label = (function () {
-    if (resonated) return 'You felt this too'
-    if (count === 0) return 'I had something like this'
-    if (count === 1) return '1 person felt this too'
-    return count.toLocaleString() + ' people felt this too'
+    if (resonated) return 'You’ve experienced this too'
+    if (count === 0) return 'I’ve experienced something like this'
+    if (count === 1) return '1 person has experienced this too'
+    return count.toLocaleString() + ' people have experienced this too'
   })()
 
   return (
@@ -100,6 +102,9 @@ export default function ResonanceButton(props: Props) {
       disabled={busy || loading}
       aria-pressed={resonated}
       aria-label={resonated ? 'Remove your resonance' : 'Mark that this resonates with your experience'}
+      title={resonated
+        ? 'Tap to remove. We won’t share your name — only the aggregate count goes public.'
+        : 'Tap to signal you’ve had a similar experience. Helps Paradocs surface patterns. Your name is never shared — only the count.'}
       className={
         'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ' +
         (resonated

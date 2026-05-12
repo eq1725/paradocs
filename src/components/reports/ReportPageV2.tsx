@@ -39,8 +39,7 @@ import ReportLocationMap, { type LocationPrecision } from './ReportLocationMap'
 import ReportMeta from './ReportMeta'
 import ReportEngagementStrip from './ReportEngagementStrip'
 import ReportPullQuote from './ReportPullQuote'
-import ReportRelatedPreview from './ReportRelatedPreview'
-import ReaderModeToggle, { useReaderMode } from './ReaderModeToggle'
+import ReportRelatedReports from './ReportRelatedReports'
 import ReportPhenomenaChips from './ReportPhenomenaChips'
 import SourceBlock from './SourceBlock'
 import ReportBelowFold, { type RelatedReport, type AlternativeExplanation } from './ReportBelowFold'
@@ -223,9 +222,6 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
       }))
   }, [media])
 
-  // ── Reader mode (V10.5) ────────────────────────────────────
-  const { reader, toggle: toggleReader } = useReaderMode()
-
   // ── Engagement metrics ────────────────────────────────────
   // savedCount comes back as `saved_count` on the report row when
   // we add the aggregate (see getStaticProps). View + comment
@@ -256,6 +252,19 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
   // to "Curated case" (descriptive, not endorsing).
   const isCurated = !!(report?.featured || report?.source_type === 'curated' || report?.source_type === 'editorial')
 
+  // V10.6 — OG image URL MUST be absolute. Social platforms
+  // (iMessage, Slack, Twitter, Discord, etc.) fetch the og:image
+  // independently of the page request, so a relative URL
+  // resolves to nothing. iOS Safari's share-sheet preview was
+  // falling back to the generic site icon because of this.
+  // Try in order: env var → window.location.origin → known prod URL.
+  const siteUrl =
+    (typeof process !== 'undefined' && process.env && (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL)) ||
+    (typeof window !== 'undefined' && window.location && window.location.origin) ||
+    'https://www.discoverparadocs.com'
+  const ogImageUrl = report?.slug ? siteUrl + '/api/og/report/' + report.slug : null
+  const canonicalUrl = report?.slug ? siteUrl + '/report/' + report.slug : siteUrl
+
   return (
     <>
       <Head>
@@ -263,27 +272,32 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
         {sanitized.answerLine && (
           <meta name="description" content={sanitized.answerLine} />
         )}
-        {/* V10.5 — Open Graph image route (Vercel @vercel/og). */}
-        {report?.slug && (
+        {/* V10.6 — Open Graph + Twitter Card with ABSOLUTE URLs. */}
+        {ogImageUrl && (
           <>
             <meta property="og:title" content={(sanitized.title || 'Paradocs report')} />
             {sanitized.answerLine && (
               <meta property="og:description" content={sanitized.answerLine} />
             )}
-            <meta property="og:image" content={'/api/og/report/' + report.slug} />
+            <meta property="og:image" content={ogImageUrl} />
+            <meta property="og:image:width" content="1200" />
+            <meta property="og:image:height" content="630" />
+            <meta property="og:image:type" content="image/png" />
             <meta property="og:type" content="article" />
+            <meta property="og:url" content={canonicalUrl} />
+            <meta property="og:site_name" content="Paradocs" />
             <meta name="twitter:card" content="summary_large_image" />
-            <meta name="twitter:image" content={'/api/og/report/' + report.slug} />
+            <meta name="twitter:title" content={(sanitized.title || 'Paradocs report')} />
+            {sanitized.answerLine && (
+              <meta name="twitter:description" content={sanitized.answerLine} />
+            )}
+            <meta name="twitter:image" content={ogImageUrl} />
+            <link rel="canonical" href={canonicalUrl} />
           </>
         )}
       </Head>
 
-      <article
-        className={
-          'min-h-screen bg-gray-950 text-gray-100 ' +
-          (reader ? 'reader-mode' : '')
-        }
-      >
+      <article className="min-h-screen bg-gray-950 text-gray-100">
         {/* ── 1. Animated map (replaces hero image) ──────────── */}
         {/* V10.5 — map shrunk to ~35vh (was 240px ≈ 28vh per the
             panel: too dominating for what's essentially context). */}
@@ -299,11 +313,12 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
           />
         </div>
 
-        {/* V10.5 — Desktop side-rail at lg+ screens. Center column
-            for narrative, sticky right rail for engagement + below-
-            fold. Mobile + tablet collapses to single column. */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-12 lg:grid lg:grid-cols-12 lg:gap-8">
-          <div className="lg:col-span-8 lg:max-w-3xl">
+        {/* V10.6 — Side rail dropped. The rail was rendering the
+            same Related Reports already shown inline, so it was
+            dead weight. Main column widens to max-w-3xl centered;
+            desktop wastes less screen, mobile unchanged. */}
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 pb-12">
+          <div>
             {/* ── Page chrome ────────────────────────────────── */}
             <header className="flex items-center justify-between gap-2 -mt-8 mb-6 relative z-10">
               <button
@@ -315,7 +330,6 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
                 Back
               </button>
               <div className="flex items-center gap-2">
-                <ReaderModeToggle reader={reader} onToggle={toggleReader} />
                 <button
                   onClick={handleShare}
                   className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-gray-900/85 backdrop-blur-sm border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"
@@ -435,42 +449,28 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
               />
             )}
 
-            {/* ── 7b. Related-reports preview (V10.5) ─────────
-                Visible 3-card peek above the accordion so casual
-                readers see the natural read-next loop. On desktop
-                this lives in the side rail too, but keeping the
-                mobile-visible version here for the single-column
-                viewport. */}
-            <div className="lg:hidden">
-              {relatedReports && relatedReports.length > 0 && (
-                <ReportRelatedPreview
-                  items={relatedReports}
-                  fullSectionAnchor="related-reports"
-                />
-              )}
-            </div>
+            {/* ── 7b. Related Reports (V10.6) ────────────────
+                Single visible 5-card grid. Was previously split
+                across an above-fold 3-card preview AND a below-
+                fold N-card accordion that rendered identical
+                content. Merged per Chase's note. */}
+            {relatedReports && relatedReports.length > 0 && (
+              <ReportRelatedReports
+                items={relatedReports}
+                className="my-6"
+              />
+            )}
 
             {/* ── 8. Below the fold (collapsibles) ───────────── */}
             <ReportBelowFold
               reportSlug={report?.slug}
               pullQuote={sanitized.pullQuote}
+              frames={sanitized.frames}
+              openQuestions={sanitized.openQuestions}
               alternativeExplanations={sanitized.alternativeExplanations}
-              relatedReports={relatedReports}
               className="mt-2"
             />
           </div>
-
-          {/* ── Desktop side rail (V10.5) ──────────────────── */}
-          <aside className="hidden lg:block lg:col-span-4">
-            <div className="sticky top-20 space-y-4">
-              {relatedReports && relatedReports.length > 0 && (
-                <ReportRelatedPreview
-                  items={relatedReports}
-                  fullSectionAnchor="related-reports"
-                />
-              )}
-            </div>
-          </aside>
         </div>
       </article>
     </>
@@ -484,6 +484,8 @@ function sanitizeReport(report: any): {
   answerLine: string | null
   narrative: string | null
   pullQuote: string | null
+  frames: Array<{ label: string; body: string }>
+  openQuestions: string[]
   alternativeExplanations: AlternativeExplanation[]
   similarPhenomena: string[]
   submitterDisplayName: string | null
@@ -494,6 +496,8 @@ function sanitizeReport(report: any): {
       answerLine: null,
       narrative: null,
       pullQuote: null,
+      frames: [],
+      openQuestions: [],
       alternativeExplanations: [],
       similarPhenomena: [],
       submitterDisplayName: null,
@@ -523,6 +527,28 @@ function sanitizeReport(report: any): {
     ? stripPiiWithLogging(assessment.pull_quote, { field: 'reports.paradocs_assessment.pull_quote', reportId })
     : null
 
+  // V10.6 — NEW: frames + open_questions replace the
+  // alternative-explanations + likelihood pattern entirely.
+  // We still parse alternativeExplanations for backward
+  // compat with reports that haven't been regenerated yet
+  // (they fall through with no frames rendered).
+  const frames: Array<{ label: string; body: string }> = Array.isArray(assessment.frames)
+    ? assessment.frames
+        .map((f: any) => ({
+          label: stripPiiWithLogging(f.label || '', { field: 'paradocs_assessment.frames.label', reportId }),
+          body: stripPiiWithLogging(f.body || '', { field: 'paradocs_assessment.frames.body', reportId }),
+        }))
+        .filter((f: any) => f.label && f.body)
+    : []
+
+  const openQuestions: string[] = Array.isArray(assessment.open_questions)
+    ? assessment.open_questions
+        .map((q: any) => stripPiiWithLogging(typeof q === 'string' ? q : (q?.question || ''), { field: 'paradocs_assessment.open_questions', reportId }))
+        .filter((q: string) => q && q.length > 0)
+    : []
+
+  // Legacy field — only surfaced when a report hasn't been
+  // regenerated through the V10.6 pipeline yet.
   const altExplanations: AlternativeExplanation[] = Array.isArray(assessment.mundane_explanations)
     ? assessment.mundane_explanations.map((ae: any) => ({
         explanation: stripPiiWithLogging(ae.explanation || '', { field: 'mundane_explanations.explanation', reportId }),
@@ -547,6 +573,8 @@ function sanitizeReport(report: any): {
     answerLine,
     narrative,
     pullQuote,
+    frames,
+    openQuestions,
     alternativeExplanations: altExplanations,
     similarPhenomena,
     submitterDisplayName,
