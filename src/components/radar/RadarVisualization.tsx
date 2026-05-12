@@ -565,6 +565,18 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
         }
         .radar-match-dot.radar-ping-active .radar-ping-ring {
           animation: radar-ping-out 1200ms ease-out;
+          /* V10.2.2 — CRITICAL SVG transform-origin fix.
+             In SVG, the default transform-box is "view-box", which
+             means transform-origin: center resolves to the CENTER OF
+             THE SVG VIEWBOX (i.e. the YOU node at 0,0), NOT the ring's
+             own center. So scale(2) was flinging each ring radially
+             outward from YOU instead of pulsing in place around its
+             dot — creating the "rings flying off toward the edge"
+             effect Chase reported.
+             transform-box: fill-box makes transform-origin resolve to
+             the element's own bounding box, so scale(2) now pulses
+             cleanly around the dot's local center. */
+          transform-box: fill-box;
           transform-origin: center;
         }
         @media (prefers-reduced-motion: reduce) {
