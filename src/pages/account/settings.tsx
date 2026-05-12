@@ -51,6 +51,10 @@ interface UserProfile {
   // V9.5 P1.3 — controls visibility of /researcher/[username]
   // public profile and Constellation map. NULL == FALSE in DB.
   constellation_public?: boolean | null
+  // V10.3 — controls whether the user appears in other researchers'
+  // Overlap lists AND whether they can see their own. Default TRUE
+  // (set in the V10.3 migration).
+  researcher_overlap_visible?: boolean | null
 }
 
 interface NotificationSettings {
@@ -431,6 +435,7 @@ export default function SettingsPage() {
           bio: profile.bio,
           notification_settings: notifications,
           constellation_public: profile.constellation_public ?? false,
+          researcher_overlap_visible: profile.researcher_overlap_visible ?? true,
         }),
       })
       const result = await resp.json()
@@ -910,6 +915,22 @@ export default function SettingsPage() {
                 </a>
               )}
             </div>
+
+            {/* V10.3 — Researcher Overlap visibility. Mutual gate: when
+                false, this user is hidden from other researchers' Overlap
+                lists AND their own list returns empty. Default TRUE.
+                Independent of the public-profile toggle above. */}
+            <Toggle
+              label="Show me in Researcher Overlap"
+              description="Lets other researchers discover you when your save library meaningfully overlaps with theirs. Mutual: if you turn this off you also stop seeing your own overlap matches."
+              checked={profile?.researcher_overlap_visible ?? true}
+              onChange={(checked) => setProfile((p) => p ? { ...p, researcher_overlap_visible: checked } : p)}
+            />
+            <p className="text-xs text-gray-500 pl-12 sm:pl-14 -mt-2">
+              {profile?.researcher_overlap_visible === false
+                ? 'Hidden — you will not appear in others’ Overlap lists, and your own list is empty.'
+                : 'Visible when overlap is meaningful (rare matches outweigh popular ones — see the Research Pulse box in your Lab).'}
+            </p>
 
             <button
               onClick={handleSaveProfile}

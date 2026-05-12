@@ -35,6 +35,8 @@ interface PatchPayload {
   bio?: string | null
   notification_settings?: any
   constellation_public?: boolean
+  /** V10.3 follow-up — controls whether the user appears in other researchers' Overlap lists. */
+  researcher_overlap_visible?: boolean
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -68,6 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if ('avatar_url' in patch) update.avatar_url = patch.avatar_url
   if ('notification_settings' in patch) update.notification_settings = patch.notification_settings
   if ('constellation_public' in patch) update.constellation_public = patch.constellation_public
+  if ('researcher_overlap_visible' in patch) update.researcher_overlap_visible = patch.researcher_overlap_visible
   // Bio is handled separately below after moderation.
 
   // V9.9 P3 — bio moderation. Fetch the previous bio so we only run

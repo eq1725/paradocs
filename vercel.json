@@ -34,6 +34,10 @@
     {
       "path": "/api/cron/match-circles-curate",
       "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-global-save-counts",
+      "schedule": "30 2 * * *"
     }
   ]
 }
