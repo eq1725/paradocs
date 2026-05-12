@@ -21,6 +21,7 @@ import { Map as MapIcon, Sparkles as SparklesIcon, ArrowDown, Bookmark } from 'l
 import type { EntryNode, UserMapData, CaseFile } from '@/lib/constellation-types'
 import type { EmergentConnection, Insight } from '@/lib/constellation-data'
 import ConstellationListView from './ConstellationListView'
+import SavesSwipeView from './SavesSwipeView'
 import NodeDetailPanel from './NodeDetailPanel'
 import ConstellationSidebar from './ConstellationSidebar'
 import CaseFileBar from './CaseFileBar'
@@ -90,6 +91,24 @@ export default function LabSavesTab({
   const listRef = useRef<HTMLDivElement | null>(null)
   const scrollToList = useCallback(() => {
     listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
+  // V10.4 Phase 3 — viewport-aware mobile detection. The 'grid'
+  // view mode renders as SavesSwipeView on phones/tablets (<= 640px)
+  // and ConstellationListView's grid on desktop. List + compact
+  // modes use ConstellationListView at every breakpoint.
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia('(max-width: 640px)')
+    const update = () => setIsMobile(mq.matches)
+    update()
+    if (mq.addEventListener) mq.addEventListener('change', update)
+    else mq.addListener(update) // Safari < 14 fallback
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', update)
+      else mq.removeListener(update)
+    }
   }, [])
 
   const handleHighlight = useCallback((entryIds: string[]) => {
@@ -253,12 +272,22 @@ export default function LabSavesTab({
         />
       )}
 
-      {/* The feed — filtered + sorted by the toolbar controls */}
+      {/* The feed — filtered + sorted by the toolbar controls.
+          V10.4 Phase 3: mobile + grid view → SavesSwipeView
+          (swipe-left = unsave + undo, swipe-right = open, tap =
+          open). Everything else routes through the existing
+          ConstellationListView. */}
       <div ref={listRef}>
         {entryCount === 0 ? (
           <SavesEmptyState />
         ) : filteredEntries.length === 0 ? (
           <SearchEmptyState query={search} onClear={() => setSearch('')} />
+        ) : (isMobile && viewMode === 'grid') ? (
+          <SavesSwipeView
+            entries={filteredEntries}
+            onSelectEntry={setSelectedEntry}
+            onUnsaved={onRefresh}
+          />
         ) : (
           <ConstellationListView
             userMapData={userMapData}

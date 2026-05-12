@@ -95,10 +95,12 @@ export default function PatternsLane({ insights, onHighlight, refreshKey = 0 }: 
         </div>
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-white leading-tight">
-            Patterns & related reports
+            Patterns across your library
+            <span className="text-gray-500 font-normal"> · </span>
+            <span className="text-gray-400 font-normal">Related from the archive</span>
           </h2>
           <p className="text-[11px] text-gray-400 leading-tight mt-0.5">
-            Historical context, emergent signals, and unsaved reports that match your research
+            Emergent patterns from your saves + unsaved reports that match your research
           </p>
         </div>
         <div className="flex-1" />
