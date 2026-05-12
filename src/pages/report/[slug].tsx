@@ -1,1648 +1,107 @@
-// Report detail page - updated March 25, 2026
-// Session 6b: Index model redesign (curated vs mass-ingested report modes)
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+/**
+ * Report detail page — V10.4 Phase 2 rewrite
+ *
+ * Mass-market mobile-first single page. The bulk of the layout
+ * + state lives in src/components/reports/ReportPageV2.tsx; this
+ * file is just data-fetching (getStaticProps / getStaticPaths)
+ * + a thin wrapper that delegates.
+ *
+ * Replaces the prior 1700-line page that stacked 25+ sections
+ * (KeepExploring + FurtherReading + PatternConnections +
+ * ConnectionCards + AskTheUnknown FAB + three save buttons +
+ * Paradocs Analysis box + tag cloud + comments + ...) — all of
+ * that is either subsumed into ReportPageV2's section order or
+ * dropped entirely per the V10.4 panel review.
+ *
+ * Index-report ToS posture preserved: scrubIndexReport() strips
+ * the verbatim source description before the data leaves the
+ * server. The client only ever sees AI-rewritten text
+ * (paradocs_narrative, answer_line, etc.) which has been run
+ * through the V10.4 anti-fabrication pipeline (hedge voice +
+ * claim-citation + audit log).
+ */
+
+import React from 'react'
 import { useRouter } from 'next/router'
-import Head from 'next/head'
-import Link from 'next/link'
-import dynamic from 'next/dynamic'
-import {
-  MapPin, Calendar, Clock, Users, Eye, Star,
-  ThumbsUp, ThumbsDown, Share2, Bookmark, BookOpen,
-  Award, AlertTriangle, Check, ChevronRight, ChevronDown
-} from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import { ReportWithDetails, CommentWithUser, PhenomenonCategory } from '@/lib/database.types'
-import { CATEGORY_CONFIG, CREDIBILITY_CONFIG, CONTENT_TYPE_CONFIG } from '@/lib/constants'
-import type { ContentType } from '@/lib/database.types'
-import { formatDate, formatRelativeDate, classNames, estimateReadingTime } from '@/lib/utils'
-import RelatedReports from '@/components/RelatedReports'
-import { logActivity } from '@/lib/services/streak.service'
-import { useToast } from '@/components/Toast'
-import MediaGallery from '@/components/MediaGallery'
-import ReadingProgress from '@/components/ReadingProgress'
-import ArticleTableOfContents from '@/components/ArticleTableOfContents'
-import ParadocsAnalysisBox from '@/components/reports/ParadocsAnalysisBox'
-import ReportComments from '@/components/reports/ReportComments'
-import type { ParadocsAssessment } from '@/components/reports/ParadocsAnalysisBox'
-import { CaseProfileChips } from '@/components/discover/DiscoverCards'
-import { BackToTodayBar } from '@/components/discover/BackToTodayBar'
-import { deriveCaseProfile } from '@/lib/caseProfile'
-import { getCategoryMoodImage, getCategoryMoodImageAbsolute } from '@/lib/categoryMoodImage'
-import SourceAttribution from '@/components/reports/SourceAttribution'
-import FeaturedMediaCard from '@/components/reports/FeaturedMediaCard'
-import MediaMentionBanner from '@/components/reports/MediaMentionBanner'
-// ReadNextCards removed — consolidated into KeepExploring to avoid 4 redundant related-content sections
-import { SHOW_RESEARCH_PANELS } from '@/lib/features'
-import CategoryIcon from '@/components/ui/CategoryIcon'
-import { shouldShowEnvironmentalContext } from '@/lib/reports/environmental-visibility'
-const LogToConstellation = dynamic(
-  () => import('@/components/LogToConstellation'),
-  { ssr: false }
-)
-// Lazy load below-fold components for faster initial page render
-const ReportAIInsight = dynamic(
-  () => import('@/components/reports/ReportAIInsight'),
-  { ssr: false, loading: () => <div className="h-32 bg-white/5 rounded-lg animate-pulse mb-8" /> }
-)
-const ResearchHubPreview = dynamic(
-  () => import('@/components/reports/ResearchHubPreview'),
-  { ssr: false }
-)
-const KeepExploring = dynamic(
-  () => import('@/components/reports/KeepExploring'),
-  { ssr: false }
-)
-const FurtherReading = dynamic(
-  () => import('@/components/reports/FurtherReading'),
-  { ssr: false }
-)
-const PatternConnections = dynamic(
-  () => import('@/components/reports/PatternConnections'),
-  { ssr: false, loading: () => <div className="h-24 bg-white/5 rounded-lg animate-pulse" /> }
-)
-const ConnectionCards = dynamic(
-  () => import('@/components/reports/ConnectionCards'),
-  { ssr: false, loading: () => <div className="h-24 bg-white/5 rounded-lg animate-pulse" /> }
-)
-const EnvironmentalContext = dynamic(
-  () => import('@/components/reports/EnvironmentalContext'),
-  { ssr: false, loading: () => <div className="h-32 bg-white/5 rounded-lg animate-pulse" /> }
-)
-const AcademicObservationPanel = dynamic(
-  () => import('@/components/reports/AcademicObservationPanel'),
-  { ssr: false, loading: () => <div className="h-32 bg-white/5 rounded-lg animate-pulse" /> }
-)
-// ReportPhenomena removed from report page â tagging lives in admin/dashboard instead
-import FormattedDescription from '@/components/FormattedDescription'
-// V9.11.5 #21 — OnboardingTour deprecated. The V9.11 onboarding funnel
-// (/start → magic link → RADAR reveal → /lab) does the educational job;
-// the inline 9-step tour over the report page was redundant + carried
-// V9.11.4-deprecated 'Investigation/Researcher' jargon. Removed entirely.
-import AskTheUnknown from '@/components/AskTheUnknown'
-// Mobile components available but not used here — Layout.tsx provides global nav
-// import { MobileHeader, MobileBottomTabs } from '@/components/mobile'
-
-// Dynamically import LocationMap to avoid SSR issues with MapLibre GL (WebGL)
-const LocationMap = dynamic(
-  () => import('@/components/reports/LocationMap'),
-  { ssr: false, loading: () => <div className="h-64 bg-white/5 rounded-lg animate-pulse" /> }
-)
-
-// Wrapper that fetches the auth token for LogToConstellation
-function LogToConstellationWrapper({ isOpen, onClose, report, onLogged }: {
-  isOpen: boolean; onClose: () => void; report: any; onLogged: (entry: any) => void
-}) {
-  const [token, setToken] = useState('')
-  useEffect(() => {
-    if (isOpen) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        setToken(session?.access_token || '')
-      })
-    }
-  }, [isOpen])
-  if (!token && isOpen) return null
-  return (
-    <LogToConstellation
-      isOpen={isOpen}
-      onClose={onClose}
-      reportId={report.id}
-      reportTitle={report.title}
-      reportCategory={report.category}
-      userToken={token}
-      onLogged={onLogged}
-    />
-  )
-}
+import ReportPageV2 from '@/components/reports/ReportPageV2'
+import type { RelatedReport } from '@/components/reports/ReportBelowFold'
 
 interface ReportPageProps {
   slug: string
   initialReport?: any
   initialMedia?: any[]
-  initialComments?: any[]
+  initialRelated?: RelatedReport[]
   fetchError?: boolean
+  notFound?: boolean
 }
 
-export default function ReportPage({ slug: propSlug, initialReport, initialMedia, initialComments, fetchError }: ReportPageProps) {
+export default function ReportPage({
+  initialReport,
+  initialMedia,
+  initialRelated,
+  fetchError,
+}: ReportPageProps) {
   const router = useRouter()
-  const { showToast } = useToast()
-  const slug = propSlug || router.query.slug
-  const isPreview = router.query.preview === 'true'
 
-  const [report, setReport] = useState<ReportWithDetails | null>(initialReport || null)
-  const [comments, setComments] = useState<CommentWithUser[]>(initialComments || [])
-  const [media, setMedia] = useState<any[]>(initialMedia || [])
-  const [loading, setLoading] = useState(!initialReport && !fetchError)
-  const [user, setUser] = useState<any>(null)
-  const [userProfile, setUserProfile] = useState<any>(null)
-  // Comment state retained for data compatibility — UI removed from report pages
-  const [newComment, setNewComment] = useState('')
-  const [submittingComment, setSubmittingComment] = useState(false)
-  const [isSaved, setIsSaved] = useState(false)
-  const [savedId, setSavedId] = useState<string | null>(null)
-  const [savingReport, setSavingReport] = useState(false)
-  const [copiedShare, setCopiedShare] = useState(false)
-  const [userVote, setUserVote] = useState<1 | -1 | null>(null)
-  // sidebarOpen removed — mobile sidebar toggle eliminated in favour of KeepExploring
-  const [logModalOpen, setLogModalOpen] = useState(false)
-  const [isLogged, setIsLogged] = useState(false)
-  const [parentCase, setParentCase] = useState<{ slug: string; title: string } | null>(null)
-  const [showAllTags, setShowAllTags] = useState(false)
-  // showRationale state removed — credibility_signal in info grid is self-explanatory
-  const [panelsExpanded, setPanelsExpanded] = useState(false)
-
-  // Load parent case report when this report belongs to a case group
-  useEffect(() => {
-    if (!report || !(report as any).case_group) {
-      setParentCase(null)
-      return
-    }
-    // Reset immediately so stale banner doesn't linger during navigation
-    setParentCase(null)
-    // Find the showcase/parent report in this case group (not ourselves)
-    async function loadParentCase() {
-      try {
-        const { data } = await supabase
-          .from('report_links' as any)
-          .select('source_report_id')
-          .eq('target_report_id', report!.id)
-          .eq('link_type', 'witness_account')
-          .limit(1) as any
-        if (data && data.length > 0) {
-          const { data: parentData } = await supabase
-            .from('reports')
-            .select('slug, title')
-            .eq('id', data[0].source_report_id)
-            .single()
-          if (parentData) {
-            setParentCase(parentData)
-          }
-        }
-      } catch {
-        // Silently skip if report_links doesn't exist
-      }
-    }
-    loadParentCase()
-  }, [report?.id])
-
-  useEffect(() => {
-    if (slug) {
-      // Check if initialReport matches the current slug â during client-side navigation
-      // between report pages, initialReport may hold stale data from the previous page
-      const initialMatchesSlug = initialReport && initialReport.slug === slug
-
-      if (initialMatchesSlug) {
-        // Data came from server and matches current slug â just load user-specific state
-        setReport(initialReport)
-        setMedia(initialMedia || [])
-        setComments(initialComments || [])
-        setLoading(false)
-        loadUserState(initialReport.id)
-        incrementViewCount(initialReport.id, initialReport.view_count)
-        checkUser()
-      } else if (!fetchError) {
-        // CRITICAL: Clear stale report data IMMEDIATELY before async fetch.
-        // Without this, component renders new slug + old report for one frame,
-        // crashing child components that receive mismatched props.
-        setReport(null)
-        setMedia([])
-        setComments([])
-        setLoading(true)
-        setParentCase(null)
-        setShowAllTags(false)
-        setIsLogged(false)
-        // Scroll to top for the new report
-        window.scrollTo(0, 0)
-        // Then fetch the new report data
-        loadReport()
-        checkUser()
-      }
-    }
-  }, [slug])
-
-  // Check if onboarding tour should be shown
-  async function checkUser() {
-    const { data: { session } } = await supabase.auth.getSession()
-    const currentUser = session?.user || null
-    setUser(currentUser)
-
-    // Fetch profile for role/subscription checks
-    if (currentUser) {
-      var { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', currentUser.id)
-        .single()
-      setUserProfile(profile || null)
-    }
-
-    return currentUser
-  }
-
-  // Load user-specific state (votes, saved) â called when report data came from server
-  async function loadUserState(reportId: string) {
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        const [{ data: voteData }, { data: savedData }] = await Promise.all([
-          supabase
-            .from('votes')
-            .select('vote_type')
-            .eq('user_id', session.user.id)
-            .eq('report_id', reportId)
-            .single(),
-          supabase
-            .from('saved_reports')
-            .select('id')
-            .eq('user_id', session.user.id)
-            .eq('report_id', reportId)
-            .single()
-        ])
-        setUserVote(voteData?.vote_type as 1 | -1 | null ?? null)
-        setIsSaved(!!savedData)
-        setSavedId((savedData as any)?.id || null)
-
-        // Check if logged to constellation (non-blocking)
-        fetch(`/api/constellation/entries?report_id=${reportId}`, {
-          headers: { Authorization: `Bearer ${session.access_token}` }
-        })
-          .then(r => r.json())
-          .then(data => setIsLogged(!!data.entry))
-          .catch(() => {})
-      }
-    } catch (e) {
-      // User state is non-critical â fail silently
-    }
-  }
-
-  // Increment view count â deduplicated per session to avoid inflation
-  async function incrementViewCount(reportId: string, currentCount: number) {
-    try {
-      const viewKey = `viewed_${reportId}`
-      if (typeof window !== 'undefined' && sessionStorage.getItem(viewKey)) {
-        return // Already counted this session
-      }
-      await supabase
-        .from('reports')
-        .update({ view_count: currentCount + 1 })
-        .eq('id', reportId)
-      setReport(prev => prev ? { ...prev, view_count: currentCount + 1 } : prev)
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem(viewKey, '1')
-      }
-      // Log activity for streak tracking (non-blocking)
-      logActivity('view_report', { report_id: reportId }).catch(() => {})
-      // Track for constellation map (non-blocking, requires auth)
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.access_token) {
-          fetch('/api/activity/track', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-            body: JSON.stringify({ action_type: 'view', category: report?.category || null, metadata: { report_id: reportId } }),
-          }).catch(() => {})
-        }
-      })
-    } catch (e) {
-      // Non-critical â fail silently
-    }
-  }
-
-  async function loadReport() {
-    // Capture the slug we're fetching for — if user navigates again before
-    // this fetch completes, we must not set state for the stale slug
-    const fetchingSlug = slug
-    setLoading(true)
-    // Reset stale state from previous report during client-side navigation
-    setUserVote(null)
-    setIsSaved(false)
-    setSavedId(null)
-    setParentCase(null)
-    try {
-      let reportData: any = null
-      let commentsData: any[] | null = null
-      let mediaData: any[] | null = null
-
-      // Admin preview mode — fetch via server-side API (bypasses RLS)
-      if (isPreview) {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.access_token) {
-          try {
-            const previewRes = await fetch(`/api/admin/preview-report?slug=${slug}`, {
-              headers: { Authorization: `Bearer ${session.access_token}` },
-            })
-            if (previewRes.ok) {
-              const previewData = await previewRes.json()
-              reportData = previewData.report
-              commentsData = previewData.comments
-              mediaData = previewData.media
-            }
-          } catch {}
-        }
-      }
-
-      // Normal mode — fetch via client-side Supabase (RLS enforced)
-      if (!reportData) {
-        const { data, error: reportError } = await supabase
-          .from('reports')
-          .select(`
-            *,
-            phenomenon_type:phenomenon_types(*)
-          `)
-          .eq('slug', slug)
-          .eq('status', 'approved')
-          .single()
-
-        if (reportError) throw reportError
-        reportData = data
-      }
-
-      // Stale navigation guard: if user navigated away during fetch, discard results
-      if (slug !== fetchingSlug) return
-
-      // Load comments and media (skip if already fetched via preview API)
-      if (!commentsData) {
-        const { data } = await supabase
-          .from('comments')
-          .select(`
-            *,
-            user:profiles(*)
-          `)
-          .eq('report_id', reportData.id)
-          .eq('is_deleted', false)
-          .order('created_at', { ascending: true })
-        commentsData = data
-      }
-
-      if (!mediaData) {
-        const { data } = await supabase
-          .from('report_media')
-          .select('*')
-          .eq('report_id', reportData.id)
-          .order('is_primary', { ascending: false })
-        mediaData = data
-      }
-
-      // Load user vote and saved state
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        const [{ data: voteData }, { data: savedData }] = await Promise.all([
-          supabase
-            .from('votes')
-            .select('vote_type')
-            .eq('user_id', session.user.id)
-            .eq('report_id', reportData.id)
-            .single(),
-          supabase
-            .from('saved_reports')
-            .select('id')
-            .eq('user_id', session.user.id)
-            .eq('report_id', reportData.id)
-            .single()
-        ])
-        setUserVote(voteData?.vote_type as 1 | -1 | null ?? null)
-        setIsSaved(!!savedData)
-        setSavedId(savedData?.id || null)
-      } else {
-        setUserVote(null)
-        setIsSaved(false)
-        setSavedId(null)
-      }
-
-      // Increment view count
-      await supabase
-        .from('reports')
-        .update({ view_count: reportData.view_count + 1 })
-        .eq('id', reportData.id)
-
-      setReport({ ...scrubIndexReport(reportData), view_count: reportData.view_count + 1 })
-      setComments(commentsData || [])
-      setMedia(mediaData || [])
-    } catch (error) {
-      console.error('Error loading report:', error)
-      router.push('/404')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleVote(voteType: 1 | -1) {
-    if (!user || !report) return
-
-    try {
-      const { data: existing } = await supabase
-        .from('votes')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('report_id', report.id)
-        .single()
-
-      if (existing) {
-        if (existing.vote_type === voteType) {
-          // Remove vote â toggle off
-          await supabase.from('votes').delete().eq('id', existing.id)
-          setUserVote(null)
-          setReport(prev => prev ? {
-            ...prev,
-            upvotes: prev.upvotes - (voteType === 1 ? 1 : 0),
-            downvotes: prev.downvotes - (voteType === -1 ? 1 : 0),
-          } : prev)
-        } else {
-          // Switch vote
-          await supabase.from('votes').update({ vote_type: voteType }).eq('id', existing.id)
-          setUserVote(voteType)
-          setReport(prev => prev ? {
-            ...prev,
-            upvotes: prev.upvotes + (voteType === 1 ? 1 : -1),
-            downvotes: prev.downvotes + (voteType === -1 ? 1 : -1),
-          } : prev)
-        }
-      } else {
-        // New vote
-        await supabase.from('votes').insert({
-          user_id: user.id,
-          report_id: report.id,
-          vote_type: voteType,
-        })
-        setUserVote(voteType)
-        setReport(prev => prev ? {
-          ...prev,
-          upvotes: prev.upvotes + (voteType === 1 ? 1 : 0),
-          downvotes: prev.downvotes + (voteType === -1 ? 1 : 0),
-        } : prev)
-      }
-    } catch (error) {
-      console.error('Error voting:', error)
-      showToast('error', 'Failed to register vote')
-    }
-  }
-
-  async function handleComment() {
-    if (!user || !report || !newComment.trim()) return
-
-    setSubmittingComment(true)
-    try {
-      await supabase.from('comments').insert({
-        report_id: report.id,
-        user_id: user.id,
-        content: newComment.trim(),
-      })
-      setNewComment('')
-      showToast('success', 'Comment posted')
-      loadReport()
-    } catch (error) {
-      console.error('Error commenting:', error)
-      showToast('error', 'Failed to post comment')
-    } finally {
-      setSubmittingComment(false)
-    }
-  }
-
-  async function handleSave() {
-    if (!user || !report || savingReport) return
-    setSavingReport(true)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-      if (!token) return
-
-      if (isSaved && savedId) {
-        // Unsave
-        await fetch('/api/user/saved', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ saved_id: savedId }),
-        })
-        setIsSaved(false)
-        setSavedId(null)
-        showToast('info', 'Report removed from saved')
-        // Track unsave for constellation (non-blocking)
-        fetch('/api/activity/track', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ action_type: 'unsave', category: report.category, metadata: { report_id: report.id } }),
-        }).catch(() => {})
-      } else {
-        // Save
-        const resp = await fetch('/api/user/saved', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ report_id: report.id }),
-        })
-        const data = await resp.json()
-        if (data.success) {
-          setIsSaved(true)
-          setSavedId(data.saved_id)
-          showToast('success', 'Report saved')
-          // Track save for constellation (non-blocking)
-          fetch('/api/activity/track', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ action_type: 'save', category: report.category, metadata: { report_id: report.id } }),
-          }).catch(() => {})
-        }
-      }
-    } catch (error) {
-      console.error('Error saving report:', error)
-      showToast('error', 'Failed to save report')
-    } finally {
-      setSavingReport(false)
-    }
-  }
-
-  function handleShare() {
-    var url = window.location.href
-    // Use native share sheet on mobile (better UX), clipboard on desktop
-    if (navigator.share) {
-      navigator.share({ title: report?.title || 'Paradocs', url: url }).catch(function() {})
-      return
-    }
-    navigator.clipboard.writeText(url).then(function() {
-      setCopiedShare(true)
-      setTimeout(function() { setCopiedShare(false) }, 2000)
-      showToast('success', 'Link copied to clipboard')
-    }).catch(function() {})
-  }
-
-  // These useEffects were previously placed AFTER the loading/!report early
-  // returns below, which triggered react-hooks/rules-of-hooks. Moved up so
-  // they run every render; they no-op internally when `report` isn't loaded.
-  //
-  // Session 2 integration stubs — behavioral event firing. Fire case_view on page load.
-  useEffect(function() {
-    if (!report || !report.id) return
-    try {
-      // Check gate status for free users (stub for useGateStatus)
-      // When Session 2 builds CaseViewGate + useGateStatus, wire here.
-    } catch (e) {
-      // Non-critical
-    }
-  }, [report?.id])
-
-  // Scroll depth tracking stub for Session 2
-  useEffect(function() {
-    if (!report || !report.id) return
-    var _report = report
-    var _isCurated = (_report as any).source_type === 'curated' || (_report as any).source_type === 'editorial'
-    if (_isCurated) return
-    var milestones = [25, 50, 75, 100]
-    var firedMilestones: Record<number, boolean> = {}
-
-    function handleScroll() {
-      var scrollHeight = document.documentElement.scrollHeight - window.innerHeight
-      if (scrollHeight <= 0) return
-      var scrollPercent = Math.round((window.scrollY / scrollHeight) * 100)
-      milestones.forEach(function(milestone) {
-        if (scrollPercent >= milestone && !firedMilestones[milestone]) {
-          firedMilestones[milestone] = true
-          // Stub: fire scroll_depth event when Session 2's useFeedEvents hook exists.
-        }
-      })
-    }
-
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return function() { window.removeEventListener('scroll', handleScroll) }
-  }, [report?.id])
-
-  if (loading) {
+  if (router.isFallback) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="skeleton h-8 w-48 mb-4" />
-        <div className="skeleton h-12 w-full mb-4" />
-        <div className="skeleton h-64 w-full" />
+      <div className="min-h-screen flex items-center justify-center bg-gray-950 text-gray-400 text-sm">
+        Loading report…
       </div>
     )
   }
 
-  if (!report) {
+  if (fetchError || !initialReport) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-16 text-center">
-        {fetchError ? (
-          <>
-            <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-white mb-2">Temporarily Unavailable</h2>
-            <p className="text-gray-400 mb-6">We&apos;re experiencing a brief service interruption. This page will be back shortly.</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors mr-3"
-            >
-              Try Again
-            </button>
-            <Link href="/explore" className="text-primary-400 hover:text-primary-300 inline-block">
-              Browse all reports
-            </Link>
-          </>
-        ) : (
-          <>
-            <p className="text-gray-400">Report not found</p>
-            <Link href="/explore" className="text-primary-400 hover:text-primary-300 mt-4 inline-block">
-              Browse all reports
-            </Link>
-          </>
-        )}
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-950 text-gray-300 px-6 text-center">
+        <h1 className="text-xl font-semibold text-white mb-2">Report not available</h1>
+        <p className="text-sm text-gray-500 mb-4 max-w-md">
+          We couldn’t load this report. It may have been removed or there was a temporary issue
+          reaching the archive.
+        </p>
+        <button
+          onClick={() => router.push('/discover')}
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-colors"
+        >
+          Back to Today
+        </button>
       </div>
     )
-  }
-
-  const categoryConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
-  const credibilityConfig = CREDIBILITY_CONFIG[report.credibility] || CREDIBILITY_CONFIG.unverified
-  const contentTypeConfig = CONTENT_TYPE_CONFIG[(report as any).content_type as ContentType] || CONTENT_TYPE_CONFIG.experiencer_report
-  const reportContentType = (report as any).content_type as ContentType | undefined
-  const isNonExperiencer = reportContentType && reportContentType !== 'experiencer_report' && reportContentType !== 'historical_case'
-
-  // Session 6b: Mode detection — curated editorial vs mass-ingested index model
-  var isCurated = (report as any).source_type === 'curated' || (report as any).source_type === 'editorial'
-  var isIndexReport = !isCurated
-
-  // Parse paradocs_assessment JSON if it's a string
-  var paradocsAssessment: ParadocsAssessment | null = null
-  if ((report as any).paradocs_assessment) {
-    try {
-      paradocsAssessment = typeof (report as any).paradocs_assessment === 'string'
-        ? JSON.parse((report as any).paradocs_assessment)
-        : (report as any).paradocs_assessment
-    } catch (e) {
-      paradocsAssessment = null
-    }
   }
 
   return (
-    <>
-      <Head>
-        <title>{report.title} - Paradocs</title>
-        {/* Meta description uses AI-generated summary; description is
-            scrubbed for index reports to avoid republishing verbatim
-            source content. */}
-        <meta name="description" content={report.summary || ''} />
-
-        {/* Open Graph */}
-        <meta property="og:type" content="article" />
-        <meta property="og:title" content={report.title} />
-        <meta property="og:description" content={report.summary || ''} />
-        <meta property="og:site_name" content="Paradocs" />
-        <meta property="og:url" content={`https://beta.discoverparadocs.com/report/${slug}`} />
-        {(function () {
-          var ogImg = media[0]?.url || getCategoryMoodImageAbsolute(report.category || 'other', report.id, 'https://beta.discoverparadocs.com')
-          if (!ogImg) return null
-          return <meta property="og:image" content={ogImg} />
-        })()}
-
-        {/* Twitter Card */}
-        <meta name="twitter:card" content={(media[0]?.url || getCategoryMoodImage(report.category || 'other', report.id)) ? 'summary_large_image' : 'summary'} />
-        <meta name="twitter:title" content={report.title} />
-        <meta name="twitter:description" content={report.summary || ''} />
-        {(function () {
-          var twImg = media[0]?.url || getCategoryMoodImageAbsolute(report.category || 'other', report.id, 'https://beta.discoverparadocs.com')
-          if (!twImg) return null
-          return <meta name="twitter:image" content={twImg} />
-        })()}
-
-        {/* Article metadata */}
-        {report.event_date && <meta property="article:published_time" content={report.event_date} />}
-        <meta property="article:section" content={categoryConfig.label} />
-        {report.tags?.map((tag: string, i: number) => (
-          <meta key={i} property="article:tag" content={tag} />
-        ))}
-      </Head>
-
-      {/* Back-to-Today bar — shown when user came from /discover (Today) */}
-      <BackToTodayBar />
-
-      {/* Admin preview banner */}
-      {isPreview && report.status !== 'approved' && (
-        <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-2.5 text-center">
-          <span className="text-sm text-amber-400 font-medium">
-            Preview Mode — This report is <strong>{report.status}</strong> and not publicly visible.
-          </span>
-        </div>
-      )}
-
-      {/* Reading progress bar — only for curated reports with full body text */}
-      {isCurated && <ReadingProgress />}
-
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
-        <div className="lg:flex lg:gap-8">
-          {/* Main content */}
-          <article className="flex-1 max-w-4xl">
-        {/* Mobile: breadcrumb trail */}
-        <nav className="flex md:hidden items-center gap-1 mb-3 -ml-1 text-sm overflow-hidden" aria-label="Breadcrumb">
-          <button
-            onClick={function() { router.back() }}
-            className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg shrink-0"
-            aria-label="Go back"
-          >
-            <ChevronRight className="w-4 h-4 rotate-180" />
-          </button>
-          <Link
-            href={'/explore?category=' + report.category}
-            className="text-gray-400 hover:text-white transition-colors shrink-0"
-          >
-            {categoryConfig.label}
-          </Link>
-          {parentCase && (
-            <>
-              <ChevronRight className="w-3 h-3 shrink-0 text-gray-600" />
-              <Link
-                href={'/report/' + parentCase.slug}
-                className="text-gray-400 hover:text-white transition-colors truncate"
-              >
-                Case File
-              </Link>
-            </>
-          )}
-        </nav>
-
-        {/* Desktop: full breadcrumb */}
-        <nav className="hidden md:flex items-center gap-1.5 text-sm text-gray-400 mb-6 overflow-hidden" aria-label="Breadcrumb">
-          <Link href="/explore" className="hover:text-white transition-colors shrink-0">
-            Explore
-          </Link>
-          <ChevronRight className="w-3.5 h-3.5 shrink-0 text-gray-600" />
-          <Link
-            href={'/explore?category=' + report.category}
-            className="hover:text-white transition-colors shrink-0"
-          >
-            {categoryConfig.label}
-          </Link>
-          {parentCase && (
-            <>
-              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-gray-600" />
-              <Link
-                href={'/report/' + parentCase.slug}
-                className="hover:text-white transition-colors shrink-0"
-              >
-                {parentCase.title}
-              </Link>
-            </>
-          )}
-          <ChevronRight className="w-3.5 h-3.5 shrink-0 text-gray-600" />
-          <span className="text-gray-500 truncate">{report.title}</span>
-        </nav>
-
-        {/* Parent Case Banner â link back to main case report */}
-        {parentCase && (
-          <div className="mb-4 p-3 bg-primary-500/10 border border-primary-500/30 rounded-lg flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center flex-shrink-0">
-              <ChevronRight className="w-4 h-4 text-primary-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-primary-400/70 uppercase tracking-wider font-medium">Part of Case File</p>
-              <Link
-                href={`/report/${parentCase.slug}`}
-                className="text-primary-300 hover:text-primary-200 font-medium transition-colors truncate block"
-              >
-                {parentCase.title}
-              </Link>
-            </div>
-            <Link
-              href={`/report/${parentCase.slug}`}
-              className="text-xs text-primary-400 hover:text-primary-300 transition-colors flex items-center gap-1 flex-shrink-0"
-            >
-              View Case <ChevronRight className="w-3 h-3" />
-            </Link>
-          </div>
-        )}
-
-        {/* Non-Experiencer Content Notice â only for news/discussion and research content */}
-        {isNonExperiencer && (
-          <div className="mb-6 p-4 bg-gray-800/50 border border-gray-700 rounded-lg flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-amber-400 font-medium text-sm">
-                {contentTypeConfig.label}
-              </p>
-              <p className="text-gray-400 text-sm mt-1">
-                {contentTypeConfig.description}. This is not a first-hand experiencer report.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* P1: Mobile hero image — full-bleed above title to maximise visual impact.
-            Only shown on small screens; desktop keeps image in its normal gallery position. */}
-        {media.length > 0 && media[0]?.url && (
-          <div className="md:hidden -mx-3 sm:-mx-4 mb-4">
-            <div className="relative w-full aspect-[16/9] bg-gray-900">
-              <img
-                src={media[0].url}
-                alt={report.title}
-                className="w-full h-full object-cover"
-                loading="eager"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-gray-900/60 via-transparent to-transparent" />
-            </div>
-          </div>
-        )}
-
-        {/* Header */}
-        <header className="mb-8 md:mb-8" data-tour-step="header">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4">
-            {/* Content Type Badge — plain language for index reports (mass market) */}
-            <span className={classNames(
-              'px-3 py-1 rounded-full text-xs sm:text-sm font-medium border flex items-center gap-1.5',
-              contentTypeConfig.bgColor,
-              contentTypeConfig.color,
-              contentTypeConfig.borderColor
-            )}>
-              <span>{contentTypeConfig.icon}</span>
-              {isIndexReport ? (
-                <span>{reportContentType === 'experiencer_report' ? 'Personal Account' : reportContentType === 'historical_case' ? 'Historical Case' : reportContentType === 'research_analysis' ? 'Research' : reportContentType === 'news_discussion' ? 'News' : contentTypeConfig.shortLabel}</span>
-              ) : (
-                <>
-                  <span className="hidden sm:inline">{contentTypeConfig.label}</span>
-                  <span className="sm:hidden">{contentTypeConfig.shortLabel}</span>
-                </>
-              )}
-            </span>
-            {/* Featured Investigation — editorial distinction for curated showcases */}
-            {report.featured && (
-              <span className="px-3 py-1 rounded-full text-xs sm:text-sm font-medium border flex items-center gap-1.5 bg-amber-500/20 text-amber-400 border-amber-500/30">
-                <Star className="w-3 h-3" />
-                <span className="hidden sm:inline">Featured Investigation</span>
-                <span className="sm:hidden">Featured</span>
-              </span>
-            )}
-            {/* Phenomenon type — show if present and meaningful (not "Notable Case" placeholder) */}
-            {report.phenomenon_type && report.phenomenon_type.name !== categoryConfig.label && report.phenomenon_type.name !== 'Notable Case' && (
-              <span className={classNames(
-                'px-3 py-1 rounded-full text-xs sm:text-sm font-medium border',
-                categoryConfig.bgColor,
-                categoryConfig.color,
-                'border-current/30'
-              )}>
-                <CategoryIcon category={report.category as PhenomenonCategory} size={14} className="inline-block mr-1 align-text-bottom" /> {report.phenomenon_type.name}
-              </span>
-            )}
-          </div>
-
-          <h1 className="text-xl sm:text-3xl md:text-4xl font-display font-bold text-white mb-4 leading-tight">
-            {report.title}
-          </h1>
-
-          {/* Category mood hero — atmospheric image for index reports without media */}
-          {isIndexReport && media.length === 0 && (function () {
-            var moodSrc = getCategoryMoodImage(report.category || 'other', report.id)
-            if (!moodSrc) return null
-            return (
-              <div className="relative w-full h-32 sm:h-44 rounded-xl overflow-hidden mb-4">
-                <img
-                  src={moodSrc}
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-cover"
-                  loading="eager"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 via-gray-900/20 to-transparent" />
-              </div>
-            )
-          })()}
-
-          {/* Feed hook lede — Paradocs editorial voice for index reports.
-              Slightly larger on mobile to emphasise the editorial hook. */}
-          {isIndexReport && (report as any).feed_hook && (
-            <p className="text-[17px] sm:text-lg text-gray-200 italic mb-4 leading-relaxed font-serif">
-              {(report as any).feed_hook}
-            </p>
-          )}
-
-          {/* Source summary intentionally NOT displayed here.
-             Paradocs is an index with attribution, not a republisher.
-             The feed_hook (above) provides original editorial intro text.
-             Source content is only accessible via the "View Original" link. */}
-
-          {/* Meta info — compact on mobile, full on desktop */}
-          <div className="flex flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm text-gray-400">
-            {report.location_name && (
-              <span className="flex items-center gap-1.5">
-                <MapPin className="w-4 h-4" />
-                {(() => {
-                  var meta = (report as any).metadata || {}
-                  var locName = report.location_name as string
-                  var parts: string[] = []
-                  // Enrich with metadata when location_name is just a state/region
-                  if (meta.nearestTown) parts.push('Near ' + meta.nearestTown)
-                  if (meta.county) parts.push(meta.county + ' County')
-                  // Add location_name (usually state) — skip if already more specific
-                  if (parts.length > 0) {
-                    // Append state/region after the specific location
-                    parts.push(locName)
-                  } else {
-                    parts.push(locName)
-                  }
-                  // Dedup: skip country if it duplicates location_name or last part
-                  if (report.country) {
-                    var countryStr = report.country as string
-                    var lastPart = parts[parts.length - 1] || ''
-                    if (countryStr.toLowerCase() !== lastPart.toLowerCase()
-                      && countryStr.toLowerCase() !== locName.toLowerCase()) {
-                      parts.push(countryStr)
-                    }
-                  }
-                  return (
-                    <>
-                      {parts.join(', ')}
-                    </>
-                  )
-                })()}
-              </span>
-            )}
-            {report.event_date && (
-              <span className="flex items-center gap-1.5">
-                <Calendar className="w-4 h-4" />
-                {(function () {
-                  var precision = (report as any).event_date_precision as string | undefined
-                  if (precision === 'year') return 'Around ' + formatDate(report.event_date, 'yyyy')
-                  if (precision === 'month') return formatDate(report.event_date, 'MMMM yyyy')
-                  return formatDate(report.event_date, 'MMMM d, yyyy')
-                })()}
-                {report.event_date_approximate && ' (approx.)'}
-              </span>
-            )}
-            {report.event_time && (
-              <span className="hidden sm:flex items-center gap-1.5">
-                <Clock className="w-4 h-4" />
-                {(() => {
-                  // Format "14:00:00" → "2:00 PM", pass through non-standard formats
-                  var match = report.event_time.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
-                  if (!match) return report.event_time
-                  var h = parseInt(match[1], 10)
-                  var m = match[2]
-                  var period = h >= 12 ? 'PM' : 'AM'
-                  var h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
-                  return h12 + ':' + m + ' ' + period
-                })()}
-              </span>
-            )}
-            {report.witness_count > 1 && (
-              <span className="hidden sm:flex items-center gap-1.5" title={report.witness_count >= 10 ? 'Approximate count based on available records' : report.witness_count + ' documented witnesses'}>
-                <Users className="w-4 h-4" />
-                {report.witness_count >= 10 ? '~' : ''}{report.witness_count} witnesses{report.witness_count >= 10 ? ' (est.)' : ''}
-              </span>
-            )}
-            {isCurated && report.description && (
-              <span className="flex items-center gap-1.5">
-                <Clock className="w-4 h-4" />
-                {estimateReadingTime(report.description)} min read
-              </span>
-            )}
-          </div>
-
-          {/* Quick actions - Log prominently in header */}
-          {user && (
-            <div className="flex items-center gap-3 mt-4 sm:mt-5">
-              <button
-                onClick={function() { setLogModalOpen(true) }}
-                className={classNames(
-                  'inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                  isLogged
-                    ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                    : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20'
-                )}
-              >
-                <BookOpen className="w-4 h-4" />
-                {isLogged ? 'Saved to Lab' : 'Save to Lab'}
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={savingReport}
-                className={classNames(
-                  'inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors',
-                  isSaved
-                    ? 'bg-primary-500/20 text-primary-300 border border-primary-500/30'
-                    : 'bg-gray-800 hover:bg-gray-700 text-gray-400'
-                )}
-              >
-                <Bookmark className="w-4 h-4" fill={isSaved ? 'currentColor' : 'none'} />
-                {isSaved ? 'Saved' : 'Save'}
-              </button>
-            </div>
-          )}
-        </header>
-
-        {/* Featured Media — prominent video/audio/document links (curated: above body; index: deferred below analysis) */}
-        {isCurated && media.length > 0 && (
-          <FeaturedMediaCard media={media} />
-        )}
-
-        {/* Media Mention Banner — curated only above fold; index deferred */}
-        {isCurated && (
-          <MediaMentionBanner
-            description={report.description}
-            sourceUrl={report.source_url}
-            sourceLabel={report.source_label || report.source_type}
-            hasMediaItems={media.length > 0}
-            hasPhotoVideo={report.has_photo_video}
-            className="mb-6"
-          />
-        )}
-
-        {/* Hero Media Gallery — curated only (index reports use hero image above title on mobile) */}
-        {isCurated && media.length > 0 && (
-          <div className="hidden md:block mb-8" data-tour-step="media">
-            <MediaGallery media={media} mode="images" />
-          </div>
-        )}
-
-        {/* Location Map — curated reports show map early for context.
-            Index reports show it later (after analysis) and only when precision is meaningful. */}
-        {isCurated && report.latitude && report.longitude && (
-          <div data-tour-step="location-map">
-          <LocationMap
-            reportSlug={slug as string}
-            reportTitle={report.title}
-            latitude={report.latitude}
-            longitude={report.longitude}
-            className="mb-8"
-          />
-          </div>
-        )}
-
-        {/* === CURATED EDITORIAL MODE: Full body text, TOC, reading experience === */}
-        {isCurated && (
-          <>
-            {/* Table of Contents — shown for longer articles with multiple sections */}
-            {report.description && (
-              <ArticleTableOfContents description={report.description} />
-            )}
-
-            {/* Main content — optimized reading typography on mobile */}
-            <div className="glass-card p-4 sm:p-6 md:p-8 mb-6 sm:mb-8 overflow-hidden" data-tour-step="description">
-              <div className="prose prose-invert max-w-prose mx-auto md:max-w-none md:mx-0">
-                <FormattedDescription
-                  text={report.description || ''}
-                  className="text-gray-300 leading-relaxed break-words text-[16px] md:text-base"
-                />
-              </div>
-
-              {/* Sources & Documents — external links and embedded videos shown after body text */}
-              {media.length > 0 && (
-                <div className="mt-8 pt-8 border-t border-white/10">
-                  <h3 className="font-medium text-white mb-4 flex items-center gap-2">
-                    <span>Sources & Documents</span>
-                    <span className="text-xs text-white/30 font-normal">Primary source material</span>
-                  </h3>
-                  <MediaGallery media={media} mode="sources" />
-                </div>
-              )}
-
-              {/* Evidence section — elevated visual treatment for credibility */}
-              {(report.has_physical_evidence || report.has_photo_video || report.has_official_report || report.evidence_summary) && (
-                <div className="mt-8 pt-8 border-t border-white/10">
-                  <h3 className="font-medium text-white mb-4 flex items-center gap-2">
-                    <Award className="w-4 h-4 text-amber-400" />
-                    Evidence & Documentation
-                  </h3>
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {report.has_photo_video && (
-                      <span className="px-3 py-1.5 rounded-lg text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center gap-1.5">
-                        <Check className="w-3 h-3" />
-                        Photos/Video Available
-                      </span>
-                    )}
-                    {report.has_physical_evidence && (
-                      <span className="px-3 py-1.5 rounded-lg text-xs bg-green-500/10 text-green-400 border border-green-500/20 flex items-center gap-1.5">
-                        <Check className="w-3 h-3" />
-                        Physical Evidence
-                      </span>
-                    )}
-                    {report.has_official_report && (
-                      <span className="px-3 py-1.5 rounded-lg text-xs bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center gap-1.5">
-                        <Check className="w-3 h-3" />
-                        Official Report Filed
-                      </span>
-                    )}
-                  </div>
-                  {report.evidence_summary && (
-                    <p className="text-sm text-gray-300 leading-relaxed">{report.evidence_summary}</p>
-                  )}
-                </div>
-              )}
-
-            </div>
-          </>
-        )}
-
-        {/* === INDEX MODEL MODE ===
-            Analysis-first layout: Paradocs Analysis is the star content for
-            index reports \u2014 render it immediately after the header so mobile
-            users see it without scrolling past a map and chips. */}
-        {isIndexReport && (
-          <>
-            {/* 1. Paradocs Analysis Box \u2014 THE MAIN CONTENT */}
-            <ParadocsAnalysisBox
-              narrative={(report as any).paradocs_narrative || null}
-              assessment={paradocsAssessment}
-              reportMeta={{
-                title: report.title,
-                category: report.category,
-                categoryLabel: categoryConfig.label,
-                location: report.location_name || '',
-                eventDate: report.event_date ? formatDate(report.event_date, 'MMMM yyyy') : '',
-                sourceLabel: (report as any).source_label || ''
-              }}
-            />
-
-            {/* 2. Source Attribution \u2014 legally required footnote */}
-            {(report as any).source_url && (
-              <SourceAttribution
-                label={(report as any).source_label || ''}
-                url={(report as any).source_url}
-              />
-            )}
-
-            {/* 3. Privacy assurance */}
-            <p className="text-[11px] text-gray-600 mt-3 mb-6">
-              {'All personal details are anonymized. Paradocs never shares identifying information without explicit consent.'}
-            </p>
-
-            {/* 4. "Had a similar experience?" \u2014 journey step 2\u21923 conversion */}
-            {/* CTA copy adapts based on emotional_tone from AI analysis */}
-            {(function () {
-              var tone = paradocsAssessment ? (paradocsAssessment as any).emotional_tone : null
-              var headline = 'Had a similar experience?'
-              var body = 'Your account could help others make sense of ' + categoryConfig.label.toLowerCase() + ' experiences like this one.'
-              var buttonText = 'Share your experience'
-              if (tone === 'frightening' || tone === 'unsettling') {
-                headline = 'Processing something similar?'
-                body = "You're not alone. Sharing can help you and others understand " + categoryConfig.label.toLowerCase() + ' experiences like this.'
-                buttonText = 'Tell your story'
-              } else if (tone === 'awe_inspiring' || tone === 'hopeful') {
-                headline = 'Had a similar experience?'
-                body = 'Your account could help others make sense of ' + categoryConfig.label.toLowerCase() + ' experiences like this one.'
-                buttonText = 'Share your experience'
-              } else if (tone === 'clinical') {
-                headline = 'Can you add to the data?'
-                body = 'First-hand accounts strengthen the research on ' + categoryConfig.label.toLowerCase() + ' cases.'
-                buttonText = 'Submit your account'
-              }
-              return (
-                <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-purple-500/[0.06] to-indigo-500/[0.06] border border-purple-500/15">
-                  <p className="text-sm font-medium text-white mb-1">
-                    {headline}
-                  </p>
-                  <p className="text-xs text-gray-400 mb-3">
-                    {body}
-                  </p>
-                  <Link
-                    href="/submit"
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium text-white bg-purple-600 hover:bg-purple-500 transition-colors"
-                  >
-                    {buttonText}
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-              )
-            })()}
-
-            {/* 5. Case Profile Chips \u2014 supporting structured data */}
-            {/* Universal Case Profile \u2014 structured facts for every adapter.
-                NDERF/OBERF gets the full NDE questionnaire; BFRO, NUFORC,
-                Erowid, Reddit, IANDS, Ghosts of America, etc. each get a
-                source-appropriate profile derived from their metadata. */}
-            {(function () {
-              var unified = deriveCaseProfile({
-                source_type: (report as any).source_type,
-                metadata: (report as any).metadata,
-                category: (report as any).category,
-                witness_count: (report as any).witness_count,
-                has_photo_video: (report as any).has_photo_video,
-                has_physical_evidence: (report as any).has_physical_evidence,
-                event_date: (report as any).event_date,
-                event_date_precision: (report as any).event_date_precision,
-                credibility: (report as any).credibility,
-              })
-              if (!unified) return null
-              return (
-                <div className="mb-5">
-                  <CaseProfileChips
-                    profile={unified}
-                    variant="full"
-                    sourceType={(report as any).source_type}
-                  />
-                </div>
-              )
-            })()}
-
-            {/* 6. Location Map — only when precision is city-level or better */}
-            {report.latitude && report.longitude && (function () {
-              var meta = (report as any).metadata || {}
-              var precision = meta.location_precision as string | undefined
-              if (precision === 'state' || precision === 'country') return null
-              return (
-                <div data-tour-step="location-map" className="mb-6">
-                  <LocationMap
-                    reportSlug={slug as string}
-                    reportTitle={report.title}
-                    latitude={report.latitude}
-                    longitude={report.longitude}
-                    className="max-h-[200px] sm:max-h-[280px] overflow-hidden rounded-xl"
-                  />
-                </div>
-              )
-            })()}
-
-            {/* 7. Featured Media — deferred below analysis for index reports */}
-            {media.length > 0 && (
-              <FeaturedMediaCard media={media} />
-            )}
-            <MediaMentionBanner
-              description={report.description}
-              sourceUrl={report.source_url}
-              sourceLabel={report.source_label || report.source_type}
-              hasMediaItems={media.length > 0}
-              hasPhotoVideo={report.has_photo_video}
-              className="mb-6"
-            />
-
-            {/* Research Hub Preview — feature-flagged */}
-            {SHOW_RESEARCH_PANELS && (
-              <ResearchHubPreview
-                reportId={report.id}
-                reportTitle={report.title}
-                reportCategory={report.category}
-                categoryLabel={categoryConfig.label}
-                isSubscribed={!!(userProfile && (userProfile.role === 'admin' || userProfile.role === 'moderator' || userProfile.role === 'enterprise'))}
-                isAuthenticated={!!user}
-              />
-            )}
-          </>
-        )}
-
-        {/* Tags — curated reports: full tag display; index reports: compact related-topics */}
-        {report.tags && report.tags.length > 0 && (
-          <div className="mb-6 sm:mb-8">
-            {isIndexReport && (
-              <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Related topics</p>
-            )}
-            <div className="flex flex-wrap gap-1.5 items-center">
-              {(showAllTags ? report.tags : report.tags.slice(0, 8)).map(function(tag, i) {
-                return (
-                  <Link
-                    key={i}
-                    href={'/search?q=' + encodeURIComponent(tag)}
-                    className="px-2.5 py-1 rounded-full text-[11px] bg-white/[0.04] text-gray-500 hover:bg-white/[0.08] hover:text-gray-300 transition-colors"
-                  >
-                    {tag}
-                  </Link>
-                )
-              })}
-              {!showAllTags && report.tags.length > 8 && (
-                <button
-                  onClick={function () { setShowAllTags(true) }}
-                  className="px-2.5 py-1 rounded-full text-[11px] bg-white/[0.04] text-gray-500 hover:bg-white/[0.08] hover:text-gray-400 transition-colors"
-                >
-                  {'+' + (report.tags.length - 8) + ' more'}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Info grid — curated reports only. Index reports already show this data
-            in the Paradocs Analysis header and Source Attribution. */}
-        {isCurated && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8" data-tour-step="info-grid">
-          {/* Content Type */}
-          <div className="glass-card p-3 sm:p-4">
-            <h4 className="text-[11px] text-gray-500 mb-1.5 uppercase tracking-wider">Content Type</h4>
-            <div className={classNames(
-              'text-sm font-medium flex items-center gap-1.5',
-              contentTypeConfig.color
-            )}>
-              <span>{contentTypeConfig.icon}</span>
-              <span className="truncate">{contentTypeConfig.shortLabel}</span>
-            </div>
-          </div>
-
-          {/* Credibility — only show the nuanced paradocs signal ("Strong
-              supporting evidence" / "Moderate supporting detail" / etc.).
-              The blunt Low/Medium/High buckets are intentionally not
-              rendered anywhere user-facing (QA/QC Apr 14 2026). If no
-              nuanced signal exists, the tile is simply omitted. */}
-          {(() => {
-            var credSignal = paradocsAssessment ? (paradocsAssessment as any).credibility_signal : null
-            // Legacy fallback: build signal from old numeric score
-            if (!credSignal && paradocsAssessment && typeof paradocsAssessment.credibility_score === 'number') {
-              var s = paradocsAssessment.credibility_score
-              credSignal = s >= 80 ? 'Strong supporting evidence' : s >= 60 ? 'Moderate supporting detail' : s >= 40 ? 'Limited corroboration' : 'Single unverified account'
-            }
-            if (!credSignal) return null
-            return (
-              <div className="glass-card p-3 sm:p-4">
-                <h4 className="text-[11px] text-gray-500 mb-1.5 uppercase tracking-wider">
-                  Credibility
-                </h4>
-                <div className="text-sm font-medium text-gray-300">
-                  {credSignal}
-                </div>
-              </div>
-            )
-          })()}
-
-          {/* Source Origin */}
-          <div className="glass-card p-3 sm:p-4">
-            <h4 className="text-[11px] text-gray-500 mb-1.5 uppercase tracking-wider">Source</h4>
-            <div className="text-sm font-medium text-white truncate">
-              {report.source_type === 'user_submission' ? 'User Submitted' : report.source_type === 'curated' ? 'Editorial' : report.source_type === 'historical_archive' ? 'Historical Archive' : (report.source_type || 'Unknown').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
-            </div>
-          </div>
-
-          {/* Date Added */}
-          <div className="glass-card p-3 sm:p-4">
-            <h4 className="text-[11px] text-gray-500 mb-1.5 uppercase tracking-wider">Added</h4>
-            <div className="text-sm font-medium text-white truncate">
-              {new Date(report.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-            </div>
-          </div>
-        </div>
-        )}
-
-        {/* Further Reading — Amazon affiliate book recommendations (curated reports only) */}
-        {isCurated && (
-          <FurtherReading reportId={report.id} />
-        )}
-
-        {/* AI Analysis Section — curated reports only.
-            Index reports use pre-generated Paradocs Analysis (rendered above).
-            Never show on-demand ReportAIInsight for index reports — it could
-            expose raw description content, violating the index model.
-            Feature-flagged with the rest of the research data surfaces (paused
-            in Session B1.5). */}
-        {isCurated && SHOW_RESEARCH_PANELS && (
-          <div data-tour-step="ai-insight">
-            <ReportAIInsight reportSlug={slug as string} className="mb-8" />
-          </div>
-        )}
-
-        {/* Environmental Context & Academic Data — mobile placement (desktop shows in sidebar).
-            Environmental Context whitelist: cryptid/UFO/outdoor-ritual/outdoor-location reports only.
-            AcademicObservationPanel is feature-flagged with the other research panels. */}
-        {(shouldShowEnvironmentalContext(report as any) || SHOW_RESEARCH_PANELS) && (
-          <div className="lg:hidden grid sm:grid-cols-2 gap-4 mb-6 sm:mb-8" data-tour-step="environmental-mobile">
-            {shouldShowEnvironmentalContext(report as any) && (
-              <EnvironmentalContext
-                reportSlug={slug as string}
-                isExpanded={panelsExpanded}
-                onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
-              />
-            )}
-            {SHOW_RESEARCH_PANELS && (
-              <AcademicObservationPanel
-                reportSlug={slug as string}
-                isExpanded={panelsExpanded}
-                onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
-              />
-            )}
-          </div>
-        )}
-
-        {/* Did You Know? Connection Cards — py-1 provides space for hover:scale effect */}
-        <div className="py-1 -my-1">
-          <ConnectionCards reportSlug={slug as string} caseGroup={(report as any).case_group} className="mb-8 sm:mb-10" />
-        </div>
-
-        {/* Social proof — shows engagement signals to build community feel */}
-        {(report.view_count > 10 || report.upvotes > 0) && (
-          <p className="text-xs text-gray-500 mb-3 flex items-center gap-3">
-            {report.view_count > 10 && (
-              <span className="flex items-center gap-1">
-                <Eye className="w-3 h-3" />
-                {report.view_count > 999 ? Math.round(report.view_count / 100) / 10 + 'k' : report.view_count}
-                {' viewed this'}
-              </span>
-            )}
-            {report.upvotes > 0 && (
-              <span className="flex items-center gap-1">
-                <ThumbsUp className="w-3 h-3" />
-                {report.upvotes + ' found this helpful'}
-              </span>
-            )}
-          </p>
-        )}
-
-        {/* Engagement actions row — all actions work for everyone.
-            Unauth users get a signup prompt on tap instead of disabled buttons. */}
-        <div className="mb-4 rounded-xl bg-white/[0.03] border border-white/[0.06] overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3">
-            {/* Left: Vote buttons — enabled for all users */}
-            <div className="flex items-center gap-1">
-              <div className="flex items-center bg-white/[0.04] rounded-full">
-                <button
-                  onClick={function() { if (!user) { showToast('Sign in to vote', 'info'); router.push('/auth/login'); return } handleVote(1) }}
-                  className={classNames(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-l-full transition-all',
-                    userVote === 1
-                      ? 'text-green-400 bg-green-500/10'
-                      : 'text-gray-400 hover:text-green-400 hover:bg-white/[0.04]'
-                  )}
-                  title="Helpful"
-                >
-                  <ThumbsUp className="w-3.5 h-3.5" fill={userVote === 1 ? 'currentColor' : 'none'} />
-                  {report.upvotes > 0 && <span className="text-xs">{report.upvotes}</span>}
-                </button>
-                <div className="w-px h-3.5 bg-white/10" />
-                <button
-                  onClick={function() { if (!user) { showToast('Sign in to vote', 'info'); router.push('/auth/login'); return } handleVote(-1) }}
-                  className={classNames(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-r-full transition-all',
-                    userVote === -1
-                      ? 'text-red-400 bg-red-500/10'
-                      : 'text-gray-400 hover:text-red-400 hover:bg-white/[0.04]'
-                  )}
-                  title="Not helpful"
-                >
-                  <ThumbsDown className="w-3.5 h-3.5" fill={userVote === -1 ? 'currentColor' : 'none'} />
-                  {report.downvotes > 0 && <span className="text-xs">{report.downvotes}</span>}
-                </button>
-              </div>
-            </div>
-
-            {/* Right: Utility actions — all enabled, unauth prompts login */}
-            <div className="flex items-center gap-0.5">
-              {user && (
-                <button
-                  onClick={function() { setLogModalOpen(true) }}
-                  className={classNames(
-                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs transition-all',
-                    isLogged
-                      ? 'text-indigo-400 bg-indigo-500/10'
-                      : 'text-gray-400 hover:text-indigo-400 hover:bg-white/[0.04]'
-                  )}
-                  title="Save to Lab"
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{isLogged ? 'In Hub' : 'Research'}</span>
-                </button>
-              )}
-              <button
-                onClick={function() { if (!user) { showToast('Sign in to save reports', 'info'); router.push('/auth/login'); return } handleSave() }}
-                disabled={savingReport}
-                className={classNames(
-                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs transition-all',
-                  isSaved
-                    ? 'text-primary-400 bg-primary-500/10'
-                    : 'text-gray-400 hover:text-primary-400 hover:bg-white/[0.04]'
-                )}
-                title={isSaved ? 'Bookmarked' : 'Bookmark'}
-              >
-                <Bookmark className="w-3.5 h-3.5" fill={isSaved ? 'currentColor' : 'none'} />
-                <span className="hidden sm:inline">{isSaved ? 'Saved' : 'Save'}</span>
-              </button>
-              <button
-                onClick={handleShare}
-                className={classNames(
-                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs transition-all',
-                  copiedShare ? 'text-green-400 bg-green-500/10' : 'text-gray-400 hover:text-gray-300 hover:bg-white/[0.04]'
-                )}
-                title="Share"
-              >
-                {copiedShare ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
-                <span className="hidden sm:inline">{copiedShare ? 'Copied!' : 'Share'}</span>
-              </button>
-              {user && (
-                <Link
-                  href={'/dashboard/journal/new?report_id=' + report.id + '&report_title=' + encodeURIComponent(report.title) + '&report_slug=' + report.slug + '&report_category=' + report.category}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs text-gray-400 hover:text-amber-400 hover:bg-white/[0.04] transition-all"
-                  title="Write journal entry"
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Journal</span>
-                </Link>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Track this category — notification on-ramp (journey step 5) */}
-        {!user && (
-          <div className="mb-4 flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-            <div className="flex-1 min-w-0 mr-3">
-              <p className="text-sm text-gray-300 font-medium">
-                {'Get notified about ' + categoryConfig.label.toLowerCase() + ' reports'}
-              </p>
-              <p className="text-xs text-gray-500">
-                {'New reports, pattern updates, and similar cases'}
-              </p>
-            </div>
-            <Link
-              href="/auth/login"
-              className="px-3 py-1.5 rounded-lg text-xs font-medium text-purple-300 bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20 transition-colors flex-shrink-0"
-            >
-              Follow
-            </Link>
-          </div>
-        )}
-
-          {/* V9.12 Phase 2.D — public comment thread. Inside <article>
-              so it sits in the main reading column on both mobile
-              and desktop. Authenticated post; anyone reads; new
-              comments run through moderateText() before publish. */}
-          {report.slug && <ReportComments slug={report.slug} />}
-
-          </article>
-
-          {/* Sidebar — desktop only. Mobile discovery happens via KeepExploring below.
-              Removed mobile collapsible toggle to eliminate redundant related-content sections. */}
-          <aside className="hidden lg:block lg:w-80 flex-shrink-0" data-tour-step="sidebar">
-            <div className="lg:sticky lg:top-20 space-y-6">
-              {/* Environmental Context & Research Data — desktop sidebar placement.
-                  Environmental Context whitelist: cryptid/UFO/outdoor-ritual/outdoor-location.
-                  AcademicObservationPanel is feature-flagged with the other research panels. */}
-              {(shouldShowEnvironmentalContext(report as any) || SHOW_RESEARCH_PANELS) && (
-                <div className="hidden lg:block space-y-4" data-tour-step="environmental">
-                  {shouldShowEnvironmentalContext(report as any) && (
-                    <EnvironmentalContext
-                      reportSlug={slug as string}
-                      isExpanded={panelsExpanded}
-                      onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
-                    />
-                  )}
-                  {SHOW_RESEARCH_PANELS && (
-                    <AcademicObservationPanel
-                      reportSlug={slug as string}
-                      isExpanded={panelsExpanded}
-                      onToggleExpand={function() { setPanelsExpanded(function(prev) { return !prev }) }}
-                    />
-                  )}
-                </div>
-              )}
-
-              <RelatedReports
-                reportId={report.id}
-                category={report.category}
-                phenomenonTypeId={report.phenomenon_type_id}
-                caseGroup={(report as any).case_group}
-                tags={report.tags}
-                location={{
-                  country: report.country,
-                  state_province: report.state_province
-                }}
-                limit={6}
-              />
-
-              {/* Pattern Connections */}
-              <PatternConnections reportSlug={slug as string} />
-
-            </div>
-          </aside>
-        </div>
-
-        {/* P2: Keep Exploring — replaces old "Share Your Experience" CTA.
-            Drives session depth with same-category reports + small submit link. */}
-        <KeepExploring
-          reportId={report.id}
-          category={report.category}
-          categoryLabel={categoryConfig.label}
-        />
-      </div>
-
-        <AskTheUnknown
-          contextType="report"
-          contextId={slug as string}
-          contextTitle={report?.title}
-        />
-
-        {/* Save to Research Hub Modal */}
-        {user && report && (
-          <LogToConstellationWrapper
-            isOpen={logModalOpen}
-            onClose={function() { setLogModalOpen(false) }}
-            report={report}
-            onLogged={function(entry: any) { setIsLogged(!!entry) }}
-          />
-        )}
-
-        {/* StickyMobileBar removed — conflicts with global bottom tab nav
-            (Today/Phenomena/Lab/Profile). Two fixed bottom bars is a HIG
-            violation and blocks app store submission. Engagement actions
-            live in the inline bar + header instead. */}
-
-    </>
+    <ReportPageV2
+      report={initialReport}
+      media={initialMedia || []}
+      relatedReports={initialRelated || []}
+    />
   )
 }
 
-// Enable dynamic routes with fallback
+// ─────────────────────────────────────────────────────────────
+// Data fetching
+// ─────────────────────────────────────────────────────────────
+
 export async function getStaticPaths() {
   return {
     paths: [],
-    fallback: 'blocking'
+    fallback: 'blocking',
   }
 }
 
-// Scrub verbatim source content from reports that were ingested from
-// third-party sources (NDERF, etc.). For those "index" reports we only
-// ship AI-generated content (paradocs_narrative, title, tags, structured
-// case_profile) to the client — never the experiencer's own prose.
-//
-// This is both a ToS posture (we don't republish under someone else's
-// copyright) and a product invariant (Index Model). The DB retains the
-// raw description for analysis regeneration; it just never leaves the
-// server for index reports.
+/**
+ * Scrub verbatim source content from index reports before the
+ * data leaves the server. We never republish someone else's
+ * prose; the client only sees AI-rewritten text. The DB keeps
+ * the raw description for analysis regeneration.
+ */
 function scrubIndexReport(reportData: any): any {
   if (!reportData) return reportData
   const sourceType = reportData.source_type
-  const isCurated = sourceType === 'curated' || sourceType === 'editorial'
+  const isCurated = sourceType === 'curated' || sourceType === 'editorial' || sourceType === 'user_submission'
   if (isCurated) return reportData
 
   const narrative: string | null = reportData.paradocs_narrative || null
-  // Build a safe meta-description from the AI narrative (not the source).
   const metaFromNarrative = narrative
     ? (narrative.length > 200 ? narrative.slice(0, 197).trim() + '...' : narrative)
     : null
@@ -1650,9 +109,7 @@ function scrubIndexReport(reportData: any): any {
   return {
     ...reportData,
     description: null,
-    // Prefer AI narrative for any legacy consumer that reads `summary`.
-    // Fall back to feed_hook (also AI-generated) before giving up.
-    summary: metaFromNarrative || reportData.feed_hook || null,
+    summary: metaFromNarrative || reportData.answer_line || reportData.feed_hook || null,
   }
 }
 
@@ -1661,13 +118,19 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
     const { createClient } = await import('@supabase/supabase-js')
     const sb = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     )
 
-    // Fetch report data at build/revalidation time
+    // Primary report fetch — pulls the phenomenon_type relation
+    // for chip display + the submitter profile (display_name only)
+    // for the optional non-anonymous attribution.
     const { data: reportData, error: reportError } = await sb
       .from('reports')
-      .select(`*, phenomenon_type:phenomenon_types(*)`)
+      .select(`
+        *,
+        phenomenon_type:phenomenon_types(id, name, slug),
+        submitter_profile:profiles!reports_submitted_by_fkey(display_name, username, avatar_url)
+      `)
       .eq('slug', params.slug)
       .eq('status', 'approved')
       .single()
@@ -1676,46 +139,61 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
       return { notFound: true }
     }
 
-    // Strip verbatim source content for index reports before serializing
-    // to the client. DB keeps the raw data for analysis pipelines.
     const safeReport = scrubIndexReport(reportData)
 
-    // Fetch media
+    // Media items (uploaded photos/docs for direct submissions).
     const { data: mediaData } = await sb
       .from('report_media')
-      .select('*')
+      .select('id, media_type, url, thumbnail_url, caption, is_primary')
       .eq('report_id', (reportData as any).id)
       .order('is_primary', { ascending: false })
 
-    // Fetch comments
-    const { data: commentsData } = await sb
-      .from('comments')
-      .select(`*, user:profiles(*)`)
-      .eq('report_id', (reportData as any).id)
-      .eq('is_deleted', false)
-      .order('created_at', { ascending: true })
+    // Related reports — same category, within radius if we have
+    // coordinates, otherwise just same category sorted by recency.
+    // Limit 5 (subsumes the old KeepExploring + RelatedReports).
+    let related: RelatedReport[] = []
+    try {
+      const { data: relRows } = await sb
+        .from('reports')
+        .select('id, slug, title, category, location_name, event_date')
+        .eq('category', (reportData as any).category)
+        .neq('id', (reportData as any).id)
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false })
+        .limit(5)
+      if (relRows) {
+        related = relRows.map((r: any) => ({
+          id: r.id,
+          slug: r.slug,
+          title: r.title,
+          category: r.category,
+          location_name: r.location_name,
+          event_date: r.event_date,
+        }))
+      }
+    } catch {
+      // Best-effort — empty array is fine if this fails.
+    }
 
     return {
       props: {
         slug: params.slug,
         initialReport: safeReport,
         initialMedia: mediaData || [],
-        initialComments: commentsData || [],
+        initialRelated: related,
       },
-      revalidate: 120 // Revalidate every 2 minutes
+      revalidate: 120,
     }
   } catch (error) {
-    // If Supabase is down, return a fallback that shows an error state
-    // but still allows the page to render from cache if available
     return {
       props: {
         slug: params.slug,
         initialReport: null,
         initialMedia: [],
-        initialComments: [],
+        initialRelated: [],
         fetchError: true,
       },
-      revalidate: 30 // Retry sooner when there's an error
+      revalidate: 30,
     }
   }
 }
