@@ -22,7 +22,7 @@
  * the RADAR for visual consistency.
  */
 
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { MapPin } from 'lucide-react'
 
@@ -70,7 +70,13 @@ export default function ReportLocationMap({
   height = 240,
   className,
 }: ReportLocationMapProps) {
-  const mapRef = useRef<any>(null)
+  // V10.5.1 — capture the underlying maplibre-gl Map instance via
+  // the onLoad event rather than via a React ref. With react-map-gl
+  // wrapped in next/dynamic, refs are NOT forwarded cleanly through
+  // the dynamic boundary, so mapRef.current.flyTo was undefined.
+  // onLoad fires once the map is ready and gives us the real Map
+  // instance — same flyTo method, but actually callable.
+  const [mapInstance, setMapInstance] = useState<any>(null)
   const [mounted, setMounted] = useState(false)
   const [animationDone, setAnimationDone] = useState(false)
 
@@ -126,28 +132,28 @@ export default function ReportLocationMap({
     pitch: 0,
   }
 
+  // V10.5.1 — fire the flyTo once both (a) the map instance has
+  // loaded (we got it via onLoad) and (b) we have usable coords.
+  // The 200ms delay gives the initial wide-zoom view a beat to
+  // register with the user before the camera moves.
   useEffect(() => {
-    if (!mounted || !hasUsableCoords || animationDone) return
-    // Run the flyTo a beat after mount so the user perceives the
-    // motion.
+    if (!mapInstance || !hasUsableCoords || animationDone) return
     const tid = setTimeout(() => {
-      const map = mapRef.current
-      if (!map || typeof map.flyTo !== 'function') return
       try {
-        map.flyTo({
+        mapInstance.flyTo({
           center: [longitude!, latitude!],
           zoom: targetZoom,
           duration: 1800,
           essential: true, // bypass prefers-reduced-motion (the motion IS the content)
           easing: (t: number) => 1 - Math.pow(1 - t, 3), // ease-out-cubic
         })
-      } catch {
-        // Map not ready / library not available — ignore.
+      } catch (err) {
+        console.warn('[ReportLocationMap] flyTo failed:', err)
       }
       setAnimationDone(true)
-    }, 250)
+    }, 200)
     return () => clearTimeout(tid)
-  }, [mounted, hasUsableCoords, latitude, longitude, precision, animationDone, targetZoom])
+  }, [mapInstance, hasUsableCoords, latitude, longitude, animationDone, targetZoom])
 
   // ── Fallback when we have no usable coords ────────────────
   // V10.5 — if a className that controls height (e.g. h-full
@@ -181,7 +187,6 @@ export default function ReportLocationMap({
         </div>
       ) : (
         <Map
-          ref={mapRef}
           initialViewState={initialViewState}
           mapStyle={MAP_STYLE}
           style={{ width: '100%', height: '100%' }}
@@ -192,6 +197,13 @@ export default function ReportLocationMap({
           scrollZoom={false}
           doubleClickZoom={false}
           interactive={false}
+          onLoad={(e: any) => {
+            // V10.5.1 — capture the underlying maplibre-gl Map
+            // instance so the flyTo useEffect can call its
+            // methods directly. e.target is the Map instance per
+            // react-map-gl v7's MapEvent contract.
+            if (e && e.target) setMapInstance(e.target)
+          }}
         >
           {showPin && (
             <Marker latitude={latitude!} longitude={longitude!} anchor="bottom">
