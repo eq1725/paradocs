@@ -26,7 +26,7 @@
  * Reduced-motion: respects `prefers-reduced-motion` — falls back to instant settled state.
  */
 
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import type { PhenomenonCategory } from '@/lib/database.types'
 
@@ -202,6 +202,89 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
   const radius = halfSize - 16 // padding so edge dots don't clip
   const viewBox = `${-halfSize} ${-halfSize} ${size} ${size}`
 
+  // V10.2 — Real radar behavior: dots ping when the sweep arm crosses
+  // them, rather than blinking on independent timers. We precompute
+  // each dot's angle (from atan2 of its position), figure out at what
+  // offset within the SWEEP_PERIOD_MS cycle the arm will pass over it,
+  // and schedule a one-shot "ping" CSS animation on that dot at that
+  // moment. Pure DOM manipulation via refs — no React re-renders per
+  // frame.
+  //
+  // SWEEP_PERIOD_MS must stay in lockstep with the @keyframes
+  // radar-sweep duration in the inline <style> below. Bump both
+  // together if you re-tune the rotation speed.
+  const SWEEP_PERIOD_MS = 4000
+  const dotGroupRefs = useRef<Record<string, SVGGElement | null>>({})
+
+  useEffect(() => {
+    if (reducedMotion) return
+    // Reveal mode: wait until match dots have animated in (stage 3)
+    // before starting the ping schedule.
+    if (mode === 'reveal' && revealStage < 3) return
+
+    // Precompute each dot's angle in degrees clockwise from +x (3
+    // o'clock). The SVG sweep arm rotates clockwise starting at 0deg
+    // pointing at +x, so the arm's instantaneous angle at time t is
+    // (t / SWEEP_PERIOD_MS) * 360 mod 360. A dot at angle θ deg
+    // (clockwise from +x) is first crossed at (θ / 360) *
+    // SWEEP_PERIOD_MS ms after mount, and every SWEEP_PERIOD_MS
+    // thereafter.
+    const matchPositions = filtered.map((m, idx) => ({
+      id: m.id,
+      pos: positionForMatch(m, radius, idx),
+    }))
+
+    const timers: number[] = []
+    const intervals: number[] = []
+
+    function pingDot(id: string) {
+      const el = dotGroupRefs.current[id]
+      if (!el) return
+      // Force animation restart: remove + reflow + re-add the class.
+      el.classList.remove('radar-ping-active')
+      // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+      void (el as any).getBBox  // force reflow without leaking layout
+      // requestAnimationFrame guarantees the remove takes effect
+      // before the re-add (otherwise React/browser batching can
+      // collapse the toggle).
+      requestAnimationFrame(() => {
+        el.classList.add('radar-ping-active')
+      })
+    }
+
+    const startedAt = performance.now()
+
+    matchPositions.forEach(({ id, pos }) => {
+      // SVG y is inverted (positive y is down), but atan2(y, x) in
+      // SVG space gives us the angle measured clockwise from +x
+      // directly — exactly what we want.
+      const rad = Math.atan2(pos.y, pos.x)
+      const deg = ((rad * 180) / Math.PI + 360) % 360
+      const firstCrossMs = (deg / 360) * SWEEP_PERIOD_MS
+
+      // Account for any sweep cycles that have already elapsed since
+      // animation started (in case effect re-runs after a filter change).
+      const elapsed = performance.now() - startedAt
+      const cycleOffset = elapsed % SWEEP_PERIOD_MS
+      let initialDelay = firstCrossMs - cycleOffset
+      if (initialDelay < 0) initialDelay += SWEEP_PERIOD_MS
+
+      timers.push(
+        window.setTimeout(() => {
+          pingDot(id)
+          intervals.push(
+            window.setInterval(() => pingDot(id), SWEEP_PERIOD_MS),
+          )
+        }, initialDelay),
+      )
+    })
+
+    return () => {
+      timers.forEach(clearTimeout)
+      intervals.forEach(clearInterval)
+    }
+  }, [filtered, reducedMotion, mode, revealStage, radius])
+
   return (
     <div className={className} style={{ width: size, height: size, maxWidth: '100%', position: 'relative' }}>
       <svg
@@ -219,11 +302,14 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
             <stop offset="40%" stopColor="#a855f7" stopOpacity="0.55" />
             <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
           </radialGradient>
-          {/* Sweeping conic gradient for idle radar sweep */}
-          <linearGradient id="sweep-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+          {/* V10.2 — wider phosphor-trail sweep wedge. The wedge spans
+              from the leading beam (angle 0, bright outer edge) back
+              ~80° behind it, fading from bright purple to transparent.
+              Reads more like a real radar than the prior 30° slice. */}
+          <radialGradient id="sweep-grad" cx="0" cy="0" r="1">
             <stop offset="0%" stopColor="#a855f7" stopOpacity="0" />
-            <stop offset="100%" stopColor="#a855f7" stopOpacity="0.35" />
-          </linearGradient>
+            <stop offset="100%" stopColor="#a855f7" stopOpacity="0.42" />
+          </radialGradient>
         </defs>
 
         {/* ── Concentric scoring rings ─────────────────────────────── */}
@@ -251,13 +337,35 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
           <line x1={0} y1={-radius} x2={0} y2={radius} stroke="rgba(168,85,247,0.08)" strokeWidth={1} />
         </g>
 
-        {/* ── Idle sweep arm ──────────────────────────────────────── */}
-        {mode === 'idle' && !reducedMotion && (
-          <g style={{ transformOrigin: '0 0', animation: 'radar-sweep 6s linear infinite' }}>
+        {/* ── Sweep arm ──────────────────────────────────────────────
+            V10.2 — now active in both idle and reveal modes (once
+            dots have settled in reveal). Wider trailing wedge (80°)
+            with a bright leading-edge line; rotates clockwise. The
+            CSS @keyframes radar-sweep duration MUST match the
+            SWEEP_PERIOD_MS constant up in the ping-scheduling
+            useEffect — bump both together. */}
+        {!reducedMotion && (mode === 'idle' || revealStage >= 3) && (
+          <g style={{ transformOrigin: '0 0', animation: 'radar-sweep 4s linear infinite' }}>
+            {/* Trailing phosphor wedge — sweeps clockwise (the wedge
+                sits BEHIND the leading edge, so it trails as the arm
+                advances). Drawn going counter-clockwise from +x for
+                80°. */}
             <path
-              d={`M0,0 L${radius},0 A${radius},${radius} 0 0 0 ${Math.cos(-Math.PI / 6) * radius},${Math.sin(-Math.PI / 6) * radius} Z`}
+              d={`M0,0 L${radius},0 A${radius},${radius} 0 0 0 ${Math.cos(-Math.PI * 80 / 180) * radius},${Math.sin(-Math.PI * 80 / 180) * radius} Z`}
               fill="url(#sweep-grad)"
-              opacity={0.6}
+              opacity={0.95}
+            />
+            {/* Leading-edge bright line — the actual "sweep beam"
+                that crosses dots. Positioned at angle 0 (along +x). */}
+            <line
+              x1={0}
+              y1={0}
+              x2={radius}
+              y2={0}
+              stroke="#a855f7"
+              strokeWidth={2}
+              strokeOpacity={0.85}
+              strokeLinecap="round"
             />
           </g>
         )}
@@ -271,15 +379,21 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
             const pos = positionForMatch(m, radius, idx)
             const color = CATEGORY_COLORS[m.category] || CATEGORY_COLORS.combination
             const dotSize = 4 + Math.max(0, Math.min(1, m.match_score)) * 6
-            const pulseDur = pulseDurationForRecency(m.created_at)
             return (
               <g
                 key={m.id}
+                ref={el => { dotGroupRefs.current[m.id] = el }}
+                className="radar-match-dot"
                 transform={`translate(${pos.x},${pos.y})`}
                 style={{
                   cursor: onMatchClick ? 'pointer' : 'default',
                   transition: 'transform 600ms cubic-bezier(.4,1.6,.6,1)',
                   transitionDelay: revealStage >= 3 ? `${idx * 60}ms` : '0ms',
+                  // CSS custom property feeds the keyframes so we can
+                  // size the ping ring per-dot without inline styles
+                  // on the child circle.
+                  ['--dot-size' as any]: dotSize,
+                  ['--dot-color' as any]: color,
                 }}
                 onClick={() => onMatchClick?.(m)}
               >
@@ -291,22 +405,27 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
                   strokeWidth={0.5}
                   strokeOpacity={0.18}
                 />
-                {/* Outer pulse ring (animated) */}
+                {/* Ping ring — invisible at baseline; runs a single
+                    "expand + fade" animation each time the parent
+                    group gains the .radar-ping-active class (driven
+                    by the sweep-sync scheduler in useEffect above). */}
                 {!reducedMotion && (
                   <circle
-                    r={dotSize + 2}
+                    className="radar-ping-ring"
+                    r={dotSize}
                     fill="none"
                     stroke={color}
-                    strokeOpacity={0.7}
-                    strokeWidth={1.5}
-                    style={{ animation: `radar-pulse ${pulseDur}s ease-out infinite` }}
+                    strokeOpacity={0}
+                    strokeWidth={2}
                   />
                 )}
-                {/* Solid dot */}
+                {/* Solid dot — dim baseline, brightens to full when
+                    the arm passes (via the .radar-ping-active class). */}
                 <circle
+                  className="radar-dot-core"
                   r={dotSize}
                   fill={color}
-                  fillOpacity={0.9}
+                  fillOpacity={reducedMotion ? 0.9 : 0.55}
                   stroke="#0a0a0f"
                   strokeWidth={1}
                 />
@@ -375,23 +494,42 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
         </div>
       )}
 
-      {/* Keyframes — scoped to this component instance */}
+      {/* Keyframes — scoped to this component instance.
+          V10.2 — radar-pulse + radar-sweep-then-pulse coordination.
+          The sweep arm rotates over SWEEP_PERIOD_MS (4s); when a
+          dot's pre-scheduled ping fires (because the JS-side
+          scheduler computed the arm just crossed it), the parent
+          group gets the .radar-ping-active class which runs:
+            - radar-dot-flash on .radar-dot-core (brightens fill)
+            - radar-ping-out on .radar-ping-ring (expanding ring) */}
       <style>{`
-        @keyframes radar-pulse {
-          0%   { transform: scale(0.9); opacity: 0.7; }
-          70%  { transform: scale(1.6); opacity: 0; }
-          100% { transform: scale(1.6); opacity: 0; }
+        @keyframes radar-sweep {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
         }
         @keyframes radar-user-halo {
           0%, 100% { transform: scale(0.85); opacity: 0.7; }
           50%      { transform: scale(1.05); opacity: 1; }
         }
-        @keyframes radar-sweep {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
+        @keyframes radar-dot-flash {
+          0%   { fill-opacity: 0.55; }
+          15%  { fill-opacity: 1; }
+          100% { fill-opacity: 0.55; }
+        }
+        @keyframes radar-ping-out {
+          0%   { transform: scale(1);   stroke-opacity: 0.9; }
+          100% { transform: scale(3.2); stroke-opacity: 0; }
+        }
+        .radar-match-dot.radar-ping-active .radar-dot-core {
+          animation: radar-dot-flash 1200ms ease-out;
+        }
+        .radar-match-dot.radar-ping-active .radar-ping-ring {
+          animation: radar-ping-out 1200ms ease-out;
+          transform-origin: center;
         }
         @media (prefers-reduced-motion: reduce) {
-          [data-radar-pulse], [data-radar-halo], [data-radar-sweep] {
+          .radar-match-dot.radar-ping-active .radar-dot-core,
+          .radar-match-dot.radar-ping-active .radar-ping-ring {
             animation: none !important;
           }
         }
