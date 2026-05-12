@@ -89,7 +89,9 @@ const CATEGORY_ANGLES: Record<string, number> = {
 }
 
 // ── Category → color (matches CATEGORY_CONFIG) ────────────────────────────────
-const CATEGORY_COLORS: Record<string, string> = {
+// V10.2.1 — exported so consumers (LabConstellationTab, /start reveal)
+// can render a matching legend.
+export const CATEGORY_COLORS: Record<string, string> = {
   ufos_aliens:               '#4ade80',   // green
   cryptids:                  '#fbbf24',   // amber
   ghosts_hauntings:          '#c084fc',   // purple
@@ -101,6 +103,22 @@ const CATEGORY_COLORS: Record<string, string> = {
   religion_mythology:        '#fb923c',   // orange
   esoteric_practices:        '#a3e635',   // lime
   combination:               '#94a3b8',   // slate
+}
+
+// V10.2.1 — short display labels for the legend that appears below
+// the dial. Kept terse so a row of 4–5 fits on a 380px viewport.
+export const CATEGORY_LABELS: Record<string, string> = {
+  ufos_aliens:               'UFOs',
+  cryptids:                  'Cryptids',
+  ghosts_hauntings:          'Ghosts',
+  psychic_phenomena:         'Psychic',
+  consciousness_practices:   'Consciousness',
+  psychological_experiences: 'Psychological',
+  biological_factors:        'Biological',
+  perception_sensory:        'Perception',
+  religion_mythology:        'Religion',
+  esoteric_practices:        'Esoteric',
+  combination:               'Other',
 }
 
 const RING_COUNT = 4 // 4 concentric scoring bands
@@ -293,7 +311,7 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
         viewBox={viewBox}
         width="100%"
         height="100%"
-        style={{ display: 'block', overflow: 'visible' }}
+        style={{ display: 'block', overflow: 'hidden' }}
         aria-label="RADAR visualization"
         role="img"
       >
@@ -312,6 +330,15 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
             <stop offset="0%" stopColor="#a855f7" stopOpacity="0" />
             <stop offset="100%" stopColor="#a855f7" stopOpacity="0.42" />
           </radialGradient>
+          {/* V10.2.1 — clip everything in the dot layer to the radar
+              circle so the expanding ping rings can't escape past the
+              dial outline. Radius is slightly larger than the
+              outermost scoring ring so a freshly-pinged edge dot's
+              ring still gets a brief outward "halo" before being
+              cleanly clipped at the boundary. */}
+          <clipPath id="radar-bounds">
+            <circle cx={0} cy={0} r={radius + 2} />
+          </clipPath>
         </defs>
 
         {/* ── Concentric scoring rings ─────────────────────────────── */}
@@ -373,9 +400,14 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
         )}
 
         {/* ── Match dots ──────────────────────────────────────────── */}
+        {/* V10.2.1 — clipPath bound to the dial. Any ping-ring scale
+            animation that would escape past the radar edge gets
+            cleanly clipped instead of "flying off" into the rest of
+            the page. */}
         <g
           opacity={revealStage >= 3 ? 1 : 0}
           style={{ transition: 'opacity 800ms ease-out' }}
+          clipPath="url(#radar-bounds)"
         >
           {filtered.map((m, idx) => {
             const pos = positionForMatch(m, radius, idx)
@@ -519,8 +551,14 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
           100% { fill-opacity: 0.55; }
         }
         @keyframes radar-ping-out {
+          /* V10.2.1 — tightened max scale from 3.2 → 2.0 so the
+             expanding ring stays near the dot it pinged instead of
+             flying outward. The ring is also clipped to the radar
+             boundary at the SVG layer, but a tighter scale keeps it
+             from VISUALLY pushing against the edge clip in the first
+             place — softer, less "explosive" pulse. */
           0%   { transform: scale(1);   stroke-opacity: 0.9; }
-          100% { transform: scale(3.2); stroke-opacity: 0; }
+          100% { transform: scale(2.0); stroke-opacity: 0; }
         }
         .radar-match-dot.radar-ping-active .radar-dot-core {
           animation: radar-dot-flash 1200ms ease-out;

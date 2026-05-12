@@ -140,31 +140,24 @@ export default function LabPage() {
     router.replace('/lab?tab=' + tab, undefined, { shallow: true })
   }, [router])
 
-  // Lock scroll on mobile/tablet (<1024px) when constellation active
+  // QA #1 (RE-FIX V10.2.1): the previous scroll-lock effect actively
+  // overrode html/body overflow to 'hidden' on mobile whenever the
+  // constellation tab was active — that's exactly what was making the
+  // page un-scrollable. The lock was a leftover from when the RADAR
+  // was a fullscreen fixed-height experience; now that the tab has
+  // Your Report, filter caption, match list, and "Add another" CTAs
+  // stacked below, the page MUST scroll. Remove the lock entirely
+  // and let normal document scrolling take over. We still guarantee
+  // a comfortable initial height via `minHeight: calc(100dvh - 200px)`
+  // on the inner wrapper down in JSX.
   useEffect(function() {
-    if (activeTab !== 'constellation') return
-    function lockScroll() {
-      if (window.innerWidth < 1024) {
-        document.documentElement.style.overflow = 'hidden'
-        document.documentElement.style.height = '100%'
-        document.body.style.overflow = 'hidden'
-        document.body.style.height = '100%'
-      } else {
-        document.documentElement.style.overflow = ''
-        document.documentElement.style.height = ''
-        document.body.style.overflow = ''
-        document.body.style.height = ''
-      }
-    }
-    lockScroll()
-    window.addEventListener('resize', lockScroll)
-    return function() {
-      window.removeEventListener('resize', lockScroll)
-      document.documentElement.style.overflow = ''
-      document.documentElement.style.height = ''
-      document.body.style.overflow = ''
-      document.body.style.height = ''
-    }
+    // Defensive cleanup: if a previous build's lock effect left any
+    // overflow styles on html/body, reset them on mount so this
+    // page never inherits a stuck scroll-lock from a stale SW cache.
+    document.documentElement.style.overflow = ''
+    document.documentElement.style.height = ''
+    document.body.style.overflow = ''
+    document.body.style.height = ''
   }, [activeTab])
 
   return (

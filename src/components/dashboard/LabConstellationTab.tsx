@@ -36,7 +36,7 @@ var PaywallModal = dynamic(
 
 import type { MatchedReport, UserExperience } from '@/components/constellation/ConstellationReveal'
 import type { ExperienceData } from '@/components/constellation/ExperienceOnboarding'
-import RadarVisualization from '@/components/radar/RadarVisualization'
+import RadarVisualization, { CATEGORY_COLORS, CATEGORY_LABELS } from '@/components/radar/RadarVisualization'
 
 export default function LabConstellationTab() {
   var router = useRouter()
@@ -315,7 +315,7 @@ function PolishedRadarView(props: {
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-3xl mx-auto">
-      <div className="flex justify-center mb-6">
+      <div className="flex justify-center mb-3">
         <RadarVisualization
           mode="idle"
           matches={props.matches.map(function (m: any) {
@@ -341,6 +341,47 @@ function PolishedRadarView(props: {
           onCenterClick={handleOwnOpen}
         />
       </div>
+
+      {/* V10.2.1 — Category color legend. Each dot's color encodes its
+          phenomenon category; without this row users see "pink dots and
+          yellow dots" with no idea what the difference means. We show
+          ONLY the categories present in the user's current matches —
+          keeps the legend short and personally relevant (no point
+          listing UFOs if none of their matches are UFOs). */}
+      {(function () {
+        var presentCategories: string[] = []
+        var seen: Record<string, boolean> = {}
+        props.matches.forEach(function (m: any) {
+          if (m.category && !seen[m.category]) {
+            seen[m.category] = true
+            presentCategories.push(m.category)
+          }
+        })
+        if (presentCategories.length === 0) return null
+        return (
+          <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 mb-5 px-2">
+            {presentCategories.map(function (cat) {
+              var color = CATEGORY_COLORS[cat] || CATEGORY_COLORS.combination
+              var label = CATEGORY_LABELS[cat] || cat
+              return (
+                <span key={cat} className="inline-flex items-center gap-1.5 text-[10px] text-gray-400">
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      backgroundColor: color,
+                      flexShrink: 0,
+                    }}
+                  />
+                  {label}
+                </span>
+              )
+            })}
+          </div>
+        )
+      })()}
 
       {/* V9.11.5 #31 — "Share another experience" inline CTA.
           Existing users with one or more reports often have more
