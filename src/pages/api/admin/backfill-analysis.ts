@@ -24,22 +24,34 @@ import { generateAndSaveParadocsAnalysis } from '@/lib/services/paradocs-analysi
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
+  // V10.6.2 — accept three auth paths so the same endpoint
+  // works from (1) the admin UI session token, (2) curl with
+  // ADMIN_API_KEY, (3) Vercel cron with CRON_SECRET. Mirrors
+  // the pattern used by /api/cron/refresh-global-save-counts.
   const authHeader = req.headers.authorization || ''
   const token = authHeader.indexOf('Bearer ') === 0 ? authHeader.slice(7) : ''
-  if (!token) return res.status(401).json({ error: 'Not authenticated' })
+  const adminKey = req.headers['x-admin-key']
+  let authed = false
+
+  if (adminKey && adminKey === process.env.ADMIN_API_KEY) authed = true
+  if (!authed && token && process.env.CRON_SECRET && token === process.env.CRON_SECRET) authed = true
 
   const admin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
-  const { data: userData, error: authErr } = await admin.auth.getUser(token)
-  if (authErr || !userData?.user) return res.status(401).json({ error: 'Not authenticated' })
-  const { data: profile } = await (admin.from('profiles') as any)
-    .select('role')
-    .eq('id', userData.user.id)
-    .single()
-  if (!profile || (profile as any).role !== 'admin') {
-    return res.status(403).json({ error: 'Admin only' })
+
+  if (!authed) {
+    if (!token) return res.status(401).json({ error: 'Not authenticated' })
+    const { data: userData, error: authErr } = await admin.auth.getUser(token)
+    if (authErr || !userData?.user) return res.status(401).json({ error: 'Not authenticated' })
+    const { data: profile } = await (admin.from('profiles') as any)
+      .select('role')
+      .eq('id', userData.user.id)
+      .single()
+    if (!profile || (profile as any).role !== 'admin') {
+      return res.status(403).json({ error: 'Admin only' })
+    }
   }
 
   const body = (req.body || {}) as { limit?: number; force?: boolean; dryRun?: boolean }

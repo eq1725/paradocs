@@ -55,25 +55,27 @@ export default function ReportPullQuote({ quote, reportTitle, className }: Repor
 
   if (!quote || !quote.trim()) return null
 
+  // V10.6.2 — dropped the "Paradocs editorial pull-quote"
+  // figcaption per panel review (P.): the visual treatment
+  // (border-left + italic + share button) already signals it's
+  // a quote. Label was clutter.
   return (
-    <figure className={'relative my-6 ' + (className || '')}>
-      <blockquote
-        className="relative border-l-2 border-purple-500/60 pl-4 pr-12 py-2 italic text-base sm:text-lg text-gray-100 leading-relaxed bg-gradient-to-r from-purple-950/20 to-transparent rounded-r-md"
+    <blockquote
+      className={
+        'relative my-6 border-l-2 border-purple-500/60 pl-4 pr-12 py-2 italic text-base sm:text-lg text-gray-100 leading-relaxed bg-gradient-to-r from-purple-950/20 to-transparent rounded-r-md ' +
+        (className || '')
+      }
+    >
+      &ldquo;{quote}&rdquo;
+      <button
+        type="button"
+        onClick={handleShare}
+        className="absolute top-2 right-2 inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-900/80 hover:bg-gray-800 border border-gray-700 text-gray-300 hover:text-purple-200 transition-colors"
+        aria-label={copied ? 'Quote copied' : 'Share this quote'}
+        title={copied ? 'Copied' : 'Share quote'}
       >
-        &ldquo;{quote}&rdquo;
-        <button
-          type="button"
-          onClick={handleShare}
-          className="absolute top-2 right-2 inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-900/80 hover:bg-gray-800 border border-gray-700 text-gray-300 hover:text-purple-200 transition-colors"
-          aria-label={copied ? 'Quote copied' : 'Share this quote'}
-          title={copied ? 'Copied' : 'Share quote'}
-        >
-          {copied ? <Check className="w-4 h-4 text-emerald-300" /> : <Share2 className="w-4 h-4" />}
-        </button>
-      </blockquote>
-      <figcaption className="text-[10px] uppercase tracking-wider text-gray-600 mt-1 ml-4">
-        Paradocs editorial pull-quote
-      </figcaption>
-    </figure>
+        {copied ? <Check className="w-4 h-4 text-emerald-300" /> : <Share2 className="w-4 h-4" />}
+      </button>
+    </blockquote>
   )
 }

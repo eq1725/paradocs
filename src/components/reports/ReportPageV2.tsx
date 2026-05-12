@@ -43,6 +43,7 @@ import ReportRelatedReports from './ReportRelatedReports'
 import ReportPhenomenaChips from './ReportPhenomenaChips'
 import SourceBlock from './SourceBlock'
 import ReportBelowFold, { type RelatedReport, type AlternativeExplanation } from './ReportBelowFold'
+import ResonanceButton from './ResonanceButton'
 import { stripPiiWithLogging } from '@/lib/ai/pii-filter'
 import { supabase } from '@/lib/supabase'
 import { CATEGORY_CONFIG } from '@/lib/constants'
@@ -372,6 +373,17 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
               </div>
             )}
 
+            {/* ── 2a. Source attribution kicker (V10.6.2) ───────
+                Tiny uppercase label above the title so the reader
+                knows the provenance before they even start reading.
+                Mass-market readers don't scroll to find this; we
+                surface it where their eye already is. */}
+            {sourceLabel && (
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-gray-500 mb-2">
+                Source <span className="text-gray-600">·</span> <span className="text-gray-400">{sourceLabel}</span>
+              </div>
+            )}
+
             {/* ── 2. Title ────────────────────────────────────── */}
             <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight mb-3">
               {sanitized.title || 'Untitled report'}
@@ -447,6 +459,17 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
                 additionalMedia={additionalMedia}
                 className="mb-6"
               />
+            )}
+
+            {/* ── 7a. Resonance bar (V10.6.2) ───────────────────
+                Hoisted out of the below-fold discussion section
+                and given the prominent treatment. One-tap social
+                signal + a sub-CTA to "Share your own experience".
+                Above the fold for related/analysis because Resonance
+                has the highest conversion rate of any action on
+                this page (panel: P., S., G.). */}
+            {report?.slug && (
+              <ResonanceButton slug={report.slug} variant="prominent" />
             )}
 
             {/* ── 7b. Related Reports (V10.6) ────────────────

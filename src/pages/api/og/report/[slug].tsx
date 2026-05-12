@@ -44,17 +44,20 @@ interface ReportRow {
   feed_hook?: string | null
 }
 
+// V10.6.2 — friendly labels match what the rest of the app shows
+// (CATEGORY_CONFIG[slug].label). Was rendering as truncated short
+// labels — "Psychic" instead of "Psychic Phenomena", etc.
 const CATEGORY_DISPLAY: Record<string, string> = {
   ufos_aliens:               'UFOs & Aliens',
   cryptids:                  'Cryptids',
-  ghosts_hauntings:          'Ghosts',
-  psychic_phenomena:         'Psychic',
+  ghosts_hauntings:          'Ghosts & Hauntings',
+  psychic_phenomena:         'Psychic Phenomena',
   consciousness_practices:   'Consciousness',
   psychological_experiences: 'Psychological',
   biological_factors:        'Biological',
   perception_sensory:        'Perception',
-  religion_mythology:        'Religion',
-  esoteric_practices:        'Esoteric',
+  religion_mythology:        'Religion & Mythology',
+  esoteric_practices:        'Esoteric Practices',
   combination:               'Other',
 }
 
@@ -120,25 +123,40 @@ export default async function handler(req: NextRequest) {
             fontFamily: 'Inter, -apple-system, system-ui, sans-serif',
           }}
         >
-          {/* Top row: wordmark + category chip */}
+          {/* V10.6.2 — Wordmark fix. Was rendering as two adjacent
+              same-size spans which Satori collapsed visually. Now
+              the dot is in its own larger element with explicit
+              display:flex, and the whole row gets more presence
+              at 52px (was 36). */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 0 }}>
-              <span style={{ fontSize: 36, fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>Paradocs</span>
-              <span style={{ fontSize: 36, fontWeight: 800, color: '#a855f7' }}>.</span>
+            <div style={{ display: 'flex', alignItems: 'baseline' }}>
+              <span style={{ display: 'flex', fontSize: 52, fontWeight: 800, color: '#ffffff', letterSpacing: '-0.025em', lineHeight: 1 }}>
+                Paradocs
+              </span>
+              <span style={{
+                display: 'flex',
+                fontSize: 52,
+                fontWeight: 800,
+                color: '#a855f7',
+                lineHeight: 1,
+                marginLeft: 2,
+              }}>
+                .
+              </span>
             </div>
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 12,
-                padding: '10px 18px',
+                padding: '12px 20px',
                 borderRadius: 999,
-                border: `1px solid ${catColor}`,
+                border: `1.5px solid ${catColor}`,
                 background: 'rgba(255,255,255,0.04)',
               }}
             >
-              <span style={{ width: 12, height: 12, borderRadius: '50%', background: catColor, display: 'block' }} />
-              <span style={{ fontSize: 22, fontWeight: 600, color: '#ffffff' }}>{catLabel}</span>
+              <span style={{ display: 'flex', width: 12, height: 12, borderRadius: '50%', background: catColor }} />
+              <span style={{ display: 'flex', fontSize: 22, fontWeight: 600, color: '#ffffff' }}>{catLabel}</span>
             </div>
           </div>
 

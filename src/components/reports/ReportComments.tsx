@@ -17,8 +17,11 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { MessageCircle, Send, Reply, Trash2, AlertCircle, Loader2 } from 'lucide-react'
-import ResonanceButton from './ResonanceButton'
+import { Send, Reply, Trash2, AlertCircle, Loader2 } from 'lucide-react'
+// V10.6.2 — ResonanceButton dropped from this component. It was
+// hoisted to above-fold on /report/[slug] (rendered by ReportPageV2
+// with variant='prominent'). Keeping it here too would duplicate
+// the count + button.
 
 interface Author {
   user_id: string
@@ -141,6 +144,14 @@ export default function ReportComments(props: Props) {
     })
   })
 
+  // V10.6.2 — empty-state hoisted ABOVE the composer (panel item #4).
+  // Previously the "No comments yet. Be the first..." line sat
+  // beneath the form, which meant the user had to scroll past a
+  // ~140px form to even know the thread was empty. Putting it on
+  // top reframes the composer as "your turn" instead of "leave a
+  // comment at the bottom of yet-another-page".
+  var threadIsEmpty = !loading && !error && topLevel.length === 0
+
   return (
     // V10.6.1 — chrome removed. This component used to render its
     // own bottom-of-page section header (mt-12 pt-8 border-t plus
@@ -149,12 +160,14 @@ export default function ReportComments(props: Props) {
     // header. The duplicated header + 80px of top padding were
     // creating dead space.
     <section>
-      {/* Resonance sits above the composer — the one-tap social
-          signal is the first thing users see. Lower-friction than
-          typing a comment; aggregates a louder social proof number. */}
-      <div className="mb-4">
-        <ResonanceButton slug={props.slug} />
-      </div>
+      {/* Empty-state kicker — only when the thread has zero
+          comments AND we're done loading. Hoisted above the
+          composer so signed-out users see the invitation first. */}
+      {threadIsEmpty && (
+        <p className="mb-3 text-sm text-gray-400 italic">
+          No comments yet. Be the first to share what you noticed.
+        </p>
+      )}
 
       {/* Composer */}
       {signedInUserId ? (
@@ -168,7 +181,7 @@ export default function ReportComments(props: Props) {
           <textarea
             value={body}
             onChange={function (e) { setBody(e.target.value) }}
-            placeholder="Add to the discussion…"
+            placeholder="What did you notice? Share a similar experience, a question, or a counter-pattern."
             maxLength={MAX_BODY}
             rows={3}
             className="w-full bg-gray-900/80 border border-gray-700 rounded-xl p-3 text-sm placeholder-gray-500 focus:outline-none focus:border-purple-500 leading-relaxed resize-y"
@@ -224,9 +237,10 @@ export default function ReportComments(props: Props) {
       ) : error ? (
         <p className="text-sm text-red-300">{error}</p>
       ) : topLevel.length === 0 ? (
-        <p className="text-sm text-gray-500 italic">
-          No comments yet. Be the first to share what you noticed.
-        </p>
+        // V10.6.2 — empty-state copy is now rendered ABOVE the
+        // composer (see top of the section). This branch renders
+        // nothing so we don't show "No comments yet" twice.
+        null
       ) : (
         <ul className="space-y-5">
           {topLevel.map(function (c) {

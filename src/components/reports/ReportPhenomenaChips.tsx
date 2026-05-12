@@ -45,8 +45,15 @@ export default function ReportPhenomenaChips(props: ReportPhenomenaChipsProps) {
     return null
   }
 
+  // V10.6.2 — chip row simplified per panel item #7.
+  //   - Drop the standalone "RELATED" sublabel: the secondary
+  //     chips' lower visual weight already signals "supporting" and
+  //     the kicker was eating mobile width on cases with several.
+  //   - Restyle similar-phenomena chips even subtler (smaller text,
+  //     no fill, ghost border) so the eye lands on the primary
+  //     phenomenon-type chip first.
   return (
-    <div className={'flex flex-wrap gap-2 ' + (props.className || '')}>
+    <div className={'flex flex-wrap gap-2 items-center ' + (props.className || '')}>
       {props.phenomenonTypeName && (
         <Chip
           icon={Sparkles}
@@ -63,23 +70,16 @@ export default function ReportPhenomenaChips(props: ReportPhenomenaChipsProps) {
           href={'/explore?category=' + encodeURIComponent(props.category)}
         />
       )}
-      {similar.length > 0 && (
-        <>
-          <div className="self-center text-[10px] uppercase tracking-wider text-gray-600 px-1">
-            Related
-          </div>
-          {similar.map((name, i) => (
-            <Chip
-              key={i}
-              icon={Network}
-              tint="cyan"
-              label={name}
-              href={'/search?q=' + encodeURIComponent(name)}
-              compact
-            />
-          ))}
-        </>
-      )}
+      {similar.map((name, i) => (
+        <Chip
+          key={i}
+          icon={Network}
+          tint="ghost"
+          label={name}
+          href={'/search?q=' + encodeURIComponent(name)}
+          compact
+        />
+      ))}
     </div>
   )
 }
@@ -88,14 +88,19 @@ export default function ReportPhenomenaChips(props: ReportPhenomenaChipsProps) {
 
 function Chip(props: {
   icon: React.ComponentType<{ className?: string }>
-  tint: 'purple' | 'gray' | 'cyan'
+  tint: 'purple' | 'gray' | 'cyan' | 'ghost'
   label: string
   href?: string
   compact?: boolean
 }) {
+  // V10.6.2 — 'ghost' is the new lowest-weight treatment used for
+  // similar-phenomena chips. Border-only, no background fill, dim
+  // text. Maintains tappability without competing with the primary
+  // phenomenon-type chip for attention.
   const tint =
     props.tint === 'purple' ? 'bg-purple-600/15 border-purple-500/40 text-purple-200 hover:bg-purple-600/25' :
     props.tint === 'cyan'   ? 'bg-cyan-600/10 border-cyan-500/30 text-cyan-200 hover:bg-cyan-600/20' :
+    props.tint === 'ghost'  ? 'bg-transparent border-gray-700/60 text-gray-400 hover:text-gray-200 hover:border-gray-500' :
                               'bg-gray-800/60 border-gray-700 text-gray-200 hover:bg-gray-800'
 
   const Icon = props.icon
