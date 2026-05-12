@@ -21,8 +21,9 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { BookOpen } from 'lucide-react'
+import { BookOpen, MapPin, Calendar } from 'lucide-react'
 import CategoryIcon from '@/components/ui/CategoryIcon'
+import { CATEGORY_CONFIG } from '@/lib/constants'
 import type { PhenomenonCategory } from '@/lib/database.types'
 import type { RelatedReport } from './ReportBelowFold'
 
@@ -76,12 +77,20 @@ export default function ReportRelatedReports({ items, className }: ReportRelated
 
 function RelatedCard({ report }: { report: RelatedReport }) {
   const tint = CATEGORY_TINT[report.category || 'combination'] || CATEGORY_TINT.combination
-  const sub = [report.location_name, formatYear(report.event_date)].filter(Boolean).join(' · ')
+
+  // V10.6.1 — richer card sub-line. Was previously a slug-style
+  // join ("psychic_phenomena · United Kingdom") which looked
+  // technical. New shape uses friendly category label as a kicker
+  // and a separate meta line with location + date icons.
+  const categoryConfig = (CATEGORY_CONFIG as any)[report.category || 'combination']
+  const categoryLabel = (categoryConfig && categoryConfig.label) || ''
+  const dateStr = formatEventDate(report.event_date)
+  const locationStr = report.location_name && report.location_name.trim() ? report.location_name.trim() : null
 
   return (
     <Link
       href={'/report/' + report.slug}
-      className="group flex items-stretch gap-3 p-2.5 rounded-xl bg-gray-900/50 hover:bg-gray-900 border border-gray-800 hover:border-gray-700 transition-colors min-h-[80px]"
+      className="group flex items-stretch gap-3 p-2.5 rounded-xl bg-gray-900/50 hover:bg-gray-900 border border-gray-800 hover:border-gray-700 transition-colors min-h-[84px]"
     >
       {/* Thumbnail or category-gradient placeholder */}
       <div
@@ -107,22 +116,53 @@ function RelatedCard({ report }: { report: RelatedReport }) {
       </div>
 
       {/* Body */}
-      <div className="flex-1 min-w-0 flex flex-col justify-center">
+      <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+        {categoryLabel && (
+          <p className="text-[9px] uppercase tracking-widest font-semibold text-gray-500 leading-tight">
+            {categoryLabel}
+          </p>
+        )}
         <h3 className="text-[13px] font-medium text-white leading-snug line-clamp-2 group-hover:text-purple-200 transition-colors">
           {report.title}
         </h3>
-        {sub && (
-          <p className="text-[11px] text-gray-500 mt-1 truncate">
-            {sub}
-          </p>
+        {(locationStr || dateStr) && (
+          <div className="flex items-center gap-2.5 text-[11px] text-gray-400 mt-0.5">
+            {locationStr && (
+              <span className="inline-flex items-center gap-1 min-w-0 truncate">
+                <MapPin className="w-2.5 h-2.5 text-emerald-400/70 flex-shrink-0" />
+                <span className="truncate">{locationStr}</span>
+              </span>
+            )}
+            {dateStr && (
+              <span className="inline-flex items-center gap-1 flex-shrink-0">
+                <Calendar className="w-2.5 h-2.5 text-amber-400/70" />
+                {dateStr}
+              </span>
+            )}
+          </div>
         )}
       </div>
     </Link>
   )
 }
 
-function formatYear(raw?: string | null): string | null {
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+// V10.6.1 — better formatting than just-the-year. Surfaces month
+// when we have it (Mar 1972) and falls back to year-only or null.
+function formatEventDate(raw?: string | null): string | null {
   if (!raw) return null
-  const m = raw.match(/^(\d{4})/)
-  return m ? m[1] : null
+  const t = raw.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+    const [y, m, d] = t.split('-').map(Number)
+    // Sentinel: -01-01 with no real day usually means year-only.
+    if (m === 1 && d === 1) return String(y)
+    return MONTHS[m - 1] + ' ' + y
+  }
+  if (/^\d{4}-\d{2}$/.test(t)) {
+    const [y, m] = t.split('-').map(Number)
+    return MONTHS[m - 1] + ' ' + y
+  }
+  if (/^\d{4}$/.test(t)) return t
+  return null
 }

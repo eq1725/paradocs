@@ -142,21 +142,18 @@ export default function ReportComments(props: Props) {
   })
 
   return (
-    <section className="mt-12 pt-8 border-t border-white/10">
-      {/* V10 Phase 4.A — Resonance sits above the Discussion
-          header so the one-tap social signal is the first thing
-          users see after the article. Lower-friction than typing
-          a comment; aggregates a louder social proof number. */}
-      <div className="mb-6">
+    // V10.6.1 — chrome removed. This component used to render its
+    // own bottom-of-page section header (mt-12 pt-8 border-t plus
+    // an MessageCircle + "Discussion" h2) but it's now nested
+    // inside the Disclosure component which already provides that
+    // header. The duplicated header + 80px of top padding were
+    // creating dead space.
+    <section>
+      {/* Resonance sits above the composer — the one-tap social
+          signal is the first thing users see. Lower-friction than
+          typing a comment; aggregates a louder social proof number. */}
+      <div className="mb-4">
         <ResonanceButton slug={props.slug} />
-      </div>
-
-      <div className="flex items-center gap-2 mb-6">
-        <MessageCircle className="w-5 h-5 text-purple-300" />
-        <h2 className="text-lg font-semibold text-white">
-          Discussion
-          {comments.length > 0 && <span className="text-gray-500 font-normal"> · {comments.length}</span>}
-        </h2>
       </div>
 
       {/* Composer */}
