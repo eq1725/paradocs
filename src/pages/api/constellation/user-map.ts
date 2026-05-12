@@ -459,7 +459,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         imageUrl: a.thumbnail_url || null,
         locationName: null,
         eventDate: null,
-        summary: (a.metadata_json && a.metadata_json.description) || null,
+        // V10.3 QA #3b — prefer the AI-rewritten summary over the raw
+        // OG meta description (which on many sites is generic boilerplate
+        // — looking at you, BFRO).
+        summary: (a.metadata_json && (a.metadata_json.ai_summary || a.metadata_json.description)) || null,
         note: a.user_note || '',
         verdict: a.verdict || 'needs_info',
         tags: artifactTags,

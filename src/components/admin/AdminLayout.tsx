@@ -28,7 +28,7 @@ import Link from 'next/link'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
 import {
-  LayoutDashboard, FileText, Image as ImageIcon, UserCircle, MessageSquare, Anchor, FlaskConical, Bell, Loader2, Shield,
+  LayoutDashboard, FileText, Image as ImageIcon, UserCircle, MessageSquare, Anchor, FlaskConical, Bell, Loader2, Shield, Users,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
@@ -61,6 +61,10 @@ var NAV_ITEMS: NavPill[] = [
   { href: '/admin/anchor-cases', label: 'Anchors', icon: Anchor, match: (p) => p.indexOf('/admin/anchor-cases') === 0 },
   { href: '/admin/ab-testing', label: 'A/B', icon: FlaskConical, match: (p) => p.indexOf('/admin/ab-testing') === 0 },
   { href: '/admin/push-test', label: 'Push', icon: Bell, match: (p) => p.indexOf('/admin/push-test') === 0 },
+  // V10.3 (QA #6d) — Researcher Overlap real-time monitoring +
+  // threshold tuning. Lets Chase verify the IDF-weighted scoring
+  // is producing meaningful matches without redeploying.
+  { href: '/admin/researcher-overlap', label: 'Overlap', icon: Users, match: (p) => p.indexOf('/admin/researcher-overlap') === 0 },
 ]
 
 interface QueueCounts {

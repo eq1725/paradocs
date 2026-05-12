@@ -18,6 +18,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
+import { summarizeArtifact } from '@/lib/services/artifact-summary.service'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -195,6 +196,53 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } catch (e) {
     // Flywheel failure should never block the user's save. Log and move on.
     console.error('[constellation/artifacts] signal upsert failed:', e)
+  }
+
+  // ── V10.3 QA #3b: AI-rewrite the meta description into a clean,
+  // documentary-style summary. The raw OG description on sites like
+  // BFRO is generic boilerplate; Haiku rewrites it into something a
+  // user can actually read at a glance.
+  //
+  // We do this AFTER returning success would be ideal (latency-wise),
+  // but Vercel kills lambdas at response end — so we await here and
+  // accept a small latency hit (~500ms) in exchange for the summary
+  // being present on first read. If Anthropic is slow or fails, we
+  // leave metadata_json.description alone and move on.
+  try {
+    var metaJson: Record<string, any> = (body.metadata_json && typeof body.metadata_json === 'object')
+      ? { ...body.metadata_json }
+      : {}
+    var existingDescription = typeof metaJson.description === 'string' ? metaJson.description : null
+    var existingPageText = typeof metaJson.page_text === 'string' ? metaJson.page_text : null
+
+    var summaryResult = await summarizeArtifact({
+      url: externalUrl,
+      title,
+      metaDescription: existingDescription,
+      pageText: existingPageText,
+      sourcePlatform: sourceType,
+    })
+
+    if (summaryResult.summary) {
+      metaJson.ai_summary = summaryResult.summary
+      metaJson.ai_summary_generated_at = new Date().toISOString()
+      metaJson.ai_summary_source = 'haiku_v10_3'
+
+      var { error: updateErr } = await supabase
+        .from('constellation_artifacts')
+        .update({ metadata_json: metaJson })
+        .eq('id', artifact.id)
+      if (updateErr) {
+        console.error('[constellation/artifacts] ai_summary update failed:', updateErr)
+      } else {
+        // Reflect the update in the returned artifact so the client
+        // doesn't have to refetch.
+        artifact.metadata_json = metaJson
+      }
+    }
+  } catch (e) {
+    // AI summary failure must not block the save flow.
+    console.error('[constellation/artifacts] ai_summary generation failed:', e)
   }
 
   return res.status(201).json({ artifact })
