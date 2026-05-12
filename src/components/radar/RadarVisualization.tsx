@@ -242,8 +242,10 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
       if (!el) return
       // Force animation restart: remove + reflow + re-add the class.
       el.classList.remove('radar-ping-active')
-      // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-      void (el as any).getBBox  // force reflow without leaking layout
+      // getBoundingClientRect() is a method call that triggers a synchronous
+      // reflow as a documented browser behavior — voiding the return value
+      // keeps it tree-shake/eslint-safe.
+      void el.getBoundingClientRect()
       // requestAnimationFrame guarantees the remove takes effect
       // before the re-add (otherwise React/browser batching can
       // collapse the toggle).
