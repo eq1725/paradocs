@@ -773,3 +773,31 @@ body.sheet-open {
 .maplibregl-ctrl-top-right {
   top: 12px !important;
 }
+
+/* ─── V10.5 Reader mode ─────────────────────────────────────
+   Applied to the <article> root of /report/[slug] when the
+   user toggles reader mode. Goal: pull the focus to text.
+   - Bumps body type to 17px / leading-relaxed
+   - Hides desktop side-rail
+   - Tightens chrome opacity so it stays out of the way
+   ──────────────────────────────────────────────────────── */
+article.reader-mode .prose p,
+article.reader-mode p.text-base {
+  font-size: 17px;
+  line-height: 1.7;
+}
+article.reader-mode h1 {
+  letter-spacing: -0.01em;
+}
+article.reader-mode aside {
+  display: none;
+}
+article.reader-mode .lg\:grid {
+  display: block;
+}
+article.reader-mode header button {
+  opacity: 0.85;
+}
+article.reader-mode header button:hover {
+  opacity: 1;
+}

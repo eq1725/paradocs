@@ -26,7 +26,10 @@
 
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ChevronDown, MessageSquare, BookOpen, Sparkles } from 'lucide-react'
+import {
+  ChevronDown, MessageSquare, BookOpen, Sparkles,
+  CircleCheck, CircleAlert, CircleHelp,
+} from 'lucide-react'
 
 const ReportComments = (() => {
   try {
@@ -72,7 +75,12 @@ export default function ReportBelowFold(props: ReportBelowFoldProps) {
   return (
     <section className={'space-y-3 ' + (props.className || '')}>
       {hasAnalysis && (
-        <Disclosure title="Paradocs analysis" icon={Sparkles} subtle="Editorial framing, alternative explanations">
+        <Disclosure
+          title="Paradocs analysis"
+          icon={Sparkles}
+          subtle="Editorial framing, alternative explanations"
+          variant="analysis"
+        >
           <AnalysisInner
             pullQuote={props.pullQuote || null}
             alternativeExplanations={props.alternativeExplanations || []}
@@ -81,13 +89,24 @@ export default function ReportBelowFold(props: ReportBelowFoldProps) {
       )}
 
       {hasRelated && (
-        <Disclosure title="Related reports" icon={BookOpen} subtle={(props.relatedReports || []).length + ' nearby cases'}>
+        <Disclosure
+          id="related-reports"
+          title="Related reports"
+          icon={BookOpen}
+          subtle={(props.relatedReports || []).length + ' nearby cases'}
+          variant="related"
+        >
           <RelatedInner items={props.relatedReports || []} />
         </Disclosure>
       )}
 
       {ReportComments && (
-        <Disclosure title="Discussion" icon={MessageSquare} subtle="Add your perspective">
+        <Disclosure
+          title="Discussion"
+          icon={MessageSquare}
+          subtle="Add your perspective"
+          variant="discussion"
+        >
           <div className="pt-2">
             <ReportComments slug={props.reportSlug} />
           </div>
@@ -99,22 +118,58 @@ export default function ReportBelowFold(props: ReportBelowFoldProps) {
 
 // ── Disclosure shell ────────────────────────────────────────
 
+type DisclosureVariant = 'analysis' | 'related' | 'discussion'
+
+const VARIANT_STYLES: Record<DisclosureVariant, {
+  container: string
+  iconTint: string
+  iconBg: string
+}> = {
+  // V10.5 — Premium gradient border for Analysis. It's the substance
+  // of the page; this signals "tap me, this is the depth".
+  analysis: {
+    container: 'rounded-xl border border-purple-700/40 bg-gradient-to-br from-purple-950/40 via-gray-900/60 to-gray-900/40 overflow-hidden ring-1 ring-purple-500/10',
+    iconTint: 'text-purple-300',
+    iconBg: 'bg-purple-600/20 border border-purple-500/40',
+  },
+  // Discovery feel for Related — cyan accent matches the chip
+  // palette used elsewhere in the app for cross-disciplinary links.
+  related: {
+    container: 'rounded-xl border border-cyan-700/30 bg-cyan-950/[0.04] overflow-hidden',
+    iconTint: 'text-cyan-300',
+    iconBg: 'bg-cyan-600/15 border border-cyan-500/30',
+  },
+  // Chat treatment for Discussion — neutral but with the speech-
+  // bubble icon highlighted.
+  discussion: {
+    container: 'rounded-xl border border-gray-800 bg-gray-900/40 overflow-hidden',
+    iconTint: 'text-gray-300',
+    iconBg: 'bg-gray-800 border border-gray-700',
+  },
+}
+
 function Disclosure(props: {
+  id?: string
   title: string
   subtle?: string
   icon: React.ComponentType<{ className?: string }>
+  variant?: DisclosureVariant
   children: React.ReactNode
 }) {
   const [open, setOpen] = useState(false)
   const Icon = props.icon
+  const styles = VARIANT_STYLES[props.variant || 'discussion']
   return (
     <details
-      className="group rounded-xl border border-gray-800 bg-gray-900/40 overflow-hidden"
+      id={props.id}
+      className={'group ' + styles.container}
       onToggle={e => setOpen((e.target as HTMLDetailsElement).open)}
     >
-      <summary className="list-none flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none hover:bg-gray-900/60 transition-colors">
-        <div className="flex items-center gap-2 min-w-0">
-          <Icon className="w-4 h-4 text-purple-400 flex-shrink-0" />
+      <summary className="list-none flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none hover:bg-white/[0.03] transition-colors">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className={'inline-flex items-center justify-center w-7 h-7 rounded-md flex-shrink-0 ' + styles.iconBg}>
+            <Icon className={'w-3.5 h-3.5 ' + styles.iconTint} />
+          </span>
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-white leading-tight truncate">{props.title}</h3>
             {props.subtle && (
@@ -126,7 +181,7 @@ function Disclosure(props: {
           className={'w-4 h-4 text-gray-500 flex-shrink-0 transition-transform duration-200 ' + (open ? 'rotate-180' : '')}
         />
       </summary>
-      <div className="px-4 pb-4 pt-2 border-t border-gray-800/60">
+      <div className="px-4 pb-4 pt-2 border-t border-white/[0.05]">
         {props.children}
       </div>
     </details>
@@ -136,13 +191,12 @@ function Disclosure(props: {
 // ── Analysis section ────────────────────────────────────────
 
 function AnalysisInner(props: { pullQuote: string | null; alternativeExplanations: AlternativeExplanation[] }) {
+  // V10.5 — pull quote is now rendered INLINE above the source block
+  // (see ReportPullQuote) so it isn't gated behind this disclosure.
+  // We keep the prop in the signature for backward compat but only
+  // render it as a small reminder up top when the disclosure opens.
   return (
     <div className="space-y-4">
-      {props.pullQuote && (
-        <blockquote className="border-l-2 border-purple-500/50 pl-3 italic text-gray-200 text-sm leading-relaxed">
-          &ldquo;{props.pullQuote}&rdquo;
-        </blockquote>
-      )}
       {props.alternativeExplanations.length > 0 && (
         <div>
           <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-2">
@@ -170,12 +224,25 @@ function AnalysisInner(props: { pullQuote: string | null; alternativeExplanation
 }
 
 function LikelihoodBadge({ likelihood }: { likelihood: 'high' | 'medium' | 'low' }) {
-  const tint =
-    likelihood === 'high'   ? 'bg-amber-500/20 border-amber-500/40 text-amber-200' :
-    likelihood === 'medium' ? 'bg-gray-700 border-gray-600 text-gray-200' :
-                              'bg-gray-800/60 border-gray-700 text-gray-400'
+  // V10.5 — color + icon encoding. Previous treatment had medium and
+  // low looking nearly identical (both gray). Now:
+  //   High   = red CircleCheck (strong-evidence — rare per the
+  //            paradocs-analysis prompt's "high is RARE" rule)
+  //   Medium = amber CircleHelp (plausible but not directly evidenced)
+  //   Low    = slate CircleAlert (worth listing but details argue
+  //            against it)
+  const config = {
+    high:   { tint: 'bg-rose-500/20 border-rose-500/50 text-rose-200',     Icon: CircleCheck },
+    medium: { tint: 'bg-amber-500/15 border-amber-500/40 text-amber-200', Icon: CircleHelp },
+    low:    { tint: 'bg-slate-500/15 border-slate-500/30 text-slate-300', Icon: CircleAlert },
+  }[likelihood]
+  const Icon = config.Icon
   return (
-    <span className={'inline-flex items-center justify-center flex-shrink-0 mt-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ' + tint}>
+    <span
+      className={'inline-flex items-center gap-1 flex-shrink-0 mt-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ' + config.tint}
+      aria-label={'Likelihood: ' + likelihood}
+    >
+      <Icon className="w-2.5 h-2.5" />
       {likelihood}
     </span>
   )

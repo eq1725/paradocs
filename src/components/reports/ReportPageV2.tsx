@@ -37,6 +37,10 @@ import { ArrowLeft, Bookmark, BookmarkCheck, Share2, Loader2 } from 'lucide-reac
 
 import ReportLocationMap, { type LocationPrecision } from './ReportLocationMap'
 import ReportMeta from './ReportMeta'
+import ReportEngagementStrip from './ReportEngagementStrip'
+import ReportPullQuote from './ReportPullQuote'
+import ReportRelatedPreview from './ReportRelatedPreview'
+import ReaderModeToggle, { useReaderMode } from './ReaderModeToggle'
 import ReportPhenomenaChips from './ReportPhenomenaChips'
 import SourceBlock from './SourceBlock'
 import ReportBelowFold, { type RelatedReport, type AlternativeExplanation } from './ReportBelowFold'
@@ -144,6 +148,14 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
   }, [report?.title])
 
   // ── Precision logic for the map ────────────────────────────
+  // V10.5 — when the source row has explicit metadata.location_precision,
+  // we trust it. Otherwise we infer from which fields are populated.
+  // CRITICAL: we also detect "centroid-looking" coordinates (state-
+  // capital / country-center placeholders) by checking whether the
+  // coords land suspiciously close to a known state/country centroid.
+  // When detected, we downgrade precision to 'region' so the map
+  // renders a badge instead of a misleading pin (the Georgia → Atlantic
+  // bug stemmed from a state-centroid placeholder coord).
   const mapPrecision: LocationPrecision = useMemo(() => {
     const meta = report?.metadata || {}
     const raw = (meta.location_precision || meta.locationPrecision || '').toString().toLowerCase()
@@ -151,6 +163,7 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
     if (raw === 'city' || raw === 'town') return 'city'
     if (raw === 'region' || raw === 'state' || raw === 'province' || raw === 'county') return 'region'
     if (raw === 'country') return 'country'
+    // No explicit precision — infer.
     if (report?.city) return 'city'
     if (report?.state_province || report?.country) return 'region'
     return 'unknown'
@@ -210,6 +223,39 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
       }))
   }, [media])
 
+  // ── Reader mode (V10.5) ────────────────────────────────────
+  const { reader, toggle: toggleReader } = useReaderMode()
+
+  // ── Engagement metrics ────────────────────────────────────
+  // savedCount comes back as `saved_count` on the report row when
+  // we add the aggregate (see getStaticProps). View + comment
+  // counts have been on the row for ages.
+  const viewCount = typeof report?.view_count === 'number' ? report.view_count : null
+  const savedCount = typeof report?.saved_count === 'number' ? report.saved_count : null
+  const commentCount = typeof report?.comment_count === 'number' ? report.comment_count : null
+  const readTimeWords = useMemo(() => {
+    let total = 0
+    if (sanitized.narrative) total += sanitized.narrative.split(/\s+/).filter(Boolean).length
+    if (sanitized.answerLine) total += sanitized.answerLine.split(/\s+/).filter(Boolean).length
+    return total
+  }, [sanitized.narrative, sanitized.answerLine])
+
+  // Split the AI narrative on \n\n into proper paragraphs for
+  // mobile readability (V10.5). Previously the whole thing shipped
+  // as one block.
+  const narrativeParagraphs = useMemo(() => {
+    if (!sanitized.narrative) return []
+    return sanitized.narrative
+      .split(/\n\s*\n+/)
+      .map(p => p.trim())
+      .filter(Boolean)
+  }, [sanitized.narrative])
+
+  // Curated-case detection — was rendered as "Notable Case" pre-V10.5
+  // which read as editorial endorsement to mass-market eyes. Reword
+  // to "Curated case" (descriptive, not endorsing).
+  const isCurated = !!(report?.featured || report?.source_type === 'curated' || report?.source_type === 'editorial')
+
   return (
     <>
       <Head>
@@ -217,125 +263,214 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
         {sanitized.answerLine && (
           <meta name="description" content={sanitized.answerLine} />
         )}
+        {/* V10.5 — Open Graph image route (Vercel @vercel/og). */}
+        {report?.slug && (
+          <>
+            <meta property="og:title" content={(sanitized.title || 'Paradocs report')} />
+            {sanitized.answerLine && (
+              <meta property="og:description" content={sanitized.answerLine} />
+            )}
+            <meta property="og:image" content={'/api/og/report/' + report.slug} />
+            <meta property="og:type" content="article" />
+            <meta name="twitter:card" content="summary_large_image" />
+            <meta name="twitter:image" content={'/api/og/report/' + report.slug} />
+          </>
+        )}
       </Head>
 
-      <article className="min-h-screen bg-gray-950 text-gray-100">
+      <article
+        className={
+          'min-h-screen bg-gray-950 text-gray-100 ' +
+          (reader ? 'reader-mode' : '')
+        }
+      >
         {/* ── 1. Animated map (replaces hero image) ──────────── */}
-        <ReportLocationMap
-          latitude={report?.latitude}
-          longitude={report?.longitude}
-          precision={mapPrecision}
-          pinLabel={pinLabel}
-          regionLabel={regionLabel}
-        />
-
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 pb-12">
-          {/* ── Page chrome: back + single save affordance ─── */}
-          <header className="flex items-center justify-between gap-2 -mt-8 mb-6 relative z-10">
-            <button
-              onClick={() => router.back()}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-gray-900/80 backdrop-blur-sm border border-gray-700 text-xs text-gray-300 hover:bg-gray-800 transition-colors"
-              aria-label="Back"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Back
-            </button>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleShare}
-                className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-900/80 backdrop-blur-sm border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"
-                aria-label={copied ? 'Link copied' : 'Share'}
-                title={copied ? 'Link copied' : 'Share'}
-              >
-                <Share2 className="w-4 h-4" />
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving || !user}
-                className={
-                  'inline-flex items-center justify-center w-9 h-9 rounded-full backdrop-blur-sm border transition-colors ' +
-                  (isSaved
-                    ? 'bg-purple-600/30 border-purple-500/60 text-purple-100'
-                    : 'bg-gray-900/80 border-gray-700 text-gray-300 hover:bg-gray-800')
-                }
-                aria-label={isSaved ? 'Saved' : (user ? 'Save' : 'Sign in to save')}
-                aria-pressed={isSaved}
-                title={isSaved ? 'Saved to Lab' : (user ? 'Save to Lab' : 'Sign in to save')}
-              >
-                {saving
-                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                  : isSaved
-                    ? <BookmarkCheck className="w-4 h-4" />
-                    : <Bookmark className="w-4 h-4" />}
-              </button>
-            </div>
-          </header>
-
-          {/* ── 2. Title ────────────────────────────────────── */}
-          <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight mb-3">
-            {sanitized.title || 'Untitled report'}
-          </h1>
-
-          {/* ── 3. Answer line (TL;DR) ──────────────────────── */}
-          {sanitized.answerLine && (
-            <p className="text-base text-gray-200 leading-relaxed mb-5 font-medium">
-              {sanitized.answerLine}
-            </p>
-          )}
-
-          {/* ── 4. Meta block ──────────────────────────────── */}
-          <ReportMeta
-            anonymizeSubmitter={anonymize}
-            submitterDisplayName={submitterDisplayName}
-            eventDate={report?.event_date}
-            eventDateText={report?.event_date_text}
-            city={report?.city}
-            stateProvince={report?.state_province}
-            country={report?.country}
-            locationName={report?.location_name}
-            witnessCount={report?.witness_count}
-            submitterWasWitness={report?.submitter_was_witness}
-            className="mb-5"
+        {/* V10.5 — map shrunk to ~35vh (was 240px ≈ 28vh per the
+            panel: too dominating for what's essentially context). */}
+        <div className="relative" style={{ height: '35vh', minHeight: 200, maxHeight: 320 }}>
+          <ReportLocationMap
+            latitude={report?.latitude}
+            longitude={report?.longitude}
+            precision={mapPrecision}
+            pinLabel={pinLabel}
+            regionLabel={regionLabel}
+            height={1000 /* let the wrapper control via CSS */}
+            className="absolute inset-0 h-full"
           />
+        </div>
 
-          {/* ── 5. Phenomena & cross-disciplinary chips ─────── */}
-          <ReportPhenomenaChips
-            phenomenonTypeName={phenomenonTypeName}
-            phenomenonTypeSlug={phenomenonTypeSlug}
-            category={report?.category}
-            categoryLabel={categoryLabel}
-            similarPhenomena={sanitized.similarPhenomena}
-            className="mb-6"
-          />
+        {/* V10.5 — Desktop side-rail at lg+ screens. Center column
+            for narrative, sticky right rail for engagement + below-
+            fold. Mobile + tablet collapses to single column. */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-12 lg:grid lg:grid-cols-12 lg:gap-8">
+          <div className="lg:col-span-8 lg:max-w-3xl">
+            {/* ── Page chrome ────────────────────────────────── */}
+            <header className="flex items-center justify-between gap-2 -mt-8 mb-6 relative z-10">
+              <button
+                onClick={() => router.back()}
+                className="inline-flex items-center gap-1 px-3 py-2 rounded-full bg-gray-900/85 backdrop-blur-sm border border-gray-700 text-xs text-gray-300 hover:bg-gray-800 transition-colors min-h-[44px]"
+                aria-label="Back"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Back
+              </button>
+              <div className="flex items-center gap-2">
+                <ReaderModeToggle reader={reader} onToggle={toggleReader} />
+                <button
+                  onClick={handleShare}
+                  className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-gray-900/85 backdrop-blur-sm border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"
+                  aria-label={copied ? 'Link copied' : 'Share'}
+                  title={copied ? 'Link copied' : 'Share'}
+                >
+                  <Share2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving || !user}
+                  className={
+                    'inline-flex items-center justify-center w-11 h-11 rounded-full backdrop-blur-sm border transition-colors ' +
+                    (isSaved
+                      ? 'bg-purple-600/30 border-purple-500/60 text-purple-100'
+                      : 'bg-gray-900/85 border-gray-700 text-gray-300 hover:bg-gray-800')
+                  }
+                  aria-label={isSaved ? 'Saved' : (user ? 'Save' : 'Sign in to save')}
+                  aria-pressed={isSaved}
+                  title={isSaved ? 'Saved to Lab' : (user ? 'Save to Lab' : 'Sign in to save')}
+                >
+                  {saving
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : isSaved
+                      ? <BookmarkCheck className="w-4 h-4" />
+                      : <Bookmark className="w-4 h-4" />}
+                </button>
+              </div>
+            </header>
 
-          {/* ── 6. Experience description ──────────────────── */}
-          {sanitized.narrative && (
-            <div className="mb-6 prose prose-invert max-w-none">
-              <p className="text-base text-gray-100 leading-relaxed whitespace-pre-line">
-                {sanitized.narrative}
+            {/* Curated badge — V10.5 reframed from "Notable Case"
+                (which read as endorsement) to "Curated case"
+                (descriptive). Only renders when applicable. */}
+            {isCurated && (
+              <div
+                className="inline-flex items-center gap-1 px-2 py-1 mb-2 rounded-md text-[10px] font-bold uppercase tracking-widest bg-purple-600/15 border border-purple-500/40 text-purple-200"
+                title="Curated by Paradocs editorial — included in the index because of historical significance or pattern relevance."
+              >
+                Curated case
+              </div>
+            )}
+
+            {/* ── 2. Title ────────────────────────────────────── */}
+            <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight mb-3">
+              {sanitized.title || 'Untitled report'}
+            </h1>
+
+            {/* ── 3. Answer line (TL;DR) ──────────────────────── */}
+            {sanitized.answerLine && (
+              <p className="text-base text-gray-200 leading-relaxed mb-5 font-medium">
+                {sanitized.answerLine}
               </p>
-            </div>
-          )}
+            )}
 
-          {/* ── 7. Source attribution + media (3 tiers) ────── */}
-          {sourceUrl && (
-            <SourceBlock
-              sourceUrl={sourceUrl}
-              sourceLabel={sourceLabel}
-              excerpt={sourceExcerpt}
-              thumbnailUrl={sourceThumbnail}
-              additionalMedia={additionalMedia}
+            {/* ── 4. Meta block ──────────────────────────────── */}
+            <ReportMeta
+              anonymizeSubmitter={anonymize}
+              submitterDisplayName={submitterDisplayName}
+              eventDate={report?.event_date}
+              eventDateText={report?.event_date_text}
+              city={report?.city}
+              stateProvince={report?.state_province}
+              country={report?.country}
+              locationName={report?.location_name}
+              witnessCount={report?.witness_count}
+              submitterWasWitness={report?.submitter_was_witness}
+              className="mb-4"
+            />
+
+            {/* ── 4b. Engagement strip (V10.5) ───────────────── */}
+            <ReportEngagementStrip
+              viewCount={viewCount}
+              savedCount={savedCount}
+              commentCount={commentCount}
+              readTimeWords={readTimeWords}
+              className="mb-5"
+            />
+
+            {/* ── 5. Phenomena & cross-disciplinary chips ─────── */}
+            <ReportPhenomenaChips
+              phenomenonTypeName={phenomenonTypeName}
+              phenomenonTypeSlug={phenomenonTypeSlug}
+              category={report?.category}
+              categoryLabel={categoryLabel}
+              similarPhenomena={sanitized.similarPhenomena}
               className="mb-6"
             />
-          )}
 
-          {/* ── 8. Below the fold ──────────────────────────── */}
-          <ReportBelowFold
-            reportSlug={report?.slug}
-            pullQuote={sanitized.pullQuote}
-            alternativeExplanations={sanitized.alternativeExplanations}
-            relatedReports={relatedReports}
-          />
+            {/* ── 6. Experience description (V10.5 paragraph-split) */}
+            {narrativeParagraphs.length > 0 && (
+              <div className="mb-2 prose prose-invert max-w-none">
+                {narrativeParagraphs.map((p, i) => (
+                  <p key={i} className="text-base text-gray-100 leading-relaxed mb-4 last:mb-0">
+                    {p}
+                  </p>
+                ))}
+              </div>
+            )}
+
+            {/* ── 6b. Inline pull quote (V10.5) ──────────────── */}
+            {sanitized.pullQuote && (
+              <ReportPullQuote
+                quote={sanitized.pullQuote}
+                reportTitle={sanitized.title}
+              />
+            )}
+
+            {/* ── 7. Source attribution + media (3 tiers) ────── */}
+            {sourceUrl && (
+              <SourceBlock
+                sourceUrl={sourceUrl}
+                sourceLabel={sourceLabel}
+                excerpt={sourceExcerpt}
+                thumbnailUrl={sourceThumbnail}
+                additionalMedia={additionalMedia}
+                className="mb-6"
+              />
+            )}
+
+            {/* ── 7b. Related-reports preview (V10.5) ─────────
+                Visible 3-card peek above the accordion so casual
+                readers see the natural read-next loop. On desktop
+                this lives in the side rail too, but keeping the
+                mobile-visible version here for the single-column
+                viewport. */}
+            <div className="lg:hidden">
+              {relatedReports && relatedReports.length > 0 && (
+                <ReportRelatedPreview
+                  items={relatedReports}
+                  fullSectionAnchor="related-reports"
+                />
+              )}
+            </div>
+
+            {/* ── 8. Below the fold (collapsibles) ───────────── */}
+            <ReportBelowFold
+              reportSlug={report?.slug}
+              pullQuote={sanitized.pullQuote}
+              alternativeExplanations={sanitized.alternativeExplanations}
+              relatedReports={relatedReports}
+              className="mt-2"
+            />
+          </div>
+
+          {/* ── Desktop side rail (V10.5) ──────────────────── */}
+          <aside className="hidden lg:block lg:col-span-4">
+            <div className="sticky top-20 space-y-4">
+              {relatedReports && relatedReports.length > 0 && (
+                <ReportRelatedPreview
+                  items={relatedReports}
+                  fullSectionAnchor="related-reports"
+                />
+              )}
+            </div>
+          </aside>
         </div>
       </article>
     </>

@@ -141,6 +141,18 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
 
     const safeReport = scrubIndexReport(reportData)
 
+    // V10.5 — fetch the saved_count aggregate for the engagement
+    // strip. saved_reports is the legacy bookmark table; we
+    // count rows pointing at this report.
+    try {
+      const { count: savedCount } = await (sb.from('saved_reports') as any)
+        .select('id', { count: 'exact', head: true })
+        .eq('report_id', (reportData as any).id)
+      ;(safeReport as any).saved_count = savedCount || 0
+    } catch {
+      ;(safeReport as any).saved_count = 0
+    }
+
     // Media items (uploaded photos/docs for direct submissions).
     const { data: mediaData } = await sb
       .from('report_media')

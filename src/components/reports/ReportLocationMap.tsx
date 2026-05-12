@@ -79,20 +79,43 @@ export default function ReportLocationMap({
   useEffect(() => { setMounted(true) }, [])
 
   // ── Decide: pin or region badge ────────────────────────────
+  // V10.5 — pin renders ONLY when precision is exact or city.
+  // Anything coarser (region/country/unknown) renders the region
+  // badge over a map centered on the country/region, no pin —
+  // because dropping a pin at a state centroid can land in the
+  // wrong place entirely (the Georgia case landed in the Atlantic).
   const hasUsableCoords =
     typeof latitude === 'number' && typeof longitude === 'number' &&
     Number.isFinite(latitude) && Number.isFinite(longitude) &&
     Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180
   const showPin = hasUsableCoords && (precision === 'exact' || precision === 'city')
 
+  // ── Target zoom — precision-driven ────────────────────────
+  // V10.5 — Roswell/Corona was landing at country-zoom because the
+  // initial state already matched the target. Fix: start clearly
+  // ZOOMED OUT (zoom 3) and animate IN to the precision-matched
+  // target. Target zoom map:
+  //   exact   → 11 (street/neighborhood)
+  //   city    → 10 (city + immediate region)
+  //   region  → 6  (state/province visible)
+  //   country → 4  (country visible)
+  //   unknown → 2  (world)
+  const targetZoom =
+    precision === 'exact'   ? 11 :
+    precision === 'city'    ? 10 :
+    precision === 'region'  ? 6  :
+    precision === 'country' ? 4  : 2
+
   // ── Animated flyTo on mount ────────────────────────────────
-  // We deliberately mount at a regional/country zoom (~3-5) and
-  // then animate to the specific location. Gives the user a
-  // moment of geographic context before the zoom locks in.
+  // Always start from a wider zoom (target − 4, floor 2) so the
+  // user perceives the motion as "here's the world, narrowing in
+  // on this case". Without this, when target was already 3.5 it
+  // looked like the map had failed to load anything specific.
+  const initialZoom = Math.max(2, targetZoom - 4)
   const initialViewState = hasUsableCoords ? {
     latitude: latitude!,
     longitude: longitude!,
-    zoom: 3.5,
+    zoom: initialZoom,
     bearing: 0,
     pitch: 0,
   } : {
@@ -110,7 +133,6 @@ export default function ReportLocationMap({
     const tid = setTimeout(() => {
       const map = mapRef.current
       if (!map || typeof map.flyTo !== 'function') return
-      const targetZoom = precision === 'exact' ? 11 : precision === 'city' ? 9 : 6
       try {
         map.flyTo({
           center: [longitude!, latitude!],
@@ -125,14 +147,19 @@ export default function ReportLocationMap({
       setAnimationDone(true)
     }, 250)
     return () => clearTimeout(tid)
-  }, [mounted, hasUsableCoords, latitude, longitude, precision, animationDone])
+  }, [mounted, hasUsableCoords, latitude, longitude, precision, animationDone, targetZoom])
 
   // ── Fallback when we have no usable coords ────────────────
+  // V10.5 — if a className that controls height (e.g. h-full
+  // inside an absolutely-positioned parent) is provided, we
+  // skip the inline height style so the wrapper wins.
+  const wrapperStyle = className && /\bh-/.test(className) ? undefined : { height }
+
   if (!hasUsableCoords) {
     return (
       <div
         className={'relative w-full bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 border-b border-gray-800 flex items-center justify-center ' + (className || '')}
-        style={{ height }}
+        style={wrapperStyle}
       >
         <RegionBadge label={regionLabel || 'Location unknown'} />
       </div>
@@ -143,7 +170,7 @@ export default function ReportLocationMap({
   return (
     <div
       className={'relative w-full overflow-hidden border-b border-gray-800 bg-gray-950 ' + (className || '')}
-      style={{ height }}
+      style={wrapperStyle}
     >
       {!MAPTILER_KEY ? (
         // Without a MapTiler key we'd render a broken style.

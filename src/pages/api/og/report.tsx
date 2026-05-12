@@ -6,7 +6,11 @@
  * location, and credibility score for rich social media previews.
  */
 
-import { ImageResponse } from '@vercel/og';
+// V10.5 — @vercel/og isn't installed; use next/og (built into
+// Next 14). The new /api/og/report/[slug] supersedes this route
+// for /report/[slug] pages; this route is kept for the legacy
+// /story/[id] consumer which passes query params.
+import { ImageResponse } from 'next/og';
 import type { NextRequest } from 'next/server';
 
 export const config = {
@@ -39,7 +43,10 @@ export default async function handler(req: NextRequest) {
   var scoreColor = scoreNum >= 0.7 ? '#22c55e' : scoreNum >= 0.4 ? '#eab308' : '#ef4444';
 
   return new ImageResponse(
-    {
+    // V10.5 — JSON-object element form (legacy from @vercel/og).
+    // next/og accepts this at runtime but its types want ReactElement;
+    // cast for type compatibility.
+    ({
       type: 'div',
       props: {
         style: {
@@ -197,7 +204,7 @@ export default async function handler(req: NextRequest) {
           },
         ],
       },
-    },
+    } as any),
     {
       width: 1200,
       height: 630,
