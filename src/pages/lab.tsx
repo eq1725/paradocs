@@ -271,10 +271,21 @@ export default function LabPage() {
             <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
-          /* Tab content — Constellation goes full-bleed; others get constrained padding */
-          <div className={activeTab === 'constellation' ? 'flex-1 min-h-0' : ''}>
+          /* Tab content — Constellation tab is scrollable like the
+             others. The previous flex-1 min-h-0 wrapper was a
+             leftover from when the RADAR was fixed-height; with the
+             V9.11.5 #30 inline match-preview expansion and the new
+             'Your Report' card above, the tab's content can extend
+             well below the viewport. QA #1 (V10.2): switched to
+             pb-20 + minHeight so the page scrolls naturally on iOS
+             PWA, exposing the match cards below the RADAR. */
+          <div className={activeTab === 'constellation'
+            ? 'pb-20'
+            : ''}>
             {activeTab === 'constellation' && (
-              <LabConstellationTab />
+              <div style={{ minHeight: 'calc(100dvh - 200px)' }}>
+                <LabConstellationTab />
+              </div>
             )}
             {activeTab !== 'constellation' && (
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-20" style={{ minHeight: 'calc(100dvh - 200px)' }}>

@@ -181,39 +181,63 @@ export default function NodeDetailPanel({
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          {/* V4 QA: Unsave button for plain bookmarks. Visible for entries
-              that came in via /discover (or the legacy save button) which
-              don't have a richer constellation_entry around them. */}
-          {(entry as any).isLegacyBookmark ? (
-            <button
-              onClick={async () => {
-                try {
-                  const isPhen = (entry as any).isPhenomenonSave === true || (entry.id || '').indexOf('savedphen:') === 0
-                  const sessionRes = await supabase.auth.getSession()
-                  const token = sessionRes.data.session?.access_token
-                  if (!token) return
-                  const url = isPhen ? '/api/user/saved-phenomena' : '/api/user/saved'
-                  const body = isPhen
+          {/* QA #3+#4 (V10.2) — unified unsave button covering all
+              three save types: legacy bookmarks (saved_reports /
+              saved_phenomena), external URL artifacts (constellation
+              _artifacts), and full constellation entries
+              (constellation_entries). Previously this only rendered
+              for isLegacyBookmark — Chase reported it missing on
+              URL-saved cards (Anna Paulina Pentagon, etc.) and on
+              his own report (Hum and Wood Knock). One confirm-dialog
+              guards against accidental taps. */}
+          <button
+            onClick={async () => {
+              if (!confirm('Remove this from your saves? You can re-save it anytime.')) return
+              try {
+                const sessionRes = await supabase.auth.getSession()
+                const token = sessionRes.data.session?.access_token
+                if (!token) return
+
+                const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }
+                const isLegacy = !!(entry as any).isLegacyBookmark
+                const isPhen = (entry as any).isPhenomenonSave === true || (entry.id || '').indexOf('savedphen:') === 0
+                const artifactId = (entry as any).artifactId as string | undefined
+
+                let url = ''
+                let init: RequestInit = { method: 'DELETE', headers }
+
+                if (isLegacy) {
+                  // Legacy /discover bookmark path
+                  url = isPhen ? '/api/user/saved-phenomena' : '/api/user/saved'
+                  init.body = isPhen
                     ? JSON.stringify({ phenomenon_id: (entry as any).phenomenonId })
                     : JSON.stringify({ report_id: (entry as any).reportId })
-                  await fetch(url, {
-                    method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-                    body: body,
-                  })
-                  if (onCaseFilesChanged) onCaseFilesChanged()
-                  onClose()
-                } catch (err) {
-                  console.error('[NodeDetailPanel] unsave failed:', err)
+                } else if (artifactId) {
+                  // External URL artifact (PasteUrl saves)
+                  url = '/api/constellation/artifacts/' + artifactId
+                } else {
+                  // Full constellation entry
+                  url = '/api/constellation/entries'
+                  init.body = JSON.stringify({ entry_id: entry.id })
                 }
-              }}
-              className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-rose-500/15 text-gray-400 hover:text-rose-300 transition-colors"
-              title="Remove from saves"
-              aria-label="Remove from saves"
-            >
-              <Trash2Icon className="w-4 h-4" />
-            </button>
-          ) : null}
+
+                const resp = await fetch(url, init)
+                if (!resp.ok) {
+                  console.error('[NodeDetailPanel] unsave failed:', resp.status, await resp.text().catch(() => ''))
+                  return
+                }
+                if (onCaseFilesChanged) onCaseFilesChanged()
+                onClose()
+              } catch (err) {
+                console.error('[NodeDetailPanel] unsave failed:', err)
+              }
+            }}
+            className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-rose-500/15 text-gray-400 hover:text-rose-300 transition-colors"
+            title="Remove from saves"
+            aria-label="Remove from saves"
+          >
+            <Trash2Icon className="w-4 h-4" />
+          </button>
           <button
             onClick={onClose}
             className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"

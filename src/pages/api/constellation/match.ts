@@ -244,7 +244,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (prof) {
           var role = prof.role
           var tier = prof.subscription_tier
-          if (role === 'admin' || tier === 'basic' || tier === 'pro' || tier === 'enterprise') {
+          // V10.2 — enterprise tier deprecated (kept admin role only).
+          if (role === 'admin' || tier === 'basic' || tier === 'pro') {
             isPro = true
           }
         }
