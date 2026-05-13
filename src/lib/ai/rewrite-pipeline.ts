@@ -81,8 +81,14 @@ const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
  * v10.6.18 — bumped narrative truncation 5K→8K to handle
  *   long-preamble NDERF reports where the actual experience
  *   description came AFTER the 5K window. Pass rate 90% → target ~95%.
+ * v10.6.19 — answer-line: added INTENSITY / TITLE / TIMELINE
+ *   discipline rules to fight AI editorializing. Madrid Art
+ *   Exhibition case had AI writing 'fever-stricken' when source
+ *   said 'slight fever,' pulling 'Fever-Induced' from the title,
+ *   and conflating timeline (fever was hours later, not during).
+ *   All three failure modes are the AI, not the source packet.
  */
-export const PROMPT_VERSION = 'v10.6.18'
+export const PROMPT_VERSION = 'v10.6.19'
 
 // ── Types ───────────────────────────────────────────────────
 

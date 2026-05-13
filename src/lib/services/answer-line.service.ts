@@ -31,6 +31,29 @@ const ANSWER_LINE_INSTRUCTIONS = [
   '  Good: "A 1972 Pennsylvania UFO sighting that the source describes as a 45-second close encounter with a luminous disc, witnessed by two people."',
   '',
   'Use hedge voice — "the source describes…", "the report records…", "the page documents…".',
+  '',
+  // V10.6.19 — match the source\'s intensity. The Madrid Art Exhibition case
+  // had the AI writing "fever-stricken" when the source said "slight fever";
+  // also drifted timeline by placing the fever at the exhibition when the
+  // source said it developed hours later. Both correctly rejected by the
+  // claim-check. This is the AI editorializing, not a source-packet bug.
+  'INTENSITY DISCIPLINE — do NOT dramatize or intensify the source\'s language:',
+  '  - If the source says "slight fever," do NOT write "fever-stricken" or "ravaged by fever."',
+  '  - If the source says "felt afraid," do NOT write "terrified" or "horrified."',
+  '  - If the source says "saw a light," do NOT write "blinded by a brilliant light."',
+  '  - If the source says "the experience felt real," do NOT write "deeply transformative."',
+  '  Match the source\'s register. Plain becomes plain. Vivid stays vivid. Never escalate.',
+  '',
+  'TITLE DISCIPLINE — the title may be more dramatic than the narrative supports.',
+  '  Treat the title as a hint, not a fact source. Every claim in your output must be',
+  '  supported by the FULL SOURCE TEXT, not the title. If the title says "Fever-Induced',
+  '  Revelation" but the narrative says "slight fever later that night," your output',
+  '  must match the narrative, not the title.',
+  '',
+  'TIMELINE DISCIPLINE — events that happened BEFORE / DURING / AFTER are not',
+  '  interchangeable. If the source says X happened "hours later" or "the next day"',
+  '  or "weeks before," preserve that temporal relationship.',
+  '',
   'Do NOT include the URL.',
   'Do NOT begin with "This report" or "This article".',
   'Just return the sentence — no preamble, no quotes, no labels.',
