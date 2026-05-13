@@ -44,20 +44,32 @@ const JOBS: Array<{
   label: string
   endpoint: string
   description: string
+  /**
+   * V10.6.4 — analysis is much heavier per row (~10–15s w/ retries +
+   * claim-check). 10/chunk fits comfortably in Vercel's 5-min function
+   * window. Answer-line is light (~1–2s) so 25/chunk is fine.
+   */
+  chunkSize: number
 }> = [
   {
     kind: 'analysis',
     label: 'Paradocs Analysis (frames + open questions)',
     endpoint: '/api/admin/backfill-analysis',
     description:
-      'Regenerates paradocs_assessment for reports missing V10.6 frames. ~$0.01/row.',
+      'Regenerates paradocs_assessment for INGESTED REPORTS only (reports table). ' +
+      'Does NOT touch phenomena encyclopedia entries (/phenomena/<slug> pages — those use a separate pipeline). ' +
+      'Renders below the fold on /report/[slug] as the lenses + open-questions analysis. ~$0.01/row.',
+    chunkSize: 10,
   },
   {
     kind: 'answer-lines',
     label: 'Answer line (one-sentence faithful paraphrase)',
     endpoint: '/api/admin/backfill-answer-lines',
     description:
-      'Generates answer_line for reports where it is NULL. ~$0.002/row.',
+      'Generates the bold TL;DR sentence right under the title on /report/[slug]. ' +
+      'Also used as the meta description (SEO + iMessage/Slack/Twitter share-card text) and as the OG card kicker. ' +
+      'Reports only — does not touch encyclopedia entries. ~$0.002/row.',
+    chunkSize: 25,
   },
 ]
 
@@ -110,7 +122,7 @@ export default function AdminBackfillPage() {
     const resp = await fetch(job.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ limit: 25, dryRun: !!opts.dryRun, force: !!opts.force }),
+      body: JSON.stringify({ limit: job.chunkSize, dryRun: !!opts.dryRun, force: !!opts.force }),
     })
     if (!resp.ok) {
       const text = await resp.text().catch(() => '')
@@ -123,7 +135,7 @@ export default function AdminBackfillPage() {
   const runChunk = useCallback(async (job: typeof JOBS[number]) => {
     if (busy) return
     setBusy(job.kind)
-    appendLog('▶ ' + job.label + ' — running one chunk (limit 25)…')
+    appendLog('▶ ' + job.label + ' — running one chunk (limit ' + job.chunkSize + ')…')
     const result = await runOnce(job, {})
     if (result) {
       appendLog(
@@ -228,8 +240,9 @@ export default function AdminBackfillPage() {
         <header className="mb-6">
           <h1 className="text-2xl font-bold text-white">AI Backfill</h1>
           <p className="text-sm text-gray-400 mt-1">
-            Refresh existing reports through the V10.6 pipelines. Each job is bounded — click <em>Run one chunk</em> to
-            process 25 rows, or <em>Run until done</em> to loop until empty (max 1,000 rows per session).
+            Refresh existing <strong className="text-gray-200">reports</strong> (ingested + user-submitted) through the V10.6
+            pipelines. <strong className="text-gray-200">Encyclopedia phenomena pages are NOT touched</strong> — those
+            run through a different service. Each job is bounded; <em>Run until done</em> loops up to 40 chunks (max ~1,000 rows).
           </p>
         </header>
 
@@ -262,7 +275,7 @@ export default function AdminBackfillPage() {
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs font-semibold transition-colors"
                   >
                     {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-                    Run one chunk (25)
+                    Run one chunk ({job.chunkSize})
                   </button>
                   <button
                     onClick={() => runAll(job)}
