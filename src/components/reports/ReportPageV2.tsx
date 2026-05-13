@@ -630,8 +630,15 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               (~70px). lg:pt-4 on the inner stack adds breathing room
               from the map's bottom edge on initial position (the main
               column has back button + curated badge + h1 padding it
-              down; the rail has none of that without the explicit pt). */}
-          <aside className="hidden lg:block lg:sticky lg:top-24 lg:self-start lg:pt-4">
+              down; the rail has none of that without the explicit pt).
+              V10.7.B.4.3 — bumped lg:pt-4 → lg:pt-12 to align the
+              rail's first row (WHEN) with the top of the H1 title in
+              the main column. Math: back button has -mt-8 (overlap)
+              + 44px height + mb-6 (24px) = ~36px before title; pt-12
+              (48px) lands the rail's first row roughly at the title's
+              top edge, with a small overshoot that absorbs the
+              optional curated-badge row when present. */}
+          <aside className="hidden lg:block lg:sticky lg:top-24 lg:self-start lg:pt-12">
             <div className="space-y-5">
               <ReportMeta
                 anonymizeSubmitter={anonymize}
