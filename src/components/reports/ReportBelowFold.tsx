@@ -202,38 +202,89 @@ function AnalysisInner(props: {
     )
   }
 
+  // V10.6.5 — visual rewrite for mass-market readability per panel.
+  //   - Each frame gets a numbered colored dot (1, 2, 3) anchoring
+  //     the title so the eye finds the structure in a single glance.
+  //   - Frame label rendered as a small uppercase kicker, then a
+  //     bold one-line "insight" pulled from the body's first
+  //     sentence, then the rest of the body in a slightly muted
+  //     gray. (We split client-side rather than schema-changing so
+  //     existing rows render fine.)
+  //   - Whitespace bumped between frames.
+  //   - "Worth chasing" cards now have a card treatment with the
+  //     arrow inset, not inline, so each question feels like its
+  //     own object you could tap on.
+  //
+  // Frame palette rotates through purple / cyan / amber — visually
+  // distinct enough that you remember "lens 1 was the purple one"
+  // even after scrolling away.
+  const FRAME_TINTS: Array<{ dot: string; border: string; ring: string }> = [
+    { dot: 'bg-purple-500', border: 'border-purple-500/40', ring: 'ring-purple-500/30' },
+    { dot: 'bg-cyan-400',   border: 'border-cyan-400/40',   ring: 'ring-cyan-400/30' },
+    { dot: 'bg-amber-400',  border: 'border-amber-400/40',  ring: 'ring-amber-400/30' },
+  ]
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {props.frames.length > 0 && (
         <div>
-          <p className="text-[10px] uppercase tracking-widest font-semibold text-purple-300/80 mb-3">
+          <p className="text-[10px] uppercase tracking-widest font-semibold text-purple-300/80 mb-4">
             Through multiple lenses
           </p>
-          <ul className="space-y-4">
-            {props.frames.map((f, i) => (
-              <li key={i} className="border-l-2 border-purple-500/30 pl-3">
-                <h4 className="text-[13px] font-semibold text-white leading-tight mb-1">
-                  {f.label}
-                </h4>
-                <p className="text-sm text-gray-200 leading-relaxed">
-                  {f.body}
-                </p>
-              </li>
-            ))}
+          <ul className="space-y-5">
+            {props.frames.map((f, i) => {
+              const tint = FRAME_TINTS[i % FRAME_TINTS.length]
+              // Split body into a one-sentence insight + the rest.
+              const insight = firstSentence(f.body)
+              const rest = f.body.length > insight.length ? f.body.slice(insight.length).trim() : ''
+              return (
+                <li key={i} className={'relative pl-9 border-l ' + tint.border}>
+                  {/* Numbered dot anchor — overlaps the left border */}
+                  <span
+                    className={
+                      'absolute -left-[11px] top-0 inline-flex items-center justify-center w-[22px] h-[22px] rounded-full text-[10px] font-bold text-gray-900 ring-2 ring-gray-950 ' +
+                      tint.dot
+                    }
+                    aria-hidden="true"
+                  >
+                    {i + 1}
+                  </span>
+                  {/* Frame title — uppercase kicker, not a heading */}
+                  <p className="text-[10px] uppercase tracking-widest font-semibold text-gray-400 mb-1.5">
+                    {f.label}
+                  </p>
+                  {/* Insight — one bold line, lead idea */}
+                  <p className="text-[15px] font-semibold text-white leading-snug mb-1.5">
+                    {insight}
+                  </p>
+                  {/* Supporting prose — slightly muted so the insight stays the hero */}
+                  {rest && (
+                    <p className="text-[14px] text-gray-300 leading-relaxed">
+                      {rest}
+                    </p>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         </div>
       )}
 
       {props.openQuestions.length > 0 && (
-        <div className="pt-2 border-t border-white/[0.05]">
+        <div className="pt-4 border-t border-white/[0.06]">
           <p className="text-[10px] uppercase tracking-widest font-semibold text-amber-300/80 mb-3">
             Worth chasing
           </p>
           <ul className="space-y-2">
             {props.openQuestions.map((q, i) => (
-              <li key={i} className="text-sm text-gray-200 leading-relaxed">
-                <span className="text-amber-300/70 mr-2">→</span>
-                {q}
+              <li
+                key={i}
+                className="flex items-start gap-2.5 rounded-lg bg-amber-950/15 border border-amber-700/25 px-3 py-2.5"
+              >
+                <span className="flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-200 text-[10px] font-bold mt-0.5">
+                  ?
+                </span>
+                <p className="text-[14px] text-gray-100 leading-relaxed">{q}</p>
               </li>
             ))}
           </ul>
@@ -241,4 +292,14 @@ function AnalysisInner(props: {
       )}
     </div>
   )
+}
+
+// Pull off the first sentence from a paragraph. Handles ".", "?", "!"
+// followed by a space + capital letter (or end of string). Falls back
+// to the whole string if no sentence boundary is found.
+function firstSentence(text: string): string {
+  if (!text) return ''
+  const trimmed = text.trim()
+  const m = trimmed.match(/^.+?[.!?](?=\s+[A-Z]|$)/)
+  return m ? m[0] : trimmed
 }
