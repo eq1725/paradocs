@@ -33,7 +33,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { ArrowLeft, Bookmark, BookmarkCheck, Share2, Loader2, TrendingUp, FileText, CalendarClock, Heart, User } from 'lucide-react'
+import { ArrowLeft, Bookmark, BookmarkCheck, Share2, Loader2, TrendingUp, FileText, CalendarClock, Heart, User, BookOpen } from 'lucide-react'
 
 import ReportLocationMap, { type LocationPrecision } from './ReportLocationMap'
 import ReportMeta from './ReportMeta'
@@ -585,27 +585,33 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               </div>
             )}
 
-            {/* ── 7b. Related Reports (V10.6) ────────────────
-                Single visible 5-card grid. Was previously split
-                across an above-fold 3-card preview AND a below-
-                fold N-card accordion that rendered identical
-                content. Merged per Chase's note. */}
-            {relatedReports && relatedReports.length > 0 && (
-              <ReportRelatedReports
-                items={relatedReports}
-                className="my-6"
-              />
-            )}
-
-            {/* ── 8. Below the fold (collapsibles) ───────────── */}
+            {/* V10.7.B.5 — Paradocs Analysis HOISTED above Related
+                Reports. Per screenshot panel review: the analysis
+                is the highest-value editorial content on the page
+                after the narrative itself, so it belongs right
+                after the body/source/pattern stack — NOT below the
+                navigation card grid. 'Where to next' (related
+                reports) comes last; 'what does this mean' comes
+                first. Discussion stays inside ReportBelowFold as
+                its own disclosure. */}
             <ReportBelowFold
               reportSlug={report?.slug}
               pullQuote={sanitized.pullQuote}
               frames={sanitized.frames}
               openQuestions={sanitized.openQuestions}
               alternativeExplanations={sanitized.alternativeExplanations}
-              className="mt-2"
+              className="mt-2 mb-6"
             />
+
+            {/* ── 7b. Related Reports (V10.6, repositioned V10.7.B.5)
+                Now rendered AFTER analysis as the 'where to next'
+                handoff. Single visible 4-card grid. */}
+            {relatedReports && relatedReports.length > 0 && (
+              <ReportRelatedReports
+                items={relatedReports}
+                className="my-6"
+              />
+            )}
           </div>
         </div>
       </article>
@@ -720,30 +726,19 @@ function sanitizeReport(report: any): {
 // ── V10.6.28 sub-components ─────────────────────────────────
 
 /**
- * V10.7.B.2 — Source & Witness block.
+ * V10.7.B.5 — Source & Witness rows (renamed from V10.7.B.2 block).
  *
- * Consolidates three thin chip rows from earlier pushes into one
- * bordered card:
- *   - Row 1: Phenomenon · Category · Account type · Source · Indexed year
- *     (was V10.6.28's CredibilityBand + the standalone phenomena chip)
- *   - Row 2: Age · Gender · Occupation · State at event · Alone/With others
- *     (was V10.7.A.2's WitnessProfilePill)
+ * Rendered IN THE SAME 88px grid as ReportMeta so When/Where/Who
+ * and Source/Topic/Witness all read as one continuous dateline.
+ * The earlier V10.7.B.2 bordered-card treatment made the block read
+ * as a separate "metadata thing" and the screenshot panel review
+ * called it noise — this redesign collapses the visual separation.
  *
- * Both rows render as small chips with subtle bg; filter dimensions
- * are clickable Links into /explore. The unified treatment fixes the
- * V10.7 panel-review finding that three visually identical thin chip
- * rows were reading as one unit anyway — making it ONE unit with
- * clear sub-rows is cleaner.
- *
- * Saved-count is dropped from this block (engagement strip keeps it)
- * because three places saying "X saved" was the V10.7 panel's #1
- * redundancy finding.
- *
- * Hide rules:
- *   - The whole block hides if BOTH rows would be empty.
- *   - Each row hides individually if it has no content.
- *   - Witness row obeys the same confidence-floor 0.4 as the legacy
- *     WitnessProfilePill.
+ * Three rows max, each obeying the same hide rules:
+ *   - SOURCE: account type · source · indexed year (muted text)
+ *   - TOPIC:  phenomenon link · category link (linkable chips)
+ *   - WITNESS: age · gender · occupation · state · alone/others
+ *              (linkable chips, gated by confidence ≥ 0.4)
  */
 function SourceAndWitnessBlock({
   phenomenonTypeName,
@@ -840,70 +835,112 @@ function SourceAndWitnessBlock({
     else if (p.with_others === false) row2.push({ label: 'Alone' })
   }
 
-  // ── Hide rule: both rows empty ──────────────────────────────
-  if (row1.length === 0 && row2.length === 0) return null
+  // ── Split row1 into a 'source' line and a 'topic' line ─────
+  // The original "Row 1" stuffed phenomenon + category + source + year
+  // into one wrapping line. Per V10.7.B.5 screenshot review that read
+  // as noise. Now we split it into two semantically distinct rows:
+  //   SOURCE: who published this case (account type, source, indexed)
+  //   TOPIC:  what category / phenomenon (linkable to /explore)
+  const sourceItems: Array<{ label: string; muted: boolean }> = []
+  sourceItems.push({ label: accountType, muted: false })
+  if (sourceLabel) sourceItems.push({ label: sourceLabel, muted: false })
+  if (submittedYear) sourceItems.push({ label: 'Indexed ' + submittedYear, muted: true })
 
+  type TopicChip = { label: string; href: string }
+  const topicItems: TopicChip[] = []
+  if (phenomenonTypeName && phenomenonTypeSlug) {
+    topicItems.push({
+      label: phenomenonTypeName,
+      href: '/explore?phenomenon=' + encodeURIComponent(phenomenonTypeSlug),
+    })
+  }
+  if (category && categoryLabel) {
+    topicItems.push({
+      label: categoryLabel,
+      href: '/explore?category=' + encodeURIComponent(category),
+    })
+  }
+
+  // ── Hide rule: all three rows empty ─────────────────────────
+  if (sourceItems.length === 0 && topicItems.length === 0 && row2.length === 0) {
+    return null
+  }
+
+  // V10.7.B.5 — match the 88px label-column grid from ReportMeta so
+  // SOURCE/TOPIC/WITNESS read as a continuation of the WHEN/WHERE/WHO
+  // dateline above. No bordered card chrome anymore — the alignment
+  // IS the visual structure.
   return (
-    <section
+    <dl
       aria-label="Source and witness"
       className={
-        'rounded-xl border border-gray-800 bg-gray-900/30 px-4 py-3 ' +
+        'grid grid-cols-[88px_1fr] gap-x-3 gap-y-1.5 items-start text-sm leading-snug ' +
         (className || '')
       }
     >
-      {row1.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12px] leading-tight">
-          <FileText className="w-3.5 h-3.5 text-gray-500 flex-shrink-0 mr-1" aria-hidden="true" />
-          {row1.map((it, i) => {
-            const inner = (
-              <span
-                className={
-                  'inline-flex items-center px-2 py-0.5 rounded-full border ' +
-                  (it.muted
-                    ? 'bg-gray-900/50 border-gray-800 text-gray-400'
-                    : 'bg-gray-800/60 border-gray-700 text-gray-200 hover:text-white')
-                }
+      {sourceItems.length > 0 && (
+        <>
+          <div className="flex items-center gap-1.5 min-w-0 text-gray-400">
+            <FileText className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+            <dt className="text-[10px] uppercase tracking-wider font-semibold truncate">Source</dt>
+          </div>
+          <dd className="min-w-0 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-gray-300">
+            {sourceItems.map((it, i) => (
+              <React.Fragment key={i}>
+                <span className={it.muted ? 'text-gray-500' : ''}>{it.label}</span>
+                {i < sourceItems.length - 1 && <span className="text-gray-700" aria-hidden>·</span>}
+              </React.Fragment>
+            ))}
+          </dd>
+        </>
+      )}
+
+      {topicItems.length > 0 && (
+        <>
+          <div className="flex items-center gap-1.5 min-w-0 text-purple-300/80">
+            <BookOpen className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+            <dt className="text-[10px] uppercase tracking-wider font-semibold truncate">Topic</dt>
+          </div>
+          <dd className="min-w-0 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+            {topicItems.map((it, i) => (
+              <Link
+                key={i}
+                href={it.href}
+                className="inline-flex items-center px-2 py-0.5 rounded-full bg-purple-900/30 border border-purple-700/40 text-purple-100 text-[12px] hover:bg-purple-800/40 hover:border-purple-500/50 transition-colors"
+                title={'Browse all ' + it.label}
               >
                 {it.label}
-              </span>
-            )
-            return it.href ? (
-              <Link key={i} href={it.href} className="hover:no-underline" title={'Browse all ' + it.label}>
-                {inner}
               </Link>
-            ) : (
-              <span key={i}>{inner}</span>
-            )
-          })}
-        </div>
+            ))}
+          </dd>
+        </>
       )}
+
       {row2.length > 0 && (
-        <div
-          className={
-            'flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12px] leading-tight ' +
-            (row1.length > 0 ? 'mt-2 pt-2 border-t border-gray-800/70' : '')
-          }
-        >
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-purple-600/15 border border-purple-500/30 flex-shrink-0 mr-1">
-            <User className="w-3 h-3 text-purple-200/90" aria-hidden="true" />
-          </span>
-          {row2.map((chip, i) => {
-            const inner = (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-800/60 border border-gray-700 text-gray-300 hover:text-white">
-                {chip.label}
-              </span>
-            )
-            return chip.href ? (
-              <Link key={i} href={chip.href} className="hover:no-underline">
-                {inner}
-              </Link>
-            ) : (
-              <span key={i}>{inner}</span>
-            )
-          })}
-        </div>
+        <>
+          <div className="flex items-center gap-1.5 min-w-0 text-cyan-300/90">
+            <User className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+            <dt className="text-[10px] uppercase tracking-wider font-semibold truncate">Witness</dt>
+          </div>
+          <dd className="min-w-0 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+            {row2.map((chip, i) => {
+              const inner = (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-800/70 border border-gray-700 text-gray-200 text-[12px] hover:text-white hover:border-gray-500 transition-colors">
+                  {chip.label}
+                </span>
+              )
+              return chip.href ? (
+                <Link key={i} href={chip.href} className="hover:no-underline">
+                  {inner}
+                </Link>
+              ) : (
+                <span key={i}>{inner}</span>
+              )
+            })}
+          </dd>
+        </>
       )}
-    </section>
+    </dl>
   )
 }
 

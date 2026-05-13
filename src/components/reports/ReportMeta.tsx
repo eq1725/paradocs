@@ -82,20 +82,34 @@ export default function ReportMeta(props: ReportMetaProps) {
 
   if (lines.length === 0) return null
 
+  // V10.7.B.5 — CSS grid for hard alignment. The previous flex-row layout
+  // gave the label span flex-shrink-0 + w-16 (64px), but flex DOES still
+  // grow the span when content exceeds the width, so 'WHERE' + icon
+  // ended up wider than 'WHO' + icon and the values landed at slightly
+  // different x-positions. A grid with a fixed first column eliminates
+  // this entirely. 88px gives WITNESS (the widest label used by callers
+  // sharing this grid, V10.7.B.5 SourceWitnessRows) room to breathe.
   return (
-    <dl className={'space-y-1.5 ' + (props.className || '')}>
+    <dl
+      className={
+        'grid grid-cols-[88px_1fr] gap-x-3 gap-y-1.5 items-start text-sm leading-snug ' +
+        (props.className || '')
+      }
+    >
       {lines.map((line, i) => {
         const Icon = line.icon
         return (
-          <div key={i} className="flex items-start gap-2.5 text-sm leading-snug">
-            <span className={'flex items-center gap-1.5 flex-shrink-0 w-16 ' + line.tint}>
-              <Icon className="w-3.5 h-3.5" />
-              <dt className="text-[10px] uppercase tracking-wider font-semibold">{line.label}</dt>
-            </span>
-            <dd className={(line.muted ? 'text-gray-500 italic ' : 'text-gray-200 ') + 'flex-1 min-w-0'}>
+          <React.Fragment key={i}>
+            <div className={'flex items-center gap-1.5 min-w-0 ' + line.tint}>
+              <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+              <dt className="text-[10px] uppercase tracking-wider font-semibold truncate">
+                {line.label}
+              </dt>
+            </div>
+            <dd className={(line.muted ? 'text-gray-500 italic ' : 'text-gray-200 ') + 'min-w-0'}>
               {line.text}
             </dd>
-          </div>
+          </React.Fragment>
         )
       })}
     </dl>

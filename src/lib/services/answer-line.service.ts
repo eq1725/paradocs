@@ -19,18 +19,27 @@
 import { createServerClient } from '../supabase'
 import { rewriteWithGuardrails } from '@/lib/ai/rewrite-pipeline'
 
-const MAX_ANSWER_LINE_CHARS = 180
+const MAX_ANSWER_LINE_CHARS = 280
 
 const ANSWER_LINE_INSTRUCTIONS = [
-  'Write ONE complete sentence that answers the question: "What does this report describe?"',
+  'Write ONE complete sentence (or TWO short sentences) that answers the question: "What does this report describe?"',
   '',
-  'Format: ONE sentence, maximum 180 characters total. No more than ~25 words.',
+  'Format: 1–2 sentences, maximum 280 characters total. Aim for ~35–45 words. The user is reading this in lieu of going to the original source — pack it with the most identifying, specific facts the source contains.',
   '',
-  'Lead with the phenomenon type and the most identifying details:',
-  '  Bad:  "The source records an event from 1972 in Pennsylvania involving witnesses."',
-  '  Good: "A 1972 Pennsylvania UFO sighting that the source describes as a 45-second close encounter with a luminous disc, witnessed by two people."',
+  'WHAT TO INCLUDE (in priority order — work down this list, including each item that the source directly supports):',
+  '  1. The phenomenon type (orb sighting, NDE, cryptid encounter, etc.).',
+  '  2. The most distinctive observed detail (shape, color, behavior, duration).',
+  '  3. WHEN: year or month+year, or part of decade ("mid-1990s"). Vague is fine — match source precision.',
+  '  4. WHERE: city + state, or state, or country. Match the source\'s precision.',
+  '  5. WHO: witness age (or age range), occupation, state of mind ("during meditation", "while driving"), and/or number of witnesses if more than one.',
+  '  6. Notable sequel or corroborating detail: physical evidence, second-witness corroboration, a follow-on event ("hours later", "the same night").',
   '',
-  'Use hedge voice — "the source describes…", "the report records…", "the page documents…".',
+  'Lead with the most identifying details:',
+  '  Bad:  "The source records an event from 1972 in Pennsylvania involving witnesses." (4 generic facts, no specifics)',
+  '  Good (180 chars / 25 words): "A 1972 Pennsylvania UFO sighting the source describes as a 45-second close encounter with a luminous disc, witnessed by two people."',
+  '  Best (280 chars / 40 words): "A 19-year-old in Kansas reports a bright orange orb passing over their home during late-evening meditation in mid-December, followed by purple wavy lines in the distant sky and a friend\'s nearby park UFO post the same night."',
+  '',
+  'Use hedge voice — "the source describes…", "the report records…", "the page documents…", or the more concise "A [witness] reports…".',
   '',
   // V10.6.19 — match the source\'s intensity. The Madrid Art Exhibition case
   // had the AI writing "fever-stricken" when the source said "slight fever";
@@ -134,7 +143,7 @@ export async function generateAndSaveAnswerLine(reportId: string): Promise<Answe
     anonymize: true,
     outputField: 'reports.answer_line',
     reportId,
-    maxTokens: 100,
+    maxTokens: 180, // V10.7.B.5 — bumped 100 → 180 because the new ~45-word answer line target (280 chars) needs ~70-80 output tokens; 100 was OK for 25-word lines but the model began hitting stop_reason='max_tokens' under the new cap.
   })
 
   if (!result.output) {
