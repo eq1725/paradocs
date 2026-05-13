@@ -33,18 +33,18 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { ArrowLeft, Bookmark, BookmarkCheck, Share2, Loader2, TrendingUp, FileText, CalendarClock, Heart } from 'lucide-react'
+import { ArrowLeft, Bookmark, BookmarkCheck, Share2, Loader2, TrendingUp, FileText, CalendarClock, Heart, User } from 'lucide-react'
 
 import ReportLocationMap, { type LocationPrecision } from './ReportLocationMap'
 import ReportMeta from './ReportMeta'
 import ReportEngagementStrip from './ReportEngagementStrip'
 import ReportPullQuote from './ReportPullQuote'
 import ReportRelatedReports from './ReportRelatedReports'
-import ReportPhenomenaChips from './ReportPhenomenaChips'
+// V10.7.B.2 — ReportPhenomenaChips usage absorbed into SourceAndWitnessBlock; import retained removed.
 import SourceBlock from './SourceBlock'
 import ReportBelowFold, { type RelatedReport, type AlternativeExplanation } from './ReportBelowFold'
 import ResonanceButton from './ResonanceButton'
-import WitnessProfilePill from './WitnessProfilePill'
+// V10.7.B.2 — WitnessProfilePill standalone usage replaced by SourceAndWitnessBlock; component file kept for backward-compat.
 import { stripPiiWithLogging } from '@/lib/ai/pii-filter'
 import { supabase } from '@/lib/supabase'
 import { CATEGORY_CONFIG } from '@/lib/constants'
@@ -328,9 +328,14 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
 
       <article className="min-h-screen bg-gray-950 text-gray-100">
         {/* ── 1. Animated map (replaces hero image) ──────────── */}
-        {/* V10.5 — map shrunk to ~35vh (was 240px ≈ 28vh per the
-            panel: too dominating for what's essentially context). */}
-        <div className="relative" style={{ height: '35vh', minHeight: 200, maxHeight: 320 }}>
+        {/* V10.5 — map shrunk to ~35vh; V10.7.B.3 — mobile cut to
+            22vh (~145px on a 6.5" phone) because the prior 35vh ate
+            ~280px before scroll, pushing the story below the first
+            scroll on every device. Desktop keeps 35vh — the side
+            rail there isn't pixel-constrained the same way. The
+            tailwind h-[22vh] sm:h-[35vh] pattern + matching min/max
+            keeps the focal pin readable at both sizes. */}
+        <div className="relative h-[22vh] sm:h-[35vh] min-h-[160px] max-h-[320px]">
           <ReportLocationMap
             latitude={report?.latitude}
             longitude={report?.longitude}
@@ -465,47 +470,34 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               <ResonanceCountStat count={resonanceCount} className="mb-5" />
             )}
 
-            {/* ── 5. Phenomena & cross-disciplinary chips ─────── */}
-            <ReportPhenomenaChips
+            {/* V10.7.B.2 — Source & Witness block.
+                Single bordered card that consolidates what used to be
+                three stacked rows (phenomena chips · credibility band ·
+                witness profile pill). Per panel review V10.7.B,
+                three thin chip strips in a row read as one visual
+                unit anyway — better to make it one explicit unit with
+                clear row hierarchy. Sub-rows are clickable filter
+                links into /explore. */}
+            <SourceAndWitnessBlock
               phenomenonTypeName={phenomenonTypeName}
               phenomenonTypeSlug={phenomenonTypeSlug}
               category={report?.category}
               categoryLabel={categoryLabel}
-              similarPhenomena={sanitized.similarPhenomena}
-              className="mb-5"
-            />
-
-            {/* V10.6.28 — Credibility band. Single thin row showing
-                data-quality signals: account type, source, original
-                submission date. Borrows the journalistic 'dateline'
-                pattern — makes the archive feel like a research
-                instrument, not just a feed. */}
-            <CredibilityBand
               sourceLabel={sourceLabel}
               sourceType={report?.source_type}
-              eventDate={report?.event_date}
               createdAt={report?.created_at}
-              savedCount={savedCount}
+              witnessProfile={report?.witness_profile}
+              similarPhenomena={sanitized.similarPhenomena}
+              className="mb-6"
             />
 
-            {/* V10.7.A.2 — Witness profile pill. AI-extracted
-                demographic / state-of-consciousness chips, hidden
-                entirely when profile is null or confidence < 0.4.
-                Each chip is a click into /explore filtered to that
-                dimension. Mission goal #2: 'show users similar
-                experiences to their own' becomes browsable at the
-                demographic level, not just the lens level. */}
-            <WitnessProfilePill profile={report?.witness_profile} />
-
-            {/* V10.6.28 — Pattern strip. The single most important
-                addition for mission alignment ('show how common
-                experiences are' + 'show similar experiences across
-                types'). Computed server-side in getStaticProps from
-                same-category / same-state / same-phenomenon-type
-                counts. Each chip is a click into filtered /explore. */}
-            {patterns && patterns.length > 0 && (
-              <PatternStrip patterns={patterns} className="mb-6" />
-            )}
+            {/* V10.7.B.2 — Pattern strip MOVED below the narrative.
+                Previously rendered between metadata and pull quote;
+                made the reader skip past a "how this fits the archive"
+                claim before they knew what *this* was. Re-rendered
+                between the source block and resonance bar (below) so
+                it lands when the reader has finished the body and is
+                ready for cross-corpus context. */}
 
             {/* V10.6.20 — Reordered per Chase: pull quote (hook)
                 BEFORE the narrative, then the narrative ("the actual
@@ -570,6 +562,14 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                 additionalMedia={additionalMedia}
                 className="mb-6"
               />
+            )}
+
+            {/* V10.7.B.2 — Pattern strip lands HERE (was above narrative
+                pre-V10.7.B). "Now that you've read this case, here's
+                how it fits the archive" — gives the reader a natural
+                browse handoff at end-of-body before the resonance ask. */}
+            {patterns && patterns.length > 0 && (
+              <PatternStrip patterns={patterns} className="mb-6" />
             )}
 
             {/* ── 7a. Resonance bar (V10.6.2) ───────────────────
@@ -719,50 +719,191 @@ function sanitizeReport(report: any): {
 
 // ── V10.6.28 sub-components ─────────────────────────────────
 
-function CredibilityBand({
+/**
+ * V10.7.B.2 — Source & Witness block.
+ *
+ * Consolidates three thin chip rows from earlier pushes into one
+ * bordered card:
+ *   - Row 1: Phenomenon · Category · Account type · Source · Indexed year
+ *     (was V10.6.28's CredibilityBand + the standalone phenomena chip)
+ *   - Row 2: Age · Gender · Occupation · State at event · Alone/With others
+ *     (was V10.7.A.2's WitnessProfilePill)
+ *
+ * Both rows render as small chips with subtle bg; filter dimensions
+ * are clickable Links into /explore. The unified treatment fixes the
+ * V10.7 panel-review finding that three visually identical thin chip
+ * rows were reading as one unit anyway — making it ONE unit with
+ * clear sub-rows is cleaner.
+ *
+ * Saved-count is dropped from this block (engagement strip keeps it)
+ * because three places saying "X saved" was the V10.7 panel's #1
+ * redundancy finding.
+ *
+ * Hide rules:
+ *   - The whole block hides if BOTH rows would be empty.
+ *   - Each row hides individually if it has no content.
+ *   - Witness row obeys the same confidence-floor 0.4 as the legacy
+ *     WitnessProfilePill.
+ */
+function SourceAndWitnessBlock({
+  phenomenonTypeName,
+  phenomenonTypeSlug,
+  category,
+  categoryLabel,
   sourceLabel,
   sourceType,
-  eventDate,
   createdAt,
-  savedCount,
+  witnessProfile,
+  similarPhenomena,
+  className,
 }: {
+  phenomenonTypeName?: string | null
+  phenomenonTypeSlug?: string | null
+  category?: string | null
+  categoryLabel?: string | null
   sourceLabel?: string | null
   sourceType?: string | null
-  eventDate?: string | null
   createdAt?: string | null
-  savedCount?: number | null
+  witnessProfile?: any
+  similarPhenomena?: string[]
+  className?: string
 }) {
-  // Decide the account-type chip. user_submission = first-person
-  // direct; curated/editorial = Paradocs-featured; everything else
-  // is a scraped third-party archive.
+  // ── Row 1: source/category items ────────────────────────────
   const accountType =
     sourceType === 'user_submission' ? 'First-person submission' :
     sourceType === 'curated' || sourceType === 'editorial' ? 'Curated case' :
     'Archive source'
-
   const submittedDate = createdAt ? new Date(createdAt) : null
   const submittedYear = submittedDate && !isNaN(submittedDate.getTime())
     ? submittedDate.getFullYear()
     : null
 
-  const items: string[] = []
-  items.push(accountType)
-  if (sourceLabel) items.push(sourceLabel)
-  if (submittedYear) items.push('Indexed ' + submittedYear)
-  if (savedCount && savedCount > 0) {
-    items.push(savedCount.toLocaleString() + ' saved by readers')
+  type Row1Item = { label: string; href?: string; muted?: boolean }
+  const row1: Row1Item[] = []
+  if (phenomenonTypeName && phenomenonTypeSlug) {
+    row1.push({
+      label: phenomenonTypeName,
+      href: '/explore?phenomenon=' + encodeURIComponent(phenomenonTypeSlug),
+    })
+  }
+  if (category && categoryLabel) {
+    row1.push({
+      label: categoryLabel,
+      href: '/explore?category=' + encodeURIComponent(category),
+    })
+  }
+  row1.push({ label: accountType, muted: true })
+  if (sourceLabel) row1.push({ label: sourceLabel, muted: true })
+  if (submittedYear) row1.push({ label: 'Indexed ' + submittedYear, muted: true })
+
+  // ── Row 2: witness profile chips (V10.7.A.2 inlined) ────────
+  const p = witnessProfile || {}
+  const CONFIDENCE_FLOOR = 0.4
+  const profileVisible =
+    p && (typeof p.confidence !== 'number' || p.confidence >= CONFIDENCE_FLOOR)
+
+  type Row2Chip = { label: string; href?: string }
+  const row2: Row2Chip[] = []
+  if (profileVisible) {
+    const ageLabels: Record<string, string> = {
+      'child': 'Child', 'teen': 'Teen', '18-29': '18–29',
+      '30-49': '30–49', '50-69': '50–69', '70+': '70+',
+    }
+    const genderLabels: Record<string, string> = {
+      female: 'Female', male: 'Male', nonbinary: 'Nonbinary',
+    }
+    const occLabels: Record<string, string> = {
+      student: 'Student', military_vet: 'Military / veteran', medical: 'Medical',
+      first_responder: 'First responder', aviation: 'Aviation',
+      tradesperson: 'Tradesperson', office: 'Office worker', retired: 'Retired',
+      other: 'Other occupation',
+    }
+    const stateLabels: Record<string, string> = {
+      awake_alert: 'Awake & alert', meditation: 'Meditating',
+      drowsy_falling_asleep: 'Drowsy / falling asleep', sleeping: 'Sleeping',
+      driving: 'Driving', physical_activity: 'Active',
+      intoxicated: 'Intoxicated',
+    }
+    if (p.age_range && p.age_range !== 'unspecified' && ageLabels[p.age_range]) {
+      row2.push({ label: ageLabels[p.age_range], href: '/explore?witness_age=' + encodeURIComponent(p.age_range) })
+    }
+    if (p.gender && p.gender !== 'unspecified' && genderLabels[p.gender]) {
+      row2.push({ label: genderLabels[p.gender], href: '/explore?witness_gender=' + encodeURIComponent(p.gender) })
+    }
+    if (p.occupation_category && p.occupation_category !== 'unspecified' && occLabels[p.occupation_category]) {
+      row2.push({ label: occLabels[p.occupation_category], href: '/explore?witness_occupation=' + encodeURIComponent(p.occupation_category) })
+    }
+    if (p.state_at_event && p.state_at_event !== 'unspecified' && stateLabels[p.state_at_event]) {
+      row2.push({ label: stateLabels[p.state_at_event], href: '/explore?witness_state=' + encodeURIComponent(p.state_at_event) })
+    }
+    if (p.with_others === true) row2.push({ label: 'With others' })
+    else if (p.with_others === false) row2.push({ label: 'Alone' })
   }
 
+  // ── Hide rule: both rows empty ──────────────────────────────
+  if (row1.length === 0 && row2.length === 0) return null
+
   return (
-    <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 leading-tight">
-      <FileText className="w-3 h-3 text-gray-600" />
-      {items.map((it, i) => (
-        <React.Fragment key={i}>
-          <span>{it}</span>
-          {i < items.length - 1 && <span className="text-gray-700">·</span>}
-        </React.Fragment>
-      ))}
-    </div>
+    <section
+      aria-label="Source and witness"
+      className={
+        'rounded-xl border border-gray-800 bg-gray-900/30 px-4 py-3 ' +
+        (className || '')
+      }
+    >
+      {row1.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12px] leading-tight">
+          <FileText className="w-3.5 h-3.5 text-gray-500 flex-shrink-0 mr-1" aria-hidden="true" />
+          {row1.map((it, i) => {
+            const inner = (
+              <span
+                className={
+                  'inline-flex items-center px-2 py-0.5 rounded-full border ' +
+                  (it.muted
+                    ? 'bg-gray-900/50 border-gray-800 text-gray-400'
+                    : 'bg-gray-800/60 border-gray-700 text-gray-200 hover:text-white')
+                }
+              >
+                {it.label}
+              </span>
+            )
+            return it.href ? (
+              <Link key={i} href={it.href} className="hover:no-underline" title={'Browse all ' + it.label}>
+                {inner}
+              </Link>
+            ) : (
+              <span key={i}>{inner}</span>
+            )
+          })}
+        </div>
+      )}
+      {row2.length > 0 && (
+        <div
+          className={
+            'flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12px] leading-tight ' +
+            (row1.length > 0 ? 'mt-2 pt-2 border-t border-gray-800/70' : '')
+          }
+        >
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-purple-600/15 border border-purple-500/30 flex-shrink-0 mr-1">
+            <User className="w-3 h-3 text-purple-200/90" aria-hidden="true" />
+          </span>
+          {row2.map((chip, i) => {
+            const inner = (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-800/60 border border-gray-700 text-gray-300 hover:text-white">
+                {chip.label}
+              </span>
+            )
+            return chip.href ? (
+              <Link key={i} href={chip.href} className="hover:no-underline">
+                {inner}
+              </Link>
+            ) : (
+              <span key={i}>{inner}</span>
+            )
+          })}
+        </div>
+      )}
+    </section>
   )
 }
 
