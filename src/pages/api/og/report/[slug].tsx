@@ -132,14 +132,13 @@ export default async function handler(req: NextRequest) {
     const baseUrl = `${SUPABASE_URL.replace(/\/+$/, '')}`
     const reportUrl = `${baseUrl}/rest/v1/reports?slug=eq.${encodeURIComponent(slug)}&status=eq.approved&select=title,answer_line,category,event_date,city,state_province,country,location_name,witness_count,paradocs_narrative,feed_hook&limit=1`
 
-    // V10.6.7 — fetch everything in parallel:
-    //   1. The report row (mandatory)
-    //   2. Total approved-reports count for social proof
-    //   3. Total experiencers count (profiles)
-    //   4. Changa ExtraBold for the wordmark
-    //   5. Inter Bold for everything else (title, meta, quote, chip)
-    // If any of #2-#5 fail, the card still renders without them.
-    const [reportResp, reportsCountResp, profilesCountResp, changaData, interData] = await Promise.all([
+    // V10.6.8 — fetch everything in parallel. We now load Changa at
+    // three weights so the entire card can render in the brand
+    // family with proper typographic hierarchy:
+    //   - 500 : body weight (answer-line quote, social-proof strip)
+    //   - 700 : sub-headers + labels (title, WHEN/WHERE/WHO facts)
+    //   - 800 : hero weight (the wordmark)
+    const [reportResp, reportsCountResp, profilesCountResp, changa500, changa700, changa800] = await Promise.all([
       fetch(reportUrl, {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY },
       }),
@@ -149,8 +148,9 @@ export default async function handler(req: NextRequest) {
       fetch(`${baseUrl}/rest/v1/profiles?select=id`, {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, Prefer: 'count=exact', Range: '0-0' },
       }).catch(() => null),
+      loadGoogleFont('Changa', 500),
+      loadGoogleFont('Changa', 700),
       loadGoogleFont('Changa', 800),
-      loadGoogleFont('Inter', 600),
     ])
 
     if (!reportResp.ok) return errorImage('Paradocs', 'Report not found')
@@ -197,6 +197,21 @@ export default async function handler(req: NextRequest) {
     }
     const glowColor = hexToRgba(catColor, 0.28)
 
+    // V10.6.8 panel round 2 — starfield. Eight tiny faint dots
+    // scattered around the card add anomaly-archive atmosphere
+    // without competing with text. Deterministic positions so the
+    // card is stable across renders.
+    const STARS: Array<{ x: number; y: number; size: number; opacity: number }> = [
+      { x: 95,   y: 195,  size: 3, opacity: 0.55 },
+      { x: 165,  y: 545,  size: 2, opacity: 0.4 },
+      { x: 760,  y: 92,   size: 2, opacity: 0.45 },
+      { x: 1050, y: 175,  size: 3, opacity: 0.5 },
+      { x: 1110, y: 420,  size: 2, opacity: 0.4 },
+      { x: 360,  y: 95,   size: 2, opacity: 0.35 },
+      { x: 990,  y: 540,  size: 3, opacity: 0.5 },
+      { x: 530,  y: 565,  size: 2, opacity: 0.35 },
+    ]
+
     return new ImageResponse(
       (
         <div
@@ -209,43 +224,62 @@ export default async function handler(req: NextRequest) {
             background: 'linear-gradient(135deg, #0a0a14 0%, #1a0a24 100%)',
             color: '#f1f1f8',
             padding: '54px 70px',
-            fontFamily: 'Inter, -apple-system, system-ui, sans-serif',
+            // V10.6.8 — Changa is now the brand-wide default. Loaded
+            // at weights 500/700/800; everything below resolves
+            // against those.
+            fontFamily: 'Changa, -apple-system, system-ui, sans-serif',
           }}
         >
-          {/* V10.6.5 panel item #1 — Category-tinted radial glow behind
-              the title. Anchored bottom-left so the diagonal weight
-              balances the bottom-right category chip. Pure visual
-              atmosphere — adds the "paranormal product, not enterprise
-              SaaS" personality the panel called out. */}
+          {/* V10.6.8 — Starfield atmosphere. Tiny dots scattered
+              behind the content. Reinforces 'anomaly archive' vibe
+              without competing with text. */}
+          {STARS.map((s, i) => (
+            <div
+              key={i}
+              style={{
+                position: 'absolute',
+                left: s.x,
+                top: s.y,
+                width: s.size,
+                height: s.size,
+                borderRadius: '50%',
+                background: `rgba(255,255,255,${s.opacity})`,
+                display: 'flex',
+              }}
+            />
+          ))}
+
+          {/* V10.6.8 — Category-tinted radial glow. Bumped from 0.28
+              → 0.45 opacity per panel: was barely visible. Moved
+              slightly so it sits behind the title for atmospheric
+              backlighting. */}
           <div
             style={{
               position: 'absolute',
-              left: -150,
-              bottom: -80,
-              width: 900,
-              height: 700,
+              left: -120,
+              bottom: -60,
+              width: 950,
+              height: 720,
               borderRadius: '50%',
-              background: `radial-gradient(closest-side, ${glowColor}, transparent 70%)`,
+              background: `radial-gradient(closest-side, ${hexToRgba(catColor, 0.45)}, transparent 70%)`,
               display: 'flex',
             }}
           />
 
-          {/* Wordmark (Changa ExtraBold) — top-left, no top-right pair. */}
+          {/* Wordmark (Changa ExtraBold). */}
           <div style={{ display: 'flex', alignItems: 'baseline', position: 'relative' }}>
             <span style={{
               display: 'flex',
-              fontFamily: changaData ? 'Changa' : 'Inter',
               fontSize: 64,
               fontWeight: 800,
               color: '#ffffff',
-              letterSpacing: '-0.02em',
+              letterSpacing: '-0.01em',
               lineHeight: 1,
             }}>
               Paradocs
             </span>
             <span style={{
               display: 'flex',
-              fontFamily: changaData ? 'Changa' : 'Inter',
               fontSize: 64,
               fontWeight: 800,
               color: '#a855f7',
@@ -256,9 +290,6 @@ export default async function handler(req: NextRequest) {
             </span>
           </div>
 
-          {/* V10.6.5 panel item #3 — Drop-quote treatment for the answer
-              line. Promoted from a footer-italic to a real hook with
-              big purple opening mark. Sits as the visual centerpiece. */}
           <div
             style={{
               display: 'flex',
@@ -269,36 +300,42 @@ export default async function handler(req: NextRequest) {
               position: 'relative',
             }}
           >
-            {/* Title */}
+            {/* Title — bumped to 72 for short titles, scales down for long ones */}
             <div
               style={{
                 display: 'flex',
-                fontSize: title.length > 70 ? 54 : 64,
-                fontWeight: 800,
+                fontSize: title.length > 90 ? 50 : title.length > 60 ? 60 : 72,
+                fontWeight: 700,
                 lineHeight: 1.08,
                 color: '#ffffff',
-                letterSpacing: '-0.02em',
-                marginBottom: 28,
+                letterSpacing: '-0.015em',
+                marginBottom: 30,
               }}
             >
               {title}
             </div>
 
-            {/* V10.6.5 panel item #2 — Stacked WHEN/WHERE/WHO. Label on
-                top in color, fact below in white. Reads in a single
-                scan even at iMessage thumbnail size. */}
+            {/* Stacked WHEN/WHERE/WHO meta */}
             <div style={{ display: 'flex', gap: 56, alignItems: 'flex-start' }}>
               {whenStr && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <span style={{ fontSize: 18, fontWeight: 700, color: '#fcd34d', letterSpacing: '0.14em' }}>WHEN</span>
-                  <span style={{ fontSize: 26, fontWeight: 600, color: '#ffffff' }}>{whenStr}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 26, fontWeight: 700, color: '#ffffff' }}>
+                    {/* V10.6.8 — Calendar icon parallels WHERE's map pin */}
+                    <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
+                      <rect x="2" y="4" width="16" height="16" rx="2" stroke="#fcd34d" strokeWidth="1.6" fill="rgba(252,211,77,0.12)" />
+                      <path d="M2 9 H18" stroke="#fcd34d" strokeWidth="1.6" />
+                      <path d="M7 2 V6" stroke="#fcd34d" strokeWidth="1.6" strokeLinecap="round" />
+                      <path d="M13 2 V6" stroke="#fcd34d" strokeWidth="1.6" strokeLinecap="round" />
+                    </svg>
+                    {whenStr}
+                  </span>
                 </div>
               )}
               {whereStr && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <span style={{ fontSize: 18, fontWeight: 700, color: '#6ee7b7', letterSpacing: '0.14em' }}>WHERE</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 26, fontWeight: 600, color: '#ffffff' }}>
-                    {/* Tiny map-pin glyph — distinctive Paradocs signal */}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 26, fontWeight: 700, color: '#ffffff' }}>
                     <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
                       <path d="M10 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12z" stroke="#6ee7b7" strokeWidth="1.6" fill="rgba(110,231,183,0.15)" />
                       <circle cx="10" cy="9" r="2.5" fill="#6ee7b7" />
@@ -310,7 +347,14 @@ export default async function handler(req: NextRequest) {
               {whoStr && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <span style={{ fontSize: 18, fontWeight: 700, color: '#67e8f9', letterSpacing: '0.14em' }}>WHO</span>
-                  <span style={{ fontSize: 26, fontWeight: 600, color: '#ffffff' }}>{whoStr}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 26, fontWeight: 700, color: '#ffffff' }}>
+                    {/* People-cluster icon — parallels WHEN/WHERE */}
+                    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                      <circle cx="11" cy="7" r="3.2" stroke="#67e8f9" strokeWidth="1.6" fill="rgba(103,232,249,0.12)" />
+                      <path d="M4 19c0-3.3 3.1-6 7-6s7 2.7 7 6" stroke="#67e8f9" strokeWidth="1.6" strokeLinecap="round" />
+                    </svg>
+                    {whoStr}
+                  </span>
                 </div>
               )}
             </div>
@@ -337,7 +381,8 @@ export default async function handler(req: NextRequest) {
                   position: 'relative',
                 }}
               >
-                {/* Big purple opening quote mark */}
+                {/* Big purple opening quote mark — Changa renders this
+                    cleanly at heavy weights. */}
                 <span style={{
                   display: 'flex',
                   fontSize: 88,
@@ -346,7 +391,6 @@ export default async function handler(req: NextRequest) {
                   lineHeight: 0.7,
                   marginRight: 14,
                   marginTop: -8,
-                  fontFamily: 'Inter',
                 }}>
                   &ldquo;
                 </span>
@@ -366,7 +410,7 @@ export default async function handler(req: NextRequest) {
               <div style={{ display: 'flex', flex: 1 }} />
             )}
 
-            {/* Category chip — moved to bottom-right (panel item #4) */}
+            {/* Category chip — bottom-right for diagonal balance */}
             <div
               style={{
                 display: 'flex',
@@ -380,13 +424,14 @@ export default async function handler(req: NextRequest) {
               }}
             >
               <span style={{ display: 'flex', width: 10, height: 10, borderRadius: '50%', background: catColor }} />
-              <span style={{ display: 'flex', fontSize: 20, fontWeight: 600, color: '#ffffff' }}>{catLabel}</span>
+              <span style={{ display: 'flex', fontSize: 20, fontWeight: 700, color: '#ffffff' }}>{catLabel}</span>
             </div>
           </div>
 
-          {/* V10.6.5 panel item #5 — Social proof strip. Bottom-anchored
-              thin band with aggregate counts. Every share becomes a
-              recruitment ad. Hidden if either count failed to load. */}
+          {/* V10.6.8 — Social proof strip. Bumped legibility from
+              #94a3b8 → #cbd5e1 per panel ('whispery'). Added 'Read
+              on Paradocs →' clickable affordance on the right so
+              the card screams 'click me'. */}
           {(totalReports || totalProfiles) && (
             <div
               style={{
@@ -395,11 +440,11 @@ export default async function handler(req: NextRequest) {
                 gap: 14,
                 marginTop: 18,
                 paddingTop: 14,
-                borderTop: '1px solid rgba(255,255,255,0.08)',
-                fontSize: 16,
-                color: '#94a3b8',
+                borderTop: '1px solid rgba(255,255,255,0.10)',
+                fontSize: 17,
+                color: '#cbd5e1',
                 fontWeight: 500,
-                letterSpacing: '0.04em',
+                letterSpacing: '0.03em',
               }}
             >
               {totalProfiles && totalProfiles > 0 && (
@@ -412,7 +457,12 @@ export default async function handler(req: NextRequest) {
                 <span style={{ display: 'flex' }}>{compact(totalReports)} reports archived</span>
               )}
               <span style={{ display: 'flex', flex: 1 }} />
-              <span style={{ display: 'flex', color: '#64748b' }}>discoverparadocs.com</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#e5e7eb', fontWeight: 600 }}>
+                Read on Paradocs
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M2 7 H12 M8 3 L12 7 L8 11" stroke="#a855f7" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
             </div>
           )}
         </div>
@@ -420,13 +470,13 @@ export default async function handler(req: NextRequest) {
       {
         width: 1200,
         height: 630,
-        // V10.6.7 — pass BOTH fonts. Inter becomes the default
-        // (because the outer container uses fontFamily 'Inter'),
-        // and Changa is only used by the wordmark spans which
-        // explicitly set fontFamily: 'Changa'.
+        // V10.6.8 — pass Changa at three weights so the whole card
+        // renders in the brand family with proper hierarchy.
+        // Satori picks the closest weight per element.
         fonts: [
-          ...(interData ? [{ name: 'Inter' as const, data: interData, weight: 600 as const, style: 'normal' as const }] : []),
-          ...(changaData ? [{ name: 'Changa' as const, data: changaData, weight: 800 as const, style: 'normal' as const }] : []),
+          ...(changa500 ? [{ name: 'Changa' as const, data: changa500, weight: 500 as const, style: 'normal' as const }] : []),
+          ...(changa700 ? [{ name: 'Changa' as const, data: changa700, weight: 700 as const, style: 'normal' as const }] : []),
+          ...(changa800 ? [{ name: 'Changa' as const, data: changa800, weight: 800 as const, style: 'normal' as const }] : []),
         ],
       },
     )
