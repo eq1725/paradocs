@@ -483,13 +483,11 @@ function buildUserPrompt(report: any, analysisWordBudget: number): string {
   // experiencer's name as a byline in the source material.
   if (report.description) {
     var scrubbed = scrubSourceHeaderChrome(report.description)
-    // V10.6.16 — bumped 3000 → 5000 chars. NDERF reports run
-    // 3-6K and we were truncating mid-sentence before the most
-    // descriptive content, which then made the AI pull facts from
-    // the title (e.g. 'emerald tunnel') without claim-check
-    // support in the narrative we'd shown it.
-    var desc = scrubbed.length > 5000
-      ? scrubbed.substring(0, 5000) + '...'
+    // V10.6.18 — bumped 5K → 8K to match the answer-line service.
+    // Same root cause: long-preamble NDERF reports needed more
+    // window for the AI to reach the actual experience description.
+    var desc = scrubbed.length > 8000
+      ? scrubbed.substring(0, 8000) + '...'
       : scrubbed
     parts.push('\nREPORT NARRATIVE:\n' + desc)
   } else if (report.summary) {

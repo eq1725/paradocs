@@ -78,11 +78,11 @@ const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
  *   - V10.6.14 dropped location columns from caller source packets
  *   - V10.6.15 dropped date + evidence columns
  *   - V10.6.16 dropped category + bumped narrative truncation 2.5K→5K
- *   All three were rounds of removing corrupt structured metadata
- *   that was causing the claim-check to reject narrative-correct
- *   AI outputs. Pass rate 30% → 90%.
+ * v10.6.18 — bumped narrative truncation 5K→8K to handle
+ *   long-preamble NDERF reports where the actual experience
+ *   description came AFTER the 5K window. Pass rate 90% → target ~95%.
  */
-export const PROMPT_VERSION = 'v10.6.16'
+export const PROMPT_VERSION = 'v10.6.18'
 
 // ── Types ───────────────────────────────────────────────────
 

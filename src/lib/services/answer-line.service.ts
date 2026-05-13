@@ -87,8 +87,16 @@ export async function generateAndSaveAnswerLine(reportId: string): Promise<Answe
   if (report.title) parts.push('Title: ' + report.title)
   if (report.summary) parts.push('Summary: ' + report.summary)
   if (report.description) {
-    const desc = report.description.length > 5000
-      ? report.description.substring(0, 5000) + '...'
+    // V10.6.18 — bumped 5K → 8K. The 'Nineteen Year Old…Spiritual
+    // Awakening' audit (12:21 PM) revealed 5K was still too tight
+    // for chatty NDERF reports with long biographical preambles —
+    // we were cutting off BEFORE the actual experience description.
+    // AI was then inferring location from 'grew up in Ireland' bio
+    // context and claim-check correctly rejected the inference.
+    // 8K captures the full narrative for the vast majority of OBERF
+    // and NDERF reports while keeping token cost reasonable.
+    const desc = report.description.length > 8000
+      ? report.description.substring(0, 8000) + '...'
       : report.description
     parts.push('\nFull source text:\n' + desc)
   }
