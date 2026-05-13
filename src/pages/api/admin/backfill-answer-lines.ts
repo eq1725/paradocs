@@ -22,6 +22,14 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { generateAndSaveAnswerLine } from '@/lib/services/answer-line.service'
 
+// V10.6.3 — bump function timeout to 5 min. Answer-line calls
+// are short (~1-2s) so 25 rows usually finishes inside 60s, but
+// a single slow Anthropic response can blow past that. Better to
+// have headroom than have Vercel kill the loop mid-way.
+export const config = {
+  maxDuration: 300,
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 

@@ -21,6 +21,14 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { generateAndSaveParadocsAnalysis } from '@/lib/services/paradocs-analysis.service'
 
+// V10.6.3 — bump function timeout to 5 min. Each analysis call
+// can take 10–20s (longer w/ retry on the fallback model), and
+// the loop does up to 25 rows serially. Without this, Vercel
+// defaults to ~60s and kills the function mid-loop.
+export const config = {
+  maxDuration: 300,
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
