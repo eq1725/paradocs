@@ -248,10 +248,10 @@ export default async function handler(req: NextRequest) {
             />
           ))}
 
-          {/* V10.6.8 — Category-tinted radial glow. Bumped from 0.28
-              → 0.45 opacity per panel: was barely visible. Moved
-              slightly so it sits behind the title for atmospheric
-              backlighting. */}
+          {/* V10.6.11 — Glow goes more dramatic per panel — bumped
+              from 0.45 → 0.6, and added a SECOND smaller hot-spot
+              glow at the top-right to balance the diagonal weight
+              and fill the previously empty zone. */}
           <div
             style={{
               position: 'absolute',
@@ -260,28 +260,41 @@ export default async function handler(req: NextRequest) {
               width: 950,
               height: 720,
               borderRadius: '50%',
-              background: `radial-gradient(closest-side, ${hexToRgba(catColor, 0.45)}, transparent 70%)`,
+              background: `radial-gradient(closest-side, ${hexToRgba(catColor, 0.6)}, transparent 70%)`,
+              display: 'flex',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              right: -180,
+              top: -150,
+              width: 540,
+              height: 540,
+              borderRadius: '50%',
+              background: `radial-gradient(closest-side, ${hexToRgba(catColor, 0.22)}, transparent 70%)`,
               display: 'flex',
             }}
           />
 
-          {/* Wordmark (Changa ExtraBold). V10.6.9 — bumped down
-              from 64 to 56pt to leave more vertical real estate
-              for the title + meta block below. */}
+          {/* V10.6.11 — Wordmark pushed back up to 60pt for hero
+              presence per panel ('looks tentative at 56'). With
+              V10.6.10's tighter line-height + margins below, the
+              extra 4pt no longer crowds the title. */}
           <div style={{ display: 'flex', alignItems: 'baseline', position: 'relative' }}>
             <span style={{
               display: 'flex',
-              fontSize: 56,
+              fontSize: 60,
               fontWeight: 800,
               color: '#ffffff',
-              letterSpacing: '-0.01em',
+              letterSpacing: '-0.015em',
               lineHeight: 1,
             }}>
               Paradocs
             </span>
             <span style={{
               display: 'flex',
-              fontSize: 56,
+              fontSize: 60,
               fontWeight: 800,
               color: '#a855f7',
               lineHeight: 1,
@@ -303,19 +316,21 @@ export default async function handler(req: NextRequest) {
               position: 'relative',
             }}
           >
-            {/* V10.6.10 — line-height tightened from 1.08 → 0.98 so
-                multi-line titles read as ONE typographic unit. Was
-                rendering with daylight between "from Pink" and
-                "Flashing Clouds" that broke the eye flow. */}
+            {/* V10.6.11 — Title pumped up for hero presence per
+                panel ('let it own the card'). Sizes 60/50/42 →
+                70/58/48. Line-height 0.98 → 0.94 so multi-line
+                titles bind even tighter (Changa needs sub-1 at
+                large sizes). Letter-spacing -0.02 → -0.025 for
+                a more pulled-together optical fit. */}
             <div
               style={{
                 display: 'flex',
-                fontSize: title.length > 90 ? 42 : title.length > 60 ? 50 : 60,
-                fontWeight: 700,
-                lineHeight: 0.98,
+                fontSize: title.length > 90 ? 48 : title.length > 60 ? 58 : 70,
+                fontWeight: 800,
+                lineHeight: 0.94,
                 color: '#ffffff',
-                letterSpacing: '-0.02em',
-                marginBottom: 22,
+                letterSpacing: '-0.025em',
+                marginBottom: 26,
               }}
             >
               {title}
@@ -325,14 +340,14 @@ export default async function handler(req: NextRequest) {
             <div style={{ display: 'flex', gap: 44, alignItems: 'flex-start' }}>
               {whenStr && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: '#fcd34d', letterSpacing: '0.14em' }}>WHEN</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 22, fontWeight: 700, color: '#ffffff' }}>
+                  <span style={{ fontSize: 17, fontWeight: 700, color: '#fcd34d', letterSpacing: '0.14em' }}>WHEN</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 24, fontWeight: 700, color: '#ffffff' }}>
                     {/* V10.6.8 — Calendar icon parallels WHERE's map pin */}
-                    <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
-                      <rect x="2" y="4" width="16" height="16" rx="2" stroke="#fcd34d" strokeWidth="1.6" fill="rgba(252,211,77,0.12)" />
-                      <path d="M2 9 H18" stroke="#fcd34d" strokeWidth="1.6" />
-                      <path d="M7 2 V6" stroke="#fcd34d" strokeWidth="1.6" strokeLinecap="round" />
-                      <path d="M13 2 V6" stroke="#fcd34d" strokeWidth="1.6" strokeLinecap="round" />
+                    <svg width="22" height="24" viewBox="0 0 20 22" fill="none">
+                      <rect x="2" y="4" width="16" height="16" rx="2" stroke="#fcd34d" strokeWidth="1.8" fill="rgba(252,211,77,0.14)" />
+                      <path d="M2 9 H18" stroke="#fcd34d" strokeWidth="1.8" />
+                      <path d="M7 2 V6" stroke="#fcd34d" strokeWidth="1.8" strokeLinecap="round" />
+                      <path d="M13 2 V6" stroke="#fcd34d" strokeWidth="1.8" strokeLinecap="round" />
                     </svg>
                     {whenStr}
                   </span>
@@ -340,11 +355,11 @@ export default async function handler(req: NextRequest) {
               )}
               {whereStr && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: '#6ee7b7', letterSpacing: '0.14em' }}>WHERE</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 22, fontWeight: 700, color: '#ffffff' }}>
-                    <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
-                      <path d="M10 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12z" stroke="#6ee7b7" strokeWidth="1.6" fill="rgba(110,231,183,0.15)" />
-                      <circle cx="10" cy="9" r="2.5" fill="#6ee7b7" />
+                  <span style={{ fontSize: 17, fontWeight: 700, color: '#6ee7b7', letterSpacing: '0.14em' }}>WHERE</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 24, fontWeight: 700, color: '#ffffff' }}>
+                    <svg width="22" height="24" viewBox="0 0 20 22" fill="none">
+                      <path d="M10 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12z" stroke="#6ee7b7" strokeWidth="1.8" fill="rgba(110,231,183,0.18)" />
+                      <circle cx="10" cy="9" r="2.7" fill="#6ee7b7" />
                     </svg>
                     {whereStr}
                   </span>
@@ -352,12 +367,12 @@ export default async function handler(req: NextRequest) {
               )}
               {whoStr && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: '#67e8f9', letterSpacing: '0.14em' }}>WHO</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 22, fontWeight: 700, color: '#ffffff' }}>
+                  <span style={{ fontSize: 17, fontWeight: 700, color: '#67e8f9', letterSpacing: '0.14em' }}>WHO</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 24, fontWeight: 700, color: '#ffffff' }}>
                     {/* People-cluster icon — parallels WHEN/WHERE */}
-                    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-                      <circle cx="11" cy="7" r="3.2" stroke="#67e8f9" strokeWidth="1.6" fill="rgba(103,232,249,0.12)" />
-                      <path d="M4 19c0-3.3 3.1-6 7-6s7 2.7 7 6" stroke="#67e8f9" strokeWidth="1.6" strokeLinecap="round" />
+                    <svg width="24" height="24" viewBox="0 0 22 22" fill="none">
+                      <circle cx="11" cy="7" r="3.4" stroke="#67e8f9" strokeWidth="1.8" fill="rgba(103,232,249,0.16)" />
+                      <path d="M4 19c0-3.3 3.1-6 7-6s7 2.7 7 6" stroke="#67e8f9" strokeWidth="1.8" strokeLinecap="round" />
                     </svg>
                     {whoStr}
                   </span>
@@ -389,24 +404,23 @@ export default async function handler(req: NextRequest) {
                   position: 'relative',
                 }}
               >
-                {/* Big purple opening quote mark — Changa renders this
-                    cleanly at heavy weights. V10.6.9: scaled down to
-                    72pt so it doesn't compete with the title above. */}
+                {/* V10.6.11 — Drop-quote mark bumped 72 → 84pt
+                    to balance the larger title above. */}
                 <span style={{
                   display: 'flex',
-                  fontSize: 72,
+                  fontSize: 84,
                   fontWeight: 800,
                   color: '#a855f7',
                   lineHeight: 0.7,
-                  marginRight: 12,
-                  marginTop: -4,
+                  marginRight: 14,
+                  marginTop: -6,
                 }}>
                   &ldquo;
                 </span>
                 <span
                   style={{
                     display: 'flex',
-                    fontSize: 22,
+                    fontSize: 24,
                     fontWeight: 500,
                     lineHeight: 1.28,
                     color: '#e5e7eb',
@@ -419,21 +433,25 @@ export default async function handler(req: NextRequest) {
               <div style={{ display: 'flex', flex: 1 }} />
             )}
 
-            {/* Category chip — bottom-right for diagonal balance */}
+            {/* V10.6.11 — Category chip switched from outlined to
+                tinted-fill. The thin border was reading as a UI
+                widget; the tinted fill reads as a brand chip and
+                holds its weight against the larger drop-quote
+                to its left. */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
-                padding: '8px 14px',
+                gap: 10,
+                padding: '10px 18px',
                 borderRadius: 999,
-                border: `1.5px solid ${catColor}`,
-                background: 'rgba(255,255,255,0.04)',
+                border: `1.5px solid ${hexToRgba(catColor, 0.55)}`,
+                background: hexToRgba(catColor, 0.18),
                 flexShrink: 0,
               }}
             >
-              <span style={{ display: 'flex', width: 9, height: 9, borderRadius: '50%', background: catColor }} />
-              <span style={{ display: 'flex', fontSize: 17, fontWeight: 700, color: '#ffffff' }}>{catLabel}</span>
+              <span style={{ display: 'flex', width: 10, height: 10, borderRadius: '50%', background: catColor }} />
+              <span style={{ display: 'flex', fontSize: 19, fontWeight: 700, color: '#ffffff' }}>{catLabel}</span>
             </div>
           </div>
 
@@ -466,10 +484,13 @@ export default async function handler(req: NextRequest) {
                 <span style={{ display: 'flex' }}>{compact(totalReports)} reports archived</span>
               )}
               <span style={{ display: 'flex', flex: 1 }} />
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#e5e7eb', fontWeight: 600 }}>
+              {/* V10.6.11 — CTA pulled forward. Bigger text, purple
+                  accent, larger arrow — reads as a clear call-to-tap
+                  on every share platform that renders OG cards. */}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f1f1f8', fontSize: 18, fontWeight: 700 }}>
                 Read on Paradocs
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M2 7 H12 M8 3 L12 7 L8 11" stroke="#a855f7" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <path d="M3 9 H15 M10 4 L15 9 L10 14" stroke="#a855f7" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </span>
             </div>
