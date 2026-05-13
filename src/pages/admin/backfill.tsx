@@ -137,11 +137,16 @@ export default function AdminBackfillPage() {
     return (await resp.json()) as BackfillResult
   }, [appendLog])
 
-  const runChunk = useCallback(async (job: typeof JOBS[number]) => {
+  const runChunk = useCallback(async (job: typeof JOBS[number], opts?: { force?: boolean }) => {
     if (busy) return
     setBusy(job.kind)
-    appendLog('▶ ' + job.label + ' — running one chunk (limit ' + job.chunkSize + ')…')
-    const result = await runOnce(job, {})
+    const isForce = !!(opts && opts.force)
+    appendLog(
+      (isForce ? '⚡ ' : '▶ ') + job.label +
+      ' — running one chunk (limit ' + job.chunkSize + ')' +
+      (isForce ? ' [FORCE REGEN — overwrites existing]' : '') + '…'
+    )
+    const result = await runOnce(job, { force: isForce })
     if (result) {
       appendLog(
         '  scanned=' + result.scanned +
@@ -299,6 +304,28 @@ export default function AdminBackfillPage() {
                   >
                     {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FastForward className="w-3.5 h-3.5" />}
                     Run until done
+                  </button>
+                  {/* V10.6.23 — Force regen lets us test the retry
+                      pipeline against reports that already have output.
+                      Critical pre-mass-ingestion smoke test: regen 5
+                      arbitrary rows and watch the V10.6.20/22 retry
+                      logic exercise. Amber tint so it reads as
+                      destructive (it overwrites existing AI output). */}
+                  <button
+                    onClick={() => {
+                      if (!confirm(
+                        'Force regen ' + job.chunkSize + ' ' + job.kind + ' rows?\n\n' +
+                        'This will OVERWRITE existing AI output on ' + job.chunkSize +
+                        ' arbitrary reports. Use to test the pipeline after a prompt change.'
+                      )) return
+                      runChunk(job, { force: true })
+                    }}
+                    disabled={isBusy || disabled}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-900/30 hover:bg-amber-900/50 border border-amber-700/50 disabled:opacity-40 text-amber-200 text-xs font-semibold transition-colors"
+                    title="Overwrite existing output on arbitrary rows — pipeline smoke test"
+                  >
+                    {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                    Force regen ({job.chunkSize})
                   </button>
                 </div>
               </section>
