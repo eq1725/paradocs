@@ -86,15 +86,19 @@ const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
  * v10.6.20 — added self-correcting retry loop.
  * v10.6.21 — retry-loop hardening + diagnostics.
  * v10.6.22 — extended retry pattern to paradocs-analysis path.
- * v10.6.24 — narrative-richness rewrite. The `analysis` field
- *   prompt now produces 3-4 short paragraphs (SETUP → EXPERIENCE
- *   → REACTION → CONTEXT) instead of a one-paragraph summary.
- *   Word budget doubled (120 → 240), max_tokens 1200 → 1800.
- *   Net effect: report-page body reads as the actual story, not
- *   a synopsis. Panel review on the Kansas psychic case
- *   confirmed this was the single biggest content-quality gap.
+ * v10.6.24 — narrative-richness rewrite (3-4 paragraph mandate).
+ * v10.6.25 — soften V10.6.24's mandate. The strict 3-4 paragraph
+ *   requirement + SETUP/EXPERIENCE/REACTION/CONTEXT template was
+ *   causing the analysis field to fail claim-check or return
+ *   INSUFFICIENT (saw it on the Kansas psychic case: frames
+ *   regenerated fine, but paradocs_narrative came back null and
+ *   the report page hid the entire 'What happened' section).
+ *   The new prompt makes the multi-paragraph SHAPE a target, not
+ *   a hard requirement. 'A solid one-paragraph narrative is
+ *   better than padded prose or an INSUFFICIENT bail.' Same
+ *   editorial intent (rich, sensory, paragraph-form), less brittle.
  */
-export const PROMPT_VERSION = 'v10.6.24'
+export const PROMPT_VERSION = 'v10.6.25'
 
 // ── Types ───────────────────────────────────────────────────
 
