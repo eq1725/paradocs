@@ -624,8 +624,14 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               renders these same components inline in the main column,
               gated by lg:hidden above). Sticky positioning keeps the
               dateline + resonance + pattern strip visible as the
-              reader scrolls the body content in the main column. */}
-          <aside className="hidden lg:block lg:sticky lg:top-6 lg:self-start">
+              reader scrolls the body content in the main column.
+
+              V10.7.B.4.2 — lg:top-24 clears the fixed page navbar
+              (~70px). lg:pt-4 on the inner stack adds breathing room
+              from the map's bottom edge on initial position (the main
+              column has back button + curated badge + h1 padding it
+              down; the rail has none of that without the explicit pt). */}
+          <aside className="hidden lg:block lg:sticky lg:top-24 lg:self-start lg:pt-4">
             <div className="space-y-5">
               <ReportMeta
                 anonymizeSubmitter={anonymize}
