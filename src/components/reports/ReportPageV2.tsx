@@ -430,10 +430,22 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
 
             {/* ── 3. Answer line (TL;DR) ──────────────────────── */}
             {sanitized.answerLine && (
-              <p className="text-base text-gray-200 leading-relaxed mb-5 font-medium">
+              <p className="text-base text-gray-200 leading-relaxed mb-4 font-medium">
                 {sanitized.answerLine}
               </p>
             )}
+
+            {/* V10.7.B.6 — Resonance stat hoisted to between answer
+                line and meta block. Per screenshot review #2: the
+                primary social action ("I've experienced this too")
+                should land at the moment a reader has just finished
+                the TL;DR and is deciding whether to invest. Renders
+                ALWAYS now (V10.7.B.6 ResonanceCountStat update): shows
+                the stat when count > 0, falls back to the CTA
+                "Have you experienced something like this?" when 0.
+                Tap scrolls to the prominent button below the source
+                block (which remains as the primary conversion). */}
+            <ResonanceCountStat count={resonanceCount || 0} className="mb-5" />
 
             {/* ── 4. Meta block ──────────────────────────────── */}
             <ReportMeta
@@ -458,17 +470,6 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               readTimeWords={readTimeWords}
               className="mb-3"
             />
-
-            {/* V10.6.28 — Resonance stat callout. Promoted above-fold
-                because per panel review, this is the single highest-
-                signal social proof on the page ("I had this too"). The
-                old design left it as a below-fold button users had to
-                scroll to find. Now it's a visible stat at the top of
-                the read; tapping scrolls to the actual button.
-                Hidden when count = 0 to avoid an awkward "0 people…". */}
-            {resonanceCount !== null && resonanceCount > 0 && (
-              <ResonanceCountStat count={resonanceCount} className="mb-5" />
-            )}
 
             {/* V10.7.B.2 — Source & Witness block.
                 Single bordered card that consolidates what used to be
@@ -901,16 +902,18 @@ function SourceAndWitnessBlock({
             <BookOpen className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
             <dt className="text-[10px] uppercase tracking-wider font-semibold truncate">Topic</dt>
           </div>
-          <dd className="min-w-0 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+          <dd className="min-w-0 flex flex-wrap items-center gap-x-1.5 text-gray-200">
             {topicItems.map((it, i) => (
-              <Link
-                key={i}
-                href={it.href}
-                className="inline-flex items-center px-2 py-0.5 rounded-full bg-purple-900/30 border border-purple-700/40 text-purple-100 text-[12px] hover:bg-purple-800/40 hover:border-purple-500/50 transition-colors"
-                title={'Browse all ' + it.label}
-              >
-                {it.label}
-              </Link>
+              <React.Fragment key={i}>
+                <Link
+                  href={it.href}
+                  className="text-purple-200 hover:text-purple-100 hover:underline underline-offset-2 decoration-purple-400/50"
+                  title={'Browse all ' + it.label}
+                >
+                  {it.label}
+                </Link>
+                {i < topicItems.length - 1 && <span className="text-gray-700" aria-hidden>·</span>}
+              </React.Fragment>
             ))}
           </dd>
         </>
@@ -922,19 +925,33 @@ function SourceAndWitnessBlock({
             <User className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
             <dt className="text-[10px] uppercase tracking-wider font-semibold truncate">Witness</dt>
           </div>
-          <dd className="min-w-0 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+          <dd className="min-w-0 flex flex-wrap items-center gap-x-1.5 text-gray-200">
             {row2.map((chip, i) => {
+              // V10.7.B.6 — drop chip-pill styling. Chip inner padding
+              // was offsetting the TEXT inside the chip from the grid
+              // column boundary, so '18-29' looked ~8px right of where
+              // 'A single witness' starts. Plain text in the same flex
+              // row + '·' separators puts all values on one rhythm
+              // with WHEN/WHERE/WHO/SOURCE above. Linkable items get
+              // subtle hover-underline; non-linkable items render
+              // plain so the eye can't mistake them for tappable.
+              const isLink = !!chip.href
               const inner = (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-800/70 border border-gray-700 text-gray-200 text-[12px] hover:text-white hover:border-gray-500 transition-colors">
+                <span
+                  className={
+                    isLink
+                      ? 'text-gray-100 hover:text-white hover:underline underline-offset-2 decoration-gray-500'
+                      : 'text-gray-300'
+                  }
+                >
                   {chip.label}
                 </span>
               )
-              return chip.href ? (
-                <Link key={i} href={chip.href} className="hover:no-underline">
-                  {inner}
-                </Link>
-              ) : (
-                <span key={i}>{inner}</span>
+              return (
+                <React.Fragment key={i}>
+                  {isLink ? <Link href={chip.href!}>{inner}</Link> : inner}
+                  {i < row2.length - 1 && <span className="text-gray-700" aria-hidden>·</span>}
+                </React.Fragment>
               )
             })}
           </dd>
@@ -978,11 +995,13 @@ function PatternStrip({
 
 /**
  * V10.6.28 — Resonance count stat callout.
- *
- * Single-line social-proof element. Scrolls to the below-fold
- * ResonanceButton when tapped (graceful no-op if the button isn't
- * mounted yet). We hide entirely when count = 0 to avoid an
- * awkward "0 readers" stat.
+ * V10.7.B.6 — Always render. When count = 0, fall back to a CTA
+ * ("Have you experienced something like this?") that still scrolls
+ * to the below-fold ResonanceButton when tapped. The earlier
+ * count > 0 gate meant most test-corpus reports never showed the
+ * affordance above-fold; the below-fold prominent button was the
+ * only resonance entry point, and Chase reasonably wanted it more
+ * visible near the answer line.
  */
 function ResonanceCountStat({
   count,
@@ -998,10 +1017,12 @@ function ResonanceCountStat({
       el.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }
-  const label =
-    count === 1
-      ? '1 reader has shared a similar experience'
-      : count.toLocaleString() + ' readers have shared a similar experience'
+  const hasCount = count > 0
+  const label = hasCount
+    ? (count === 1
+        ? '1 reader has shared a similar experience'
+        : count.toLocaleString() + ' readers have shared a similar experience')
+    : 'Have you experienced something like this?'
   return (
     <button
       type="button"
@@ -1010,7 +1031,7 @@ function ResonanceCountStat({
         'group flex items-center gap-2 w-full text-left px-3.5 py-2 rounded-lg border border-purple-700/30 bg-purple-950/20 hover:bg-purple-950/30 hover:border-purple-500/50 transition-colors ' +
         (className || '')
       }
-      title="See who's resonated with this"
+      title={hasCount ? "See who's resonated with this" : 'Mark resonance'}
     >
       <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-purple-600/30 border border-purple-500/40 flex-shrink-0">
         <Heart className="w-3 h-3 text-purple-200" aria-hidden="true" />
