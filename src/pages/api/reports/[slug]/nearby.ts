@@ -1,11 +1,37 @@
 /**
- * API: GET /api/reports/[slug]/nearby
+ * API: GET /api/reports/[slug]/nearby — V10.7.B.0 refactor
  *
- * Get nearby reports within a specified radius
+ * Returns approved reports within a radius of the focal report.
+ * As of V10.7.B.0, the haversine math lives in a Postgres RPC
+ * (nearby_reports_within_km) so this endpoint and getStaticProps
+ * for /report/[slug] both call the same function — DRY math, one
+ * place to optimize when we add PostGIS later.
+ *
+ * Query params:
+ *   radius  — kilometers, default 50, clamped 1..500
+ *   limit   — max rows, default 10, clamped 1..50
+ *
+ * Returns: { nearby: [{ id, slug, title, category, latitude,
+ *           longitude, distance_km, location_name?, event_date?,
+ *           summary? }], total, center, radius_km }
+ *
+ * Per-row enrichment (location_name, event_date, summary) is done
+ * client-side after the RPC returns the cheap-to-fetch identity
+ * columns — keeps the RPC interface narrow and stable.
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { supabase } from '@/lib/supabase'
+
+interface RpcRow {
+  id: string
+  slug: string
+  title: string
+  category: string | null
+  latitude: number | string
+  longitude: number | string
+  distance_km: number | string
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -16,7 +42,6 @@ export default async function handler(
   }
 
   const { slug, radius = '50', limit = '10' } = req.query
-
   if (!slug || typeof slug !== 'string') {
     return res.status(400).json({ error: 'Report slug is required' })
   }
@@ -25,110 +50,93 @@ export default async function handler(
   const maxLimit = Math.min(Math.max(parseInt(limit as string) || 10, 1), 50)
 
   try {
-    // Get the source report with coordinates
-    const { data: sourceReport, error: reportError } = await supabase
-      .from('reports')
+    // Resolve slug → id + grab focal coords for the response center.
+    const { data: sourceReport, error: reportError } = (await (supabase.from('reports') as any)
       .select('id, latitude, longitude')
       .eq('slug', slug)
       .eq('status', 'approved')
-      .single()
+      .single()) as { data: any; error: any }
 
     if (reportError || !sourceReport) {
       return res.status(404).json({ error: 'Report not found' })
     }
-
     if (!sourceReport.latitude || !sourceReport.longitude) {
       return res.status(200).json({
         nearby: [],
         total: 0,
-        message: 'Source report has no location data'
+        message: 'Source report has no location data',
       })
     }
 
-    // Query nearby reports using PostGIS
-    // Note: This uses a simplified distance calculation
-    // For production, use the find_nearby_reports function or PostGIS directly
-    const latRange = radiusKm / 111  // Approximate km to degrees latitude
-    const lngRange = radiusKm / (111 * Math.cos(sourceReport.latitude * Math.PI / 180))
+    // The math lives in Postgres now.
+    const { data: rpcRows, error: rpcError } = await (supabase as any).rpc(
+      'nearby_reports_within_km',
+      {
+        p_report_id: sourceReport.id,
+        p_radius_km: radiusKm,
+        p_limit: maxLimit,
+      },
+    )
 
-    const { data: nearbyReports, error: nearbyError } = await supabase
-      .from('reports')
-      .select(`
-        id,
-        title,
-        slug,
-        category,
-        event_date,
-        latitude,
-        longitude,
-        location_name,
-        summary
-      `)
-      .neq('id', sourceReport.id)
-      .eq('status', 'approved')
-      .not('latitude', 'is', null)
-      .not('longitude', 'is', null)
-      .gte('latitude', sourceReport.latitude - latRange)
-      .lte('latitude', sourceReport.latitude + latRange)
-      .gte('longitude', sourceReport.longitude - lngRange)
-      .lte('longitude', sourceReport.longitude + lngRange)
-      .limit(maxLimit * 2)  // Fetch extra to filter by actual distance
-
-    if (nearbyError) {
-      console.error('Error fetching nearby reports:', nearbyError)
+    if (rpcError) {
+      console.error('[nearby] RPC error:', rpcError)
       return res.status(500).json({ error: 'Failed to fetch nearby reports' })
     }
 
-    // Calculate actual distances and filter/sort
-    const reportsWithDistance = (nearbyReports || [])
-      .map(report => {
-        const distance = calculateDistance(
-          sourceReport.latitude!,
-          sourceReport.longitude!,
-          report.latitude!,
-          report.longitude!
-        )
-        return { ...report, distance_km: Math.round(distance * 10) / 10 }
+    const rows = (rpcRows || []) as RpcRow[]
+    if (rows.length === 0) {
+      return res.status(200).json({
+        nearby: [],
+        total: 0,
+        center: {
+          latitude: sourceReport.latitude,
+          longitude: sourceReport.longitude,
+        },
+        radius_km: radiusKm,
       })
-      .filter(report => report.distance_km <= radiusKm)
-      .sort((a, b) => a.distance_km - b.distance_km)
-      .slice(0, maxLimit)
+    }
+
+    // Enrich with display fields not returned by the RPC. Cheap
+    // because we already have the ids and the IN list is tiny
+    // (capped at maxLimit which is itself capped at 50).
+    const ids = rows.map(r => r.id)
+    const { data: enrich } = (await (supabase.from('reports') as any)
+      .select('id, location_name, event_date, summary')
+      .in('id', ids)) as { data: any[] | null }
+
+    const enrichById = new Map<string, any>(
+      (enrich || []).map((e: any) => [e.id, e])
+    )
+
+    const out = rows.map(r => {
+      const meta = enrichById.get(r.id) || {}
+      return {
+        id: r.id,
+        slug: r.slug,
+        title: r.title,
+        category: r.category,
+        latitude: typeof r.latitude === 'string' ? parseFloat(r.latitude) : r.latitude,
+        longitude: typeof r.longitude === 'string' ? parseFloat(r.longitude) : r.longitude,
+        distance_km: Math.round(
+          (typeof r.distance_km === 'string' ? parseFloat(r.distance_km) : r.distance_km) * 10,
+        ) / 10,
+        location_name: meta.location_name || null,
+        event_date: meta.event_date || null,
+        summary: meta.summary || null,
+      }
+    })
 
     return res.status(200).json({
-      nearby: reportsWithDistance,
-      total: reportsWithDistance.length,
+      nearby: out,
+      total: out.length,
       center: {
         latitude: sourceReport.latitude,
-        longitude: sourceReport.longitude
+        longitude: sourceReport.longitude,
       },
-      radius_km: radiusKm
+      radius_km: radiusKm,
     })
   } catch (error) {
     console.error('Nearby reports API error:', error)
     return res.status(500).json({ error: 'Internal server error' })
   }
-}
-
-/**
- * Calculate distance between two points using Haversine formula
- */
-function calculateDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number {
-  const R = 6371 // Earth's radius in km
-  const dLat = toRad(lat2 - lat1)
-  const dLon = toRad(lon2 - lon1)
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return R * c
-}
-
-function toRad(deg: number): number {
-  return deg * (Math.PI / 180)
 }

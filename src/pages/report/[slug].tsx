@@ -32,12 +32,23 @@ interface PatternChip {
   href: string
 }
 
+interface NearbyReport {
+  id: string
+  slug: string
+  title: string
+  category: string | null
+  latitude: number
+  longitude: number
+  distance_km: number
+}
+
 interface ReportPageProps {
   slug: string
   initialReport?: any
   initialMedia?: any[]
   initialRelated?: RelatedReport[]
   initialPatterns?: PatternChip[]
+  initialNearby?: NearbyReport[]
   fetchError?: boolean
   notFound?: boolean
 }
@@ -47,6 +58,7 @@ export default function ReportPage({
   initialMedia,
   initialRelated,
   initialPatterns,
+  initialNearby,
   fetchError,
 }: ReportPageProps) {
   const router = useRouter()
@@ -83,6 +95,7 @@ export default function ReportPage({
       media={initialMedia || []}
       relatedReports={initialRelated || []}
       patterns={initialPatterns || []}
+      nearby={initialNearby || []}
     />
   )
 }
@@ -182,6 +195,39 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
       .eq('report_id', (reportData as any).id)
       .order('is_primary', { ascending: false })
 
+    // V10.7.B.0 — fetch nearby reports for the map cluster overlay.
+    // Calls the haversine RPC (single source of truth for "X km of Y")
+    // so this and the /api/reports/[slug]/nearby endpoint produce
+    // identical results. ~80km radius is the sweet spot for "drive-
+    // and-explore" geography on the report-page mini-map; the
+    // global /map page handles larger-radius browsing.
+    let nearby: Array<{
+      id: string; slug: string; title: string; category: string | null;
+      latitude: number; longitude: number; distance_km: number;
+    }> = []
+    if ((reportData as any).latitude && (reportData as any).longitude) {
+      try {
+        const { data: rpcRows } = await (sb as any).rpc('nearby_reports_within_km', {
+          p_report_id: (reportData as any).id,
+          p_radius_km: 80,
+          p_limit: 50,
+        })
+        if (Array.isArray(rpcRows)) {
+          nearby = rpcRows.map((r: any) => ({
+            id: r.id,
+            slug: r.slug,
+            title: r.title,
+            category: r.category,
+            latitude: typeof r.latitude === 'string' ? parseFloat(r.latitude) : r.latitude,
+            longitude: typeof r.longitude === 'string' ? parseFloat(r.longitude) : r.longitude,
+            distance_km: typeof r.distance_km === 'string' ? parseFloat(r.distance_km) : r.distance_km,
+          }))
+        }
+      } catch (err) {
+        console.warn('[getStaticProps] nearby RPC failed:', err)
+      }
+    }
+
     // Related reports — same category, within radius if we have
     // coordinates, otherwise just same category sorted by recency.
     // Limit 5 (subsumes the old KeepExploring + RelatedReports).
@@ -280,6 +326,7 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
         initialMedia: mediaData || [],
         initialRelated: related,
         initialPatterns: patterns,
+        initialNearby: nearby,
       },
       revalidate: 120,
     }

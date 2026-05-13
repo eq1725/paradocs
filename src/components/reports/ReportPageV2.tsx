@@ -61,11 +61,26 @@ export interface ReportPageV2Props {
    * from getStaticProps so the strip is server-rendered, no flash.
    */
   patterns?: Array<{ label: string; count: number; href: string }>
+  /**
+   * V10.7.B.0 — pre-fetched nearby reports (haversine RPC, 80km radius,
+   * 50 row cap). Consumed by ReportLocationMap to render cluster
+   * bubbles + single pins via Supercluster. Empty array = no nearby
+   * data or the focal report has no coords.
+   */
+  nearby?: Array<{
+    id: string
+    slug: string
+    title: string
+    category: string | null
+    latitude: number
+    longitude: number
+    distance_km: number
+  }>
 }
 
 // ── Component ───────────────────────────────────────────────
 
-export default function ReportPageV2({ report, media, relatedReports, patterns }: ReportPageV2Props) {
+export default function ReportPageV2({ report, media, relatedReports, patterns, nearby }: ReportPageV2Props) {
   const router = useRouter()
 
   // ── Sanitize AI-rewritten text fields at render time ──────
