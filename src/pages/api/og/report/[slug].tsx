@@ -316,18 +316,19 @@ export default async function handler(req: NextRequest) {
               position: 'relative',
             }}
           >
-            {/* V10.6.11 — Title pumped up for hero presence per
-                panel ('let it own the card'). Sizes 60/50/42 →
-                70/58/48. Line-height 0.98 → 0.94 so multi-line
-                titles bind even tighter (Changa needs sub-1 at
-                large sizes). Letter-spacing -0.02 → -0.025 for
-                a more pulled-together optical fit. */}
+            {/* V10.6.12 — Line-height tightened further 0.94 → 0.88.
+                At 70pt Changa, 0.94 still left visible daylight
+                between wrapped lines. 0.88 binds the two lines so
+                they read as a single typographic block — the
+                descenders of one line nearly touch the ascenders
+                of the next, which is the visual cue the eye uses
+                to register 'connected sentence' vs 'two lines'. */}
             <div
               style={{
                 display: 'flex',
                 fontSize: title.length > 90 ? 48 : title.length > 60 ? 58 : 70,
                 fontWeight: 800,
-                lineHeight: 0.94,
+                lineHeight: 0.88,
                 color: '#ffffff',
                 letterSpacing: '-0.025em',
                 marginBottom: 26,
