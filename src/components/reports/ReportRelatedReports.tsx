@@ -52,7 +52,10 @@ export interface ReportRelatedReportsProps {
 
 export default function ReportRelatedReports({ items, className }: ReportRelatedReportsProps) {
   if (!items || items.length === 0) return null
-  const list = items.slice(0, 5)
+  // V10.6.20 — 5 → 4 cards. Chase: 4 fits a 2x2 layout cleanly and
+  // looks visually balanced; 5 left an awkward orphan card in the
+  // bottom-left on desktop.
+  const list = items.slice(0, 4)
 
   return (
     <section className={className || ''} aria-label="Related reports">

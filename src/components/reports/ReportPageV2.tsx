@@ -430,23 +430,37 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
               className="mb-6"
             />
 
-            {/* ── 6. Experience description (V10.5 paragraph-split) */}
-            {narrativeParagraphs.length > 0 && (
-              <div className="mb-2 prose prose-invert max-w-none">
-                {narrativeParagraphs.map((p, i) => (
-                  <p key={i} className="text-base text-gray-100 leading-relaxed mb-4 last:mb-0">
-                    {p}
-                  </p>
-                ))}
-              </div>
-            )}
+            {/* V10.6.20 — Reordered per Chase: pull quote (hook)
+                BEFORE the narrative, then the narrative ("the actual
+                report in our own words"), then the source. The pull
+                quote acts as a hook that pulls the reader into the
+                richer narrative below it. */}
 
-            {/* ── 6b. Inline pull quote (V10.5) ──────────────── */}
+            {/* ── 6. Inline pull quote (V10.5, repositioned V10.6.20) */}
             {sanitized.pullQuote && (
               <ReportPullQuote
                 quote={sanitized.pullQuote}
                 reportTitle={sanitized.title}
               />
+            )}
+
+            {/* ── 6b. Experience description ("the actual report in
+                our own words", per Chase). Section header added so
+                the narrative reads as the body, not just floating
+                prose between the quote and the source block. */}
+            {narrativeParagraphs.length > 0 && (
+              <div className="mb-6">
+                <p className="text-[10px] uppercase tracking-widest font-semibold text-gray-500 mb-3">
+                  What happened
+                </p>
+                <div className="prose prose-invert max-w-none">
+                  {narrativeParagraphs.map((p, i) => (
+                    <p key={i} className="text-base text-gray-100 leading-relaxed mb-4 last:mb-0">
+                      {p}
+                    </p>
+                  ))}
+                </div>
+              </div>
             )}
 
             {/* ── 7. Source attribution + media (3 tiers) ────── */}

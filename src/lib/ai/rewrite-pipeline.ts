@@ -82,13 +82,17 @@ const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
  *   long-preamble NDERF reports where the actual experience
  *   description came AFTER the 5K window. Pass rate 90% → target ~95%.
  * v10.6.19 — answer-line: added INTENSITY / TITLE / TIMELINE
- *   discipline rules to fight AI editorializing. Madrid Art
- *   Exhibition case had AI writing 'fever-stricken' when source
- *   said 'slight fever,' pulling 'Fever-Induced' from the title,
- *   and conflating timeline (fever was hours later, not during).
- *   All three failure modes are the AI, not the source packet.
+ *   discipline rules to fight AI editorializing.
+ * v10.6.20 — added self-correcting retry loop. When claim-check
+ *   rejects an output, regenerate ONCE with the rejection notes
+ *   as corrective context. Targets the ~10% long-tail failures
+ *   that were stable AI editorializing — by giving the model
+ *   explicit negative feedback on what it just got wrong, the
+ *   second attempt clears most of them. Cost impact: only the
+ *   ~10% of rows that fail the first claim-check pay 2x; saves
+ *   most of them from being null-outputs.
  */
-export const PROMPT_VERSION = 'v10.6.19'
+export const PROMPT_VERSION = 'v10.6.20'
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -461,7 +465,7 @@ export async function rewriteWithGuardrails(input: RewriteInput): Promise<Rewrit
     return { output: null, reason: 'disabled', auditId: null, durationMs: 0, insufficient: false }
   }
 
-  const prompt =
+  const basePrompt =
     input.mode === 'faithful_paraphrase' ? buildFaithfulParaphrasePrompt(input) :
     input.mode === 'editorial'          ? buildEditorialPrompt(input) :
                                           buildStructuralPrompt(input)
@@ -472,44 +476,105 @@ export async function rewriteWithGuardrails(input: RewriteInput): Promise<Rewrit
   let claimCheckNotes: string | null = null
   let reason: RewriteResult['reason'] = 'ok'
 
-  try {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-    const resp = await client.messages.create({
-      model,
-      max_tokens: maxTokens,
-      temperature,
-      messages: [{ role: 'user', content: prompt }],
-    })
-    const content = resp.content[0]
-    if (!content || content.type !== 'text') {
-      reason = 'error'
-    } else {
-      let raw = (content.text || '').trim()
+  // V10.6.20 — Single-attempt generate-and-check broken into a
+  // helper so we can retry with corrective context on claim-check
+  // failure. Chase: 'we have to get this process perfected as we're
+  // going to ingest MILLIONS and I am not going through all of
+  // these manually to approve or fix issues.' So we self-correct
+  // before giving up.
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-      if (detectInsufficient(raw)) {
-        insufficient = true
-        reason = 'insufficient'
-      } else {
-        raw = stripWrapping(raw)
-        if (input.maxChars && raw.length > input.maxChars) {
-          raw = truncateAtSentence(raw, input.maxChars)
-        }
-        outputText = raw
+  async function attemptOnce(promptText: string): Promise<{
+    output: string | null
+    insufficient: boolean
+    error: boolean
+  }> {
+    try {
+      const resp = await client.messages.create({
+        model,
+        max_tokens: maxTokens,
+        temperature,
+        messages: [{ role: 'user', content: promptText }],
+      })
+      const content = resp.content[0]
+      if (!content || content.type !== 'text') {
+        return { output: null, insufficient: false, error: true }
       }
+      let raw = (content.text || '').trim()
+      if (detectInsufficient(raw)) {
+        return { output: null, insufficient: true, error: false }
+      }
+      raw = stripWrapping(raw)
+      if (input.maxChars && raw.length > input.maxChars) {
+        raw = truncateAtSentence(raw, input.maxChars)
+      }
+      return { output: raw, insufficient: false, error: false }
+    } catch (err) {
+      console.error('[rewrite-pipeline] generation failed:', err)
+      return { output: null, insufficient: false, error: true }
     }
-  } catch (err) {
-    console.error('[rewrite-pipeline] generation failed:', err)
-    reason = 'error'
   }
 
-  // Claim-check pass — faithful_paraphrase mode only, and only
-  // if we got an output to check.
+  // Attempt 1: vanilla prompt.
+  let attempt1 = await attemptOnce(basePrompt)
+  if (attempt1.error) {
+    reason = 'error'
+  } else if (attempt1.insufficient) {
+    insufficient = true
+    reason = 'insufficient'
+  } else {
+    outputText = attempt1.output
+  }
+
+  // Claim-check (faithful_paraphrase only). If it fails, retry
+  // once with the claim-check notes as corrective context.
   if (outputText && input.mode === 'faithful_paraphrase') {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-    const check = await runClaimCheck(client, model, input.sourceText || '', outputText)
-    claimCheckPassed = check.passed
-    claimCheckNotes = check.notes
-    if (!check.passed) {
+    const check1 = await runClaimCheck(client, model, input.sourceText || '', outputText)
+    claimCheckPassed = check1.passed
+    claimCheckNotes = check1.notes
+
+    if (!check1.passed && check1.notes) {
+      // V10.6.20 — Retry with explicit corrective context. We tell
+      // the AI what it just wrote and what the claim-check flagged,
+      // and ask for a stricter rewrite. In practice this clears
+      // many of the AI-editorializing failures (intensity drift,
+      // title drift, timeline drift) because the model now has
+      // explicit negative feedback to work against.
+      const correctivePrompt = basePrompt + '\n\n' +
+        'CRITICAL — YOUR PREVIOUS ATTEMPT WAS REJECTED.\n' +
+        'Your previous attempt was: "' + outputText + '"\n\n' +
+        'The claim-check flagged it for the following reasons:\n' +
+        check1.notes + '\n\n' +
+        'Rewrite the answer-line. Fix the specific issues above. Be MORE conservative:\n' +
+        '- If the previous attempt was rejected for intensity drift, use plainer language.\n' +
+        '- If the previous attempt was rejected for inferring location/date/cause from context, drop the inference and use only what the narrative literally states.\n' +
+        '- If the previous attempt was rejected for timeline confusion, preserve before/during/after exactly as the source describes.\n' +
+        '- If the previous attempt was rejected for using the title as a fact source, ignore the title and work only from the narrative.\n' +
+        'Output ONLY the corrected sentence. No preamble.'
+
+      const attempt2 = await attemptOnce(correctivePrompt)
+      if (!attempt2.error && !attempt2.insufficient && attempt2.output) {
+        const check2 = await runClaimCheck(client, model, input.sourceText || '', attempt2.output)
+        // Always trust the latest claim-check result.
+        claimCheckPassed = check2.passed
+        claimCheckNotes = check2.notes
+        if (check2.passed) {
+          outputText = attempt2.output
+          reason = 'ok'
+        } else {
+          // Both attempts failed — give up. Surface the second
+          // round's notes since they're typically more refined.
+          outputText = null
+          reason = 'claim_check_failed'
+        }
+      } else {
+        // Retry errored or returned INSUFFICIENT — fall back to
+        // the first-attempt rejection.
+        outputText = null
+        reason = 'claim_check_failed'
+      }
+    } else if (!check1.passed) {
+      // Claim-check failed but no notes to retry against — bail.
       outputText = null
       reason = 'claim_check_failed'
     }

@@ -224,45 +224,63 @@ function AnalysisInner(props: {
     { dot: 'bg-amber-400',  border: 'border-amber-400/40',  ring: 'ring-amber-400/30' },
   ]
 
+  // V10.6.20 — Analysis visual polish:
+  //   - Card-per-frame treatment instead of bare left-border list.
+  //     Each lens reads as a discrete object you could swipe or tap,
+  //     not floating prose. Subtle tinted-fill matching the frame's
+  //     palette + same-tint left edge accent.
+  //   - Bigger, more readable label kicker (text-[11px] → text-xs
+  //     uppercase) for clearer hierarchy.
+  //   - Number-dot moved INSIDE the card, smaller, paired with the
+  //     label on one line, so the card content stays clean.
+  //   - "Worth chasing" gets the same card treatment but amber-tinted
+  //     so it visually distinguishes from the lens cards.
   return (
     <div className="space-y-6">
       {props.frames.length > 0 && (
         <div>
-          <p className="text-[10px] uppercase tracking-widest font-semibold text-purple-300/80 mb-4">
+          <p className="text-xs uppercase tracking-widest font-semibold text-purple-300/80 mb-4">
             Through multiple lenses
           </p>
-          <ul className="space-y-5">
+          <ul className="space-y-3">
             {props.frames.map((f, i) => {
               const tint = FRAME_TINTS[i % FRAME_TINTS.length]
-              // Split body into a one-sentence insight + the rest.
               const insight = firstSentence(f.body)
               const rest = f.body.length > insight.length ? f.body.slice(insight.length).trim() : ''
               return (
-                <li key={i} className={'relative pl-9 border-l ' + tint.border}>
-                  {/* Numbered dot anchor — overlaps the left border */}
-                  <span
-                    className={
-                      'absolute -left-[11px] top-0 inline-flex items-center justify-center w-[22px] h-[22px] rounded-full text-[10px] font-bold text-gray-900 ring-2 ring-gray-950 ' +
-                      tint.dot
-                    }
-                    aria-hidden="true"
-                  >
-                    {i + 1}
-                  </span>
-                  {/* Frame title — uppercase kicker, not a heading */}
-                  <p className="text-[10px] uppercase tracking-widest font-semibold text-gray-400 mb-1.5">
-                    {f.label}
-                  </p>
-                  {/* Insight — one bold line, lead idea */}
-                  <p className="text-[15px] font-semibold text-white leading-snug mb-1.5">
-                    {insight}
-                  </p>
-                  {/* Supporting prose — slightly muted so the insight stays the hero */}
-                  {rest && (
-                    <p className="text-[14px] text-gray-300 leading-relaxed">
-                      {rest}
+                <li
+                  key={i}
+                  className={'relative rounded-xl bg-gray-900/40 border border-gray-800 overflow-hidden'}
+                >
+                  {/* Left edge accent in the tint color */}
+                  <div className={'absolute left-0 top-0 bottom-0 w-1 ' + tint.dot} aria-hidden="true" />
+                  <div className="p-4 pl-5">
+                    {/* Header row: numbered dot + uppercase label kicker */}
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <span
+                        className={
+                          'inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold text-gray-950 ' +
+                          tint.dot
+                        }
+                        aria-hidden="true"
+                      >
+                        {i + 1}
+                      </span>
+                      <p className="text-[11px] uppercase tracking-[0.14em] font-bold text-gray-300">
+                        {f.label}
+                      </p>
+                    </div>
+                    {/* Insight line — the hero sentence per lens */}
+                    <p className="text-[15px] font-semibold text-white leading-snug mb-2">
+                      {insight}
                     </p>
-                  )}
+                    {/* Supporting context — muted to keep insight as the eye target */}
+                    {rest && (
+                      <p className="text-[14px] text-gray-300 leading-relaxed">
+                        {rest}
+                      </p>
+                    )}
+                  </div>
                 </li>
               )
             })}
@@ -271,20 +289,23 @@ function AnalysisInner(props: {
       )}
 
       {props.openQuestions.length > 0 && (
-        <div className="pt-4 border-t border-white/[0.06]">
-          <p className="text-[10px] uppercase tracking-widest font-semibold text-amber-300/80 mb-3">
+        <div>
+          <p className="text-xs uppercase tracking-widest font-semibold text-amber-300/80 mb-3">
             Worth chasing
           </p>
           <ul className="space-y-2">
             {props.openQuestions.map((q, i) => (
               <li
                 key={i}
-                className="flex items-start gap-2.5 rounded-lg bg-amber-950/15 border border-amber-700/25 px-3 py-2.5"
+                className="relative rounded-xl bg-amber-950/15 border border-amber-700/25 overflow-hidden"
               >
-                <span className="flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-200 text-[10px] font-bold mt-0.5">
-                  ?
-                </span>
-                <p className="text-[14px] text-gray-100 leading-relaxed">{q}</p>
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400/70" aria-hidden="true" />
+                <div className="flex items-start gap-3 p-3.5 pl-5">
+                  <span className="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-200 text-xs font-bold mt-0.5">
+                    ?
+                  </span>
+                  <p className="text-[14px] text-gray-100 leading-relaxed pt-1">{q}</p>
+                </div>
               </li>
             ))}
           </ul>
