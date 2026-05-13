@@ -21,7 +21,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import Head from 'next/head'
 import {
-  AlertTriangle, CheckCircle2, XCircle, Loader2, ExternalLink, Filter,
+  AlertTriangle, CheckCircle2, XCircle, Loader2, ExternalLink, Filter, RefreshCw,
 } from 'lucide-react'
 import AdminLayout from '@/components/admin/AdminLayout'
 import { supabase } from '@/lib/supabase'
@@ -175,6 +175,19 @@ export default function AiAuditAdminPage() {
               {fieldOptions.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           )}
+          {/* V10.6.17 — explicit refresh. Without this you had to
+              change a filter to refetch; new audit rows landing
+              during an active page session weren't visible. */}
+          <button
+            onClick={() => load()}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-900 border border-gray-700 hover:bg-gray-800 disabled:opacity-40 text-xs text-gray-200 transition-colors"
+            aria-label="Refresh audit rows"
+            title="Refresh"
+          >
+            <RefreshCw className={'w-3.5 h-3.5 ' + (loading ? 'animate-spin' : '')} />
+            Refresh
+          </button>
           <span className="text-[11px] text-gray-500 ml-auto">{total} rows</span>
         </section>
 
