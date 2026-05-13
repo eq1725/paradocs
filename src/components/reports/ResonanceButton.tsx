@@ -28,6 +28,12 @@ interface Props {
    * where Resonance is the page's highest-conversion social action.
    */
   variant?: 'pill' | 'prominent'
+  /**
+   * V10.7.B.9 — Optional className applied to the prominent
+   * variant's outer card. Used to override the baked-in `my-6`
+   * margin when this component is rendered inside a grid cell.
+   */
+  className?: string
 }
 
 export default function ResonanceButton(props: Props) {
@@ -108,8 +114,16 @@ export default function ResonanceButton(props: Props) {
   // deserves. Below the button: a "Share your own experience"
   // link (G., growth) so the natural next action is one tap away.
   if (props.variant === 'prominent') {
+    // V10.7.B.9 — tightened spacing and shorter reassurance copy so
+    // the card works in a constrained 280px-ish desktop side column
+    // OR full-width on mobile, without dominating the viewport.
     return (
-      <div className="my-6 rounded-2xl border border-rose-500/30 bg-gradient-to-br from-rose-950/30 via-gray-900/40 to-gray-900/40 p-4">
+      <div
+        className={
+          'rounded-2xl border border-rose-500/30 bg-gradient-to-br from-rose-950/30 via-gray-900/40 to-gray-900/40 p-3 ' +
+          (props.className || 'my-6')
+        }
+      >
         <button
           type="button"
           onClick={toggle}
@@ -120,7 +134,7 @@ export default function ResonanceButton(props: Props) {
             ? 'Tap to remove. We won’t share your name — only the aggregate count goes public.'
             : 'Tap to signal you’ve had a similar experience. Helps Paradocs surface patterns. Your name is never shared — only the count.'}
           className={
-            'w-full inline-flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold transition-colors min-h-[48px] ' +
+            'w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-[13px] font-semibold transition-colors min-h-[44px] ' +
             (resonated
               ? 'bg-rose-500/25 border border-rose-400/60 text-rose-100 hover:bg-rose-500/35'
               : 'bg-rose-500/10 border border-rose-500/40 text-rose-100 hover:bg-rose-500/20')
@@ -133,13 +147,13 @@ export default function ResonanceButton(props: Props) {
           )}
           <span>{label}</span>
         </button>
-        <p className="text-[11px] text-gray-500 text-center mt-2 leading-relaxed">
-          We never share your name — only the aggregate count goes public.
+        <p className="text-[10px] text-gray-500 text-center mt-1.5 leading-tight">
+          Anonymous — only the count goes public.
         </p>
-        <div className="mt-3 pt-3 border-t border-white/[0.06] flex justify-center">
+        <div className="mt-2 pt-2 border-t border-white/[0.06] flex justify-center">
           <Link
             href="/start"
-            className="inline-flex items-center gap-1 text-xs text-purple-300 hover:text-purple-200 font-medium transition-colors"
+            className="inline-flex items-center gap-1 text-[11px] text-purple-300 hover:text-purple-200 font-medium transition-colors"
           >
             Share your own experience
             <ArrowRight className="w-3 h-3" />

@@ -430,77 +430,65 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               </p>
             )}
 
-            {/* V10.7.B.7 — Resonance HOISTED to between answer-line
-                and the dateline grid. This is the SOLE resonance
-                affordance on the page now (the duplicate prominent
-                button below source has been dropped). Per screenshot
-                review: a scroll-trigger pill plus an identical button
-                below was duplicate content — one functional element
-                in the right position is the optimization. */}
-            {report?.slug && (
-              <div id="resonance-anchor" className="mb-4">
-                <ResonanceButton slug={report.slug} variant="prominent" />
+            {/* V10.7.B.9 — Dateline + resonance composite block.
+                UX-journey rationale: the V10.7.B.7 placement of
+                resonance ABOVE the dateline was a premature ask —
+                we were asking the reader to engage before they had
+                the basic facts (WHEN/WHERE/WHO/SOURCE/TOPIC/WITNESS)
+                to decide whether engaging makes sense. Now the
+                dateline lands first; the resonance card lands after
+                (mobile) or to the right (lg+) once the reader has
+                the context.
+
+                Mobile (default): everything stacks vertically.
+                Desktop (lg+): dateline left, resonance card right
+                              in a 1fr_300px grid. Saves ~150px of
+                              vertical space on lg+ screens. */}
+            <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-6 lg:items-start mb-6">
+              <div>
+                <ReportMeta
+                  anonymizeSubmitter={anonymize}
+                  submitterDisplayName={submitterDisplayName}
+                  eventDate={report?.event_date}
+                  eventDateText={report?.event_date_text}
+                  city={report?.city}
+                  stateProvince={report?.state_province}
+                  country={report?.country}
+                  locationName={report?.location_name}
+                  witnessCount={report?.witness_count}
+                  submitterWasWitness={report?.submitter_was_witness}
+                  className="mb-1.5"
+                />
+                <SourceAndWitnessBlock
+                  phenomenonTypeName={phenomenonTypeName}
+                  phenomenonTypeSlug={phenomenonTypeSlug}
+                  category={report?.category}
+                  categoryLabel={categoryLabel}
+                  sourceLabel={sourceLabel}
+                  sourceType={report?.source_type}
+                  createdAt={report?.created_at}
+                  witnessProfile={report?.witness_profile}
+                  similarPhenomena={sanitized.similarPhenomena}
+                />
+                <ReportEngagementStrip
+                  viewCount={viewCount}
+                  savedCount={savedCount}
+                  commentCount={commentCount}
+                  readTimeWords={readTimeWords}
+                  className="mt-3"
+                />
               </div>
-            )}
 
-            {/* ── 4. Unified dateline grid (V10.7.B.7) ────────
-                ReportMeta + SourceAndWitnessBlock render adjacently
-                with no gap so the 6 rows
-                (WHEN/WHERE/WHO/SOURCE/TOPIC/WITNESS) read as a single
-                continuous grid. mb-1.5 on the first matches the
-                gap-y-1.5 of internal rows so the boundary is
-                invisible. */}
-            <ReportMeta
-              anonymizeSubmitter={anonymize}
-              submitterDisplayName={submitterDisplayName}
-              eventDate={report?.event_date}
-              eventDateText={report?.event_date_text}
-              city={report?.city}
-              stateProvince={report?.state_province}
-              country={report?.country}
-              locationName={report?.location_name}
-              witnessCount={report?.witness_count}
-              submitterWasWitness={report?.submitter_was_witness}
-              className="mb-1.5"
-            />
-
-            {/* ── 4b. Engagement strip (V10.5) MOVED below dateline
-                so it no longer splits the 6-row grid into two visual
-                chunks. Will render after the source/witness rows. */}
-
-            {/* V10.7.B.2 — Source & Witness block.
-                Single bordered card that consolidates what used to be
-                three stacked rows (phenomena chips · credibility band ·
-                witness profile pill). Per panel review V10.7.B,
-                three thin chip strips in a row read as one visual
-                unit anyway — better to make it one explicit unit with
-                clear row hierarchy. Sub-rows are clickable filter
-                links into /explore. */}
-            <SourceAndWitnessBlock
-              phenomenonTypeName={phenomenonTypeName}
-              phenomenonTypeSlug={phenomenonTypeSlug}
-              category={report?.category}
-              categoryLabel={categoryLabel}
-              sourceLabel={sourceLabel}
-              sourceType={report?.source_type}
-              createdAt={report?.created_at}
-              witnessProfile={report?.witness_profile}
-              similarPhenomena={sanitized.similarPhenomena}
-              className="mb-4"
-            />
-
-            {/* V10.7.B.7 — Engagement strip moved HERE (was previously
-                between WHO and SOURCE). Now closes the dateline + meta
-                section instead of splitting it. The 6 dateline rows
-                read as one block; engagement metrics follow as a
-                separate beat. */}
-            <ReportEngagementStrip
-              viewCount={viewCount}
-              savedCount={savedCount}
-              commentCount={commentCount}
-              readTimeWords={readTimeWords}
-              className="mb-6"
-            />
+              {report?.slug && (
+                <div id="resonance-anchor" className="mt-5 lg:mt-0">
+                  <ResonanceButton
+                    slug={report.slug}
+                    variant="prominent"
+                    className="m-0"
+                  />
+                </div>
+              )}
+            </div>
 
             {/* V10.7.B.2 — Pattern strip MOVED below the narrative.
                 Previously rendered between metadata and pull quote;
