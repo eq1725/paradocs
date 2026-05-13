@@ -37,7 +37,7 @@ interface BackfillResult {
   processed: Array<{ id: string; slug: string; status: string; result?: string | null; error?: string }>
 }
 
-type JobKind = 'analysis' | 'answer-lines'
+type JobKind = 'analysis' | 'answer-lines' | 'witness-profile'
 
 const JOBS: Array<{
   kind: JobKind
@@ -76,6 +76,20 @@ const JOBS: Array<{
     // bounded.
     chunkSize: 10,
   },
+  {
+    kind: 'witness-profile',
+    label: 'Witness profile (structured demographic extraction)',
+    endpoint: '/api/admin/backfill-witness-profile',
+    description:
+      'Extracts a structured witness profile (age range, gender, occupation, state of consciousness) from the source text. ' +
+      'Stored as JSONB in reports.witness_profile, surfaced as a pill on /report/[slug] and used for /explore demographic filters. ' +
+      'Every dimension defaults to "unspecified" unless the source directly supports a value — most fields will be unspecified for most reports, and that is the correct answer. ' +
+      'Reports only — does not touch encyclopedia. ~$0.001/row.',
+    // V10.7 — single Haiku call, no claim-check loop, JSON output
+    // is small (~400 tokens). 10/chunk matches the other jobs for
+    // memory-bounded safety.
+    chunkSize: 10,
+  },
 ]
 
 export default function AdminBackfillPage() {
@@ -86,6 +100,7 @@ export default function AdminBackfillPage() {
   const [totals, setTotals] = useState<Record<JobKind, { scanned: number; generated: number; failed: number }>>({
     analysis: { scanned: 0, generated: 0, failed: 0 },
     'answer-lines': { scanned: 0, generated: 0, failed: 0 },
+    'witness-profile': { scanned: 0, generated: 0, failed: 0 },
   })
 
   // ── Auth gate ─────────────────────────────────────────────

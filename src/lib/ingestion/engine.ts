@@ -14,6 +14,7 @@ import {
 import { generateAndSaveFeedHook } from '../services/feed-hook.service';
 import { generateAndSaveParadocsAnalysis } from '../services/paradocs-analysis.service';
 import { generateAndSaveAnswerLine } from '../services/answer-line.service';
+import { generateAndSaveWitnessProfile } from '../services/witness-profile.service';
 import { generateCompellingTitle } from '../services/compelling-title.service';
 import { embedReport } from '../services/embedding.service';
 import { enrichReport } from './enrichment/report-enricher';
@@ -904,6 +905,18 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                 await generateAndSaveAnswerLine(insertedReport.id);
               } catch (answerError) {
                 console.log('[Ingestion] answer_line generation failed for ' + slug + ':', answerError);
+              }
+
+              // V10.7.A.1 — witness_profile (structured demographic
+              // extraction). Powers the witness-profile pill on the
+              // report page + the upcoming /explore filters on age /
+              // state-of-consciousness. Best-effort: failure doesn't
+              // block ingestion; the UI hides the pill when profile
+              // is null. ~$0.001/row (Haiku, ~400 output tokens).
+              try {
+                await generateAndSaveWitnessProfile(insertedReport.id);
+              } catch (witnessError) {
+                console.log('[Ingestion] witness_profile generation failed for ' + slug + ':', witnessError);
               }
 
               // V9.0 — Anchor case generation. Produces the cold-open
