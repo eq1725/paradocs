@@ -69,7 +69,12 @@ const JOBS: Array<{
       'Generates the bold TL;DR sentence right under the title on /report/[slug]. ' +
       'Also used as the meta description (SEO + iMessage/Slack/Twitter share-card text) and as the OG card kicker. ' +
       'Reports only — does not touch encyclopedia entries. ~$0.002/row.',
-    chunkSize: 25,
+    // V10.6.9 — Was 25, but Vercel returned an opaque 500 (function
+    // crash, not graceful error) at ~36s into a 25-row chunk. Most
+    // likely OOM from accumulating AI request/response/audit objects
+    // in memory. Drop to 10 to match the analysis job, keep memory
+    // bounded.
+    chunkSize: 10,
   },
 ]
 

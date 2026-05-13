@@ -266,11 +266,13 @@ export default async function handler(req: NextRequest) {
             }}
           />
 
-          {/* Wordmark (Changa ExtraBold). */}
+          {/* Wordmark (Changa ExtraBold). V10.6.9 — bumped down
+              from 64 to 56pt to leave more vertical real estate
+              for the title + meta block below. */}
           <div style={{ display: 'flex', alignItems: 'baseline', position: 'relative' }}>
             <span style={{
               display: 'flex',
-              fontSize: 64,
+              fontSize: 56,
               fontWeight: 800,
               color: '#ffffff',
               letterSpacing: '-0.01em',
@@ -280,7 +282,7 @@ export default async function handler(req: NextRequest) {
             </span>
             <span style={{
               display: 'flex',
-              fontSize: 64,
+              fontSize: 56,
               fontWeight: 800,
               color: '#a855f7',
               lineHeight: 1,
@@ -295,32 +297,41 @@ export default async function handler(req: NextRequest) {
               display: 'flex',
               flexDirection: 'column',
               flex: 1,
-              justifyContent: 'center',
-              marginTop: 28,
+              // V10.6.9 — was justify-content: center. With Changa
+              // being a wider font than Inter, the title sometimes
+              // exceeded the flex:1 container's height, and Satori's
+              // flex centering pushed content into the rows above
+              // and below. Stack naturally instead — flex-start +
+              // explicit margins keeps everything in lane.
+              justifyContent: 'flex-start',
+              marginTop: 36,
               position: 'relative',
             }}
           >
-            {/* Title — bumped to 72 for short titles, scales down for long ones */}
+            {/* V10.6.9 — Title sizes reduced for Changa. Changa is
+                ~15-20% wider than Inter per character at the same pt,
+                so 72pt overflowed the 1060px content width and wrapped
+                into 2 lines that crashed into the meta/quote rows. */}
             <div
               style={{
                 display: 'flex',
-                fontSize: title.length > 90 ? 50 : title.length > 60 ? 60 : 72,
+                fontSize: title.length > 90 ? 42 : title.length > 60 ? 50 : 60,
                 fontWeight: 700,
                 lineHeight: 1.08,
                 color: '#ffffff',
                 letterSpacing: '-0.015em',
-                marginBottom: 30,
+                marginBottom: 26,
               }}
             >
               {title}
             </div>
 
             {/* Stacked WHEN/WHERE/WHO meta */}
-            <div style={{ display: 'flex', gap: 56, alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', gap: 44, alignItems: 'flex-start' }}>
               {whenStr && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <span style={{ fontSize: 18, fontWeight: 700, color: '#fcd34d', letterSpacing: '0.14em' }}>WHEN</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 26, fontWeight: 700, color: '#ffffff' }}>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: '#fcd34d', letterSpacing: '0.14em' }}>WHEN</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 22, fontWeight: 700, color: '#ffffff' }}>
                     {/* V10.6.8 — Calendar icon parallels WHERE's map pin */}
                     <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
                       <rect x="2" y="4" width="16" height="16" rx="2" stroke="#fcd34d" strokeWidth="1.6" fill="rgba(252,211,77,0.12)" />
@@ -334,8 +345,8 @@ export default async function handler(req: NextRequest) {
               )}
               {whereStr && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <span style={{ fontSize: 18, fontWeight: 700, color: '#6ee7b7', letterSpacing: '0.14em' }}>WHERE</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 26, fontWeight: 700, color: '#ffffff' }}>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: '#6ee7b7', letterSpacing: '0.14em' }}>WHERE</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 22, fontWeight: 700, color: '#ffffff' }}>
                     <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
                       <path d="M10 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12z" stroke="#6ee7b7" strokeWidth="1.6" fill="rgba(110,231,183,0.15)" />
                       <circle cx="10" cy="9" r="2.5" fill="#6ee7b7" />
@@ -346,8 +357,8 @@ export default async function handler(req: NextRequest) {
               )}
               {whoStr && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <span style={{ fontSize: 18, fontWeight: 700, color: '#67e8f9', letterSpacing: '0.14em' }}>WHO</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 26, fontWeight: 700, color: '#ffffff' }}>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: '#67e8f9', letterSpacing: '0.14em' }}>WHO</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 22, fontWeight: 700, color: '#ffffff' }}>
                     {/* People-cluster icon — parallels WHEN/WHERE */}
                     <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
                       <circle cx="11" cy="7" r="3.2" stroke="#67e8f9" strokeWidth="1.6" fill="rgba(103,232,249,0.12)" />
@@ -382,24 +393,25 @@ export default async function handler(req: NextRequest) {
                 }}
               >
                 {/* Big purple opening quote mark — Changa renders this
-                    cleanly at heavy weights. */}
+                    cleanly at heavy weights. V10.6.9: scaled down to
+                    72pt so it doesn't compete with the title above. */}
                 <span style={{
                   display: 'flex',
-                  fontSize: 88,
+                  fontSize: 72,
                   fontWeight: 800,
                   color: '#a855f7',
                   lineHeight: 0.7,
-                  marginRight: 14,
-                  marginTop: -8,
+                  marginRight: 12,
+                  marginTop: -4,
                 }}>
                   &ldquo;
                 </span>
                 <span
                   style={{
                     display: 'flex',
-                    fontSize: 28,
+                    fontSize: 22,
                     fontWeight: 500,
-                    lineHeight: 1.32,
+                    lineHeight: 1.35,
                     color: '#e5e7eb',
                   }}
                 >
@@ -415,16 +427,16 @@ export default async function handler(req: NextRequest) {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 10,
-                padding: '10px 18px',
+                gap: 8,
+                padding: '8px 14px',
                 borderRadius: 999,
                 border: `1.5px solid ${catColor}`,
                 background: 'rgba(255,255,255,0.04)',
                 flexShrink: 0,
               }}
             >
-              <span style={{ display: 'flex', width: 10, height: 10, borderRadius: '50%', background: catColor }} />
-              <span style={{ display: 'flex', fontSize: 20, fontWeight: 700, color: '#ffffff' }}>{catLabel}</span>
+              <span style={{ display: 'flex', width: 9, height: 9, borderRadius: '50%', background: catColor }} />
+              <span style={{ display: 'flex', fontSize: 17, fontWeight: 700, color: '#ffffff' }}>{catLabel}</span>
             </div>
           </div>
 
