@@ -44,6 +44,7 @@ import ReportPhenomenaChips from './ReportPhenomenaChips'
 import SourceBlock from './SourceBlock'
 import ReportBelowFold, { type RelatedReport, type AlternativeExplanation } from './ReportBelowFold'
 import ResonanceButton from './ResonanceButton'
+import WitnessProfilePill from './WitnessProfilePill'
 import { stripPiiWithLogging } from '@/lib/ai/pii-filter'
 import { supabase } from '@/lib/supabase'
 import { CATEGORY_CONFIG } from '@/lib/constants'
@@ -465,6 +466,15 @@ export default function ReportPageV2({ report, media, relatedReports, patterns }
               createdAt={report?.created_at}
               savedCount={savedCount}
             />
+
+            {/* V10.7.A.2 — Witness profile pill. AI-extracted
+                demographic / state-of-consciousness chips, hidden
+                entirely when profile is null or confidence < 0.4.
+                Each chip is a click into /explore filtered to that
+                dimension. Mission goal #2: 'show users similar
+                experiences to their own' becomes browsable at the
+                demographic level, not just the lens level. */}
+            <WitnessProfilePill profile={report?.witness_profile} />
 
             {/* V10.6.28 — Pattern strip. The single most important
                 addition for mission alignment ('show how common
