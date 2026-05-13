@@ -84,24 +84,17 @@ const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
  * v10.6.19 — answer-line: added INTENSITY / TITLE / TIMELINE
  *   discipline rules to fight AI editorializing.
  * v10.6.20 — added self-correcting retry loop.
- * v10.6.21 — retry-loop hardening + diagnostics:
- *   - Bug: V10.6.20 retry was gated on check1.notes being truthy.
- *     When the fact-checker returned passed=false with empty notes
- *     (which it does for some claim-check rejections), retry was
- *     skipped entirely. Now retry fires on ANY check1.passed=false.
- *   - Bug: V10.6.20 retry overwrote the original output with the
- *     retry's output, so the audit record lost the first attempt
- *     entirely. Now we combine BOTH attempt outputs and BOTH
- *     rejection notes into the final audit claim_check_notes —
- *     so admin investigation has full context.
- *   - Improvement: When notes are missing, the corrective prompt
- *     uses a generic 'assume one of these common drift modes' fallback
- *     to give the AI a clear target to fix even without specifics.
- *   - Improvement: retry can now return INSUFFICIENT as a valid
- *     outcome (source genuinely too sparse), distinguishing it from
- *     a true claim-check failure.
+ * v10.6.21 — retry-loop hardening + diagnostics.
+ * v10.6.22 — extended retry pattern to the paradocs-analysis
+ *   service (multi-field JSON output, separate codepath). When
+ *   any field fails the per-field claim-check, the WHOLE analysis
+ *   JSON is regenerated once with the failed field names + their
+ *   rejection notes injected into the user prompt. If the retry
+ *   has strictly fewer field-failures than the first attempt, we
+ *   ship the retry. Same architectural pattern as V10.6.20 applied
+ *   to the multi-field generator. Pass rate target: 90% → 97%+.
  */
-export const PROMPT_VERSION = 'v10.6.21'
+export const PROMPT_VERSION = 'v10.6.22'
 
 // ── Types ───────────────────────────────────────────────────
 

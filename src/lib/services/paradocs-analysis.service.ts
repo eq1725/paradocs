@@ -855,8 +855,11 @@ async function claimCheckAnalysisFields(
   result: ParadocsAnalysisResult,
   sourceText: string,
   reportId: string,
-): Promise<{ result: ParadocsAnalysisResult; failures: string[] }> {
+): Promise<{ result: ParadocsAnalysisResult; failures: string[]; notes: string[] }> {
   var failures: string[] = []
+  // V10.6.22 — collect per-field rejection notes so the caller
+  // can feed them to a corrective regeneration.
+  var notes: string[] = []
   if (!sourceText || !sourceText.trim()) {
     // No source to check against — fail OPEN, log everything as bypassed.
     // The pipeline lib's verifyAndAuditRewrite handles this internally.
@@ -886,6 +889,7 @@ async function claimCheckAnalysisFields(
       })
       if (!check.passed) {
         failures.push(field.key as string)
+        if (check.notes) notes.push((field.key as string) + ': ' + check.notes)
         // Null out the failed field — render layer handles missing fields.
         ;(result as any)[field.key] = null
       }
@@ -922,14 +926,24 @@ async function claimCheckAnalysisFields(
     result.mundane_explanations = result.mundane_explanations.filter(function(me: any) { return !me._failed })
   }
 
-  return { result, failures }
+  return { result, failures, notes }
 }
 
 // ============================================
 // Core Generation
 // ============================================
 
-export async function generateParadocsAnalysis(reportId: string): Promise<ParadocsAnalysisResult | null> {
+export async function generateParadocsAnalysis(
+  reportId: string,
+  /**
+   * V10.6.22 — Optional corrective context for retry generation.
+   * When the first attempt's output had fields rejected by the
+   * claim-check, the caller passes the failed field names + their
+   * rejection notes here so the retry prompt explicitly targets
+   * the previous mistakes.
+   */
+  correctiveContext?: { failedFields: string[]; notes?: string | null }
+): Promise<ParadocsAnalysisResult | null> {
   var supabase = createServerClient()
 
   var { data: report, error: fetchError } = await supabase
@@ -950,6 +964,26 @@ export async function generateParadocsAnalysis(reportId: string): Promise<Parado
   console.log('[ParadocsAnalysis] Report ' + reportId + ' sourceWords=' + countWords(sourceText) + ', analysisBudget=' + analysisWordBudget + ' words')
 
   var userPrompt = buildUserPrompt(report, analysisWordBudget)
+
+  // V10.6.22 — Append corrective context on retry so the model
+  // has explicit negative feedback on what its previous attempt
+  // got wrong. Mirrors the answer-line retry pattern from V10.6.20.
+  if (correctiveContext && correctiveContext.failedFields.length > 0) {
+    userPrompt += '\n\nCRITICAL — YOUR PREVIOUS ATTEMPT WAS REJECTED FOR THESE FIELDS:\n' +
+      correctiveContext.failedFields.map(f => '  • ' + f).join('\n') +
+      '\n\n' +
+      (correctiveContext.notes
+        ? 'Claim-check notes from the previous attempt:\n' + correctiveContext.notes + '\n\n'
+        : '') +
+      'Rewrite the WHOLE analysis JSON. Be MAXIMALLY CONSERVATIVE on the failed fields:\n' +
+      '- For ANY claim in the failed fields, use ONLY facts literally stated in the narrative.\n' +
+      '- Drop dates unless the year is explicitly in the narrative text (not the title).\n' +
+      '- Drop location specifics unless literally stated in the narrative.\n' +
+      '- Drop interpretive adjectives (vivid, profound, terrifying, transformative).\n' +
+      '- Drop pattern claims ("Paradocs tracks this across...") unless we have stats to cite.\n' +
+      '- For the OTHER fields that passed, keep their content largely intact.\n' +
+      'If a field cannot be supported under those rules, return INSUFFICIENT for that field.'
+  }
 
   console.log('[ParadocsAnalysis] Generating for: ' + reportId + ' (' + ((report as any).title || 'untitled').substring(0, 40) + ')')
 
@@ -1035,6 +1069,36 @@ export async function generateAndSaveParadocsAnalysis(reportId: string): Promise
       result = checked.result
       if (checked.failures.length > 0) {
         console.warn('[ParadocsAnalysis] claim-check failed for fields: ' + checked.failures.join(', ') + ' (report ' + reportId + ')')
+
+        // V10.6.22 — Self-correcting retry. When any field failed
+        // claim-check on the first generation, regenerate the WHOLE
+        // analysis JSON with corrective context (failed field names
+        // + their rejection notes), then re-verify. If the retry's
+        // failures count is strictly less than the first attempt's,
+        // we ship the retry instead. Mirrors the V10.6.20 answer-line
+        // retry pattern adapted to multi-field JSON output. Cost:
+        // ~$0.01 extra per row that needs retry — acceptable for
+        // the millions-scale mandate.
+        var firstFailureCount = checked.failures.length
+        try {
+          var retryResult = await generateParadocsAnalysis(reportId, {
+            failedFields: checked.failures,
+            notes: checked.notes.length > 0 ? checked.notes.join('\n') : null,
+          })
+          if (retryResult) {
+            var retryChecked = await claimCheckAnalysisFields(retryResult, sourceForCheck, reportId)
+            console.log('[ParadocsAnalysis] retry: first-attempt failures=' + firstFailureCount + ', retry failures=' + retryChecked.failures.length + ' (report ' + reportId + ')')
+            if (retryChecked.failures.length < firstFailureCount) {
+              // Retry improved the result — use it.
+              result = retryChecked.result
+              console.log('[ParadocsAnalysis] retry adopted for ' + reportId + ' (cleared ' + (firstFailureCount - retryChecked.failures.length) + ' field failures)')
+            } else {
+              console.log('[ParadocsAnalysis] retry did not improve, keeping first attempt for ' + reportId)
+            }
+          }
+        } catch (retryErr: any) {
+          console.warn('[ParadocsAnalysis] retry threw, keeping first attempt:', retryErr?.message || retryErr)
+        }
       }
 
       // Build the assessment object (stored as JSONB)
