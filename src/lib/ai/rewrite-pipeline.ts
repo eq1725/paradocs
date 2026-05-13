@@ -66,12 +66,23 @@ import { createClient } from '@supabase/supabase-js'
 const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
 
 /**
- * Bump this when you change ANY prompt in this library. The
+ * Bump this when you change ANY prompt in this library, OR when
+ * a caller changes the source-packet shape it passes in. The
  * audit table indexes by prompt_version so we can spot
  * regressions when a prompt change increases the claim-check
- * fail rate.
+ * fail rate, and so admins can verify after a deploy that fresh
+ * audit rows are coming from the new pipeline.
+ *
+ * v10.4.0 — initial pipeline
+ * v10.6.16 — source-packet hardening cycle:
+ *   - V10.6.14 dropped location columns from caller source packets
+ *   - V10.6.15 dropped date + evidence columns
+ *   - V10.6.16 dropped category + bumped narrative truncation 2.5K→5K
+ *   All three were rounds of removing corrupt structured metadata
+ *   that was causing the claim-check to reject narrative-correct
+ *   AI outputs. Pass rate 30% → 90%.
  */
-export const PROMPT_VERSION = 'v10.4.0'
+export const PROMPT_VERSION = 'v10.6.16'
 
 // ── Types ───────────────────────────────────────────────────
 
