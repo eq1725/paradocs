@@ -52,19 +52,38 @@ export interface ReportRelatedReportsProps {
 
 export default function ReportRelatedReports({ items, className }: ReportRelatedReportsProps) {
   if (!items || items.length === 0) return null
-  // V10.6.20 — 5 → 4 cards. Chase: 4 fits a 2x2 layout cleanly and
-  // looks visually balanced; 5 left an awkward orphan card in the
-  // bottom-left on desktop.
   const list = items.slice(0, 4)
+
+  // V10.6.24 — derive a category-anchored header label from the
+  // first related report. getStaticProps picks all 4 related items
+  // from the same category as the current report, so items[0].category
+  // is a faithful anchor. Turns generic 'Related reports' into a
+  // specific 'More <Category> reports' navigation pattern.
+  const anchorCategory = (list[0] && list[0].category) || null
+  const anchorConfig = anchorCategory ? (CATEGORY_CONFIG as any)[anchorCategory] : null
+  const anchorLabel = (anchorConfig && anchorConfig.label) || null
+  const heading = anchorLabel ? 'More ' + anchorLabel + ' reports' : 'Related reports'
+  const exploreHref = anchorCategory ? '/explore?category=' + encodeURIComponent(anchorCategory) : null
 
   return (
     <section className={className || ''} aria-label="Related reports">
-      <header className="flex items-center gap-2 mb-3">
-        <BookOpen className="w-4 h-4 text-purple-400" />
-        <h2 className="text-sm font-semibold text-white">
-          Related reports
-          <span className="text-gray-500 font-normal"> · {list.length} nearby</span>
-        </h2>
+      <header className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2">
+          <BookOpen className="w-4 h-4 text-purple-400" />
+          <h2 className="text-sm font-semibold text-white">
+            {heading}
+            <span className="text-gray-500 font-normal"> · {list.length} showing</span>
+          </h2>
+        </div>
+        {exploreHref && (
+          <Link
+            href={exploreHref}
+            className="text-xs text-purple-300 hover:text-purple-200 font-medium inline-flex items-center gap-1 transition-colors"
+          >
+            See all
+            <span aria-hidden="true">→</span>
+          </Link>
+        )}
       </header>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">

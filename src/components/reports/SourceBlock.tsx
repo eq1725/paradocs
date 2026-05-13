@@ -104,18 +104,20 @@ function AttributionHeader(props: {
   sourceUrl: string
 }) {
   const { oembed, sourceLabel, sourceUrl } = props
+  // V10.6.24 — Cleaner single-line attribution per panel feedback.
+  // Previously rendered as PlatformBadge + 'Original source' kicker
+  // + source label + 'View original' button — four visual elements
+  // that text-readers parsed as four fragments ('OBE · Original
+  // source · OBERF · View original'). One row, one phrase, one CTA.
+  const label = sourceLabel || oembed.platformLabel
   return (
     <header className="flex items-center justify-between gap-2 p-3 bg-gray-950/50 border-b border-gray-800">
       <div className="flex items-center gap-2 min-w-0">
         <PlatformBadge platform={oembed.platform} label={oembed.platformLabel} />
-        <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 leading-tight">
-            Original source
-          </p>
-          <p className="text-sm text-white font-medium truncate leading-tight">
-            {sourceLabel || oembed.platformLabel}
-          </p>
-        </div>
+        <p className="text-sm text-gray-200 truncate leading-tight">
+          <span className="text-gray-500">Originally published at </span>
+          <span className="text-white font-semibold">{label}</span>
+        </p>
       </div>
       <a
         href={sourceUrl}
@@ -123,7 +125,7 @@ function AttributionHeader(props: {
         rel="noopener noreferrer"
         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium text-purple-200 bg-purple-600/15 hover:bg-purple-600/25 border border-purple-600/30 transition-colors flex-shrink-0"
       >
-        View original
+        Read original
         <ExternalLink className="w-3 h-3" />
       </a>
     </header>

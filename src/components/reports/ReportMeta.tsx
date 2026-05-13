@@ -64,11 +64,21 @@ export default function ReportMeta(props: ReportMetaProps) {
   const whereLine = formatWhere(props)
   const whoLine   = formatWho(props)
 
+  // V10.6.24 — Always show the When row, even when no structured date
+  // is available. A blank slot in the meta block (as happened on the
+  // Kansas psychic experience case where the source said "mid-December"
+  // but event_date was null) reads as broken UI. Better to acknowledge
+  // the uncertainty with a tiny "Date not given" affordance than to
+  // silently drop the row. Mass-ingestion will produce many reports
+  // with vague or missing dates; the page should handle that gracefully.
+  const whenText  = whenLine || 'Date not given by source'
+  const whenMuted = !whenLine
+
   const lines = [
-    whenLine  && { icon: Calendar, label: 'When',  text: whenLine,  tint: 'text-amber-300/90' },
-    whereLine && { icon: MapPin,   label: 'Where', text: whereLine, tint: 'text-emerald-300/90' },
-    whoLine   && { icon: whoLine.icon, label: 'Who', text: whoLine.text, tint: 'text-cyan-300/90' },
-  ].filter(Boolean) as Array<{ icon: any; label: string; text: string; tint: string }>
+    { icon: Calendar, label: 'When',  text: whenText, tint: 'text-amber-300/90', muted: whenMuted },
+    whereLine && { icon: MapPin,   label: 'Where', text: whereLine, tint: 'text-emerald-300/90', muted: false },
+    whoLine   && { icon: whoLine.icon, label: 'Who', text: whoLine.text, tint: 'text-cyan-300/90', muted: false },
+  ].filter(Boolean) as Array<{ icon: any; label: string; text: string; tint: string; muted: boolean }>
 
   if (lines.length === 0) return null
 
@@ -82,7 +92,9 @@ export default function ReportMeta(props: ReportMetaProps) {
               <Icon className="w-3.5 h-3.5" />
               <dt className="text-[10px] uppercase tracking-wider font-semibold">{line.label}</dt>
             </span>
-            <dd className="text-gray-200 flex-1 min-w-0">{line.text}</dd>
+            <dd className={(line.muted ? 'text-gray-500 italic ' : 'text-gray-200 ') + 'flex-1 min-w-0'}>
+              {line.text}
+            </dd>
           </div>
         )
       })}

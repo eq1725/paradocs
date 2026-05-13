@@ -157,12 +157,45 @@ var SYSTEM_PROMPT = ANTI_FABRICATION_PREAMBLE
   + '- Use specificity: durations, behaviors, sounds, number of witnesses, physical details.\n'
   + '- Create an open loop the reader must resolve by reading further.\n'
   + '- NEVER include precise clock times (e.g. "at 21:19"). Vague times are fine ("after midnight").\n\n'
-  + 'ANALYSIS RULES:\n'
-  + '- OPENING SENTENCE: Lead with the most vivid, specific, or inexplicable experiential detail from the report. '
-  + 'Put the reader inside the experience immediately. Do NOT open with a metadata inventory '
-  + '("A [location] witness reports seeing..."). Instead open with the sensory or situational hook '
-  + '("The light split into three distinct orbs and paced the vehicle for six miles." or '
-  + '"Halfway through the tunnel, the life review shifted from observation to full re-immersion.").\n'
+  + 'ANALYSIS RULES (V10.6.24 — the narrative IS the page body, not a summary):\n'
+  + '\n'
+  + 'LENGTH AND SHAPE (CRITICAL):\n'
+  + '- Target 3-4 SHORT PARAGRAPHS, separated by \\n\\n. Each paragraph 2-4 sentences.\n'
+  + '- The narrative is the body of the report page. It is what the reader reads after the pull quote. '
+  + 'It is NOT a summary. It is NOT a one-paragraph synopsis. It is the rewritten experience.\n'
+  + '- DO NOT compress the whole experience into one paragraph. Give it room.\n'
+  + '- The total word count should match what the source supports. Within the per-report word budget, '
+  + 'USE THE FULL BUDGET. Do not write 60 words when 120 are allowed.\n'
+  + '\n'
+  + 'STRUCTURE — every narrative should follow this beat sequence:\n'
+  + '  Paragraph 1 — SETUP. Where the witness was, what they were doing, the ordinariness right before. '
+  + 'One sensory anchor (time of day, weather, posture, what they were thinking about).\n'
+  + '  Paragraph 2 — THE EXPERIENCE. The anomaly itself. Lead with the single most specific sensory '
+  + 'detail. Add 2-3 supporting details that paint the moment. Preserve durations, distances, sounds, '
+  + 'colors, behaviors as the source recorded them.\n'
+  + '  Paragraph 3 — REACTION + AFTERMATH. How the witness felt or responded in the moment. What happened '
+  + 'immediately after (Facebook check, looked at neighbors, called someone, sat in silence). What did '
+  + 'or didn\'t leave a trace.\n'
+  + '  Paragraph 4 (optional) — CONTEXT. The witness\'s history with similar experiences (since age 16, '
+  + 'multiple OBEs, etc.), the broader pattern this case fits, or one editorial note from Paradocs about '
+  + 'why this report matters. Only include when the source supports it.\n'
+  + '\n'
+  + 'OPENING SENTENCE OF PARAGRAPH 1: Lead with a grounding sensory anchor — what the witness was '
+  + 'physically doing or perceiving right before the anomaly. NOT a metadata inventory. NOT the answer-line '
+  + 'restated. Examples:\n'
+  + '  GOOD: "It was past midnight. The witness had been sitting outside in deep meditation for thirty '
+  + 'minutes, eyes closed, when something prompted them to open them."\n'
+  + '  GOOD: "The hike had been ordinary — late afternoon sun, ridge trail south of the lake, no other '
+  + 'cars in the lot — until the trees ahead went silent."\n'
+  + '  BAD: "A Kansas witness reports a psychic phenomenon during meditation." (metadata inventory)\n'
+  + '  BAD: "The witness describes a bright object emerging from a smoke trail." (echoes the answer-line)\n'
+  + '\n'
+  + 'CAPTURE SPECIFIC OBSERVATIONAL DETAILS in the EXPERIENCE paragraph: height estimates, build, '
+  + 'coloring, limb proportions, gait or movement patterns, sounds, smells, behavioral responses, '
+  + 'distance, duration of sighting. If the source describes a creature or object, your narrative MUST '
+  + 'reference the key physical characteristics. If the source describes a state of consciousness '
+  + '(meditation, NDE, OBE, dream), your narrative MUST reference the state before / during / after.\n'
+  + '\n'
   + '- After the opening, contextualize what is unusual about this report relative to its category.\n'
   + '- CAPTURE SPECIFIC OBSERVATIONAL DETAILS: height estimates, build, coloring, limb proportions, '
   + 'gait or movement patterns, sounds, smells, behavioral responses, distance, duration of sighting. '
@@ -406,15 +439,19 @@ function countWords(text: string): number {
 
 // Determine the max allowed analysis word count for a given source description.
 // Rule: analysis must NEVER be longer than the source material itself.
-// For typical reports, we cap at 120 words (our default structure).
-// For short source material, cap tighter so we don't over-editorialize.
+//
+// V10.6.24 — bumped 120 → 240 to support the new 3-4 paragraph
+// shape. With 60-80 words per paragraph and 3-4 paragraphs, 240 gives
+// the AI room for a real body without losing the "never exceed source"
+// guardrail. For short sources we still scale proportionally; the
+// scale-by-source clause does the right thing.
 function computeAnalysisWordBudget(sourceText: string): number {
   var sourceWords = countWords(sourceText)
   if (sourceWords === 0) return 60 // Fallback minimum
-  // Never exceed source length. For safety, allow up to 90% of source or 120 words,
-  // whichever is smaller. Minimum floor is 40 words so we can still form coherent analysis.
-  var cap = Math.min(120, Math.floor(sourceWords * 0.9))
-  return Math.max(40, cap)
+  // Never exceed source length. For safety, allow up to 90% of source or 240 words,
+  // whichever is smaller. Minimum floor is 60 words so we can still form coherent analysis.
+  var cap = Math.min(240, Math.floor(sourceWords * 0.9))
+  return Math.max(60, cap)
 }
 
 // Trim an analysis string to a maximum word count without breaking mid-sentence.
@@ -989,7 +1026,7 @@ export async function generateParadocsAnalysis(
 
   // Single call, temperature 0.4 for consistent quality
   // 1200 tokens needed — added suggested_category + discovery_tags fields
-  var response = await callClaude(SYSTEM_PROMPT, userPrompt, 1200, 0.4)
+  var response = await callClaude(SYSTEM_PROMPT, userPrompt, 1800, 0.4)
 
   if (response) {
     var result = parseAnalysisJson(response)
@@ -1012,7 +1049,7 @@ export async function generateParadocsAnalysis(
   console.log('[ParadocsAnalysis] Retrying for ' + reportId)
   await sleep(2000)
 
-  var retryResponse = await callClaude(SYSTEM_PROMPT, userPrompt, 1200, 0.4)
+  var retryResponse = await callClaude(SYSTEM_PROMPT, userPrompt, 1800, 0.4)
   if (retryResponse) {
     var retryResult = parseAnalysisJson(retryResponse)
     if (retryResult) {

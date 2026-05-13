@@ -85,16 +85,16 @@ const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
  *   discipline rules to fight AI editorializing.
  * v10.6.20 — added self-correcting retry loop.
  * v10.6.21 — retry-loop hardening + diagnostics.
- * v10.6.22 — extended retry pattern to the paradocs-analysis
- *   service (multi-field JSON output, separate codepath). When
- *   any field fails the per-field claim-check, the WHOLE analysis
- *   JSON is regenerated once with the failed field names + their
- *   rejection notes injected into the user prompt. If the retry
- *   has strictly fewer field-failures than the first attempt, we
- *   ship the retry. Same architectural pattern as V10.6.20 applied
- *   to the multi-field generator. Pass rate target: 90% → 97%+.
+ * v10.6.22 — extended retry pattern to paradocs-analysis path.
+ * v10.6.24 — narrative-richness rewrite. The `analysis` field
+ *   prompt now produces 3-4 short paragraphs (SETUP → EXPERIENCE
+ *   → REACTION → CONTEXT) instead of a one-paragraph summary.
+ *   Word budget doubled (120 → 240), max_tokens 1200 → 1800.
+ *   Net effect: report-page body reads as the actual story, not
+ *   a synopsis. Panel review on the Kansas psychic case
+ *   confirmed this was the single biggest content-quality gap.
  */
-export const PROMPT_VERSION = 'v10.6.22'
+export const PROMPT_VERSION = 'v10.6.24'
 
 // ── Types ───────────────────────────────────────────────────
 
