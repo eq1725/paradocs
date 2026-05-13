@@ -65,34 +65,30 @@ export async function generateAndSaveAnswerLine(reportId: string): Promise<Answe
     return { text: null, reason: 'not_found' }
   }
 
-  // V10.6.15 — Source packet now contains ONLY: title, category,
-  // summary, and the full narrative. ALL other structured metadata
-  // (location_name/city/state_province/country, event_date,
-  // witness_count) is excluded.
+  // V10.6.16 — Source packet refinement:
+  //  - DROP category from the source packet. The 'Child Led Through
+  //    Emerald Tunnel' audit revealed the AI was echoing the literal
+  //    category name ('psychological experience') as a noun phrase in
+  //    the output, which the claim-check correctly flagged as drift —
+  //    'psychological experience' is editorial classification, not a
+  //    fact stated in the narrative. Same class of bug as date/
+  //    location; category is just another structured field with the
+  //    same vulnerability.
+  //  - BUMP truncation from 2500 → 5000 chars. The same audit showed
+  //    the narrative was cut off mid-sentence describing the tunnel
+  //    walls — we were losing the "emerald" mention the AI was
+  //    pulling from. NDERF reports run 3-6K chars; 2500 was too tight.
   //
-  // History: V10.6.14 dropped the location columns after the
-  // Georgia→Louisiana case revealed they were corrupt for a slice
-  // of the corpus. Pass rate went 30% → 60%. V10.6.15 extends the
-  // principle: the dream-experience-1970 case revealed event_date
-  // has the SAME problem — OBERF ingestion writes YYYY-01-01 as a
-  // placeholder when the actual date is unknown. AI faithfully
-  // writes 'in 1970', claim-check correctly flags that the source
-  // narrative doesn't specify 1970. Same pattern, different
-  // column. Witness_count likely has similar default values.
-  //
-  // Net design: the structured columns are for UI display (report
-  // page header, map, OG card meta row, /explore filters). They
-  // are NOT trustworthy enough to feed to the anti-fabrication
-  // pipeline. The narrative contains date / location / witnesses
-  // organically where they exist; where they don't, the AI writes
-  // a more general answer-line, which is correct behavior.
+  // Source packet is now: TITLE + SUMMARY + FULL NARRATIVE (5K cap).
+  // Everything else gets stripped — the narrative is the source of
+  // truth and the claim-check pass requires every fact to come from
+  // there.
   const parts: string[] = []
   if (report.title) parts.push('Title: ' + report.title)
-  if (report.category) parts.push('Category: ' + report.category)
   if (report.summary) parts.push('Summary: ' + report.summary)
   if (report.description) {
-    const desc = report.description.length > 2500
-      ? report.description.substring(0, 2500) + '...'
+    const desc = report.description.length > 5000
+      ? report.description.substring(0, 5000) + '...'
       : report.description
     parts.push('\nFull source text:\n' + desc)
   }

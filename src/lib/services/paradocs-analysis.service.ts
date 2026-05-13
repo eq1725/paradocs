@@ -483,8 +483,13 @@ function buildUserPrompt(report: any, analysisWordBudget: number): string {
   // experiencer's name as a byline in the source material.
   if (report.description) {
     var scrubbed = scrubSourceHeaderChrome(report.description)
-    var desc = scrubbed.length > 3000
-      ? scrubbed.substring(0, 3000) + '...'
+    // V10.6.16 — bumped 3000 → 5000 chars. NDERF reports run
+    // 3-6K and we were truncating mid-sentence before the most
+    // descriptive content, which then made the AI pull facts from
+    // the title (e.g. 'emerald tunnel') without claim-check
+    // support in the narrative we'd shown it.
+    var desc = scrubbed.length > 5000
+      ? scrubbed.substring(0, 5000) + '...'
       : scrubbed
     parts.push('\nREPORT NARRATIVE:\n' + desc)
   } else if (report.summary) {
