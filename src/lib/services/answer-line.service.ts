@@ -65,27 +65,30 @@ export async function generateAndSaveAnswerLine(reportId: string): Promise<Answe
     return { text: null, reason: 'not_found' }
   }
 
-  // V10.6.14 — Build the source-text packet for the rewrite pipeline.
-  // We DELIBERATELY EXCLUDE the structured location fields
-  // (location_name / city / state_province / country) because
-  // those columns have been corrupted on a non-trivial slice of the
-  // corpus (mis-geocoded during ingest, etc.). When they conflict
-  // with the actual narrative location, the AI sensibly trusts the
-  // narrative and writes from it — and then the claim-check sees
-  // the structured fields ALSO in the source packet and flags the
-  // (correct) output as contradicting them. Net result: high
-  // false-positive rejection.
+  // V10.6.15 — Source packet now contains ONLY: title, category,
+  // summary, and the full narrative. ALL other structured metadata
+  // (location_name/city/state_province/country, event_date,
+  // witness_count) is excluded.
   //
-  // Fix: let the narrative speak for itself. The OBERF/NDERF/BFRO
-  // descriptions always contain the location in-line ('Location New
-  // Orleans, Louisiana'), so we don't lose information. Reports
-  // where the narrative ISN'T location-anchored fall back to a more
-  // general answer-line, which is the correct behavior anyway.
+  // History: V10.6.14 dropped the location columns after the
+  // Georgia→Louisiana case revealed they were corrupt for a slice
+  // of the corpus. Pass rate went 30% → 60%. V10.6.15 extends the
+  // principle: the dream-experience-1970 case revealed event_date
+  // has the SAME problem — OBERF ingestion writes YYYY-01-01 as a
+  // placeholder when the actual date is unknown. AI faithfully
+  // writes 'in 1970', claim-check correctly flags that the source
+  // narrative doesn't specify 1970. Same pattern, different
+  // column. Witness_count likely has similar default values.
+  //
+  // Net design: the structured columns are for UI display (report
+  // page header, map, OG card meta row, /explore filters). They
+  // are NOT trustworthy enough to feed to the anti-fabrication
+  // pipeline. The narrative contains date / location / witnesses
+  // organically where they exist; where they don't, the AI writes
+  // a more general answer-line, which is correct behavior.
   const parts: string[] = []
   if (report.title) parts.push('Title: ' + report.title)
   if (report.category) parts.push('Category: ' + report.category)
-  if (report.event_date) parts.push('Date: ' + report.event_date)
-  if (report.witness_count) parts.push('Witnesses: ' + report.witness_count)
   if (report.summary) parts.push('Summary: ' + report.summary)
   if (report.description) {
     const desc = report.description.length > 2500

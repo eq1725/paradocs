@@ -458,24 +458,25 @@ function buildUserPrompt(report: any, analysisWordBudget: number): string {
 
   if (report.source_label || report.source_type) parts.push('SOURCE: ' + (report.source_label || report.source_type))
   if (report.category) parts.push('CATEGORY: ' + report.category)
-  if (report.event_date) parts.push('DATE: ' + report.event_date)
 
-  // V10.6.14 — Structured location fields (city, state_province,
-  // country) DELIBERATELY excluded from the source packet. A
-  // non-trivial slice of the corpus has corrupt location columns
-  // from mis-geocoded ingestion. When they conflict with the
-  // narrative, the AI trusts the narrative (correctly) and then
-  // the claim-check rejects the (correct) output as contradicting
-  // the structured fields. Removing them eliminates the false
-  // positive — the narrative contains the location naturally.
-  // Coordinates are also dropped for the same reason.
+  // V10.6.15 — All structured metadata DELIBERATELY excluded from
+  // the source packet: location (V10.6.14 found these corrupt for
+  // a slice of the corpus) AND event_date (V10.6.15 found OBERF
+  // writes YYYY-01-01 as a placeholder when actual date unknown,
+  // which the AI faithfully echoes and the claim-check correctly
+  // rejects as drift from the narrative). The narrative contains
+  // dates / locations / witnesses naturally where they exist; the
+  // structured fields are display-only and not trustworthy enough
+  // to feed to the anti-fabrication pipeline.
 
-  // Evidence on file
-  var evidenceParts: string[] = []
-  if (report.has_photo_video) evidenceParts.push('photos/video referenced')
-  if (report.has_official_report) evidenceParts.push('official report filed')
-  if (report.witness_count && report.witness_count > 1) evidenceParts.push(report.witness_count + ' witnesses')
-  parts.push('EVIDENCE ON FILE: ' + (evidenceParts.length > 0 ? evidenceParts.join(', ') : 'none'))
+  // V10.6.15 — EVIDENCE ON FILE block removed. has_photo_video,
+  // has_official_report, and witness_count have the same
+  // 'structured metadata may be wrong' vulnerability that drove
+  // the V10.6.14 location fix and the dream-experience-1970 date
+  // fix. The narrative organically mentions photos, official
+  // reports, and witnesses where they exist; the AI can pull
+  // those facts from there without trusting potentially-bad
+  // structured fields.
 
   // Full description — truncate at ~3000 chars for cost. Scrub any
   // OBERF/NDERF page-header chrome first so the model never sees the
