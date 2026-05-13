@@ -128,10 +128,41 @@ function scrubIndexReport(reportData: any): any {
     ? (narrative.length > 200 ? narrative.slice(0, 197).trim() + '...' : narrative)
     : null
 
+  // V10.7.C — Compute a short source excerpt for the "What happened"
+  // fallback. We still null out `description` (no wholesale republishing),
+  // but a ~400-char sentence-boundary-truncated snippet with attribution
+  // to the original source is editorial fair use. The ReportPageV2
+  // render path already supports this via the `metadata.source_excerpt`
+  // path. Goal: 'What happened' section renders on every report page,
+  // even when paradocs_narrative is null (claim-check rejection or
+  // AI insufficient).
+  const desc: string | null = reportData.description || null
+  let computedExcerpt: string | null = null
+  if (desc && desc.length > 0) {
+    const target = 400
+    if (desc.length <= target) {
+      computedExcerpt = desc.trim()
+    } else {
+      const head = desc.slice(0, target)
+      const lastPunct = Math.max(head.lastIndexOf('.'), head.lastIndexOf('!'), head.lastIndexOf('?'))
+      computedExcerpt = (lastPunct > target * 0.6 ? head.slice(0, lastPunct + 1) : head).trim() + '…'
+    }
+  }
+  const existingMetadata = (reportData.metadata && typeof reportData.metadata === 'object')
+    ? reportData.metadata
+    : {}
+
   return {
     ...reportData,
     description: null,
     summary: metaFromNarrative || reportData.answer_line || reportData.feed_hook || null,
+    metadata: {
+      ...existingMetadata,
+      // Preserve any pre-existing source_excerpt (set during ingestion
+      // by adapter-specific oembed/extraction). Fall back to our
+      // computed snippet only when nothing is set.
+      source_excerpt: existingMetadata.source_excerpt || computedExcerpt,
+    },
   }
 }
 
