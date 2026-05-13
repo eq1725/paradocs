@@ -412,16 +412,11 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               </div>
             )}
 
-            {/* ── 2a. Source attribution kicker (V10.6.2) ───────
-                Tiny uppercase label above the title so the reader
-                knows the provenance before they even start reading.
-                Mass-market readers don't scroll to find this; we
-                surface it where their eye already is. */}
-            {sourceLabel && (
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-gray-500 mb-2">
-                Source <span className="text-gray-600">·</span> <span className="text-gray-400">{sourceLabel}</span>
-              </div>
-            )}
+            {/* V10.7.B.7 — Source kicker above the title was DROPPED.
+                The SOURCE row in the unified dateline below now
+                carries the source attribution plus account type and
+                indexed year, which is strictly more information than
+                the kicker had. Showing both was duplicate. */}
 
             {/* ── 2. Title ────────────────────────────────────── */}
             <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight mb-3">
@@ -435,19 +430,26 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               </p>
             )}
 
-            {/* V10.7.B.6 — Resonance stat hoisted to between answer
-                line and meta block. Per screenshot review #2: the
-                primary social action ("I've experienced this too")
-                should land at the moment a reader has just finished
-                the TL;DR and is deciding whether to invest. Renders
-                ALWAYS now (V10.7.B.6 ResonanceCountStat update): shows
-                the stat when count > 0, falls back to the CTA
-                "Have you experienced something like this?" when 0.
-                Tap scrolls to the prominent button below the source
-                block (which remains as the primary conversion). */}
-            <ResonanceCountStat count={resonanceCount || 0} className="mb-5" />
+            {/* V10.7.B.7 — Resonance HOISTED to between answer-line
+                and the dateline grid. This is the SOLE resonance
+                affordance on the page now (the duplicate prominent
+                button below source has been dropped). Per screenshot
+                review: a scroll-trigger pill plus an identical button
+                below was duplicate content — one functional element
+                in the right position is the optimization. */}
+            {report?.slug && (
+              <div id="resonance-anchor" className="mb-4">
+                <ResonanceButton slug={report.slug} variant="prominent" />
+              </div>
+            )}
 
-            {/* ── 4. Meta block ──────────────────────────────── */}
+            {/* ── 4. Unified dateline grid (V10.7.B.7) ────────
+                ReportMeta + SourceAndWitnessBlock render adjacently
+                with no gap so the 6 rows
+                (WHEN/WHERE/WHO/SOURCE/TOPIC/WITNESS) read as a single
+                continuous grid. mb-1.5 on the first matches the
+                gap-y-1.5 of internal rows so the boundary is
+                invisible. */}
             <ReportMeta
               anonymizeSubmitter={anonymize}
               submitterDisplayName={submitterDisplayName}
@@ -459,17 +461,12 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               locationName={report?.location_name}
               witnessCount={report?.witness_count}
               submitterWasWitness={report?.submitter_was_witness}
-              className="mb-4"
+              className="mb-1.5"
             />
 
-            {/* ── 4b. Engagement strip (V10.5) ───────────────── */}
-            <ReportEngagementStrip
-              viewCount={viewCount}
-              savedCount={savedCount}
-              commentCount={commentCount}
-              readTimeWords={readTimeWords}
-              className="mb-3"
-            />
+            {/* ── 4b. Engagement strip (V10.5) MOVED below dateline
+                so it no longer splits the 6-row grid into two visual
+                chunks. Will render after the source/witness rows. */}
 
             {/* V10.7.B.2 — Source & Witness block.
                 Single bordered card that consolidates what used to be
@@ -489,6 +486,19 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               createdAt={report?.created_at}
               witnessProfile={report?.witness_profile}
               similarPhenomena={sanitized.similarPhenomena}
+              className="mb-4"
+            />
+
+            {/* V10.7.B.7 — Engagement strip moved HERE (was previously
+                between WHO and SOURCE). Now closes the dateline + meta
+                section instead of splitting it. The 6 dateline rows
+                read as one block; engagement metrics follow as a
+                separate beat. */}
+            <ReportEngagementStrip
+              viewCount={viewCount}
+              savedCount={savedCount}
+              commentCount={commentCount}
+              readTimeWords={readTimeWords}
               className="mb-6"
             />
 
@@ -573,18 +583,12 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               <PatternStrip patterns={patterns} className="mb-6" />
             )}
 
-            {/* ── 7a. Resonance bar (V10.6.2) ───────────────────
-                Hoisted out of the below-fold discussion section
-                and given the prominent treatment. One-tap social
-                signal + a sub-CTA to "Share your own experience".
-                Above the fold for related/analysis because Resonance
-                has the highest conversion rate of any action on
-                this page (panel: P., S., G.). */}
-            {report?.slug && (
-              <div id="resonance-anchor">
-                <ResonanceButton slug={report.slug} variant="prominent" />
-              </div>
-            )}
+            {/* V10.7.B.7 — Resonance button HOISTED to between answer
+                line and dateline grid (above). Removed from this
+                position to eliminate the duplicate Chase flagged. The
+                'Share your own experience' sub-CTA inside ResonanceButton
+                still ships with the prominent variant up top, so the
+                share-funnel surface is preserved. */}
 
             {/* V10.7.B.5 — Paradocs Analysis HOISTED above Related
                 Reports. Per screenshot panel review: the analysis
