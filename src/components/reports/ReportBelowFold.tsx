@@ -31,9 +31,30 @@
  */
 
 import React, { useState } from 'react'
+import Link from 'next/link'
 import {
   ChevronDown, MessageSquare, Sparkles,
 } from 'lucide-react'
+
+/**
+ * V10.6.28 — cross-corpus lens filter.
+ *
+ * Each frame label on the report page becomes a clickable chip that
+ * pivots the reader from "this lens on this case" to "this lens
+ * across the archive". The /explore?lens= filter doesn't exist yet
+ * (it's forward-compatible — landing on /explore today drops the
+ * unknown param and shows the unfiltered grid) but the link is
+ * cheap to ship now so the affordance is in place when the filter
+ * lands. Per the V10.6.28 panel review: mission goal #3 is showing
+ * users that many different types of experiences share similarities;
+ * lens chips are the most direct affordance for that browse pattern.
+ */
+function lensSlug(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
 
 const ReportComments = (() => {
   try {
@@ -268,7 +289,11 @@ function AnalysisInner(props: {
                   {/* Left edge accent in the tint color */}
                   <div className={'absolute left-0 top-0 bottom-0 w-1 ' + tint.dot} aria-hidden="true" />
                   <div className="p-4 pl-5">
-                    {/* Header row: numbered dot + uppercase label kicker */}
+                    {/* Header row: numbered dot + uppercase label kicker.
+                        V10.6.28 — the label is now a cross-corpus filter
+                        chip. Tapping "What the witness brought" jumps you
+                        to all reports filed under that lens across the
+                        archive. */}
                     <div className="flex items-center gap-2.5 mb-2">
                       <span
                         className={
@@ -279,9 +304,19 @@ function AnalysisInner(props: {
                       >
                         {i + 1}
                       </span>
-                      <p className="text-[11px] uppercase tracking-[0.14em] font-bold text-gray-300">
-                        {f.label}
-                      </p>
+                      <Link
+                        href={'/explore?lens=' + encodeURIComponent(lensSlug(f.label))}
+                        className="text-[11px] uppercase tracking-[0.14em] font-bold text-gray-300 hover:text-white transition-colors inline-flex items-center gap-1 group/lens"
+                        title={'See more reports through the "' + f.label + '" lens'}
+                      >
+                        <span>{f.label}</span>
+                        <span
+                          aria-hidden="true"
+                          className="text-gray-600 group-hover/lens:text-gray-400 transition-colors text-[10px]"
+                        >
+                          →
+                        </span>
+                      </Link>
                     </div>
                     {/* Insight line — the hero sentence per lens */}
                     <p className="text-[15px] font-semibold text-white leading-snug mb-2">

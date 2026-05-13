@@ -26,11 +26,18 @@ import { useRouter } from 'next/router'
 import ReportPageV2 from '@/components/reports/ReportPageV2'
 import type { RelatedReport } from '@/components/reports/ReportBelowFold'
 
+interface PatternChip {
+  label: string
+  count: number
+  href: string
+}
+
 interface ReportPageProps {
   slug: string
   initialReport?: any
   initialMedia?: any[]
   initialRelated?: RelatedReport[]
+  initialPatterns?: PatternChip[]
   fetchError?: boolean
   notFound?: boolean
 }
@@ -39,6 +46,7 @@ export default function ReportPage({
   initialReport,
   initialMedia,
   initialRelated,
+  initialPatterns,
   fetchError,
 }: ReportPageProps) {
   const router = useRouter()
@@ -74,6 +82,7 @@ export default function ReportPage({
       report={initialReport}
       media={initialMedia || []}
       relatedReports={initialRelated || []}
+      patterns={initialPatterns || []}
     />
   )
 }
@@ -153,6 +162,19 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
       ;(safeReport as any).saved_count = 0
     }
 
+    // V10.6.28 — fetch the resonance_count too. Resonance is a
+    // higher-signal social proof than save (the user is asserting
+    // "this happened to me too", not just bookmarking). We surface
+    // it as a stat callout above the meta block when count > 0.
+    try {
+      const { count: resonanceCount } = await (sb.from('report_resonance') as any)
+        .select('id', { count: 'exact', head: true })
+        .eq('report_id', (reportData as any).id)
+      ;(safeReport as any).resonance_count = resonanceCount || 0
+    } catch {
+      ;(safeReport as any).resonance_count = 0
+    }
+
     // Media items (uploaded photos/docs for direct submissions).
     const { data: mediaData } = await sb
       .from('report_media')
@@ -187,12 +209,77 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
       // Best-effort — empty array is fine if this fails.
     }
 
+    // V10.6.28 — Pattern strip data. Cheap aggregate counts that
+    // show this report's "fit" in the broader archive. Three
+    // dimensions: same-category total, same-phenomenon-type total
+    // (if available), and same-state/region total. Each one becomes
+    // a clickable chip → filtered /explore.
+    let patterns: Array<{ label: string; count: number; href: string }> = []
+    try {
+      const cat = (reportData as any).category
+      const stateProv = (reportData as any).state_province
+      const phenomenonTypeId = (reportData as any).phenomenon_type_id
+      const categoryLabel = (reportData as any).category ? prettyCategory((reportData as any).category) : null
+
+      // Same category
+      if (cat) {
+        const { count } = await (sb.from('reports') as any)
+          .select('id', { count: 'exact', head: true })
+          .eq('category', cat)
+          .eq('status', 'approved')
+        if (count && count > 1 && categoryLabel) {
+          patterns.push({
+            label: count.toLocaleString() + ' reports in ' + categoryLabel,
+            count,
+            href: '/explore?category=' + encodeURIComponent(cat),
+          })
+        }
+      }
+
+      // Same state/region (US-centric for now)
+      if (stateProv) {
+        const { count } = await (sb.from('reports') as any)
+          .select('id', { count: 'exact', head: true })
+          .eq('state_province', stateProv)
+          .eq('status', 'approved')
+        if (count && count > 1) {
+          patterns.push({
+            label: count.toLocaleString() + ' reports in ' + stateProv,
+            count,
+            href: '/explore?state=' + encodeURIComponent(stateProv),
+          })
+        }
+      }
+
+      // Same phenomenon type (sub-category, e.g., "Orb sighting")
+      if (phenomenonTypeId) {
+        const { count } = await (sb.from('reports') as any)
+          .select('id', { count: 'exact', head: true })
+          .eq('phenomenon_type_id', phenomenonTypeId)
+          .eq('status', 'approved')
+        if (count && count > 1) {
+          // Get the phenomenon name for the label
+          const ptName = (reportData as any).phenomenon_type && (reportData as any).phenomenon_type.name
+          if (ptName) {
+            patterns.push({
+              label: count.toLocaleString() + ' similar ' + ptName + ' reports',
+              count,
+              href: '/explore?phenomenon=' + encodeURIComponent(((reportData as any).phenomenon_type && (reportData as any).phenomenon_type.slug) || ptName),
+            })
+          }
+        }
+      }
+    } catch {
+      // Best-effort. If counts fail, just don't show the pattern strip.
+    }
+
     return {
       props: {
         slug: params.slug,
         initialReport: safeReport,
         initialMedia: mediaData || [],
         initialRelated: related,
+        initialPatterns: patterns,
       },
       revalidate: 120,
     }
@@ -203,9 +290,30 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
         initialReport: null,
         initialMedia: [],
         initialRelated: [],
+        initialPatterns: [],
         fetchError: true,
       },
       revalidate: 30,
     }
   }
+}
+
+// ── Helpers ─────────────────────────────────────────────────
+
+const CATEGORY_PRETTY: Record<string, string> = {
+  ufos_aliens: 'UFOs & Aliens',
+  cryptids: 'Cryptids',
+  ghosts_hauntings: 'Ghosts & Hauntings',
+  psychic_phenomena: 'Psychic Phenomena',
+  consciousness_practices: 'Consciousness',
+  psychological_experiences: 'Psychological',
+  biological_factors: 'Biological',
+  perception_sensory: 'Perception',
+  religion_mythology: 'Religion & Mythology',
+  esoteric_practices: 'Esoteric Practices',
+  combination: 'Other',
+}
+
+function prettyCategory(slug: string): string {
+  return CATEGORY_PRETTY[slug] || slug.replace(/_/g, ' ')
 }

@@ -33,7 +33,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { ArrowLeft, Bookmark, BookmarkCheck, Share2, Loader2 } from 'lucide-react'
+import { ArrowLeft, Bookmark, BookmarkCheck, Share2, Loader2, TrendingUp, FileText, CalendarClock, Heart } from 'lucide-react'
 
 import ReportLocationMap, { type LocationPrecision } from './ReportLocationMap'
 import ReportMeta from './ReportMeta'
@@ -54,11 +54,17 @@ export interface ReportPageV2Props {
   report: any           // full reports row (loose typing — DB types drift)
   media: any[]          // report_media rows
   relatedReports?: RelatedReport[]
+  /**
+   * V10.6.28 — pre-computed "this case fits N patterns in the archive"
+   * chips. Each one is a clickable filter into /explore. Counts come
+   * from getStaticProps so the strip is server-rendered, no flash.
+   */
+  patterns?: Array<{ label: string; count: number; href: string }>
 }
 
 // ── Component ───────────────────────────────────────────────
 
-export default function ReportPageV2({ report, media, relatedReports }: ReportPageV2Props) {
+export default function ReportPageV2({ report, media, relatedReports, patterns }: ReportPageV2Props) {
   const router = useRouter()
 
   // ── Sanitize AI-rewritten text fields at render time ──────
@@ -230,6 +236,12 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
   const viewCount = typeof report?.view_count === 'number' ? report.view_count : null
   const savedCount = typeof report?.saved_count === 'number' ? report.saved_count : null
   const commentCount = typeof report?.comment_count === 'number' ? report.comment_count : null
+  // V10.6.28 — resonance_count is hydrated from getStaticProps and
+  // surfaced as a above-fold social-proof callout. Resonance is the
+  // higher-signal social action ("this happened to me too" vs. a
+  // passive save), so when count > 0 we hoist it as a stat line
+  // right under the meta block.
+  const resonanceCount = typeof report?.resonance_count === 'number' ? report.resonance_count : null
   const readTimeWords = useMemo(() => {
     let total = 0
     if (sanitized.narrative) total += sanitized.narrative.split(/\s+/).filter(Boolean).length
@@ -417,8 +429,19 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
               savedCount={savedCount}
               commentCount={commentCount}
               readTimeWords={readTimeWords}
-              className="mb-5"
+              className="mb-3"
             />
+
+            {/* V10.6.28 — Resonance stat callout. Promoted above-fold
+                because per panel review, this is the single highest-
+                signal social proof on the page ("I had this too"). The
+                old design left it as a below-fold button users had to
+                scroll to find. Now it's a visible stat at the top of
+                the read; tapping scrolls to the actual button.
+                Hidden when count = 0 to avoid an awkward "0 people…". */}
+            {resonanceCount !== null && resonanceCount > 0 && (
+              <ResonanceCountStat count={resonanceCount} className="mb-5" />
+            )}
 
             {/* ── 5. Phenomena & cross-disciplinary chips ─────── */}
             <ReportPhenomenaChips
@@ -427,8 +450,31 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
               category={report?.category}
               categoryLabel={categoryLabel}
               similarPhenomena={sanitized.similarPhenomena}
-              className="mb-6"
+              className="mb-5"
             />
+
+            {/* V10.6.28 — Credibility band. Single thin row showing
+                data-quality signals: account type, source, original
+                submission date. Borrows the journalistic 'dateline'
+                pattern — makes the archive feel like a research
+                instrument, not just a feed. */}
+            <CredibilityBand
+              sourceLabel={sourceLabel}
+              sourceType={report?.source_type}
+              eventDate={report?.event_date}
+              createdAt={report?.created_at}
+              savedCount={savedCount}
+            />
+
+            {/* V10.6.28 — Pattern strip. The single most important
+                addition for mission alignment ('show how common
+                experiences are' + 'show similar experiences across
+                types'). Computed server-side in getStaticProps from
+                same-category / same-state / same-phenomenon-type
+                counts. Each chip is a click into filtered /explore. */}
+            {patterns && patterns.length > 0 && (
+              <PatternStrip patterns={patterns} className="mb-6" />
+            )}
 
             {/* V10.6.20 — Reordered per Chase: pull quote (hook)
                 BEFORE the narrative, then the narrative ("the actual
@@ -503,7 +549,9 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
                 has the highest conversion rate of any action on
                 this page (panel: P., S., G.). */}
             {report?.slug && (
-              <ResonanceButton slug={report.slug} variant="prominent" />
+              <div id="resonance-anchor">
+                <ResonanceButton slug={report.slug} variant="prominent" />
+              </div>
             )}
 
             {/* ── 7b. Related Reports (V10.6) ────────────────
@@ -636,4 +684,137 @@ function sanitizeReport(report: any): {
     similarPhenomena,
     submitterDisplayName,
   }
+}
+
+// ── V10.6.28 sub-components ─────────────────────────────────
+
+function CredibilityBand({
+  sourceLabel,
+  sourceType,
+  eventDate,
+  createdAt,
+  savedCount,
+}: {
+  sourceLabel?: string | null
+  sourceType?: string | null
+  eventDate?: string | null
+  createdAt?: string | null
+  savedCount?: number | null
+}) {
+  // Decide the account-type chip. user_submission = first-person
+  // direct; curated/editorial = Paradocs-featured; everything else
+  // is a scraped third-party archive.
+  const accountType =
+    sourceType === 'user_submission' ? 'First-person submission' :
+    sourceType === 'curated' || sourceType === 'editorial' ? 'Curated case' :
+    'Archive source'
+
+  const submittedDate = createdAt ? new Date(createdAt) : null
+  const submittedYear = submittedDate && !isNaN(submittedDate.getTime())
+    ? submittedDate.getFullYear()
+    : null
+
+  const items: string[] = []
+  items.push(accountType)
+  if (sourceLabel) items.push(sourceLabel)
+  if (submittedYear) items.push('Indexed ' + submittedYear)
+  if (savedCount && savedCount > 0) {
+    items.push(savedCount.toLocaleString() + ' saved by readers')
+  }
+
+  return (
+    <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 leading-tight">
+      <FileText className="w-3 h-3 text-gray-600" />
+      {items.map((it, i) => (
+        <React.Fragment key={i}>
+          <span>{it}</span>
+          {i < items.length - 1 && <span className="text-gray-700">·</span>}
+        </React.Fragment>
+      ))}
+    </div>
+  )
+}
+
+function PatternStrip({
+  patterns,
+  className,
+}: {
+  patterns: Array<{ label: string; count: number; href: string }>
+  className?: string
+}) {
+  return (
+    <section className={'rounded-xl border border-purple-700/30 bg-gradient-to-br from-purple-950/30 via-gray-900/40 to-gray-900/40 p-4 ' + (className || '')}>
+      <header className="flex items-center gap-2 mb-3">
+        <TrendingUp className="w-3.5 h-3.5 text-purple-300" />
+        <p className="text-[10px] uppercase tracking-widest font-semibold text-purple-300/90">
+          How this fits the archive
+        </p>
+      </header>
+      <ul className="flex flex-wrap gap-2">
+        {patterns.map((p, i) => (
+          <li key={i}>
+            <Link
+              href={p.href}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-900/60 hover:bg-gray-800/80 border border-gray-700 hover:border-purple-500/50 text-xs text-gray-200 hover:text-white transition-colors"
+            >
+              <span>{p.label}</span>
+              <span aria-hidden="true" className="text-gray-500">→</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/**
+ * V10.6.28 — Resonance count stat callout.
+ *
+ * Single-line social-proof element. Scrolls to the below-fold
+ * ResonanceButton when tapped (graceful no-op if the button isn't
+ * mounted yet). We hide entirely when count = 0 to avoid an
+ * awkward "0 readers" stat.
+ */
+function ResonanceCountStat({
+  count,
+  className,
+}: {
+  count: number
+  className?: string
+}) {
+  function jumpToResonance() {
+    if (typeof window === 'undefined') return
+    const el = document.getElementById('resonance-anchor')
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }
+  const label =
+    count === 1
+      ? '1 reader has shared a similar experience'
+      : count.toLocaleString() + ' readers have shared a similar experience'
+  return (
+    <button
+      type="button"
+      onClick={jumpToResonance}
+      className={
+        'group flex items-center gap-2 w-full text-left px-3.5 py-2 rounded-lg border border-purple-700/30 bg-purple-950/20 hover:bg-purple-950/30 hover:border-purple-500/50 transition-colors ' +
+        (className || '')
+      }
+      title="See who's resonated with this"
+    >
+      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-purple-600/30 border border-purple-500/40 flex-shrink-0">
+        <Heart className="w-3 h-3 text-purple-200" aria-hidden="true" />
+      </span>
+      <span className="text-[13px] font-medium text-purple-100 leading-tight">
+        {label}
+      </span>
+      <span
+        aria-hidden="true"
+        className="ml-auto text-purple-300/70 group-hover:text-purple-200 text-xs flex-shrink-0"
+      >
+        →
+      </span>
+    </button>
+  )
 }
