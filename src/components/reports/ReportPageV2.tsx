@@ -353,12 +353,27 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
           />
         </div>
 
-        {/* V10.6 — Side rail dropped. The rail was rendering the
-            same Related Reports already shown inline, so it was
-            dead weight. Main column widens to max-w-3xl centered;
-            desktop wastes less screen, mobile unchanged. */}
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 pb-12">
-          <div>
+        {/* V10.7.B.4 — Desktop side-rail revived (the V10.6 'dead-
+            weight rail' was killed because it duplicated Related
+            Reports). The new rail at lg+ carries:
+              - Dateline composite (Meta + SourceWitness + Engagement)
+              - Resonance prominent card
+              - Pattern strip
+            Main column at lg+ is purely body reading:
+              - Title + answer line
+              - Pull quote
+              - Narrative
+              - Source block
+              - Paradocs Analysis
+              - Related Reports (4-card grid — stays in main column
+                because it needs the wider sm:grid-cols-2 layout)
+
+            Container widens 3xl → 6xl at lg+. Main column is
+            max-w-2xl (~672px) for optimal reading width; rail is
+            320px. Total ~1024px at lg+ matches max-w-5xl effectively
+            while leaving 128px of breathing room from max-w-6xl. */}
+        <div className="max-w-3xl lg:max-w-6xl mx-auto px-4 sm:px-6 pb-12">
+          <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8 lg:items-start">
             {/* ── Page chrome ────────────────────────────────── */}
             <header className="flex items-center justify-between gap-2 -mt-8 mb-6 relative z-10">
               <button
@@ -430,57 +445,47 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               </p>
             )}
 
-            {/* V10.7.B.9 — Dateline + resonance composite block.
-                UX-journey rationale: the V10.7.B.7 placement of
-                resonance ABOVE the dateline was a premature ask —
-                we were asking the reader to engage before they had
-                the basic facts (WHEN/WHERE/WHO/SOURCE/TOPIC/WITNESS)
-                to decide whether engaging makes sense. Now the
-                dateline lands first; the resonance card lands after
-                (mobile) or to the right (lg+) once the reader has
-                the context.
-
-                Mobile (default): everything stacks vertically.
-                Desktop (lg+): dateline left, resonance card right
-                              in a 1fr_300px grid. Saves ~150px of
-                              vertical space on lg+ screens. */}
-            <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-6 lg:items-start mb-6">
-              <div>
-                <ReportMeta
-                  anonymizeSubmitter={anonymize}
-                  submitterDisplayName={submitterDisplayName}
-                  eventDate={report?.event_date}
-                  eventDateText={report?.event_date_text}
-                  city={report?.city}
-                  stateProvince={report?.state_province}
-                  country={report?.country}
-                  locationName={report?.location_name}
-                  witnessCount={report?.witness_count}
-                  submitterWasWitness={report?.submitter_was_witness}
-                  className="mb-1.5"
-                />
-                <SourceAndWitnessBlock
-                  phenomenonTypeName={phenomenonTypeName}
-                  phenomenonTypeSlug={phenomenonTypeSlug}
-                  category={report?.category}
-                  categoryLabel={categoryLabel}
-                  sourceLabel={sourceLabel}
-                  sourceType={report?.source_type}
-                  createdAt={report?.created_at}
-                  witnessProfile={report?.witness_profile}
-                  similarPhenomena={sanitized.similarPhenomena}
-                />
-                <ReportEngagementStrip
-                  viewCount={viewCount}
-                  savedCount={savedCount}
-                  commentCount={commentCount}
-                  readTimeWords={readTimeWords}
-                  className="mt-3"
-                />
-              </div>
-
+            {/* V10.7.B.4 — Dateline composite + resonance render
+                INLINE on mobile only. On lg+ the same content lives
+                in the right rail (rendered below in the <aside>).
+                Duplicating the JSX is cheap; same data flows both
+                places. ResonanceButton state is per-instance so a
+                user on a hybrid device that resizes mid-read might
+                see two independent states, but that's a corner case. */}
+            <div className="lg:hidden mb-6">
+              <ReportMeta
+                anonymizeSubmitter={anonymize}
+                submitterDisplayName={submitterDisplayName}
+                eventDate={report?.event_date}
+                eventDateText={report?.event_date_text}
+                city={report?.city}
+                stateProvince={report?.state_province}
+                country={report?.country}
+                locationName={report?.location_name}
+                witnessCount={report?.witness_count}
+                submitterWasWitness={report?.submitter_was_witness}
+                className="mb-1.5"
+              />
+              <SourceAndWitnessBlock
+                phenomenonTypeName={phenomenonTypeName}
+                phenomenonTypeSlug={phenomenonTypeSlug}
+                category={report?.category}
+                categoryLabel={categoryLabel}
+                sourceLabel={sourceLabel}
+                sourceType={report?.source_type}
+                createdAt={report?.created_at}
+                witnessProfile={report?.witness_profile}
+                similarPhenomena={sanitized.similarPhenomena}
+              />
+              <ReportEngagementStrip
+                viewCount={viewCount}
+                savedCount={savedCount}
+                commentCount={commentCount}
+                readTimeWords={readTimeWords}
+                className="mt-3 mb-4"
+              />
               {report?.slug && (
-                <div id="resonance-anchor" className="mt-5 lg:mt-0">
+                <div id="resonance-anchor">
                   <ResonanceButton
                     slug={report.slug}
                     variant="prominent"
@@ -563,12 +568,13 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               />
             )}
 
-            {/* V10.7.B.2 — Pattern strip lands HERE (was above narrative
-                pre-V10.7.B). "Now that you've read this case, here's
-                how it fits the archive" — gives the reader a natural
-                browse handoff at end-of-body before the resonance ask. */}
+            {/* V10.7.B.4 — Pattern strip renders INLINE on mobile
+                only (was inline-always pre-B.4). On lg+ it lives in
+                the right rail (rendered in the <aside> below). */}
             {patterns && patterns.length > 0 && (
-              <PatternStrip patterns={patterns} className="mb-6" />
+              <div className="lg:hidden">
+                <PatternStrip patterns={patterns} className="mb-6" />
+              </div>
             )}
 
             {/* V10.7.B.7 — Resonance button HOISTED to between answer
@@ -597,8 +603,9 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
             />
 
             {/* ── 7b. Related Reports (V10.6, repositioned V10.7.B.5)
-                Now rendered AFTER analysis as the 'where to next'
-                handoff. Single visible 4-card grid. */}
+                Stays in main column at all breakpoints — needs the
+                wider sm:grid-cols-2 layout that wouldn't fit in the
+                320px right rail. */}
             {relatedReports && relatedReports.length > 0 && (
               <ReportRelatedReports
                 items={relatedReports}
@@ -606,6 +613,56 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               />
             )}
           </div>
+
+          {/* V10.7.B.4 — Desktop side rail. Hidden on mobile (mobile
+              renders these same components inline in the main column,
+              gated by lg:hidden above). Sticky positioning keeps the
+              dateline + resonance + pattern strip visible as the
+              reader scrolls the body content in the main column. */}
+          <aside className="hidden lg:block lg:sticky lg:top-6 lg:self-start">
+            <div className="space-y-5">
+              <ReportMeta
+                anonymizeSubmitter={anonymize}
+                submitterDisplayName={submitterDisplayName}
+                eventDate={report?.event_date}
+                eventDateText={report?.event_date_text}
+                city={report?.city}
+                stateProvince={report?.state_province}
+                country={report?.country}
+                locationName={report?.location_name}
+                witnessCount={report?.witness_count}
+                submitterWasWitness={report?.submitter_was_witness}
+                className="mb-1.5"
+              />
+              <SourceAndWitnessBlock
+                phenomenonTypeName={phenomenonTypeName}
+                phenomenonTypeSlug={phenomenonTypeSlug}
+                category={report?.category}
+                categoryLabel={categoryLabel}
+                sourceLabel={sourceLabel}
+                sourceType={report?.source_type}
+                createdAt={report?.created_at}
+                witnessProfile={report?.witness_profile}
+                similarPhenomena={sanitized.similarPhenomena}
+              />
+              <ReportEngagementStrip
+                viewCount={viewCount}
+                savedCount={savedCount}
+                commentCount={commentCount}
+                readTimeWords={readTimeWords}
+              />
+              {report?.slug && (
+                <ResonanceButton
+                  slug={report.slug}
+                  variant="prominent"
+                  className="m-0"
+                />
+              )}
+              {patterns && patterns.length > 0 && (
+                <PatternStrip patterns={patterns} />
+              )}
+            </div>
+          </aside>
         </div>
       </article>
     </>
