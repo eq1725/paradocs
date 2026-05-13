@@ -65,14 +65,25 @@ export async function generateAndSaveAnswerLine(reportId: string): Promise<Answe
     return { text: null, reason: 'not_found' }
   }
 
-  // Build the source-text packet for the rewrite pipeline.
+  // V10.6.14 — Build the source-text packet for the rewrite pipeline.
+  // We DELIBERATELY EXCLUDE the structured location fields
+  // (location_name / city / state_province / country) because
+  // those columns have been corrupted on a non-trivial slice of the
+  // corpus (mis-geocoded during ingest, etc.). When they conflict
+  // with the actual narrative location, the AI sensibly trusts the
+  // narrative and writes from it — and then the claim-check sees
+  // the structured fields ALSO in the source packet and flags the
+  // (correct) output as contradicting them. Net result: high
+  // false-positive rejection.
+  //
+  // Fix: let the narrative speak for itself. The OBERF/NDERF/BFRO
+  // descriptions always contain the location in-line ('Location New
+  // Orleans, Louisiana'), so we don't lose information. Reports
+  // where the narrative ISN'T location-anchored fall back to a more
+  // general answer-line, which is the correct behavior anyway.
   const parts: string[] = []
   if (report.title) parts.push('Title: ' + report.title)
   if (report.category) parts.push('Category: ' + report.category)
-  if (report.location_name) parts.push('Location: ' + report.location_name)
-  if (report.country) parts.push('Country: ' + report.country)
-  if (report.state_province) parts.push('State/Province: ' + report.state_province)
-  if (report.city) parts.push('City: ' + report.city)
   if (report.event_date) parts.push('Date: ' + report.event_date)
   if (report.witness_count) parts.push('Witnesses: ' + report.witness_count)
   if (report.summary) parts.push('Summary: ' + report.summary)

@@ -460,18 +460,15 @@ function buildUserPrompt(report: any, analysisWordBudget: number): string {
   if (report.category) parts.push('CATEGORY: ' + report.category)
   if (report.event_date) parts.push('DATE: ' + report.event_date)
 
-  // Location line
-  var locParts: string[] = []
-  if (report.city) locParts.push(report.city)
-  if (report.state_province) locParts.push(report.state_province)
-  if (report.country && report.country !== 'United States') locParts.push(report.country)
-  if (locParts.length > 0) {
-    var locStr = 'LOCATION: ' + locParts.join(', ')
-    if (report.latitude && report.longitude) {
-      locStr = locStr + ' (' + report.latitude + ', ' + report.longitude + ')'
-    }
-    parts.push(locStr)
-  }
+  // V10.6.14 — Structured location fields (city, state_province,
+  // country) DELIBERATELY excluded from the source packet. A
+  // non-trivial slice of the corpus has corrupt location columns
+  // from mis-geocoded ingestion. When they conflict with the
+  // narrative, the AI trusts the narrative (correctly) and then
+  // the claim-check rejects the (correct) output as contradicting
+  // the structured fields. Removing them eliminates the false
+  // positive — the narrative contains the location naturally.
+  // Coordinates are also dropped for the same reason.
 
   // Evidence on file
   var evidenceParts: string[] = []
