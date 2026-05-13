@@ -89,10 +89,17 @@ export default function ReportMeta(props: ReportMetaProps) {
   // different x-positions. A grid with a fixed first column eliminates
   // this entirely. 88px gives WITNESS (the widest label used by callers
   // sharing this grid, V10.7.B.5 SourceWitnessRows) room to breathe.
+  // V10.7.B.8 — items-center, not items-start. With items-start the
+  // label cell (10px uppercase text + 14px icon, ~14px row height)
+  // sat at the top of each row, while the value cell (14px regular
+  // text, ~20px row height) filled to the bottom. Their CENTERS
+  // didn't share a y, so 'WHEN' and 'Date not given by source'
+  // looked unaligned. items-center forces each row's label and
+  // value to share the same vertical centerline.
   return (
     <dl
       className={
-        'grid grid-cols-[88px_1fr] gap-x-3 gap-y-1.5 items-start text-sm leading-snug ' +
+        'grid grid-cols-[88px_1fr] gap-x-3 gap-y-1.5 items-center text-sm leading-snug ' +
         (props.className || '')
       }
     >

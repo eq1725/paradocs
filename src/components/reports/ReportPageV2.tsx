@@ -875,11 +875,14 @@ function SourceAndWitnessBlock({
   // SOURCE/TOPIC/WITNESS read as a continuation of the WHEN/WHERE/WHO
   // dateline above. No bordered card chrome anymore — the alignment
   // IS the visual structure.
+  // V10.7.B.8 — items-center (was items-start) for vertical centerline
+  // alignment between the label cell (icon + 10px text) and value cell
+  // (14px text). See ReportMeta for the same fix and explanation.
   return (
     <dl
       aria-label="Source and witness"
       className={
-        'grid grid-cols-[88px_1fr] gap-x-3 gap-y-1.5 items-start text-sm leading-snug ' +
+        'grid grid-cols-[88px_1fr] gap-x-3 gap-y-1.5 items-center text-sm leading-snug ' +
         (className || '')
       }
     >
