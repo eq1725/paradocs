@@ -83,16 +83,25 @@ const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
  *   description came AFTER the 5K window. Pass rate 90% → target ~95%.
  * v10.6.19 — answer-line: added INTENSITY / TITLE / TIMELINE
  *   discipline rules to fight AI editorializing.
- * v10.6.20 — added self-correcting retry loop. When claim-check
- *   rejects an output, regenerate ONCE with the rejection notes
- *   as corrective context. Targets the ~10% long-tail failures
- *   that were stable AI editorializing — by giving the model
- *   explicit negative feedback on what it just got wrong, the
- *   second attempt clears most of them. Cost impact: only the
- *   ~10% of rows that fail the first claim-check pay 2x; saves
- *   most of them from being null-outputs.
+ * v10.6.20 — added self-correcting retry loop.
+ * v10.6.21 — retry-loop hardening + diagnostics:
+ *   - Bug: V10.6.20 retry was gated on check1.notes being truthy.
+ *     When the fact-checker returned passed=false with empty notes
+ *     (which it does for some claim-check rejections), retry was
+ *     skipped entirely. Now retry fires on ANY check1.passed=false.
+ *   - Bug: V10.6.20 retry overwrote the original output with the
+ *     retry's output, so the audit record lost the first attempt
+ *     entirely. Now we combine BOTH attempt outputs and BOTH
+ *     rejection notes into the final audit claim_check_notes —
+ *     so admin investigation has full context.
+ *   - Improvement: When notes are missing, the corrective prompt
+ *     uses a generic 'assume one of these common drift modes' fallback
+ *     to give the AI a clear target to fix even without specifics.
+ *   - Improvement: retry can now return INSUFFICIENT as a valid
+ *     outcome (source genuinely too sparse), distinguishing it from
+ *     a true claim-check failure.
  */
-export const PROMPT_VERSION = 'v10.6.20'
+export const PROMPT_VERSION = 'v10.6.21'
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -529,54 +538,81 @@ export async function rewriteWithGuardrails(input: RewriteInput): Promise<Rewrit
   // Claim-check (faithful_paraphrase only). If it fails, retry
   // once with the claim-check notes as corrective context.
   if (outputText && input.mode === 'faithful_paraphrase') {
+    const firstAttemptOutput = outputText  // V10.6.21 — preserve for diagnostics
     const check1 = await runClaimCheck(client, model, input.sourceText || '', outputText)
     claimCheckPassed = check1.passed
     claimCheckNotes = check1.notes
 
-    if (!check1.passed && check1.notes) {
-      // V10.6.20 — Retry with explicit corrective context. We tell
-      // the AI what it just wrote and what the claim-check flagged,
-      // and ask for a stricter rewrite. In practice this clears
-      // many of the AI-editorializing failures (intensity drift,
-      // title drift, timeline drift) because the model now has
-      // explicit negative feedback to work against.
+    if (!check1.passed) {
+      // V10.6.21 — Retry on ANY failure, not just when notes exist.
+      // The V10.6.20 condition required check1.notes to be truthy,
+      // which skipped retries when the fact-checker returned
+      // passed=false with an empty notes string (which happens —
+      // see the Texas bigfoot audit case). Always retry; fall back
+      // to a generic 'be more conservative' prompt when notes are
+      // missing.
+      const noteSection = check1.notes
+        ? 'The claim-check flagged it for the following reasons:\n' + check1.notes
+        : 'The claim-check rejected it but did not specify which claims were unsupported. Assume the output contained ONE of these common drift modes: an inferred date, an inferred location, an inferred witness count, an inferred severity/intensity word ("fever-stricken", "terrified"), or a fact pulled from the title rather than the narrative.'
+
       const correctivePrompt = basePrompt + '\n\n' +
         'CRITICAL — YOUR PREVIOUS ATTEMPT WAS REJECTED.\n' +
-        'Your previous attempt was: "' + outputText + '"\n\n' +
-        'The claim-check flagged it for the following reasons:\n' +
-        check1.notes + '\n\n' +
-        'Rewrite the answer-line. Fix the specific issues above. Be MORE conservative:\n' +
-        '- If the previous attempt was rejected for intensity drift, use plainer language.\n' +
-        '- If the previous attempt was rejected for inferring location/date/cause from context, drop the inference and use only what the narrative literally states.\n' +
-        '- If the previous attempt was rejected for timeline confusion, preserve before/during/after exactly as the source describes.\n' +
-        '- If the previous attempt was rejected for using the title as a fact source, ignore the title and work only from the narrative.\n' +
+        'Your previous attempt was: "' + firstAttemptOutput + '"\n\n' +
+        noteSection + '\n\n' +
+        'Rewrite the answer-line. Be MAXIMALLY CONSERVATIVE this time:\n' +
+        '- Use ONLY facts literally stated in the Full source text. Ignore the title entirely.\n' +
+        '- Do NOT include any date unless the year is explicitly written in the narrative.\n' +
+        '- Do NOT include a location more specific than what the narrative literally says.\n' +
+        '- Do NOT add interpretive adjectives (vivid, profound, terrifying, transformative, mysterious).\n' +
+        '- If you cannot write a complete sentence under those rules, return INSUFFICIENT.\n' +
+        '- Match the source\'s register — plain becomes plain.\n' +
         'Output ONLY the corrected sentence. No preamble.'
 
       const attempt2 = await attemptOnce(correctivePrompt)
       if (!attempt2.error && !attempt2.insufficient && attempt2.output) {
         const check2 = await runClaimCheck(client, model, input.sourceText || '', attempt2.output)
-        // Always trust the latest claim-check result.
-        claimCheckPassed = check2.passed
-        claimCheckNotes = check2.notes
         if (check2.passed) {
+          // Success on retry.
           outputText = attempt2.output
+          claimCheckPassed = true
+          claimCheckNotes = null
           reason = 'ok'
         } else {
-          // Both attempts failed — give up. Surface the second
-          // round's notes since they're typically more refined.
+          // Both attempts failed.
           outputText = null
+          // V10.6.21 — Preserve diagnostic context. Combine BOTH
+          // attempts and BOTH rejection notes into the audit
+          // record so we can see exactly what was tried and why
+          // both failed.
+          claimCheckPassed = false
+          claimCheckNotes = [
+            'BOTH ATTEMPTS REJECTED.',
+            '',
+            '--- Attempt 1 ---',
+            'Output: "' + firstAttemptOutput + '"',
+            'Rejection: ' + (check1.notes || '(no notes returned)'),
+            '',
+            '--- Attempt 2 (retry with corrective context) ---',
+            'Output: "' + attempt2.output + '"',
+            'Rejection: ' + (check2.notes || '(no notes returned)'),
+          ].join('\n')
           reason = 'claim_check_failed'
         }
-      } else {
-        // Retry errored or returned INSUFFICIENT — fall back to
-        // the first-attempt rejection.
+      } else if (attempt2.insufficient) {
+        // V10.6.21 — Retry returned INSUFFICIENT, which is actually
+        // a valid outcome ('source genuinely too sparse'). Treat as
+        // insufficient rather than claim_check_failed.
         outputText = null
+        insufficient = true
+        reason = 'insufficient'
+        claimCheckPassed = false
+        claimCheckNotes = 'First attempt rejected: ' + (check1.notes || '(no notes)') + '. Retry returned INSUFFICIENT — source too sparse to support a faithful one-sentence paraphrase.'
+      } else {
+        // Retry errored — preserve first attempt context.
+        outputText = null
+        claimCheckNotes = 'First attempt rejected: ' + (check1.notes || '(no notes)') + '. Retry attempt errored before completion (network / API issue).'
         reason = 'claim_check_failed'
       }
-    } else if (!check1.passed) {
-      // Claim-check failed but no notes to retry against — bail.
-      outputText = null
-      reason = 'claim_check_failed'
     }
   }
 
