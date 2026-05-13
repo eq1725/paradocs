@@ -98,7 +98,7 @@ const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
  *   better than padded prose or an INSUFFICIENT bail.' Same
  *   editorial intent (rich, sensory, paragraph-form), less brittle.
  */
-export const PROMPT_VERSION = 'v10.7.b.5'
+export const PROMPT_VERSION = 'v10.7.d'
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -309,21 +309,59 @@ async function runClaimCheck(
   sourceText: string,
   output: string,
 ): Promise<ClaimCheckResult> {
+  // V10.7.D — claim-check prompt rewrite. The V10.6 version was
+  // rejecting valid paraphrases on style-level differences (e.g.
+  // 'orange' vs 'orange hue', 'smart-car' vs 'compact car',
+  // 'meditation' vs 'eyes closed and focused on breath'). The
+  // result: narrative came back null even when the AI wrote a
+  // perfectly faithful paraphrase. New regime distinguishes
+  // FABRICATION / NARROWING (genuinely bad) from PARAPHRASE /
+  // GENERALIZATION / CONTEXTUAL INFERENCE (good).
   const prompt = [
-    'You are a fact-checker. Below is a SOURCE and a SUMMARY claiming to paraphrase it.',
-    'Your job: determine whether EVERY factual claim in the summary is directly supported by the source.',
+    'You are a fact-checker. Below is a SOURCE text and a SUMMARY claiming to paraphrase it.',
     '',
-    'CRITICAL: be strict. The following count as unsupported claims:',
-    '- A specific date, location, count, or detail in the summary that does not appear in the source.',
-    '- Narrowing a general claim (source says "Pennsylvania", summary says "Pittsburgh").',
-    '- Adding context the source did not provide (source describes a sighting, summary describes the witness as "experienced").',
-    '- General-knowledge filler about the phenomenon type.',
+    'Your job: catch FABRICATION and NARROWING. Do NOT flag stylistic paraphrasing or contextual inferences that preserve meaning.',
     '',
-    'Acceptable transformations: paraphrasing in different words, summarizing multiple sentences into one, reordering, omitting details, hedging certainty ("the source describes" instead of asserting facts).',
+    'REJECT the summary (passed=false) ONLY for these issues:',
+    '',
+    '1. FABRICATION — the summary asserts a specific fact that has no support in the source.',
+    '   - Source: "in 1972 in Pennsylvania." Summary: "in March 1972 in Pittsburgh." → REJECT (invented month + city)',
+    '   - Source: "two witnesses." Summary: "two witnesses, both military veterans." → REJECT (invented occupation)',
+    '   - Source: "she saw a light." Summary: "she saw a UFO with three landing gear." → REJECT (invented details)',
+    '',
+    '2. NARROWING — the summary makes a vague claim more specific than the source supports.',
+    '   - Source: "Pennsylvania." Summary: "Pittsburgh." → REJECT',
+    '   - Source: "the 1990s." Summary: "1994." → REJECT',
+    '   - Source: "several witnesses." Summary: "five witnesses." → REJECT',
+    '',
+    '3. GENERAL-KNOWLEDGE FILLER — adding what a typical case of this type looks like, when the source does not say so.',
+    '   - Source describes a UFO sighting; summary adds "consistent with classic disc-shape reports." → REJECT (unless source said this)',
+    '',
+    'ACCEPT the summary (passed=true) for all of these (these are NORMAL paraphrasing):',
+    '',
+    'A. SYNONYMS / STYLE — different words, same meaning.',
+    '   - Source: "had an orange hue." Summary: "orange." → ACCEPT (same meaning, less wordy)',
+    '   - Source: "felt afraid." Summary: "was frightened." → ACCEPT',
+    '   - Source: "the object." Summary: "the craft." → ACCEPT (when context supports)',
+    '',
+    'B. GENERALIZATION — source specific, summary broader category.',
+    '   - Source: "smart-car." Summary: "compact car." → ACCEPT (smart-car IS a compact car)',
+    '   - Source: "the witness, a paramedic." Summary: "medical professional." → ACCEPT',
+    '   - Source: "Pittsburgh." Summary: "Pennsylvania." → ACCEPT (the opposite direction of narrowing)',
+    '',
+    'C. CONTEXTUAL INFERENCE — claims that follow obviously from source context.',
+    '   - Source: "she was meditating for 30 minutes." Summary: "she sat in stillness with her eyes closed for half an hour." → ACCEPT (meditation implies stillness + typically closed eyes)',
+    '   - Source: "he was driving home from work." Summary: "during his evening commute." → ACCEPT',
+    '   - Source: "in deep meditation." Summary: "focused on breath." → ACCEPT (breath-focus is a standard meditation context)',
+    '',
+    'D. STRUCTURE — reordering, combining sentences, omitting details, hedge framing.',
+    '   - "The source describes…", "according to the report…", past tense framing — ALL accepted.',
+    '',
+    'RULE OF THUMB: would a reasonable editor reading both side-by-side say "the summary is faithful to the source"? If yes → passed=true. Only flag claims where the summary genuinely INVENTS or NARROWS facts.',
     '',
     'Return a JSON object with exactly two keys:',
-    '  "passed": boolean — true if every claim is supported, false if even one is not',
-    '  "notes": string — if passed is false, list the unsupported claims (1-3 short bullets). Empty string if passed.',
+    '  "passed": boolean — true unless you found a fabrication or narrowing.',
+    '  "notes": string — when passed is false, name the SPECIFIC fabricated/narrowed claim (1-3 short bullets, each citing the actual phrase). Empty string if passed.',
     '',
     'Return ONLY the JSON. No preamble, no markdown fences.',
     '',
