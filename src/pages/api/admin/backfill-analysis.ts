@@ -62,25 +62,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
-  const body = (req.body || {}) as { limit?: number; force?: boolean; dryRun?: boolean }
+  const body = (req.body || {}) as { limit?: number; force?: boolean; dryRun?: boolean; slug?: string }
   const limit = Math.min(Math.max(1, body.limit || 25), 100)
   const force = !!body.force
   const dryRun = !!body.dryRun
+  const slug = typeof body.slug === 'string' && body.slug.trim().length > 0
+    ? body.slug.trim()
+    : null
 
-  // Pull the candidate rows. We can't filter by "has frames in
-  // JSONB" via Supabase REST cleanly, so we over-fetch and
-  // filter in JS. With the limit cap that's bounded.
-  const { data: rows, error: fetchErr } = await (admin.from('reports') as any)
+  // V10.7.B.4.4 — When slug is provided, target that single report
+  // for regen. Bypasses the limit/force gating since the admin is
+  // explicitly asking. Useful for "this one report's narrative came
+  // back null, please retry it" cases without walking the full corpus.
+  let rowsQuery = (admin.from('reports') as any)
     .select('id, slug, title, paradocs_assessment')
     .eq('status', 'approved')
-    .order('created_at', { ascending: false })
-    .limit(force ? limit : limit * 4)
+  if (slug) {
+    rowsQuery = rowsQuery.eq('slug', slug).limit(1)
+  } else {
+    rowsQuery = rowsQuery.order('created_at', { ascending: false }).limit(force ? limit : limit * 4)
+  }
+  const { data: rows, error: fetchErr } = await rowsQuery
   if (fetchErr) return res.status(500).json({ error: 'Failed to load reports', detail: fetchErr.message })
 
   const candidates: any[] = []
   for (const r of (rows || [])) {
     if (candidates.length >= limit) break
-    if (force) {
+    // V10.7.B.4.4 — when slug is targeted OR force is set, always
+    // include the row. Without slug + without force, only include
+    // rows missing frames (the "still pending" cohort).
+    if (slug || force) {
       candidates.push(r)
       continue
     }

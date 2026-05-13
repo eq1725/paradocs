@@ -110,10 +110,24 @@ function AttributionHeader(props: {
   // that text-readers parsed as four fragments ('OBE · Original
   // source · OBERF · View original'). One row, one phrase, one CTA.
   const label = sourceLabel || oembed.platformLabel
+  // V10.7.B.4.4 — Drop the PlatformBadge when the source label is
+  // short enough to read on its own (≤5 chars). The badge renders the
+  // first 3 letters of the label as initials, so for short labels
+  // like 'OBERF' we end up showing 'OBE · OBERF' — redundant and
+  // visually confusing. For longer labels (e.g. 'YouTube' → 'YOU',
+  // 'Coast to Coast AM' → 'COA') the initials still add visual
+  // identity, so we keep the badge. Platform-coded badges
+  // (youtube, reddit, etc.) always render because they carry color
+  // identity beyond just initials.
+  const isKnownPlatform = oembed.platform !== 'default' && oembed.platform !== 'web'
+  const showBadge = isKnownPlatform || (oembed.platformLabel || '').length > 5
+
   return (
     <header className="flex items-center justify-between gap-2 p-3 bg-gray-950/50 border-b border-gray-800">
       <div className="flex items-center gap-2 min-w-0">
-        <PlatformBadge platform={oembed.platform} label={oembed.platformLabel} />
+        {showBadge && (
+          <PlatformBadge platform={oembed.platform} label={oembed.platformLabel} />
+        )}
         <p className="text-sm text-gray-200 truncate leading-tight">
           <span className="text-gray-500">Originally published at </span>
           <span className="text-white font-semibold">{label}</span>
