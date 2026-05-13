@@ -76,46 +76,44 @@ const CATEGORY_COLOR: Record<string, string> = {
 }
 
 /**
- * V10.6.6 — load Changa ExtraBold from Google Fonts.
+ * V10.6.7 — load Google Fonts at edge runtime.
  *
- * The V10.6.4 attempt failed because we were grabbing the woff2
- * URL and Satori-in-next/og can't decode every woff2 reliably
- * (in particular, the subset-encoded font produced by Google's
- * `text=` parameter). This is the canonical Vercel/next-og pattern:
+ * Why we load both Changa AND Inter:
+ *   When you pass exactly ONE custom font to next/og's ImageResponse,
+ *   Satori uses that font as the default for EVERY element — there is
+ *   no "Inter" baked in. So if we only load Changa, every label,
+ *   title, and chip on the card ends up in Changa, which is way too
+ *   heavy for body copy and blows out the layout.
  *
- *   - No User-Agent header. With no UA, Google serves a CSS that
- *     contains MULTIPLE @font-face blocks with different formats
- *     (woff2, woff, truetype, opentype) for older clients.
- *   - We regex specifically for `format('opentype')` or
- *     `format('truetype')` so we pull the TTF/OTF binary — which
- *     Satori reliably decodes.
- *   - Drop the `text=` subset; load the full @ 800 weight. The
- *     full file is ~30KB so the latency hit is negligible and we
- *     get more robust glyph coverage.
+ * The canonical Vercel/next-og pattern:
+ *   - No User-Agent header (Google serves CSS with multiple
+ *     @font-face blocks for older clients).
+ *   - Regex matches format('opentype'|'truetype') specifically so we
+ *     pull the TTF/OTF binary — Satori decodes those reliably (woff2
+ *     decoding is hit-or-miss).
  */
-async function loadChangaFont(): Promise<ArrayBuffer | null> {
+async function loadGoogleFont(family: string, weight: number): Promise<ArrayBuffer | null> {
   try {
-    const cssUrl = 'https://fonts.googleapis.com/css2?family=Changa:wght@800'
+    const cssUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:wght@${weight}`
     const cssResp = await fetch(cssUrl)
     if (!cssResp.ok) {
-      console.warn('[og report] Changa CSS fetch non-200:', cssResp.status)
+      console.warn(`[og report] ${family} CSS fetch non-200:`, cssResp.status)
       return null
     }
     const css = await cssResp.text()
-    // Match the truetype/opentype variant specifically.
     const match = css.match(/src:\s*url\(([^)]+)\)\s*format\(['"](opentype|truetype)['"]\)/)
     if (!match) {
-      console.warn('[og report] No truetype/opentype @font-face found in Changa CSS')
+      console.warn(`[og report] No truetype/opentype @font-face found in ${family} CSS`)
       return null
     }
     const fontResp = await fetch(match[1])
     if (!fontResp.ok) {
-      console.warn('[og report] Changa font binary fetch non-200:', fontResp.status)
+      console.warn(`[og report] ${family} font binary fetch non-200:`, fontResp.status)
       return null
     }
     return await fontResp.arrayBuffer()
   } catch (err) {
-    console.warn('[og report] Changa load failed:', err)
+    console.warn(`[og report] ${family} load failed:`, err)
     return null
   }
 }
@@ -134,13 +132,14 @@ export default async function handler(req: NextRequest) {
     const baseUrl = `${SUPABASE_URL.replace(/\/+$/, '')}`
     const reportUrl = `${baseUrl}/rest/v1/reports?slug=eq.${encodeURIComponent(slug)}&status=eq.approved&select=title,answer_line,category,event_date,city,state_province,country,location_name,witness_count,paradocs_narrative,feed_hook&limit=1`
 
-    // V10.6.5 — fetch everything in parallel:
+    // V10.6.7 — fetch everything in parallel:
     //   1. The report row (mandatory)
     //   2. Total approved-reports count for social proof
     //   3. Total experiencers count (profiles)
-    //   4. Changa font binary for the wordmark
-    // If any of #2-#4 fail, the card still renders without them.
-    const [reportResp, reportsCountResp, profilesCountResp, changaData] = await Promise.all([
+    //   4. Changa ExtraBold for the wordmark
+    //   5. Inter Bold for everything else (title, meta, quote, chip)
+    // If any of #2-#5 fail, the card still renders without them.
+    const [reportResp, reportsCountResp, profilesCountResp, changaData, interData] = await Promise.all([
       fetch(reportUrl, {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY },
       }),
@@ -150,7 +149,8 @@ export default async function handler(req: NextRequest) {
       fetch(`${baseUrl}/rest/v1/profiles?select=id`, {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, Prefer: 'count=exact', Range: '0-0' },
       }).catch(() => null),
-      loadChangaFont(),
+      loadGoogleFont('Changa', 800),
+      loadGoogleFont('Inter', 600),
     ])
 
     if (!reportResp.ok) return errorImage('Paradocs', 'Report not found')
@@ -420,9 +420,14 @@ export default async function handler(req: NextRequest) {
       {
         width: 1200,
         height: 630,
-        fonts: changaData
-          ? [{ name: 'Changa', data: changaData, weight: 800, style: 'normal' }]
-          : undefined,
+        // V10.6.7 — pass BOTH fonts. Inter becomes the default
+        // (because the outer container uses fontFamily 'Inter'),
+        // and Changa is only used by the wordmark spans which
+        // explicitly set fontFamily: 'Changa'.
+        fonts: [
+          ...(interData ? [{ name: 'Inter' as const, data: interData, weight: 600 as const, style: 'normal' as const }] : []),
+          ...(changaData ? [{ name: 'Changa' as const, data: changaData, weight: 800 as const, style: 'normal' as const }] : []),
+        ],
       },
     )
   } catch (err: any) {
