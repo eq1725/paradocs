@@ -39,14 +39,15 @@ export default function App({ Component, pageProps }: AppProps) {
 
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 
-        {/* V10.1 — versioned filenames bypass browser favicon cache.
-            Browsers cache /favicon.ico aggressively at the canonical
-            path and ignore ?v= query strings (same WebKit/Blink quirk
-            we hit with apple-touch-icon). Bumping suffix forces a
-            fresh fetch. v4 = black-bg + purple-P icon rebrand to
-            match splash screen. */}
+        {/* V10.6.6 — Favicon v5. Single declaration site (the dupes in
+            _document.tsx were removed). SVG is transparent + purple-P
+            (clean brand mark, no dark backdrop) and wins on every
+            modern browser. .ico stays at v4 (black-bg version) as the
+            fallback for legacy SVG-less clients. Versioned filenames
+            bypass browser favicon cache — browsers ignore ?v= query
+            strings on /favicon.ico (WebKit/Blink quirk). */}
+        <link rel="icon" href="/favicon-v5.svg" type="image/svg+xml" />
         <link rel="icon" href="/favicon-v4.ico" sizes="32x32" />
-        <link rel="icon" href="/favicon-v4.svg" type="image/svg+xml" />
 
         <link rel="manifest" href="/manifest.json?v=4" />
 

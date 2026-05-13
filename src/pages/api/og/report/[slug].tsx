@@ -76,34 +76,43 @@ const CATEGORY_COLOR: Record<string, string> = {
 }
 
 /**
- * V10.6.4 — load Changa ExtraBold from Google Fonts so the wordmark
- * actually renders in our brand font (was falling back to Inter
- * before because Satori had no Changa data to draw with).
+ * V10.6.6 — load Changa ExtraBold from Google Fonts.
  *
- * The `text=Paradocs.` subset keeps the fetched font tiny — only
- * the glyphs we need — and works around Google Fonts' default of
- * serving the full character set as woff2.
+ * The V10.6.4 attempt failed because we were grabbing the woff2
+ * URL and Satori-in-next/og can't decode every woff2 reliably
+ * (in particular, the subset-encoded font produced by Google's
+ * `text=` parameter). This is the canonical Vercel/next-og pattern:
+ *
+ *   - No User-Agent header. With no UA, Google serves a CSS that
+ *     contains MULTIPLE @font-face blocks with different formats
+ *     (woff2, woff, truetype, opentype) for older clients.
+ *   - We regex specifically for `format('opentype')` or
+ *     `format('truetype')` so we pull the TTF/OTF binary — which
+ *     Satori reliably decodes.
+ *   - Drop the `text=` subset; load the full @ 800 weight. The
+ *     full file is ~30KB so the latency hit is negligible and we
+ *     get more robust glyph coverage.
  */
 async function loadChangaFont(): Promise<ArrayBuffer | null> {
   try {
-    const cssUrl =
-      'https://fonts.googleapis.com/css2?family=Changa:wght@800&text=' +
-      encodeURIComponent('Paradocs.') +
-      '&display=block'
-    const cssResp = await fetch(cssUrl, {
-      headers: {
-        // Force a UA that gets a static woff2 / ttf URL (Satori
-        // supports woff2 since v0.10.x which next/og bundles).
-        'User-Agent':
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-      },
-    })
-    if (!cssResp.ok) return null
+    const cssUrl = 'https://fonts.googleapis.com/css2?family=Changa:wght@800'
+    const cssResp = await fetch(cssUrl)
+    if (!cssResp.ok) {
+      console.warn('[og report] Changa CSS fetch non-200:', cssResp.status)
+      return null
+    }
     const css = await cssResp.text()
-    const fontUrlMatch = css.match(/url\((https:\/\/[^)]+\.(?:woff2|woff|ttf|otf))\)/)
-    if (!fontUrlMatch) return null
-    const fontResp = await fetch(fontUrlMatch[1])
-    if (!fontResp.ok) return null
+    // Match the truetype/opentype variant specifically.
+    const match = css.match(/src:\s*url\(([^)]+)\)\s*format\(['"](opentype|truetype)['"]\)/)
+    if (!match) {
+      console.warn('[og report] No truetype/opentype @font-face found in Changa CSS')
+      return null
+    }
+    const fontResp = await fetch(match[1])
+    if (!fontResp.ok) {
+      console.warn('[og report] Changa font binary fetch non-200:', fontResp.status)
+      return null
+    }
     return await fontResp.arrayBuffer()
   } catch (err) {
     console.warn('[og report] Changa load failed:', err)

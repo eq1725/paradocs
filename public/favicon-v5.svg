@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- V10.6.6 — Transparent-background purple P. Reads as a clean
+       brand mark in browser tabs without the square dark backdrop
+       that was making tabs look heavier than they need to. Falls
+       back to the v4 .ico for browsers that don't support SVG. -->
+  <text x="256" y="256"
+        fill="#a855f7"
+        font-family="Changa, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-weight="800"
+        font-size="380"
+        text-anchor="middle"
+        dominant-baseline="central">P</text>
+</svg>

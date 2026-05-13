@@ -155,8 +155,16 @@ export default function AdminBackfillPage() {
       // Show first 3 generated slugs as a sanity check.
       const generated = result.processed.filter(p => p.status === 'generated').slice(0, 3)
       if (generated.length > 0) {
-        appendLog('  e.g. ' + generated.map(p => p.slug).join(', '))
+        appendLog('  ✓ ' + generated.map(p => p.slug).join(', '))
       }
+      // V10.6.6 — Surface failed rows with their slug + error so we
+      // can investigate. Was opaque before; "1 failed" with no slug
+      // gave you no path to diagnose.
+      const failures = result.processed.filter(p => p.status === 'error' || p.status === 'no_output')
+      failures.forEach(f => {
+        const reason = f.error || (f.status === 'no_output' ? 'AI returned no usable output (likely INSUFFICIENT or claim-check rejection — check /admin/ai-audit)' : f.status)
+        appendLog('  ✗ ' + f.slug + ' — ' + reason)
+      })
     }
     setBusy(null)
   }, [busy, runOnce, appendLog])

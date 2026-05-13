@@ -79,9 +79,12 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        {/* V10.6.6 — Favicon refs LIVE in _app.tsx (single source of
+            truth). Previously declared in BOTH _document.tsx and
+            _app.tsx, which produced inconsistent tab icons because
+            browsers pick differently from multiple <link rel="icon">
+            tags. Removed the duplicates here so the v5 transparent
+            purple-P is the only declaration the browser sees. */}
         {/* V10.2 splash CSS — inlined so it's available before any
             external stylesheet loads. Gated to display-mode:
             standalone so it only renders in PWA launch contexts. */}
