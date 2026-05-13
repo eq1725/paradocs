@@ -88,19 +88,32 @@ export default function ReportBelowFold(props: ReportBelowFoldProps) {
 
   return (
     <section className={'space-y-3 ' + (props.className || '')}>
+      {/* V10.6.27 — Paradocs Analysis is now ALWAYS-VISIBLE main-page
+          content, not a click-gated disclosure. Per panel: this is the
+          best content on the page (lens cards + worth-chasing). For
+          reports where the AI narrative came back null, the analysis
+          IS the body — gating it behind a click broke the user
+          journey. Discussion stays as a disclosure because comments
+          are truly optional. */}
       {hasAnalysis && (
-        <Disclosure
-          title="Paradocs analysis"
-          icon={Sparkles}
-          subtle={hasFrames ? 'Multiple lenses · open questions' : 'Editorial framing'}
-          variant="analysis"
-        >
+        <section className={'rounded-xl border border-purple-700/40 bg-gradient-to-br from-purple-950/40 via-gray-900/60 to-gray-900/40 overflow-hidden ring-1 ring-purple-500/10 p-4 sm:p-5'}>
+          <header className="flex items-center gap-2.5 mb-4">
+            <span className="inline-flex items-center justify-center w-7 h-7 rounded-md flex-shrink-0 bg-purple-600/20 border border-purple-500/40">
+              <Sparkles className="w-3.5 h-3.5 text-purple-300" />
+            </span>
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-white leading-tight">Paradocs analysis</h3>
+              <p className="text-[11px] text-gray-500 leading-tight">
+                {hasFrames ? 'Multiple lenses · open questions' : 'Editorial framing'}
+              </p>
+            </div>
+          </header>
           <AnalysisInner
             frames={props.frames || []}
             openQuestions={props.openQuestions || []}
             legacyExplanations={hasLegacyAlt ? (props.alternativeExplanations || []) : []}
           />
-        </Disclosure>
+        </section>
       )}
 
       {ReportComments && (

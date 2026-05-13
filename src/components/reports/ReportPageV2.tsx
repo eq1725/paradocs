@@ -445,21 +445,20 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
             )}
 
             {/* ── 6b. Experience description ("the actual report in
-                our own words", per Chase). Section header added so
-                the narrative reads as the body, not just floating
-                prose between the quote and the source block.
-                V10.6.26 — Always render this section. When the AI
-                narrative is null (claim-check rejected or AI
-                returned INSUFFICIENT), fall back to either the
-                source excerpt or a quiet placeholder pointing to
-                the source link. This way the page never has a
-                gaping hole between the pull quote and the source
-                attribution. */}
-            <div className="mb-6">
-              <p className="text-[10px] uppercase tracking-widest font-semibold text-gray-500 mb-3">
-                What happened
-              </p>
-              {narrativeParagraphs.length > 0 ? (
+                our own words", per Chase).
+                V10.6.27 — Drop the redundant placeholder. When
+                narrative AND excerpt are both null, the source block
+                immediately below already shows 'Read original at
+                OBERF' — saying 'available at the linked source' here
+                duplicates that CTA. Render the section only when we
+                have real body content (narrative OR excerpt). The
+                Paradocs Analysis lens cards below the source block
+                serve as the main content for excerpt-less reports. */}
+            {narrativeParagraphs.length > 0 ? (
+              <div className="mb-6">
+                <p className="text-[10px] uppercase tracking-widest font-semibold text-gray-500 mb-3">
+                  What happened
+                </p>
                 <div className="prose prose-invert max-w-none">
                   {narrativeParagraphs.map((p, i) => (
                     <p key={i} className="text-base text-gray-100 leading-relaxed mb-4 last:mb-0">
@@ -467,11 +466,12 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
                     </p>
                   ))}
                 </div>
-              ) : sourceExcerpt ? (
-                // Fallback 1: the source's own first-paragraph
-                // excerpt (already attributed). Use blockquote
-                // styling to make clear this is the source's words,
-                // not our editorial paraphrase.
+              </div>
+            ) : sourceExcerpt ? (
+              <div className="mb-6">
+                <p className="text-[10px] uppercase tracking-widest font-semibold text-gray-500 mb-3">
+                  What happened
+                </p>
                 <blockquote className="border-l-2 border-gray-700 pl-4 py-1 text-base text-gray-300 leading-relaxed italic">
                   <p>
                     &ldquo;{sourceExcerpt.length > 500 ? sourceExcerpt.slice(0, 500).trim() + '…' : sourceExcerpt}&rdquo;
@@ -480,14 +480,8 @@ export default function ReportPageV2({ report, media, relatedReports }: ReportPa
                     Excerpted from {sourceLabel || 'the original source'}. Read the full account below.
                   </p>
                 </blockquote>
-              ) : (
-                // Fallback 2: neither narrative nor excerpt — point
-                // the reader directly at the source link.
-                <p className="text-sm text-gray-500 italic">
-                  The full account is available at the original source linked below.
-                </p>
-              )}
-            </div>
+              </div>
+            ) : null}
 
             {/* ── 7. Source attribution + media (3 tiers) ────── */}
             {sourceUrl && (
