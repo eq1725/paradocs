@@ -223,10 +223,9 @@ export default async function handler(req: NextRequest) {
             position: 'relative',
             background: 'linear-gradient(135deg, #0a0a14 0%, #1a0a24 100%)',
             color: '#f1f1f8',
-            padding: '54px 70px',
-            // V10.6.8 — Changa is now the brand-wide default. Loaded
-            // at weights 500/700/800; everything below resolves
-            // against those.
+            // V10.6.10 — tighter padding so the content has more
+            // breathing room internally without needing more pixels.
+            padding: '44px 64px',
             fontFamily: 'Changa, -apple-system, system-ui, sans-serif',
           }}
         >
@@ -297,30 +296,26 @@ export default async function handler(req: NextRequest) {
               display: 'flex',
               flexDirection: 'column',
               flex: 1,
-              // V10.6.9 — was justify-content: center. With Changa
-              // being a wider font than Inter, the title sometimes
-              // exceeded the flex:1 container's height, and Satori's
-              // flex centering pushed content into the rows above
-              // and below. Stack naturally instead — flex-start +
-              // explicit margins keeps everything in lane.
               justifyContent: 'flex-start',
-              marginTop: 36,
+              // V10.6.10 — pull the title block UP closer to the
+              // wordmark. The earlier 36px gap felt loose.
+              marginTop: 22,
               position: 'relative',
             }}
           >
-            {/* V10.6.9 — Title sizes reduced for Changa. Changa is
-                ~15-20% wider than Inter per character at the same pt,
-                so 72pt overflowed the 1060px content width and wrapped
-                into 2 lines that crashed into the meta/quote rows. */}
+            {/* V10.6.10 — line-height tightened from 1.08 → 0.98 so
+                multi-line titles read as ONE typographic unit. Was
+                rendering with daylight between "from Pink" and
+                "Flashing Clouds" that broke the eye flow. */}
             <div
               style={{
                 display: 'flex',
                 fontSize: title.length > 90 ? 42 : title.length > 60 ? 50 : 60,
                 fontWeight: 700,
-                lineHeight: 1.08,
+                lineHeight: 0.98,
                 color: '#ffffff',
-                letterSpacing: '-0.015em',
-                marginBottom: 26,
+                letterSpacing: '-0.02em',
+                marginBottom: 22,
               }}
             >
               {title}
@@ -329,7 +324,7 @@ export default async function handler(req: NextRequest) {
             {/* Stacked WHEN/WHERE/WHO meta */}
             <div style={{ display: 'flex', gap: 44, alignItems: 'flex-start' }}>
               {whenStr && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span style={{ fontSize: 16, fontWeight: 700, color: '#fcd34d', letterSpacing: '0.14em' }}>WHEN</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 22, fontWeight: 700, color: '#ffffff' }}>
                     {/* V10.6.8 — Calendar icon parallels WHERE's map pin */}
@@ -344,7 +339,7 @@ export default async function handler(req: NextRequest) {
                 </div>
               )}
               {whereStr && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span style={{ fontSize: 16, fontWeight: 700, color: '#6ee7b7', letterSpacing: '0.14em' }}>WHERE</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 22, fontWeight: 700, color: '#ffffff' }}>
                     <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
@@ -356,7 +351,7 @@ export default async function handler(req: NextRequest) {
                 </div>
               )}
               {whoStr && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span style={{ fontSize: 16, fontWeight: 700, color: '#67e8f9', letterSpacing: '0.14em' }}>WHO</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 22, fontWeight: 700, color: '#ffffff' }}>
                     {/* People-cluster icon — parallels WHEN/WHERE */}
@@ -372,14 +367,16 @@ export default async function handler(req: NextRequest) {
           </div>
 
           {/* Bottom row: drop-quote answer line on LEFT,
-              category chip on RIGHT (panel item #4: diagonal balance) */}
+              category chip on RIGHT (diagonal balance).
+              V10.6.10 — margin-top tightened 12 → 6 since the
+              middle container now stacks from flex-start. */}
           <div
             style={{
               display: 'flex',
               alignItems: 'flex-end',
               justifyContent: 'space-between',
-              gap: 32,
-              marginTop: 12,
+              gap: 28,
+              marginTop: 6,
             }}
           >
             {answer ? (
@@ -411,7 +408,7 @@ export default async function handler(req: NextRequest) {
                     display: 'flex',
                     fontSize: 22,
                     fontWeight: 500,
-                    lineHeight: 1.35,
+                    lineHeight: 1.28,
                     color: '#e5e7eb',
                   }}
                 >
@@ -449,11 +446,11 @@ export default async function handler(req: NextRequest) {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 14,
-                marginTop: 18,
-                paddingTop: 14,
+                gap: 12,
+                marginTop: 14,
+                paddingTop: 12,
                 borderTop: '1px solid rgba(255,255,255,0.10)',
-                fontSize: 17,
+                fontSize: 16,
                 color: '#cbd5e1',
                 fontWeight: 500,
                 letterSpacing: '0.03em',
