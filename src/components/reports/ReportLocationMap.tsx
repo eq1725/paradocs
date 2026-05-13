@@ -1,29 +1,42 @@
 'use client'
 
 /**
- * ReportLocationMap — V10.4 Phase 2
+ * ReportLocationMap — V10.7.B.1 (V10.4 Phase 2 base)
  *
- * Purpose-built map for the top of the new mobile-first report
- * page. Replaces the hero image entirely — the location IS the
- * visual anchor.
+ * Purpose-built map for the top of the mobile-first report page.
+ * Replaces a hero image entirely — the location IS the visual anchor.
  *
- * Behavior:
- *   - Mounts at a regional zoom (country/state level) and
- *     animates a smooth flyTo down to the specific location.
- *     Mirrors the "zoom to context" pattern used on the /lab
- *     RADAR reveal.
- *   - Precision-aware: when latitude/longitude are not at city-
- *     level precision (or missing), shows a region BADGE
- *     instead of a misleading pin.
- *   - No nearby-reports overlay (that's a separate research
- *     surface; clutters the report's first impression).
+ * V10.7.B.1 — Added nearby-reports overlay. When the parent passes
+ * a `nearby` prop (sourced from the haversine RPC via getStaticProps,
+ * 80km radius / 50 row cap), we render each as a small muted dot
+ * around the focal pin and overlay a count badge:
  *
- * Uses the same MapLibre + MapTiler stack as LocationMap and
- * the RADAR for visual consistency.
+ *   "12 similar within 80 km · View nearby →"
+ *
+ * Why no Supercluster (yet):
+ *   At 50 points / 80km radius / city zoom, the points rarely overlap
+ *   meaningfully and pure direct rendering reads cleaner. Supercluster
+ *   was on the V10.7.B.1 spec but it's real overhead for marginal value
+ *   on a hero map. If post-mass-ingest pin density warrants it (e.g.
+ *   we widen the radius or raise the cap), add the cluster index here
+ *   and switch the render branch.
+ *
+ * Behavior (V10.4 Phase 2 base, preserved):
+ *   - Mounts at a regional zoom and flyTo-animates down to the focal
+ *     location. Mirrors the "zoom to context" pattern from /lab.
+ *   - Precision-aware: coarse precision shows a region BADGE instead
+ *     of a misleading pin.
+ *   - Static (no pan/zoom) so the map reads as a hero anchor, not a
+ *     map exploration surface. Nearby dots are still clickable as
+ *     deep links because that's a one-tap action, not exploration.
+ *
+ * Uses the same MapLibre + MapTiler stack as LocationMap and the
+ * RADAR for visual consistency.
  */
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import { MapPin } from 'lucide-react'
 
 const Map = dynamic(
@@ -47,6 +60,16 @@ export type LocationPrecision =
   | 'country'    // country-only
   | 'unknown'
 
+export interface NearbyReportPin {
+  id: string
+  slug: string
+  title: string
+  category: string | null
+  latitude: number
+  longitude: number
+  distance_km: number
+}
+
 export interface ReportLocationMapProps {
   latitude?: number | null
   longitude?: number | null
@@ -59,6 +82,14 @@ export interface ReportLocationMapProps {
   /** Container height. Default 240px (compact mobile-first). */
   height?: number
   className?: string
+  /** V10.7.B.1 — pre-fetched nearby reports for the overlay. */
+  nearby?: NearbyReportPin[]
+  /**
+   * V10.7.B.1 — href the bottom-bar "View nearby" link points to.
+   * Optional; when omitted the count badge renders without a link.
+   * Typical value: `/map?center=lat,lng&zoom=8`.
+   */
+  nearbyHref?: string
 }
 
 export default function ReportLocationMap({
@@ -69,27 +100,19 @@ export default function ReportLocationMap({
   pinLabel,
   height = 240,
   className,
+  nearby,
+  nearbyHref,
 }: ReportLocationMapProps) {
   // V10.5.1 — capture the underlying maplibre-gl Map instance via
-  // the onLoad event rather than via a React ref. With react-map-gl
-  // wrapped in next/dynamic, refs are NOT forwarded cleanly through
-  // the dynamic boundary, so mapRef.current.flyTo was undefined.
-  // onLoad fires once the map is ready and gives us the real Map
-  // instance — same flyTo method, but actually callable.
+  // onLoad, not via ref (react-map-gl wrapped in next/dynamic doesn't
+  // forward refs cleanly through the dynamic boundary).
   const [mapInstance, setMapInstance] = useState<any>(null)
   const [mounted, setMounted] = useState(false)
   const [animationDone, setAnimationDone] = useState(false)
 
-  // Wait for client-side mount before deciding what to render —
-  // MapLibre can't run SSR.
   useEffect(() => { setMounted(true) }, [])
 
   // ── Decide: pin or region badge ────────────────────────────
-  // V10.5 — pin renders ONLY when precision is exact or city.
-  // Anything coarser (region/country/unknown) renders the region
-  // badge over a map centered on the country/region, no pin —
-  // because dropping a pin at a state centroid can land in the
-  // wrong place entirely (the Georgia case landed in the Atlantic).
   const hasUsableCoords =
     typeof latitude === 'number' && typeof longitude === 'number' &&
     Number.isFinite(latitude) && Number.isFinite(longitude) &&
@@ -97,26 +120,21 @@ export default function ReportLocationMap({
   const showPin = hasUsableCoords && (precision === 'exact' || precision === 'city')
 
   // ── Target zoom — precision-driven ────────────────────────
-  // V10.5 — Roswell/Corona was landing at country-zoom because the
-  // initial state already matched the target. Fix: start clearly
-  // ZOOMED OUT (zoom 3) and animate IN to the precision-matched
-  // target. Target zoom map:
-  //   exact   → 11 (street/neighborhood)
-  //   city    → 10 (city + immediate region)
-  //   region  → 6  (state/province visible)
-  //   country → 4  (country visible)
-  //   unknown → 2  (world)
-  const targetZoom =
+  //
+  // V10.7.B.1 — When we have nearby reports to render, we zoom out
+  // ONE LEVEL from the precision-default so the nearby dots are
+  // visible in the viewport. Otherwise the focal pin fills the map
+  // and the nearby dots are off-screen, defeating the purpose.
+  const nearbyCount = (nearby || []).length
+  const hasNearby = nearbyCount > 0
+  const precisionDefaultZoom =
     precision === 'exact'   ? 11 :
     precision === 'city'    ? 10 :
     precision === 'region'  ? 6  :
     precision === 'country' ? 4  : 2
+  const targetZoom = hasNearby ? Math.max(7, precisionDefaultZoom - 2) : precisionDefaultZoom
 
   // ── Animated flyTo on mount ────────────────────────────────
-  // Always start from a wider zoom (target − 4, floor 2) so the
-  // user perceives the motion as "here's the world, narrowing in
-  // on this case". Without this, when target was already 3.5 it
-  // looked like the map had failed to load anything specific.
   const initialZoom = Math.max(2, targetZoom - 4)
   const initialViewState = hasUsableCoords ? {
     latitude: latitude!,
@@ -132,10 +150,6 @@ export default function ReportLocationMap({
     pitch: 0,
   }
 
-  // V10.5.1 — fire the flyTo once both (a) the map instance has
-  // loaded (we got it via onLoad) and (b) we have usable coords.
-  // The 200ms delay gives the initial wide-zoom view a beat to
-  // register with the user before the camera moves.
   useEffect(() => {
     if (!mapInstance || !hasUsableCoords || animationDone) return
     const tid = setTimeout(() => {
@@ -144,8 +158,8 @@ export default function ReportLocationMap({
           center: [longitude!, latitude!],
           zoom: targetZoom,
           duration: 1800,
-          essential: true, // bypass prefers-reduced-motion (the motion IS the content)
-          easing: (t: number) => 1 - Math.pow(1 - t, 3), // ease-out-cubic
+          essential: true,
+          easing: (t: number) => 1 - Math.pow(1 - t, 3),
         })
       } catch (err) {
         console.warn('[ReportLocationMap] flyTo failed:', err)
@@ -155,10 +169,12 @@ export default function ReportLocationMap({
     return () => clearTimeout(tid)
   }, [mapInstance, hasUsableCoords, latitude, longitude, animationDone, targetZoom])
 
-  // ── Fallback when we have no usable coords ────────────────
-  // V10.5 — if a className that controls height (e.g. h-full
-  // inside an absolutely-positioned parent) is provided, we
-  // skip the inline height style so the wrapper wins.
+  // ── Compute the max distance across nearby points (for badge) ─
+  const farthestKm = useMemo(() => {
+    if (!nearby || nearby.length === 0) return null
+    return Math.round(Math.max(...nearby.map(n => n.distance_km)))
+  }, [nearby])
+
   const wrapperStyle = className && /\bh-/.test(className) ? undefined : { height }
 
   if (!hasUsableCoords) {
@@ -172,16 +188,12 @@ export default function ReportLocationMap({
     )
   }
 
-  // ── Render ────────────────────────────────────────────────
   return (
     <div
       className={'relative w-full overflow-hidden border-b border-gray-800 bg-gray-950 ' + (className || '')}
       style={wrapperStyle}
     >
       {!MAPTILER_KEY ? (
-        // Without a MapTiler key we'd render a broken style.
-        // Fall back to the region badge so the page never breaks
-        // in dev / preview environments missing the env var.
         <div className="absolute inset-0 flex items-center justify-center">
           <RegionBadge label={regionLabel || pinLabel || 'Location'} />
         </div>
@@ -198,13 +210,23 @@ export default function ReportLocationMap({
           doubleClickZoom={false}
           interactive={false}
           onLoad={(e: any) => {
-            // V10.5.1 — capture the underlying maplibre-gl Map
-            // instance so the flyTo useEffect can call its
-            // methods directly. e.target is the Map instance per
-            // react-map-gl v7's MapEvent contract.
             if (e && e.target) setMapInstance(e.target)
           }}
         >
+          {/* V10.7.B.1 — Nearby dots BEHIND the focal pin. Rendered
+              even before the flyTo animation completes so the user
+              sees the surrounding density at the same time as the
+              focal location. We render up to 50 (the RPC cap). */}
+          {showPin && (nearby || []).map(n => (
+            <Marker
+              key={n.id}
+              latitude={n.latitude}
+              longitude={n.longitude}
+              anchor="center"
+            >
+              <NearbyDot slug={n.slug} title={n.title} distanceKm={n.distance_km} />
+            </Marker>
+          ))}
           {showPin && (
             <Marker latitude={latitude!} longitude={longitude!} anchor="bottom">
               <PinSprite label={pinLabel || regionLabel || ''} />
@@ -217,12 +239,24 @@ export default function ReportLocationMap({
           )}
         </Map>
       )}
-      {/* Bottom scrim for legibility against busy basemaps */}
+
+      {/* Bottom scrim for legibility */}
       <div
         aria-hidden
         className="absolute inset-x-0 bottom-0 h-12 pointer-events-none"
         style={{ background: 'linear-gradient(to top, rgba(10,10,20,0.85) 0%, transparent 100%)' }}
       />
+
+      {/* V10.7.B.1 — Nearby count badge. Renders only when we have
+          actual nearby reports — silent when zero (the map is then
+          purely a "where this happened" hero, no claim about density). */}
+      {showPin && hasNearby && (
+        <NearbyCountBadge
+          count={nearbyCount}
+          farthestKm={farthestKm}
+          href={nearbyHref}
+        />
+      )}
     </div>
   )
 }
@@ -237,11 +271,60 @@ function PinSprite({ label }: { label: string }) {
           {label}
         </div>
       )}
-      {/* Pulsing pin */}
       <div className="relative">
         <span className="absolute inset-0 rounded-full bg-purple-400 opacity-50 animate-ping" style={{ width: 16, height: 16, left: -8, top: -8 }} />
         <span className="block w-4 h-4 rounded-full bg-purple-500 border-2 border-white shadow-md" />
       </div>
+    </div>
+  )
+}
+
+function NearbyDot({ slug, title, distanceKm }: { slug: string; title: string; distanceKm: number }) {
+  // Small muted dot. No animation, no label. Tap routes to that
+  // report. We deliberately don't show distance/title on the dot
+  // itself — too much chrome on the hero map. Hover tooltip
+  // (native title attr) gives detail for desktop users; mobile
+  // users get the deep link.
+  return (
+    <Link
+      href={'/report/' + slug}
+      title={title + ' · ' + Math.round(distanceKm) + ' km away'}
+      aria-label={'Nearby case: ' + title + ', ' + Math.round(distanceKm) + ' km away'}
+      className="block pointer-events-auto"
+    >
+      <span className="block w-2 h-2 rounded-full bg-cyan-400/80 border border-cyan-200/40 shadow-sm hover:bg-cyan-300 hover:scale-150 transition-all" />
+    </Link>
+  )
+}
+
+function NearbyCountBadge({
+  count,
+  farthestKm,
+  href,
+}: {
+  count: number
+  farthestKm: number | null
+  href?: string
+}) {
+  const labelMain = count === 1
+    ? '1 similar case nearby'
+    : count.toLocaleString() + ' similar cases nearby'
+  const labelSub = farthestKm ? '· within ' + farthestKm + ' km' : ''
+  const inner = (
+    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-950/85 border border-cyan-500/40 backdrop-blur-sm text-[11px] text-cyan-100 shadow-lg">
+      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" aria-hidden="true" />
+      <span className="font-medium">{labelMain}</span>
+      {labelSub && <span className="text-cyan-300/70">{labelSub}</span>}
+      {href && <span className="ml-1 text-cyan-200">→</span>}
+    </span>
+  )
+  return (
+    <div className="absolute left-3 bottom-3 pointer-events-auto">
+      {href ? (
+        <Link href={href} className="hover:no-underline">{inner}</Link>
+      ) : (
+        inner
+      )}
     </div>
   )
 }

@@ -339,6 +339,12 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
             regionLabel={regionLabel}
             height={1000 /* let the wrapper control via CSS */}
             className="absolute inset-0 h-full"
+            nearby={nearby}
+            nearbyHref={
+              report?.latitude && report?.longitude
+                ? '/map?center=' + report.latitude + ',' + report.longitude + '&zoom=8'
+                : undefined
+            }
           />
         </div>
 
