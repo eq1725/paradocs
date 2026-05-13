@@ -162,12 +162,14 @@ export default function AdminBackfillPage() {
       if (generated.length > 0) {
         appendLog('  ✓ ' + generated.map(p => p.slug).join(', '))
       }
-      // V10.6.6 — Surface failed rows with their slug + error so we
-      // can investigate. Was opaque before; "1 failed" with no slug
-      // gave you no path to diagnose.
+      // V10.6.13 — Surface failed rows with their slug + the actual
+      // reason (insufficient / claim_check_failed / no_source / etc.)
+      // pulled from the pipeline, not a generic 'no_output'.
       const failures = result.processed.filter(p => p.status === 'error' || p.status === 'no_output')
       failures.forEach(f => {
-        const reason = f.error || (f.status === 'no_output' ? 'AI returned no usable output (likely INSUFFICIENT or claim-check rejection — check /admin/ai-audit)' : f.status)
+        // 'result' field now carries the reason for no_output cases
+        // (V10.6.13 endpoint change) and the error message for error cases.
+        const reason = f.error || f.result || f.status
         appendLog('  ✗ ' + f.slug + ' — ' + reason)
       })
     }

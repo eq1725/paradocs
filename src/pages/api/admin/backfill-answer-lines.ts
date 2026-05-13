@@ -91,13 +91,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       continue
     }
     try {
-      const text = await generateAndSaveAnswerLine(r.id)
-      if (text) {
+      const out = await generateAndSaveAnswerLine(r.id)
+      if (out.text) {
         generated++
-        processed.push({ id: r.id, slug: r.slug, status: 'generated', result: text })
+        processed.push({ id: r.id, slug: r.slug, status: 'generated', result: out.text })
       } else {
+        // V10.6.13 — surface the actual reason from the rewrite
+        // pipeline ('insufficient', 'claim_check_failed', 'no_source',
+        // etc.) so the admin UI can categorize failures.
         failed++
-        processed.push({ id: r.id, slug: r.slug, status: 'no_output' })
+        processed.push({ id: r.id, slug: r.slug, status: 'no_output', result: out.reason || 'unknown' })
       }
     } catch (err: any) {
       failed++

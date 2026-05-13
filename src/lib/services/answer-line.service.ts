@@ -38,9 +38,21 @@ const ANSWER_LINE_INSTRUCTIONS = [
 
 /**
  * Generate and persist the answer_line for a single report.
- * Returns the generated text or null on failure / claim-check fail.
+ *
+ * V10.6.13 — Returns { text, reason } so callers can distinguish:
+ *   - text='...'  → success
+ *   - text=null + reason='insufficient' → source too sparse
+ *   - text=null + reason='claim_check_failed' → AI drifted
+ *   - text=null + reason='no_source' → no description to work from
+ *   - text=null + reason='not_found' → reportId invalid
+ * Backward-compat: text-only callers can still do `if (result.text)`.
  */
-export async function generateAndSaveAnswerLine(reportId: string): Promise<string | null> {
+export interface AnswerLineResult {
+  text: string | null
+  reason?: string
+}
+
+export async function generateAndSaveAnswerLine(reportId: string): Promise<AnswerLineResult> {
   const supabase = createServerClient()
 
   const { data: report, error: fetchError } = await (supabase.from('reports') as any)
@@ -50,7 +62,7 @@ export async function generateAndSaveAnswerLine(reportId: string): Promise<strin
 
   if (fetchError || !report) {
     console.error('[AnswerLine] Report not found: ' + reportId)
-    return null
+    return { text: null, reason: 'not_found' }
   }
 
   // Build the source-text packet for the rewrite pipeline.
@@ -90,7 +102,7 @@ export async function generateAndSaveAnswerLine(reportId: string): Promise<strin
     await (supabase.from('reports') as any)
       .update({ answer_line: null })
       .eq('id', reportId)
-    return null
+    return { text: null, reason: result.reason || 'unknown' }
   }
 
   const { error: updateError } = await (supabase.from('reports') as any)
@@ -99,10 +111,10 @@ export async function generateAndSaveAnswerLine(reportId: string): Promise<strin
 
   if (updateError) {
     console.error('[AnswerLine] Failed to save for report ' + reportId + ':', updateError)
-    return null
+    return { text: null, reason: 'db_save_failed' }
   }
 
-  return result.output
+  return { text: result.output }
 }
 
 /**
@@ -136,12 +148,12 @@ export async function generateAnswerLinesBatch(
       }
 
       try {
-        const text = await generateAndSaveAnswerLine(reportId)
-        if (text) {
+        const r = await generateAndSaveAnswerLine(reportId)
+        if (r.text) {
           stats.generated++
         } else {
           stats.failed++
-          stats.errors.push('Report ' + reportId + ': generation returned null')
+          stats.errors.push('Report ' + reportId + ': ' + (r.reason || 'generation returned null'))
         }
       } catch (err: any) {
         stats.failed++
