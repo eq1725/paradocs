@@ -75,6 +75,42 @@ const CATEGORY_COLOR: Record<string, string> = {
   combination:               '#94a3b8',
 }
 
+/**
+ * V10.6.4 — load Changa ExtraBold from Google Fonts so the wordmark
+ * actually renders in our brand font (was falling back to Inter
+ * before because Satori had no Changa data to draw with).
+ *
+ * The `text=Paradocs.` subset keeps the fetched font tiny — only
+ * the glyphs we need — and works around Google Fonts' default of
+ * serving the full character set as woff2.
+ */
+async function loadChangaFont(): Promise<ArrayBuffer | null> {
+  try {
+    const cssUrl =
+      'https://fonts.googleapis.com/css2?family=Changa:wght@800&text=' +
+      encodeURIComponent('Paradocs.') +
+      '&display=block'
+    const cssResp = await fetch(cssUrl, {
+      headers: {
+        // Force a UA that gets a static woff2 / ttf URL (Satori
+        // supports woff2 since v0.10.x which next/og bundles).
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+      },
+    })
+    if (!cssResp.ok) return null
+    const css = await cssResp.text()
+    const fontUrlMatch = css.match(/url\((https:\/\/[^)]+\.(?:woff2|woff|ttf|otf))\)/)
+    if (!fontUrlMatch) return null
+    const fontResp = await fetch(fontUrlMatch[1])
+    if (!fontResp.ok) return null
+    return await fontResp.arrayBuffer()
+  } catch (err) {
+    console.warn('[og report] Changa load failed:', err)
+    return null
+  }
+}
+
 export default async function handler(req: NextRequest) {
   try {
     const { searchParams, pathname } = new URL(req.url)
@@ -109,6 +145,11 @@ export default async function handler(req: NextRequest) {
     const whereStr = formatWhere(r)
     const whoStr = formatWho(r)
 
+    // V10.6.4 — fetch Changa ExtraBold so the wordmark matches the
+    // brand. We do this in parallel with everything else and don't
+    // block the render if it fails (falls back to Inter).
+    const changaData = await loadChangaFont()
+
     return new ImageResponse(
       (
         <div
@@ -123,19 +164,27 @@ export default async function handler(req: NextRequest) {
             fontFamily: 'Inter, -apple-system, system-ui, sans-serif',
           }}
         >
-          {/* V10.6.2 — Wordmark fix. Was rendering as two adjacent
-              same-size spans which Satori collapsed visually. Now
-              the dot is in its own larger element with explicit
-              display:flex, and the whole row gets more presence
-              at 52px (was 36). */}
+          {/* V10.6.4 — Wordmark now renders in Changa ExtraBold (the
+              same brand font used in the PWA splash + on-site
+              wordmark). Falls back to Inter if the font fetch fails.
+              Bumped to 64px for hero presence on the share card. */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'baseline' }}>
-              <span style={{ display: 'flex', fontSize: 52, fontWeight: 800, color: '#ffffff', letterSpacing: '-0.025em', lineHeight: 1 }}>
+              <span style={{
+                display: 'flex',
+                fontFamily: changaData ? 'Changa' : 'Inter',
+                fontSize: 64,
+                fontWeight: 800,
+                color: '#ffffff',
+                letterSpacing: '-0.02em',
+                lineHeight: 1,
+              }}>
                 Paradocs
               </span>
               <span style={{
                 display: 'flex',
-                fontSize: 52,
+                fontFamily: changaData ? 'Changa' : 'Inter',
+                fontSize: 64,
                 fontWeight: 800,
                 color: '#a855f7',
                 lineHeight: 1,
@@ -226,7 +275,13 @@ export default async function handler(req: NextRequest) {
           )}
         </div>
       ),
-      { width: 1200, height: 630 },
+      {
+        width: 1200,
+        height: 630,
+        fonts: changaData
+          ? [{ name: 'Changa', data: changaData, weight: 800, style: 'normal' }]
+          : undefined,
+      },
     )
   } catch (err: any) {
     console.error('[og report] error:', err)

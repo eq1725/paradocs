@@ -59,7 +59,7 @@ const JOBS: Array<{
       'Regenerates paradocs_assessment for INGESTED REPORTS only (reports table). ' +
       'Does NOT touch phenomena encyclopedia entries (/phenomena/<slug> pages — those use a separate pipeline). ' +
       'Renders below the fold on /report/[slug] as the lenses + open-questions analysis. ~$0.01/row.',
-    chunkSize: 10,
+    chunkSize: 5,
   },
   {
     kind: 'answer-lines',
