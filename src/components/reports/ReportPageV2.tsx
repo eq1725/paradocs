@@ -374,6 +374,12 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
             while leaving 128px of breathing room from max-w-6xl. */}
         <div className="max-w-3xl lg:max-w-6xl mx-auto px-4 sm:px-6 pb-12">
           <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8 lg:items-start">
+            {/* V10.7.B.4.1 — Main column wrapped in <main> so the grid
+                container sees exactly TWO children (main + aside).
+                Without this wrapper, every direct child (header, h1,
+                <p>, etc.) becomes its own grid cell and they alternate
+                across the two columns. */}
+            <main className="min-w-0">
             {/* ── Page chrome ────────────────────────────────── */}
             <header className="flex items-center justify-between gap-2 -mt-8 mb-6 relative z-10">
               <button
@@ -612,7 +618,7 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                 className="my-6"
               />
             )}
-          </div>
+            </main>
 
           {/* V10.7.B.4 — Desktop side rail. Hidden on mobile (mobile
               renders these same components inline in the main column,
@@ -663,6 +669,7 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               )}
             </div>
           </aside>
+        </div>
         </div>
       </article>
     </>
