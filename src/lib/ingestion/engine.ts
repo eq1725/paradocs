@@ -806,7 +806,10 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                 longitude: insertData.longitude ?? null,
               },
               {
-                geocoder: process.env.MAPTILER_API_KEY ? 'maptiler' : 'none',
+                // NEXT_PUBLIC_MAPTILER_KEY is the existing key already
+                // wired for the client-side map tiles. MAPTILER_API_KEY
+                // is supported as a server-only fallback.
+                geocoder: (process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.MAPTILER_API_KEY) ? 'maptiler' : 'none',
                 geocodeFn: maptilerGeocoder,
                 cache: makeSupabaseGeocodeCache(supabase),
               },
