@@ -143,8 +143,34 @@ export default function ReportLocationMap({
     })
     mapRef.current = map
 
+    // V10.9.D.14 — maplibre's canvas is sized at construction time
+    // based on the container's bounding box. Inside a flex/absolute-
+    // positioned parent that hasn't laid out yet, the container can
+    // be tiny → canvas tiny → most of the map area renders empty
+    // dark below the actual tiles. Force a resize once the map loads,
+    // and again whenever the container resizes (CSS reflow on viewport
+    // changes, sheet drawer animations, etc.).
+    map.once('load', () => {
+      try { map.resize() } catch (_e) { /* ignore */ }
+    })
+
+    let resizeObserver: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        try { map.resize() } catch (_e) { /* ignore */ }
+      })
+      resizeObserver.observe(containerRef.current)
+    }
+
+    // Belt-and-suspenders: also resize after the next frame in case
+    // the container's final size resolves a tick after init.
+    requestAnimationFrame(() => {
+      try { map.resize() } catch (_e) { /* ignore */ }
+    })
+
     return () => {
       // Cleanup nearby markers + focal marker before destroying map
+      if (resizeObserver) resizeObserver.disconnect()
       nearbyMarkersRef.current.forEach(m => m.remove())
       nearbyMarkersRef.current = []
       if (focalMarkerRef.current) {
