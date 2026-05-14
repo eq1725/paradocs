@@ -84,9 +84,16 @@ export default function RegionTotalsPanel({
     : total.toString()
 
   return (
+    // V10.9.D.1 — positioned ABOVE the existing 5-button MapControls
+    // stack which lives at lg:bottom-[90px] and runs up to ~bottom-330px.
+    // The pin trigger sits at bottom-[340px] with matching right-6 so
+    // it reads as part of the same right-rail column rather than a
+    // separate floating element. Earlier positioning at bottom-[200px]
+    // collided with the regions toggle and left the count badge
+    // bleeding past the right edge.
     <div
       ref={containerRef}
-      className="hidden lg:block absolute lg:bottom-[200px] lg:right-4 z-20"
+      className="hidden lg:block absolute lg:bottom-[340px] lg:right-6 z-20"
     >
       {/* Trigger button — visual language matches MapControls stack.
           40x40 round button with brand-purple count badge. The pin
