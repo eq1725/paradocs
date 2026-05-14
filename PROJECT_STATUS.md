@@ -1,0 +1,1382 @@
+# Paradocs — Project Status & Session Coordination
+
+**Last updated:** May 13, 2026 (V10.7 report-page push)
+**Project:** discoverparadocs.com (production); beta.discoverparadocs.com (beta)
+**Repo:** github.com/eq1725/paradocs (main branch)
+
+> **Purpose:** This is the top-level PM document. Every dedicated session reads this at startup and updates its section at the end. It serves as the coordination layer that prevents cross-feature dependencies from falling through the cracks.
+>
+> **This document is maintained by the Project Status session** — a dedicated PM session that reviews all feature session updates, identifies conflicts, reprioritizes work, and provides big-picture guidance. Feature sessions update their own sections and the Cross-Feature Notes table; the PM session synthesizes everything.
+
+---
+
+## V10.7 Report Page Push (May 12–13, 2026) — SHIPPED
+
+The biggest single-session push since V10.4. Goal: bring the report page to mass-market readiness ahead of the millions-of-reports mass ingest. All commits on `main`, deployed to production via Vercel.
+
+### V10.7.A — Witness Profile (per-report demographic extraction)
+- **A.0** migration `20260514_witness_profile_v10_7.sql` — adds `reports.witness_profile JSONB` + generated columns `witness_age_range`, `witness_state_at_event` + indexes.
+- **A.1** `src/lib/services/witness-profile.service.ts` — direct Anthropic fetch (NOT rewrite-pipeline, JSON output), strict prompt with anti-fabrication + privacy bans (no names, no employers, no race/religion inference), bucketed enums only. Hooked into ingestion engine after `generateAndSaveAnswerLine`. Backfill endpoint `/api/admin/backfill-witness-profile`.
+- **A.2** `WitnessProfilePill.tsx` (since absorbed into SourceAndWitnessBlock in V10.7.B.2) — displays age, gender, occupation, state-at-event, alone/with-others as clickable filter chips.
+
+### V10.7.B — Map clustering, nearby reports, page-layout pass
+- **B.0** `nearby_reports_within_km` haversine RPC (`20260514_nearby_reports_rpc_v10_7.sql`). Both `/api/reports/[slug]/nearby` and `getStaticProps` for `/report/[slug]` call it — single source of truth for "X km of Y" math. PostGIS migration path documented.
+- **B.1** `ReportLocationMap.tsx` accepts `nearby` prop; renders small cyan dots around the focal pin + a "X similar cases within Y km" badge with deep link to `/map?center=lat,lng`. Supercluster deferred (decided not worth the overhead at 50 points / 80km).
+- **B.2** Source & Witness merged block (`SourceAndWitnessBlock` sub-component in ReportPageV2.tsx) — collapses three thin chip rows (phenomena chips · credibility band · witness pill) into one unified dateline grid. Pattern strip moved from above-narrative to below-source-block. Mobile map shrunk 35vh → 22vh.
+- **B.4** Desktop side-rail at lg+: 2-column grid `[minmax(0,1fr)_320px]`. Main column is reading content; rail holds dateline + resonance + pattern strip. Sticky `top-24` + `pt-12` to clear navbar and align with H1 title.
+- **B.5/B.6/B.7/B.8/B.9** iterative screenshot-review polish (chip alignment, items-center grid, unified dateline, drop chip pills, resonance position UX-journey fix, tighter prominent variant for narrow column).
+
+### V10.7.D — Claim-check tuning (rewrite-pipeline)
+The V10.6 claim-check was rejecting valid paraphrases on style differences (e.g. "orange" vs "orange hue", "smart-car" vs "compact car", "meditation" vs "eyes closed and focused on breath"). New regime explicitly distinguishes FABRICATION / NARROWING / GENERAL-KNOWLEDGE FILLER (reject) from SYNONYMS / GENERALIZATION / CONTEXTUAL INFERENCE / STRUCTURE (accept). Worked examples for each category baked into the prompt.
+
+`PROMPT_VERSION` bumped to `v10.7.d` in `src/lib/ai/rewrite-pipeline.ts`. Existing rows keep their pre-v10.7.d audit history; new generations will be filterable in `/admin/ai-audit`.
+
+### V10.7.E — Worth Chasing dropped + pattern strip rebalanced
+- "Worth Chasing" open-questions block removed from `ReportBelowFold` (dead-end intellectual content with no CTA). Field still generated and stored for future reuse.
+- Pattern strip dropped same-category chip (duplicated Related Reports). New facets: geographic radius (uses nearby[] data), same state, same witness state (uses V10.7.A.0 `witness_state_at_event` indexed column), same phenomenon type. Header renamed "How this fits the archive" → "Similar cases".
+
+### V10.7.F — Editorial third-person enforcement on hook + pull_quote
+The pull_quote renders inside a styled blockquote with curly quotation marks. When the model produced first-person language (e.g. Kansas case: "It rushed past me, flew directly over my roof…") the page read like a direct witness quote — a policy violation since Paradocs is an index with original editorial commentary, never republished witness speech. Corpus audit found 7/103 (7%) pull_quotes contained first-person pronouns; 0 feed_hooks after correcting an initial regex false-positive on hyphenated compounds.
+
+Three layers of defense in `src/lib/services/paradocs-analysis.service.ts`:
+1. **Prompt hardening** — HOOK RULES + PULL QUOTE RULES gained an explicit "EDITORIAL THIRD-PERSON ONLY" hard rule with the real Kansas failure as a counter-example.
+2. **Post-process gate** — `findFirstPersonPronouns()` detects `\b(I|me|my|mine|we|us|our|ours)\b` at word boundaries. Hyphenated-compound tokens (`I-80`, `strip-mine`, `we-the-people`) are correctly excluded.
+3. **Retry-on-violation** — first attempt with violation forces a fresh generation. Second attempt with persistent violation ships with the offending field blanked rather than blocking the row.
+
+`PROMPT_VERSION` bumped to `v10.7.f` in `src/lib/ai/rewrite-pipeline.ts`. Audit rows filterable by `paradocs-analysis-v10.7.f%`. The 7 affected slugs need targeted regen via `POST /api/admin/backfill-analysis {"slug": ...}`.
+
+### V10.7.B.4.4 — Slug-targeted analysis regen
+`POST /api/admin/backfill-analysis` now accepts optional `slug` body param for targeted single-report regen. Useful for diagnosing claim-check rejections without walking the full corpus.
+
+### Misc fixes shipped in the push
+- Answer-line char cap 180 → 280, prompt rewritten with 6-item priority list (witness age, state, sequel, etc.). `PROMPT_VERSION` v10.6.28 → v10.7.b.5 (and later v10.7.d for V10.7.D claim-check).
+- OBE-style PlatformBadge hidden when source label is ≤5 chars and not a known platform.
+- ReportMeta + SourceAndWitnessBlock use `items-center` (not `items-start`) for centerline label/value alignment.
+
+### Pending validation / known issues
+- **V10.7.D Kansas validation — CLOSED (May 13).** Audit log shows three v10.7.d passes on `reports.paradocs_narrative` for the Kansas case, all `claim_check_passed=true`. 938-char third-person narrative renders cleanly on production (verified by live `curl` once the prod basic-auth creds were synced). Worth Chasing is dropped, pattern strip gates correctly on the sparse-corpus case (109 reports, 0 nearby/state/witness-state/phenomenon matches).
+- **V10.7.F backfill — IN FLIGHT.** 7 pull_quotes with first-person voice identified by corpus audit. Need to run slug-targeted regen against the v10.7.f-deployed endpoint. Affected slugs: `pre-birth-memory-bp9szc`, `bigfoot-encounter-near-lowville-new-york-2025-f2rtxz`, `out-of-body-experience-s702js`, `bigfoot-encounter-near-port-townsend-2025-f2rtwd`, `other-experience-72qql1`, `premonition-waking-vision-2017-ouew52`, `psychic-experience-kansas-4hxm98`.
+- **No backfill run on test corpus** for witness-profile (V10.7.A.1) at scale. Spot-checked 10 reports cleanly. Mass ingest will populate organically.
+
+---
+
+## Product Vision
+
+Paradocs operates on three layers, each serving a distinct audience but sharing a single data foundation.
+
+**Layer 1 — The People's Tool.** Anyone who's had an experience — seen a UFO, had an NDE, encountered something they can't explain — can log it, search through what others have reported, save things, and study them. The database is the core asset: the largest aggregated collection of experiencer reports and phenomena data online, pulled from every legally accessible source. The experiencer demographic is genuinely underserved — MUFON is bureaucratic, Gaia is entertainment, the Black Vault is raw and unfiltered. Paradocs is the first product that meets that person where they are.
+
+**Layer 2 — The AI Brain.** This is what makes Paradocs more than a database. The AI sees across millions of reports, detects patterns humans can't, identifies temporal and geographic clusters, and eventually predicts flaps and activity surges. The editorial position is deliberate: we hypothesize that the data points toward consciousness being fundamental and these phenomena being real, but the platform leads with evidence and analysis rather than declarations. Let the data speak. Present the best analysis possible and let people draw their own conclusions — while making it clear through the depth and seriousness of the platform that this deserves rigorous attention.
+
+**Layer 3 — The Professional Platform.** Content creators researching a show episode, podcasters building an outline, academics writing a paper for peer review — Paradocs gives them research tools (the Research Hub, case files, artifact collection, external URL aggregation) that make their work faster and more thorough. The goal is to become the infrastructure the paranormal research ecosystem runs on, with relationships across all major networks and content channels.
+
+**Data Aggregation Strategy:** Aggressive and comprehensive. Scrape and aggregate everything legally available: Reddit posts and comments, YouTube video metadata/transcripts/comments, Erowid trip reports, MUFON case files, NUFORC sightings, BFRO reports, NDERF/IANDS accounts, forum posts, podcast transcripts, news articles, academic papers, government documents — all flowing into one normalized database where the AI can see connections across sources that no human could track. The more data, the more valuable the platform becomes.
+
+---
+
+## Critical Sequencing
+
+> **REVISED March 23, 2026.** The original A → B → C waterfall has been replaced. Encyclopedia and editorial are parallel value-adds. The four pillars — Database Scale, AI Intelligence, Research Dashboard, Stories Feed — are the product. **Content posture revised:** Paradocs operates as an index with attribution. External reports are metadata + AI-generated original analysis + source link. Raw scraped text is never displayed to users. See "Content & Legal Posture" section below.
+
+### Content & Legal Posture (March 23, 2026)
+
+Paradocs is an **index with attribution**, not a republisher. This mirrors Google News / Feedly.
+
+**What this means for every feature session:**
+- **Own encyclopedia entries** — full content, no restrictions. We own it entirely.
+- **Scraped external reports** — metadata + "Paradocs Analysis" (AI-generated original analysis) + source link. Never reproduce full source text to users.
+- **Where APIs exist** (NUFORC, Reddit), use them over raw scraping.
+- **Always show source attribution** with link to original. Source link is a citation footnote, not a primary CTA. In-app browser for mobile (Capacitor `Browser.open()` popover), not an app-ejecting redirect.
+- The raw `description` field stays in DB for AI processing (hook generation, analysis, embedding, pattern detection) but is NEVER rendered to end users.
+
+**"Paradocs Analysis" — the transformative content layer:**
+- Every report page shows a "Paradocs Analysis" box (matching encyclopedia page style: purple gradient, Lightbulb icon).
+- Contains: `paradocs_narrative` (2-4 paragraph original contextual analysis) + `paradocs_assessment` (credibility score, mundane explanations, content type).
+- Generated at ingestion time by Claude Haiku (not on-demand). Pre-computed for every report.
+- **AI labeling rules:** The narrative analysis is NOT labeled as AI-generated — it's Paradocs's editorial voice. The assessment sections (credibility, mundane explanations, content classification, related phenomena) are NOT labeled as AI — they're presented as Paradocs Analysis, our editorial product. No "AI-Assisted" labels anywhere.
+- Length proportionality: source under 50 words → 1 paragraph. 50-200 words → 2 paragraphs. 200+ words → 3-4 paragraphs. Never exceed source length.
+
+**Feed card content (updated March 28):**
+- Feed cards show: category badge, location, date, credibility indicator, `feed_hook` (AI-generated, not labeled), source attribution.
+- No raw source text on cards. The `feed_hook` is Paradocs's editorial voice — two-line format (25-50 words): line 1 = hardest-hitting fact/stat, line 2 = unresolved tension.
+- All quote-style rendering removed (italic blockquotes, serif quote marks, `"` watermarks). Cards use bold editorial voice only.
+- Visual moods: `dossier` (case-file grid, corner markers), `cinematic`, `minimal`, `atmospheric` — no `quote` mood.
+- 100% hook coverage: 29/29 reports, 4,727/4,743 phenomena have `feed_hook` generated via Claude Haiku.
+- Homepage "Eyewitness accounts" preview uses same editorial voice — `DossierCard` replaced `PullQuoteCard`.
+
+### Algorithmic Feed Strategy (March 24, 2026)
+
+> The feed must create paranormal enthusiasts, not just serve existing ones. An algorithmically ranked feed is the structural moat — manual curation is a community newsletter.
+
+**North star metric: Session Depth** — average cases viewed per session. Optimize every decision against: did this increase average session depth?
+
+**Must ship at launch (non-negotiable):**
+1. **Behavioral events table** — every impression, dwell, tap, save, share, scroll_depth written to `feed_events`. Anonymous + authenticated. Batched writes, sendBeacon on unload. Every week without this data is training data permanently lost.
+2. **V1 scored ranking** — replace seeded random shuffle with parameterized scoring: `base_engagement + recency_boost + user_affinity + diversity_penalty + random_explore`. Weights in `feed_config` table, tuneable without code changes. Not ML — just a scored SQL query.
+3. **Cold start onboarding** — "What draws you in?" pick 3+ category tiles on first visit. Seeds user_affinity until behavioral data overrides it.
+4. **Session context weighting** — track in-session category taps, blend 60% session affinity / 40% long-term affinity for feed pagination.
+5. **Depth gating** — 2-3 free case views/day, AI search gated, Ask the Unknown 1 free/week. Gate copy is dynamic and context-specific, references session depth.
+
+**Deferrable (post-launch):**
+- Emotional tone tagging at ingestion (60 days) — improves session continuity
+- Per-user ML model (90 days) — V1 scored query carries load
+- Real-time feed updates — batch hourly fine at <10K users
+
+**Session 2 owns all algorithmic feed work.** Session 6b fires behavioral events on report pages and renders gate components.
+
+### Launch Path (Critical — MVP)
+
+1. **Data cleanup** — ✅ DONE (Session 10, March 25 2026). Deleted ~2M hidden Reddit dev data, ~900 test reports, AND 40 AI-generated filler reports that were incorrectly labeled as curated. Migration applied. Clean DB: only 1 Roswell showcase report remains. **ACTION ITEM (Chase — Report Experience-Curated session):** Re-seed Roswell witness cluster (13 witnesses) and Rendlesham Forest cluster (1 showcase + 5 witnesses) from existing seed scripts in `src/pages/api/admin/seed-rendlesham-cluster.ts` and `public/admin-seed-roswell-witnesses.js` / `public/admin-roswell-cluster-upgrade.js`.
+2. **Finalize ingestion pipeline** — Pipeline outputs per report: metadata card (feed_hook + source attribution), Paradocs Analysis (narrative + assessment), vector embedding. Raw description stored but never displayed. Source URL required for every adapter.
+3. **Mass ingestion at scale** — YouTube, Erowid, Reddit (fresh via Arctic Shift), forums, news, etc. Target: 1M+ for closed beta. Cost: ~$750-1,000 per 1M for all AI generation (hooks + narrative + assessment).
+4. **Embedding pipeline at scale** — Embed all ingested reports into pgvector. Pipeline exists (Session 15). Cost: ~$500-600 for 5M reports.
+5. **Report detail page redesign (Session 6b)** — Index model: Paradocs Analysis box (narrative + assessment), metadata grid, linked phenomena, Research Hub preview (blurred for free), source attribution footnote. No raw description rendering. Fires behavioral events for algorithmic feed.
+6. **Algorithmic feed + depth gating (Session 2)** — Behavioral events table, V1 scored ranking (replace random shuffle), cold start onboarding ("pick 3 topics"), session context weighting, depth gating (2-3 free views/day, AI search gated, Ask the Unknown 1/week), new card types (Clustering, On This Date). North star: session depth.
+7. **Subscription & payments** — Stripe integration, checkout flow, tier gating. Blocked on Stripe key.
+8. **Native app wrapper (Capacitor)** — iOS App Store + Google Play Store. Subscriptions via Stripe web checkout. Push notifications. Estimate: 1-2 sessions.
+9. **Closed beta (~2 weeks)** → **Public launch**
+
+### Parallel Tracks (Ongoing — Not Blockers)
+
+- **Encyclopedia enrichment (Session 1)** — Enrich 7 AI fields across all 11 categories. Work category by category.
+- **Curated editorial content (Session 6a)** — More Featured Investigation clusters (Skinwalker Ranch, Phoenix Lights, etc.).
+- **Email & engagement (Session 9)** — Onboarding drips, weekly digests, smart alerts, winback.
+- **Researcher Spotlight, Pattern Alert, Proximity cards** — v2 feed enhancements.
+
+### Data Status
+
+- **~900 test reports + ~2M hidden Reddit reports + 40 AI-generated filler:** ✅ ALL DELETED (March 25 2026).
+- **1 curated Roswell showcase report** remains in DB. Roswell witness cluster (13) and Rendlesham cluster (6) need re-seeding from existing seed scripts (see Action Item in Launch Path step 1).
+- **Ingestion pipeline:** Step 3 in progress — initial 20-report quality review ingestion underway.
+- **4,743 phenomena entries:** Basic taxonomy across 11 categories. Only cryptids (208) fully enriched. Sufficient for report classification. **4,727 have AI-generated feed_hooks** (100% coverage, March 28).
+
+### Conversion Strategy (Depth Gate)
+
+Free on Paradocs = standing outside a bookstore reading back covers. Core ($5.99) = the library card. The feed is the window display.
+
+**Gate triggers (action-based, not time-based):**
+- Full case/report view: 2-3 free per day, then contextual dynamic upgrade prompt showing what they're missing
+- Search: basic keyword search free, AI search + advanced filters gated at Core
+- Ask the Unknown: 1 free query per week, then subscription upsell pitch (not just "pay for AI" — pitch full subscription value)
+- Save/bookmark: free users save 5 items, Core unlocks unlimited
+- Research Hub: blurred/locked preview visible on every case page (conversion carrot)
+- Constellation: gated behind Pro tier
+
+**Gate copy must be dynamic and context-specific:** "This case on the 1967 Falcon Lake incident has 14 linked reports and connections to 8 similar events. $5.99/month unlocks unlimited access."
+
+### Design Implications
+
+All feature sessions must design for the index model: (1) mass-ingested reports show Paradocs Analysis + metadata + source link (never raw source text), (2) curated reports (Roswell, Rendlesham) show full editorial content (we own it), (3) encyclopedia entries show full AI-enriched content (we own it). The Research Hub is the depth product gated behind subscription.
+
+---
+
+## Subscription Tiers
+
+| Tier | Price | Audience | What They Get |
+|------|-------|----------|---------------|
+| **Free** | $0 | Everyone | Curated slice of the database. Enough to experience the product, get hooked on a case, browse reports. No barrier. Free users are the funnel and the social proof engine — shares, screenshots, word of mouth. |
+| **Core** | $5.99/mo | Casual explorers + experiencers | Two equally important audiences. The casual explorer drawn in by breadth — UFOs, NDEs, cryptids, consciousness, reincarnation, occultism, all searchable and browsable. And the experiencer: the person who saw something, had an NDE, has a family history of encounters — looking for context, validation, or simply to know they're not alone. For them, Paradocs isn't entertainment, it's a mirror. Full database access, clean UX, less than a coffee a month. |
+| **Pro** | $14.99/mo | Deep researchers + creators | Podcasters sourcing material, independent investigators, content creators needing primary sources and AI cross-referencing, serious experiencers mapping encounters against historical data. Full toolkit: advanced search, AI cross-referencing, saved collections, annotations, alerts. Most engaged users. Backbone of recurring revenue. They'd pay $29 without hesitation; $14.99 gets them in faster and keeps them longer. |
+| **Enterprise** | $99/mo | Organizations | Research groups, podcast networks, academic institutions, investigation orgs, media outlets. Small pool (dozens to low hundreds) but each worth 7x Pro with institutional stickiness. MUFON chapters, university parapsychology programs, UFO investigation orgs, paranormal media companies. Multi-seat, priority support, API potential. |
+
+**Tier gating approach (per Dashboard session):** Board+Timeline views free, Map view basic, Constellation view pro-gated. Pattern insights, AI cross-referencing, and advanced search are pro features. Enterprise gets API access and multi-seat.
+
+---
+
+## How Sessions Work
+
+Each major feature area has a dedicated Claude session with its own deep context. Sessions follow this protocol:
+
+1. **On startup:** Read `PROJECT_STATUS.md` + your feature's HANDOFF file
+2. **During work:** Stay focused on your feature domain
+3. **On completion:** Update your section below + flag any cross-feature impacts in the Cross-Feature Notes section
+4. **If you touch shared code:** Note it in the Foundation/Infrastructure section
+
+---
+
+## Session Registry
+
+| # | Session Name | Scope | HANDOFF File | Status |
+|---|-------------|-------|-------------|--------|
+| 1 | **Encyclopedia Enrichment** | Phenomena content, AI fields, QA/QC, triage | `HANDOFF.md` (existing) | Active — Cryptid category 100% complete |
+| 2 | **Explore & Discovery** | Algorithmic feed (scored ranking, behavioral signals, cold start), depth gating, new card types, personalization | `HANDOFF_EXPLORE.md` | Active — **Phase 3.5 DEPLOYED (March 28):** Card content overhaul for index model — all quote styling killed, editorial voice unified, 100% feed hook coverage (29 reports + 4,727 phenomena). Phase 3 algorithmic feed (March 25). Phase 2.5 2D swipe (March 22). **Next: Set up Vercel cron for engagement refresh, tune weights, wire search/Ask gating.** |
+| 3 | **Map & Geospatial** | MapLibre GL map, PostGIS queries, Supercluster, heatmap, bottom sheet | `HANDOFF_MAP.md` | Active — Phase 1 & 2 COMPLETE, Phase 3 partial. Deep-link URL params added (lat/lng/zoom) |
+| 4 | **Insights & Pattern Analysis** | Pattern detection algorithms, AI narratives, skeptic mode, trending, methodology | `HANDOFF_INSIGHTS.md` | Not started |
+| 5 | **User Dashboard & Constellation** | Dashboard home, constellation map (D3), research hub, journal, saved items, streaks, settings | `HANDOFF_DASHBOARD.md` | Active — Research Hub Phase 1-3 deployed, 16+ source types, mobile fixes applied |
+| 6a | **Report Experience — Curated Content** | Handcrafted case files, editorial enrichment, Featured Investigations, curated media, book recommendations | `HANDOFF_REPORTS.md` | Active — 20 reports across 2 case clusters (Roswell 14 + Rendlesham 6), credibility rationales, badge redesign, homepage discovery row |
+| 6b | **Report Experience — Ingestion & Scale** | Reports from mass ingestion pipeline, quality templates, automated enrichment, connection generation at scale | `HANDOFF_REPORTS_INGESTION.md` | Active — Report detail page redesign COMPLETE (March 25). Index model enforced: ParadocsAnalysisBox, SourceAttribution, ResearchHubPreview. Curated reports unaffected. Behavioral event stubs wired for Session 2. Awaiting Session 10 data to populate. |
+| 7 | **Search, Navigation & Homepage** | Full-text search, site navigation, homepage layout/UX, onboarding flows, SEO, color system, PWA | `HANDOFF_SEARCH_NAV.md` | Active — **April 27-29 HOMEPAGE REDESIGN (AllTrails-tier):** Complete homepage overhaul benchmarked against AllTrails. 8 sections: Hero (animated typewriter search) → Category Slideshow → AI Insight (4 rotating insights + share) → Feed Phone Showcase → Map Phone Showcase → Lab Laptop Showcase → How It Works + FAQ → Data Proof CTA. Realistic vector device frames (phone + laptop SVGs with transparent screen cutouts). WebP category images (80-87% savings). A/B hero headlines. See session details below. |
+| 8 | **Subscription & Monetization** | Stripe checkout, paywall, tier system, billing portal, cancellation | `HANDOFF_SUBSCRIPTION.md` | Not started |
+| 9 | **Email & Engagement** | Weekly digests, drip campaigns, smart alerts, winback, notifications | `HANDOFF_EMAIL.md` | Not started |
+| 10 | **Data Ingestion & Pipeline** | Source adapters, quality filters, dedup, bulk import, feed hooks, Paradocs Analysis, embedding integration | `HANDOFF_INGESTION.md` | Active — **April 14 (Session B1.5):** Live smoke-test QA/QC pass underway. NDERF evaluative-tier neutralization verified. OBERF `case_profile` extraction rebuilt (LabelResolver closure, color-span field map, archive-type inference); 3-row smoke test passed across OBE/SOBE + narrative-only variants. **Remaining B1.5 work:** 5-per-category smoke tests across remaining 7 OBERF archives, then IANDS → BFRO → NUFORC → Reddit V2 → YouTube → Erowid. **Session B2 (mass ingest) blocked on B1.5 sign-off.** See B1.5 section below. |
+| 11 | **Admin & Operations** | Admin dashboard, batch operations, cron jobs, A/B testing, monitoring | `HANDOFF_ADMIN.md` | Not started |
+| 12 | **Foundation & Infrastructure** | Shared components, auth/RLS, database schema, deployment, performance, SEO | `HANDOFF_FOUNDATION.md` | Not started |
+| 13 | **Mobile-First Design System** | Cross-cutting mobile UX: bottom tabs, bottom sheets, design tokens, screen-by-screen redesign | `HANDOFF_MOBILE.md` | Active — Phase 1-2 + 3a + Nav Unification deployed. Screen-by-screen redesign next. |
+| 14 | **Amazon Affiliate & Revenue Content** | Book recommendations, ASIN curation, affiliate strategy, FTC compliance, revenue optimization | `HANDOFF_AFFILIATE.md` | Active — Foundation deployed (report_books table, FurtherReading component, 16 Roswell books). Expansion needed. |
+| 15 | **AI Experience & Intelligence** | Ask the Unknown chat, AI report analysis, AI cross-referencing, AI search, AI voice/personality, provider management | `HANDOFF_AI_EXPERIENCE.md` | DEPLOYED — RAG pipeline, semantic search, pattern detection, chat with citations all live. ~3,600 phenomena embedding remaining. |
+| A1 | **Lab + Nav + Profile (UX Consolidation)** | New /lab page (4 tabs), new /profile page, MobileBottomTabs rewrite, 301 redirects, Layout.tsx nav update | N/A | **COMPLETE (April 1)** — See details below |
+| A2 | **Explore Consolidation** | Merge /explore, /map, /search, /phenomena listing into one page with Map/Browse/Search tabs | N/A | **COMPLETE (April 1)** — See details below |
+| B1 | **Ingestion Adapter Hardening** | Audit, fix, and dry-run all high-priority adapters; YouTube comment extraction; crosspost dedup; dry-run script | N/A | **COMPLETE (April 2)** — See details below |
+| B1.5 | **Ingestion Adapter QA/QC (Live Smoke Tests)** | 5-report-per-adapter smoke tests against live sources, row-level verification of case_profile / tier / enrichment fields, bug fixes before mass ingest | `B1_5_QA_QC_NOTES.md` | **IN PROGRESS (April 14)** — NDERF evaluative-tier neutralization + OBERF case_profile extraction complete. 3-row OBERF acceptance evidence captured. Remaining: re-verify NDERF+OBERF with 5 per category, then IANDS → BFRO → NUFORC → Reddit V2 → YouTube → Erowid. **No mass ingest until B1.5 is signed off.** |
+| L1 | **Lab QA Iteration (Saves / Cases / Map / Notes)** | Live QA-driven polish across the /lab surface — patterns overhaul, full Tiptap WYSIWYG note editor, Lab map ported to MapLibre with basemap switcher / heatmap / timeline / historical-wave overlays / global-context backdrop, detail-panel sync fixes, terminology cleanup (Research Hub → Lab) | `LAB_QA_SESSION_2026_04_19.md` | **IN PROGRESS (April 17–May 1)** — 28+ commits shipped. Chase iteratively QAing each deploy. May 1 continuation: toast centering fix, footer hidden on mobile, legal links on Profile, "Investigate"→"Lab" rename, sticky tab bars. See doc for full per-area summary. |
+
+---
+
+### Session L1: Lab QA Iteration — IN PROGRESS (April 17–19, 2026)
+
+**Scope:** Live, QA-driven polish of the /lab surface. Chase reviews each Vercel deploy and drives the next iteration. No finalization target — pass completes when Chase signs off.
+
+**Themes shipped:**
+
+1. **Patterns overhaul.** Dropped "obvious-count" insight types (tag_cluster, location_cluster, verdict_drift, category_compelling). Added `historical_wave` (cross-referenced to HISTORICAL_WAVES — 11 curated waves anchored to encyclopedia entries), `tag_cooccurrence`, `geographic_density`. Unified the display into a single `PatternsLane` at the top of Saves via new `PatternCard` component; killed mid-feed inline interleaves. New `/api/constellation/related-reports` endpoint builds a 180-day research footprint and returns matching unseen reports.
+
+2. **Note editor → full Tiptap WYSIWYG.** Replaced the textarea + Write/Preview toggle with `RichNoteEditor.tsx` wrapping Tiptap (StarterKit + Link + Placeholder + CharacterCount + `tiptap-markdown`). Storage stays as plain markdown in `user_note` — every non-editor render surface (`NodeDetailPanel` preview, backlinks panel, card preview, digest email) is unaffected. Wikilinks `[[Title]]` render as cyan chips (view-layer ProseMirror decoration) with brackets hidden at zero-width. Chip styling pinned to absolute px across editor + detail panel + card preview. Toolbar buttons are state-aware toggles (Word/Notion style).
+
+3. **Lab map → MapLibre GL port.** Ripped out react-leaflet. Shipped all three tiers:
+   - **Tier 1**: MapLibre WebGL rendering, basemap switcher (dark/satellite/terrain), density heatmap.
+   - **Tier 2**: NavigationControl + GeolocateControl, animated flyTo on cluster click, hover-grow pins.
+   - **Tier 3**: Timeline scrubber (range aligns to TIMELINE.min → current year when global backdrop on), historical-wave dashed-ring polygons on matching saves, interactive global-context backdrop (all Paradocs reports as faint dots; hover shows tooltip with title/location/year; click opens the report in new tab).
+
+4. **Detail panel sync + polish.** `selectedEntry` now re-resolves from fresh `userMapData` after parent refetch (was a stale reference → case-file adds didn't reflect). Header leads with entry title (line-clamp-2); category demoted to sub-label. z-index bumped to `z-[1000]` to beat Leaflet/MapLibre panes.
+
+5. **Terminology cleanup.** "Research Hub" replaced with "Lab" / "your Lab" across save modal, report-page buttons, toasts, delete confirmations. Backend file paths + DB columns intentionally untouched. "Wikilinks" term dropped from user-facing copy in favor of describing the behavior.
+
+6. **Cards & thumbnails.** New `CategoryHero` component for image-less Paradocs-report saves: diagonal gradient tinted by category, radial glow, grid-paper texture, large centered glyph. Category theme color table safelisted for Tailwind JIT. Card note previews go through `renderNotePreview` (inline-only first-paragraph flatten) so wikilinks render as chips.
+
+7. **Bug fixes.** Case-file bootstrap (can't create first), duplicate footer on `/lab` + `/profile`, Reader toggle missing on Wix/blog URLs, Paradocs-report saves not appearing on map (Supabase FK array-wrap unwrapping), chip styling divergence between surfaces, global-context filter-shape mismatch, global-context compound paint expression rejected by MapLibre.
+
+**Workflow:** Every commit pushed immediately; Chase runs `git push` and monitors Vercel; each round ends with Chase sending a screenshot + new QA item. Commit messages use HEREDOC. Typecheck filtered by touched files before each commit.
+
+**May 1 continuation (Radar/Lab polish):**
+
+8. **Toast centering fix.** The "Notify me" toast in `LabConstellationTab.tsx` was not centering on mobile or desktop. Root cause: `cv2FadeUp` animation's final `transform: translateY(0)` overrode the inline `transform: translateX(-50%)` used for centering. Fix: restructured to `left:0; right:0` with flexbox centering on an outer container so animation transform on the inner pill doesn't conflict.
+
+9. **Footer hidden on mobile.** Added `hidden md:block` to the `<footer>` element in `Layout.tsx`. The bottom tab nav replaces the footer on mobile; website footer only shows on desktop.
+
+10. **Legal/about links on Profile page.** Added About, Privacy Policy, and Terms of Service links in a mobile-only "About & Legal" section on `profile.tsx` (above Sign Out), preserving access to those links after hiding the footer.
+
+11. **Unified naming: "Investigate" to "Lab".** Changed `MobileBottomTabs.tsx` label from "Investigate" to "Lab" for consistency with desktop nav, page heading, and URL.
+
+12. **Sticky tab bars.** Made tab bars sticky on both Lab and Explore pages:
+    - Created `.sticky-below-header` CSS utility class in `globals.css` that accounts for `safe-area-inset-top` (Dynamic Island/notch)
+    - Lab (`lab.tsx`): split header into scrolling title row + sticky tab bar
+    - Explore (`explore.tsx`): replaced hardcoded `top-14` with `sticky-below-header` class to fix mobile safe-area gap
+
+**Pending (not blockers):**
+- Cases tab hasn't received the same visual iteration as Saves / Map.
+- Mobile testing of the Map Layers panel on small viewports.
+- Paste-from-Word / Docs into Tiptap hasn't been stressed.
+- Cross-user pattern detection on shared case files (task #65).
+- Mini knowledge graph per case file (task #62).
+- `react-leaflet` / `leaflet` deps still in `package.json` — unused after Lab map port, drop in cleanup.
+- Legacy `/dashboard/research-hub` route + surrounding components still live in repo but unreachable from nav.
+- Task #55: Handle incomplete encyclopedia pages gracefully.
+- Task #62: POST-INGESTION: Replace hardcoded 2.3M with real database count.
+- **Next planned work:** Expert panel review and redesign of the Reports tab (discover page) on both desktop and mobile.
+
+**See:** `LAB_QA_SESSION_2026_04_19.md` for the full commit-by-commit log and file-change table.
+
+---
+
+### Session A1: Lab + Nav + Profile — COMPLETE (April 1, 2026)
+
+**What was built:**
+
+1. **`/lab` page** (`src/pages/lab.tsx`) — Single tabbed view replacing 10 dashboard routes:
+   - 4 horizontal tabs: Saves | Cases | Map | Notes
+   - Saves tab: grid of saved reports with category filter, pagination, AI insight card placeholder
+   - Cases tab: placeholder — "Coming soon for Core+ subscribers"
+   - Map tab: placeholder — "Coming soon for Pro subscribers" (ConstellationMapV2 can be integrated here)
+   - Notes tab: journal entries with search, pagination, new note creation link
+   - Gear icon → /profile, Bell icon for future notifications, Submit Report link
+   - Works for unauthenticated users (shows sign-in prompt)
+
+2. **`/profile` page** (`src/pages/profile.tsx`) — Public researcher identity + account management:
+   - Shows avatar, display name, username, rank (Observer → Investigator → Senior Researcher → Field Agent)
+   - Stats row: saved count, reports, hypotheses (placeholder 0), corroborations (placeholder 0)
+   - Links to: Account Settings, Subscription, Public Profile, Lab, Sign Out
+   - **May 1:** Added mobile-only "About & Legal" section (above Sign Out) with About, Privacy Policy, and Terms of Service links — these were previously only accessible via the footer, which is now hidden on mobile
+   - Unauthenticated users see sign-in prompt
+
+3. **`MobileBottomTabs.tsx` rewrite** — New 4-tab structure:
+   - Feed (flame) | Explore (compass) | Lab (telescope) | Profile (user)
+   - "More" bottom sheet REMOVED entirely
+   - [+] FAB REMOVED
+   - Profile tab redirects to /login for unauthenticated users
+   - Active tab indicator uses existing brand primary-400 color
+   - **May 1:** Label changed from "Investigate" to "Lab" for consistency with desktop nav, page heading, and URL
+
+4. **301 redirects** in `next.config.js`:
+   - `/dashboard` → `/lab`
+   - `/dashboard/saved` → `/lab?tab=saves`
+   - `/dashboard/research-hub`, `/dashboard/reports` → `/lab?tab=cases`
+   - `/dashboard/constellation` → `/lab?tab=map`
+   - `/dashboard/journal`, `/dashboard/journal/*` → `/lab?tab=notes`
+   - `/dashboard/insights` → `/lab?tab=saves`
+   - `/dashboard/digests` → `/lab`
+   - `/dashboard/settings`, `/dashboard/subscription` → `/profile`
+   - `/feed` → `/discover`
+
+5. **Layout.tsx desktop nav updated**:
+   - Navigation now: Feed | Explore | Encyclopedia | Ask AI | Lab
+   - User dropdown: Lab (was Dashboard), Profile (was Settings), Settings → /profile
+   - Mobile avatar link: /profile (was /dashboard)
+
+6. **Internal link updates** (9 files, 13 references):
+   - `submit/success.tsx`: /dashboard → /lab
+   - `FeatureGate.tsx`: /dashboard/subscription → /profile
+   - `UpgradeCard.tsx`: /dashboard/subscription → /profile (2 occurrences)
+   - `UsageWarningBanner.tsx`: /dashboard/settings#subscription → /profile
+   - `AcademicObservationPanel.tsx`: /dashboard/subscription → /profile
+   - `insights/index.tsx`: /dashboard/settings → /profile
+   - `RecentDiscoveries.tsx`: /dashboard/saved → /lab?tab=saves
+
+**Cross-session impacts for Session A2:**
+- Explore consolidation should follow the same tab pattern (Map | Browse | Search within /explore)
+- MobileBottomTabs already routes /explore, /map, /search, /phenomena to the "Explore" active state
+- The old dashboard pages still exist at their routes but all have 301 redirects — they can be deleted once A2 confirms no dependencies
+- Journal /dashboard/journal/new and /dashboard/journal/[id] still need to exist as actual pages (or be relocated into the Lab) since the Notes tab links to them
+
+**SWC compatibility:**
+- lab.tsx and profile.tsx use `var` + `function(){}` for SWC compatibility
+- MobileBottomTabs.tsx uses `var` + `function(){}` (same pattern as before)
+
+---
+
+### Session A2: Explore Consolidation — COMPLETE (April 1, 2026)
+
+**What was built:**
+
+1. **`/explore` page rewritten** (`src/pages/explore.tsx`) — Three mode tabs consolidating 5 routes:
+   - **Map mode:** Full-screen interactive MapLibre GL map, relocated from `/map`. All map components (MapContainer, MapControls, MapFilterPanel, MapBottomSheet, MapReportCard, MapTimeline) integrated. Deep-link URL params preserved (`/explore?mode=map&lat=33&lng=-112`).
+   - **Browse mode:** Category tiles → subcategory phenomena grid → filtered report list. Absorbs old `/explore` category browsing AND `/phenomena` encyclopedia listing. Personalized feed sections included. Tapping a category shows phenomena in that category, with drill-down to filtered reports.
+   - **Search mode:** Full keyword search with autocomplete, category facets, AI-related patterns, search mode toggle (Keywords/Exact Phrase). Relocated from `/search`. Deep-link: `/explore?mode=search&q=phoenix+lights`.
+   - Mode switching is client-side (no page reload). URL params update via shallow routing.
+
+2. **301 redirects** in `next.config.js`:
+   - `/map` → `/explore?mode=map`
+   - `/search` → `/explore?mode=search`
+   - `/phenomena` → `/explore?mode=browse`
+   - `/analytics` → `/explore`
+   - `/encyclopedia` → `/explore?mode=browse` (updated from chained redirect)
+
+3. **Internal link updates** (8 files, 15+ references):
+   - `Layout.tsx`: Desktop nav Encyclopedia → `/explore?mode=browse`, Ask AI → `/explore?mode=search`, search form → `/explore?mode=search`, mobile search icon → `/explore?mode=search`, footer Interactive Map → `/explore?mode=map`, footer Analytics → `/explore`
+   - `MapSpotlightRow.tsx`: All 5 spotlight card hrefs updated from `/map?...` to `/explore?mode=map&...`
+   - `useMapState.ts`: URL sync updated to detect `/explore` pathname and include `mode=map` param
+   - `QuickActions.tsx`: Search link → `/explore?mode=search`
+   - `index.tsx` (homepage): Search form → `/explore?mode=search`
+   - `dashboard/insights.tsx`: Map link → `/explore?mode=map`
+   - `NavigationHelper.tsx`: Removed `/search` and `/map` from list pages, added `/lab`
+   - `MobileBottomTabs.tsx`: Simplified explore detection (removed `/phenomena` from active check since individual pages still exist under `/phenomena/[slug]`)
+
+**NOT touched (as specified):**
+- `/phenomena/[slug]` detail pages — still render at their current URLs
+- `/report/[slug]` detail pages
+- `/lab` and `/profile` pages (Session A1)
+- Feed/discover page
+
+**Cross-session impacts for Session B1:**
+- The old `/map.tsx`, `/search.tsx`, and `/phenomena/index.tsx` page files still exist but are now unreachable due to 301 redirects. They can be deleted in a cleanup pass once confirmed.
+- `useMapState.ts` now detects whether it's on `/explore` or `/map` to set the correct pathname for URL sync. This is backward-compatible.
+- The personalized feed API (`/api/feed/personalized`) is still called from Browse mode — no changes to backend APIs.
+- Search still uses `/api/search/fulltext` and `/api/ai/related` — no backend changes.
+
+**SWC compatibility:**
+- explore.tsx uses `var` + `function(){}` throughout for SWC compatibility
+- All modified files maintain existing SWC patterns
+
+---
+
+### Session B1: Ingestion Adapter Hardening — COMPLETE (April 2, 2026)
+
+**Purpose:** Audit, fix, and dry-run all high-priority ingestion adapters so they are ready for mass ingestion in Session B2. No mass ingestion was executed — this session only hardened the code.
+
+**Adapters audited (priority order):**
+
+1. **NUFORC** (`adapters/nuforc.ts`) — READY
+   - Fix: Variable scoping fragility — `details` was declared inside conditional block with `var` but used outside. Added explicit declaration before the block to make intent clear.
+   - Pre-existing TS errors (Set iteration, RegExp null types) left as-is — they don't affect runtime due to SWC compilation.
+   - Estimated yield: ~150K UFO reports from nuforc.org.
+   - Three parsing strategies (wpDataTable AJAX, row-split HTML, class-based cells) provide resilience against NUFORC site changes.
+
+2. **Reddit V2** (`adapters/reddit-v2.ts`) — READY (requires Arctic Shift API to be reachable)
+   - Fix: Added missing subreddit `r/Experiencers` to SUBREDDIT_CATEGORIES mapping.
+   - Fix: Added crosspost detection — `crosspost_parent_list` and `crosspost_parent` fields added to interface. Posts that are crossposts are now skipped to avoid duplicates.
+   - Fix: Added content-level batch dedup — normalizes first 200 chars as fingerprint to skip near-identical posts within same scrape batch.
+   - Fix: Raised default `minScore` from 5 to 10 to improve quality floor.
+   - Now covers 14 subreddits: Paranormal, Glitch_in_the_Matrix, Thetruthishere, UFOs, HighStrangeness, Ghosts, Cryptids, NDE, Experiencers, AstralProjection, Humanoidencounters, Missing411, Skinwalkers, CrawlerSightings.
+   - Estimated yield: ~50K-100K posts across all subreddits (depends on Arctic Shift coverage).
+   - Note: Arctic Shift API endpoints are blocked in Cowork sandbox but work in local/production environments.
+
+3. **YouTube** (`adapters/youtube.ts`) — READY (requires YOUTUBE_API_KEY)
+   - Complete rewrite to support video metadata AND experiencer comment extraction.
+   - Added 4 more default channels (Nexpo, Joe Rogan UFO Clips, MUFON, Bob Gymlan) — now 8 total.
+   - Added search-based video discovery with paranormal search queries.
+   - New: `fetchVideoComments()` — extracts top-level comments from videos.
+   - New: `isExperiencerComment()` — detects first-person experiencer accounts using indicator phrases + narrative element scoring.
+   - New: `convertCommentToReport()` — converts qualifying comments to ScrapedReport with `yt-comment-` ID prefix.
+   - Video reports now use `yt-video-` prefix to avoid ID collisions with comments.
+   - Quality filters: MIN_COMMENT_LENGTH=300 chars, MIN_COMMENT_LIKES=5.
+   - Config options: `includeComments` (default true), `maxCommentsPerVideo` (default 100), `includeSearch` (default false).
+   - Created explicit `YouTubeVideoItem` interface to fix TypeScript `never` type inference issue.
+   - Estimated yield: ~5K-20K reports (videos + comments) depending on channel coverage and search queries.
+   - Environment: Requires `YOUTUBE_API_KEY` in `.env.local` and Vercel. Free tier: 10K units/day.
+
+4. **BFRO** (`adapters/bfro.ts`) — READY (no changes needed)
+   - Structurally sound: proper HTML scraping, Class A/B/C classification mapping, geographic extraction, date handling, media extraction.
+   - Good rate limiting and error handling.
+   - Estimated yield: ~5K bigfoot reports.
+
+5. **NDERF** (`adapters/nderf.ts`) — READY (no changes needed)
+   - Structurally sound: NDE characteristic extraction, credibility scoring, proper HTML parsing.
+   - Estimated yield: ~5K NDE accounts.
+
+6. **IANDS** (`adapters/iands.ts`) — READY (no changes needed)
+   - Similar to NDERF, well-structured Joomla CMS parsing.
+   - NDE account type classification (nde, ste, obe, childhood, distressing).
+   - Estimated yield: ~2K NDE/STE accounts.
+
+7. **Erowid** (`adapters/erowid.ts`) — READY (no changes needed)
+   - Respectful 2-second rate limiting, substance-to-category mapping, 200-char minimum quality filter.
+   - Estimated yield: ~30K experience reports.
+
+**Files modified:**
+- `src/lib/ingestion/adapters/nuforc.ts` — Variable scoping fix
+- `src/lib/ingestion/adapters/reddit-v2.ts` — Crosspost dedup, content dedup, Experiencers subreddit, minScore bump
+- `src/lib/ingestion/adapters/youtube.ts` — Complete rewrite with comment extraction
+- `.env.example` — Added YOUTUBE_API_KEY section
+- `scripts/dry-run-adapters.ts` — NEW: Dry-run validation script
+
+**Dry-run script created:** `scripts/dry-run-adapters.ts`
+- Run locally: `npx tsx scripts/dry-run-adapters.ts` (all adapters) or `npx tsx scripts/dry-run-adapters.ts nuforc` (single)
+- Tests adapter.scrape() with limit=5, validates all required fields (title, source_url, source_type, category, original_report_id)
+- Does NOT insert into database — scrape-only validation
+- Cannot be run in Cowork sandbox (external API access blocked) — must run locally
+
+**TypeScript verification:** All three modified adapter files compile clean with `npx tsc --noEmit --skipLibCheck`.
+
+**Session B2 commands (mass ingestion):**
+```bash
+# Step 1: Dry-run to verify adapters work
+npx tsx scripts/dry-run-adapters.ts
+
+# Step 2: Small batch (50 per source) via API
+curl -X POST https://beta.discoverparadocs.com/api/admin/ingest?source=nuforc&limit=50 \
+  -H "Authorization: Bearer YOUR_SERVICE_ROLE_KEY"
+
+curl -X POST https://beta.discoverparadocs.com/api/admin/ingest?source=reddit-v2&limit=50 \
+  -H "Authorization: Bearer YOUR_SERVICE_ROLE_KEY"
+
+curl -X POST https://beta.discoverparadocs.com/api/admin/ingest?source=youtube&limit=50 \
+  -H "Authorization: Bearer YOUR_SERVICE_ROLE_KEY"
+
+curl -X POST https://beta.discoverparadocs.com/api/admin/ingest?source=bfro&limit=50 \
+  -H "Authorization: Bearer YOUR_SERVICE_ROLE_KEY"
+
+# Step 3: Scale up (500, then 2000, then full)
+# Repeat above with limit=500, then limit=2000, then no limit
+
+# Step 4: Post-ingestion embedding
+curl -X POST https://beta.discoverparadocs.com/api/admin/ai/embed \
+  -H "Authorization: Bearer YOUR_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "all_reports"}'
+```
+
+**Environment variables needed for Session B2:**
+- `YOUTUBE_API_KEY` — Required for YouTube adapter. Get from Google Cloud Console, enable YouTube Data API v3.
+- `ANTHROPIC_API_KEY` — Required for feed hook + Paradocs Analysis generation (Claude Haiku). Must be set in Vercel.
+- `OPENAI_API_KEY` — Required for vector embeddings (text-embedding-3-small). Must be set in Vercel.
+- `SUPABASE_SERVICE_ROLE_KEY` — Required for API auth on ingest endpoint.
+- `NEXT_PUBLIC_MAPTILER_KEY` — Required for geocoding during enrichment.
+
+**Estimated report counts per adapter:**
+
+| Adapter | Est. Reports | Cost (~$0.85-1.00/1K) | Notes |
+|---------|-------------|----------------------|-------|
+| NUFORC | ~150,000 | ~$130-150 | Largest source. Multiple parsing strategies for resilience. |
+| Reddit V2 | ~50,000-100,000 | ~$45-100 | Depends on Arctic Shift coverage. 14 subreddits. |
+| YouTube | ~5,000-20,000 | ~$5-20 | Videos + experiencer comments. Depends on channel/search scope. |
+| BFRO | ~5,000 | ~$4-5 | Well-structured, consistent format. |
+| NDERF | ~5,000 | ~$4-5 | NDE-specific source. |
+| IANDS | ~2,000 | ~$2 | NDE/STE accounts. |
+| Erowid | ~30,000 | ~$25-30 | Altered-state experience reports. |
+| **Total** | **~250,000-310,000** | **~$215-310** | First wave. Additional sources (news, forums, MUFON) in later waves. |
+
+**Cross-session impacts:**
+- Session 6b (Report Experience) can now plan for YouTube comments as a report source type
+- Session 10 status updated — all 7 high-priority adapters are ready for mass ingestion
+- Session 2 (Explore) — more diverse source types will appear in feed once ingested
+
+---
+
+### Session B1.5: Ingestion Adapter QA/QC (Live Smoke Tests) — IN PROGRESS (April 14, 2026)
+
+**Purpose:** B1 audited adapters at the code level and built a dry-run script. B1.5 closes the gap by actually running each adapter against its live source, ingesting 5 reports per category, and verifying row-level output (titles, dates, locations, `case_profile`, `nderf_tier`, emotion/consciousness arrays, tags). **Session B2 mass ingestion is blocked until B1.5 signs off on every adapter.**
+
+**Detailed session doc:** `B1_5_QA_QC_NOTES.md`
+**Continuation prompt:** `B1_5_CONTINUATION_PROMPT.md` — use to resume B1.5 in a fresh session.
+
+**What B1.5 has completed so far (April 14):**
+
+1. **NDERF evaluative-tier neutralization verified.** Public `ndeType` field is always `"Near-Death Experience"` regardless of whether the source page classifies the report as General / Exceptional / Transcendental / etc. The curator tier is preserved internally in `case_profile.nderf_tier` for downstream filtering without leaking into public UI labels. Two stale pre-neutralization rows (`bill_c_nde_13460`, `kelly_g_nde_13461`) may still exist in DB — to be handled at B1.5 resumption.
+
+2. **`buildCaseProfile()` refactored to take a `LabelResolver` closure.** Previously hardcoded to NDERF's `class="m105"` span markup. Now accepts any `(labels: string[]) => string | null` function, decoupling case-profile extraction from source-specific markup. NDERF call site uses `nderfLabelResolver(html)`; OBERF uses `oberfLabelResolver(fieldMap)`.
+
+3. **OBERF `case_profile` extraction rebuilt.** Root cause of empty OBERF case_profiles diagnosed: OBERF questionnaires use inline-styled spans (`color:green` labels, `color:blue` values), not NDERF's class-based markup. Added `buildOBERFFieldMap()` — walks green spans sequentially, treats HTML between consecutive greens as the value region, normalizes labels and does prefix-match fallback for OBERF/NDERF phrasing variants.
+
+4. **Archive-type inference for OBE/SOBE archives.** For pages that are narrative-only or lack an OOB questionnaire item, `cp_oob` defaults to `"yes"` because the entire archive is, by curator definition, out-of-body. Preserves curator intent where the questionnaire is silent.
+
+5. **Date-parsing fallback from narrative.** `extractOBERFDate()` now scans narrative text for a 4-digit year (1950-2029) when the `Date of Experience` field is empty, returning precision `'year'`.
+
+6. **`ARCHIVE_BASENAMES` skip-set fix.** Closed a false-positive where `stories_obe.htm` (archive index) was matching the individual-experience pattern `*_obe.htm` and getting queued as a report.
+
+7. **3-row OBERF smoke test passed.** `violette_g_obes` (NDERF-style questionnaire, no OOB item → archive inference), `don_a_obe` (full OBERF questionnaire), `remata_j_obe` (narrative-only → archive inference). All three produce correctly-shaped `case_profile` rows matching their source data.
+
+**What B1.5 still needs to do:**
+
+| Priority | Adapter | Action |
+|---|---|---|
+| 0 | NDERF + OBERF | Re-verify with 5 reports per category. OBERF: pull 5 from each of the 7 remaining archive types (STE, DBV, NDE-like, Pre-Birth, Prayer, Dream, Other). NDERF: clean up stale pre-neutralization rows. |
+| 1 | IANDS | Check for NDERF-like tier concept; neutralize if present. Verify 5-report output. |
+| 2 | BFRO | Verify Class A/B/C classification and geo extraction on 5 reports. |
+| 3 | NUFORC | Verify all three parsing-strategy fallbacks on 5 reports. |
+| 4 | Reddit V2 | Arctic Shift API test; may require running locally if Cowork sandbox blocks it. |
+| 5 | YouTube | Confirm `yt-video-` vs `yt-comment-` ID prefix separation on 5 reports. |
+| 6 | Erowid | Confirm substance-to-category mapping and quality filter on 5 reports. |
+
+**Files modified in B1.5 (so far):**
+- `src/lib/ingestion/adapters/nderf.ts` — Exported `LabelResolver` type, added `nderfLabelResolver()`, refactored `buildCaseProfile()` to take a resolver closure, expanded label arrays with OBERF variants.
+- `src/lib/ingestion/adapters/oberf.ts` — Added `buildOBERFFieldMap()`, `oberfLabelResolver()`, `normalizeLabel()`. Rewired `parseOBERFExperiencePage()` to use field map + LabelResolver. Updated `extractOBERFDate()` with narrative-year fallback. Added archive-type inference tail-block. Populated `ARCHIVE_BASENAMES` skip-set.
+
+No changes to ingestion engine, admin endpoints, DB schema, or other adapters.
+
+**Ground rules for B1.5 + B2:**
+- **No date cutoff** on any adapter. Ingest every available report regardless of year. Undated rows are acceptable and simply won't surface in date-filtered searches. (Reversed an incorrect "Stop at 2019" cutoff that appeared in an earlier session summary — it was never Chase's direction.)
+- **No mass ingestion until B1.5 signs off on every adapter.** B2 runs in a fresh session, reading `B2_CONTINUATION_PROMPT.md` (to be authored at B1.5 close).
+- **Source UUIDs, not slugs** on every `/api/admin/ingest` call. OBERF UUID: `34f11cb9-e000-4242-b698-bae624024947`. NDERF/IANDS/BFRO/NUFORC/Reddit/YouTube/Erowid UUIDs to be resolved on each adapter's turn via `SELECT id, slug FROM data_sources`.
+- **Full desktop UA** when curl'ing OBERF/NDERF directly for page inspection — short UAs return 226-byte stubs.
+
+**Cross-session impacts:**
+- Session 6b unchanged — awaits B2.
+- Session 2 unchanged — awaits B2.
+- Session 10 status updated to reflect active B1.5 QA/QC work.
+
+---
+
+## Session Details
+
+### 1. Encyclopedia Enrichment (ACTIVE)
+
+**Owner files:** `HANDOFF.md`, `PARADOCS_PROJECT_NOTES.md`, `SESSION_NOTES.md`
+**Key directories:** `src/pages/phenomena/`, `src/pages/api/admin/phenomena/`, `src/lib/services/phenomena.service.ts`
+**Database tables:** `phenomena`, `phenomena_media`
+
+**Current state:**
+- Cryptid category: 100% COMPLETE (208 entries across 18 batches)
+- Phase 2 regeneration: COMPLETE (all categories, ai_history >= 800 chars, all ai_quick_facts populated)
+- Total phenomena: 4,792 entries across 11 categories
+- Quality standard: 7 AI fields populated, character minimums, verified sources, no fabrication
+
+**What's next (parallel track — no longer blocks mass ingestion):**
+
+> **STATUS CHANGE (March 20):** Encyclopedia enrichment is now a parallel value-add, not a launch blocker. The 4,792 basic entries provide sufficient taxonomy for report classification. Enrichment improves encyclopedia pages and semantic search quality but is not required before mass ingestion proceeds.
+
+- Enrich remaining categories beyond cryptids (UFOs, ghosts, etc.) with the full 7-field treatment (ai_description, ai_characteristics, ai_theories, ai_paradocs_analysis, ai_quick_facts, ai_summary, primary_regions)
+- Each enriched batch should be re-embedded via Session 15's embedding pipeline (`/api/admin/ai/embed`) to improve semantic search
+- Media enrichment (images for phenomena entries)
+- Cross-link phenomena to reports more comprehensively
+
+**Touches other sessions:** Discover (ai_summary affects feed cards), Search (content affects search results), Reports (phenomena links on report pages), AI Experience (enriched entries improve semantic search when re-embedded)
+
+---
+
+### 2. Explore & Discovery
+
+**Key files:**
+- `src/pages/explore.tsx` — Main discovery feed page (Discover + Browse tabs)
+- `src/pages/discover.tsx` — TikTok-style fullscreen swipe feed (now renders inside site Layout, April 29) — Phase 2: mixed content
+- `src/pages/api/discover/feed-v2.ts` — **REWRITTEN Phase 3** Scored ranking feed API (parameterized weights from feed_config, engagement + recency + affinity + explore scoring, diversity constraint, cold start support)
+- `src/pages/api/discover/related-cards.ts` — **NEW** Full FeedItemV2-shaped related cards API (category + phenomenon_type matching)
+- `src/lib/hooks/useFeedEvents.ts` — **NEW Phase 3** Behavioral signal collection (batch buffer, sendBeacon, impression dedup, dwell threshold)
+- `src/lib/hooks/useSessionContext.ts` — **NEW Phase 3** In-session category affinity tracking (60/40 session/long-term blend)
+- `src/lib/hooks/useGateStatus.ts` — **NEW Phase 3** Depth gating status (anonymous localStorage / auth server-side)
+- `src/components/discover/TopicOnboarding.tsx` — **NEW Phase 3** Cold start "pick 3 topics" overlay
+- `src/components/discover/ClusteringCard.tsx` — **NEW Phase 3** Geographic/temporal cluster card
+- `src/components/discover/OnThisDateCard.tsx` — **NEW Phase 3** Historical date-match card
+- `src/components/discover/CaseViewGate.tsx` — **NEW Phase 3** Depth gate with contextual CTA
+- `src/components/discover/ResearchHubPromo.tsx` — **NEW Phase 3** Blurred Research Hub preview + CTA
+- `src/pages/api/discover/clusters.ts` — **NEW Phase 3** Geographic cluster + temporal burst detection
+- `src/pages/api/discover/on-this-date.ts` — **NEW Phase 3** Historical date matching
+- `src/pages/api/events/feed.ts` — **NEW Phase 3** Batch event ingestion endpoint
+- `src/pages/api/user/usage.ts` — **NEW Phase 3** Daily usage tracking (case views, AI searches)
+- `src/pages/api/cron/refresh-engagement.ts` — **NEW Phase 3** Hourly materialized view refresh
+- `src/pages/api/admin/feed-metrics.ts` — **NEW Phase 3** Admin metrics dashboard
+- `supabase/migrations/20260324_feed_events.sql` — **NEW Phase 3** Migration: feed_events, feed_config, category_engagement, user_usage
+- `src/pages/api/discover/feed.ts` — Legacy phenomena-only feed API (preserved for backward compat)
+- `src/components/discover/DiscoverCards.tsx` — **MODIFIED** Three card templates: PhenomenonCard, TextReportCard, MediaReportCard. Phase 3.5: quote styling killed, `'dossier'` mood, unified editorial voice, phenomena `feed_hook` support.
+- `src/components/homepage/DiscoverPreview.tsx` — **REWRITTEN** (Phase 4, March 31) Homepage "Eyewitness accounts" carousel. Fetches via feed-v2 API (service role key bypasses RLS). Fisher-Yates shuffle + random offset for variety. 1 encyclopedia + 2 report cards per slide. Auto-rotates on desktop, horizontal scroll on mobile. Report cards show phenomenon_type name via `shortTypeName()` with fallback to location+year. Category-tinted gradients, left accent border, sentence-boundary text truncation. ~540 lines.
+- `src/pages/api/admin/backfill-phenomenon-types.ts` — **NEW** (Phase 4, March 31) Smart classification backfill with ordered regex rules, category guards, category defaults. Supports reset mode. Classifies reports into phenomenon_types via title/summary pattern matching.
+- `src/lib/ingestion/engine.ts` — **MODIFIED** (Phase 4, March 31) `identifyPhenomenaForReport()` now also sets `phenomenon_type_id` on reports by resolving the linked phenomenon's own `phenomenon_type_id`. Ensures new ingested reports get classified automatically.
+- `src/pages/api/admin/ai/generate-phenomena-hooks.ts` — **NEW** (Phase 3.5) Batch phenomena hook generation via Claude Haiku with offset for parallel processing.
+- `src/pages/api/feed/personalized.ts` — Explore feed API (encyclopedia spotlight, trending, category highlights)
+- `src/lib/services/personalization.service.ts` — User preference engine
+- `src/components/CategoryFilter.tsx`, `SubcategoryFilter.tsx`, `PhenomenaFilter.tsx`
+- `src/lib/hooks/usePersonalization.ts`
+- `src/components/AskTheUnknown.tsx` — AI chat FAB (on explore + report pages)
+
+**Database tables:** `reports`, `phenomena`, `saved_reports`, `user_preferences`, `feed_events` (Phase 3), `feed_config` (Phase 3), `user_usage` (Phase 3), `category_engagement` materialized view (Phase 3)
+
+**Current state (March 31, 2026):**
+- **Anonymous feed COMPLETE:** Rich 5-7 section editorial feed for all users (Encyclopedia Spotlight, Trending, Category Highlights, Recently Added). No empty states for logged-out users.
+- **Soft-wall signup COMPLETE:** 3 contextual touchpoints (bookmark, in-feed card, bottom CTA). Research-backed: gate depth not breadth.
+- **Mobile UX optimized (March 16):** Layout.tsx header fixed (logo nowrap, Submit demoted, Sign In pill button). Explore page compacted (inline title+toggle, larger encyclopedia cards at 75vw, compressed Pattern Insights banner). Ask the Unknown FAB repositioned above bottom nav with AI presence animations (rotating aurora border, breathing glow, sparkle micro-animation). MobileBottomTabs enlarged (Stories FAB 64px, nav icons 24px).
+- **Phase 2 mixed content feed (March 21):** Stories feed now serves both phenomena AND reports via `/api/discover/feed-v2`. Three card templates: PhenomenonCard (encyclopedia entries), TextReportCard (first-person accounts with generative visual variety), MediaReportCard (reports with photo/video evidence from `report_media` table). Completion milestone toasts at 25/50/75%. Content type pill indicator in header.
+- **Phase 2.5: 2D horizontal swipe-through (March 22):** Swiping left on any Stories card reveals full-screen related cards using the same card templates. New `/api/discover/related-cards` returns full FeedItemV2-shaped data via category + phenomenon_type matching. `FeedRow` component wraps each main card + related cards in CSS snap-x container. Engagement-optimized SwipeHint (three-phase slide-in, content preview, breathing glow). Prefetch cascade bug fixed (initialSettled guard). Similarity display "4700% match" double-multiplication fixed.
+- **Phase 3: Algorithmic feed architecture (March 25):** Full behavioral signal collection (`feed_events` table + `useFeedEvents` hook with batch buffering + sendBeacon on unload). V1 scored ranking in `feed-v2.ts` (`base_engagement * W_engagement + recency * W_recency + affinity * W_affinity + explore * W_explore`, weights tuneable via `feed_config` table). Cold start onboarding ("What draws you in?" — pick 3+ topics from 7 categories). Session context weighting (60% session / 40% long-term affinity via `useSessionContext`). Depth gating (3 free case views/day, anonymous via localStorage, auth via `user_usage` table). New card types: ClusteringCard (geographic clusters + temporal bursts, purple gradient), OnThisDateCard (historical matches, amber gradient), ResearchHubPromo (blurred preview + CTA), CaseViewGate (blurred Paradocs Analysis + contextual copy). Admin metrics dashboard at `/api/admin/feed-metrics`. `category_engagement` materialized view for 30-day rolling engagement rates. Build verified clean (18.3kB /discover).
+- **Phase 3.5: Card content overhaul for index model (March 28):** All quote-style rendering killed across entire codebase — Paradocs is an index with attribution, never republishing source text. `'quote'` mood replaced with `'dossier'` (case-file grid pattern, geometric ▣ watermark, corner markers). Italic blockquote fallback removed from TextReportCard and MediaReportCard — all card text uses single bold editorial voice via `feed_hook`. PhenomenonCard now prefers `feed_hook` over `ai_summary`. Feed-v2 scoring updated: +3 quality bonus for items with hooks, quality cap raised to 10, photo/video bonus rebalanced to +2. Report hook prompt rewritten for punchier two-line format (25-50 words). New `generate-phenomena-hooks` admin endpoint for batch phenomena hook generation with offset parameter for parallel processing. Feed hooks generated: 29/29 reports (100%), 4,727/4,743 phenomena (100%). Homepage "Eyewitness accounts" section overhauled: `PullQuoteCard` → `DossierCard`, `isQuote` → `hasHook`, `CATEGORY_QUOTE_COLORS` map removed.
+- **Phase 4: Homepage & Discover QA + phenomenon classification system (March 31):**
+  - **Homepage Eyewitness section rebuilt:** Switched from direct Supabase queries (blocked by RLS) to fetching via `/api/discover/feed-v2` (service role key). Added Fisher-Yates shuffle + random offset for variety on each page load. Fallback retry if sparse feed area. Cards redesigned with category-tinted gradients, left accent border, smart text truncation at sentence boundaries, category badges with evidence/verified pills.
+  - **Phenomenon classification system:** Discovered that `reports.phenomenon_type_id` FK → `phenomenon_types` table was never being set by the ingestion pipeline. The pipeline linked reports to `phenomena` (encyclopedia) via `report_phenomena` junction table, but never classified them by type. Built three-part fix: (1) Ingestion engine now auto-sets `phenomenon_type_id` via linked phenomenon's own type reference. (2) New `/api/admin/backfill-phenomenon-types` endpoint with smart regex classification rules (ordered by specificity: bigfoot before generic encounter, NDE before generic psychic, etc.) with category guards and category-based fallback. (3) `feed-v2` and `related-cards` APIs fixed to query `phenomenon_types` table (was incorrectly querying `phenomena` table with `phenomenon_type_id` values, causing FK violations and empty results).
+  - **Card topic labels:** Report cards now show the classified `phenomenon_type` name (e.g. "Close Encounter First Kind", "Near-Death Experience", "Bigfoot/Sasquatch") with `shortTypeName()` function that strips CE-N prefixes, parenthetical details, and truncates verbose names. Falls back to location + year when no type is set.
+  - **Discover QA fixes:** feed-v2 limit cap (was requesting 40, API caps at 30), empty slug in related-cards phenomenon query, swipe-left analytics tracked as tap (added `dismiss` event type across stack).
+  - **Backfill results:** 132/132 reports classified (42 CE-1, 70 NDE, 7 Bigfoot, 5 Historical, 3 Notable Case, 2 Poltergeist, 2 Apparition, 1 Mass Sighting). 0 unmatched, 0 errors.
+  - **Key schema insight:** `phenomenon_types` table (24 → ~90 classification types, slugs revamped since initial migration) is DIFFERENT from `phenomena` table (encyclopedia entries). Reports link to both: `phenomenon_type_id` FK → `phenomenon_types` for classification labels, `report_phenomena` junction → `phenomena` for encyclopedia linking.
+
+**What needs work:**
+- **Immediate:** Set up Vercel cron for `/api/cron/refresh-engagement` (hourly). Verify homepage card topic labels look good on live site after Phase 4 deploy.
+- **Short-term:** Tune ranking weights via admin metrics dashboard, wire search gating (basic keyword free / AI search at Core), wire Ask the Unknown weekly limit (coordinate with Session 15)
+- **Medium-term:** Per-user ML model (V1 scored query carries load for now), A/B testing framework for feed composition, emotional tone tagging at ingestion
+- Save functionality for logged-in users (bookmark currently only gates anonymous)
+- "Connection cards" / "Did You Know?" cross-report relationships (Sprint 2, not built)
+- Smart match alerts (Sprint 2, not built)
+- ~~Report media display~~ ✅ MediaReportCard now uses actual report media from `report_media` table
+- ~~Homepage "Stories from the unknown" cards~~ ✅ DiscoverPreview rewritten (March 22), overhauled for index model (March 28), randomized + polished (March 31)
+- ~~Feed personalization~~ ✅ Scored ranking with behavioral signals + cold start onboarding (March 25)
+- ~~Free tier content limits~~ ✅ Depth gating: 3 free case views/day with contextual CaseViewGate (March 25)
+- ~~Card content index model compliance~~ ✅ Quote styling killed, editorial voice unified, 100% hook coverage (March 28)
+- ~~Report topic classification~~ ✅ All 132 reports classified with phenomenon_type_id. Backfill endpoint reusable for future ingestion batches (March 31)
+- ~~Discover QA issues~~ ✅ Feed limit cap, empty slug, swipe-left analytics (March 31)
+
+**April 29, 2026 — UI/UX polish pass:**
+- **Discover page Layout unification:** Removed `/discover` from `STANDALONE_PAGES` in `_app.tsx` so it now renders inside the site-wide `Layout` wrapper (shared header, footer, mobile bottom nav). Removed custom fixed header (logo + "DISCOVER" text + minimal nav + counter). Replaced with inline progress bar + counter strip below site header. Removed `MobileBottomTabs` import (Layout provides it). Adjusted padding to account for site header.
+- **Browse category card descriptions:** Replaced hover preview (latest report title fetched from DB) with static description text from `CATEGORY_CONFIG`. Mobile shows description inline below card; desktop shows on hover via opacity transition. Removed `categoryLatestTitle` state, `latestPromises` fetching, `latestPerCat` variable. Descriptions shortened for larger font and audited against all ~90 subcategories in `phenomenon_types` table to ensure accurate coverage.
+- **CATEGORY_CONFIG color standardization:** All category colors updated from `-500` to `-400` variants (brighter, more visible against dark backgrounds). All `bgColor` opacities bumped from `/15` to `/20` for consistent tint visibility across all hues. Affects all category pills, badges, and indicators site-wide.
+- **Category filter pill unification:** `MapFilterPanel.tsx` category pills unified to match `CategoryFilter.tsx` reference style: `rounded-full` (was `rounded-lg`), `px-4 py-2` (was `px-3 py-2`), `ring-2 ring-current` (was `ring-1`), `bg-white/10 text-gray-300 hover:bg-white/15 hover:text-white` unselected style, icon size 18 (was 16), labels always visible in filter panel. Both components now share identical visual language.
+- **Credibility filter removed:** Entire credibility filter section removed from `MapFilterPanel.tsx`. `CREDIBILITY_CONFIG` import removed. Credibility filtering phased out from map view.
+- **Filter panel scroll fix:** Changed filter panel container from `bottom-0` to `bottom-[52px]` to clear the timeline bar, fixing scroll cutoff issue.
+- **Map recentering on filter panel toggle:** Added `mapPadding` prop to `MapContainer.tsx`. When filter panel opens on desktop, map refits bounds with left padding of 340px (panel width). Uses `prevPaddingRef` to skip initial render and only trigger on actual padding changes. Module-level constants (`MAP_PADDING_WITH_FILTERS`, `MAP_PADDING_DEFAULT`) prevent unnecessary effect triggers.
+- **Map zoom control positioning:** Added CSS override `.maplibregl-ctrl-top-right { top: 12px !important; }` in `globals.css` to push MapLibre NavigationControl below the header bar.
+
+**Touches other sessions:** Encyclopedia (content quality affects feed + spotlight), Insights (trending patterns surface in feed), Dashboard (personalization preferences), Search (shared filter components), Foundation (Layout.tsx + globals.css modified), Mobile Design (MobileBottomTabs modified)
+
+---
+
+### 3. Map & Geospatial (ACTIVE)
+
+**Key files (Phase 1 + 2):**
+- `src/pages/map.tsx` — Complete rewrite (~234 lines, MapLibre GL, desktop timeline bar)
+- `src/components/map/MapContainer.tsx` — Core MapLibre GL renderer (heatmap + clusters + markers + basemap switching)
+- `src/components/map/MapBottomSheet.tsx` — Mobile 3-snap-point bottom sheet with category stats + pull-to-dismiss
+- `src/components/map/MapControls.tsx` — Floating control buttons (heatmap, locate me, basemap toggle)
+- `src/components/map/MapTimeline.tsx` — NEW Phase 2: Dual-handle date range slider with histogram + era presets
+- `src/components/map/MapFilterPanel.tsx` — Collapsible filter drawer / inline filters
+- `src/components/map/MapReportCard.tsx` — Selected report detail card
+- `src/components/map/mapStyles.ts` — Style constants, category colors, types, timeline config, BASEMAP_STYLES
+- `src/components/map/useMapState.ts` — URL-synced filter state hook
+- `src/components/map/useViewportData.ts` — Supabase fetch + Supercluster clustering + category/country/yearHistogram stats
+
+**Key files (unchanged — still used):**
+- `src/components/PhenomenonMiniMap.tsx` — Lightweight Leaflet phenomenon map (kept as-is per design decision)
+- `src/components/patterns/PatternMiniMap.tsx` — Pattern location map (Leaflet, kept)
+- `src/pages/api/search/proximity.ts` — Geospatial proximity search
+- `src/lib/services/geocoding.service.ts` — Mapbox geocoding (server-side)
+- `src/lib/ingestion/utils/location-parser.ts`, `location-inferrer.ts` — Location extraction
+
+**Database:** PostGIS extension, `latitude`/`longitude` columns on reports, `primary_regions` on phenomena, GIST index
+
+**Dependencies added:** `maplibre-gl ^4.7.1`, `react-map-gl ^7.1.7`, `supercluster ^8.0.1`, `@types/supercluster ^7.1.3`
+
+**Environment variables:** `NEXT_PUBLIC_MAPTILER_KEY` — MapTiler API key (Flex plan, domain-restricted to beta.discoverparadocs.com + localhost). Must be set in Vercel env vars.
+
+**Current state (April 29, 2026):**
+- **Phase 1 COMPLETE:** Full MapLibre GL migration deployed. Leaflet replaced on main map page. 312 geocoded reports rendering with Supercluster clustering, heatmap layer, category-colored markers, mobile bottom sheet (3-snap), auto-fit to data bounds, URL-synced filters, locate me (geolocation → flyTo), desktop filter drawer + report detail panel.
+- **Phase 2 COMPLETE:** Timeline slider (dual-handle, 1400–2026) with decade histogram sparkline and era presets (All Time, Pre-Modern, 1900–1950, 1950–2000, 2000+). Basemap toggle cycling dark → satellite → terrain. Bottom sheet improvements: raised above nav bar, pull-down-to-dismiss from content area, enlarged slider touch targets (44×44px). Era presets visible on mobile. Desktop timeline bar with backdrop blur.
+- **Phase 3 PARTIALLY COMPLETE:** Map Spotlight placeholder cards deployed on Explore page (`MapSpotlightRow.tsx`). 5 hardcoded cards (UFO Hotspots US, Cryptid Sightings, Ghost & Hauntings, Global Heatmap, Pre-Modern Encounters) with gradient backgrounds, icons, and deep-link URLs to `/map` with filter params. Positioned as 2nd row in Discover feed (after Encyclopedia Spotlight). Card dimensions matched to Encyclopedia Spotlight cards. Deep-link URLs and encyclopedia map links deferred to post-ingestion.
+- **UI/UX polish (April 29):** Credibility filter removed from `MapFilterPanel.tsx`. Category pills unified with `CategoryFilter.tsx` style (rounded-full, ring-2, bg-white/10). Filter panel scroll fixed (bottom-[52px] clears timeline bar). Map auto-refits bounds when filter panel opens/closes (mapPadding prop, 340px left padding for panel). Zoom controls repositioned below header via CSS override.
+
+**What needs work (remaining Phase 3 + Phase 4, post-ingestion):**
+- **Phase 3 remaining (post-ingestion):** Replace placeholder Map Spotlight cards with dynamic data-driven cards (cluster density, hotspots). Add pre-rendered static map thumbnail images. Deep-link URL schema for `?phenomenon=`, `?bounds=`. Encyclopedia "View all on map" links.
+- **Phase 4 (post mass-ingestion, scale):** Server-side viewport clustering API, PostGIS materialized views, vector tile server (Martin), geocoding queue, location quality scoring
+
+**Touches other sessions:** Reports (report location data), Encyclopedia (primary_regions field, "View all on map" links), Ingestion (location parsing quality), Insights (geospatial pattern detection), Explore (Map Spotlight cards), Mobile Design (bottom sheet, touch gestures), Foundation (new dependencies, env var)
+
+---
+
+### 4. Insights & Pattern Analysis
+
+**Key files:**
+- `src/pages/insights/index.tsx` — Patterns overview
+- `src/pages/insights/methodology.tsx` — Methodology docs
+- `src/pages/insights/patterns/[id].tsx` — Pattern detail
+- `src/pages/api/patterns/` — Pattern APIs (index, [id], trending, insight)
+- `src/lib/services/pattern-analysis.service.ts` — v1 algorithm
+- `src/lib/services/pattern-analysis-v2.service.ts` — v2 algorithm
+- `src/lib/services/pattern-scoring.service.ts` — Quality metrics
+- `src/lib/services/ai-insights.service.ts` — Claude-powered narratives
+- `src/components/patterns/` — 15+ visualization components (temporal, seasonal, uncertainty, skeptic mode, etc.)
+- `src/pages/api/cron/analyze-patterns.ts`, `analyze-patterns-v2.ts`
+- `src/pages/api/cron/drift-detection.ts`
+
+**Database tables:** `patterns`, related indexes
+
+**Current state:** v1 and v2 pattern algorithms exist. Claude-powered insight narratives. Rich visualization components (temporal, seasonal, uncertainty, skeptic mode). Drift detection cron job.
+
+**What needs work:**
+- Tune algorithms for accuracy with current dataset
+- New pattern types (cross-category correlations, witness profile patterns)
+- Dashboard widget integration (trending patterns)
+- Performance optimization for real-time analysis
+- Pattern quality scoring refinement
+- Community validation / crowdsourced pattern verification
+
+**Touches other sessions:** Explore (trending patterns in feed), Reports (per-report pattern display), Dashboard (user's pattern insights), Encyclopedia (phenomena-level patterns), Email (pattern alerts in digests)
+
+---
+
+### 5. User Dashboard & Constellation
+
+**Key files:**
+- `src/pages/dashboard/` — All dashboard pages (index, saved, reports, insights, digests, constellation, research-hub, settings, subscription, journal/)
+- `src/components/dashboard/` — 20+ components (ConstellationMap, ConstellationMapV2, DashboardLayout, ResearchStreak, UsageMeter, FeatureGate, TierBadge, QuickActions, ActivitySummary, SuggestedNextSteps, RecentDiscoveries, EmptyState, etc.)
+- `src/components/dashboard/research-hub/` — **13 components:** ResearchHub, BoardView, TimelineView, MapView, MapViewInner, ViewSwitcher, ArtifactCard, ArtifactDetailDrawer, ArtifactQuickAdd, ResearchHubSidebar, MobileSidebar, InsightCard, SourceLogos
+- `src/pages/api/research-hub/` — **7 endpoints:** artifacts, case-files, case-file-artifacts, connections, insights, hub-data, extract-url
+- `src/lib/hooks/useResearchHub.ts`, `useArtifactActions.ts` — **NEW**
+- `src/lib/research-hub-helpers.ts` — **NEW**
+- `src/pages/api/constellation/` — entries, connections, theories, public-profile, user-map
+- `src/pages/api/user/` — reports, saved, searches, journal, digests, personalization, streak, stats, year-in-review
+- `src/lib/services/journal.service.ts`, `streak.service.ts`
+- `src/lib/hooks/useForceSimulation.ts`, `useCanvasRenderer.ts`
+- `src/lib/constellation-data.ts`
+- `CONSTELLATION_V2_DESIGN.md` — Full design doc for Research Hub multi-view architecture
+
+**Database tables:** `profiles`, `constellation_entries`, `saved_reports`, `saved_phenomena`, `constellation_artifacts` (NEW), `constellation_case_files` (NEW), `constellation_case_file_artifacts` (NEW), `constellation_connections` (REBUILT), `constellation_ai_insights` (NEW), `constellation_theories` (REBUILT), `constellation_external_url_signals` (NEW)
+
+**Current state (March 25, 2026):**
+- **Dashboard Home Redesigned (Part 1):** New page flow: Welcome Bar (compact name + tier + streak flame) -> Quick Actions (horizontal pill row) -> Activity Summary (consolidated 2x2 stats card) -> Active Investigations (case files with Netflix scroll + "New Investigation" card) -> Recent Artifacts -> AI Insights (with teaser for <5 artifacts) -> Constellation Preview (with onboarding prompt for 0 entries) -> Suggested Next Steps (context-aware) -> Account footer. Five new components: QuickActions.tsx, ActivitySummary.tsx, SuggestedNextSteps.tsx, RecentDiscoveries.tsx, EmptyState.tsx.
+- **Research Hub Phase 1 COMPLETE:** Multi-view architecture deployed. Board View (mobile-first default) with sidebar, case files, artifact cards, quick-add modal, detail drawer. Auth check with login redirect.
+- **Research Hub Phase 2 COMPLETE:** Timeline View (decade/year/month/week zoom with case file color coding) and Map View (Leaflet with clustering, spatial insights, mobile bottom sheet) built and deployed.
+- **Research Hub Phase 3 External URLs COMPLETE:** Full URL extraction pipeline with source auto-detection for 16+ source types. OG scraping, multi-source Reddit fallback chain, branded SVG logo fallbacks, manual thumbnail URL override, uniform card heights, action bar opacity toggle.
+- **PUT /api/research-hub/artifacts/[id] CREATED:** Artifact update endpoint (verdict, user_note, tags, title, description).
+- **Mobile CSS fixes applied:** CSS-only Tailwind responsive classes (eliminates SSR hydration flash). Overflow containment, truncation, responsive padding.
+- **Database migration LIVE:** 7 new tables with RLS policies, indexes, backward-compatible migration. 16+ source types in CHECK constraint.
+- **Desktop NotificationBell integrated:** Replaced static bell icon with Session 7's functional `<NotificationBell />` component.
+- Old constellation-first dashboard still exists alongside new Research Hub.
+
+**What needs work (Phases 3b-5):**
+- **Phase 3b:** Constellation View integration (D3 force-directed graph wired into new data model, progression unlock at 5+ artifacts) — External URL support is DONE
+- **Phase 4:** AI Intelligence layer (on-add insight generation via Claude, weekly deep scan cron, community pattern detection, cross-case-file relationship suggestions)
+- **Phase 5:** Social & Sharing (theory publishing, public researcher profiles, embeddable research snippets, community signal aggregation where popular external links feed into ingestion pipeline)
+- Reddit thumbnail extraction may still fail for some video posts (Reddit blocks Vercel IPs aggressively)
+- Journal curation workflow refinement
+- Gamification system (challenges, badges, levels)
+- Dashboard tour / onboarding improvements
+- Mobile dashboard experience polish → **Moved to Session 13 (Mobile-First Design System)**
+
+**Touches other sessions:** Subscription (tier gating — Board+Timeline free, Map basic, Constellation pro), Insights (AI insights integration), Encyclopedia (saved phenomena, report artifacts), Reports (save-to-hub flow), Email (digest preferences), Ingestion (external URL signal aggregation feeds pipeline)
+
+---
+
+### 6a. Report Experience — Curated Content (ACTIVE)
+
+**Key files:**
+- `src/pages/report/[slug].tsx` — Report detail page (~1100 lines)
+- `src/pages/submit.tsx` — Report submission form
+- `src/pages/api/reports/[slug]/` — nearby, connections, academicData, environment, insight
+- `src/components/reports/` — LocationMap, EnvironmentalContext, AcademicObservationPanel, ConnectionCards
+- `src/components/FormattedDescription.tsx` — Body text renderer (ALL-CAPS headers, pull quotes)
+- `src/components/ReadingProgress.tsx`, `ArticleTableOfContents.tsx` — Reading experience
+- `src/components/MediaGallery.tsx` — Hero images + sources/documents (mode prop)
+- `src/pages/api/admin/generate-connections.ts` — Batch connection generation (v2)
+
+**Database tables:** `reports`, `report_media`, `report_connections`, `report_links`, `academic_observations`
+
+**Current state (March 18, 2026) — Phase B comprehensive: mobile, Roswell cluster, AI grounding, media storage, nav fix, CONTENT ENRICHMENT COMPLETE:**
+- **Body text:** FormattedDescription rewrite (ALL-CAPS headers → styled h2s, pull quotes with attribution, anchor IDs). Single-word headers (e.g. "LEGACY") now supported (≥4 chars).
+- **Pull quotes (NEW):** Attribution regex rewritten with `NOT_NAMES` blocklist, `isLikelyName()` validator, 3-char minimum, 200-char proximity limit. Expanded quotes in all 5 new reports to 40+ chars.
+- **Reading UX:** ReadingProgress bar, ArticleTableOfContents with IntersectionObserver (hooks violation fixed), MediaGallery split (hero images vs Sources & Documents)
+- **Mobile reading:** Pull quotes responsive, section headers scaled, TOC compact, AskTheUnknown FAB less intrusive, connection cards single-column, event_time 12-hour.
+- **Breadcrumbs:** Mobile shows parent case trail. Desktop shows full path including parent case title.
+- **Client-side navigation fix (NEW):** React error #310 fixed — ArticleTableOfContents early return moved after useEffect. State cleared immediately on slug change. Stale-slug guard in loadReport(). Scroll-to-top on navigation.
+- **LocationMap:** MapLibre GL + MapTiler. Satellite toggle, "Explore on Map" deep-link.
+- **Environmental Context:** Date-aware, responsive 2-col grid, clean Unknown states.
+- **Research Data Panel:** NLP confidence flags, Pro-gated export, witness count ~est.
+- **Did You Know?:** Same-case filtering, cross-phenomenon priority. Stargate Project link needs cross-category data.
+- **AI Analysis fix (NEW):** Hash-based caching (content-hash comparison, not 24h timer). DB-grounded Similar Cases (no hallucination). Anti-hallucination system prompt. 72 insights invalidated.
+- **Roswell cluster expanded (NEW):** 14 total reports (1 showcase + 13 witnesses). All with uncertainty notes. Connections generated.
+- **Media storage (NEW):** All images downloaded to Supabase Storage (`report-media` bucket). No more hotlinking to Wikimedia. Barnett photo sourced from Find a Grave. On-demand ISR revalidation endpoint (`/api/admin/revalidate`).
+- **Content enrichment COMPLETE (March 18):** All 14 Roswell reports enriched from 2,000-6,000 chars to 4,000-12,500 chars. Engagement-optimized with tension hooks, dramatic pacing at reveals (Building 84, debris switch, Fort Riley crate), pull quotes at reading breakpoints. Sources: Kevin Randle blog, GAO Report NSIAD-95-187, 1994 Air Force report, Walter Haut sealed affidavit, DuBose sworn affidavit, Porter affidavit, Mac Brazel Daily Record interview, Marcel NBC interview, Corso rebuttals (Klass, UK National Archives). Government documents (GAO, FBI Vault, NSA) and ABC News 1947 radio bulletin added as media. Brazel duplicate newspaper images fixed, landscape photo added.
+- **Data accuracy:** Foster Ranch coords, witness count audit, all reports verified. False "no photo exists" claim corrected on Barnett.
+- **Visual polish:** Compact badges, subtler tags, cleaner metadata cards, merged engagement+CTA.
+
+- **Featured Investigations system DEPLOYED (March 18):** `featured_investigations` table, `/api/public/featured-investigations` API, homepage `index.tsx` updated to use editorial curation with spotlight fallback. Roswell seeded as first featured investigation. Ready for additional case file clusters.
+- **Amazon affiliate book recommendations DEPLOYED (March 18):** `report_books` table, `FurtherReading.tsx` component on report pages, 16 books across 10 Roswell reports, FTC-compliant disclosures. All ASINs verified. Owned by Session 14 going forward.
+- **Brazel media fixed (March 18):** Duplicate newspaper images removed, correct landscape photo added.
+
+**March 19, 2026 updates:**
+- **Rendlesham Forest case cluster COMPLETE:** 1 showcase + 5 witness reports (Penniston, Burroughs, Halt, Warren, Cabansag). 4,700-13,400 chars each. Academic research, credibility rationales, 8 book recommendations, 8 Supabase-stored images, 5 witness portraits, 7 YouTube videos, Halt Memo PDF, Halt audio tape. Featured Investigation entry (display_order: 2).
+- **Credibility rationale feature DEPLOYED:** New `credibility_rationale` column on `reports`. Tappable credibility badge expands editorial explanation below info grid. 20 reports seeded (14 Roswell + 6 Rendlesham). Falls back to generic description for reports without rationales.
+- **Badge system redesigned:** Removed redundant category badge (already in breadcrumb). New "Featured Investigation" badge (amber/gold, star icon) for `featured=true`. "Notable Case" phenomenon type filtered from display.
+- **Pull quote QA hardened:** Title/citation rejection, em-dash attribution detection, unattributed quotes suppressed. Audit endpoint added (`/api/admin/audit-pull-quotes`).
+- **Reading progress bar:** 2px → 4px for mobile visibility.
+- **MediaGallery audio fix:** Wiki page URLs no longer misclassified as direct media files.
+- **Homepage "More Investigations" row:** Secondary discovery grid below the main hero. Static (no auto-rotation — UX research shows carousels have ~1% CTR). Renders when 2+ featured investigations exist.
+- **Corso media:** 2 YouTube videos added to Philip Corso report.
+- **Lesson learned:** Wikimedia hash paths from research agents are frequently wrong. Must verify via Wikimedia API (`action=query&prop=imageinfo&iiprop=url`). Vercel serverless functions cannot access repo root files — use local Node.js scripts for file uploads.
+
+**What still needs work (Session 6a — Curated Content, parallel track — not a launch blocker):**
+
+> **STATUS CHANGE (March 20):** Curated editorial content is a parallel value-add, not a launch prerequisite. The 20 existing reports (Roswell + Rendlesham) are premium showcases. More clusters add value but mass ingestion and launch do not depend on them.
+
+- **Next curated case files:** Skinwalker Ranch, Phoenix Lights, Ariel School, etc. — each follows the Roswell/Rendlesham pattern (showcase + witness cluster + editorial enrichment + book recommendations + credibility rationales + YouTube videos + witness portraits)
+- **Phenomenon type taxonomy cleanup (PM decision):** All 14 Roswell + 6 Rendlesham reports have `phenomenon_type` set to "Notable Case" — a placeholder. Need to add "Crash & Retrieval", "Military Encounter", etc. to `phenomenon_types` table. Badge display already filters "Notable Case" so this is data-quality only.
+- Did You Know? cross-phenomenon connections need cross-category report data (Stargate Project etc.)
+- `roswell-incident` stub report (382 chars, no case_group) — consider merging into the showcase or deprecating
+- Migrate pre-session Roswell report images (DuBose, Marcel, Haut) from Wikimedia hotlinks to Supabase Storage
+- Shareable story cards (viral share images) — post-ingestion
+- Research Data Panel cross-referencing features — post-ingestion
+
+**Touches other sessions:** Map (shared MapLibre/MapTiler stack, deep-link URL params), Subscription (Research Data Panel Pro-gated), Session 6b (quality bar templates for ingested reports), Session 14 (book recommendations, affiliate strategy), Ingestion (generate-connections ready for batch), Encyclopedia (phenomena links), Mobile (reading experience COMPLETE), Foundation (on-demand ISR revalidation endpoint, FTC disclosure in Layout.tsx footer), Homepage/Explore (index.tsx "More Investigations" row added)
+
+---
+
+### 6b. Report Experience — Ingestion & Scale (NOT STARTED — NOW UNBLOCKED)
+
+**Scope:** Reports generated from mass ingestion pipeline. Quality templates, automated enrichment, connection generation at scale, automated media sourcing.
+
+**Depends on:** Session 10 (ingestion pipeline running). ~~Phase A (encyclopedia complete) and Phase B (curated quality bar set by Session 6a)~~ — dependency removed March 20. Encyclopedia and editorial are parallel tracks.
+
+**Key responsibilities:**
+- Define quality templates for ingested reports (minimum description length, required fields, credibility scoring)
+- Automated connection generation at ingestion time
+- Media sourcing automation (image extraction, thumbnail generation)
+- Report deduplication and merging for similar incidents
+- Location extraction subsystem for pipeline
+- Quality scoring and grading automation
+- Batch operations for report cleanup and enrichment
+
+**Shares with Session 6a:** Report detail page components, FormattedDescription, MediaGallery, FurtherReading, AI Analysis, reading experience. Session 6b should not modify shared components without coordinating with 6a.
+
+---
+
+### 14. Amazon Affiliate & Revenue Content (ACTIVE)
+
+**Owner files:** `HANDOFF_AFFILIATE.md`
+**Key files:**
+- `src/components/reports/FurtherReading.tsx` — Book recommendation component on report pages
+- `src/pages/api/reports/[slug]/books.ts` — API for fetching books per report
+- `src/pages/api/admin/seed-featured-and-books.ts` — Admin script for populating books
+- `src/pages/api/admin/fix-book-asins.ts` — ASIN correction script
+- `src/components/Layout.tsx` — Site-wide FTC disclosure in footer
+
+**Database tables:** `report_books`
+
+**Current state (March 18, 2026):**
+- Foundation DEPLOYED: `report_books` table, `FurtherReading.tsx` component, books API, FTC disclosures
+- 16 books seeded across 10 Roswell reports, all ASINs verified against Amazon
+- Amazon Associates StoreID: `paradocs-20`
+- All links use `tag=paradocs-20` parameter
+- Covers load from Amazon's image service with fallback icon
+
+**What needs work:**
+- **ASIN curation expansion:** Add books to the 4 Roswell reports without recommendations (Cavitt, DuBose, Wilcox, Porter)
+- **New case file books:** As Session 6a builds case files (Skinwalker Ranch, Phoenix Lights, etc.), Session 14 curates relevant book recommendations for each
+- **Dedicated bookshelf page:** `/books` or `/library` — organized by topic/case, SEO-optimized for book-related searches
+- **Revenue analytics:** Track click-through rates, conversion attribution, and revenue per report
+- **Product expansion:** Beyond books — documentaries, equipment, merchandise relevant to case files
+- **Cover image quality:** Some Amazon image service covers are low-res or wrong edition; consider storing verified cover images in Supabase Storage
+- **Seasonal/promotional rotation:** Feature timely books (e.g., new Roswell book releases, anniversary editions)
+- **Affiliate compliance monitoring:** Regular ASIN audits, link health checks, Amazon Associates program compliance
+
+**Touches other sessions:** Session 6a (book data seeded per case file), Session 6b (automated book suggestion for ingested reports — future), Subscription (potential Pro-only book lists), Foundation (Layout.tsx footer disclosure)
+
+---
+
+### 15. AI Experience & Intelligence (DEPLOYED — Live on Production)
+
+**Scope:** RAG pipeline, vector embeddings, semantic search, pattern detection, conversational AI, all AI-powered features across the platform.
+
+**Key files (new — Session 15):**
+- `supabase/migrations/20260320_vector_embeddings.sql` — pgvector tables, HNSW index, search_vectors RPC
+- `src/lib/services/embedding.service.ts` — Core embedding pipeline (chunk, embed, store, search)
+- `src/lib/services/ai-pattern-detection.service.ts` — Geographic, temporal, similarity pattern detection
+- `src/pages/api/admin/ai/embed.ts` — Admin embedding trigger endpoint
+- `src/pages/api/ai/search.ts` — Semantic search API
+- `src/pages/api/ai/patterns.ts` — Pattern detection API
+- `src/pages/api/ai/featured-patterns.ts` — Homepage AI preview (Session 7 Phase 2)
+- `src/pages/api/ai/related.ts` — Search enrichment (Session 7 Phase 3)
+- `src/pages/api/ai/report-similar.ts` — Per-report vector similarity
+- `src/pages/api/ai/chat.ts` — **REWRITTEN** with RAG pipeline + source citations
+
+**Key files (existing, unchanged):**
+- `src/components/AskTheUnknown.tsx` — Floating AI chat button (MODIFIED: citation parsing + Sources footer for RAG responses)
+- `src/components/reports/ReportAIInsight.tsx` — Per-report AI analysis section
+- `src/lib/services/report-insights.service.ts` — AI analysis generation (hash-based caching, DB-grounded)
+- `src/lib/services/ai-insights.service.ts` — Claude-powered pattern narratives
+
+**Database tables (new):** `vector_chunks` (pgvector), `embedding_sync`, `ai_featured_patterns`
+
+**Current state (March 20, 2026) — DEPLOYED AND LIVE:**
+- **P0 DEPLOYED:** Vector embedding pipeline. pgvector migration executed. ~900 reports fully embedded, ~1,150/4,792 phenomena embedded (remaining rate-limited, safe to re-run).
+- **P1 DEPLOYED:** Semantic search API at `/api/ai/search`. Confirmed working ("Roswell crash debris" → 66.5% match).
+- **P2 DEPLOYED:** Pattern detection (geographic clusters, temporal spikes, phenomena similarity). API at `/api/ai/patterns`.
+- **P3 DEPLOYED:** RAG-powered chat. Embeds query, retrieves top-8 chunks, injects into Claude context. Anti-hallucination rules. Source citations with `[slug:x]` format.
+- **P4 DEPLOYED:** Integration endpoints for Session 7 (featured patterns, related search, report similarity).
+- **3 commits on main:** `e06c977` (main pipeline), `09b3df7` (column name fix), `158443d` (phenomena column fix).
+- **Column name discoveries:** `reports` uses `location_name` (not `location`), `phenomenon_type_id` (not `phenomenon_type`). `phenomena` has no `subcategory` column.
+
+**Remaining work in this session:**
+- Finish embedding remaining ~3,600 phenomena (re-run with staggered batches to avoid OpenAI rate limits)
+
+**What still needs work (future sessions):**
+- Incremental embedding hooks (auto-embed on report insert/update)
+- ~~AskTheUnknown UI: parse `[slug:x]` citation format into clickable links~~ ✅ DONE (March 20) — `renderMarkdown()` parses citations, Sources footer for RAG responses
+- ~~Session 7 homepage wiring: consume `/api/ai/featured-patterns`~~ ✅ DONE (March 20) — `AIPreview.tsx` on homepage
+- ~~Session 7 search wiring: consume `/api/ai/related`~~ ✅ DONE (March 20) — Related Patterns in search results
+- Streaming chat responses for better UX
+- Conversation memory (multi-session)
+- Skeptic/believer mode toggle
+
+**Touches other sessions:** Session 7 (homepage AI preview, search enrichment — **UNBLOCKED**), Session 5 (Research Hub AI), Session 4 (complements pattern detection), Session 6a/6b (report similarity), Session 10 (new reports must be embedded after ingestion), Foundation (OPENAI_API_KEY env var)
+
+---
+
+### 7. Search, Navigation & Homepage
+
+**Key files:**
+- `src/pages/index.tsx` — Homepage (8 sections: Hero w/ animated search, Category Slideshow, AI Insight, Feed Phone Showcase, Map Phone Showcase, Lab Laptop Showcase, How It Works + FAQ, Data Proof CTA)
+- `src/pages/search.tsx` — Full-text search page
+- `src/pages/api/search/fulltext.ts` — Full-text search API
+- `src/components/Layout.tsx` — Global navigation
+- `src/components/Navigation*.tsx` — Navigation components
+- `src/components/NavigationHelper.tsx` — Breadcrumbs
+- `src/components/OnboardingTour.tsx`, `WelcomeOnboarding.tsx`, `ThreeTapOnboarding.tsx`
+- `src/pages/about.tsx`
+
+**Database:** `search_vector` column, full-text search indexes, `featured_investigations` (data owned by Session 6a, layout owned by Session 7)
+
+**Current state (April 29, 2026):**
+- **MAJOR REDESIGN:** Complete homepage overhaul benchmarked against AllTrails. Old 4-section layout (Hero, Four Pillars, Eyewitness Accounts, Get Started CTA) replaced with 8-section design centered on realistic device mockups. See "April 27-29" section below for full details.
+- Homepage hero A/B tested (5 variants), search bar enhanced with quick-search tags, Quick Links removed, SEO + JSON-LD added
+- Search page rewritten: fulltext API with ts_rank ranking (was ILIKE), autocomplete on phenomena, keyword/phrase toggle
+- Onboarding consolidated: `UnifiedOnboarding.tsx` replaces WelcomeOnboarding + ThreeTapOnboarding
+- **UX Audit completed (v4 approved):** Three-lens audit (UX, Engagement, Vision) produced 20-item phased plan. See `Paradocs_UX_Audit_Plan.docx` and `HANDOFF_SEARCH_NAV.md`.
+- **Four Pillars redesign (March 21):** Cards made taller (min-h-[280px]/[320px]), line-clamp removed, descriptions fully rewritten with benefit-driven engagement copy. Section header promoted from gray bridge label to white h2 + "Each built for a different kind of curiosity." subline.
+- **DiscoverPreview redesign (March 22):** Complete rewrite from 4 identical cards to multi-format magazine layout. 3 card formats: Featured (2-col span, dramatic), Pull-Quote (italic hook with quote mark), Compact (metadata-rich). Smart selection fetches 20, picks best 3 with quality-scored hooks as dominant signal. Multi-layer hook scoring (vivid words, generic/filler/academic penalties). Feed_hooks scored via `scoreSentence() + 10` (not flat). Category diversity for first 2 cards, pure quality for 3rd. 198 AI feed_hooks generated via `/api/admin/generate-hooks`. Header: "Eyewitness accounts" + "Millions of real reports from people worldwide." CTA: "Explore stories". Component ~560 lines.
+
+**Approved revision plan (four pillars: Database + AI + Dashboard + Discover):**
+- **Phase 1 (this week):** Mobile search icon, replace legacy stats, hide placeholder Trending Patterns
+- **Phase 2 (next 2 weeks, BLOCKED on AI Experience session):** Hero redesign around four pillars, AI intelligence preview, dashboard preview, four-pillar "What Is Paradocs?" section, Discover feed preview on homepage
+- **Phase 3 (month 2):** AI-powered search results ("Related Patterns"), search highlighting, Save Search, notification bell, nav scaling for 5M+ reports
+
+**Phase 1 SHIPPED (March 19):** Mobile search icon in Layout.tsx, legacy stats replaced (4,792 encyclopedia / 20+ investigations / 11 categories), TrendingPatternsWidget hidden.
+
+**Session sequence:**
+1. ~~Session 7 Phase 1~~ — SHIPPED (March 19)
+2. ~~AI Experience & Intelligence (Session 15)~~ — SHIPPED (March 20): RAG pipeline, vector embeddings, pattern detection, conversational AI
+3. ~~Session 7 Phase 2~~ — SHIPPED (March 20): Four new homepage components, A/B variants updated, section consolidation
+4. ~~Session 7 Phase 3~~ — SHIPPED (March 20): AI search results, Save Search, NotificationBell, Ask AI nav, Stories rename, launch stats
+
+**ALL PHASES COMPLETE + PWA INSTALL PROMPT + HOMEPAGE POLISH (March 21).** Homepage: 4 clean sections with PWA install prompt in Get Started CTA. Service worker deployed (public/sw.js) — satisfies Chrome installability. useInstallPrompt hook handles Android/iOS/desktop detection. App icon P gradient updated to #9000F0 brand purple, all 8 PNG sizes regenerated.
+
+**March 21 session — homepage card redesign:**
+- `FourPillars.tsx`: taller cards, full descriptions, white h2 section header
+- `DiscoverPreview.tsx`: 3-format card system (featured/dossier/compact — was featured/pull-quote/compact, updated March 28 for index model), smart report selection (20 fetched, best 3 chosen), vivid hook extraction, category color accents, "Eyewitness accounts" header, "Explore stories" CTA
+
+**Key files added/modified (March 21):**
+- `src/components/homepage/FourPillars.tsx` — Taller cards, richer descriptions, h2 header
+- `src/components/homepage/DiscoverPreview.tsx` — Complete rewrite: multi-format cards, smart selection, hook extraction (129 → 415 lines)
+
+**March 22 session — card visual upgrades, scoring overhaul & feed_hook generation:**
+- `DiscoverPreview.tsx`: Category-tinted gradient backgrounds on all 3 card formats, atmospheric pull-quote card with oversized watermark + category-colored quote marks, hook quality threshold (raised to 3) with title fallback, compact card now shows hook text, expanded vivid word list (70+ words). Multi-layer scoring: vivid words (+2), generic starts (-3), filler phrases (-2), dry/academic language (-3). Feed_hooks now scored via `scoreSentence() + 10` instead of flat 20 — vivid AI hooks beat dry ones. Selection: category diversity for first 2 cards, pure quality for 3rd card. Fetch pool expanded to 20. Section title: "Eyewitness accounts" + "Millions of real reports from people worldwide."
+- `DiscoverCards.tsx`: Complete ACCENT_VARIATIONS coverage (all 11 categories, was only 5), category-specific quote borders replacing mood-based borders
+- **NEW** `src/pages/api/admin/generate-hooks.ts`: Admin endpoint for AI feed_hook generation using Claude Sonnet. Auth via `x-admin-api-key`. Batch processing with rate limiting. 198/200 reports processed in first run. ~700+ reports still pending.
+- Scaling strategy documented: feed_hook pipeline for mass ingestion, generative variety system provides 2,816 unique visual combinations across all categories
+
+**Key files added/modified (March 22):**
+- `src/components/homepage/DiscoverPreview.tsx` — Hook scoring overhaul, feed_hook quality scoring, selection algorithm rewrite, section title change (~560 lines)
+- `src/components/discover/DiscoverCards.tsx` — ACCENT_VARIATIONS coverage, category quote borders
+- `src/pages/api/admin/generate-hooks.ts` — NEW: AI feed_hook generation endpoint (~190 lines)
+
+**April 27-29, 2026 — Complete Homepage Redesign (AllTrails Benchmark):**
+
+Major visual overhaul benchmarked against AllTrails.com to achieve world-class quality. Complete replacement of the old 4-section homepage (Hero, Four Pillars, Eyewitness Accounts, Get Started CTA) with an 8-section design centered on realistic device mockups and product showcase.
+
+**New section order:** Hero → Category Slideshow → AI Pattern Insight → Feed Phone Showcase → Map Phone Showcase → Lab Laptop Showcase → How It Works + FAQ → Data Proof + CTA
+
+**New components built:**
+- `src/components/homepage/PhoneMockup.tsx` — Realistic phone frame using SVG overlay with transparent screen cutout (evenodd compound path). IntersectionObserver scroll-triggered fade-up animation. 360px wide, aspect-ratio 92/170.
+- `src/components/homepage/LaptopMockup.tsx` — Same pattern for laptop. Dark charcoal base (not silver). 700px wide, aspect-ratio 440/257.
+- `src/components/homepage/FeedShowcase.tsx` — "What people are reporting" — phone mockup with mock feed cards (3 cards: UFO, Cryptid, Ghost). App Store + Google Play badges with QR code. Purple radial ambient glow.
+- `src/components/homepage/MapShowcase.tsx` — "Explore the global map" — phone mockup with dark map, glowing report dots, filter chips, stat bar. Compact "Available on iOS, Android & Web" CTA (varied from Feed section's full badges). Cyan ambient glow with gradient wash background.
+- `src/components/homepage/LabShowcase.tsx` — "Investigate the unknown" — laptop mockup showing mock Lab workspace (sidebar case files, report cards, credibility tags, constellation visualization). CTA links to /lab.
+- `src/components/homepage/AIInsight.tsx` — **REBUILT:** 4 rotating AI insights with crossfade (8s interval), clickable dot indicators, category tags ("Geographic correlation", "Temporal correlation", etc.), share button (Web Share API / clipboard fallback). Insights: military base correlation, 37th parallel, geomagnetic storms, orb/EMI co-occurrence. TODO: connect to real AI pipeline post-mass-ingestion.
+- `src/components/homepage/HowItWorks.tsx` — **NEW:** 3-step process ("aggregate → AI detects → you explore") + 5-question FAQ accordion. SEO-rich crawlable text.
+- `src/components/homepage/AppStoreBadges.tsx` — QR code (100×100) + App Store + Google Play badges.
+- `src/components/homepage/QuickNavStrip.tsx` — **UPDATED:** WebP images via `<picture>` element with PNG fallback.
+- `public/device-phone.svg` — High-fidelity vector phone frame (metallic bezel, notch, camera, side buttons). Extracted from purchased vector asset, modified with evenodd transparent screen cutout.
+- `public/device-laptop.svg` — High-fidelity vector laptop frame (dark charcoal base, trackpad, webcam, hinge). Same evenodd technique.
+- `public/categories/*.webp` — WebP conversions of category art (80-87% file size reduction).
+
+**Hero changes:**
+- Animated typewriter search placeholder cycling through 7 real example queries ("triangle UFOs over the Hudson Valley", "shadow people in old houses", etc.). Types, pauses, backspaces, cycles. Stops on focus.
+- Focus ring bumped to `focus:ring-primary-500/40` for accessibility.
+- 5 A/B tested headline variants (unchanged from prior work).
+
+**Design decisions documented:**
+- Phone sections use `items-start` (top-aligned text) with `md:pt-16` offset so headline sits at upper third of phone — AllTrails pattern.
+- Text-to-device gap: `md:gap-14` (56px). Section breakout: `md:-my-16` (phone), `md:-my-12` (laptop).
+- Feed section has full badges + QR; Map section has compact "Available on iOS, Android & Web" button — varied to avoid repetition fatigue.
+- Laptop base darkened to charcoal (#1a-#3a range) so keyboard area recedes against dark page background.
+- Section backgrounds differentiated: Feed has purple glow, Map has cyan glow + gradient wash, Lab is neutral.
+
+**Iterative expert panel process:**
+- Multiple rounds of 5-12 expert panel reviews (UX, Design, Marketing, Growth, Frontend Performance, Mobile UX, Copywriting, Community, SEO, Data Viz, Domain SME, Gen-Z Consumer).
+- AllTrails used as primary visual benchmark throughout.
+- Each round produced specific actionable changes that were implemented and verified.
+
+**Key files modified:** `src/pages/index.tsx` (section order, animated search, HowItWorks import), `public/device-laptop.svg` (darkened gradients), all homepage components listed above.
+
+**What needs work:**
+- Replace static phone/laptop mockup content with looped video recordings of actual product
+- Connect AI insight rotation to real pipeline results post-mass-ingestion
+- Replace placeholder data (feed cards, map dots, Lab workspace) with live content
+- Mobile testing of 360px phone at small viewport widths
+- Category image `srcset` with responsive sizes for mobile (currently WebP but full-res)
+
+**Touches other sessions:** ALL sessions (service worker is Foundation-level — all pages now cached by SW), Session 13 (mobile install prompt), Foundation (sw.js + _app.tsx SW registration), Session 10 (feed_hook column consumed + generation endpoint built, ~700 reports still need hooks, pipeline strategy documented for mass ingestion)
+
+---
+
+### 8. Subscription & Monetization
+
+**Key files:**
+- `src/pages/dashboard/subscription.tsx` — Billing management
+- `src/pages/api/subscription/` — create-checkout, billing-portal, cancel, tiers
+- `src/pages/api/webhooks/stripe.ts` — Stripe webhook handler
+- `src/lib/subscription.ts` — Tier logic
+- `src/lib/hooks/useSubscription.ts`
+- `src/components/PaywallGate.tsx`, `dashboard/FeatureGate.tsx`, `dashboard/UpgradeCard.tsx`, `dashboard/TierBadge.tsx`, `dashboard/UsageMeter.tsx`
+- `src/components/CancellationFlow.tsx`
+
+**Database tables:** `subscriptions`, `profiles` (tier fields)
+
+**Current state:** Tier system exists (free/basic/pro/enterprise). Paywall gate component built. Stripe webhook handler exists. STRIPE_SECRET_KEY NOT YET PROVIDED (blocking).
+
+**What needs work:**
+- **BLOCKED:** Chase needs to provide STRIPE_SECRET_KEY
+- Complete Stripe checkout flow
+- Billing portal integration
+- Cancellation flow with retention offers
+- Trial period implementation
+- Usage metering accuracy
+- Pricing page / marketing
+- Revenue analytics
+
+**Touches other sessions:** Dashboard (subscription tab, usage meter, tier badge), All features (PaywallGate/FeatureGate integration), Email (billing-related emails), Admin (subscription analytics)
+
+---
+
+### 9. Email & Engagement
+
+**Key files:**
+- `src/pages/api/cron/weekly-digest.ts` — Weekly digest
+- `src/pages/api/cron/email-drip.ts` — Onboarding drip
+- `src/pages/api/cron/smart-alerts.ts` — Smart notifications
+- `src/pages/api/cron/winback.ts` — Re-engagement
+- `src/lib/services/digest.service.ts` — Digest generation
+- `src/lib/services/email.service.ts` — Resend integration
+- `src/pages/api/user/digests.ts` — User digest preferences
+- `src/pages/api/beta-signup.ts` — Email capture
+
+**Current state:** Weekly digest built (Resend). Cron endpoints for drip, alerts, winback exist. Email service operational.
+
+**What needs work:**
+- Email template design and branding
+- Drip campaign content creation
+- Smart alert algorithm tuning
+- Winback sequence design
+- Engagement metrics tracking
+- Unsubscribe flow
+- Email deliverability optimization
+- A/B testing of email subject lines
+
+**Touches other sessions:** Dashboard (digest preferences), Insights (pattern alerts), Subscription (billing emails), Explore (personalized content selection for digests)
+
+---
+
+### 10. Data Ingestion & Pipeline (ACTIVE — Session March 21)
+
+**Key files:**
+- `src/lib/ingestion/` — engine.ts (now with feed_hook + embedding integration), types.ts, dedup.ts, adapters/ (12 sources), filters/, utils/
+- `src/lib/services/feed-hook.service.ts` — NEW: Claude Haiku feed hook generation
+- `src/pages/api/admin/ai/generate-hooks.ts` — NEW: Batch hook generation endpoint
+- `src/pages/api/admin/ingest.ts`, `batch-import.ts`
+- `src/pages/api/cron/ingest.ts`
+- `supabase/migrations/20260321_feed_hook.sql` — NEW: feed_hook + needs_reingestion columns
+- `scripts/` — 41+ CLI tools for import, backfill, cleanup
+
+**Database tables:** `reports` (with new feed_hook, feed_hook_generated_at, needs_reingestion columns), `ingestion_logs`, `ingestion_jobs`, `data_sources`
+
+**Current state (April 2, 2026):**
+- **Session B1 adapter hardening COMPLETE (April 2):** All 7 high-priority adapters audited and ready for mass ingestion. NUFORC variable scoping fixed, Reddit V2 crosspost/content dedup added + Experiencers subreddit + minScore raised, YouTube completely rewritten with experiencer comment extraction. BFRO/NDERF/IANDS/Erowid verified clean with no changes needed. Dry-run validation script at `scripts/dry-run-adapters.ts`.
+- **YouTube adapter rewrite (April 2):** Now extracts videos AND qualifying experiencer comments as separate reports. First-person detection + narrative element scoring filters comments. `yt-video-` and `yt-comment-` ID prefixes prevent collisions. 8 default channels, optional search-based discovery.
+- **Feed hook service DEPLOYED (prompt upgraded March 28):** Claude Haiku generates two-line (25-50 word) scroll-stopping hooks per report. Line 1 = hardest-hitting fact/stat, Line 2 = unresolved tension. Category-specific tones (cockpit-clinical for UFOs, field-biologist for cryptids, etc). Batch endpoint supports single/all_missing/all/stats actions. Rate-limited with model fallback chain. All 29 current reports regenerated with new prompt.
+- **Ingestion engine UPGRADED:** Post-insert pipeline now runs: quality filter → dedup → title improvement → slug → phenomena linking → **feed_hook generation** → **Paradocs Analysis** → **vector embedding**. Non-blocking — failures log and continue.
+- **12 source adapters:** Original 8 (NUFORC, BFRO, Reddit, NDERF, IANDS, Ghosts of America, Shadowlands, Wikipedia) + 4 new (reddit-v2, youtube, news, erowid). 7 highest-priority adapters hardened and validated.
+- **NUFORC adapter fully upgraded (March 27, scoping fix April 2):** Extracts structured metadata (speed, size, direction, elevation, distance, observers, characteristics, time) into `metadata` JSONB column. Images no longer scraped (link_only policy). All 18 reports have full metadata.
+- **Research data panel (academicData API) rewritten:** Extracts speed (with unit inference), time, witnesses, direction, altitude, brightness from descriptions + NUFORC metadata. QA coverage: 100% time, 94% elevation, 89% shape/direction, 83% size.
+- **Credibility reasoning upgraded:** Prompt expanded to require 2-4 specific sentences. Anti-generic instruction added. All 19 analyses regenerated with specific, report-referencing reasoning.
+- **Media compliance enforced:** Hotlinked NUFORC images removed. New `MediaMentionBanner` component shows prominent link to source when description references media. Working on Prayagraj (video) and Guelph (image).
+- **Geocoding consolidated on MapTiler (March 27):** `geocoding.service.ts` rewritten from broken Mapbox to MapTiler API. Global coverage confirmed (US, Canada, UK, India, Argentina, Netherlands). In-memory cache for batch deduplication. `report-enricher.ts` refactored to use centralized service. All 19 reports now have coordinates and appear on the interactive map.
+- **Database:** 19 reports (1 curated Roswell + 18 NUFORC), all approved, all geocoded. Data cleanup complete (no more test/dev data).
+
+**What needs work (Priority Order):**
+1. **Run dry-run locally (Session B2):** `npx tsx scripts/dry-run-adapters.ts` — validates all 7 adapters produce well-formed reports
+2. **Mass ingestion at scale (Session B2):** 50 → 500 → 2,000 → full per source. NUFORC first, then BFRO, Reddit, YouTube, Erowid, NDERF, IANDS. See Session B1 section for exact curl commands.
+3. **Post-ingestion embedding:** Batch embed new reports via `/api/admin/ai/embed` with `action: 'all_reports'`.
+4. **Additional adapters:** Podcast transcripts, MUFON (if public API), government docs, forums
+5. Pipeline monitoring and error alerting
+6. Automated scheduled ingestion (cron optimization — daily cron currently re-ingests NUFORC, may cause duplicates)
+
+**Touches other sessions:** AI Experience (new reports auto-embedded after ingestion), Discover (feed_hook consumed by feed-v2 API for card copy), Map (more geolocated reports), Reports (quality templates at scale), Search (more searchable content), Insights (more data = better patterns), Encyclopedia (phenomena linking after ingestion)
+
+---
+
+### 11. Admin & Operations
+
+**Key files:**
+- `src/pages/admin/` — index, ab-testing, media-review
+- `src/pages/api/admin/` — 25+ endpoints for batch operations
+- `src/components/admin/` — StatsCard, SourceHealthGrid, ActivityFeed
+- `src/pages/api/ab/track.ts`, `report.ts`
+- `src/lib/ab-testing.ts`
+- `src/pages/analytics.tsx`, `src/pages/api/analytics/enhanced.ts`
+
+**Current state:** Admin dashboard with stats. A/B testing framework. Media review page. Batch operation endpoints. Public analytics page.
+
+**What needs work:**
+- Admin dashboard comprehensiveness (cover all operations)
+- Content moderation workflow
+- A/B test management UI
+- Analytics depth (funnels, retention, cohorts)
+- Error monitoring and alerting
+- Database health monitoring
+- Automated quality audits
+
+**Touches other sessions:** All sessions (admin manages all features), Ingestion (admin triggers), Subscription (revenue dashboard)
+
+---
+
+### 12. Foundation & Infrastructure
+
+**Key files:**
+- `src/pages/_app.tsx`, `_document.tsx` — App wrapper
+- `src/lib/supabase.ts` — Client config
+- `src/lib/database.types.ts` — TypeScript types
+- `src/lib/constants.ts`, `utils.ts`
+- `src/styles/globals.css` — Tailwind + custom CSS
+- `supabase/migrations/` — 30+ migration files (includes 20260311_research_hub_constellation_v2.sql, 20260331_rls_security_hardening.sql)
+- `next.config.js`, `tailwind.config.js`, `tsconfig.json`
+- `DEPLOYMENT.md`, `SECURITY.md`
+- `src/pages/auth/callback.tsx`, `src/pages/login.tsx`
+
+**Current state:** Next.js 14 Pages Router. Supabase with RLS. Vercel deployment (auto-deploy). Auth working.
+
+**Security hardening (April 1, 2026):**
+- **RLS security audit COMPLETE:** Supabase alerted on publicly accessible tables without Row-Level Security. Diagnosed 6 tables missing RLS: `feed_config`, `constellation_external_url_signals`, `duplicate_matches`, `daily_stats`, `data_sources`, `spatial_ref_sys` (PostGIS system table — cannot/should not have RLS). Migration applied: `supabase/migrations/20260331_rls_security_hardening.sql`. All fixable tables now have RLS enabled with appropriate policies (admin-only for feed_config/duplicate_matches, public read + auth write for constellation_external_url_signals, conditional for daily_stats/data_sources).
+- **Admin endpoint secured:** `src/pages/api/admin/run-migration.ts` had NO auth check — anyone hitting the endpoint could trigger migrations with service_role key. Added admin auth guard matching `report-review.ts` pattern (cookie + bearer token + email check for `williamschaseh@gmail.com`). File kept rather than deleted since project is still in active development.
+- **Note:** `spatial_ref_sys` (PostGIS system table) flagged by Supabase but is a read-only reference table that cannot/should not have RLS added. This is expected.
+
+**What needs work:**
+- Performance optimization (Core Web Vitals)
+- Database schema optimization (indexes for new queries)
+- Auth flow improvements
+- ~~RLS policy audit~~ ✅ DONE (April 1, 2026)
+- Error boundary implementation
+- Shared component library cleanup
+- TypeScript strictness improvements
+- CI/CD pipeline (tests, linting)
+- Mobile responsiveness audit
+- Accessibility (a11y) audit
+- ~~Security hardening~~ ✅ RLS + admin endpoint auth (April 1, 2026)
+
+**Touches other sessions:** ALL sessions (foundation changes affect everything). Extra care needed — coordinate via Cross-Feature Notes.
+
+---
+
+### 13. Mobile-First Design System
+
+**Key files:**
+- `SESSION_PROMPT_MOBILE.md` — Full session prompt with startup instructions, design philosophy, three-phase plan
+- `HANDOFF_MOBILE.md` — Current mobile state documentation, known issues, tech stack notes
+- `src/components/dashboard/DashboardLayout.tsx` — Mobile header, hamburger menu, safe area handling
+- `src/components/dashboard/research-hub/BoardView.tsx` — CSS-only responsive layout (sm:hidden / hidden sm:grid)
+- `src/components/dashboard/research-hub/ArtifactDetailDrawer.tsx` — Full-screen mobile drawer, enlarged back button
+- `src/components/dashboard/research-hub/ResearchHub.tsx` — overflow-x-hidden, overscroll-behavior containment
+- `src/pages/dashboard/index.tsx` — Extensive overflow/truncation mobile fixes
+- All other page and component files across sessions (cross-cutting concern)
+
+**Database tables:** None (CSS/UX only)
+
+**Current state (March 20, 2026):**
+- **Phase 1-2 COMPLETE:** Design tokens (spacing.touch, spacing.nav, slide animations), 4 reusable mobile components (MobileBottomTabs, MobileBottomSheet, MobileHeader, MobileCardRow), CSS utilities in globals.css. DashboardLayout rewritten — hamburger menu removed, MobileBottomTabs added. ViewSwitcher mobile labels visible.
+- **Phase 3a COMPLETE:** Report detail mobile redesign — reading progress bar bug fix, mobile back button, non-sticky action bar on mobile, native share (`navigator.share`), responsive typography, content spacing.
+- **DISCOVERED:** Dual layout architecture — Layout.tsx (public pages) has its own completely different mobile bottom nav from DashboardLayout's MobileBottomTabs. Nav unification is next priority.
+- PUT /api/research-hub/artifacts/[id] endpoint created (was missing)
+
+**What needs work:**
+- ~~Quick fix: Reading progress bar~~ ✅ (h-[3px] → h-1.5, March 15)
+- ~~Nav unification~~ ✅ (MobileBottomTabs unified across Layout.tsx + DashboardLayout, March 15)
+- **Phase 3 remaining screens:** ~~Dashboard home~~ ✅, ~~Explore feed~~ ✅, ~~Map page~~ ✅, ~~ArtifactDetailDrawer→bottom sheet~~ ✅, ~~ArtifactQuickAdd→bottom sheet~~ ✅. Remaining: Constellation touch controls, Journal, Search, Settings (lower priority)
+- **Stories rename (March 20):** MobileBottomTabs FAB comment updated from "Discover" to "Stories" to match Session 7 desktop nav rename. Route unchanged (`/discover`).
+
+**Touches other sessions:** ALL sessions — mobile design system is cross-cutting. Especially Dashboard (navigation shell), Reports (40K+ line detail page mobile audit), Map (touch interactions), Explore (feed card mobile layout), Search (mobile search UX), Foundation (shared components, globals.css)
+
+---
+
+## Cross-Feature Notes
+
+> **Instructions:** When a session makes a change that affects another feature, add a dated note here. The affected session checks this section on startup.
+
+| Date | Source Session | Note | Affects |
+|------|--------------|------|---------|
+| 2026-05-01 | Lab QA (L1) | **Radar/Lab polish continuation (May 1).** (1) Toast centering fix in `LabConstellationTab.tsx` — restructured from `translateX(-50%)` to flexbox centering to avoid CSS animation transform conflict. (2) Footer hidden on mobile via `hidden md:block` on `<footer>` in `Layout.tsx` — bottom tab nav replaces footer. (3) Legal/about links added to `profile.tsx` as mobile-only "About & Legal" section above Sign Out. (4) MobileBottomTabs label changed from "Investigate" to "Lab" for consistency. (5) Sticky tab bars on Lab and Explore pages using new `.sticky-below-header` CSS utility in `globals.css` that accounts for `safe-area-inset-top`. Lab header split into scrolling title + sticky tabs. Explore `top-14` replaced with `sticky-below-header`. **Files modified:** `LabConstellationTab.tsx`, `Layout.tsx`, `profile.tsx`, `MobileBottomTabs.tsx`, `globals.css`, `lab.tsx`, `explore.tsx`. | Foundation (Layout.tsx footer changed, globals.css new utility class), Mobile Design (Session 13 — footer hidden, bottom tab label changed, safe-area-aware sticky utility), Explore & Discovery (Session 2 — explore.tsx sticky tabs updated), Session A1 (Lab page header restructured, Profile page updated) |
+| 2026-04-29 | UI/UX Polish | **Cross-feature UI/UX polish pass.** (1) Discover page unified with site Layout — removed from `STANDALONE_PAGES` in `_app.tsx`, custom header removed, now renders inside shared Layout wrapper. (2) `CATEGORY_CONFIG` colors standardized: all categories updated to `-400` color variants and `/20` bgColor opacity for consistent brightness across hues. Affects every component that reads CATEGORY_CONFIG. (3) Browse category card hover previews replaced with static description text from CATEGORY_CONFIG (removed DB fetches). (4) Map filter panel: credibility filter removed entirely, category pills unified with CategoryFilter.tsx style, scroll cutoff fixed (`bottom-[52px]`), map auto-refits when panel opens/closes (`mapPadding` prop on MapContainer). (5) MapLibre zoom controls repositioned via CSS override in globals.css. **Files modified:** `_app.tsx`, `discover.tsx`, `explore.tsx`, `constants.ts`, `MapFilterPanel.tsx`, `MapContainer.tsx`, `globals.css`. | Explore & Discovery (Session 2), Map & Geospatial (Session 3), Foundation (Session 12 — _app.tsx, globals.css), ALL sessions (CATEGORY_CONFIG color change affects all category-colored UI) |
+| 2026-04-14 | Ingestion B1.5 | **Session B1.5: Adapter QA/QC (Live Smoke Tests) OPENED.** NDERF evaluative-tier neutralization verified — public `ndeType` always "Near-Death Experience", tier preserved internally in `case_profile.nderf_tier`. OBERF `case_profile` extraction rebuilt: `buildCaseProfile()` refactored to accept a `LabelResolver` closure; new `buildOBERFFieldMap()` handles OBERF's inline `color:green`/`color:blue` span markup (vs. NDERF's class-based markup). Added archive-type inference (OBE/SOBE archives default `cp_oob=yes`) and narrative-year date fallback. 3-row OBERF smoke test passed across full/NDERF-style/narrative-only page variants. **B2 mass ingestion BLOCKED until B1.5 signs off on every adapter.** B1.5 protocol: 5 reports per category per adapter → row-level SELECT verification → fix bugs → move on. Priority order: NDERF+OBERF re-verify → IANDS → BFRO → NUFORC → Reddit V2 → YouTube → Erowid. Details in `B1_5_QA_QC_NOTES.md`. Continuation prompt: `B1_5_CONTINUATION_PROMPT.md`. **No date cutoff on any adapter** (reversed an incorrect "Stop at 2019" policy cited in an earlier session summary). | Session 10 (active B1.5 work), Session B2 (blocked on B1.5 sign-off), Session 6b + Session 2 (unchanged — await B2) |
+| 2026-04-02 | Ingestion B1 | **Session B1: Adapter Hardening COMPLETE.** All 7 high-priority adapters audited. NUFORC scoping fix, Reddit V2 crosspost+content dedup + Experiencers subreddit + minScore raised to 10, YouTube completely rewritten with experiencer comment extraction (videos + comments as separate reports). BFRO/NDERF/IANDS/Erowid verified clean. Dry-run script created at `scripts/dry-run-adapters.ts`. `.env.example` updated with YOUTUBE_API_KEY. Estimated first-wave yield: ~250K-310K reports across all 7 adapters. | Session 10 (all adapters now hardened), Session 6b (YouTube comments as new report source type), Session 2/Explore (more diverse source types in feed after ingestion), Session B2 (exact mass ingestion commands documented in B1 section) |
+| 2026-03-25 | Dashboard (5) | **Dashboard UX Overhaul (Parts 1-6 COMPLETE).** Part 1: New dashboard page flow with 5 new components (QuickActions, ActivitySummary, SuggestedNextSteps, RecentDiscoveries, EmptyState). Part 2: ConstellationProgress.tsx — 5-tier milestone messaging (0-4/5-9/10-24/25-49/50+ entries) with contextual guidance on constellation page. Part 3: Saved items polish — category filter pills, sort dropdown, EmptyState integration, horizontal-scroll tabs on mobile. Part 4: Settings — Subscription section with CTA to /dashboard/subscription, About section with version + legal links. Part 5: ProgressMilestones.tsx — localStorage-based achievement tracking (firstSave, firstCaseFile, constellationUnlocked, aiInsightsUnlocked) with dismissable celebration banners. Part 6: Mobile polish — 44px touch targets on pills/buttons/tabs, horizontal-scroll + touch-pan-x on filter rows, responsive header stacking, always-visible action overlays on mobile. 7 new components total, 4 pages modified. | Mobile Design (touch targets standardized), Search & Nav (QuickActions links to /search and /ask), Subscription (settings now links to /dashboard/subscription) |
+| 2026-03-20 | Search & Nav (7) | **PWA INSTALL PROMPT + SERVICE WORKER + APP ICON UPDATE.** Service worker deployed at `public/sw.js` (cache-first static, network-first pages, skip API/auth). Registered in `_app.tsx`. `useInstallPrompt` hook detects Android beforeinstallprompt, iOS Safari, standalone mode, desktop. `InstallPrompt` component shows mobile-only "Add to home screen" in homepage Get Started section. App icon SVG gradient updated from old purples to brand #9000F0 scale (#c084fc/#9000f0/#6500a8), all 8 PNG icons regenerated. | **ALL sessions (FOUNDATION-LEVEL: service worker now exists — all pages cached by SW)**, Session 13 (mobile PWA install experience), Foundation (_app.tsx modified, public/sw.js added, all icons regenerated) |
+| 2026-03-20 | Search & Nav (7) | **NATIVE APP WRAPPER ADDED TO LAUNCH PATH.** Capacitor wrapper for iOS App Store + Google Play Store added as step 5 in critical launch path (after Stripe, before closed beta). Wraps existing Next.js web app in native shell. Subscriptions route to Stripe web checkout via system browser — zero Apple/Google commission in US (Epic v. Apple ruling, May 2025). Push notifications via native APIs. Closed beta will use TestFlight (iOS) + internal testing track (Android). Estimate: 1-2 dedicated sessions. Full spec in HANDOFF_SEARCH_NAV.md "Native App Wrapper" section. | Session 8/Subscription (Stripe web checkout must work for in-app-to-web payment flow), ALL sessions (native app wrapper touches every page via WebView), Foundation (Capacitor project scaffolding) |
+| 2026-03-20 | Search & Nav (7) | **SECTION-BY-SECTION OPTIMIZATION.** Each homepage section individually audited through AllTrails/Ancestry lens. Hero: social proof badge removed (restore at 1K+ users), 4-stat grid collapsed to single trust line, 7+ dead API calls removed, file 1135→168 lines. Four Pillars: title/subtitle removed, CTAs rewritten as action verbs ("Search the database"/"Uncover patterns"/"Build a case file"/"Start swiping"), Pro badge softened, bridge label "Four ways to explore" added. Discover Preview: emoji thumbnails removed, cards redesigned as text-forward (category + title + first sentence + location), Play hover removed, bridge label "From the database" added, 241→126 lines. Bottom CTA: newsletter email capture replaced with account creation ("Create free account" → /login + "Browse without an account" → /explore). | ALL sessions (homepage completely rewritten, newsletter form removed), Session 8/Subscription (account creation is now the homepage conversion action) |
+| 2026-03-20 | Search & Nav (7) | **HOMEPAGE CLEANUP: 14 sections cut to 4.** Hero (search-forward, removed dual CTAs + quick-search tags + tour CTA), Four Pillars (tightened copy), Discover Preview (product taste), Email Capture (clean, no Submit CTA). Removed from render but components preserved: AIPreview, Featured Investigation (Roswell), secondary stories, More Investigations, Categories Grid, Recent Reports, Encyclopedia, DashboardPreview, Continue Your Research, inline email, Submit CTA. All removable sections can be restored by re-adding JSX in index.tsx. No component files deleted. | Session 6a (Featured Investigation hidden until 4+ investigations exist), Explore (categories section removed from homepage but /explore unchanged), Dashboard (DashboardPreview hidden, Four Pillars card covers it), ALL sessions (homepage structure dramatically simplified) |
+| 2026-03-20 | **PM Session** | **STRATEGIC SHIFT: Encyclopedia and curated editorial content are NO LONGER launch blockers.** The old A→B→C waterfall (encyclopedia complete → curated reports → mass ingestion) has been replaced. Mass ingestion is now UNBLOCKED. The four pillars (Database Scale, AI Intelligence, Research Dashboard, Stories Feed) are the MVP. Encyclopedia enrichment and curated editorial content continue as parallel value-adds. Data cleanup: ~2M Reddit dev data will be deleted entirely; ~900 test reports will be re-ingested through final pipeline. Launch path: data cleanup → mass ingestion → embedding → Stripe/subscription → closed beta (2 weeks) → public launch. | **ALL sessions** — especially Session 10 (now on critical path), Session 6b (now unblocked), Session 1 (no longer a blocker), Session 6a (no longer a blocker), Session 8 (Stripe key now on critical path) |
+| 2026-03-20 | Search & Nav (7) | **FULL COLOR SYSTEM OVERHAUL.** Primary palette in tailwind.config.js shifted from indigo (#5B63F1, H:236°) to brand purple (#9000F0, H:271°). Full 50-950 scale replaced. 37 hardcoded inline color references updated across 13 source files (#5b63f1→#9000f0, #4f46e5→#7a00cc, rgba(91,99,241)→rgba(144,0,240)). Logo period set to #9000F0 on all 6 instances. Accent gradient: purple→pink (#9000f0→#f472b6). Design brief v3 documents full deployed palette. **Every Tailwind primary-\* class across the entire app now renders purple.** | ALL sessions (global color change — buttons, links, badges, focus rings, gradients all shifted from indigo to purple), Foundation (tailwind.config.js modified), Session 13 (mobile nav inherits new colors), Session 5 (dashboard inherits), Session 6a (report page inline styles updated) |
+| 2026-03-31 | Explore & Discovery (2) | **Phase 4: Homepage QA + phenomenon classification system DEPLOYED.** Homepage Eyewitness cards rebuilt (feed-v2 API, randomized, polished). `phenomenon_type_id` now auto-set during ingestion via linked phenomenon's type. Backfill endpoint classified 132/132 existing reports. `feed-v2` and `related-cards` fixed to query `phenomenon_types` table (was incorrectly querying `phenomena`). `shortTypeName()` function cleans verbose type names for card labels. New files: `backfill-phenomenon-types.ts`. Modified: `engine.ts`, `feed-v2.ts`, `related-cards.ts`, `DiscoverPreview.tsx`, `feed.ts` (events), `useFeedEvents.ts`. **IMPORTANT:** `phenomenon_types` table has been revamped (~90 types, not original 24). Slugs changed. Any code referencing old slugs (ufo-sighting, close-encounter, etc.) needs updating to new slugs (ce-1, nde, obe, etc.). | Session 10/Ingestion (engine.ts modified — new reports auto-classified), All sessions (feed-v2 and related-cards APIs changed), Foundation (DiscoverPreview.tsx rewritten) |
+| 2026-03-27 | Data Ingestion (10) | **Session 10 continued: Full reset + 18 NUFORC re-ingest + fixes.** Reset to 1 curated Roswell + 18 fresh NUFORC reports (all approved). Fixed: admin paywall (profile query was broken by non-existent column), "AI-Assisted Analysis" labels removed (now "Paradocs Analysis"), browser back preserves Browse view, markdown headings stripped from narratives, reset script column errors. Scripts `reset-and-reingest.js` and `reingest-nuforc.js` working. **ACTION ITEM for Session 5:** ResearchHubPreview on report pages is redundant with "Save to Research Hub" button — needs redesign for subscribed users (see HANDOFF_DASHBOARD.md Priority Action Items). | Session 5/Dashboard (ResearchHubPreview redesign), Session 6b (report page fixes), Explore (back button URL state) |
+| 2026-03-21 | Data Ingestion (10) | **Feed hook service + 4 new adapters + engine integration DEPLOYED.** New `feed-hook.service.ts` generates Claude Haiku 2-3 sentence hooks per report. `engine.ts` now auto-generates feed hooks + vector embeddings post-insert (non-blocking). 4 new adapters: reddit-v2 (13 subreddits via Arctic Shift), youtube (Data API v3, 4 paranormal channels), news (NewsAPI.org, 7 search queries), erowid (Experience Vaults, 5 substance categories). Quality scorer updated with new source tiers + YouTube view count boost + news outlet boost. DB migration ready: `feed_hook`, `feed_hook_generated_at`, `needs_reingestion` columns. Batch admin endpoint at `/api/admin/ai/generate-hooks`. Total adapters: 12. **NEXT STEPS:** Run migration, add YOUTUBE_API_KEY + NEWS_API_KEY env vars, execute data cleanup SQL, run mass ingestion. | Session 2/Explore (feed_hook consumed by feed-v2 cards), Session 7/Homepage (DiscoverPreview uses feed_hook), Session 15/AI (embedReport called post-insert), Session 3/Map (more geolocated reports), Session 4/Insights (more data for patterns), Foundation (new DB columns + migration, 2 new env vars needed) |
+| 2026-03-21 | Explore & Discovery (2) | **Phase 2: Mixed content Stories feed DEPLOYED.** `/api/discover/feed-v2` now serves phenomena + reports (was phenomena-only). Three card templates in `DiscoverCards.tsx` (PhenomenonCard, TextReportCard, MediaReportCard). Completion milestone toasts at 25/50/75%. Old feed API preserved. `discover.tsx` fully rewritten. | All sessions (Stories feed now shows reports, not just phenomena) |
+| 2026-03-22 | Search & Nav (7) | **DiscoverPreview multi-format cards DEPLOYED.** Homepage "Stories from the unknown" section rewritten: 3 card formats (Featured 2-col span, Pull-Quote italic with large quote mark, Compact metadata-rich). Smart selection: fetches 10 reports, scores by content richness (summary length, location, date, feed_hook presence), selects best 3 with category diversity. Vivid sentence extraction replaces first-sentence truncation. `feed_hook` field consumed when available (graceful fallback if column doesn't exist). Category color accents (left border + hover glow). CTA: "Explore stories" → /discover. Component: 129 → 415 lines. | Session 2 (homepage links to /discover), Session 10 (feed_hook consumed by cards), Foundation (DiscoverPreview.tsx rewritten) |
+| 2026-03-25 | Explore & Discovery (2) | **Phase 3: Algorithmic feed DEPLOYED.** `feed-v2.ts` rewritten with parameterized scored ranking (base_engagement from `category_engagement` materialized view + recency + user_affinity + random_explore, weights tuneable via `feed_config` table). New `feed_events` table collects all behavioral signals. `useFeedEvents` hook (batch buffered, sendBeacon on unload). Cold start `TopicOnboarding` ("pick 3 topics"). Session context weights feed 60/40. New card types: ClusteringCard (geographic clusters + temporal bursts), OnThisDateCard (phenomena matching today), ResearchHubPromo, CaseViewGate (3 free views/day). Admin metrics at `/api/admin/feed-metrics`. Migration: `20260324_feed_events.sql`. Build verified clean (18.3kB /discover). | Session 6b (report page scroll_depth + "You might also find" integration), Session 8 (gate CTAs link to /pricing), Session 10 (clustering cards need ingestion volume), Session 15 (Ask the Unknown weekly limit), Foundation (new DB tables: feed_events, feed_config, user_usage; new materialized view: category_engagement) |
+| 2026-03-22 | Explore & Discovery (2) | **Phase 2.5: 2D horizontal swipe-through DEPLOYED.** Swiping left on any Stories card reveals full-screen related cards (same card templates). New `/api/discover/related-cards` endpoint (category + phenomenon_type matching, not RAG). Framer Motion `RelatedTray` removed from DiscoverCards.tsx — replaced by native CSS snap-x in FeedRow. Custom `@keyframes swipe-breathe` added to globals.css. Prefetch cascade bug fixed. Similarity "4700% match" double-multiplication fixed. | Foundation (globals.css modified, framer-motion no longer imported by DiscoverCards), All sessions (Stories feed now has 2D navigation — vertical feed + horizontal related content) |
+| 2026-03-20 | Mobile Design (13) | **MobileBottomTabs FAB label renamed "Discover" → "Stories"** to match Session 7's desktop nav rename. Route unchanged (`/discover`). Component comment updated. | Explore (label change only, no functional change), All sessions (mobile nav label updated) |
+| 2026-03-20 | Dashboard (5) | Desktop header bell icon in DashboardLayout.tsx replaced with Session 7's functional `<NotificationBell />` component. Static `<button>` with hardcoded purple dot removed. | Search & Nav (Session 7 component now used on both mobile and desktop headers) |
+| 2026-03-20 | Search & Nav (7) | **Session 7 ALL PHASES COMPLETE.** Phase 1: mobile search icon, real stats, hidden placeholders. Phase 2: FourPillars, AIPreview, DashboardPreview, DiscoverPreview components on homepage; A/B variants updated for AI+scale messaging; section consolidation 9→6; inline email capture; freshness signals. Phase 3: AI Related Patterns in search results (fetches /api/ai/related); Save Search + Get Alerts soft-wall; NotificationBell component (replaces non-functional bell in DashboardLayout); "Ask AI" nav item replacing "Insights"; "Discover" renamed to "Stories"; header search hidden on /search; AI gradient stat badge. Desktop nav now: Explore, Map, Encyclopedia, Ask AI, Stories. | ALL sessions (nav changed globally), Session 13 (mobile nav — "Stories" label should be coordinated), Session 5 (Dashboard — NotificationBell replaces bell buttons), Session 15 (AI — /api/ai/related and /api/ai/featured-patterns now consumed by homepage+search) |
+| 2026-03-20 | AI Experience (15) | **AskTheUnknown citation parsing DEPLOYED.** `AskTheUnknown.tsx` modified: `renderMarkdown()` now parses `[slug:x]` citations from RAG chat into clickable report/phenomena links using `sources` metadata from API. RAG responses show a "Sources:" footer with deduplicated links. | Explore (AskTheUnknown.tsx modified), Reports (inline links to report pages from chat) |
+| 2026-03-20 | AI Experience (15) | **RAG pipeline, semantic search, pattern detection, and integration endpoints BUILT.** New DB migration: `20260320_vector_embeddings.sql` (pgvector, vector_chunks, embedding_sync, ai_featured_patterns, search_vectors RPC). New service: `embedding.service.ts` (chunk, embed, search). New service: `ai-pattern-detection.service.ts` (geographic clusters, temporal spikes, phenomena similarity). New endpoints: `/api/ai/search` (semantic), `/api/ai/patterns`, `/api/ai/featured-patterns` (homepage), `/api/ai/related` (search enrichment), `/api/ai/report-similar`. `/api/ai/chat` REWRITTEN with RAG (embeds query, retrieves top-8 chunks, injects into Claude context, returns source citations). Admin endpoint: `/api/admin/ai/embed` for bulk/incremental embedding. **DEPLOYMENT STEPS:** (1) Run SQL migration, (2) Set OPENAI_API_KEY in Vercel, (3) Run initial embedding. Session 7 Phase 2 is now UNBLOCKED for AI features. | Session 7 (homepage AI preview at /api/ai/featured-patterns, search enrichment at /api/ai/related), Session 5 (Research Hub can use /api/ai/search), Session 4 (complements pattern detection), Session 6a/6b (report similarity at /api/ai/report-similar), Session 10 (must embed new reports after ingestion), Foundation (OPENAI_API_KEY env var needed, SQL migration) |
+| 2026-03-19 | Search & Nav (7) | **Phase 1 SHIPPED + AI Experience session QUEUED.** Mobile search icon in Layout.tsx header, legacy stats replaced (4,792/20+/11), TrendingPatternsWidget hidden. AI Experience & Intelligence session is NEXT in the approved sequence. Data context: ~900 approved reports are test data only (will be replaced by mass ingestion). Curated collections (Roswell, Rendlesham) are real. Encyclopedia still being enriched (only Cryptids mostly done). AI system must support incremental re-embedding for encyclopedia updates. Session 7 Phase 2 resumes after AI session delivers RAG pipeline + pattern APIs. | AI Experience (immediate next session), Session 7 (Phase 2 blocked), ALL sessions (four-pillar vision is approved product direction) |
+| 2026-03-19 | Search & Nav (7) | **UX Audit v4 APPROVED (four-pillar vision).** Three-lens audit (UX/Engagement/Vision) produced 20-item phased plan. Key findings: (1) homepage leads with editorial, not the four pillars (Database 5M+, AI Intelligence, Research Dashboard, Discover Feed); (2) mobile has no search; (3) AI layer completely invisible; (4) Discover feed hidden behind ambiguous nav link; (5) legacy 258K stats will be deleted. Phase 1 (trust/access) ready to ship. Phase 2 (hero redesign, AI preview, dashboard preview) BLOCKED on AI Experience session delivering RAG pipeline + pattern APIs. See `Paradocs_UX_Audit_Plan.docx`. | ALL sessions (vision alignment), AI Experience (critical dependency for Phase 2-3), Explore (Discover feed preview planned for homepage), Dashboard (preview card planned for homepage) |
+| 2026-03-19 | Search & Nav (7) | **Homepage + Search + Onboarding overhaul.** Homepage hero rewritten for cold-traffic comprehension, search bar enhanced with quick-search tags, redundant Quick Links removed. Search page rewritten to use `fulltext_search` RPC (was ILIKE), autocomplete added (phenomena table), search mode toggle. SEO meta tags + JSON-LD added. Onboarding consolidated: `UnifiedOnboarding.tsx` replaces WelcomeOnboarding + ThreeTapOnboarding. `explore.tsx` import updated. Layout.tsx minor search bar CSS. See `HANDOFF_SEARCH_NAV.md`. | Explore (explore.tsx onboarding import changed), Foundation (Layout.tsx minor CSS), All sessions (homepage structure changed, Quick Links section removed) |
+| 2026-03-19 | Report Experience (6a) | **Rendlesham Forest cluster DEPLOYED + homepage "More Investigations" row + badge redesign + credibility rationale feature.** Rendlesham (6 reports, case_group rendlesham-1980) is second curated case cluster. Homepage `index.tsx` modified: added secondary discovery card grid below hero for additional Featured Investigations. Report `[slug].tsx` modified: badge system redesigned (category badge removed, "Featured Investigation" badge added, "Notable Case" filtered), credibility badge now tappable/expandable with rationale. `FormattedDescription.tsx` modified: pull quote extraction hardened. `MediaGallery.tsx` modified: audio wiki URL fix + new source labels. `ReadingProgress.tsx`: 2px→4px. New DB column: `reports.credibility_rationale`. | Explore/Homepage (index.tsx modified), Foundation (FormattedDescription, MediaGallery, ReadingProgress modified), Session 14 (8 new books across Rendlesham reports), All sessions (credibility rationale pattern for all future reports) |
+| 2026-03-18 | Report Experience (6a) | **Session split: 6a (Curated Content) + 6b (Ingestion & Scale) + 14 (Affiliate).** Session 6 split into three sessions. 6a owns handcrafted case files, editorial enrichment, Featured Investigations curation. 6b (not started) will own ingestion-generated reports, quality templates, automated enrichment. Session 14 owns Amazon affiliate book recommendations, ASIN curation, compliance, revenue optimization. | All sessions (session registry updated), Ingestion (6b dependency), Subscription (14 potential Pro book lists) |
+| 2026-03-18 | Report Experience (6a) | **Featured Investigations + Book Recommendations deployed.** `featured_investigations` table created (editorial curation for homepage hero). `report_books` table created (Amazon affiliate). Homepage `index.tsx` modified (editorial data with spotlight fallback). `FurtherReading.tsx` component added to `report/[slug].tsx`. `Layout.tsx` footer updated with FTC disclosure. 16 books across 10 reports, all ASINs verified. Roswell seeded as first featured investigation. | Explore/Homepage (index.tsx modified, new API), Foundation (Layout.tsx footer, new DB tables), Subscription (affiliate revenue tracking), Session 14 (owns expansion) |
+| 2026-03-18 | Report Experience (6a) | **Roswell content enrichment COMPLETE.** All 14 reports enriched to 4,000-12,500 chars with engagement hooks, dramatic pacing, and pull quotes. Government documents (GAO, FBI Vault, NSA) and ABC News 1947 audio added as media. Brazel duplicate images fixed. All descriptions researched against documented sources with explicit uncertainty and attribution. | All sessions (Roswell cluster is now the quality bar for Phase B), Session 6b (quality templates should match this standard) |
+| 2026-03-16 | Map & Geospatial | **Phase 3 partial: Map Spotlight placeholder cards on Explore page.** `MapSpotlightRow.tsx` with 5 hardcoded cards rendering as 2nd row in Discover feed (after Encyclopedia Spotlight). Cards sized to match Encyclopedia Spotlight (`min-w-[75vw]`, `h-44`). Deep-links to `/map` with filter params. Cards flagged as placeholder data — must be replaced with dynamic cards post-ingestion. | Explore (new row in Discover feed, `explore.tsx` modified), Ingestion (cards need real report counts + thumbnails post-ingestion) |
+| 2026-03-16 | Map & Geospatial | **Phase 2 COMPLETE: Timeline slider, basemap toggle, bottom sheet UX.** Timeline slider (1400–2026) with era presets (All Time, Pre-Modern, 1900–1950, 1950–2000, 2000+) and decade histogram. Basemap toggle (dark/satellite/terrain). Bottom sheet: raised above nav, pull-down-to-dismiss from scrolled content, enlarged touch targets. Phase 3 (Map Spotlight cards, deep-link URLs, encyclopedia map links) deferred to post-ingestion. | Explore (Map Spotlight cards planned for Phase 3 post-ingestion), Mobile Design (bottom sheet pull-to-dismiss pattern reusable) |
+| 2026-03-18 | Report Experience | **On-demand ISR revalidation endpoint.** `/api/admin/revalidate` — POST array of paths to force Next.js ISR page cache refresh. Use whenever DB data changes (media, descriptions, etc.) and pages need to reflect updates immediately. Also: `report-insights.service.ts` now uses hash-based caching and DB-grounded Similar Cases (anti-hallucination). `FormattedDescription.tsx` pull quote attribution regex rewritten with `NOT_NAMES` blocklist. `ArticleTableOfContents.tsx` hooks violation fixed. `[slug].tsx` client-side navigation crash fixed (state clearing + stale-slug guard). All new report images stored in Supabase Storage (`report-media` bucket) — no external hotlinking. | Foundation (revalidation endpoint available for all sessions), All sessions (anti-hallucination pattern for AI features), Admin (new admin scripts: add-roswell-witnesses-2, add-roswell-media, store-roswell-media, fix-roswell-quotes, fix-roswell-captions) |
+| 2026-03-16 | Map & Geospatial | **Phase 1 COMPLETE: MapLibre GL migration deployed.** Leaflet replaced with MapLibre GL + react-map-gl + Supercluster on `/map`. New `src/components/map/` directory with 8 components. MapTiler basemap (dataviz-dark, Flex plan). Heatmap layer, clustered markers, mobile bottom sheet with category stats, auto-fit to data bounds, locate me, URL-synced filters. `map.tsx` rewritten from 752 to ~220 lines. New env var `NEXT_PUBLIC_MAPTILER_KEY` required in Vercel. Mini-maps (PhenomenonMiniMap, PatternMiniMap) remain on Leaflet by design. | Foundation (4 new npm dependencies, new env var), Mobile Design (bottom sheet touch handling, controls positioning), Explore (Map Spotlight cards planned for Phase 3) |
+| 2026-03-16 | Explore & Discovery | **Mobile UX optimized + Discover feed randomized.** Layout.tsx header modified (logo nowrap, Submit Report `hidden md:flex` secondary, Sign In pill button). MobileBottomTabs enlarged (Stories FAB 64px, nav icons 24px). AskTheUnknown FAB repositioned to `bottom-28` on mobile with AI presence CSS animations (globals.css). Explore page compacted (inline header, 75vw encyclopedia cards, compressed banners). Discover feed seed moved to component useRef (fresh order every visit). Feed API uses interleaved 3:1:1 explore-exploit tiering. | Mobile Design (bottom nav sizing changed), Foundation (Layout.tsx header + globals.css animations), Search & Nav (header structure changed), All sessions (AskTheUnknown FAB position changed) |
+| 2026-03-15 | Explore & Discovery | **Anonymous feed + soft-wall prompts deployed.** Feed API (`/api/feed/personalized`) rewritten: returns Encyclopedia Spotlight (phenomena with images), category highlights (rotating), trending, recent for ALL users (not just authenticated). Explore Discover tab replaced empty state with rich editorial feed. Three soft-wall signup touchpoints: bookmark button, in-feed card after 2nd section, bottom CTA. Feed API response now includes `type` field ('reports' or 'phenomena'). Login redirect uses `?reason=save` for contextual messaging. | Search & Nav (login page should handle `reason` param), Encyclopedia (image quality affects spotlight), Email (digest could reuse feed sections), Dashboard (if consuming feed API), Subscription (tier gating plan documented in HANDOFF_EXPLORE.md) |
+| 2026-03-15 | Mobile Design | **Nav Unification COMPLETE.** MobileBottomTabs rewritten as unified component used by BOTH Layout.tsx and DashboardLayout. Same 5 tabs on every page: Explore, Map, Discover FAB (elevated center), Library/Encyclopedia (auth-aware 4th tab), More. Layout.tsx mobile inline nav + slide-up menu + style jsx global all removed. Progress bar thickness fix (h-1.5). | Search & Nav (Layout.tsx mobile nav completely replaced — public mobile navigation now uses MobileBottomTabs), Foundation (Layout.tsx style jsx global removed), All sessions (mobile bottom nav is now unified across all pages) |
+| 2026-03-15 | Mobile Design | Phase 3a: Report detail mobile redesign deployed (report/[slug].tsx). Progress bar bug fix, mobile back button, non-sticky action bar, native share, responsive typography. DISCOVERED dual layout architecture: Layout.tsx (public pages) has its own mobile bottom nav completely different from DashboardLayout's MobileBottomTabs. Nav unification is next priority — will modify Layout.tsx significantly. Discover page confirmed intentionally standalone (TikTok-like, no nav chrome). | Reports (report/[slug].tsx modified), Search & Nav (Layout.tsx nav unification upcoming, will change public mobile navigation), Foundation (globals.css already updated, Layout.tsx <style jsx global> needs migration) |
+| 2026-03-14 | Mobile Design | Phase 1-2 deployed: Bottom tab bar replaces hamburger menu on mobile. 4 new components (MobileBottomTabs, MobileBottomSheet, MobileHeader, MobileCardRow) in src/components/mobile/. Design tokens added to tailwind.config.js (spacing.touch, spacing.nav, slide animations). Mobile CSS utilities added to globals.css. DashboardLayout rewritten: removed inline style jsx global, removed hamburger slide-from-right overlay. ViewSwitcher now shows labels on mobile. BoardView FABs repositioned above bottom tabs. | All dashboard sessions (new bottom tab bar changes mobile navigation pattern), Foundation (globals.css + tailwind.config.js updated), Dashboard (DashboardLayout.tsx rewritten, ViewSwitcher.tsx rewritten, ResearchHub.tsx header updated, BoardView.tsx FAB positioning) |
+| 2026-03-11 | Encyclopedia | Cryptid category 100% complete. `ai_summary` field standardized to 150-350 chars for all cryptid entries. | Explore (feed cards), Search (index) |
+| 2026-03-05 | Encyclopedia | All `ai_quick_facts` now populated (9-key JSONB). All `ai_history` >= 800 chars. | Report detail (quick facts display), Explore (filtering) |
+| 2026-03-14 | Dashboard | Mobile CSS fixes: replaced JS viewport detection with CSS-only Tailwind responsive classes (eliminates hydration flash). Added overflow-x-hidden, overscroll-behavior containment, truncation across dashboard and Research Hub. Created PUT /api/research-hub/artifacts/[id] endpoint (was missing). Fixed X.com source duplication in ArtifactDetailDrawer. Expanded source types to 16+ (archive_org, academia, forum, government, tiktok, instagram, podcast, news, etc.). | Foundation (database.types.ts updated with 16+ source types, new DB CHECK constraint), All sessions (mobile layout pattern: use CSS-only responsive, never JS viewport detection) |
+| 2026-03-14 | Dashboard | Session 13 (Mobile-First Design System) created with full session prompt and handoff doc. Cross-cutting mobile redesign modeled on Netflix/Uber/Spotify planned. | All sessions (Session 13 will touch every page for mobile optimization) |
+| 2026-03-13 | Dashboard | Phase 3 External URL support deployed: extract-url.ts endpoint (7th API route), SourceLogos.tsx (13th component), twitter source type added to DB CHECK constraint + types. Uniform card heights. Branded SVG fallback thumbnails. | Foundation (database.types.ts updated with twitter type, new DB CHECK constraint), Ingestion (external URL signal table ready for pipeline integration) |
+| 2026-03-11 | Dashboard | Research Hub deployed with multi-view architecture (Board/Timeline/Map/Constellation). 7 new DB tables (constellation_artifacts, constellation_case_files, etc.) with RLS. Nav link added to DashboardLayout. | Foundation (database.types.ts updated), Navigation (new sidebar link), Subscription (view-based tier gating planned) |
+| 2026-02-26 | Dashboard | Dashboard rewritten as constellation-first research hub. Sidebar reorganized into Research/Library/Tools groups. | Navigation (sidebar links), Subscription (tier display) |
+
+---
+
+## Blocking Issues
+
+| Issue | Blocks | Owner | Status |
+|-------|--------|-------|--------|
+| STRIPE_SECRET_KEY not provided | Subscription checkout flow (Session 8) — **on critical launch path** | Chase | Waiting |
+| ~2M hidden Reddit dev data needs deletion | Clean database for mass ingestion | Chase / Session 10 | Ready to execute — Session 10 built infrastructure, SQL prepared in HANDOFF_INGESTION.md. Needs manual execution in Supabase SQL editor. |
+| ~900 approved test reports need re-ingestion or deletion | Clean database for mass ingestion | Chase / Session 10 | Ready to execute — `needs_reingestion` column added, SQL prepared. Flag existing reports, then mass ingestion replaces via dedup. |
+| DB migration not yet run (feed_hook columns) | Feed hook generation, Discover feed card quality | Chase | Run `supabase/migrations/20260321_feed_hook.sql` in Supabase dashboard. Required before hook backfill or mass ingestion. |
+| YOUTUBE_API_KEY not provided | YouTube adapter (Session 10) | Chase | Needed for YouTube Data API v3. Free tier: 10K units/day. |
+| NEWS_API_KEY not provided | News adapter (Session 10) | Chase | Needed for NewsAPI.org. Free tier: 100 requests/day. |
+| ~3,600 phenomena not yet embedded | Full semantic search coverage for encyclopedia | Chase | Re-run embed batches with staggered timing (see HANDOFF_AI_EXPERIENCE.md). NOT a launch blocker — improves search quality incrementally. |
+| DB migration not yet run (Phase 3 feed tables) | Algorithmic feed scoring, behavioral signals, depth gating, admin metrics | Chase | Run `supabase/migrations/20260324_feed_events.sql` in Supabase dashboard. Creates `feed_events`, `feed_config`, `category_engagement` materialized view, `user_usage` table. Also create `refresh_category_engagement` RPC function for materialized view refresh. Required before feed personalization or depth gating works. |
+| Vercel cron not configured for engagement refresh | Hourly materialized view refresh for feed ranking | Chase | Add cron job hitting `/api/cron/refresh-engagement` hourly with CRON_SECRET header. Without this, `category_engagement` view becomes stale and ranking degrades. |
+| ~~RLS missing on 6 tables~~ | ~~Supabase security alert~~ | ~~Session 12~~ | ~~✅ RESOLVED (April 1, 2026) — Migration applied, all tables secured except spatial_ref_sys (PostGIS system table, expected).~~ |
+| ~~Admin endpoint /api/admin/run-migration.ts unprotected~~ | ~~Security risk — anyone could trigger migrations~~ | ~~Session 12~~ | ~~✅ RESOLVED (April 1, 2026) — Auth guard added (cookie + bearer + email check).~~ |
+
+---
+
+## Sprint Roadmap (from Dev Handoff v3)
+
+### Sprint 1 (Beta Launch) — MOSTLY COMPLETE
+- 3-tap onboarding, AI-curated feed, immersive reading, frictionless saves, reactions, AI chat: ALL BUILT
+- **Missing:** Collections (named save folders) — needs DB schema + UI
+
+### Sprint 2 (Post-Launch) — PARTIAL
+- Weekly digest, submission form, landing page: BUILT
+- **Missing:** Connection cards, Smart match alerts, Stripe checkout (blocked)
+
+### Sprint 3 (Month 2) — NOT STARTED
+- Shareable story cards, cancellation flow, drift detection emails, researcher mode, email drip
+
+### Sprint 4 (Month 3+) — MOSTLY NOT STARTED
+- Embeddable widgets: BUILT
+- **Missing:** A/B testing UI, community challenges, year in review, winback emails, advisory board, data drop events
+
+---
+
+## Content Targets
+
+| Metric | Current | Closed Beta Target | Public Launch Target | Notes |
+|--------|---------|-------------------|---------------------|-------|
+| Mass-ingested reports | 0 | 1M+ | 5M+ | **CRITICAL PATH** — Session 10 builds expanded source adapters, runs mass ingestion |
+| Curated editorial reports | 20 (Roswell 14 + Rendlesham 6) | 20+ | 40+ | Parallel track — not a launch blocker. Each new cluster (Skinwalker, Phoenix Lights, etc.) adds ~6-14 reports |
+| Existing test reports | ~900 approved | Re-ingested or deleted | — | Must be cleaned before beta — re-run through final pipeline |
+| Reddit dev data | ~2M (hidden) | Deleted | — | Delete entirely. Start fresh with expanded source list |
+| Phenomena entries (encyclopedia) | 4,792 (208 fully enriched) | 4,792+ (500+ enriched) | 10,000+ | Parallel track — not a launch blocker. Basic entries sufficient for classification. Enrichment improves encyclopedia pages + semantic search |
+| Source adapters | 12 (built, 7 hardened) | 12+ (running) | 20+ | 7 high-priority adapters hardened in Session B1 (April 2). YouTube rewritten with comment extraction. Ready for mass ingestion pending dry-run and API keys. |
+| Reports embedded (pgvector) | ~900 | All ingested reports | All ingested reports | Scales with ingestion — ~$500-600 for 5M reports |
+
+---
+
+## Tech Debt & Known Issues
+
+- `report/[slug].tsx` is 40K+ lines — needs componentization
+- ~~Three separate onboarding components — consolidate~~ ✅ `UnifiedOnboarding.tsx` created (Session 7). Old `WelcomeOnboarding.tsx` and `ThreeTapOnboarding.tsx` still in codebase — safe to delete.
+- SWC compatibility requires `var` + string concat (no template literals in JSX)
+- Code pushes via GitHub API (no git CLI) — documented in SESSION_NOTES.md
+- No CI/CD pipeline (no tests, no linting on push)
+- No error monitoring service
+- Mobile responsiveness gaps → **Session 13 created to address comprehensively**
+- `/og-home.png` referenced in meta tags but doesn't exist yet — needs design (1200×630)
+- **Brand assets created (April 1):** `paradocs-zoom-background.png` (Zoom background, star field + logo + tagline), `paradocs-schema-viz.png` (database schema visualization for homepage pillar card, blue 3D style with all Paradocs tables). Schema viz may need further iteration to match reference style more closely.
+
+---
+
+## Quick Reference
+
+**Database:** Supabase project `bhkbctdmwnowfmqpksed`
+**Deploy:** Auto on push to main via Vercel
+**Push method:** `git push origin main` from local terminal (sandbox proxy blocks git CLI)
+**SWC rules:** No template literals in JSX, use `var`, use `function(){}`, unicode escapes for smart quotes
+**AI providers:** Anthropic Claude (primary), OpenAI (fallback, currently $0 balance)
+**Email:** Resend
+**Maps:** MapLibre GL + MapTiler (main map page), Leaflet (mini-maps only), Mapbox (server-side geocoding)
+**Payments:** Stripe (key not yet provided)
+
+---
+
+*This document is the single source of truth for cross-session coordination. Keep it updated.*
