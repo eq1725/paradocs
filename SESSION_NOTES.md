@@ -11,7 +11,7 @@ Full details in `PROJECT_STATUS.md` V10.7 section. Quick summary for session-boo
 
 **Push goal:** bring `/report/[slug]` to mass-market readiness before MILLIONS-of-reports mass ingest.
 
-**Last commit on `main`:** `2128bb4a` — V10.7.E (drop Worth Chasing + rebalance pattern strip)
+**Last commit on `main`:** `3ec141e2` — V10.7.F (ban first-person voice in pull_quote + feed_hook)
 
 **Test report:** `psychic-experience-kansas-4hxm98` (id: `d8537a7a-0257-4884-ae5a-b16c16e02acc`). All iteration was screenshot-driven on this URL on both mobile and desktop (lg+).
 
@@ -21,7 +21,7 @@ Full details in `PROJECT_STATUS.md` V10.7 section. Quick summary for session-boo
 - `src/lib/services/witness-profile.service.ts` — Anthropic Haiku-based structured demographic extraction with bucketed enums
 - `/api/admin/backfill-witness-profile` — chunked backfill endpoint
 - `/api/admin/backfill-analysis` now accepts optional `slug` for targeted regen
-- `PROMPT_VERSION = 'v10.7.d'` in `src/lib/ai/rewrite-pipeline.ts` (claim-check tuned to accept legitimate paraphrases)
+- `PROMPT_VERSION = 'v10.7.f'` in `src/lib/ai/rewrite-pipeline.ts` (v10.7.d claim-check tuning + v10.7.f editorial third-person enforcement)
 
 **Key UX changes shipped:**
 - Page-layout pass: single 6-row dateline (WHEN/WHERE/WHO/SOURCE/TOPIC/WITNESS) in grid-cols-[88px_1fr], items-center
@@ -36,9 +36,13 @@ Full details in `PROJECT_STATUS.md` V10.7 section. Quick summary for session-boo
 - Answer-line cap 180 → 280 chars, prompt rewritten for richer specificity (age, sequel, etc.)
 
 **Pending validation:**
-- Re-run regen on Kansas case to confirm v10.7.d claim-check passes the narrative (V10.6 was rejecting good paraphrases)
-- Live-page eyeballing on production once Vercel deploys 2128bb4a
-- If narrative still rejected → V10.7.F: save AI narrative even when claim-check fails (flag for audit review)
+- ✅ V10.7.D Kansas validation closed May 13 — three successful v10.7.d audit passes on `reports.paradocs_narrative`, live page renders 938-char third-person narrative cleanly. Worth Chasing absent, pattern strip correctly gated by sparse-corpus case.
+- ⏳ V10.7.F backfill — 7 slug-targeted regens needed once v10.7.f deploys. Affected slugs: `pre-birth-memory-bp9szc`, `bigfoot-encounter-near-lowville-new-york-2025-f2rtxz`, `out-of-body-experience-s702js`, `bigfoot-encounter-near-port-townsend-2025-f2rtwd`, `other-experience-72qql1`, `premonition-waking-vision-2017-ouew52`, `psychic-experience-kansas-4hxm98`. Success criterion: zero first-person pronouns in pull_quote across corpus.
+
+**V10.7.F additions (May 13):**
+- HOOK + PULL QUOTE prompt rules gained explicit "EDITORIAL THIRD-PERSON ONLY" hard rule with the real Kansas failure as counter-example
+- `findFirstPersonPronouns()` + `enforceEditorialVoice()` added to `paradocs-analysis.service.ts`; wired into both `generateParadocsAnalysisOnce` (retries on attempt-1 violation) and `generateAndSaveDirect` (single-shot, accepts-with-blank on violation)
+- Hyphenated-compound exclusion handles `I-80`, `strip-mine`, `we-the-people` — confirmed against 15-case test battery, corpus-wide false-positive count is 0
 
 **Continuation prompt:** `V10.7_CONTINUATION_PROMPT.md` (created same day)
 
