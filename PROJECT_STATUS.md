@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** May 14, 2026 (V10.8.B.2 adapter migration complete)
+**Last updated:** May 14, 2026 (V10.8.D validation gates + ingestion_audit shipped)
 **Project:** discoverparadocs.com (production); beta.discoverparadocs.com (beta)
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -35,9 +35,33 @@ Smoke test at `scripts/test-v10-8-b2-adapters.ts` (16 fixtures across all migrat
 
 **Action needed from Chase before deploy:** Apply `supabase/migrations/20260514_v10_8_b_2_news_pubdate_backfill.sql` to the live Supabase DB (project `bhkbctdmwnowfmqpksed`) via the dashboard SQL editor. The `event_date_extracted_from` + `source_published_at` columns were added by the V10.8.B.1 migration that should already be applied.
 
-### V10.8.B.2 onward — REMAINING
-- **D** — `validateReportBeforeInsert` (11 warning + 4 error codes) + `ingestion_audit` table migration + `/admin/ingest-audit` page + `'quarantine'` status enum addition. ~0.5 session.
-- **C** — Location normalizer + 250-country centroid JSON + state-centroid JSON + `geocode_cache` table migration + MapTiler integration + `coords_synthetic` column. ~1 session.
+### V10.8.D — Ingestion validation gates + audit table (SHIPPED, May 14, 2026)
+`src/lib/ingestion/utils/validate-report.ts` exports `validateReportBeforeInsert(report)` returning `{ ok, warnings, errors }`. The engine now runs this immediately before every INSERT into `reports`. Policy: errors flip the row to `status='quarantine'` (still inserted so it can be triaged); warnings advise but don't gate.
+
+Codes shipped (15 total) match the design doc exactly:
+- **Errors (4):** `MISSING_REQUIRED` (source_url / source_label / description), `DATE_INVALID` (event_date doesn't parse YYYY-MM-DD), `LOC_OUT_OF_RANGE` (lat/lng outside ±90/±180), `DUPLICATE_ORIGINAL_ID` (code reserved — the engine's existing exact-match lookup already handles this case).
+- **Warnings (11):** `DATE_SENTINEL_EXACT` (precision=exact but date matches `-01-01`), `DATE_FUTURE`, `DATE_TOO_OLD` (year < 1800, exempted for `religion_mythology`/`folklore`), `LOC_COORDS_ORIGIN`, `LOC_COUNTRY_NO_COORDS`, `LOC_COORDS_NO_COUNTRY`, `LOC_STATE_COUNTRY_MISMATCH` (US/CA/UK/AU state tables; long-tail countries permissive until V10.8.C), `TEXT_TITLE_GENERIC`, `TEXT_NARRATIVE_EMPTY`, `WITNESS_PROFILE_MISSING`, `CATEGORY_UNKNOWN`.
+
+Audit infrastructure:
+- New table `ingestion_audit(id, report_id, adapter, severity, code, message, field, payload, created_at)` with indexes on `(adapter, code, created_at)` and `(severity, created_at)` for the dashboard rollups.
+- `'quarantine'` value added to `report_status` enum via `ALTER TYPE` (idempotent).
+- Migration: `supabase/migrations/20260514_v10_8_d_ingestion_audit.sql`.
+
+Admin observability:
+- `/admin/ingest-audit` page (Tailwind, matches `/admin/ai-audit` styling). Top tile: 7-day totals (warnings, errors, quarantine queue). Below: top-5 codes + top-5 adapters by frequency (clickable to filter). Row list shows code · adapter · field · time + structured payload JSON dump.
+- API `/api/admin/ingest-audit` (admin-auth gated). Filters: severity, code, adapter, since_days. Computes aggregations server-side from `ingestion_audit` in one round-trip.
+
+Engine wiring:
+- `IngestionResult` gains optional `recordsQuarantined` and `recordsWithWarnings` counters.
+- `recordIngestionAudit` helper writes flag batches asynchronously; audit-log failure is logged but never blocks ingestion.
+- The insert path now also passes `event_date_extracted_from` and `source_published_at` through to `insertData` (closing a B.1 oversight where the UPDATE branch wrote these but the INSERT branch dropped them).
+
+Tests: `scripts/test-validate-report.ts` — 26 table-driven fixtures covering every code + ok-flag combinations. All passing. Original V10.8.A (43 fixtures) + V10.8.B.2 smoke (16 fixtures) still green — 85 total green fixtures across the pipeline.
+
+**Action needed from Chase before deploy:** Apply `supabase/migrations/20260514_v10_8_d_ingestion_audit.sql` to project `bhkbctdmwnowfmqpksed` via the dashboard SQL editor. The migration is idempotent (`ADD VALUE IF NOT EXISTS` for the enum, `CREATE TABLE IF NOT EXISTS` for the audit table).
+
+### V10.8.D onward — REMAINING
+- **C** — Location normalizer + 250-country centroid JSON + state-centroid JSON + `geocode_cache` table migration + MapTiler integration + `coords_synthetic` column. ~1 session. Will eliminate `LOC_COUNTRY_NO_COORDS` warnings by always filling centroid coords.
 - **E** — Haiku-assisted date fallback when extractDate returns `precision='year'` but source contains month names. ~$0.001/call. ~0.5 session.
 
 ### Migration status (V10.8.B.1 + B.2)

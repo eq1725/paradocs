@@ -21,6 +21,10 @@ import { enrichReport } from './enrichment/report-enricher';
 import { checkForDuplicate, DedupCandidate } from './dedup';
 import { processMediaItem } from './media-storage';
 import { getMediaPolicy } from './media-policy';
+import {
+  validateReportBeforeInsert,
+  ValidationFlag,
+} from './utils/validate-report';
 
 // Phenomenon pattern matching for auto-identification during ingestion
 interface PhenomenonPattern {
@@ -262,9 +266,38 @@ export interface IngestionResult {
   recordsSkipped: number;
   recordsRejected: number;        // Failed quality filter
   recordsPendingReview: number;   // Sent to review queue
+  recordsQuarantined?: number;    // V10.8.D — failed validateReportBeforeInsert (errors)
+  recordsWithWarnings?: number;   // V10.8.D — inserted but emitted ≥1 warning
   phenomenaLinked: number;        // Reports linked to phenomena
   error?: string;
   duration: number;
+}
+
+// V10.8.D — write a batch of validation flags to ingestion_audit. One
+// row per flag, identical shape across warnings and errors. Best-effort:
+// audit-log failure must never block ingestion (we still have the row).
+async function recordIngestionAudit(
+  supabase: SupabaseClient,
+  reportId: string | null,
+  adapterName: string,
+  flags: ValidationFlag[],
+): Promise<void> {
+  if (!flags.length) return;
+  try {
+    const rows = flags.map(f => ({
+      report_id: reportId,
+      adapter: adapterName,
+      severity: f.severity,
+      code: f.code,
+      message: f.message,
+      field: f.field || null,
+      payload: f.payload || null,
+    }));
+    await supabase.from('ingestion_audit').insert(rows);
+  } catch (auditError) {
+    // Silently swallow — audit-log failure isn't actionable here.
+    console.log('[Ingestion] ingestion_audit insert failed (non-fatal):', auditError);
+  }
 }
 
 // Adapters that set has_photo_video flag + link to source instead of storing media.
@@ -372,6 +405,11 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
     let rejected = 0;
     let pendingReview = 0;
     let phenomenaLinked = 0;
+    // V10.8.D — quarantine counters. A row is quarantined when
+    // validateReportBeforeInsert returns ≥1 error: it still inserts
+    // (so /admin/quarantine can triage it) but with status='quarantine'.
+    let quarantined = 0;
+    let withWarnings = 0;
     var rejectedDetails: Array<{ title: string; reason: string; descLength: number }> = [];
 
     for (const report of result.reports) {
@@ -723,6 +761,12 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               upvotes: 0,
               view_count: 0
           };
+          // V10.8.B passes through the extractDate audit fields. The
+          // engine sends them on insert (top of new-row branch); the
+          // update branch already includes them above.
+          if ((report as any).event_date_extracted_from) insertData.event_date_extracted_from = (report as any).event_date_extracted_from;
+          if ((report as any).source_published_at) insertData.source_published_at = (report as any).source_published_at;
+
           // Add structured observation fields if provided by adapter
           if (report.witness_count && report.witness_count > 0) insertData.witness_count = report.witness_count;
           if (report.event_time) insertData.event_time = report.event_time;
@@ -735,11 +779,40 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           if (report.location_precision) mergedMeta.location_precision = report.location_precision;
           if (Object.keys(mergedMeta).length > 0) insertData.metadata = mergedMeta;
 
+          // V10.8.D — final validation gate before INSERT. Errors flip
+          // the row to status='quarantine' (still inserted so it can be
+          // triaged); warnings let the row through with its quality-
+          // derived status. Every flag is recorded to ingestion_audit
+          // after the row's UUID is known.
+          const validation = validateReportBeforeInsert(insertData as any);
+          const validationFlags: ValidationFlag[] = [...validation.errors, ...validation.warnings];
+          if (!validation.ok) {
+            insertData.status = 'quarantine';
+            quarantined++;
+            console.log(
+              '[Ingestion] QUARANTINE: "' + finalTitle.substring(0, 40) + '..." — ' +
+              validation.errors.map(e => e.code).join(', '),
+            );
+          } else if (validation.warnings.length > 0) {
+            withWarnings++;
+          }
+
           const { data: insertedReport, error: insertError } = await supabase
             .from('reports')
             .insert(insertData)
             .select('id')
             .single();
+
+          // Write audit rows once we have the report UUID (or null if
+          // the insert itself failed but flags were collected).
+          if (validationFlags.length > 0) {
+            await recordIngestionAudit(
+              supabase,
+              insertedReport ? insertedReport.id : null,
+              source.adapter_type || report.source_type || 'unknown',
+              validationFlags,
+            );
+          }
 
           if (!insertError && insertedReport) {
             inserted++;
@@ -1025,7 +1098,7 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
       })
       .eq('id', sourceId);
 
-    console.log(`[Ingestion] Complete: found=${result.reports.length}, inserted=${inserted}, updated=${updated}, rejected=${rejected}, pending=${pendingReview}, skipped=${skipped}, phenomenaLinked=${phenomenaLinked}`);
+    console.log(`[Ingestion] Complete: found=${result.reports.length}, inserted=${inserted}, updated=${updated}, rejected=${rejected}, pending=${pendingReview}, quarantined=${quarantined}, withWarnings=${withWarnings}, skipped=${skipped}, phenomenaLinked=${phenomenaLinked}`);
 
     // Log successful completion
     await logActivity(supabase, sourceId, job.id, 'success', `Ingestion completed`, {
@@ -1034,6 +1107,8 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
       updated,
       rejected,
       pendingReview,
+      quarantined,
+      withWarnings,
       skipped,
       durationMs: Date.now() - startTime
     });
@@ -1047,6 +1122,8 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
       recordsSkipped: skipped,
       recordsRejected: rejected,
       recordsPendingReview: pendingReview,
+      recordsQuarantined: quarantined,
+      recordsWithWarnings: withWarnings,
       phenomenaLinked: phenomenaLinked,
       rejectedDetails: rejectedDetails,
       duration: Date.now() - startTime

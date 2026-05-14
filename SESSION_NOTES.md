@@ -1,11 +1,42 @@
 # Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** May 14, 2026 (V10.8.B.2 adapter migration complete)
+**Last updated:** May 14, 2026 (V10.8.D validation gates + ingestion_audit shipped)
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
 
 ---
 
-## Most Recent Session — V10.8.B.2 adapter migration (May 14, 2026)
+## Most Recent Session — V10.8.D validation + audit (May 14, 2026, evening)
+
+**Shipped end-to-end:**
+- `src/lib/ingestion/utils/validate-report.ts` — `validateReportBeforeInsert` with 4 error codes + 11 warning codes. State-country membership table covers US/CA/UK/AU.
+- `supabase/migrations/20260514_v10_8_d_ingestion_audit.sql` — adds `'quarantine'` to `report_status` enum and creates `ingestion_audit` table with indexes.
+- `src/lib/ingestion/engine.ts` — validation hooked immediately before insert; errors flip status to `quarantine`; flags batched into `ingestion_audit` post-insert (best-effort). New counters `recordsQuarantined` and `recordsWithWarnings` on `IngestionResult`. Also fixes a B.1 oversight where the INSERT branch dropped `event_date_extracted_from` and `source_published_at` (the UPDATE branch had them correct).
+- `src/pages/api/admin/ingest-audit.ts` — admin-auth gated GET endpoint returning rows + 7-day aggregates (top codes, top adapters, severity totals) + quarantine queue size.
+- `src/pages/admin/ingest-audit.tsx` — dashboard page. Top stats tile, top-5 codes / adapters strip (clickable to filter), filterable row list with payload JSON dump.
+- `scripts/test-validate-report.ts` — 26 table-driven fixtures, all passing.
+
+**Tests green:**
+- extract-date.ts: 43/43
+- test-v10-8-b2-adapters.ts: 16/16
+- test-validate-report.ts: 26/26
+- Total pipeline coverage: 85 green fixtures
+
+**Last commit on main:** TBD (this session's V10.8.D push)
+
+**Action needed from Chase before deploy:**
+- Apply `supabase/migrations/20260514_v10_8_d_ingestion_audit.sql` to project `bhkbctdmwnowfmqpksed` via the dashboard SQL editor. Idempotent. Adds the enum value + audit table + indexes.
+
+**Next session pickup:**
+- V10.8.C — `normalizeLocation` utility + 250-country centroid JSON + state-centroid JSON + `geocode_cache` table migration + MapTiler integration + `coords_synthetic` column. Will eliminate `LOC_COUNTRY_NO_COORDS` warnings by always filling centroid coords during ingestion. Render-side `COUNTRY_CENTROIDS` in `ReportPageV2` can come out in the same commit.
+- V10.8.E — Haiku-assisted date fallback. Conditional but Chase pre-approved.
+
+**Gotchas / known issues:**
+- Two pre-existing tsc errors in `engine.ts` (line 819: `titleResult` out-of-scope reference; line 1128: `rejectedDetails` returned but not in `IngestionResult` type). Both existed before V10.8.D and continue to compile fine through Next.js / SWC. Flagging for a future cleanup pass but not blocking.
+- `LOC_STATE_COUNTRY_MISMATCH` only fires for countries in the membership table (US/CA/UK/AU). All other countries are permissive — a "Texas, Mexico" entry would currently pass without warning. V10.8.C's `normalizeLocation` is the right place to widen this.
+
+---
+
+## Earlier Session — V10.8.B.2 adapter migration (May 14, 2026)
 
 **Shipped end-to-end:**
 - V10.8.B.2 — 12 adapters migrated to the unified `extractDate` utility (OBERF was migrated in B.1 as the worked example; B.2 covers everyone else)
