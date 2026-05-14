@@ -235,12 +235,24 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
     return null
   }, [report])
 
-  // V10.8.C — when coords_synthetic is true (centroid fallback), force
-  // map zoom to country-scale so we don't pretend the centroid is a
-  // real pin. Real precise coords keep whatever precision the adapter
-  // reported (or location_precision from metadata).
+  // V10.9.D.11 — When coords are synthetic, use the metadata
+  // precision rather than always falling back to 'country'. The
+  // V10.8.C normalizeLocation sets metadata.location_precision to
+  // reflect WHICH centroid was used (city / state / country), so
+  // mapPrecision already carries that signal — we just need to
+  // honor it instead of stomping it. NOLA case: state centroid
+  // → mapPrecision='region' → halo sized for state, map zoomed
+  // for state. Country-only synthetic rows still resolve to
+  // 'country' via the underlying mapPrecision logic.
   const mapPrecisionResolved: LocationPrecision = useMemo(() => {
-    if (mapCoords && mapCoords.fromFallback) return 'country'
+    if (mapCoords && mapCoords.fromFallback) {
+      // Trust the metadata precision when synthetic — the only
+      // exception is 'exact' which makes no sense for synthetic
+      // coords (centroid is never exact). Treat that as 'city'
+      // so the marker isn't oversized.
+      if (mapPrecision === 'exact') return 'city'
+      return mapPrecision
+    }
     return mapPrecision
   }, [mapCoords, mapPrecision])
 
