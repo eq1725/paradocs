@@ -35,6 +35,7 @@ interface ReportRow {
   answer_line?: string | null
   category?: string | null
   event_date?: string | null
+  event_date_precision?: 'exact' | 'day' | 'month' | 'year' | 'unknown' | null
   city?: string | null
   state_province?: string | null
   country?: string | null
@@ -137,7 +138,9 @@ export default async function handler(req: NextRequest) {
     // V10.7.H — added paradocs_assessment to the select so we can pull
     // the V10.7.F-curated pull_quote (editorial third-person, designed
     // for share-card display).
-    const reportUrl = `${baseUrl}/rest/v1/reports?slug=eq.${encodeURIComponent(slug)}&status=eq.approved&select=title,answer_line,category,event_date,city,state_province,country,location_name,witness_count,paradocs_narrative,feed_hook,paradocs_assessment&limit=1`
+    // V10.7.I — also pull event_date_precision so the WHEN line can
+    // render at the granularity the source actually supports.
+    const reportUrl = `${baseUrl}/rest/v1/reports?slug=eq.${encodeURIComponent(slug)}&status=eq.approved&select=title,answer_line,category,event_date,event_date_precision,city,state_province,country,location_name,witness_count,paradocs_narrative,feed_hook,paradocs_assessment&limit=1`
 
     // V10.6.8 — fetch everything in parallel. We now load Changa at
     // three weights so the entire card can render in the brand
@@ -184,7 +187,7 @@ export default async function handler(req: NextRequest) {
     const catLabel = CATEGORY_DISPLAY[cat] || 'Paranormal'
     const catColor = CATEGORY_COLOR[cat] || '#94a3b8'
 
-    const whenStr = formatWhen(r.event_date)
+    const whenStr = formatWhen(r.event_date, r.event_date_precision)
     const whereStr = formatWhere(r)
     const whoStr = formatWho(r)
 
@@ -573,9 +576,39 @@ function errorImage(headline: string, sub: string): ImageResponse {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-function formatWhen(raw?: string | null): string | null {
+// V10.7.I — precision-aware formatter mirrors the ReportMeta logic.
+// When event_date_precision is explicitly set ('year'|'month'|'exact'/
+// 'day'|'unknown') it drives the granularity regardless of any -01-01
+// sentinel placeholders in event_date. Falls back to the legacy "Jan 1
+// = year-only" heuristic when precision is null (legacy rows).
+function formatWhen(
+  raw?: string | null,
+  precision?: 'exact' | 'day' | 'month' | 'year' | 'unknown' | null,
+): string | null {
   if (!raw) return null
   const t = raw.trim()
+
+  if (precision === 'year') {
+    const ym = t.match(/^(\d{4})/)
+    return ym ? ym[1] : t
+  }
+  if (precision === 'month') {
+    const mm = t.match(/^(\d{4})-(\d{2})/)
+    if (mm) {
+      return `${MONTHS[Number(mm[2]) - 1]} ${Number(mm[1])}`
+    }
+    return t
+  }
+  if (precision === 'exact' || precision === 'day') {
+    const dm = t.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (dm) {
+      return `${MONTHS[Number(dm[2]) - 1]} ${Number(dm[3])}, ${Number(dm[1])}`
+    }
+    return t
+  }
+  if (precision === 'unknown') return null
+
+  // Legacy fallback — same heuristic as before for rows without precision.
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
     const [y, m, d] = t.split('-').map(Number)
     if (m === 1 && d === 1) return String(y)

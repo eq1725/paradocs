@@ -187,7 +187,8 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
     if (raw === 'country') return 'country'
     // No explicit precision — infer.
     if (report?.city) return 'city'
-    if (report?.state_province || report?.country) return 'region'
+    if (report?.state_province) return 'region'
+    if (report?.country) return 'country'
     return 'unknown'
   }, [report])
 
@@ -200,9 +201,74 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
   const regionLabel = useMemo(() => {
     const parts: string[] = []
     if (report?.state_province) parts.push(report.state_province)
-    if (report?.country && report.country !== 'United States') parts.push(report.country)
+    // V10.7.I — always include country when there's no finer location.
+    // The previous "skip US" rule made country-only US reports render
+    // with no badge at all when state was missing too.
+    if (report?.country) {
+      if (parts.length > 0 && (report.country === 'United States' || report.country === 'USA')) {
+        // State present — omit the redundant USA suffix
+      } else {
+        parts.push(report.country)
+      }
+    }
     return parts.length ? parts.join(', ') : (report?.location_name || null)
   }, [report])
+
+  // V10.7.I — country-centroid fallback. When a report only has a
+  // country (no lat/lng, no state, no city — ~52% of approved reports
+  // pre-mass-ingest), drop the map onto the country center so the
+  // location is visually anchored instead of rendering an empty
+  // "Location unknown" tile. Precision='country' triggers zoom 4 in
+  // ReportLocationMap which reads as "regional" without misleading
+  // the user about pin accuracy. Centroids picked for legibility
+  // (approximate geographic center, not the most populous point).
+  const COUNTRY_CENTROIDS: Record<string, [number, number]> = useMemo(() => ({
+    'United States': [39.8283, -98.5795],
+    'USA':           [39.8283, -98.5795],
+    'Canada':        [56.1304, -106.3468],
+    'Mexico':        [23.6345, -102.5528],
+    'United Kingdom':[54.3781, -3.4360],
+    'UK':            [54.3781, -3.4360],
+    'England':       [52.3555, -1.1743],
+    'Ireland':       [53.4129, -8.2439],
+    'Scotland':      [56.4907, -4.2026],
+    'Wales':         [52.1307, -3.7837],
+    'France':        [46.6034, 1.8883],
+    'Germany':       [51.1657, 10.4515],
+    'Spain':         [40.4637, -3.7492],
+    'Italy':         [41.8719, 12.5674],
+    'Australia':     [-25.2744, 133.7751],
+    'New Zealand':   [-40.9006, 174.8860],
+    'Japan':         [36.2048, 138.2529],
+    'China':         [35.8617, 104.1954],
+    'India':         [20.5937, 78.9629],
+    'Brazil':        [-14.2350, -51.9253],
+    'Argentina':     [-38.4161, -63.6167],
+    'South Africa':  [-30.5595, 22.9375],
+    'Russia':        [61.5240, 105.3188],
+    'Netherlands':   [52.1326, 5.2913],
+    'Sweden':        [60.1282, 18.6435],
+    'Norway':        [60.4720, 8.4689],
+    'Finland':       [61.9241, 25.7482],
+    'Poland':        [51.9194, 19.1451],
+  }), [])
+
+  const mapCoords = useMemo(() => {
+    if (typeof report?.latitude === 'number' && typeof report?.longitude === 'number') {
+      return { lat: report.latitude, lng: report.longitude, fromFallback: false }
+    }
+    const c = report?.country ? COUNTRY_CENTROIDS[report.country] : null
+    if (c) return { lat: c[0], lng: c[1], fromFallback: true }
+    return null
+  }, [report, COUNTRY_CENTROIDS])
+
+  // When we're using a country centroid fallback, force precision to
+  // 'country' so the map zooms to a country-scale view and does NOT
+  // try to render a misleading pin at the centroid coordinates.
+  const mapPrecisionResolved: LocationPrecision = useMemo(() => {
+    if (mapCoords && mapCoords.fromFallback) return 'country'
+    return mapPrecision
+  }, [mapCoords, mapPrecision])
 
   // ── Phenomenology display ──────────────────────────────────
   const phenomenonTypeName = (report?.phenomenon_type && (report.phenomenon_type as any).name) || null
@@ -337,9 +403,9 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
             keeps the focal pin readable at both sizes. */}
         <div className="relative h-[22vh] sm:h-[35vh] min-h-[160px] max-h-[320px]">
           <ReportLocationMap
-            latitude={report?.latitude}
-            longitude={report?.longitude}
-            precision={mapPrecision}
+            latitude={mapCoords ? mapCoords.lat : report?.latitude}
+            longitude={mapCoords ? mapCoords.lng : report?.longitude}
+            precision={mapPrecisionResolved}
             pinLabel={pinLabel}
             regionLabel={regionLabel}
             height={1000 /* let the wrapper control via CSS */}
@@ -464,6 +530,7 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                 submitterDisplayName={submitterDisplayName}
                 eventDate={report?.event_date}
                 eventDateText={report?.event_date_text}
+                eventDatePrecision={(report as any)?.event_date_precision || null}
                 city={report?.city}
                 stateProvince={report?.state_province}
                 country={report?.country}
@@ -645,6 +712,7 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                 submitterDisplayName={submitterDisplayName}
                 eventDate={report?.event_date}
                 eventDateText={report?.event_date_text}
+                eventDatePrecision={(report as any)?.event_date_precision || null}
                 city={report?.city}
                 stateProvince={report?.state_province}
                 country={report?.country}
