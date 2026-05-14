@@ -18,12 +18,13 @@ import type { RegionBucket } from './useViewportData'
 type SnapPoint = 'peek' | 'half' | 'full'
 
 const SNAP_HEIGHTS = {
-  // V10.9.D.5 — Peek tightened from 100 → 56. The 100px height left
-  // ~70px of dead empty drawer below the visible content (handle + 1
-  // line of text + Explore link). 56px fits the handle (~10) + stat
-  // line (~30) + 16px buffer with no leftover empty space, so the
-  // peek strip sits flush above the bottom nav bar.
-  peek: 56,
+  // V10.9.D.6 — Peek tuned per visual review.
+  //   100px (original): ~50px of dead space below visible content.
+  //   56px (V10.9.D.5): too tight — stat line + Explore link clipped
+  //     under the bottom nav bar. Only the drag handle showed.
+  //   78px (this rev): handle (~22) + stat line (~28) + 28px buffer.
+  //     Fits content with breathing room, no dead space below it.
+  peek: 78,
   half: 360,  // report card
   full: 0,    // calculated dynamically via fullHeight
 }
