@@ -1,11 +1,40 @@
 # Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** May 14, 2026 (V10.8.I — map precision fix + V10.9 explore-map design)
+**Last updated:** May 14, 2026 (V10.9.A — explore-map region totals shipped)
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
 
 ---
 
-## Most Recent Session — V10.8.I map precision fix + V10.9 design (May 14, 2026, late night)
+## Most Recent Session — V10.9.A explore-map region totals (May 14, 2026, late night)
+
+After V10.8.I fixed the report-page maps, the /explore?mode=map page still piled the same 57 synthetic-coord US reports at the country centroid (Kansas). Implemented the V10.9.A first cut of the design doc to fix it for both current corpus and mass-ingest scale.
+
+**Shipped end-to-end:**
+- `supabase/migrations/20260514_v10_9_region_counts.sql` — materialized view `report_region_counts(country_code, country, state_province, category, report_count)` aggregating synthetic-coord approved reports. Unique composite index for `REFRESH MATERIALIZED VIEW CONCURRENTLY`. Designed for 1M+ scale: view stays ≤10K rows even worst-case.
+- `src/pages/api/map/region-counts.ts` — public GET endpoint reads the view. Query params: `level=country|state`, `country=US`, `category=ufos_aliens`. Returns `{ level, total, buckets: [{ code, name, total, by_category }] }`. 5-min edge cache.
+- `src/components/map/useViewportData.ts` — pin-layer query now filters `coords_synthetic=false` (eliminates the false cluster). Separate fetch from /api/map/region-counts populates new `regionBuckets` + `regionTotalCount` return fields. Category filter applies to both layers.
+- `src/components/map/RegionTotalsPanel.tsx` — floating overlay (top-right, collapsible). Shows total + top-8 countries by count. Click a row to toggle that country's filter. Includes copy explaining why these reports aren't pinned ("These reports specify only a country or state. They're counted here instead of pinned to avoid false clustering at region centroids.").
+- `src/pages/explore.tsx` — imports + renders the panel, wires the click handler to `setFilters({...filters, country: ...})`.
+
+**Result on current corpus:**
+- The "57 at Kansas" cluster disappears from the pin layer entirely.
+- RegionTotalsPanel shows "United States — 57" with a click target that filters explore by country.
+- Precise-coord BFRO/NUFORC pins remain unchanged.
+
+**What's deferred to V10.9.B (next session):**
+- Choropleth fill layer — country/state polygons (Natural Earth GeoJSON) colored by report count.
+- Toggle controls (Pins / Regions / Combined).
+- Per the design doc — the materialized view + API already feed it; just need the GeoJSON + MapLibre fill layer.
+
+**Last commit on main:** TBD (V10.9.A push)
+
+**Action needed from Chase before deploy:**
+- Apply `supabase/migrations/20260514_v10_9_region_counts.sql`. Creates the materialized view + initial refresh.
+- After mass-ingest batches, run `REFRESH MATERIALIZED VIEW CONCURRENTLY report_region_counts;` either via cron or as an ingestion-engine hook to keep the panel fresh.
+
+---
+
+## Earlier Session — V10.8.I map precision fix + V10.9 design (May 14, 2026, late night)
 
 Chase flagged that the pit-bull report (country-only US) was showing zoomed-in on Kansas with a "56 nearby" cluster of other US-country-only reports stacked at the same synthetic centroid. Raised the broader question: how should we handle mass-ingest with mixed-precision locations?
 

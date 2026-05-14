@@ -42,6 +42,7 @@ import MapSpotlightRow from '@/components/map/MapSpotlightRow'
 // Map imports — dynamic to avoid SSR
 import { useMapState } from '@/components/map/useMapState'
 import { useViewportData } from '@/components/map/useViewportData'
+import RegionTotalsPanel from '@/components/map/RegionTotalsPanel'
 import { ReportProperties } from '@/components/map/mapStyles'
 import MapControls, { BasemapStyle } from '@/components/map/MapControls'
 import MapFilterPanel from '@/components/map/MapFilterPanel'
@@ -361,6 +362,11 @@ function ExploreMapMode() {
   var error = viewportData.error
   var supercluster = viewportData.supercluster
   var getReport = viewportData.getReport
+  // V10.9.A — region totals for synthetic-coord reports (country/state
+  // only). These don't show as pins; the RegionTotalsPanel surfaces
+  // them as honest counts.
+  var regionBuckets = viewportData.regionBuckets
+  var regionTotalCount = viewportData.regionTotalCount
 
   var selectedReport: ReportProperties | null = useMemo(function() {
     if (!selectedReportId) return null
@@ -420,6 +426,18 @@ function ExploreMapMode() {
         flyToTarget={flyToTarget}
         basemapStyle={basemapStyle}
         mapPadding={filterPanelOpen ? MAP_PADDING_WITH_FILTERS : MAP_PADDING_DEFAULT}
+      />
+
+      {/* V10.9.A — Region totals panel for synthetic-coord reports.
+          Surfaces country/state-precision reports as honest aggregate
+          counts instead of misleading map clusters. */}
+      <RegionTotalsPanel
+        buckets={regionBuckets}
+        total={regionTotalCount}
+        activeCountry={filters.country}
+        onCountryClick={function(_code, name) {
+          setFilters({ ...filters, country: filters.country === name ? null : name })
+        }}
       />
 
       {/* Loading overlay */}

@@ -19,6 +19,21 @@ type AnyClusterFeature = ClusterFeature
 /** Bounding box of all data points [west, south, east, north] */
 export type DataBounds = [number, number, number, number] | null
 
+/**
+ * V10.9.A — region-totals bucket from /api/map/region-counts.
+ * Represents reports whose coords are synthetic (country/state
+ * centroid fallbacks) — these intentionally don't appear on the
+ * pin layer to avoid the false-cluster pile-up bug. The
+ * RegionTotalsPanel renders them as honest aggregate counts.
+ */
+export interface RegionBucket {
+  code: string                 // ISO 3166-1 alpha-2
+  name: string
+  state?: string
+  total: number
+  by_category: Record<string, number>
+}
+
 interface UseViewportDataReturn {
   /** All features (clusters + individual points) for current viewport */
   features: any[]
@@ -32,6 +47,10 @@ interface UseViewportDataReturn {
   categoryCounts: Record<string, number>
   /** Top countries by report count */
   topCountries: { name: string; count: number }[]
+  /** V10.9.A — region buckets from synthetic-coord reports (NOT on the pin layer). */
+  regionBuckets: RegionBucket[]
+  /** V10.9.A — total count of synthetic-coord reports (sum of regionBuckets totals). */
+  regionTotalCount: number
   /** Data bounds for auto-fitting the map */
   dataBounds: DataBounds
   /** Year histogram (all reports, pre-filter) for timeline sparkline */
@@ -61,6 +80,7 @@ export function useViewportData(
   zoom: number
 ): UseViewportDataReturn {
   const [allReports, setAllReports] = useState<ReportPoint[]>([])
+  const [regionBuckets, setRegionBuckets] = useState<RegionBucket[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [fetchKey, setFetchKey] = useState(0)
@@ -76,14 +96,21 @@ export function useViewportData(
       setError(null)
 
       try {
+        // V10.9.A — pin layer fetches PRECISE-COORD reports only.
+        // Synthetic-coord reports (country/state centroid fallbacks)
+        // are excluded here so they don't pile up at shared centroids
+        // and create misleading clusters (the "57 at Kansas" bug).
+        // Those reports surface as honest aggregate counts via
+        // /api/map/region-counts → regionBuckets below.
         const { data, error: dbError } = await supabase
           .from('reports')
           .select(
-            'id,title,slug,summary,category,latitude,longitude,location_name,country,event_date,credibility,witness_count,has_physical_evidence,has_photo_video,metadata'
+            'id,title,slug,summary,category,latitude,longitude,location_name,country,country_code,event_date,credibility,witness_count,has_physical_evidence,has_photo_video,coords_synthetic,metadata'
           )
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)
           .eq('status', 'approved')
+          .or('coords_synthetic.is.null,coords_synthetic.eq.false')
           .order('created_at', { ascending: false })
           .limit(50000)
 
@@ -138,6 +165,30 @@ export function useViewportData(
     }
 
     fetchReports()
+    return () => { cancelled = true }
+  }, [fetchKey])
+
+  // ─── V10.9.A — fetch region totals for synthetic-coord reports ────
+  //
+  // Hits /api/map/region-counts which reads the report_region_counts
+  // materialized view. Server-side aggregation so this scales cleanly
+  // to 1M+ reports during mass ingest. Cached at the edge for 5 min.
+  useEffect(() => {
+    let cancelled = false
+    async function fetchRegionCounts() {
+      try {
+        const resp = await fetch('/api/map/region-counts?level=country')
+        if (!resp.ok) {
+          if (!cancelled) setRegionBuckets([])
+          return
+        }
+        const data = await resp.json()
+        if (!cancelled) setRegionBuckets(data.buckets || [])
+      } catch (_e) {
+        if (!cancelled) setRegionBuckets([])
+      }
+    }
+    fetchRegionCounts()
     return () => { cancelled = true }
   }, [fetchKey])
 
@@ -287,6 +338,25 @@ export function useViewportData(
 
   const refetch = useCallback(() => setFetchKey((k) => k + 1), [])
 
+  // V10.9.A — filter region buckets by the active category filter
+  // so the panel stays in sync with the rest of the map UI.
+  const filteredRegionBuckets = useMemo(() => {
+    if (!filters.category) return regionBuckets
+    const cat = filters.category
+    return regionBuckets
+      .map(b => ({
+        ...b,
+        total: b.by_category[cat] || 0,
+      }))
+      .filter(b => b.total > 0)
+      .sort((a, b) => b.total - a.total)
+  }, [regionBuckets, filters.category])
+
+  const regionTotalCount = useMemo(
+    () => filteredRegionBuckets.reduce((acc, b) => acc + b.total, 0),
+    [filteredRegionBuckets],
+  )
+
   return {
     features,
     allPointsGeoJSON,
@@ -294,6 +364,8 @@ export function useViewportData(
     filteredCount: filteredReports.length,
     categoryCounts,
     topCountries,
+    regionBuckets: filteredRegionBuckets,
+    regionTotalCount,
     dataBounds,
     yearHistogram,
     loading,
