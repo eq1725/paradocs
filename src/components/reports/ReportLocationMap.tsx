@@ -312,6 +312,11 @@ export default function ReportLocationMap({
 // ── Subcomponents ───────────────────────────────────────────
 
 function PinSprite({ label }: { label: string }) {
+  // V10.9.D.8 — pulse made much more visible per Chase review.
+  // Old: 16x16 ping at 50% opacity → barely noticeable on a dark map.
+  // New: 32x32 outer ring + 24x24 inner ring, both higher opacity,
+  // longer cycle (1.6s) so the eye actually catches the motion.
+  // Inner pin scaled 4 → 5 (20% bigger) for legibility.
   return (
     <div className="relative flex flex-col items-center pointer-events-auto">
       {label && (
@@ -319,9 +324,17 @@ function PinSprite({ label }: { label: string }) {
           {label}
         </div>
       )}
-      <div className="relative">
-        <span className="absolute inset-0 rounded-full bg-purple-400 opacity-50 animate-ping" style={{ width: 16, height: 16, left: -8, top: -8 }} />
-        <span className="block w-4 h-4 rounded-full bg-purple-500 border-2 border-white shadow-md" />
+      <div className="relative" style={{ width: 20, height: 20 }}>
+        {/* Outer wide pulse */}
+        <span
+          className="absolute rounded-full bg-purple-400 animate-ping"
+          style={{ width: 32, height: 32, left: -6, top: -6, opacity: 0.6, animationDuration: '1.6s' }}
+        />
+        {/* Static inner pin */}
+        <span
+          className="absolute rounded-full bg-purple-500 border-2 border-white shadow-lg"
+          style={{ width: 20, height: 20, left: 0, top: 0 }}
+        />
       </div>
     </div>
   )
