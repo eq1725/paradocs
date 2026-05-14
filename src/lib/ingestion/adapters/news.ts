@@ -2,6 +2,7 @@
 // Fetches paranormal news articles from NewsAPI.org
 
 import { SourceAdapter, AdapterResult, ScrapedReport } from '../types';
+import { extractDate } from '../utils/extract-date';
 
 const SEARCH_QUERIES = [
   'UFO sighting witness',
@@ -238,7 +239,23 @@ const newsAdapter: SourceAdapter = {
             }
             fullDescription = truncateDescription(fullDescription, 5000);
 
-            // Create scraped report
+            // V10.8.B.2 — News pub-date split.
+            // Before V10.8.B.2 this adapter wrote `publishedAt` into
+            // `event_date` with `precision='exact'`. That was always wrong:
+            // the publication date is not the event date — a 2026 article
+            // about a 1947 sighting was storing event_date='2026-XX-XX'.
+            //
+            // Fix:
+            //   1. event_date now comes from extractDate({prose: title+body}).
+            //      Captures "On April 28th 2007"-style narrative dates inside
+            //      the article. Falls back to month/year/unknown precision.
+            //   2. The publication timestamp moves to source_published_at,
+            //      preserving the data without contaminating event_date.
+            //   3. A one-time backfill SQL block (see SESSION_NOTES.md) moves
+            //      the existing ~15 news rows over to the new shape.
+            const articleProse = (article.title || '') + '\n' + fullDescription;
+            const newsExtract = extractDate({ prose: articleProse });
+
             const report: ScrapedReport = {
               title: article.title,
               summary: truncateDescription(article.description || '', 200),
@@ -249,8 +266,10 @@ const newsAdapter: SourceAdapter = {
               source_label: article.source.name,
               source_url: article.url,
               credibility: determineCredibility(article.source.name),
-              event_date: article.publishedAt.split('T')[0], // Extract date from ISO timestamp
-              event_date_precision: 'exact',
+              event_date: newsExtract.date || undefined,
+              event_date_precision: newsExtract.precision,
+              event_date_extracted_from: newsExtract.source,
+              source_published_at: article.publishedAt,
               tags: ['news', article.source.name, ...categoryKeywords],
               metadata: {
                 author: article.author,

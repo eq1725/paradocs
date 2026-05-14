@@ -2,6 +2,7 @@
 // Fetches UFO sighting reports from nuforc.org (new WordPress-based site)
 
 import { SourceAdapter, AdapterResult, ScrapedReport, ScrapedMediaItem } from '../types';
+import { extractDate, type DateExtractionSource } from '../utils/extract-date';
 
 // US State abbreviations to full names mapping
 const STATE_MAP: Record<string, string> = {
@@ -775,24 +776,23 @@ export const nuforcAdapter: SourceAdapter = {
             }
 
             var state = STATE_MAP[meta.state] || meta.state;
-            var eventDate = parseDate(meta.occurred);
+            // V10.8.B.2 — delegate date extraction to the unified utility.
+            // NUFORC's "Occurred" column format is "YYYY-MM-DD HH:MM" (with
+            // optional " Local - Approximate" suffix); we strip the time
+            // tail to a date string before handing to extractDate. The
+            // structured slot wins when present; we also feed the description
+            // as prose so the rare cases with missing "Occurred" still capture
+            // narrative-opening dates ("On April 28th 2007 I saw...").
+            var nuforcStructured = (meta.occurred || '').trim().split(' ')[0] || null;
+            var nuforcExtract = extractDate({ structured: nuforcStructured, prose: description || null });
+            var eventDate: string | undefined = nuforcExtract.date || undefined;
+            var eventDateSource: DateExtractionSource = nuforcExtract.source;
+            var eventDatePrecision: 'exact' | 'month' | 'year' | 'decade' | 'estimated' | 'unknown' = nuforcExtract.precision;
             var locationName = meta.city ? meta.city + ', ' + state : state;
 
             // Build tags array
             var baseTags = extractTags(meta.shape, description);
             var tags = mediaItems.length > 0 ? baseTags.concat(['has-media']) : baseTags;
-
-            // Determine event_date_precision based on date parsing
-            var eventDatePrecision: 'exact' | 'month' | 'year' | 'decade' | 'estimated' | 'unknown' = 'unknown';
-            if (eventDate) {
-              if (/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
-                eventDatePrecision = 'exact';
-              } else if (/^\d{4}-\d{2}/.test(eventDate)) {
-                eventDatePrecision = 'month';
-              } else if (/^\d{4}/.test(eventDate)) {
-                eventDatePrecision = 'year';
-              }
-            }
 
             var titleShape = meta.shape || 'UFO';
             var titleDate = eventDate ? ' (' + eventDate + ')' : '';
@@ -827,6 +827,7 @@ export const nuforcAdapter: SourceAdapter = {
               city: meta.city,
               event_date: eventDate,
               event_date_precision: eventDatePrecision,
+              event_date_extracted_from: eventDateSource,
               credibility: determineCredibility(description, meta.shape, meta.hasMedia || mediaItems.length > 0),
               source_type: 'nuforc',
               original_report_id: 'nuforc-' + meta.id,

@@ -2,6 +2,7 @@
 // Fetches structured data from Wikipedia lists of paranormal sightings/events
 
 import { SourceAdapter, AdapterResult, ScrapedReport, ScrapedMediaItem } from '../types';
+import { extractDate } from '../utils/extract-date';
 
 // Rate limiting helper
 function delay(ms: number): Promise<void> {
@@ -87,15 +88,15 @@ function parseTableRow(row: string, category: string, pageTitle: string, index: 
   // Validate the report content
   if (!isValidReport(title, description)) return null;
 
-  // Parse date
-  let eventDate: string | undefined;
-  if (dateStr) {
-    // Try to extract year
-    const yearMatch = dateStr.match(/\d{4}/);
-    if (yearMatch) {
-      eventDate = `${yearMatch[0]}-01-01`;
-    }
-  }
+  // V10.8.B.2 — delegate date extraction to the unified utility. The Wikipedia
+  // row's date cell goes in structured slot when present; the description is
+  // passed as prose so we can pick up dates from a row's narrative cell too
+  // (Wikipedia ledes are date-rich — "On April 28, 2007, in Bristol...").
+  const wikiExtract = extractDate({
+    structured: dateStr || null,
+    prose: description || null,
+  });
+  const eventDate: string | undefined = wikiExtract.date || undefined;
 
   // Extract country/state from location
   let country: string | undefined;
@@ -124,7 +125,8 @@ function parseTableRow(row: string, category: string, pageTitle: string, index: 
     country,
     state_province: stateProvince,
     event_date: eventDate,
-    event_date_precision: eventDate ? 'year' : 'unknown',
+    event_date_precision: wikiExtract.precision,
+    event_date_extracted_from: wikiExtract.source,
     credibility: 'medium', // Wikipedia is generally reliable
     source_type: 'wikipedia',
     original_report_id: reportId,
@@ -295,6 +297,11 @@ function parseWikiContent(html: string, category: string, pageTitle: string): Sc
 
       const reportId = `wiki-${pageTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${index++}`;
 
+      // V10.8.B.2 — fallback bullet-list parser also gets unified extractDate
+      // run over the (title + description) since the lede text often contains
+      // a date even when the bullet structure doesn't.
+      const fbExtract = extractDate({ prose: title + '\n' + description });
+
       reports.push({
         title: title.length > 150 ? title.substring(0, 147) + '...' : title,
         summary: description.length > 200 ? description.substring(0, 197) + '...' : description,
@@ -303,7 +310,9 @@ function parseWikiContent(html: string, category: string, pageTitle: string): Sc
         credibility: 'medium',
         source_type: 'wikipedia',
         original_report_id: reportId,
-        event_date_precision: 'unknown',
+        event_date: fbExtract.date || undefined,
+        event_date_precision: fbExtract.precision,
+        event_date_extracted_from: fbExtract.source,
         tags: ['wikipedia', 'historical', category.replace(/_/g, '-')],
         // New quality system fields
         source_label: 'Wikipedia',

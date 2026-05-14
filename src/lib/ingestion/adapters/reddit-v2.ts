@@ -4,6 +4,7 @@
 // Replaces the original reddit adapter with bulk-import capabilities
 
 import { SourceAdapter, AdapterResult, ScrapedReport, ScrapedMediaItem } from '../types';
+import { extractDate } from '../utils/extract-date';
 
 // Rate limiting helper
 function delay(ms: number): Promise<void> {
@@ -268,7 +269,11 @@ function postToReport(post: ArcticShiftPost): ScrapedReport {
   const category = SUBREDDIT_CATEGORIES[subreddit] || 'combination';
   const credibility = getCredibilityFromScore(post.score);
   const summary = post.selftext.substring(0, 200);
-  const eventDate = timestampToIsoDate(post.created_utc);
+  // V10.8.B.2 — post created_utc is the Reddit submission timestamp, not the
+  // event date. Move it to source_published_at and run extractDate over the
+  // post body to attempt a real event-date capture.
+  const sourcePublishedAt = new Date(post.created_utc * 1000).toISOString();
+  const extracted = extractDate({ prose: post.selftext || null });
   const media = extractMediaFromPost(post);
   const tags = extractTags(post, subreddit);
 
@@ -283,8 +288,10 @@ function postToReport(post: ArcticShiftPost): ScrapedReport {
     category,
     credibility,
     tags,
-    event_date: eventDate,
-    event_date_precision: 'unknown',
+    event_date: extracted.date || undefined,
+    event_date_precision: extracted.precision,
+    event_date_extracted_from: extracted.source,
+    source_published_at: sourcePublishedAt,
     metadata: {
       score: post.score,
       num_comments: post.num_comments,
@@ -472,11 +479,15 @@ const redditV2Adapter: SourceAdapter = {
           minScore
         );
 
-        // Filter by epoch if provided
+        // Filter by epoch if provided. V10.8.B.2: previously this used
+        // event_date (which was the post timestamp). After the migration
+        // event_date is the extracted event date, so we filter by the
+        // post timestamp via source_published_at.
         if (afterEpoch > 0) {
           const filtered = reports.filter(report => {
-            if (!report.event_date) return true;
-            const timestamp = new Date(report.event_date).getTime() / 1000;
+            const pub = (report as any).source_published_at;
+            if (!pub) return true;
+            const timestamp = new Date(pub).getTime() / 1000;
             return timestamp >= afterEpoch;
           });
           allReports.push(...filtered);

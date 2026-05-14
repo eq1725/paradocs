@@ -1,11 +1,44 @@
 # Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** May 13, 2026 (V10.7 closeout + V10.8 pipeline-hardening kickoff)
+**Last updated:** May 14, 2026 (V10.8.B.2 adapter migration complete)
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
 
 ---
 
-## Most Recent Session — V10.7 closeout + V10.8 kickoff (May 13, 2026)
+## Most Recent Session — V10.8.B.2 adapter migration (May 14, 2026)
+
+**Shipped end-to-end:**
+- V10.8.B.2 — 12 adapters migrated to the unified `extractDate` utility (OBERF was migrated in B.1 as the worked example; B.2 covers everyone else)
+- New backfill migration `supabase/migrations/20260514_v10_8_b_2_news_pubdate_backfill.sql` for the ~15 existing news rows
+- New smoke-test script `scripts/test-v10-8-b2-adapters.ts` (16 fixtures, all passing) — covers one or more sample-prose cases per migrated adapter
+
+**Adapter-by-adapter notes:**
+- **Reddit / Reddit-v2 / YouTube** — moved `created_utc` / `publishedAt` from `event_date` into the new `source_published_at` column. Run `extractDate({ prose: postBody/description })` for the actual event date. Both Reddit comment + post paths covered; YouTube video + comment paths covered. Reddit-v2's `afterEpoch` filter switched from `event_date` → `source_published_at` so it still filters by post-creation time.
+- **IANDS** — was `event_date: undefined` already, now `extractDate({ prose: content })` so NDE narratives like "In April 2007 I was in a car accident" get captured.
+- **Erowid** — `extractDate({ structured: profile.experienceYear, prose: parsed.body })`. Page's "Published:" date becomes `source_published_at` when parseable.
+- **Shadowlands** — `extractDate({ prose: description })`; captures era cues like "Civil War" → 1865 via the new approximate-marker path.
+- **NDERF** — `extractNDEDate` now a 15-line wrapper around `extractDate`. Structured "Date of NDE" field with `MM/DD/YYYY` and `04/00/2010`-style sentinels still parses correctly. Narrative fallback handles the rare cases where the questionnaire field is missing.
+- **BFRO** — `extractDate({ structured: <assembled YEAR+MONTH+DATE string> })`. Description fallback fires when the structured fields couldn't produce a date. The 23-line post-hoc `eventDatePrecision` block (year-vs-month-vs-exact regex sniffing) is replaced by a one-liner that reads `precision` off the extractDate result.
+- **GhostsOfAmerica** — replaced narrow `(?:in|on|around|circa)\s+...` regex with full `extractDate` over the story body. Fallback bullet-list path now also runs extractDate.
+- **NUFORC** — "Occurred" column gets time tail stripped (`split(' ')[0]`) before going into the structured slot. Description passed as prose fallback. Precision now comes from extractDate.
+- **Wikipedia** — date cell → structured, lede → prose. Precision was hardcoded `'year'`, now comes from extractDate result.
+- **News** — biggest semantic change: pub-date split. `publishedAt` → `source_published_at`. `event_date` ← `extractDate({ prose: title + fullDescription })`. Migration `20260514_v10_8_b_2_news_pubdate_backfill.sql` repairs the existing rows: copies their `event_date` → `source_published_at`, nulls `event_date`, sets `event_date_extracted_from='none'` so a re-ingestion pass can repopulate it cleanly.
+
+**Last commit on main:** TBD (this session's V10.8.B.2 push)
+
+**Action needed from Chase before deploy:**
+- Apply `supabase/migrations/20260514_v10_8_b_2_news_pubdate_backfill.sql` to the live DB via Supabase dashboard SQL editor (project `bhkbctdmwnowfmqpksed`). It's idempotent (gated on `source_published_at IS NULL`).
+
+**Next session pickup:**
+- V10.8.D — `validateReportBeforeInsert` (11 warning + 4 error codes) + `ingestion_audit` table migration + `/admin/ingest-audit` page + `'quarantine'` status enum addition. Hooked in `engine.ts` immediately before insert.
+- V10.8.C — `normalizeLocation` utility + 250-country centroid JSON + state-centroid JSON + `geocode_cache` table migration + MapTiler integration + `coords_synthetic` column.
+- V10.8.E — Haiku-assisted date fallback. Conditional but Chase pre-approved building regardless.
+
+**Gotchas encountered:** None new. The pre-existing tsc errors in `bfro.ts:714` (`function extractCount` inside a block) and `nuforc.ts:100` (Set spread) and `nuforc.ts:589` (assigning to `descMatch`) were already in the codebase before this session and compile fine through Next.js / SWC. Worth flagging for a future cleanup pass.
+
+---
+
+## Earlier Session — V10.7 closeout + V10.8 kickoff (May 13, 2026)
 
 **Shipped end-to-end:**
 - V10.7.F — first-person voice ban on pull_quote + feed_hook

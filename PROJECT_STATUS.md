@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** May 13, 2026 (V10.7 closeout + V10.8 pipeline-hardening kickoff)
+**Last updated:** May 14, 2026 (V10.8.B.2 adapter migration complete)
 **Project:** discoverparadocs.com (production); beta.discoverparadocs.com (beta)
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -23,14 +23,25 @@ New `src/lib/ingestion/utils/extract-date.ts`. Cascading priority: structured �
 - `engine.ts` passes both through to insert.
 - **OBERF adapter migrated**: ~45-line `extractOBERFDate` parser replaced with a 15-line `extractDate({ structured: getField(...), prose: content })` call. Sets `event_date_extracted_from` on every OBERF row going forward.
 
+### V10.8.B.2 — Remaining 14 adapters migrated (SHIPPED, May 14, 2026)
+All 12 production adapters now delegate to the unified `extractDate` utility (OBERF migrated as the V10.8.B.1 worked example; the remaining 12 land in B.2). Every report row going forward carries `event_date_extracted_from` ∈ {`structured`, `prose-monthname`, `prose-numeric`, `prose-year`, `none`} for audit-trail filtering in `/admin/ingest-audit` once V10.8.D lands.
+
+Per-adapter changes:
+- **Easy wins (6 adapters that hardcoded `precision='unknown'`)** — Reddit, Reddit-v2, IANDS, Erowid, Shadowlands, YouTube. Reddit/Reddit-v2 and YouTube also move the post/upload timestamp out of `event_date` into the new `source_published_at` column (it's the post-publication date, not the event date). Erowid additionally surfaces the page's "Published:" date in `source_published_at` when present.
+- **Existing parsers replaced (5 adapters)** — NDERF (`extractNDEDate` now a 15-line wrapper around `extractDate` with the questionnaire field as `structured` and the narrative as `prose`); BFRO (assembled YEAR+MONTH+DATE string → structured slot, with description as a prose fallback when the structured fields are missing); GhostsOfAmerica (regex `(?:in|on|around|circa)\s+...` replaced with full `extractDate` over the story body); NUFORC ("Occurred" column → structured slot with the time tail stripped); Wikipedia (date cell → structured, lede → prose; precision now per-row from `extractDate` instead of hardcoded `'year'`).
+- **News pub-date split** — biggest semantic change. News no longer stores `publishedAt` in `event_date` with `precision='exact'` (the long-standing bug). `source_published_at` now gets the publication timestamp; `event_date` comes from `extractDate({ prose: title + body })`. One-time backfill SQL at `supabase/migrations/20260514_v10_8_b_2_news_pubdate_backfill.sql` moves the current ~15 news rows over to the new shape (copy `event_date` → `source_published_at`, null out `event_date` so a re-ingest pass repopulates it cleanly).
+
+Smoke test at `scripts/test-v10-8-b2-adapters.ts` (16 fixtures across all migrated adapters) — all passing. The original V10.8.A test suite at `scripts/test-extract-date.ts` is still green at 43/43.
+
+**Action needed from Chase before deploy:** Apply `supabase/migrations/20260514_v10_8_b_2_news_pubdate_backfill.sql` to the live Supabase DB (project `bhkbctdmwnowfmqpksed`) via the dashboard SQL editor. The `event_date_extracted_from` + `source_published_at` columns were added by the V10.8.B.1 migration that should already be applied.
+
 ### V10.8.B.2 onward — REMAINING
-- **B.2** — Migrate the other 14 adapters. 6 are "hardcoded unknown" today (Reddit, Reddit-v2, IANDS, Erowid, Shadowlands, YouTube) — zero-risk wins. 6 have existing per-adapter parsers (NDERF, BFRO, GhostsOfAmerica, NUFORC, Wikipedia, News). News also needs the pub-date data migration (one-time backfill: `event_date` → `source_published_at` for current 15 news rows, then re-extract `event_date` via `extractDate`).
-- **C** — Location normalizer + 250-country centroid JSON + state-centroid JSON + `geocode_cache` table migration + MapTiler integration + `coords_synthetic` column. ~1 session.
 - **D** — `validateReportBeforeInsert` (11 warning + 4 error codes) + `ingestion_audit` table migration + `/admin/ingest-audit` page + `'quarantine'` status enum addition. ~0.5 session.
+- **C** — Location normalizer + 250-country centroid JSON + state-centroid JSON + `geocode_cache` table migration + MapTiler integration + `coords_synthetic` column. ~1 session.
 - **E** — Haiku-assisted date fallback when extractDate returns `precision='year'` but source contains month names. ~$0.001/call. ~0.5 session.
 
-### Critical: migration must be applied before B.2 ships
-The `20260514_v10_8_b_date_extraction_audit.sql` migration must run on the live Supabase DB before any B.2 adapter writes `event_date_extracted_from` or `source_published_at`. Project pattern: paste SQL into the Supabase dashboard SQL editor for project `bhkbctdmwnowfmqpksed`. Migration is idempotent (`ADD COLUMN IF NOT EXISTS`).
+### Migration status (V10.8.B.1 + B.2)
+The `20260514_v10_8_b_date_extraction_audit.sql` migration (adds `event_date_extracted_from` + `source_published_at` columns) was applied during V10.8.B.1 setup. The new `20260514_v10_8_b_2_news_pubdate_backfill.sql` migration ships with V10.8.B.2 and needs to run once against the live DB to move the ~15 existing news rows over to the new pub-date / event-date split. Both migrations are idempotent. Project pattern: paste SQL into the Supabase dashboard SQL editor for project `bhkbctdmwnowfmqpksed`.
 
 ---
 

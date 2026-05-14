@@ -5,6 +5,7 @@
 // IANDS is a leading organization for NDE research and education
 
 import { SourceAdapter, AdapterResult, ScrapedReport } from '../types';
+import { extractDate } from '../utils/extract-date';
 
 // Rate limiting helper
 function delay(ms: number): Promise<void> {
@@ -294,13 +295,18 @@ function parseAccountPage(html: string, id: string, title: string): ScrapedRepor
   // Generate tags
   const tags = generateTags(content, accountType);
 
+  // V10.8.B.2 — try to extract event date from prose. IANDS NDE accounts often
+  // include narrative-opening dates like "In April 2007, I was in a car accident".
+  const extracted = extractDate({ prose: content });
+
   return {
     title: title.length > 150 ? title.substring(0, 147) + '...' : title,
     summary,
     description: content,
     category: 'psychological_experiences',
-    event_date: undefined,
-    event_date_precision: 'unknown',
+    event_date: extracted.date || undefined,
+    event_date_precision: extracted.precision,
+    event_date_extracted_from: extracted.source,
     credibility: determineCredibility(content),
     source_type: 'iands',
     original_report_id: `iands-${id}`,

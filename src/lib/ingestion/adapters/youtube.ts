@@ -4,6 +4,7 @@
 // Supports: channel video scraping, search-based discovery, comment extraction
 
 import { SourceAdapter, AdapterResult, ScrapedReport, ScrapedMediaItem } from '../types';
+import { extractDate } from '../utils/extract-date';
 
 // Rate limiting helper
 function delay(ms: number): Promise<void> {
@@ -231,6 +232,11 @@ function convertVideoToReport(
   const likes = likeCount ? parseInt(likeCount, 10) : undefined;
   const comments = commentCount ? parseInt(commentCount, 10) : undefined;
 
+  // V10.8.B.2 — publishedAt is the video upload timestamp, not the event
+  // date. Move it to source_published_at and run extractDate over the video
+  // description (and title) to attempt a real event-date capture.
+  const extracted = extractDate({ prose: (title || '') + '\n' + (truncatedDescription || '') });
+
   return {
     original_report_id: `yt-video-${video.id}`,
     source_type: 'youtube',
@@ -242,8 +248,10 @@ function convertVideoToReport(
     category,
     credibility: 'medium',
     tags: reportTags,
-    event_date: publishedAt,
-    event_date_precision: 'unknown',
+    event_date: extracted.date || undefined,
+    event_date_precision: extracted.precision,
+    event_date_extracted_from: extracted.source,
+    source_published_at: publishedAt,
     media,
     metadata: {
       videoId: video.id,
@@ -284,6 +292,11 @@ function convertCommentToReport(
     ? cleanText.substring(0, 297) + '...'
     : cleanText;
 
+  // V10.8.B.2 — comment publishedAt is the comment-post timestamp, not the
+  // event date. Move it to source_published_at and run extractDate over the
+  // comment body to attempt a real event-date capture.
+  const extracted = extractDate({ prose: cleanText });
+
   return {
     original_report_id: `yt-comment-${comment.snippet.topLevelComment.id}`,
     source_type: 'youtube',
@@ -295,8 +308,10 @@ function convertCommentToReport(
     category,
     credibility: snippet.likeCount > 50 ? 'medium' : 'low',
     tags: ['youtube', 'youtube-comment', 'experiencer-account', channelName.toLowerCase().replace(/\s+/g, '-')],
-    event_date: snippet.publishedAt,
-    event_date_precision: 'unknown',
+    event_date: extracted.date || undefined,
+    event_date_precision: extracted.precision,
+    event_date_extracted_from: extracted.source,
+    source_published_at: snippet.publishedAt,
     metadata: {
       videoId: snippet.videoId,
       videoTitle,

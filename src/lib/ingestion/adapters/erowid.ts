@@ -7,6 +7,7 @@
  */
 
 import { SourceAdapter, AdapterResult, ScrapedReport } from '../types';
+import { extractDate } from '../utils/extract-date';
 
 interface ErowidConfig {
   startOffset?: number;
@@ -588,6 +589,23 @@ class ErowidAdapter implements SourceAdapter {
 
           const summary = parsed.body.substring(0, 200);
 
+          // V10.8.B.2 — delegate date extraction to the unified utility.
+          // Erowid's structured "Exp Year: YYYY" footer (when present) goes
+          // into the structured slot; the experience body is the prose
+          // fallback. If a published date is present we expose it via
+          // source_published_at since it's the page's pub date, not the
+          // event date.
+          const extracted = extractDate({
+            structured: parsed.profile?.experienceYear || null,
+            prose: parsed.body || null,
+          });
+          const sourcePublishedAt = (() => {
+            const raw = parsed.profile?.publishedDate;
+            if (!raw) return undefined;
+            const ts = Date.parse(raw);
+            return Number.isFinite(ts) ? new Date(ts).toISOString() : undefined;
+          })();
+
           const report: ScrapedReport = {
             original_report_id: `erowid-${parsed.id}`,
             source_type: 'erowid',
@@ -598,7 +616,10 @@ class ErowidAdapter implements SourceAdapter {
             summary: summary,
             category: category,
             credibility: 'medium',
-            event_date_precision: 'unknown',
+            event_date: extracted.date || undefined,
+            event_date_precision: extracted.precision,
+            event_date_extracted_from: extracted.source,
+            source_published_at: sourcePublishedAt,
             tags: [
               'erowid',
               ...(parsed.substance ? [parsed.substance] : []),

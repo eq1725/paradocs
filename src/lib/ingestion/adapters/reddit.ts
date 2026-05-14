@@ -4,6 +4,7 @@
 
 import { SourceAdapter, AdapterResult, ScrapedReport, ScrapedMediaItem } from '../types';
 import { improveTitle, forceGenerateTitle } from '../filters/title-improver';
+import { extractDate } from '../utils/extract-date';
 
 // Rate limiting helper
 function delay(ms: number): Promise<void> {
@@ -531,8 +532,13 @@ async function fetchPostComments(
         ? description.substring(0, 197) + '...'
         : description;
 
-      // Convert UTC timestamp to date
-      const eventDate = new Date(comment.created_utc * 1000).toISOString().split('T')[0];
+      // V10.8.B.2 — comment created_utc is the post-publication timestamp, not
+      // the event date. Move it to source_published_at and run extractDate over
+      // the comment body to attempt a real event-date capture.
+      const sourcePublishedAt = new Date(comment.created_utc * 1000).toISOString();
+      const extracted = extractDate({ prose: description });
+      const eventDate = extracted.date || undefined;
+      const eventDatePrecision = extracted.precision;
 
       // Generate a descriptive title from the comment content
       // Use forceGenerateTitle to create phenomenon-aware titles like "Shadow Figure Encounter — r/Paranormal"
@@ -561,7 +567,9 @@ async function fetchPostComments(
         description,
         category,
         event_date: eventDate,
-        event_date_precision: 'unknown',
+        event_date_precision: eventDatePrecision,
+        event_date_extracted_from: extracted.source,
+        source_published_at: sourcePublishedAt,
         credibility: comment.score > 50 ? 'high' : (comment.score > 10 ? 'medium' : 'low'),
         source_type: 'reddit',
         original_report_id: `reddit-comment-${comment.id}`,
@@ -646,8 +654,13 @@ function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
     country = 'United States';
   }
 
-  // Convert UTC timestamp to date
-  const eventDate = new Date(post.created_utc * 1000).toISOString().split('T')[0];
+  // V10.8.B.2 — post created_utc is the Reddit submission timestamp, not the
+  // event date. Move it to source_published_at and run extractDate over the
+  // post body to attempt a real event-date capture.
+  const sourcePublishedAt = new Date(post.created_utc * 1000).toISOString();
+  const extracted = extractDate({ prose: description });
+  const eventDate = extracted.date || undefined;
+  const eventDatePrecision = extracted.precision;
 
   // Extract tags
   const tags: string[] = [post.subreddit.toLowerCase()];
@@ -709,7 +722,9 @@ function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
     country,
     state_province: stateProvince,
     event_date: eventDate,
-    event_date_precision: 'unknown',
+    event_date_precision: eventDatePrecision,
+    event_date_extracted_from: extracted.source,
+    source_published_at: sourcePublishedAt,
     credibility,
     source_type: 'reddit',
     original_report_id: `reddit-${post.id}`,

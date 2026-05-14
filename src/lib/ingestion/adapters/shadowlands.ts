@@ -2,6 +2,7 @@
 // Scrapes ghost/haunting reports from theshadowlands.net
 
 import { SourceAdapter, AdapterResult, ScrapedReport } from '../types';
+import { extractDate } from '../utils/extract-date';
 
 // Rate limiting helper
 function delay(ms: number): Promise<void> {
@@ -116,6 +117,11 @@ function parseLocationEntries(html: string, stateName: string): ScrapedReport[] 
       credibility = 'low';
     }
 
+    // V10.8.B.2 — Shadowlands has no structured date field, but haunted-place
+    // descriptions often include era cues ("Civil War", "the 1920s", "since
+    // 1842"). Run extractDate over the prose to capture what we can.
+    const extracted = extractDate({ prose: description });
+
     reports.push({
       title: `Haunted: ${locationName}`,
       summary,
@@ -128,7 +134,9 @@ function parseLocationEntries(html: string, stateName: string): ScrapedReport[] 
       source_type: 'shadowlands',
       original_report_id: reportId,
       tags,
-      event_date_precision: 'unknown',
+      event_date: extracted.date || undefined,
+      event_date_precision: extracted.precision,
+      event_date_extracted_from: extracted.source,
       // New quality system fields
       source_label: 'Shadowlands',
       source_url: 'https://theshadowlands.net/places/' + stateName.toLowerCase().replace(/\s+/g, ''),
