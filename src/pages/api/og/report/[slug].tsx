@@ -206,6 +206,25 @@ export default async function handler(req: NextRequest) {
     // size on iMessage previews.
     const quoteText = (pullQuote || fallbackBody || '').slice(0, 200).trim()
 
+    // V10.8.H — pre-wrap title and quote into lines.
+    //
+    // Diagnosed bug: Satori sometimes ignores CSS lineHeight and
+    // respects the font's intrinsic OS/2 line metric instead.
+    // Changa-800 has loose metrics (~1.5-1.8x font size), so two-
+    // line titles rendered with line spacing roughly DOUBLE what
+    // the CSS asked for, producing a huge gap mid-title.
+    //
+    // Fix: pre-wrap each block into individual lines server-side
+    // and render each line as a separately absolute-positioned div
+    // with its own explicit (top) coordinate. Satori never does the
+    // wrap, so the font metric never enters the picture.
+    //
+    // Wrap thresholds calibrated against Changa-800 at the three
+    // title tiers in CONTENT_W (1036px) wide column:
+    //   68pt heavy bold → ~28 chars/line
+    //   60pt heavy bold → ~33 chars/line
+    //   52pt heavy bold → ~39 chars/line
+
     const cat = r.category || 'combination'
     const catLabel = CATEGORY_DISPLAY[cat] || 'Paranormal'
     const catColor = CATEGORY_COLOR[cat] || '#94a3b8'
@@ -238,21 +257,33 @@ export default async function handler(req: NextRequest) {
       return `rgba(${rv},${gv},${bv},${alpha})`
     }
 
-    // ── Title sizing: explicit two-line budget ────────────────────
+    // ── Title sizing + pre-wrap ──────────────────────────────────
     //
-    // Title font sized so 2 lines always fit inside RAIL_TOP →
-    // 110 + 165 = 275 (165px is our title zone). We deliberately
-    // round DOWN so we never overflow into the pull-quote zone.
+    // Three font tiers based on title length. Each tier has its own
+    // maxCharsPerLine calibrated for Changa-800 in CONTENT_W=1036px.
     const titleFontSize = title.length > 60 ? 52 : title.length > 40 ? 60 : 68
-    // Title block fixed height regardless of actual wrap — gives
-    // Satori no room to under-measure.
-    const TITLE_TOP = 130
-    const TITLE_HEIGHT = 165
+    const maxCharsPerLine = titleFontSize === 68 ? 28 : titleFontSize === 60 ? 33 : 39
+    const titleLines = wrapToLines(title, maxCharsPerLine, 2)
+    // Each line spaced at fontSize * 1.0 (tight display baseline).
+    // For 68pt that's 68px; for 60pt 60px; for 52pt 52px.
+    const titleLineGap = titleFontSize
+    const TITLE_TOP = 140
 
-    // Quote sizing — same defensive approach.
+    // ── Quote sizing + pre-wrap ──────────────────────────────────
+    //
+    // Same approach for the pull quote. Lora-italic has tighter
+    // metrics than Changa but we use the same pre-wrap strategy
+    // for consistency and zero risk.
     const quoteFontSize = quoteText.length > 140 ? 26 : quoteText.length > 90 ? 30 : 34
+    const quoteMaxChars = quoteFontSize === 34 ? 50 : quoteFontSize === 30 ? 58 : 68
+    // Pull quote indent accounts for the 90pt drop quote rendered
+    // at left edge. ~70px allowance for the drop quote width.
+    const QUOTE_INDENT = 72
+    const quoteContentWidth = CONTENT_W - QUOTE_INDENT
+    const quoteMaxCharsAdjusted = Math.floor(quoteMaxChars * (quoteContentWidth / CONTENT_W))
+    const quoteLines = wrapToLines(quoteText, quoteMaxCharsAdjusted, 4)
+    const quoteLineGap = Math.round(quoteFontSize * 1.32) // serif body, generous leading
     const QUOTE_TOP = 320
-    const QUOTE_HEIGHT = 160
 
     // Dateline (single horizontal line with icons + bullet separators)
     const DATELINE_Y = 510
@@ -361,27 +392,30 @@ export default async function handler(req: NextRequest) {
             }}>{catLabel}</span>
           </div>
 
-          {/* TITLE — fixed-height block. Two-line budget guaranteed
-              by font sizing + explicit height. */}
-          <div
-            style={{
-              position: 'absolute',
-              left: CONTENT_X,
-              top: TITLE_TOP,
-              width: CONTENT_W,
-              height: TITLE_HEIGHT,
-              display: 'flex',
-              alignItems: 'flex-start',
-              fontSize: titleFontSize,
-              fontWeight: 800,
-              color: '#ffffff',
-              letterSpacing: '-0.025em',
-              lineHeight: 1.08,
-              overflow: 'hidden',
-            }}
-          >
-            {title}
-          </div>
+          {/* TITLE — each line rendered as a separate absolute-positioned
+              div. Bypasses Satori's font-metric line-spacing bug entirely:
+              Satori never does the line wrap, so the font's intrinsic
+              line-height metric can't blow up the layout. Each line at
+              an exact Y coord. */}
+          {titleLines.map((line, i) => (
+            <div
+              key={'title-' + i}
+              style={{
+                position: 'absolute',
+                left: CONTENT_X,
+                top: TITLE_TOP + i * titleLineGap,
+                width: CONTENT_W,
+                display: 'flex',
+                fontSize: titleFontSize,
+                fontWeight: 800,
+                color: '#ffffff',
+                letterSpacing: '-0.025em',
+                lineHeight: 1,
+              }}
+            >
+              {line}
+            </div>
+          ))}
 
           {/* Thin divider between title and quote — sits at fixed Y. */}
           <div
@@ -396,42 +430,44 @@ export default async function handler(req: NextRequest) {
             }}
           />
 
-          {/* PULL QUOTE — fixed-height block. Italic, with a big
-              drop-quote in the brand purple. */}
+          {/* PULL QUOTE — same per-line approach. Big drop quote at
+              left as a separate element; each text line at explicit Y. */}
           {quoteText && (
-            <div
-              style={{
-                position: 'absolute',
-                left: CONTENT_X,
-                top: QUOTE_TOP,
-                width: CONTENT_W,
-                height: QUOTE_HEIGHT,
-                display: 'flex',
-                alignItems: 'flex-start',
-                overflow: 'hidden',
-              }}
-            >
-              <span style={{
-                display: 'flex',
-                fontSize: 90,
-                fontWeight: 800,
-                color: '#a855f7',
-                lineHeight: 0.7,
-                marginRight: 16,
-                marginTop: 12,
-                fontFamily: 'Changa, sans-serif',
-              }}>&ldquo;</span>
-              <span style={{
-                display: 'flex',
-                flex: 1,
-                fontSize: quoteFontSize,
-                fontWeight: 500,
-                fontStyle: 'italic',
-                lineHeight: 1.32,
-                color: '#e5e7eb',
-                fontFamily: inter400Italic ? 'Lora, Georgia, serif' : 'Changa, sans-serif',
-              }}>{quoteText}</span>
-            </div>
+            <>
+              <span
+                style={{
+                  position: 'absolute',
+                  left: CONTENT_X,
+                  top: QUOTE_TOP - 6,
+                  display: 'flex',
+                  fontSize: 90,
+                  fontWeight: 800,
+                  color: '#a855f7',
+                  lineHeight: 1,
+                  fontFamily: 'Changa, sans-serif',
+                }}
+              >&ldquo;</span>
+              {quoteLines.map((line, i) => (
+                <div
+                  key={'quote-' + i}
+                  style={{
+                    position: 'absolute',
+                    left: CONTENT_X + QUOTE_INDENT,
+                    top: QUOTE_TOP + i * quoteLineGap,
+                    width: quoteContentWidth,
+                    display: 'flex',
+                    fontSize: quoteFontSize,
+                    fontWeight: 500,
+                    fontStyle: 'italic',
+                    lineHeight: 1,
+                    color: '#e5e7eb',
+                    fontFamily: inter400Italic ? 'Lora, Georgia, serif' : 'Changa, sans-serif',
+                  }}
+                >
+                  {line}
+                </div>
+              ))}
+            </>
           )}
 
           {/* DATELINE — single horizontal line with icons + bullet
@@ -619,4 +655,56 @@ function formatWho(r: ReportRow): string | null {
   if (wc && wc > 1) return wc + ' witnesses'
   if (wc === 1) return '1 witness'
   return null
+}
+
+/**
+ * Greedy word-wrap into at most `maxLines` lines, each at most
+ * `maxCharsPerLine` characters. Breaks at word boundaries. If the
+ * text exceeds maxLines, the final line is truncated with an
+ * ellipsis. This is the foundation of the V10.8.H fix — pre-wrapping
+ * server-side eliminates Satori's font-metric line-spacing bug.
+ */
+function wrapToLines(text: string, maxCharsPerLine: number, maxLines: number): string[] {
+  const t = (text || '').trim()
+  if (!t) return []
+  if (t.length <= maxCharsPerLine) return [t]
+
+  const words = t.split(/\s+/)
+  const lines: string[] = []
+  let current = ''
+
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i]
+    const candidate = current ? current + ' ' + w : w
+    if (candidate.length <= maxCharsPerLine) {
+      current = candidate
+      continue
+    }
+    // Push the current line and start a new one with this word.
+    if (current) lines.push(current)
+    current = w
+    // If a single word is wider than the line, hard-break it.
+    while (current.length > maxCharsPerLine) {
+      lines.push(current.slice(0, maxCharsPerLine - 1) + '-')
+      current = current.slice(maxCharsPerLine - 1)
+    }
+    // Bail if we've hit the line cap.
+    if (lines.length >= maxLines) break
+  }
+  if (current && lines.length < maxLines) lines.push(current)
+
+  // If we hit the cap, truncate the final line with an ellipsis.
+  if (lines.length === maxLines) {
+    // Check whether we actually consumed all the words.
+    const consumed = lines.join(' ').length
+    if (consumed < t.length) {
+      const last = lines[maxLines - 1]
+      const trimmed = last.length > maxCharsPerLine - 1
+        ? last.slice(0, maxCharsPerLine - 1).replace(/\s+\S*$/, '') + '…'
+        : last + '…'
+      lines[maxLines - 1] = trimmed
+    }
+  }
+
+  return lines
 }

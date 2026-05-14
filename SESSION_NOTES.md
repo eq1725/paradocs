@@ -1,11 +1,31 @@
 # Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** May 14, 2026 (V10.8.G — OG card redesign with absolute positioning)
+**Last updated:** May 14, 2026 (V10.8.H — OG card title line-wrap fix)
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
 
 ---
 
-## Most Recent Session — V10.8.G OG card redesign (May 14, 2026, late night)
+## Most Recent Session — V10.8.H title line-wrap fix (May 14, 2026, late night)
+
+After V10.8.G's absolute-positioning rewrite landed, the title still rendered with a massive ~80px vertical gap between line 1 and line 2 (screenshot from Chase, iMessage preview). Diagnosed: Satori sometimes ignores the CSS `lineHeight` property and uses the font's intrinsic OS/2 line metric instead. Changa-800 has loose metrics (~1.5-1.8× font size), so a 60pt title at lineHeight: 1.08 was rendering with ~100px line spacing instead of the expected 65px.
+
+**The bulletproof fix:** pre-wrap title and pull-quote text into individual lines server-side, then render each line as a separately absolute-positioned `<div>` with its own explicit Y coordinate. Satori never does the line wrap, so the font metric never enters the picture. Line spacing is now whatever pixel value the code chooses (titleFontSize × 1.0 for tight display headlines, quoteFontSize × 1.32 for body copy).
+
+**Implementation:**
+- New `wrapToLines(text, maxCharsPerLine, maxLines)` helper. Greedy word wrap; hard-breaks oversized words; truncates with ellipsis if it hits the line cap.
+- Title: pre-wrap into ≤2 lines using a maxCharsPerLine calibrated per font tier (28/33/39 for 68/60/52pt). Each line at `top: TITLE_TOP + i * titleFontSize`.
+- Pull quote: pre-wrap into ≤4 lines using a maxCharsPerLine adjusted for the 72px drop-quote indent. Each line at `top: QUOTE_TOP + i * round(quoteFontSize * 1.32)`.
+- Drop quote glyph rendered as its own absolute element at the left edge of the quote zone.
+
+Verified locally against the pit-bull case + 5 other real titles. Wrap output matches expectations exactly.
+
+**Files changed:** `src/pages/api/og/report/[slug].tsx` only.
+
+**Last commit on main:** TBD (this session's V10.8.H push)
+
+---
+
+## Earlier Session — V10.8.G OG card redesign (May 14, 2026, late night)
 
 After V10.8.F's defensive fixes still left visible title/meta collision in iMessage previews, Chase asked for an SME panel review. Convened four reviewer perspectives (UI/UX, Brand, Frontend Engineer/next-og, iMessage QA) and the consensus was to abandon flex layout entirely for absolute positioning.
 
