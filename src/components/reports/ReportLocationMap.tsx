@@ -299,16 +299,12 @@ export default function ReportLocationMap({
         style={{ background: 'linear-gradient(to top, rgba(10,10,20,0.85) 0%, transparent 100%)' }}
       />
 
-      {/* V10.7.B.1 — Nearby count badge. Renders only when we have
-          actual nearby reports — silent when zero (the map is then
-          purely a "where this happened" hero, no claim about density). */}
-      {showPin && hasNearby && (
-        <NearbyCountBadge
-          count={nearbyCount}
-          farthestKm={farthestKm}
-          href={nearbyHref}
-        />
-      )}
+      {/* V10.9.D.7 — V10.7.B.1's "X similar cases nearby" badge was
+          removed because it duplicated the PatternStrip's "Similar
+          cases" facet (geographic radius / state / phenomenon) which
+          lives in the side rail and carries strictly more info. The
+          nearby cyan dots on the map still convey density visually
+          without an explicit count overlay. */}
     </div>
   )
 }
@@ -333,15 +329,13 @@ function PinSprite({ label }: { label: string }) {
 
 function NearbyDot({ slug, title, distanceKm }: { slug: string; title: string; distanceKm: number }) {
   // Small muted dot. No animation, no label. Tap routes to that
-  // report. We deliberately don't show distance/title on the dot
-  // itself — too much chrome on the hero map. Hover tooltip
-  // (native title attr) gives detail for desktop users; mobile
-  // users get the deep link.
+  // report. V10.9.D.7 — distance shown in miles (US-focused).
+  const distanceMi = Math.round(distanceKm * 0.621371)
   return (
     <Link
       href={'/report/' + slug}
-      title={title + ' · ' + Math.round(distanceKm) + ' km away'}
-      aria-label={'Nearby case: ' + title + ', ' + Math.round(distanceKm) + ' km away'}
+      title={title + ' · ' + distanceMi + ' mi away'}
+      aria-label={'Nearby case: ' + title + ', ' + distanceMi + ' miles away'}
       className="block pointer-events-auto"
     >
       <span className="block w-2 h-2 rounded-full bg-cyan-400/80 border border-cyan-200/40 shadow-sm hover:bg-cyan-300 hover:scale-150 transition-all" />
@@ -361,7 +355,9 @@ function NearbyCountBadge({
   const labelMain = count === 1
     ? '1 similar case nearby'
     : count.toLocaleString() + ' similar cases nearby'
-  const labelSub = farthestKm ? '· within ' + farthestKm + ' km' : ''
+  // V10.9.D.7 — display in miles for US-focused audience.
+  const farthestMi = farthestKm ? Math.round(farthestKm * 0.621371) : null
+  const labelSub = farthestMi ? '· within ' + farthestMi + ' mi' : ''
   const inner = (
     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-950/85 border border-cyan-500/40 backdrop-blur-sm text-[11px] text-cyan-100 shadow-lg">
       <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" aria-hidden="true" />
@@ -382,28 +378,34 @@ function NearbyCountBadge({
 }
 
 function SyntheticHalo({ precision }: { precision?: LocationPrecision }) {
-  // V10.8.I — soft halo for synthetic-coord locations. The size
-  // scales with precision: country precision shows the widest halo
-  // (the centroid represents the whole country), state precision
-  // shows a tighter halo. No central dot — we deliberately don't
-  // pretend there's a point. Purple-cyan gradient matches the
-  // brand palette.
+  // V10.8.I — soft halo for synthetic-coord locations.
+  // V10.9.D.7 — added animated pulse ring matching the PinSprite
+  // pulse so the map "feels alive" the same way on every report
+  // page (Chase wanted the blinking blip on every report).
   const size =
     precision === 'country' ? 90 :
     precision === 'region'  ? 70 :
     50
   return (
     <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(168,85,247,0.32) 0%, rgba(168,85,247,0.16) 45%, rgba(168,85,247,0) 75%)',
-        border: '1.5px solid rgba(168,85,247,0.5)',
-        display: 'flex',
-      }}
+      style={{ position: 'relative', width: size, height: size, display: 'flex' }}
       aria-hidden="true"
-    />
+    >
+      {/* Pulsing ring — matches PinSprite's animate-ping for
+          consistency across precise + synthetic coords. */}
+      <span
+        className="absolute inset-0 rounded-full bg-purple-400/40 animate-ping"
+        style={{ animationDuration: '2.2s' }}
+      />
+      {/* Static halo (gradient + border) sits on top of the pulse. */}
+      <span
+        className="absolute inset-0 rounded-full"
+        style={{
+          background: 'radial-gradient(circle, rgba(168,85,247,0.32) 0%, rgba(168,85,247,0.16) 45%, rgba(168,85,247,0) 75%)',
+          border: '1.5px solid rgba(168,85,247,0.5)',
+        }}
+      />
+    </div>
   )
 }
 
