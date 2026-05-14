@@ -1045,7 +1045,7 @@ function PatternStrip({
       <header className="flex items-center gap-2 mb-3">
         <TrendingUp className="w-3.5 h-3.5 text-purple-300" />
         <p className="text-[10px] uppercase tracking-widest font-semibold text-purple-300/90">
-          How this fits the archive
+          Similar cases
         </p>
       </header>
       <ul className="flex flex-wrap gap-2">

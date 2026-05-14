@@ -265,31 +265,34 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
       // Best-effort — empty array is fine if this fails.
     }
 
-    // V10.6.28 — Pattern strip data. Cheap aggregate counts that
-    // show this report's "fit" in the broader archive. Three
-    // dimensions: same-category total, same-phenomenon-type total
-    // (if available), and same-state/region total. Each one becomes
-    // a clickable chip → filtered /explore.
+    // V10.7.E — Pattern strip rebalanced. The V10.6.28 version had a
+    // same-category chip that duplicated the Related Reports section
+    // ("more reports in Psychic Phenomena" + a 4-card grid of those
+    // reports right after). Dropped same-category. New facets:
+    //
+    //   - Geographic radius (uses already-fetched nearby data,
+    //     pairs with the map hero) — most actionable
+    //   - Same state (broader geographic browse)
+    //   - Same witness state (uses V10.7.A witness_profile.state_at_event)
+    //   - Same phenomenon type (narrower than category)
+    //
+    // Each chip carves the corpus on a DIFFERENT axis from Related
+    // Reports (always category-anchored). Cap at 4 chips total.
     let patterns: Array<{ label: string; count: number; href: string }> = []
     try {
-      const cat = (reportData as any).category
       const stateProv = (reportData as any).state_province
       const phenomenonTypeId = (reportData as any).phenomenon_type_id
-      const categoryLabel = (reportData as any).category ? prettyCategory((reportData as any).category) : null
 
-      // Same category
-      if (cat) {
-        const { count } = await (sb.from('reports') as any)
-          .select('id', { count: 'exact', head: true })
-          .eq('category', cat)
-          .eq('status', 'approved')
-        if (count && count > 1 && categoryLabel) {
-          patterns.push({
-            label: count.toLocaleString() + ' reports in ' + categoryLabel,
-            count,
-            href: '/explore?category=' + encodeURIComponent(cat),
-          })
-        }
+      // Geographic radius — count from the nearby array we already
+      // fetched. Cheap (already in memory). Pairs with the map at top.
+      if (nearby.length > 0 && (reportData as any).latitude && (reportData as any).longitude) {
+        const radiusKm = 80
+        const nm = nearby.length
+        patterns.push({
+          label: nm.toLocaleString() + ' similar cases within ' + radiusKm + ' km',
+          count: nm,
+          href: '/map?center=' + (reportData as any).latitude + ',' + (reportData as any).longitude + '&zoom=8',
+        })
       }
 
       // Same state/region (US-centric for now)
@@ -300,9 +303,40 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
           .eq('status', 'approved')
         if (count && count > 1) {
           patterns.push({
-            label: count.toLocaleString() + ' reports in ' + stateProv,
+            label: count.toLocaleString() + ' cases in ' + stateProv,
             count,
             href: '/explore?state=' + encodeURIComponent(stateProv),
+          })
+        }
+      }
+
+      // V10.7.E — Same witness state-of-consciousness. Uses the
+      // witness_state_at_event generated column (V10.7.A.0) so this is
+      // an indexed query, not a JSONB scan. Filter by the SAME state
+      // the focal report's witness was in (meditating, driving,
+      // sleeping, etc.) to find demographically-similar cases.
+      const wState = (reportData as any).witness_state_at_event
+      if (wState && wState !== 'unspecified') {
+        const { count } = await (sb.from('reports') as any)
+          .select('id', { count: 'exact', head: true })
+          .eq('witness_state_at_event', wState)
+          .neq('id', (reportData as any).id)
+          .eq('status', 'approved')
+        if (count && count > 0) {
+          const STATE_LABELS: Record<string, string> = {
+            awake_alert: 'while awake and alert',
+            meditation: 'during meditation',
+            drowsy_falling_asleep: 'while drowsy or falling asleep',
+            sleeping: 'while sleeping',
+            driving: 'while driving',
+            physical_activity: 'during physical activity',
+            intoxicated: 'while intoxicated',
+          }
+          const stateLabel = STATE_LABELS[wState] || wState.replace(/_/g, ' ')
+          patterns.push({
+            label: count.toLocaleString() + ' cases ' + stateLabel,
+            count,
+            href: '/explore?witness_state=' + encodeURIComponent(wState),
           })
         }
       }
@@ -314,7 +348,6 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
           .eq('phenomenon_type_id', phenomenonTypeId)
           .eq('status', 'approved')
         if (count && count > 1) {
-          // Get the phenomenon name for the label
           const ptName = (reportData as any).phenomenon_type && (reportData as any).phenomenon_type.name
           if (ptName) {
             patterns.push({
@@ -325,6 +358,9 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
           }
         }
       }
+
+      // Cap at 4 chips for visual density.
+      if (patterns.length > 4) patterns = patterns.slice(0, 4)
     } catch {
       // Best-effort. If counts fail, just don't show the pattern strip.
     }
