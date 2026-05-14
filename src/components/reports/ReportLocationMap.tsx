@@ -312,28 +312,55 @@ export default function ReportLocationMap({
 // ── Subcomponents ───────────────────────────────────────────
 
 function PinSprite({ label }: { label: string }) {
-  // V10.9.D.8 — pulse made much more visible per Chase review.
-  // Old: 16x16 ping at 50% opacity → barely noticeable on a dark map.
-  // New: 32x32 outer ring + 24x24 inner ring, both higher opacity,
-  // longer cycle (1.6s) so the eye actually catches the motion.
-  // Inner pin scaled 4 → 5 (20% bigger) for legibility.
+  // V10.9.D.9 — MUCH more prominent so it's obvious on a dark map.
+  // V10.9.D.8 was still too subtle (Chase couldn't spot it on
+  // BFRO reports zoomed to street level).
+  // Layered design (outermost → innermost):
+  //   - Outer pulse ring 56x56, animate-ping, 2s cycle
+  //   - Static glow halo 36x36 with brand-purple radial gradient
+  //   - Inner pin 26x26 solid purple-500 with white border
+  //   - Box-shadow on inner pin for halo glow even in still frames
   return (
     <div className="relative flex flex-col items-center pointer-events-auto">
       {label && (
-        <div className="mb-1 px-2 py-1 rounded-md bg-gray-950/90 border border-purple-500/40 text-[11px] font-medium text-white whitespace-nowrap shadow-lg">
+        <div className="mb-1.5 px-2 py-1 rounded-md bg-gray-950/90 border border-purple-500/40 text-[11px] font-medium text-white whitespace-nowrap shadow-lg">
           {label}
         </div>
       )}
-      <div className="relative" style={{ width: 20, height: 20 }}>
-        {/* Outer wide pulse */}
+      <div className="relative" style={{ width: 26, height: 26 }}>
+        {/* Outer animated ping ring (motion) */}
         <span
           className="absolute rounded-full bg-purple-400 animate-ping"
-          style={{ width: 32, height: 32, left: -6, top: -6, opacity: 0.6, animationDuration: '1.6s' }}
+          style={{
+            width: 56,
+            height: 56,
+            left: -15,
+            top: -15,
+            opacity: 0.7,
+            animationDuration: '2s',
+          }}
         />
-        {/* Static inner pin */}
+        {/* Static halo glow (visible in still frames) */}
         <span
-          className="absolute rounded-full bg-purple-500 border-2 border-white shadow-lg"
-          style={{ width: 20, height: 20, left: 0, top: 0 }}
+          className="absolute rounded-full"
+          style={{
+            width: 44,
+            height: 44,
+            left: -9,
+            top: -9,
+            background: 'radial-gradient(circle, rgba(168,85,247,0.55) 0%, rgba(168,85,247,0) 70%)',
+          }}
+        />
+        {/* Inner pin */}
+        <span
+          className="absolute rounded-full bg-purple-500 border-2 border-white"
+          style={{
+            width: 26,
+            height: 26,
+            left: 0,
+            top: 0,
+            boxShadow: '0 0 14px rgba(168,85,247,0.9), 0 2px 8px rgba(0,0,0,0.6)',
+          }}
         />
       </div>
     </div>
@@ -391,31 +418,42 @@ function NearbyCountBadge({
 }
 
 function SyntheticHalo({ precision }: { precision?: LocationPrecision }) {
-  // V10.8.I — soft halo for synthetic-coord locations.
-  // V10.9.D.7 — added animated pulse ring matching the PinSprite
-  // pulse so the map "feels alive" the same way on every report
-  // page (Chase wanted the blinking blip on every report).
+  // V10.9.D.9 — synthetic halo strengthened to match the PinSprite's
+  // brand-purple visual weight. Visible center dot ensures the
+  // marker reads in still frames; outer pulse provides motion to
+  // match the precise-pin behavior. Same brand purple, same shadow
+  // glow — only the size scales by precision.
   const size =
     precision === 'country' ? 90 :
     precision === 'region'  ? 70 :
     50
+  const dotSize = Math.round(size * 0.28)
   return (
     <div
-      style={{ position: 'relative', width: size, height: size, display: 'flex' }}
+      className="relative flex items-center justify-center"
+      style={{ width: size, height: size }}
       aria-hidden="true"
     >
-      {/* Pulsing ring — matches PinSprite's animate-ping for
-          consistency across precise + synthetic coords. */}
+      {/* Outer animated pulse ring */}
       <span
-        className="absolute inset-0 rounded-full bg-purple-400/40 animate-ping"
-        style={{ animationDuration: '2.2s' }}
+        className="absolute inset-0 rounded-full bg-purple-400 animate-ping"
+        style={{ opacity: 0.55, animationDuration: '2.2s' }}
       />
-      {/* Static halo (gradient + border) sits on top of the pulse. */}
+      {/* Static fuzzy halo (visible in still frames) */}
       <span
         className="absolute inset-0 rounded-full"
         style={{
-          background: 'radial-gradient(circle, rgba(168,85,247,0.32) 0%, rgba(168,85,247,0.16) 45%, rgba(168,85,247,0) 75%)',
-          border: '1.5px solid rgba(168,85,247,0.5)',
+          background: 'radial-gradient(circle, rgba(168,85,247,0.45) 0%, rgba(168,85,247,0.18) 50%, rgba(168,85,247,0) 78%)',
+          border: '1.5px solid rgba(168,85,247,0.55)',
+        }}
+      />
+      {/* Center dot — matches PinSprite anchor visually */}
+      <span
+        className="absolute rounded-full bg-purple-500 border-2 border-white/80"
+        style={{
+          width: dotSize,
+          height: dotSize,
+          boxShadow: '0 0 10px rgba(168,85,247,0.85), 0 2px 6px rgba(0,0,0,0.5)',
         }}
       />
     </div>
