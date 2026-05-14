@@ -1,11 +1,40 @@
 # Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** May 14, 2026 (V10.9.A — explore-map region totals shipped)
+**Last updated:** May 14, 2026 (V10.9.B — choropleth fill + engine refresh hook)
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
 
 ---
 
-## Most Recent Session — V10.9.A explore-map region totals (May 14, 2026, late night)
+## Most Recent Session — V10.9.B choropleth + engine refresh (May 14, 2026, late night)
+
+Chase requested both follow-ups in V10.9.A: wire the materialized-view refresh into the engine, AND ship the choropleth fill layer. Both done.
+
+**Shipped end-to-end:**
+
+- `supabase/migrations/20260514_v10_9_refresh_region_counts_fn.sql` — `refresh_region_counts()` Postgres function (SECURITY DEFINER) wrapping `REFRESH MATERIALIZED VIEW CONCURRENTLY report_region_counts`. Soft-fails on transient locks so it can't break ingestion. Granted to service_role + authenticated.
+- `src/lib/ingestion/engine.ts` — after every successful ingestion run with `inserted > 0`, calls `supabase.rpc('refresh_region_counts')`. Non-blocking try/catch around it; logs OK / failure but never aborts.
+- `src/components/map/useChoroplethData.ts` — new hook. Lazy-fetches Natural Earth 110m admin0 GeoJSON (~100KB, public domain, github raw URL) on first toggle-on, caches at module level. Joins polygons with the region-counts API response keyed by ISO_A2 (with ISO_A2_EH fallback for Norway/France etc). Returns `{ geojson, maxCount, loading }`. Recomputes when buckets change so category filters propagate.
+- `src/components/map/MapContainer.tsx` — new optional props `choroplethGeoJson`, `choroplethMaxCount`, `onChoroplethCountryClick`. New `choropleth-source` GeoJSON source + `choropleth-fill` (log-scaled opacity from 0.10 → 0.55) + `choropleth-stroke` line layers. Both filtered to `zoom <= 5.5` so they fade out when pins take over. Click handler routes country polygon clicks to the country-filter callback.
+- `src/components/map/MapControls.tsx` — new "Regions" toggle button (Map icon from lucide-react). Optional prop set; if `onToggleChoropleth` is omitted, button is hidden.
+- `src/pages/explore.tsx` — wires `useChoroplethData(regionBuckets, choroplethActive)`, default `choroplethActive=true`. Passes joined GeoJSON to MapContainer, toggle handler to MapControls. Click on a country polygon toggles the country filter (same UX as the RegionTotalsPanel).
+
+**Result on current corpus:**
+- Choropleth fills the US polygon at ~55% opacity purple (the 57 synthetic-coord reports). Other countries are transparent because they have zero synthetic-coord reports.
+- Toggle button on the bottom-right MapControls strip lets users hide the choropleth.
+- At zoom > 5.5 the choropleth fades out and pins take over.
+- Engine refreshes the materialized view after every ingestion batch (when inserted > 0), so the panel + choropleth stay current during mass ingest.
+
+**Tests:** tsc clean against V10.9.B changes. The two pre-existing engine.ts errors (titleResult + rejectedDetails) are unchanged from V10.8.D.
+
+**Last commit on main:** TBD (V10.9.B push)
+
+**Action needed from Chase before deploy:**
+- Apply `supabase/migrations/20260514_v10_9_refresh_region_counts_fn.sql`. Creates the `refresh_region_counts()` function. Idempotent CREATE OR REPLACE.
+- No other migrations or env-var changes.
+
+---
+
+## Earlier Session — V10.9.A explore-map region totals (May 14, 2026, late night)
 
 After V10.8.I fixed the report-page maps, the /explore?mode=map page still piled the same 57 synthetic-coord US reports at the country centroid (Kansas). Implemented the V10.9.A first cut of the design doc to fix it for both current corpus and mass-ingest scale.
 

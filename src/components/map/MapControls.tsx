@@ -4,7 +4,7 @@
  */
 
 import React, { useCallback, useState } from 'react'
-import { Flame, Locate, Maximize, Minimize, Globe, Mountain } from 'lucide-react'
+import { Flame, Locate, Maximize, Minimize, Globe, Mountain, Map as MapIcon } from 'lucide-react'
 
 export type BasemapStyle = 'dark' | 'satellite' | 'terrain'
 
@@ -15,6 +15,13 @@ interface MapControlsProps {
   basemapStyle: BasemapStyle
   onBasemapChange: (style: BasemapStyle) => void
   className?: string
+  /**
+   * V10.9.B — choropleth toggle. When true, the country fill layer
+   * renders on the explore-map. Default false so the map matches
+   * the V10.9.A behavior unless the user opts in.
+   */
+  choroplethActive?: boolean
+  onToggleChoropleth?: () => void
 }
 
 const BASEMAP_CYCLE: BasemapStyle[] = ['dark', 'satellite', 'terrain']
@@ -26,6 +33,8 @@ export default function MapControls({
   basemapStyle,
   onBasemapChange,
   className = '',
+  choroplethActive = false,
+  onToggleChoropleth,
 }: MapControlsProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
 
@@ -79,6 +88,20 @@ export default function MapControls({
       >
         <Flame size={18} />
       </button>
+
+      {/* V10.9.B — Choropleth toggle. Tints countries by the number
+          of synthetic-coord reports they contain (the same data shown
+          in the Region Totals panel). Visible at low zoom only. */}
+      {onToggleChoropleth && (
+        <button
+          onClick={onToggleChoropleth}
+          className={choroplethActive ? buttonActive : buttonBase}
+          title={choroplethActive ? 'Hide regions' : 'Show regions'}
+          aria-label={choroplethActive ? 'Hide region density' : 'Show region density'}
+        >
+          <MapIcon size={18} />
+        </button>
+      )}
 
       {/* Locate me */}
       <button

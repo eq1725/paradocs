@@ -1188,6 +1188,25 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
 
     console.log(`[Ingestion] Complete: found=${result.reports.length}, inserted=${inserted}, updated=${updated}, rejected=${rejected}, pending=${pendingReview}, quarantined=${quarantined}, withWarnings=${withWarnings}, skipped=${skipped}, phenomenaLinked=${phenomenaLinked}`);
 
+    // V10.9.A.1 — refresh the report_region_counts materialized
+    // view so the /explore?mode=map "Region Totals" panel reflects
+    // the new rows immediately. Non-blocking: if the RPC fails we
+    // log + continue (panel will catch up on next ingestion run or
+    // nightly cron). Only fires when we actually inserted new
+    // synthetic-coord rows — otherwise the view is unchanged.
+    if (inserted > 0) {
+      try {
+        const { error: refreshErr } = await supabase.rpc('refresh_region_counts');
+        if (refreshErr) {
+          console.log('[Ingestion] refresh_region_counts RPC failed (non-fatal):', refreshErr.message);
+        } else {
+          console.log('[Ingestion] refresh_region_counts: OK');
+        }
+      } catch (refreshExc) {
+        console.log('[Ingestion] refresh_region_counts exception (non-fatal):', refreshExc);
+      }
+    }
+
     // Log successful completion
     await logActivity(supabase, sourceId, job.id, 'success', `Ingestion completed`, {
       found: result.reports.length,

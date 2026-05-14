@@ -42,6 +42,7 @@ import MapSpotlightRow from '@/components/map/MapSpotlightRow'
 // Map imports — dynamic to avoid SSR
 import { useMapState } from '@/components/map/useMapState'
 import { useViewportData } from '@/components/map/useViewportData'
+import { useChoroplethData } from '@/components/map/useChoroplethData'
 import RegionTotalsPanel from '@/components/map/RegionTotalsPanel'
 import { ReportProperties } from '@/components/map/mapStyles'
 import MapControls, { BasemapStyle } from '@/components/map/MapControls'
@@ -411,6 +412,16 @@ function ExploreMapMode() {
     setHeatmapActive(!heatmapActive)
   }, [heatmapActive, setHeatmapActive])
 
+  // V10.9.B — choropleth fill layer. Default ON so users see the
+  // region density layer the first time they load the map after
+  // mass-ingest data lands; can toggle off via the map controls.
+  var [choroplethActive, setChoroplethActive] = useState(true)
+  var handleToggleChoropleth = useCallback(function() {
+    setChoroplethActive(function(v: boolean) { return !v })
+  }, [])
+
+  var choropleth = useChoroplethData(regionBuckets, choroplethActive)
+
   return (
     <div className="fixed inset-0 bg-gray-950" style={{ top: 'calc(56px + 48px + env(safe-area-inset-top, 0px))' }}>
       {/* Map fills viewport below tabs */}
@@ -426,6 +437,11 @@ function ExploreMapMode() {
         flyToTarget={flyToTarget}
         basemapStyle={basemapStyle}
         mapPadding={filterPanelOpen ? MAP_PADDING_WITH_FILTERS : MAP_PADDING_DEFAULT}
+        choroplethGeoJson={choroplethActive ? choropleth.geojson : null}
+        choroplethMaxCount={choropleth.maxCount}
+        onChoroplethCountryClick={function(_code, name) {
+          setFilters({ ...filters, country: filters.country === name ? null : name })
+        }}
       />
 
       {/* V10.9.A — Region totals panel for synthetic-coord reports.
@@ -508,6 +524,8 @@ function ExploreMapMode() {
         onLocateMe={handleLocateMe}
         basemapStyle={basemapStyle}
         onBasemapChange={setBasemapStyle}
+        choroplethActive={choroplethActive}
+        onToggleChoropleth={handleToggleChoropleth}
         className="absolute bottom-4 right-4 z-20 lg:bottom-[90px] lg:right-6 max-lg:bottom-[150px]"
       />
 

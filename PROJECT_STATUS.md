@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** May 14, 2026 (V10.9.A — explore-map region totals)
+**Last updated:** May 14, 2026 (V10.9.B — choropleth + engine refresh hook)
 **Project:** discoverparadocs.com (production); beta.discoverparadocs.com (beta)
 **Repo:** github.com/eq1725/paradocs (main branch)
 
