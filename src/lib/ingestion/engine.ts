@@ -30,6 +30,7 @@ import {
   maptilerGeocoder,
   makeSupabaseGeocodeCache,
 } from './utils/normalize-location';
+import { escalateDateWithHaiku } from './utils/escalate-date-haiku';
 
 // Phenomenon pattern matching for auto-identification during ingestion
 interface PhenomenonPattern {
@@ -435,6 +436,38 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
         } catch (enrichError) {
           // Enrichment failure should never block ingestion
           console.log('[Ingestion] Enrichment error (non-fatal):', enrichError);
+        }
+
+        // V10.8.E — Haiku date escalation. Runs only when the row
+        // currently has precision='year' AND the prose contains a
+        // recognizable month name. Costs ~$0.001 per qualifying row;
+        // the pre-flight gate skips everything that wouldn't benefit
+        // so this is a no-op for rows with already-exact dates.
+        // Claim-checked output prevents fabrication: every span in
+        // the model's response must appear verbatim in the source.
+        try {
+          if ((report as any).event_date_precision === 'year' && report.description) {
+            const escalation = await escalateDateWithHaiku(
+              report.description,
+              {
+                date: (report as any).event_date || null,
+                precision: 'year',
+                source: ((report as any).event_date_extracted_from as any) || 'prose-year',
+              },
+            );
+            if (escalation.escalated && escalation.result.date) {
+              (report as any).event_date = escalation.result.date;
+              (report as any).event_date_precision = escalation.result.precision;
+              (report as any).event_date_extracted_from = 'haiku';
+              console.log(
+                '[Ingestion] Haiku date upgrade: "' + report.title.substring(0, 30) + '" → ' +
+                escalation.result.date + ' (' + escalation.result.precision + ')',
+              );
+            }
+          }
+        } catch (escErr) {
+          // Date escalation failure must never block ingestion.
+          console.log('[Ingestion] Haiku date escalation failed (non-fatal):', escErr);
         }
 
         // Full quality assessment (now scores the enriched report)

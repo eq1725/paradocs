@@ -36,6 +36,7 @@ export type DateExtractionSource =
   | 'prose-monthname'    // "April 28, 2007" / "28 April 2007" / "April 2007"
   | 'prose-numeric'      // MM/DD/YYYY or YYYY-MM-DD embedded in prose
   | 'prose-year'         // bare year with date-like context
+  | 'haiku'              // V10.8.E — Haiku-assisted upgrade of a year-only result
   | 'none'
 
 export interface ExtractedDate {

@@ -1,11 +1,44 @@
 # Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** May 14, 2026 (V10.8.C location normalizer shipped)
+**Last updated:** May 14, 2026 (V10.8 series COMPLETE — Haiku date escalation shipped)
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
 
 ---
 
-## Most Recent Session — V10.8.C location normalizer (May 14, 2026, late evening)
+## Most Recent Session — V10.8.E Haiku date escalation (May 14, 2026, late night)
+
+**Shipped end-to-end:**
+- `src/lib/ingestion/utils/escalate-date-haiku.ts` — `escalateDateWithHaiku(prose, current, options)`. Pre-flight gate (precision='year' AND month name visible AND prose ≥ 200 chars) → Haiku call (claude-haiku-4-5-20251001, temperature 0, max 250 tokens) → claim-check (every quote must appear verbatim in source) → date validation → upgrade with `source='haiku'`. Injectable `haikuFn` for tests.
+- `src/lib/ingestion/utils/extract-date.ts` — `DateExtractionSource` type gains `'haiku'` value.
+- `src/lib/ingestion/engine.ts` — escalator hooked into per-report loop, right after `enrichReport` and before quality scoring. Wrapped in try/catch — non-blocking. Reads `ANTHROPIC_API_KEY` from env (already configured).
+- `scripts/test-escalate-date-haiku.ts` — 12 fixtures (mock haikuFn) covering happy paths, pre-flight skips, and every rejection path.
+
+**Tests green (119 total):**
+- extract-date.ts: 43/43
+- test-v10-8-b2-adapters.ts: 16/16
+- test-validate-report.ts: 26/26
+- test-normalize-location.ts: 22/22
+- test-escalate-date-haiku.ts: 12/12
+
+**Last commit on main:** TBD (this session's V10.8.E push)
+
+**Action needed from Chase:** none — no migration, no new env vars. `ANTHROPIC_API_KEY` is already wired and powers the escalation.
+
+**V10.8 series is COMPLETE.** A → B → C → D → E all shipped. Pipeline-hardening goal achieved: every row going forward carries a unified-extracted date with audit trail, validated location with centroids, validation flags on either side of the insert gate, and Haiku as the last-resort date escalator. Mass-ingest can begin.
+
+**Next session pickup (after V10.8):**
+- Mass ingest at scale per Launch Path step 3 (YouTube, Erowid, Reddit fresh via Arctic Shift, forums, news, etc.). Target: 1M+ for closed beta. Cost: ~$750-1,000 per 1M for all AI generation.
+- OR Algorithmic feed work (Sprint 2 features) — behavioral events table, V1 scored ranking, cold-start onboarding, session-context weighting, depth gating.
+- OR Stripe integration to unblock subscription/payments (blocked on Stripe key).
+
+**Gotchas / known issues:**
+- The two pre-existing tsc errors in `engine.ts` (line 907: `titleResult` out-of-scope; line 1216: `rejectedDetails`) are unchanged. SWC tolerates them.
+- The escalator runs synchronously inside the per-report loop. At mass-ingest scale (say 50/min), this adds ~1-2s per row when the gate triggers. If throughput becomes a concern, easy parallelization paths exist (Promise.all in batches of 5).
+- `event_date_extracted_from='haiku'` is filterable in `/admin/ingest-audit` (V10.8.D dashboard) but the audit table doesn't log Haiku calls separately — that's a possible V10.8.F if forensic visibility into rejected escalations becomes useful.
+
+---
+
+## Earlier Session — V10.8.C location normalizer (May 14, 2026, late evening)
 
 **Shipped end-to-end:**
 - `src/lib/ingestion/utils/normalize-location.ts` — `normalizeLocation(raw, options)`. Cascading pipeline: country alias folding → state validation → geocoding ladder (exact → MapTiler → state centroid → country centroid → unknown) → range/sanity gates. Sets `coords_synthetic=true` whenever coords came from a centroid fallback.

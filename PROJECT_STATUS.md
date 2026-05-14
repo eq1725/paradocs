@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** May 14, 2026 (V10.8.C location normalizer + geocode_cache shipped)
+**Last updated:** May 14, 2026 (V10.8 series COMPLETE — Haiku date escalation shipped)
 **Project:** discoverparadocs.com (production); beta.discoverparadocs.com (beta)
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -10,7 +10,7 @@
 
 ---
 
-## V10.8 Pipeline Hardening (May 13, 2026) — IN PROGRESS
+## V10.8 Pipeline Hardening (May 13–14, 2026) — COMPLETE
 
 The first major push since V10.7. Goal: replace 15 ad-hoc per-adapter date/location extractors with unified, tested utilities so mass-ingest produces consistent, audit-trail-backed data without per-row QA. Full design at `V10.8_PIPELINE_HARDENING_DESIGN.md`.
 
@@ -89,8 +89,40 @@ Tests: `scripts/test-normalize-location.ts` — 22 fixtures covering country ali
 - Apply `supabase/migrations/20260514_v10_8_c_geocode_cache.sql` to project `bhkbctdmwnowfmqpksed`.
 - Add `MAPTILER_API_KEY` to Vercel env vars (uses your MapTiler flex plan). Without it, the engine gracefully degrades to centroid-only geocoding — `LOC_COUNTRY_NO_COORDS` warnings will drop to near-zero either way, but city-precision pins for new ingest rows depend on the key being present.
 
-### V10.8.C onward — REMAINING
-- **E** — Haiku-assisted date fallback when extractDate returns `precision='year'` but source contains month names. ~$0.001/call. ~0.5 session. Final piece of the V10.8 series.
+### V10.8.E — Haiku-assisted date fallback (SHIPPED, May 14, 2026)
+Final rung of the date extraction ladder. `src/lib/ingestion/utils/escalate-date-haiku.ts` exports `escalateDateWithHaiku(prose, currentExtract, options)` — an async function that the engine calls after the regex layer (V10.8.A) finishes. Pre-flight gates make most rows free:
+
+1. **Pre-flight (no LLM call)** — skip when `precision != 'year'`, when prose contains no month name (regex check), or when prose is shorter than the length floor (default 200 chars).
+2. **Haiku call** — Claude Haiku 4.5 with `temperature=0`, max 250 tokens. Strict JSON output: `{date, precision, year_quote, month_quote?, day_quote?}`. System prompt forbids paraphrasing — every quote must be verbatim from the source.
+3. **Claim-check** — verify every quote string is a substring of the source prose (case-insensitive). Reject if any quote is fabricated. Reject if the returned year doesn't match the regex layer's year.
+4. **Date validation** — reject impossible dates (Feb 30), years outside `[1800, currentYear+1]`. Rebuild the ISO string from validated parts so a precision='month' answer always uses the `-01` day sentinel.
+5. **On success** → upgrade `event_date`, set `event_date_precision` to Haiku's value (month or exact), set `event_date_extracted_from='haiku'`, store concatenated quotes in `matchedText` for forensics.
+
+Engine wiring:
+- Runs inside the per-report loop in `engine.ts`, right after `enrichReport` and before quality scoring, so both the quality scorer and `validateReportBeforeInsert` see the upgraded precision.
+- Wrapped in try/catch — Haiku failure is logged and the row continues with its year-precision date. Non-blocking.
+- Reads `ANTHROPIC_API_KEY` from env; gracefully returns null when absent.
+
+Cost gate: at mass-ingest scale (~1M rows), expected ~50–100K qualifying candidates × ~$0.001/call ≈ $50–100 total. Chase pre-approved.
+
+Tests: `scripts/test-escalate-date-haiku.ts` — 12 fixtures using injected mock haikuFn. Covers happy paths (exact + month precision upgrades), all three pre-flight gates (precision/length/no-month), and every rejection path (null response, fabricated quotes, mismatched year, invalid date shape, impossible date, malformed JSON, case-folding claim-check). Pipeline test coverage now **119 green fixtures** across:
+- `test-extract-date.ts` (43)
+- `test-v10-8-b2-adapters.ts` (16)
+- `test-validate-report.ts` (26)
+- `test-normalize-location.ts` (22)
+- `test-escalate-date-haiku.ts` (12)
+
+No new schema, no migration, no new env vars — `ANTHROPIC_API_KEY` is already wired for the existing AI services.
+
+### V10.8 series complete
+A → B → C → D → E all shipped. Mass-ingest is now backed by:
+- **A** unified date extractor with audit trail
+- **B** all 14 adapters migrated to use it
+- **C** unified location normalizer with country/state centroids + MapTiler geocoding
+- **D** validation gates with quarantine status + `/admin/ingest-audit` dashboard
+- **E** Haiku date escalation for the residual year-only cases
+
+Total: 4 migrations, 6 new utilities, 119 green fixtures, 5 commits on main (`f4257ebe` → `5d2e3e45` → `3eef6be7` → `0d83bace` → `a7eef57e` → `3f234800` → `1e350950` → `c25a9251` → V10.8.E push). Ready for mass-ingest scale.
 
 ### Migration status (V10.8.B.1 + B.2)
 The `20260514_v10_8_b_date_extraction_audit.sql` migration (adds `event_date_extracted_from` + `source_published_at` columns) was applied during V10.8.B.1 setup. The new `20260514_v10_8_b_2_news_pubdate_backfill.sql` migration ships with V10.8.B.2 and needs to run once against the live DB to move the ~15 existing news rows over to the new pub-date / event-date split. Both migrations are idempotent. Project pattern: paste SQL into the Supabase dashboard SQL editor for project `bhkbctdmwnowfmqpksed`.
