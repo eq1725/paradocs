@@ -30,6 +30,7 @@ import {
   NDERFCaseProfile,
   LabelResolver,
 } from './nderf';
+import { extractDate } from '../utils/extract-date';
 
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -328,52 +329,37 @@ function parseOBERFArchiveIndex(html: string, typeSlug: string): Array<{ id: str
 }
 
 // ---------------------------------------------------------------------------
-// Date extraction — OBERF uses "Date of Experience" rather than NDERF's
-// "Date of NDE". Value format is the same (MM/DD/YYYY, 0 for unknown parts).
+// Date extraction — V10.8.B delegates to the unified extractDate utility.
+// OBERF's structured "Date of Experience" field uses MM/DD/YYYY with 0
+// sentinels for unknown parts (e.g. "04/00/2007" = month precision). Prose
+// fallback now captures month-name forms like "On April 28th 2007" that
+// the previous year-only regex threw away. Returns the extractDate audit
+// source so the engine can store it in reports.event_date_extracted_from.
 // ---------------------------------------------------------------------------
-function extractOBERFDate(getField: LabelResolver, content: string): { date: string | undefined; precision: 'exact' | 'month' | 'year' | 'unknown' } {
-  let raw = getField([
+function extractOBERFDate(
+  getField: LabelResolver,
+  content: string,
+): {
+  date: string | undefined;
+  precision: 'exact' | 'month' | 'year' | 'unknown';
+  source: 'structured' | 'prose-monthname' | 'prose-numeric' | 'prose-year' | 'none';
+} {
+  const raw = getField([
     'Date of Experience',
     'Date of OBE',
     'Date of experience',
   ]);
 
-  // Fallback: many OBERF pages have no "Date of Experience" questionnaire
-  // field. Pull a year from the narrative when available. We only extract
-  // year precision here (month/day from prose would be unreliable).
-  if (!raw && content) {
-    const yearMatch = content.match(/\b(19[5-9]\d|20[0-2]\d)\b/);
-    if (yearMatch) return { date: `${yearMatch[1]}-01-01`, precision: 'year' };
-  }
+  const result = extractDate({
+    structured: raw || null,
+    prose: content || null,
+  });
 
-  if (!raw) return { date: undefined, precision: 'unknown' };
-
-  const mdyMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
-  if (mdyMatch) {
-    const month = parseInt(mdyMatch[1], 10);
-    const day = parseInt(mdyMatch[2], 10);
-    let year = parseInt(mdyMatch[3], 10);
-    if (year < 100) year = year < 50 ? 2000 + year : 1900 + year;
-    if (month === 0) return { date: `${year}-01-01`, precision: 'year' };
-    if (day === 0) {
-      const m = String(month).padStart(2, '0');
-      return { date: `${year}-${m}-01`, precision: 'month' };
-    }
-    const m = String(month).padStart(2, '0');
-    const d = String(day).padStart(2, '0');
-    return { date: `${year}-${m}-${d}`, precision: 'exact' };
-  }
-
-  const yearMatch = raw.match(/^(\d{4})$/);
-  if (yearMatch) return { date: `${yearMatch[1]}-01-01`, precision: 'year' };
-
-  const myMatch = raw.match(/^(\d{1,2})\/(\d{4})$/);
-  if (myMatch) {
-    const m = String(parseInt(myMatch[1], 10)).padStart(2, '0');
-    return { date: `${myMatch[2]}-${m}-01`, precision: 'month' };
-  }
-
-  return { date: undefined, precision: 'unknown' };
+  return {
+    date: result.date || undefined,
+    precision: result.precision,
+    source: result.source,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -561,7 +547,7 @@ async function parseOBERFExperiencePage(
   const fieldMap = buildOBERFFieldMap(html);
   const getField = oberfLabelResolver(fieldMap);
 
-  const { date: eventDate, precision: datePrecision } = extractOBERFDate(getField, content);
+  const { date: eventDate, precision: datePrecision, source: dateSource } = extractOBERFDate(getField, content);
   const gender = getField(['Gender']) || undefined;
   // LLM-first event-location extraction so multi-location narratives
   // resolve to where the experience actually happened, not where the
@@ -649,6 +635,8 @@ async function parseOBERFExperiencePage(
     location_precision: location.precision,
     event_date: eventDate,
     event_date_precision: datePrecision,
+    // V10.8.B audit trail — how extractDate arrived at the date above.
+    event_date_extracted_from: dateSource,
     credibility: determineCredibility(content),
     source_type: 'oberf',
     // Use a hash-like slug based on the filename stem — OBERF's filenames

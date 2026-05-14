@@ -504,6 +504,10 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               event_date: report.event_date,
               event_time: report.event_time || null,
               event_date_precision: report.event_date_precision || 'unknown',
+              // V10.8.B — extractDate audit fields. Pass-through; adapter
+              // sets these when it uses the unified extractDate utility.
+              event_date_extracted_from: (report as any).event_date_extracted_from || null,
+              source_published_at: (report as any).source_published_at || null,
               credibility: report.credibility,
               has_photo_video: report.has_photo_video || false,
               witness_count: report.witness_count || null,
