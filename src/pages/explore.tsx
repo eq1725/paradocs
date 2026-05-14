@@ -568,6 +568,8 @@ function ExploreMapMode() {
         dateTo={filters.dateTo}
         onDateChange={handleDateChange}
         yearHistogram={yearHistogram}
+        regionBuckets={regionBuckets}
+        regionTotalCount={regionTotalCount}
       />
     </div>
   )

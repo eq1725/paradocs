@@ -6,12 +6,14 @@
  */
 
 import React, { useCallback, useRef, useEffect, useState } from 'react'
+import { X } from 'lucide-react'
 import { MapFilters, ReportProperties, CATEGORY_COLORS } from './mapStyles'
 import { CategoryIcon } from '@/components/ui/CategoryIcon'
 import { PhenomenonCategory } from '@/lib/database.types'
 import MapReportCard from './MapReportCard'
 import MapFilterPanel from './MapFilterPanel'
 import MapTimeline from './MapTimeline'
+import type { RegionBucket } from './useViewportData'
 
 type SnapPoint = 'peek' | 'half' | 'full'
 
@@ -37,6 +39,14 @@ interface MapBottomSheetProps {
   dateTo?: number | null
   onDateChange?: (from: number | null, to: number | null) => void
   yearHistogram?: { year: number; count: number }[]
+  /**
+   * V10.9.C — region totals for synthetic-coord reports. Rendered as
+   * its own section inside the sheet (mobile-only — desktop has the
+   * RegionTotalsPanel floating overlay). Optional; section only
+   * appears when there's at least one bucket.
+   */
+  regionBuckets?: RegionBucket[]
+  regionTotalCount?: number
 }
 
 // Format category name for display
@@ -63,6 +73,8 @@ export default function MapBottomSheet({
   dateTo,
   onDateChange,
   yearHistogram = [],
+  regionBuckets = [],
+  regionTotalCount = 0,
 }: MapBottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null)
   const dragStartY = useRef(0)
@@ -269,16 +281,51 @@ export default function MapBottomSheet({
         transition: isDragging ? 'none' : 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
       }}
     >
-      {/* Drag zone — handle + stat line, tall enough to grab easily */}
+      {/* V10.9.C — drag handle made larger + obvious. Tap the handle
+          to cycle peek → half → full → peek so users have a tap
+          alternative to dragging (esp. for full → peek dismiss). */}
       <div
         ref={dragZoneRef}
-        className="cursor-grab active:cursor-grabbing touch-none select-none"
+        className="cursor-grab active:cursor-grabbing touch-none select-none relative"
         onMouseDown={onMouseDown}
       >
-        {/* Visual drag handle */}
-        <div className="flex justify-center pt-2.5 pb-1">
-          <div className="w-10 h-1 bg-gray-600 rounded-full" />
-        </div>
+        {/* Visual drag handle — bigger tap target, hover highlight */}
+        <button
+          type="button"
+          onClick={(e) => {
+            // Tap cycles snaps so the user can always advance/dismiss
+            // without dragging. Stop propagation so the drag handler
+            // doesn't fire on tap.
+            e.stopPropagation()
+            if (snap === 'peek') onSnapChange('half')
+            else if (snap === 'half') onSnapChange('full')
+            else onSnapChange('peek')
+          }}
+          className="w-full flex justify-center pt-3 pb-2"
+          aria-label={
+            snap === 'full' ? 'Collapse panel' :
+            snap === 'half' ? 'Expand panel' : 'Open panel'
+          }
+        >
+          <span className="w-12 h-1.5 bg-gray-500 hover:bg-gray-400 rounded-full transition-colors" />
+        </button>
+
+        {/* V10.9.C — full-state dismiss button. Always present at the
+            top-right when expanded so users have an obvious one-tap
+            exit, not just a drag-down. */}
+        {snap === 'full' && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onSnapChange('peek')
+            }}
+            className="absolute top-2 right-2 z-10 flex items-center justify-center w-8 h-8 rounded-full bg-gray-800/80 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
+            aria-label="Close panel"
+          >
+            <X size={16} />
+          </button>
+        )}
 
         {/* Stat line — part of the drag zone so the whole top is swipeable */}
         <div className="flex items-center justify-between text-xs text-gray-400 pb-2 px-4">
@@ -383,6 +430,38 @@ export default function MapBottomSheet({
                       className="px-2.5 py-1 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-700/50 rounded-full text-xs text-gray-300 hover:text-white transition-colors"
                     >
                       {name} <span className="text-gray-500">{count}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* V10.9.C — Region totals (synthetic-coord reports). Parallel
+                to Top Locations but counts reports that have country
+                or state precision only — these aren't pinned on the
+                map (to avoid false centroid clustering) but are counted
+                here so the user sees the data exists. */}
+            {regionTotalCount > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                  Region totals
+                </h3>
+                <p className="text-[11px] text-gray-500 mb-2 leading-snug">
+                  {regionTotalCount.toLocaleString()} report{regionTotalCount === 1 ? '' : 's'} with country/state-only location. Tap to filter.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {regionBuckets.slice(0, 8).map((b) => (
+                    <button
+                      key={b.code}
+                      onClick={() => onFilterChange('country', filters.country === b.name ? (null as any) : b.name)}
+                      className={
+                        'px-2.5 py-1 border rounded-full text-xs transition-colors ' +
+                        (filters.country === b.name
+                          ? 'bg-purple-900/40 border-purple-500/50 text-white'
+                          : 'bg-gray-800/80 hover:bg-gray-700/80 border-gray-700/50 text-gray-300 hover:text-white')
+                      }
+                    >
+                      {b.name} <span className="text-gray-500">{b.total.toLocaleString()}</span>
                     </button>
                   ))}
                 </div>

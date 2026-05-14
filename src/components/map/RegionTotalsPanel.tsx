@@ -52,8 +52,15 @@ export default function RegionTotalsPanel({
   const remainingCount = buckets.slice(8).reduce((acc, b) => acc + b.total, 0)
 
   return (
+    // V10.9.C — positioning fix:
+    //   Desktop (lg+): below the MapLibre zoom controls (~top-20 clears
+    //   the +/- buttons which live in maplibregl-ctrl-top-right).
+    //   Mobile: hidden — the same info appears as a "Region totals"
+    //   section inside the bottom sheet (RegionTotalsSection in
+    //   MapBottomSheet) so it doesn't collide with the Filters button
+    //   or stat bar at the top.
     <div
-      className="absolute top-3 right-3 z-20 w-64 max-w-[calc(100vw-1.5rem)] rounded-xl bg-gray-950/85 backdrop-blur-md border border-gray-800 shadow-xl overflow-hidden"
+      className="hidden lg:block absolute lg:top-20 lg:right-3 z-20 w-64 max-w-[calc(100vw-1.5rem)] rounded-xl bg-gray-950/85 backdrop-blur-md border border-gray-800 shadow-xl overflow-hidden"
       role="region"
       aria-label="Region totals for low-precision reports"
     >

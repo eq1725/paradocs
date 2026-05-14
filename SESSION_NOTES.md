@@ -1,11 +1,41 @@
 # Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** May 14, 2026 (V10.9.B — choropleth fill + engine refresh hook)
+**Last updated:** May 14, 2026 (V10.9.C — explore-map polish: position + dismiss + footer)
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
 
 ---
 
-## Most Recent Session — V10.9.B choropleth + engine refresh (May 14, 2026, late night)
+## Most Recent Session — V10.9.C explore-map polish (May 14, 2026, late night)
+
+Four UI/UX issues Chase flagged after V10.9.B deployed. All fixed in a single polish pass.
+
+**1. Desktop: RegionTotalsPanel overlapping MapLibre zoom controls (top-right).**
+Moved the panel from `top-3 right-3` to `lg:top-20 lg:right-3` so the zoom +/- buttons get their default top-right slot. Panel now sits below them with ~80px clearance.
+
+**2. Mobile: RegionTotalsPanel overlapping the Filters button + stat bar.**
+Floating panel now hides on mobile (`hidden lg:block`). The same data appears as a "Region totals" section inside the existing MapBottomSheet, parallel to "Top Locations". Tap-to-filter UX is identical; visual chip styling distinguishes synthetic-coord regions (purple tint when active) from precise-coord top countries.
+
+**3. Mobile: filters drawer hard to dismiss when fully extended.**
+- Drag handle bumped from 10×1px to 12×1.5px and gained a hover state (gray-500 → gray-400).
+- Tap-on-handle now cycles snaps (peek → half → full → peek). Pure-tap dismiss path, no drag required.
+- New explicit close X button (top-right of the sheet) that only appears when `snap === 'full'`. One-tap path to peek.
+
+**4. Desktop: footer competing for scroll on the map page.**
+Extended the V9.11.5 footer-hide pattern in `Layout.tsx` to suppress the footer on both `/explore?mode=map` AND `/map`. Map page now occupies the full viewport with no scroll-to-footer trap.
+
+**Files changed:**
+- `src/components/map/RegionTotalsPanel.tsx` — positioning + mobile hide
+- `src/components/map/MapBottomSheet.tsx` — drag-handle tap cycle, close X, new region-totals section
+- `src/pages/explore.tsx` — pass regionBuckets/regionTotalCount to the sheet
+- `src/components/Layout.tsx` — footer hide on map routes
+
+**Last commit on main:** TBD (V10.9.C push)
+
+**No action needed from Chase** — code-only, no migrations, no env vars.
+
+---
+
+## Earlier Session — V10.9.B choropleth + engine refresh (May 14, 2026, late night)
 
 Chase requested both follow-ups in V10.9.A: wire the materialized-view refresh into the engine, AND ship the choropleth fill layer. Both done.
 
