@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** May 14, 2026 (V10.8.F — pre-mass-ingest bug fixes: location backfill + OG card collision)
+**Last updated:** May 14, 2026 (V10.8.G — OG card redesign with absolute positioning)
 **Project:** discoverparadocs.com (production); beta.discoverparadocs.com (beta)
 **Repo:** github.com/eq1725/paradocs (main branch)
 

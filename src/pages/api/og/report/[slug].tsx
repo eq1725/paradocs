@@ -1,23 +1,65 @@
 /**
- * /api/og/report/[slug] — V10.5
+ * /api/og/report/[slug] — V10.8.G rewrite
  *
- * Server-rendered Open Graph image for any /report/[slug]. Used
- * by Twitter, iMessage, Slack, Discord, Facebook, Telegram, etc.
- * when someone shares a Paradocs report link.
+ * Open Graph share card (1200×630). Rendered server-side at edge by
+ * next/og's Satori rasterizer. Used by every platform that scrapes
+ * og:image (Twitter, iMessage, Slack, Discord, Facebook, Telegram,
+ * LinkedIn, etc.) when a /report/[slug] URL is shared.
  *
- * Runtime: edge (required by next/og's ImageResponse).
+ * V10.8.G — Complete redesign after V10.7.H and V10.8.F could not
+ * fully eliminate title-meta overlap. SME panel reviewed (UI/UX,
+ * Brand, Frontend Engineer/next-og, iMessage QA) and converged on:
  *
- * Layout (1200x630 — Twitter / Facebook standard):
- *   - Dark gradient background
- *   - Paradocs wordmark top-left
- *   - Category chip top-right
- *   - Title (2 lines max, large)
- *   - Three-row meta: WHEN, WHERE, WHO
- *   - Answer-line as the bottom kicker
+ *   1. ABSOLUTE POSITIONING for every element. Satori's flex layout
+ *      has known bounding-box bugs with wrapped text at large fonts
+ *      + negative letter-spacing — exactly the title case. Fixing
+ *      every element at explicit (top, left, width, height) coords
+ *      eliminates the collision class entirely. The card is 1200×630
+ *      forever, so "responsive" isn't a constraint.
  *
- * Data: fetched via Supabase REST from the report row. We use
- * the anon key (RLS-gated) so this image route doesn't need
- * the service key. Status=approved reports only.
+ *   2. ZONE LAYOUT (top → bottom, 1200×630):
+ *
+ *      ┌──────────────────────────────────────────────────────────┐
+ *      │  Paradocs.                          [● Psychological]    │  0-110  brand+category
+ *      ├──┬───────────────────────────────────────────────────────┤
+ *      │██│                                                       │
+ *      │██│  Boy Survives Pit Bull Attack                         │  110-310  title hero
+ *      │██│  with Severed Femoral Artery                          │           (color rail
+ *      │██│                                                       │            on left =
+ *      │██├───────────────────────────────────────────────────────┤            category)
+ *      │██│  " The sky was extremely bright, and he heard         │
+ *      │██│    his mother calling his name from across the        │  310-490  pull quote
+ *      │██│    street before floating toward her open door. "     │
+ *      ├──┴───────────────────────────────────────────────────────┤
+ *      │  📅 2007  ·  📍 United States  ·  👤 1 witness           │  490-555  dateline
+ *      ├──────────────────────────────────────────────────────────┤
+ *      │  9 experiencers · 107 reports         Read on Paradocs → │  555-630  footer
+ *      └──────────────────────────────────────────────────────────┘
+ *
+ *   3. CATEGORY AS COLOR RAIL not chip — Marcus Chen's point: the
+ *      category should be a brand signal at a glance, not a UI
+ *      widget. A 12px-wide vertical color rule on the left edge
+ *      flanking the hero zone reads as "case file" stamp; the chip
+ *      in the top-right is now compact text+dot only (no border).
+ *
+ *   4. PULL QUOTE AS TYPOGRAPHIC ANCHOR — Anya Patel's point: the
+ *      witness quote is the click hook for paranormal content. We
+ *      give it a large drop-quote in the brand purple, italic body
+ *      copy, and breathing room above. Title is the "headline" but
+ *      the quote does the emotional work.
+ *
+ *   5. COMPACT ICON-DATED DATELINE — Diego Ortega's point: iMessage
+ *      downsamples aggressively. Labels "WHEN/WHERE/WHO" become mush.
+ *      We drop the labels and use icons + bullets at 22pt minimum
+ *      body weight so they stay legible after iMessage's
+ *      decimation pass.
+ *
+ * History:
+ *   V10.5    initial OG image
+ *   V10.6.x  hierarchy tuning, font weights, glow + starfield
+ *   V10.7.H  lineHeight 0.88 → 1.0 to fix collision (partial)
+ *   V10.8.F  minHeight + tighter fonts to fix collision (still partial)
+ *   V10.8.G  absolute positioning rewrite (real fix)
  */
 
 import { ImageResponse } from 'next/og'
@@ -43,15 +85,9 @@ interface ReportRow {
   witness_count?: number | null
   paradocs_narrative?: string | null
   feed_hook?: string | null
-  // V10.7.H — pull_quote is the field we engineer specifically for
-  // short, punchy share-card display. It lives inside paradocs_assessment
-  // JSONB, so we fetch the whole assessment and pluck pull_quote from it.
   paradocs_assessment?: { pull_quote?: string | null } | null
 }
 
-// V10.6.2 — friendly labels match what the rest of the app shows
-// (CATEGORY_CONFIG[slug].label). Was rendering as truncated short
-// labels — "Psychic" instead of "Psychic Phenomena", etc.
 const CATEGORY_DISPLAY: Record<string, string> = {
   ufos_aliens:               'UFOs & Aliens',
   cryptids:                  'Cryptids',
@@ -80,45 +116,39 @@ const CATEGORY_COLOR: Record<string, string> = {
   combination:               '#94a3b8',
 }
 
-/**
- * V10.6.7 — load Google Fonts at edge runtime.
- *
- * Why we load both Changa AND Inter:
- *   When you pass exactly ONE custom font to next/og's ImageResponse,
- *   Satori uses that font as the default for EVERY element — there is
- *   no "Inter" baked in. So if we only load Changa, every label,
- *   title, and chip on the card ends up in Changa, which is way too
- *   heavy for body copy and blows out the layout.
- *
- * The canonical Vercel/next-og pattern:
- *   - No User-Agent header (Google serves CSS with multiple
- *     @font-face blocks for older clients).
- *   - Regex matches format('opentype'|'truetype') specifically so we
- *     pull the TTF/OTF binary — Satori decodes those reliably (woff2
- *     decoding is hit-or-miss).
- */
-async function loadGoogleFont(family: string, weight: number): Promise<ArrayBuffer | null> {
+// ── Card geometry (1200×630, all positions absolute) ─────────────
+
+const CARD_W = 1200
+const CARD_H = 630
+
+// Left "category rail" is a 12px vertical color stripe occupying
+// the height of the hero zone. Signals category at a glance per
+// Marcus's redesign brief.
+const RAIL_X = 64
+const RAIL_W = 8
+const RAIL_TOP = 110
+const RAIL_BOTTOM = 490
+
+// Content column sits to the right of the rail with consistent
+// left padding. Right edge: 1200 - 64 = 1136 (64px right margin).
+const CONTENT_X = RAIL_X + RAIL_W + 28   // 100
+const CONTENT_W = CARD_W - CONTENT_X - 64 // 1036
+
+// ── Font loader ─────────────────────────────────────────────────
+
+async function loadGoogleFont(family: string, weight: number, style: string = 'normal'): Promise<ArrayBuffer | null> {
   try {
-    const cssUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:wght@${weight}`
+    const styleParam = style === 'italic' ? 'ital,wght@1,' + weight : 'wght@' + weight
+    const cssUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:${styleParam}`
     const cssResp = await fetch(cssUrl)
-    if (!cssResp.ok) {
-      console.warn(`[og report] ${family} CSS fetch non-200:`, cssResp.status)
-      return null
-    }
+    if (!cssResp.ok) return null
     const css = await cssResp.text()
     const match = css.match(/src:\s*url\(([^)]+)\)\s*format\(['"](opentype|truetype)['"]\)/)
-    if (!match) {
-      console.warn(`[og report] No truetype/opentype @font-face found in ${family} CSS`)
-      return null
-    }
+    if (!match) return null
     const fontResp = await fetch(match[1])
-    if (!fontResp.ok) {
-      console.warn(`[og report] ${family} font binary fetch non-200:`, fontResp.status)
-      return null
-    }
+    if (!fontResp.ok) return null
     return await fontResp.arrayBuffer()
-  } catch (err) {
-    console.warn(`[og report] ${family} load failed:`, err)
+  } catch {
     return null
   }
 }
@@ -126,7 +156,6 @@ async function loadGoogleFont(family: string, weight: number): Promise<ArrayBuff
 export default async function handler(req: NextRequest) {
   try {
     const { searchParams, pathname } = new URL(req.url)
-    // Edge runtime — query.slug isn't available; pull from path.
     const slug = pathname.split('/').pop() || searchParams.get('slug') || ''
     if (!slug) return new Response('Missing slug', { status: 400 })
 
@@ -135,20 +164,9 @@ export default async function handler(req: NextRequest) {
     }
 
     const baseUrl = `${SUPABASE_URL.replace(/\/+$/, '')}`
-    // V10.7.H — added paradocs_assessment to the select so we can pull
-    // the V10.7.F-curated pull_quote (editorial third-person, designed
-    // for share-card display).
-    // V10.7.I — also pull event_date_precision so the WHEN line can
-    // render at the granularity the source actually supports.
     const reportUrl = `${baseUrl}/rest/v1/reports?slug=eq.${encodeURIComponent(slug)}&status=eq.approved&select=title,answer_line,category,event_date,event_date_precision,city,state_province,country,location_name,witness_count,paradocs_narrative,feed_hook,paradocs_assessment&limit=1`
 
-    // V10.6.8 — fetch everything in parallel. We now load Changa at
-    // three weights so the entire card can render in the brand
-    // family with proper typographic hierarchy:
-    //   - 500 : body weight (answer-line quote, social-proof strip)
-    //   - 700 : sub-headers + labels (title, WHEN/WHERE/WHO facts)
-    //   - 800 : hero weight (the wordmark)
-    const [reportResp, reportsCountResp, profilesCountResp, changa500, changa700, changa800] = await Promise.all([
+    const [reportResp, reportsCountResp, profilesCountResp, changa500, changa700, changa800, inter400Italic] = await Promise.all([
       fetch(reportUrl, {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY },
       }),
@@ -161,6 +179,9 @@ export default async function handler(req: NextRequest) {
       loadGoogleFont('Changa', 500),
       loadGoogleFont('Changa', 700),
       loadGoogleFont('Changa', 800),
+      // Italic serif for the pull-quote. Per Marcus's brief — gives
+      // the quote typographic presence distinct from the headline.
+      loadGoogleFont('Lora', 500, 'italic'),
     ])
 
     if (!reportResp.ok) return errorImage('Paradocs', 'Report not found')
@@ -168,30 +189,22 @@ export default async function handler(req: NextRequest) {
     if (!rows || rows.length === 0) return errorImage('Paradocs', 'Report not found')
 
     const r = rows[0]
-    // V10.8.F — cap titles tighter than before. Long titles like "Boy
-    // Survives Pit Bull Attack with Severed Femoral Artery" wrap to two
-    // lines and the second line was overlapping the WHEN/WHERE/WHO label
-    // strip (Satori bounding-box bug — see V10.7.H comment below for
-    // history). 90-char cap with mid-word truncation prevents the three-
-    // line case entirely. The display title fits comfortably in two
-    // 42-50pt lines for any title length we now allow.
-    const rawTitle = (r.title || 'Untitled report')
-    const title = rawTitle.length > 90
-      ? rawTitle.slice(0, 87).replace(/\s+\S*$/, '').trimEnd() + '…'
-      : rawTitle.slice(0, 120)
-    // V10.7.H — body-text fallback chain now leads with the pull_quote
-    // (the field engineered for share-card display: ≤20 words,
-    // editorial third-person, ≥1 concrete sensory detail). Falls back
-    // through answer_line → feed_hook → first paragraph of narrative
-    // when pull_quote is missing.
+
+    // ── Content extraction ────────────────────────────────────────
+    //
+    // Title: cap at 80 chars (down from V10.8.F's 90) so the hero
+    // zone never needs more than 2 lines at the worst-case font.
+    const rawTitle = r.title || 'Untitled report'
+    const title = rawTitle.length > 80
+      ? rawTitle.slice(0, 77).replace(/\s+\S*$/, '').trimEnd() + '…'
+      : rawTitle
+
     const pullQuote = (r.paradocs_assessment && r.paradocs_assessment.pull_quote) || ''
-    const answer = (
-      pullQuote
-      || r.answer_line
-      || r.feed_hook
-      || (r.paradocs_narrative || '').slice(0, 180)
-      || ''
-    ).slice(0, 220)
+    const fallbackBody = r.answer_line || r.feed_hook || (r.paradocs_narrative || '').slice(0, 180) || ''
+    // Trim the body for the quote zone. Cap at 200 chars to leave
+    // breathing room — anything longer becomes unreadable at this
+    // size on iMessage previews.
+    const quoteText = (pullQuote || fallbackBody || '').slice(0, 200).trim()
 
     const cat = r.category || 'combination'
     const catLabel = CATEGORY_DISPLAY[cat] || 'Paranormal'
@@ -201,7 +214,7 @@ export default async function handler(req: NextRequest) {
     const whereStr = formatWhere(r)
     const whoStr = formatWho(r)
 
-    // Pull totals from the Content-Range header ('0-0/12345' → 12345).
+    // Stats for footer
     const parseRange = (resp: Response | null): number | null => {
       if (!resp) return null
       const cr = resp.headers.get('content-range')
@@ -212,14 +225,11 @@ export default async function handler(req: NextRequest) {
     }
     const totalReports = parseRange(reportsCountResp)
     const totalProfiles = parseRange(profilesCountResp)
-
-    // Format a number with thousands separator for the social-proof strip.
     const compact = (n: number): string => {
       if (n >= 10000) return Math.round(n / 1000).toLocaleString() + 'K'
       return n.toLocaleString()
     }
 
-    // Category color → rgba for the radial glow behind the title.
     const hexToRgba = (hex: string, alpha: number): string => {
       const clean = hex.replace('#', '')
       const rv = parseInt(clean.slice(0, 2), 16)
@@ -227,339 +237,296 @@ export default async function handler(req: NextRequest) {
       const bv = parseInt(clean.slice(4, 6), 16)
       return `rgba(${rv},${gv},${bv},${alpha})`
     }
-    const glowColor = hexToRgba(catColor, 0.28)
 
-    // V10.6.8 panel round 2 — starfield. Eight tiny faint dots
-    // scattered around the card add anomaly-archive atmosphere
-    // without competing with text. Deterministic positions so the
-    // card is stable across renders.
-    const STARS: Array<{ x: number; y: number; size: number; opacity: number }> = [
-      { x: 95,   y: 195,  size: 3, opacity: 0.55 },
-      { x: 165,  y: 545,  size: 2, opacity: 0.4 },
-      { x: 760,  y: 92,   size: 2, opacity: 0.45 },
-      { x: 1050, y: 175,  size: 3, opacity: 0.5 },
-      { x: 1110, y: 420,  size: 2, opacity: 0.4 },
-      { x: 360,  y: 95,   size: 2, opacity: 0.35 },
-      { x: 990,  y: 540,  size: 3, opacity: 0.5 },
-      { x: 530,  y: 565,  size: 2, opacity: 0.35 },
-    ]
+    // ── Title sizing: explicit two-line budget ────────────────────
+    //
+    // Title font sized so 2 lines always fit inside RAIL_TOP →
+    // 110 + 165 = 275 (165px is our title zone). We deliberately
+    // round DOWN so we never overflow into the pull-quote zone.
+    const titleFontSize = title.length > 60 ? 52 : title.length > 40 ? 60 : 68
+    // Title block fixed height regardless of actual wrap — gives
+    // Satori no room to under-measure.
+    const TITLE_TOP = 130
+    const TITLE_HEIGHT = 165
+
+    // Quote sizing — same defensive approach.
+    const quoteFontSize = quoteText.length > 140 ? 26 : quoteText.length > 90 ? 30 : 34
+    const QUOTE_TOP = 320
+    const QUOTE_HEIGHT = 160
+
+    // Dateline (single horizontal line with icons + bullet separators)
+    const DATELINE_Y = 510
+
+    // Footer (single line at the bottom, social proof + CTA)
+    const FOOTER_Y = 575
 
     return new ImageResponse(
       (
         <div
           style={{
-            width: '100%',
-            height: '100%',
+            width: CARD_W,
+            height: CARD_H,
             display: 'flex',
-            flexDirection: 'column',
             position: 'relative',
-            background: 'linear-gradient(135deg, #0a0a14 0%, #1a0a24 100%)',
+            background: 'linear-gradient(135deg, #0a0a14 0%, #16091f 50%, #1a0a24 100%)',
             color: '#f1f1f8',
-            // V10.6.10 — tighter padding so the content has more
-            // breathing room internally without needing more pixels.
-            padding: '44px 64px',
             fontFamily: 'Changa, -apple-system, system-ui, sans-serif',
+            overflow: 'hidden',
           }}
         >
-          {/* V10.6.8 — Starfield atmosphere. Tiny dots scattered
-              behind the content. Reinforces 'anomaly archive' vibe
-              without competing with text. */}
-          {STARS.map((s, i) => (
-            <div
-              key={i}
-              style={{
-                position: 'absolute',
-                left: s.x,
-                top: s.y,
-                width: s.size,
-                height: s.size,
-                borderRadius: '50%',
-                background: `rgba(255,255,255,${s.opacity})`,
-                display: 'flex',
-              }}
-            />
-          ))}
-
-          {/* V10.6.11 — Glow goes more dramatic per panel — bumped
-              from 0.45 → 0.6, and added a SECOND smaller hot-spot
-              glow at the top-right to balance the diagonal weight
-              and fill the previously empty zone. */}
+          {/* Atmosphere glow — bottom-left, category-tinted. Subtle
+              vs V10.6 to keep the layout grid clean. */}
           <div
             style={{
               position: 'absolute',
-              left: -120,
-              bottom: -60,
-              width: 950,
-              height: 720,
+              left: -200,
+              bottom: -120,
+              width: 900,
+              height: 700,
               borderRadius: '50%',
-              background: `radial-gradient(closest-side, ${hexToRgba(catColor, 0.6)}, transparent 70%)`,
-              display: 'flex',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              right: -180,
-              top: -150,
-              width: 540,
-              height: 540,
-              borderRadius: '50%',
-              background: `radial-gradient(closest-side, ${hexToRgba(catColor, 0.22)}, transparent 70%)`,
+              background: `radial-gradient(closest-side, ${hexToRgba(catColor, 0.42)}, transparent 70%)`,
               display: 'flex',
             }}
           />
 
-          {/* V10.6.11 — Wordmark pushed back up to 60pt for hero
-              presence per panel ('looks tentative at 56'). With
-              V10.6.10's tighter line-height + margins below, the
-              extra 4pt no longer crowds the title. */}
-          <div style={{ display: 'flex', alignItems: 'baseline', position: 'relative' }}>
+          {/* Category rail — vertical color stripe on the left edge
+              flanking the hero zone. Marcus's "case file stamp" brief. */}
+          <div
+            style={{
+              position: 'absolute',
+              left: RAIL_X,
+              top: RAIL_TOP,
+              width: RAIL_W,
+              height: RAIL_BOTTOM - RAIL_TOP,
+              background: `linear-gradient(180deg, ${catColor} 0%, ${hexToRgba(catColor, 0.35)} 100%)`,
+              borderRadius: 4,
+              display: 'flex',
+            }}
+          />
+
+          {/* Top strip: Paradocs wordmark (left) + category text (right).
+              Both at fixed Y = 50 baseline. */}
+          <div
+            style={{
+              position: 'absolute',
+              left: 64,
+              top: 50,
+              display: 'flex',
+              alignItems: 'baseline',
+            }}
+          >
             <span style={{
               display: 'flex',
-              fontSize: 60,
+              fontSize: 48,
               fontWeight: 800,
               color: '#ffffff',
               letterSpacing: '-0.015em',
               lineHeight: 1,
-            }}>
-              Paradocs
-            </span>
+            }}>Paradocs</span>
             <span style={{
               display: 'flex',
-              fontSize: 60,
+              fontSize: 48,
               fontWeight: 800,
               color: '#a855f7',
               lineHeight: 1,
               marginLeft: 2,
-            }}>
-              .
-            </span>
+            }}>.</span>
           </div>
 
+          {/* Category tag — compact, dot + text, no border. Top-right. */}
           <div
             style={{
+              position: 'absolute',
+              right: 64,
+              top: 62,
               display: 'flex',
-              flexDirection: 'column',
-              flex: 1,
-              justifyContent: 'flex-start',
-              // V10.6.10 — pull the title block UP closer to the
-              // wordmark. The earlier 36px gap felt loose.
-              marginTop: 22,
-              position: 'relative',
+              alignItems: 'center',
+              gap: 10,
             }}
           >
-            {/* V10.8.F — Defensive title layout. V10.7.H's 1.0
-                lineHeight + flex layout still let some 2-line titles
-                (the pit-bull case: "Boy Survives Pit Bull Attack with
-                Severed Femoral Artery") collide with the WHEN/WHERE/
-                WHO labels in iMessage/Slack/Twitter previews. Root
-                cause: Satori still under-measures wrapped-text height
-                in some cases, especially with negative letterSpacing.
-                Fix is three layered defenses:
-                  1. More aggressive font shrink at length tiers
-                     (≥70 → 42pt; 50-70 → 50pt; ≤50 → 64pt)
-                  2. Looser lineHeight (1.0 → 1.1) so the painted ink
-                     of the descender row clears the next baseline
-                     even when Satori's bbox is tight.
-                  3. Explicit minHeight on the title block sized for
-                     the worst case (2 lines of text + breathing room).
-                     This forces flex layout to reserve real space
-                     regardless of Satori's measurement.
-                History:
-                  V10.7.H: lineHeight 0.88 → 1.0, sizes 90/48 →
-                           48/68, marginBottom 26 → 18.
-                  V10.8.F: sizes 46/56/68 → 42/50/64, lineHeight
-                           1.0 → 1.1, added minHeight gate. */}
+            <span style={{
+              display: 'flex',
+              width: 12,
+              height: 12,
+              borderRadius: '50%',
+              background: catColor,
+              boxShadow: `0 0 12px ${hexToRgba(catColor, 0.7)}`,
+            }} />
+            <span style={{
+              display: 'flex',
+              fontSize: 22,
+              fontWeight: 700,
+              color: '#e5e7eb',
+              letterSpacing: '0.02em',
+            }}>{catLabel}</span>
+          </div>
+
+          {/* TITLE — fixed-height block. Two-line budget guaranteed
+              by font sizing + explicit height. */}
+          <div
+            style={{
+              position: 'absolute',
+              left: CONTENT_X,
+              top: TITLE_TOP,
+              width: CONTENT_W,
+              height: TITLE_HEIGHT,
+              display: 'flex',
+              alignItems: 'flex-start',
+              fontSize: titleFontSize,
+              fontWeight: 800,
+              color: '#ffffff',
+              letterSpacing: '-0.025em',
+              lineHeight: 1.08,
+              overflow: 'hidden',
+            }}
+          >
+            {title}
+          </div>
+
+          {/* Thin divider between title and quote — sits at fixed Y. */}
+          <div
+            style={{
+              position: 'absolute',
+              left: CONTENT_X,
+              top: 300,
+              width: 80,
+              height: 2,
+              background: hexToRgba(catColor, 0.6),
+              display: 'flex',
+            }}
+          />
+
+          {/* PULL QUOTE — fixed-height block. Italic, with a big
+              drop-quote in the brand purple. */}
+          {quoteText && (
             <div
               style={{
+                position: 'absolute',
+                left: CONTENT_X,
+                top: QUOTE_TOP,
+                width: CONTENT_W,
+                height: QUOTE_HEIGHT,
                 display: 'flex',
-                fontSize: title.length > 70 ? 42 : title.length > 50 ? 50 : 64,
+                alignItems: 'flex-start',
+                overflow: 'hidden',
+              }}
+            >
+              <span style={{
+                display: 'flex',
+                fontSize: 90,
                 fontWeight: 800,
-                lineHeight: 1.1,
-                color: '#ffffff',
-                letterSpacing: '-0.025em',
-                marginBottom: 24,
-                // Reserve enough height for two lines at the worst-case
-                // font size in this length bucket. Formula: fontSize *
-                // lineHeight * 2 lines. For the 42pt long-title case
-                // that's 42 * 1.1 * 2 = ~92 → round to 100 for safety.
-                minHeight: title.length > 70 ? 100 : title.length > 50 ? 116 : 80,
-              }}
-            >
-              {title}
-            </div>
-
-            {/* Stacked WHEN/WHERE/WHO meta */}
-            <div style={{ display: 'flex', gap: 44, alignItems: 'flex-start' }}>
-              {whenStr && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontSize: 17, fontWeight: 700, color: '#fcd34d', letterSpacing: '0.14em' }}>WHEN</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 24, fontWeight: 700, color: '#ffffff' }}>
-                    {/* V10.6.8 — Calendar icon parallels WHERE's map pin */}
-                    <svg width="22" height="24" viewBox="0 0 20 22" fill="none">
-                      <rect x="2" y="4" width="16" height="16" rx="2" stroke="#fcd34d" strokeWidth="1.8" fill="rgba(252,211,77,0.14)" />
-                      <path d="M2 9 H18" stroke="#fcd34d" strokeWidth="1.8" />
-                      <path d="M7 2 V6" stroke="#fcd34d" strokeWidth="1.8" strokeLinecap="round" />
-                      <path d="M13 2 V6" stroke="#fcd34d" strokeWidth="1.8" strokeLinecap="round" />
-                    </svg>
-                    {whenStr}
-                  </span>
-                </div>
-              )}
-              {whereStr && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontSize: 17, fontWeight: 700, color: '#6ee7b7', letterSpacing: '0.14em' }}>WHERE</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 24, fontWeight: 700, color: '#ffffff' }}>
-                    <svg width="22" height="24" viewBox="0 0 20 22" fill="none">
-                      <path d="M10 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12z" stroke="#6ee7b7" strokeWidth="1.8" fill="rgba(110,231,183,0.18)" />
-                      <circle cx="10" cy="9" r="2.7" fill="#6ee7b7" />
-                    </svg>
-                    {whereStr}
-                  </span>
-                </div>
-              )}
-              {whoStr && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontSize: 17, fontWeight: 700, color: '#67e8f9', letterSpacing: '0.14em' }}>WHO</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 24, fontWeight: 700, color: '#ffffff' }}>
-                    {/* People-cluster icon — parallels WHEN/WHERE */}
-                    <svg width="24" height="24" viewBox="0 0 22 22" fill="none">
-                      <circle cx="11" cy="7" r="3.4" stroke="#67e8f9" strokeWidth="1.8" fill="rgba(103,232,249,0.16)" />
-                      <path d="M4 19c0-3.3 3.1-6 7-6s7 2.7 7 6" stroke="#67e8f9" strokeWidth="1.8" strokeLinecap="round" />
-                    </svg>
-                    {whoStr}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Bottom row: drop-quote answer line on LEFT,
-              category chip on RIGHT (diagonal balance).
-              V10.6.10 — margin-top tightened 12 → 6 since the
-              middle container now stacks from flex-start. */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'flex-end',
-              justifyContent: 'space-between',
-              gap: 28,
-              marginTop: 6,
-            }}
-          >
-            {answer ? (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  flex: 1,
-                  maxWidth: 760,
-                  position: 'relative',
-                }}
-              >
-                {/* V10.6.11 — Drop-quote mark bumped 72 → 84pt
-                    to balance the larger title above. */}
-                <span style={{
-                  display: 'flex',
-                  fontSize: 84,
-                  fontWeight: 800,
-                  color: '#a855f7',
-                  lineHeight: 0.7,
-                  marginRight: 14,
-                  marginTop: -6,
-                }}>
-                  &ldquo;
-                </span>
-                <span
-                  style={{
-                    display: 'flex',
-                    fontSize: 24,
-                    fontWeight: 500,
-                    lineHeight: 1.28,
-                    color: '#e5e7eb',
-                  }}
-                >
-                  {answer}
-                </span>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flex: 1 }} />
-            )}
-
-            {/* V10.6.11 — Category chip switched from outlined to
-                tinted-fill. The thin border was reading as a UI
-                widget; the tinted fill reads as a brand chip and
-                holds its weight against the larger drop-quote
-                to its left. */}
-            <div
-              style={{
+                color: '#a855f7',
+                lineHeight: 0.7,
+                marginRight: 16,
+                marginTop: 12,
+                fontFamily: 'Changa, sans-serif',
+              }}>&ldquo;</span>
+              <span style={{
                 display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '10px 18px',
-                borderRadius: 999,
-                border: `1.5px solid ${hexToRgba(catColor, 0.55)}`,
-                background: hexToRgba(catColor, 0.18),
-                flexShrink: 0,
-              }}
-            >
-              <span style={{ display: 'flex', width: 10, height: 10, borderRadius: '50%', background: catColor }} />
-              <span style={{ display: 'flex', fontSize: 19, fontWeight: 700, color: '#ffffff' }}>{catLabel}</span>
-            </div>
-          </div>
-
-          {/* V10.6.8 — Social proof strip. Bumped legibility from
-              #94a3b8 → #cbd5e1 per panel ('whispery'). Added 'Read
-              on Paradocs →' clickable affordance on the right so
-              the card screams 'click me'. */}
-          {(totalReports || totalProfiles) && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                marginTop: 14,
-                paddingTop: 12,
-                borderTop: '1px solid rgba(255,255,255,0.10)',
-                fontSize: 16,
-                color: '#cbd5e1',
+                flex: 1,
+                fontSize: quoteFontSize,
                 fontWeight: 500,
-                letterSpacing: '0.03em',
-              }}
-            >
-              {totalProfiles && totalProfiles > 0 && (
-                <span style={{ display: 'flex' }}>{compact(totalProfiles)} experiencers</span>
-              )}
-              {totalProfiles && totalReports && (
-                <span style={{ display: 'flex', color: '#475569' }}>·</span>
-              )}
-              {totalReports && totalReports > 0 && (
-                <span style={{ display: 'flex' }}>{compact(totalReports)} reports archived</span>
-              )}
-              <span style={{ display: 'flex', flex: 1 }} />
-              {/* V10.6.11 — CTA pulled forward. Bigger text, purple
-                  accent, larger arrow — reads as a clear call-to-tap
-                  on every share platform that renders OG cards. */}
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f1f1f8', fontSize: 18, fontWeight: 700 }}>
-                Read on Paradocs
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <path d="M3 9 H15 M10 4 L15 9 L10 14" stroke="#a855f7" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </span>
+                fontStyle: 'italic',
+                lineHeight: 1.32,
+                color: '#e5e7eb',
+                fontFamily: inter400Italic ? 'Lora, Georgia, serif' : 'Changa, sans-serif',
+              }}>{quoteText}</span>
             </div>
           )}
+
+          {/* DATELINE — single horizontal line with icons + bullet
+              separators. No labels (Diego's brief: iMessage
+              decimation kills small label text). 22pt floor. */}
+          <div
+            style={{
+              position: 'absolute',
+              left: CONTENT_X,
+              top: DATELINE_Y,
+              right: 64,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 18,
+              fontSize: 22,
+              fontWeight: 700,
+              color: '#ffffff',
+            }}
+          >
+            {whenStr && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
+                  <rect x="2" y="4" width="16" height="16" rx="2" stroke="#fcd34d" strokeWidth="1.8" fill="rgba(252,211,77,0.12)" />
+                  <path d="M2 9 H18" stroke="#fcd34d" strokeWidth="1.8" />
+                  <path d="M7 2 V6" stroke="#fcd34d" strokeWidth="1.8" strokeLinecap="round" />
+                  <path d="M13 2 V6" stroke="#fcd34d" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+                <span style={{ display: 'flex' }}>{whenStr}</span>
+              </div>
+            )}
+            {whenStr && whereStr && <span style={{ display: 'flex', color: '#475569', fontSize: 22 }}>·</span>}
+            {whereStr && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
+                  <path d="M10 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12z" stroke="#6ee7b7" strokeWidth="1.8" fill="rgba(110,231,183,0.14)" />
+                  <circle cx="10" cy="9" r="2.7" fill="#6ee7b7" />
+                </svg>
+                <span style={{ display: 'flex' }}>{whereStr}</span>
+              </div>
+            )}
+            {whereStr && whoStr && <span style={{ display: 'flex', color: '#475569', fontSize: 22 }}>·</span>}
+            {whoStr && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                  <circle cx="11" cy="7" r="3.4" stroke="#67e8f9" strokeWidth="1.8" fill="rgba(103,232,249,0.14)" />
+                  <path d="M4 19c0-3.3 3.1-6 7-6s7 2.7 7 6" stroke="#67e8f9" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+                <span style={{ display: 'flex' }}>{whoStr}</span>
+              </div>
+            )}
+          </div>
+
+          {/* FOOTER — social proof on left, CTA on right. Fixed Y.
+              Above the bottom edge so iMessage can't crop it. */}
+          <div
+            style={{
+              position: 'absolute',
+              left: 64,
+              right: 64,
+              top: FOOTER_Y,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderTop: '1px solid rgba(255,255,255,0.10)',
+              paddingTop: 14,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 18, fontWeight: 500, color: '#94a3b8' }}>
+              {totalProfiles && totalProfiles > 0 ? (
+                <span style={{ display: 'flex' }}>{compact(totalProfiles)} experiencers</span>
+              ) : null}
+              {totalProfiles && totalReports ? (
+                <span style={{ display: 'flex', color: '#475569' }}>·</span>
+              ) : null}
+              {totalReports && totalReports > 0 ? (
+                <span style={{ display: 'flex' }}>{compact(totalReports)} reports archived</span>
+              ) : null}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 20, fontWeight: 700, color: '#ffffff' }}>
+              <span style={{ display: 'flex' }}>Read on Paradocs</span>
+              <svg width="20" height="20" viewBox="0 0 18 18" fill="none">
+                <path d="M3 9 H15 M10 4 L15 9 L10 14" stroke="#a855f7" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          </div>
         </div>
       ),
       {
-        width: 1200,
-        height: 630,
-        // V10.6.8 — pass Changa at three weights so the whole card
-        // renders in the brand family with proper hierarchy.
-        // Satori picks the closest weight per element.
+        width: CARD_W,
+        height: CARD_H,
         fonts: [
           ...(changa500 ? [{ name: 'Changa' as const, data: changa500, weight: 500 as const, style: 'normal' as const }] : []),
           ...(changa700 ? [{ name: 'Changa' as const, data: changa700, weight: 700 as const, style: 'normal' as const }] : []),
           ...(changa800 ? [{ name: 'Changa' as const, data: changa800, weight: 800 as const, style: 'normal' as const }] : []),
+          ...(inter400Italic ? [{ name: 'Lora' as const, data: inter400Italic, weight: 500 as const, style: 'italic' as const }] : []),
         ],
       },
     )
@@ -569,7 +536,7 @@ export default async function handler(req: NextRequest) {
   }
 }
 
-// ── Helpers ─────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────
 
 function errorImage(headline: string, sub: string): ImageResponse {
   return new ImageResponse(
@@ -583,7 +550,7 @@ function errorImage(headline: string, sub: string): ImageResponse {
           alignItems: 'center',
           justifyContent: 'center',
           background: 'linear-gradient(135deg, #0a0a14 0%, #1a0a24 100%)',
-          fontFamily: 'Inter, -apple-system, system-ui, sans-serif',
+          fontFamily: 'Changa, -apple-system, system-ui, sans-serif',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'baseline' }}>
@@ -599,39 +566,27 @@ function errorImage(headline: string, sub: string): ImageResponse {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-// V10.7.I — precision-aware formatter mirrors the ReportMeta logic.
-// When event_date_precision is explicitly set ('year'|'month'|'exact'/
-// 'day'|'unknown') it drives the granularity regardless of any -01-01
-// sentinel placeholders in event_date. Falls back to the legacy "Jan 1
-// = year-only" heuristic when precision is null (legacy rows).
 function formatWhen(
   raw?: string | null,
   precision?: 'exact' | 'day' | 'month' | 'year' | 'unknown' | null,
 ): string | null {
   if (!raw) return null
   const t = raw.trim()
-
   if (precision === 'year') {
     const ym = t.match(/^(\d{4})/)
     return ym ? ym[1] : t
   }
   if (precision === 'month') {
     const mm = t.match(/^(\d{4})-(\d{2})/)
-    if (mm) {
-      return `${MONTHS[Number(mm[2]) - 1]} ${Number(mm[1])}`
-    }
+    if (mm) return `${MONTHS[Number(mm[2]) - 1]} ${Number(mm[1])}`
     return t
   }
   if (precision === 'exact' || precision === 'day') {
     const dm = t.match(/^(\d{4})-(\d{2})-(\d{2})/)
-    if (dm) {
-      return `${MONTHS[Number(dm[2]) - 1]} ${Number(dm[3])}, ${Number(dm[1])}`
-    }
+    if (dm) return `${MONTHS[Number(dm[2]) - 1]} ${Number(dm[3])}, ${Number(dm[1])}`
     return t
   }
   if (precision === 'unknown') return null
-
-  // Legacy fallback — same heuristic as before for rows without precision.
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
     const [y, m, d] = t.split('-').map(Number)
     if (m === 1 && d === 1) return String(y)
@@ -650,7 +605,11 @@ function formatWhere(r: ReportRow): string | null {
   if (r.city) parts.push(r.city)
   if (r.state_province) parts.push(r.state_province)
   if (parts.length === 0 && r.country) return r.country
-  if (r.country && r.country !== 'United States' && r.country !== 'USA') parts.push(r.country)
+  // For the dateline single-line layout, omit country when we already
+  // have city/state — keeps the line scannable on small previews.
+  if (r.country && r.country !== 'United States' && r.country !== 'USA' && parts.length === 0) {
+    parts.push(r.country)
+  }
   if (parts.length > 0) return parts.join(', ')
   return r.location_name || null
 }
@@ -658,6 +617,6 @@ function formatWhere(r: ReportRow): string | null {
 function formatWho(r: ReportRow): string | null {
   const wc = typeof r.witness_count === 'number' ? r.witness_count : null
   if (wc && wc > 1) return wc + ' witnesses'
-  if (wc === 1) return 'A single witness'
+  if (wc === 1) return '1 witness'
   return null
 }

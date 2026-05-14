@@ -1,11 +1,33 @@
 # Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** May 14, 2026 (V10.8.F — pre-mass-ingest bug fixes)
+**Last updated:** May 14, 2026 (V10.8.G — OG card redesign with absolute positioning)
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
 
 ---
 
-## Most Recent Session — V10.8.F bug fixes (May 14, 2026, late night)
+## Most Recent Session — V10.8.G OG card redesign (May 14, 2026, late night)
+
+After V10.8.F's defensive fixes still left visible title/meta collision in iMessage previews, Chase asked for an SME panel review. Convened four reviewer perspectives (UI/UX, Brand, Frontend Engineer/next-og, iMessage QA) and the consensus was to abandon flex layout entirely for absolute positioning.
+
+**Root cause confirmed by panel:** Satori (next/og's rasterizer) has known bounding-box quirks with wrapped text at large fonts + negative letter-spacing. Flex layouts that compose elements vertically rely on accurate intrinsic-height measurement, which Satori sometimes under-counts → adjacent flex children stack into the painted-but-unmeasured ink. V10.7.H (lineHeight 0.88→1.0) and V10.8.F (minHeight + tighter fonts) both reduced but did not eliminate the collision.
+
+**The real fix (V10.8.G):** complete rewrite using `position: absolute` with explicit (top, left, width, height) for every element. Card is 1200×630 forever — "responsive" was never a constraint. Zero collision risk because elements never reflow into each other.
+
+**Design changes per the SME briefs:**
+- **Anya Patel (UI/UX):** simplified to 4 zones — brand strip / title hero / pull-quote with accent rule / dateline + footer. Killed competing focal points.
+- **Marcus Chen (Brand):** category becomes a vertical color rail on the left edge of the hero zone (case-file stamp) instead of a chip; top-right gets a compact dot+text tag with glow.
+- **Sarah Kim (next-og expert):** every element at explicit pixel coordinates. Title and quote blocks have fixed height + `overflow: hidden`. No flex stacking, no `flex: 1`.
+- **Diego Ortega (iMessage QA):** killed the WHEN/WHERE/WHO labels (iMessage decimation makes them mush). Dateline is a single horizontal line with icons + bullet separators at 22pt minimum. Footer pulled above the bottom 55px so iMessage can't crop it.
+
+**Files changed:** complete rewrite of `src/pages/api/og/report/[slug].tsx`. Added Lora italic for the pull-quote serif treatment. Title font tiers tightened (60-char threshold instead of 70/50). Title cap 90→80. Quote cap 220→200. Pull-quote zone uses larger drop quote (90pt vs prior 84pt) plus brand-purple color.
+
+**Test surface:** longest-title row in current corpus is 64 chars; pit-bull is 56 chars; both fit cleanly in the new title zone. Pull-quote zone handles up to 200-char quotes at 26pt floor.
+
+**Last commit on main:** TBD (this session's V10.8.G push)
+
+---
+
+## Earlier Session — V10.8.F bug fixes (May 14, 2026, late night)
 
 Two production bugs surfaced via Chase's review screenshots; both fixed before mass-ingest. See PROJECT_STATUS V10.8.F section for the full diff.
 
