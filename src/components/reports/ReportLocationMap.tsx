@@ -272,12 +272,63 @@ export default function ReportLocationMap({
   }, [effectiveNearby, showPin])
 
   // ── Render container + region label overlay ────────────────
-  const wrapperStyle = className && /\bh-/.test(className) ? undefined : { height }
+  //
+  // V10.9.D.15 — Tailwind class collision fix.
+  //
+  // Parent on ReportPageV2 is `relative h-[22vh] ... max-h-[320px]`
+  // and passes `className="absolute inset-0 h-full"` here. If we
+  // ALSO put `relative` in our base classes, Tailwind's stylesheet
+  // emits `.relative` after `.absolute` (alphabetical ordering for
+  // position utilities) — same specificity means source order wins,
+  // so `position: relative` on the wrapper beats the user's
+  // `absolute`. With `position: relative`, `inset-0` is a no-op,
+  // the wrapper doesn't fill the parent, and the map container
+  // inside (anchored to it via `absolute inset-0`) collapses to
+  // the natural-flow box → narrow band.
+  //
+  // Fix: omit `relative` from the base class string and rely on
+  // inline `style` to set positioning + sizing. Inline styles
+  // cleanly beat Tailwind's utilities and we no longer need to
+  // care what the consumer passes via `className`.
+  //
+  // We honor the consumer's className for visual modifiers (height
+  // classes, background overrides, etc.) but layout is owned by
+  // inline style for predictability.
+  const consumerHasPositioning =
+    !!className && /\b(absolute|fixed|sticky|relative)\b/.test(className)
+  const consumerHasHeight = !!className && /\bh-/.test(className)
+
+  const wrapperStyle: React.CSSProperties = {}
+  if (consumerHasPositioning) {
+    // Consumer is positioning us — fill the positioned ancestor.
+    wrapperStyle.position = 'absolute'
+    wrapperStyle.inset = 0
+    if (!consumerHasHeight) wrapperStyle.height = '100%'
+  } else {
+    // Standalone usage — own our height, be a positioning context
+    // for the map canvas inside.
+    wrapperStyle.position = 'relative'
+    wrapperStyle.height = consumerHasHeight ? undefined : height
+  }
+  wrapperStyle.width = '100%'
+
+  // Strip layout-affecting classes the consumer passed so they don't
+  // re-introduce the collision (we own layout via wrapperStyle).
+  const consumerClass = (className || '')
+    .replace(/\b(absolute|fixed|sticky|relative)\b/g, '')
+    .replace(/\binset-0\b/g, '')
+    .replace(/\bw-full\b/g, '')
+    .trim()
+
+  const innerStyle: React.CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+  }
 
   if (!hasUsableCoords) {
     return (
       <div
-        className={'relative w-full bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 border-b border-gray-800 flex items-center justify-center ' + (className || '')}
+        className={'overflow-hidden bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 border-b border-gray-800 flex items-center justify-center ' + consumerClass}
         style={wrapperStyle}
       >
         <RegionBadge label={regionLabel || 'Location unknown'} />
@@ -288,10 +339,10 @@ export default function ReportLocationMap({
   if (!MAPTILER_KEY) {
     return (
       <div
-        className={'relative w-full overflow-hidden border-b border-gray-800 bg-gray-950 ' + (className || '')}
+        className={'overflow-hidden border-b border-gray-800 bg-gray-950 ' + consumerClass}
         style={wrapperStyle}
       >
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div style={innerStyle} className="flex items-center justify-center">
           <RegionBadge label={regionLabel || pinLabel || 'Location'} />
         </div>
       </div>
@@ -300,16 +351,18 @@ export default function ReportLocationMap({
 
   return (
     <div
-      className={'relative w-full overflow-hidden border-b border-gray-800 bg-gray-950 ' + (className || '')}
+      className={'overflow-hidden border-b border-gray-800 bg-gray-950 ' + consumerClass}
       style={wrapperStyle}
     >
-      <div ref={containerRef} className="absolute inset-0" />
+      <div ref={containerRef} style={innerStyle} />
 
       {/* Region label tag — top-left corner. Always rendered when we
           have a label, regardless of pin/halo behavior. Sits in a
           consistent position on every report page. */}
       {regionLabel && (
-        <div className="absolute top-3 left-3 z-10 pointer-events-none">
+        <div
+          style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, pointerEvents: 'none' }}
+        >
           <RegionBadge label={regionLabel} />
         </div>
       )}
@@ -317,8 +370,15 @@ export default function ReportLocationMap({
       {/* Bottom scrim for legibility */}
       <div
         aria-hidden
-        className="absolute inset-x-0 bottom-0 h-12 pointer-events-none"
-        style={{ background: 'linear-gradient(to top, rgba(10,10,20,0.85) 0%, transparent 100%)' }}
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 48,
+          pointerEvents: 'none',
+          background: 'linear-gradient(to top, rgba(10,10,20,0.85) 0%, transparent 100%)',
+        }}
       />
     </div>
   )
