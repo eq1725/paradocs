@@ -82,9 +82,23 @@ export default function MapBottomSheet({
   const [currentHeight, setCurrentHeight] = useState(SNAP_HEIGHTS.peek)
   const [isDragging, setIsDragging] = useState(false)
 
-  // Calculate full height
+  // V10.9.D.3 — Full-snap height per Chase's mobile review (preferred
+  // layout shows the drawer extending up behind the tabs with the
+  // drag chrome tucked away, slider at the top of visible content).
+  //
+  // Strategy: oversize the drawer so the drag zone (handle + stat
+  // line) sits behind the opaque tabs/header bar. The user-visible
+  // drawer fills from just-below-tabs to just-above-bottom-nav. The
+  // header chrome is intentionally hidden — the dismiss path comes
+  // from a floating X positioned in the visible area (added below)
+  // and the existing pull-down gesture.
+  //
+  // 0.95 * vh on a 866px viewport = ~822px tall, drawer top renders
+  // at ~y=-12 (slightly above viewport). Drag zone (~56px) hidden
+  // behind tabs. Visible drawer = wrapper height = ~647px of pure
+  // content. That matches screenshot 2 exactly.
   const fullHeight = typeof window !== 'undefined'
-    ? Math.round(window.innerHeight * 0.85)
+    ? Math.round(window.innerHeight * 0.95)
     : 600
 
   const getSnapHeight = useCallback(
@@ -272,6 +286,30 @@ export default function MapBottomSheet({
     window.addEventListener('mouseup', onMouseUp)
   }
 
+  // V10.9.D.3 — At 'full' snap, the drawer is sized to extend behind
+  // the tabs/header above the wrapper. The drag handle + stat line
+  // get tucked away (Chase's preferred layout). Below, the rendering
+  // accounts for this:
+  //   - Drag zone shrinks in 'full' state (just a bare handle, no
+  //     stat line). The stat info is redundant in 'full' state since
+  //     the user already sees the full filter UI.
+  //   - A FLOATING X button anchors to the wrapper's TOP RIGHT
+  //     (positioned absolute relative to the sheet but with a
+  //     calculated offset that puts it in the visible zone) so users
+  //     always have an obvious one-tap dismiss path even when the
+  //     drag handle is hidden behind the tabs.
+  //
+  // Calculation: when snap=full, the drawer top sits at
+  //   y = vh - 56 - 0.95*vh = vh*0.05 - 56 = ~-12 on a 866 viewport.
+  // The visible drawer starts at the wrapper top (~163 from viewport
+  // top). The X button needs to sit IN the visible zone, so we offset
+  // it from the drawer's top by (163 - drawerTop) = ~175px on a
+  // typical mobile viewport. Hardcoded 175 covers the typical
+  // safe-area + header + tabs budget. The button has top: 175 from
+  // the drawer top (which puts it just below the tabs in the visible
+  // area).
+  const isFull = snap === 'full'
+
   return (
     <div
       ref={sheetRef}
@@ -281,9 +319,28 @@ export default function MapBottomSheet({
         transition: isDragging ? 'none' : 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
       }}
     >
+      {/* V10.9.D.3 — Floating dismiss button. Positioned relative to
+          the sheet's top with an offset that puts it just below the
+          tabs in the visible viewport area. Always visible in 'full'
+          state regardless of where the drag zone has been pushed. */}
+      {isFull && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onSnapChange('peek')
+          }}
+          className="absolute right-3 z-50 flex items-center justify-center w-9 h-9 rounded-full bg-gray-800/95 hover:bg-gray-700 text-gray-200 hover:text-white shadow-xl transition-colors"
+          style={{ top: 175 }}
+          aria-label="Close panel"
+        >
+          <X size={18} />
+        </button>
+      )}
+
       {/* V10.9.C — drag handle made larger + obvious. Tap the handle
           to cycle peek → half → full → peek so users have a tap
-          alternative to dragging (esp. for full → peek dismiss). */}
+          alternative to dragging. */}
       <div
         ref={dragZoneRef}
         className="cursor-grab active:cursor-grabbing touch-none select-none relative"
@@ -293,9 +350,6 @@ export default function MapBottomSheet({
         <button
           type="button"
           onClick={(e) => {
-            // Tap cycles snaps so the user can always advance/dismiss
-            // without dragging. Stop propagation so the drag handler
-            // doesn't fire on tap.
             e.stopPropagation()
             if (snap === 'peek') onSnapChange('half')
             else if (snap === 'half') onSnapChange('full')
@@ -310,49 +364,52 @@ export default function MapBottomSheet({
           <span className="w-12 h-1.5 bg-gray-500 hover:bg-gray-400 rounded-full transition-colors" />
         </button>
 
-        {/* V10.9.C — full-state dismiss button. Always present at the
-            top-right when expanded so users have an obvious one-tap
-            exit, not just a drag-down. */}
-        {snap === 'full' && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onSnapChange('peek')
-            }}
-            className="absolute top-2 right-2 z-10 flex items-center justify-center w-8 h-8 rounded-full bg-gray-800/80 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
-            aria-label="Close panel"
-          >
-            <X size={16} />
-          </button>
+        {/* V10.9.D.3 — Stat line shown only in peek/half. In 'full'
+            state the line is hidden (it's redundant when the full
+            filter UI is on screen) AND the entire drag zone gets
+            tucked behind the tabs/header anyway. */}
+        {!isFull && (
+          <div className="flex items-center justify-between text-xs text-gray-400 pb-2 px-4">
+            <span>
+              {filteredCount.toLocaleString()} sighting{filteredCount !== 1 ? 's' : ''} mapped
+            </span>
+            {selectedReport && (
+              <button
+                onClick={() => onSnapChange('half')}
+                className="text-purple-400 font-medium"
+              >
+                View selected
+              </button>
+            )}
+            {!selectedReport && snap === 'peek' && (
+              <button
+                onClick={() => onSnapChange('half')}
+                className="text-purple-400 font-medium"
+              >
+                Explore
+              </button>
+            )}
+          </div>
         )}
-
-        {/* Stat line — part of the drag zone so the whole top is swipeable */}
-        <div className="flex items-center justify-between text-xs text-gray-400 pb-2 px-4">
-          <span>
-            {filteredCount.toLocaleString()} sighting{filteredCount !== 1 ? 's' : ''} mapped
-          </span>
-          {selectedReport && (
-            <button
-              onClick={() => onSnapChange('half')}
-              className="text-purple-400 font-medium"
-            >
-              View selected
-            </button>
-          )}
-          {!selectedReport && snap === 'peek' && (
-            <button
-              onClick={() => onSnapChange('half')}
-              className="text-purple-400 font-medium"
-            >
-              Explore
-            </button>
-          )}
-        </div>
       </div>
 
       {/* Content below drag zone */}
-      <div ref={contentRef} className="overflow-y-auto px-4" style={{ height: `calc(100% - 56px)` }}>
+      {/* V10.9.D.3 — content area sizing.
+          peek/half: height = drawer minus 56px drag zone. Standard.
+          full:     drawer extends ~165px above the wrapper (behind
+                    tabs). The content area needs top-padding so the
+                    first piece of content (slider) clears the tabs
+                    and starts at the visible-zone top, not behind
+                    the tabs. paddingTop ~165 matches the chrome
+                    above the wrapper (header + tabs + safe-area). */}
+      <div
+        ref={contentRef}
+        className="overflow-y-auto px-4"
+        style={{
+          height: isFull ? `calc(100% - 28px)` : `calc(100% - 56px)`,
+          paddingTop: isFull ? 165 : undefined,
+        }}
+      >
         {/* Half state: report card OR stats overview */}
         {snap !== 'peek' && selectedReport && (
           <div className="pb-4">
