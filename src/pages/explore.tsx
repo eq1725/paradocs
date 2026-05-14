@@ -430,7 +430,11 @@ function ExploreMapMode() {
   var choropleth = useChoroplethData(regionBuckets, choroplethActive)
 
   return (
-    <div className="fixed inset-0 bg-gray-950" style={{ top: 'calc(56px + 48px + env(safe-area-inset-top, 0px))' }}>
+    <div
+      data-map-fullscreen-target
+      className="fixed inset-0 bg-gray-950"
+      style={{ top: 'calc(56px + 48px + env(safe-area-inset-top, 0px))' }}
+    >
       {/* Map fills viewport below tabs */}
       <MapContainer
         features={features}
