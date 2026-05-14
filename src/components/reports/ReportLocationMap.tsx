@@ -282,8 +282,13 @@ export default function ReportLocationMap({
               <SyntheticHalo precision={precision} />
             </Marker>
           )}
+          {/* V10.9.D.12 — RegionBadge moved from absolute-centered to
+              top-left corner. Centered placement covered the
+              SyntheticHalo at the same centroid coords, hiding the
+              location marker. Top-left is out of the way and reads
+              as a "this is the region" tag. */}
           {!showPin && regionLabel && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="absolute top-3 left-3 pointer-events-none">
               <RegionBadge label={regionLabel} />
             </div>
           )}
