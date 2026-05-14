@@ -25,6 +25,11 @@ import {
   validateReportBeforeInsert,
   ValidationFlag,
 } from './utils/validate-report';
+import {
+  normalizeLocation,
+  maptilerGeocoder,
+  makeSupabaseGeocodeCache,
+} from './utils/normalize-location';
 
 // Phenomenon pattern matching for auto-identification during ingestion
 interface PhenomenonPattern {
@@ -778,6 +783,53 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
           const mergedMeta = Object.assign({}, report.metadata || {});
           if (report.location_precision) mergedMeta.location_precision = report.location_precision;
           if (Object.keys(mergedMeta).length > 0) insertData.metadata = mergedMeta;
+
+          // V10.8.C — normalize the row's location BEFORE validation.
+          // Folds country aliases (USA → United States), validates the
+          // state/province against the country's known subdivisions
+          // (US/CA/UK/AU first-class), and runs the geocoding ladder
+          // (exact lat/lng → MapTiler city geocode → state centroid →
+          // country centroid → unknown). Synthetic-coords flag is set
+          // when the lat/lng came from a centroid fallback. The legacy
+          // render-side COUNTRY_CENTROIDS fallback in ReportPageV2 can
+          // be removed in a follow-up cleanup commit because every row
+          // now has lat/lng filled at the DB level.
+          try {
+            const normalized = await normalizeLocation(
+              {
+                city: insertData.city || null,
+                state_province: insertData.state_province || null,
+                country: insertData.country || null,
+                country_code: insertData.country_code || null,
+                location_name: insertData.location_name || null,
+                latitude: insertData.latitude ?? null,
+                longitude: insertData.longitude ?? null,
+              },
+              {
+                geocoder: process.env.MAPTILER_API_KEY ? 'maptiler' : 'none',
+                geocodeFn: maptilerGeocoder,
+                cache: makeSupabaseGeocodeCache(supabase),
+              },
+            );
+            insertData.city = normalized.city;
+            insertData.state_province = normalized.state_province;
+            insertData.country = normalized.country;
+            insertData.country_code = normalized.country_code;
+            insertData.location_name = normalized.location_name;
+            insertData.latitude = normalized.latitude;
+            insertData.longitude = normalized.longitude;
+            insertData.coords_synthetic = normalized.coords_synthetic;
+            // Keep location_precision in metadata (legacy) AND surface
+            // it on the row's metadata for the map renderer. The
+            // normalizer's precision enum supersedes any precision
+            // value the adapter passed in.
+            insertData.metadata = Object.assign({}, insertData.metadata || {}, {
+              location_precision: normalized.location_precision,
+            });
+          } catch (normErr) {
+            // Normalization failure must never block ingestion.
+            console.log('[Ingestion] normalizeLocation failed (non-fatal):', normErr);
+          }
 
           // V10.8.D — final validation gate before INSERT. Errors flip
           // the row to status='quarantine' (still inserted so it can be

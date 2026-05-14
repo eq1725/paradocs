@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** May 14, 2026 (V10.8.D validation gates + ingestion_audit shipped)
+**Last updated:** May 14, 2026 (V10.8.C location normalizer + geocode_cache shipped)
 **Project:** discoverparadocs.com (production); beta.discoverparadocs.com (beta)
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -60,9 +60,37 @@ Tests: `scripts/test-validate-report.ts` — 26 table-driven fixtures covering e
 
 **Action needed from Chase before deploy:** Apply `supabase/migrations/20260514_v10_8_d_ingestion_audit.sql` to project `bhkbctdmwnowfmqpksed` via the dashboard SQL editor. The migration is idempotent (`ADD VALUE IF NOT EXISTS` for the enum, `CREATE TABLE IF NOT EXISTS` for the audit table).
 
-### V10.8.D onward — REMAINING
-- **C** — Location normalizer + 250-country centroid JSON + state-centroid JSON + `geocode_cache` table migration + MapTiler integration + `coords_synthetic` column. ~1 session. Will eliminate `LOC_COUNTRY_NO_COORDS` warnings by always filling centroid coords.
-- **E** — Haiku-assisted date fallback when extractDate returns `precision='year'` but source contains month names. ~$0.001/call. ~0.5 session.
+### V10.8.C — Unified location normalizer (SHIPPED, May 14, 2026)
+`src/lib/ingestion/utils/normalize-location.ts` exports `normalizeLocation(raw, options)` — async cascading pipeline that runs on every report immediately before validation:
+
+1. **Country alias folding** — `country-centroids.json` ships ~210 ISO 3166-1 alpha-2 entries (Natural Earth admin0 source). Aliases include the variants we've seen in ingested data: `USA`, `U.S.A.`, `America`, `Britain`, `UK`, `Holland`, `Czechia`, `Burma`, `Macedonia`, etc. Resolves to canonical name + `country_code`.
+2. **State/province validation** — `state-centroids.json` covers US states (50 + DC), Canadian provinces (10 + 3 territories), UK home nations (4), Australian states/territories (8). Mismatched state/country combos preserve the raw state string so `validateReportBeforeInsert` can still emit `LOC_STATE_COUNTRY_MISMATCH`, but the centroid fallback ignores the bad state and falls through to country-level.
+3. **Geocoding ladder** — `exact lat/lng → MapTiler city geocode → state centroid → country centroid → unknown`. `coords_synthetic=true` on the row whenever lat/lng came from a centroid fallback.
+4. **Range/sanity gates** — coords outside ±90/±180 are dropped and the row falls back through the ladder. `(0,0)` without country is treated as a parsing-bug signal and nulls both coords.
+
+MapTiler integration:
+- `maptilerGeocoder` reads `MAPTILER_API_KEY` from env. Returns `null` on failure (caller falls through to centroids).
+- Cache: `geocode_cache` table keyed by lowercased `city|state|country` tuple. `makeSupabaseGeocodeCache(supabase)` wraps it as the `GeocodeCacheLike` interface. Best-effort: any DB error swallowed.
+- Cost: free with Chase's MapTiler flex plan. Expected ~70% cache hit during mass-ingest of 1M reports.
+
+Engine hook:
+- `normalizeLocation` runs in the INSERT branch immediately before `validateReportBeforeInsert`. Output overwrites the `insertData` location fields (`city`, `state_province`, `country`, `country_code`, `location_name`, `latitude`, `longitude`) plus the new `coords_synthetic` column. `location_precision` goes into `metadata` for the map renderer (legacy storage location).
+- Non-fatal: any normalization failure logs and continues with the adapter-supplied values.
+
+Migration:
+- `supabase/migrations/20260514_v10_8_c_geocode_cache.sql` — creates `geocode_cache(query PK, lat, lng, accuracy, geocoded_at)` with descending `geocoded_at` index, adds `reports.coords_synthetic BOOLEAN NOT NULL DEFAULT FALSE`, adds `reports.country_code TEXT` with partial index for non-null values. Fully idempotent.
+
+Render-side cleanup:
+- The V10.7.I `COUNTRY_CENTROIDS` table in `ReportPageV2` has been deleted (28 hand-curated countries no longer needed). `mapCoords` now reads `report.latitude`/`report.longitude` + `report.coords_synthetic` directly. When `coords_synthetic=true`, the map zooms to country-scale and uses fuzzy-marker styling so a centroid pin isn't mistaken for a real address.
+
+Tests: `scripts/test-normalize-location.ts` — 22 fixtures covering country alias folding, state-country validation, the four-rung geocoding ladder (with mock MapTiler), and range/sanity gates including the cache-hit short-circuit path. All passing. Pipeline test coverage now 107 green fixtures (43 + 16 + 26 + 22).
+
+**Action needed from Chase before deploy:**
+- Apply `supabase/migrations/20260514_v10_8_c_geocode_cache.sql` to project `bhkbctdmwnowfmqpksed`.
+- Add `MAPTILER_API_KEY` to Vercel env vars (uses your MapTiler flex plan). Without it, the engine gracefully degrades to centroid-only geocoding — `LOC_COUNTRY_NO_COORDS` warnings will drop to near-zero either way, but city-precision pins for new ingest rows depend on the key being present.
+
+### V10.8.C onward — REMAINING
+- **E** — Haiku-assisted date fallback when extractDate returns `precision='year'` but source contains month names. ~$0.001/call. ~0.5 session. Final piece of the V10.8 series.
 
 ### Migration status (V10.8.B.1 + B.2)
 The `20260514_v10_8_b_date_extraction_audit.sql` migration (adds `event_date_extracted_from` + `source_published_at` columns) was applied during V10.8.B.1 setup. The new `20260514_v10_8_b_2_news_pubdate_backfill.sql` migration ships with V10.8.B.2 and needs to run once against the live DB to move the ~15 existing news rows over to the new pub-date / event-date split. Both migrations are idempotent. Project pattern: paste SQL into the Supabase dashboard SQL editor for project `bhkbctdmwnowfmqpksed`.

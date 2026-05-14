@@ -1,11 +1,44 @@
 # Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** May 14, 2026 (V10.8.D validation gates + ingestion_audit shipped)
+**Last updated:** May 14, 2026 (V10.8.C location normalizer shipped)
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
 
 ---
 
-## Most Recent Session — V10.8.D validation + audit (May 14, 2026, evening)
+## Most Recent Session — V10.8.C location normalizer (May 14, 2026, late evening)
+
+**Shipped end-to-end:**
+- `src/lib/ingestion/utils/normalize-location.ts` — `normalizeLocation(raw, options)`. Cascading pipeline: country alias folding → state validation → geocoding ladder (exact → MapTiler → state centroid → country centroid → unknown) → range/sanity gates. Sets `coords_synthetic=true` whenever coords came from a centroid fallback.
+- `src/lib/ingestion/utils/country-centroids.json` — ~210 ISO 3166-1 alpha-2 entries from Natural Earth admin0, with aliases (USA/U.S.A./America/Britain/UK/Holland/Czechia/Burma/Macedonia/...). Top-30 entries hand-tweaked for legibility (UK uses England-center not Irish Sea).
+- `src/lib/ingestion/utils/state-centroids.json` — US states (50 + DC), CA provinces (10 + 3 territories), UK home nations (4), AU states/territories (8). Includes both abbreviation and full name as lookup keys.
+- `supabase/migrations/20260514_v10_8_c_geocode_cache.sql` — `geocode_cache` table (key=`city|state|country`), `reports.coords_synthetic BOOLEAN`, `reports.country_code TEXT` with partial index. Idempotent.
+- `src/lib/ingestion/engine.ts` — normalizeLocation hooked in the INSERT branch immediately before `validateReportBeforeInsert`. Output overwrites `insertData` location fields. MapTiler used when `MAPTILER_API_KEY` is set; falls through to centroids otherwise. `makeSupabaseGeocodeCache` wires the cache to the `geocode_cache` table.
+- `src/components/reports/ReportPageV2.tsx` — V10.7.I render-side `COUNTRY_CENTROIDS` table deleted (28 hand-curated countries → 0 needed). `mapCoords` reads `coords_synthetic` from the DB directly to drive the fuzzy-marker styling.
+- `scripts/test-normalize-location.ts` — 22 fixtures: country alias folding, state-country validation, the four-rung ladder (mocked MapTiler), range/sanity gates, cache-hit short-circuit.
+
+**Tests green (107 total):**
+- extract-date.ts: 43/43
+- test-v10-8-b2-adapters.ts: 16/16
+- test-validate-report.ts: 26/26
+- test-normalize-location.ts: 22/22
+
+**Last commit on main:** TBD (this session's V10.8.C push)
+
+**Action needed from Chase before deploy:**
+- Apply `supabase/migrations/20260514_v10_8_c_geocode_cache.sql` to project `bhkbctdmwnowfmqpksed`.
+- Add `MAPTILER_API_KEY` to Vercel env vars (your MapTiler flex plan). Without it the engine falls through to centroid-only — every row still has lat/lng, but new ingestion won't get city-precision pins until the key is wired.
+
+**Next session pickup:**
+- V10.8.E — Haiku-assisted date fallback. Run when `extractDate` returns `precision='year'` but the source contains visible month names. Validates the LLM's output appears verbatim in the source (claim-check style) before storing. `event_date_extracted_from='haiku'`. ~$0.001/call. Final piece of the V10.8 series.
+
+**Gotchas / known issues:**
+- The state-centroids table is intentionally first-class only for US/CA/UK/AU. Mexico, Brazil, India, China, etc. — common ingestion sources — currently fall through from state-level to country-centroid. If `LOC_COUNTRY_NO_COORDS` warnings spike for a specific country during mass-ingest, expanding the state table is the right next move. (Or: trust MapTiler to handle the long tail given a city+state query.)
+- The UPDATE branch in `engine.ts` does NOT call `normalizeLocation` — only the INSERT branch. Re-ingestion of existing rows preserves the adapter-supplied location values. Backfilling the existing ~109 reports to fold country aliases and fill `coords_synthetic` is a one-time admin task (not done as part of V10.8.C — Chase explicitly approved "ready the pipeline, don't QA current rows").
+- Two pre-existing tsc errors in `engine.ts` (line 871: `titleResult` out-of-scope; line 1180: `rejectedDetails`). Both unchanged from V10.8.D. Next.js / SWC tolerates them.
+
+---
+
+## Earlier Session — V10.8.D validation + audit (May 14, 2026, evening)
 
 **Shipped end-to-end:**
 - `src/lib/ingestion/utils/validate-report.ts` — `validateReportBeforeInsert` with 4 error codes + 11 warning codes. State-country membership table covers US/CA/UK/AU.
