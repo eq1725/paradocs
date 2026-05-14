@@ -1,11 +1,39 @@
 # Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** May 14, 2026 (V10.9.C — explore-map polish: position + dismiss + footer)
+**Last updated:** May 14, 2026 (V10.9.D — Region Totals icon+popover + mobile double-padding fix)
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
 
 ---
 
-## Most Recent Session — V10.9.C explore-map polish (May 14, 2026, late night)
+## Most Recent Session — V10.9.D RegionTotals redesign + mobile spacing (May 14, 2026, late night)
+
+Two QA items after V10.9.C deployed.
+
+**1. Desktop: Region Totals box reads as clunky chrome.**
+SME panel converged on demoting from always-visible chrome to a secondary tool — same visual language as the existing right-rail control stack.
+
+- New trigger: 40×40 round button positioned above the MapControls stack at `lg:bottom-[200px] lg:right-4`. Pin icon, brand-purple count badge ("57"). Reads the badge value at a glance without opening anything.
+- Click trigger → popover slides out leftward (anchored `right-12 bottom-0`), 288px wide, brand-styled (dark + purple). Same list + footer copy as before.
+- Three close paths: outside-click, ESC, explicit X in the popover header.
+- Hidden entirely when `total === 0` (no chrome when no data).
+- Mobile unaffected — V10.9.C's bottom-sheet section is still the mobile path.
+
+**2. Mobile: huge gap between Paradocs wordmark and Map/Browse/Search tabs.**
+Bug: explore.tsx tabs container had `safe-area-pt` ON map mode, but `<main>` already includes `safe-area-inset-top` via the `main-content-pt` class. Double padding on iPhones with Dynamic Island added ~60px below the header that shouldn't be there.
+
+Fix: removed the `safe-area-pt` conditional. The `sticky-below-header` class on the tabs already correctly handles the safe-area inset for the sticky `top` value, and the parent `main-content-pt` handles the initial offset. Single source of truth.
+
+**Files changed:**
+- `src/components/map/RegionTotalsPanel.tsx` — complete rewrite as icon trigger + popover
+- `src/pages/explore.tsx` — removed double safe-area padding on tabs container
+
+**Last commit on main:** TBD (V10.9.D push)
+
+**No action needed from Chase** — code-only.
+
+---
+
+## Earlier Session — V10.9.C explore-map polish (May 14, 2026, late night)
 
 Four UI/UX issues Chase flagged after V10.9.B deployed. All fixed in a single polish pass.
 

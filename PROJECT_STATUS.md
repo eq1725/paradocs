@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** May 14, 2026 (V10.9.C — explore-map UI polish)
+**Last updated:** May 14, 2026 (V10.9.D — RegionTotals icon+popover, mobile spacing)
 **Project:** discoverparadocs.com (production); beta.discoverparadocs.com (beta)
 **Repo:** github.com/eq1725/paradocs (main branch)
 

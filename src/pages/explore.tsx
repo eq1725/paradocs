@@ -268,9 +268,16 @@ export default function ExplorePage() {
       </Head>
 
       {/* ─── Mode Tabs (always visible at top) ─── */}
+      {/* V10.9.D — removed the `safe-area-pt` modifier on map mode.
+          It was double-counting the iOS safe-area inset: <main> already
+          has main-content-pt which equals 3.5rem + safe-area-inset-top,
+          and `sticky-below-header` here uses the same offset for its
+          sticky `top` value. Adding `safe-area-pt` on top of that
+          pushed the tabs ~60px below where they should sit, leaving
+          the huge gap between the wordmark and the tabs on iPhones
+          with a Dynamic Island. */}
       <div className={classNames(
-        'sticky-below-header bg-gray-950/95 backdrop-blur-lg border-b border-white/5',
-        mode === 'map' ? 'safe-area-pt' : ''
+        'sticky-below-header bg-gray-950/95 backdrop-blur-lg border-b border-white/5'
       )}>
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center gap-1 py-2">
