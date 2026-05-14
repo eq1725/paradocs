@@ -37,6 +37,7 @@ export const VALIDATION_CODES = {
   LOC_COORDS_NO_COUNTRY: 'lat/lng present but country null — reverse-geocode or flag',
   LOC_COORDS_ORIGIN: 'lat/lng at (0, 0) — almost always a parsing bug',
   LOC_STATE_COUNTRY_MISMATCH: 'state does not belong to the declared country',
+  LOC_GEOCODE_REJECTED: 'city + state + country were all set but coords are still synthetic — geocode failed (likely MapTiler 403 / domain-restricted key); operator should re-run backfill',
   TEXT_TITLE_GENERIC: 'title equals original_title or matches Other/Untitled/Unknown',
   TEXT_NARRATIVE_EMPTY: 'paradocs_narrative is null but source description exceeds 100 words',
   WITNESS_PROFILE_MISSING: 'witness_profile is null — profile service did not fire',
@@ -84,6 +85,8 @@ export interface ValidatableReport {
   city?: string | null
   latitude?: number | null
   longitude?: number | null
+  /** True when coords came from a centroid fallback rather than a precise geocode (V10.8.C). */
+  coords_synthetic?: boolean | null
 
   event_date?: string | null
   event_date_precision?: string | null
@@ -309,6 +312,42 @@ export function validateReportBeforeInsert(report: ValidatableReport): Validatio
       field: 'country',
       severity: 'warning',
       payload: { latitude: report.latitude, longitude: report.longitude },
+    })
+  }
+
+  // LOC_GEOCODE_REJECTED — V10.8.C.1. When city + state + country
+  // are ALL set on the row but coords_synthetic is true, the city
+  // geocode silently failed and we fell back to a centroid. Almost
+  // always means MapTiler returned 403 (domain-restricted key) or
+  // both MapTiler + Nominatim were down. The row still inserts (the
+  // centroid is a usable fallback) but the audit log captures the
+  // failure so an operator can re-run backfill once the geocoder
+  // is restored. Without this flag the bug hides — the row looks
+  // structurally fine and only manifests as "the dot is in the wrong
+  // place" when a human opens the report page.
+  if (
+    !!report.city &&
+    String(report.city).trim() !== '' &&
+    !!report.state_province &&
+    String(report.state_province).trim() !== '' &&
+    !!report.country &&
+    String(report.country).trim() !== '' &&
+    report.coords_synthetic === true
+  ) {
+    warnings.push({
+      code: 'LOC_GEOCODE_REJECTED',
+      message:
+        VALIDATION_CODES.LOC_GEOCODE_REJECTED +
+        ': "' + report.city + ', ' + report.state_province + ', ' + report.country + '"',
+      field: 'city,state_province,country',
+      severity: 'warning',
+      payload: {
+        city: report.city,
+        state_province: report.state_province,
+        country: report.country,
+        latitude: report.latitude ?? null,
+        longitude: report.longitude ?? null,
+      },
     })
   }
 

@@ -329,19 +329,28 @@ export async function normalizeLocation(
 // ── MapTiler geocoder ─────────────────────────────────────────────
 
 /**
- * Default MapTiler-backed geocoder. Requires MAPTILER_API_KEY env.
- * Returns null on any non-200 response or empty result — callers
- * should fall through to centroid logic.
+ * Raw MapTiler-only geocoder. Used internally by `geocodeWithFallback`
+ * and exported for tests / scripts that want to call it directly.
+ *
+ * Requires MAPTILER_API_KEY (or NEXT_PUBLIC_MAPTILER_KEY) env. Returns
+ * null on any non-200 response or empty result — callers should fall
+ * through to the next geocoder in the chain.
+ *
+ * NB: NEXT_PUBLIC_MAPTILER_KEY is the same key used for browser map
+ * tiles. If that key has Allowed-Origins / Allowed-Referrer
+ * restrictions configured at MapTiler Cloud, server-side calls from
+ * Vercel functions WILL be rejected with HTTP 403 "Key usage
+ * restricted" — that's exactly the failure mode that left the NOLA
+ * report on the Louisiana centroid before V10.8.C.1. To detect this
+ * silently-degraded case, we emit a console warning when the response
+ * is non-200 so it shows up in Vercel function logs and the
+ * `geocodeWithFallback` chain knows to drop to Nominatim.
  *
  * Endpoint: https://api.maptiler.com/geocoding/{query}.json?key=...
  * We request limit=1 and bias by country when available.
  */
 export const maptilerGeocoder: MapTilerGeocodeFn = async function (query, countryCode) {
-  // Read NEXT_PUBLIC_MAPTILER_KEY first (the project already wires this
-  // for client-side map tiles — same key works server-side for
-  // geocoding). MAPTILER_API_KEY is supported as a fallback if a
-  // future deploy wants a separate server-only key.
-  const apiKey = process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.MAPTILER_API_KEY
+  const apiKey = process.env.MAPTILER_API_KEY || process.env.NEXT_PUBLIC_MAPTILER_KEY
   if (!apiKey) return null
   const url = new URL('https://api.maptiler.com/geocoding/' + encodeURIComponent(query) + '.json')
   url.searchParams.set('key', apiKey)
@@ -351,10 +360,24 @@ export const maptilerGeocoder: MapTilerGeocodeFn = async function (query, countr
   let resp: Response
   try {
     resp = await fetch(url.toString())
-  } catch (e) {
+  } catch (e: any) {
+    console.warn('[geocode] MapTiler fetch threw:', e?.message || String(e))
     return null
   }
-  if (!resp.ok) return null
+  if (!resp.ok) {
+    // Surface domain-restriction / rate-limit failures so the caller
+    // chain knows to drop to Nominatim and so the operator sees the
+    // root cause in logs. Read a small body slice for forensics.
+    let bodyHint = ''
+    try {
+      bodyHint = (await resp.text()).slice(0, 120)
+    } catch (_e) { /* ignore */ }
+    console.warn(
+      '[geocode] MapTiler ' + resp.status + ' for "' + query + '"' +
+      (bodyHint ? ' — ' + bodyHint : ''),
+    )
+    return null
+  }
   const data: any = await resp.json().catch(() => null)
   if (!data || !Array.isArray(data.features) || data.features.length === 0) return null
 
@@ -376,6 +399,96 @@ export const maptilerGeocoder: MapTilerGeocodeFn = async function (query, countr
   else if (placeType.includes('country')) accuracy = 'country'
 
   return { lat, lng, accuracy }
+}
+
+// ── Nominatim (OpenStreetMap) geocoder ────────────────────────────
+
+/**
+ * V10.8.C.1 — Nominatim-backed geocoder used as a fallback when
+ * MapTiler is unavailable, rate-limited, or rejects the request
+ * (e.g. domain-restricted browser key called from a server context).
+ *
+ * Nominatim is free + no API key, but the OSM Operations team asks
+ * politely for a few constraints:
+ *   - 1 req/sec rate limit (we don't enforce here — caller paces)
+ *   - Identifying User-Agent (no default, must include contact)
+ *   - Don't hammer for bulk geocoding without operator permission
+ *
+ * The PARADOCS_NOMINATIM_USER_AGENT env is honored if set; otherwise
+ * we fall back to a polite default. In production the env should be
+ * set to "Paradocs/1.0 (https://discoverparadocs.com)".
+ *
+ * Endpoint: https://nominatim.openstreetmap.org/search
+ *
+ * Returns null on any non-200 response or empty result, exactly like
+ * `maptilerGeocoder`, so the two are interchangeable in the chain.
+ */
+export const nominatimGeocoder: MapTilerGeocodeFn = async function (query, countryCode) {
+  const ua =
+    process.env.PARADOCS_NOMINATIM_USER_AGENT ||
+    'Paradocs/1.0 (https://discoverparadocs.com; admin@discoverparadocs.com)'
+
+  const url = new URL('https://nominatim.openstreetmap.org/search')
+  url.searchParams.set('q', query)
+  url.searchParams.set('format', 'json')
+  url.searchParams.set('limit', '1')
+  url.searchParams.set('addressdetails', '1')
+  if (countryCode) url.searchParams.set('countrycodes', countryCode.toLowerCase())
+
+  let resp: Response
+  try {
+    resp = await fetch(url.toString(), { headers: { 'User-Agent': ua, Accept: 'application/json' } })
+  } catch (e: any) {
+    console.warn('[geocode] Nominatim fetch threw:', e?.message || String(e))
+    return null
+  }
+  if (!resp.ok) {
+    let bodyHint = ''
+    try { bodyHint = (await resp.text()).slice(0, 120) } catch (_e) { /* ignore */ }
+    console.warn(
+      '[geocode] Nominatim ' + resp.status + ' for "' + query + '"' +
+      (bodyHint ? ' — ' + bodyHint : ''),
+    )
+    return null
+  }
+  const data: any = await resp.json().catch(() => null)
+  if (!Array.isArray(data) || data.length === 0) return null
+
+  const feat = data[0]
+  const lat = Number(feat.lat)
+  const lng = Number(feat.lon)
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+
+  // Translate Nominatim's `addresstype`/`class`/`type` to our accuracy enum.
+  // city/town/village/hamlet → locality; suburb/neighbourhood → locality;
+  // road/street → street; building/house → address; state/region → region.
+  const at = String(feat.addresstype || feat.type || '').toLowerCase()
+  let accuracy: GeocodeAccuracy = 'locality'
+  if (at === 'house' || at === 'building' || at === 'address') accuracy = 'address'
+  else if (at === 'road' || at === 'street') accuracy = 'street'
+  else if (at === 'city' || at === 'town' || at === 'village' || at === 'hamlet' || at === 'suburb' || at === 'neighbourhood' || at === 'locality' || at === 'municipality') accuracy = 'locality'
+  else if (at === 'state' || at === 'region' || at === 'province') accuracy = 'region'
+  else if (at === 'country') accuracy = 'country'
+
+  return { lat, lng, accuracy }
+}
+
+// ── Default chained geocoder (MapTiler → Nominatim) ───────────────
+
+/**
+ * V10.8.C.1 — chained geocoder used by the engine + backfill. Tries
+ * MapTiler first (fast, high-quality, but may be domain-restricted)
+ * then falls back to Nominatim (free, slower, but works from any
+ * origin). Returns the first non-null result.
+ *
+ * This is what the engine should pass as `geocodeFn` so we never
+ * silently degrade to a state centroid just because the MapTiler key
+ * happens to be browser-restricted.
+ */
+export const geocodeWithFallback: MapTilerGeocodeFn = async function (query, countryCode) {
+  const mapTilerResult = await maptilerGeocoder(query, countryCode)
+  if (mapTilerResult) return mapTilerResult
+  return nominatimGeocoder(query, countryCode)
 }
 
 // ── Supabase-backed geocode cache ─────────────────────────────────

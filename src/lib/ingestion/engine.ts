@@ -27,7 +27,7 @@ import {
 } from './utils/validate-report';
 import {
   normalizeLocation,
-  maptilerGeocoder,
+  geocodeWithFallback,
   makeSupabaseGeocodeCache,
 } from './utils/normalize-location';
 import { escalateDateWithHaiku } from './utils/escalate-date-haiku';
@@ -839,11 +839,15 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
                 longitude: insertData.longitude ?? null,
               },
               {
-                // NEXT_PUBLIC_MAPTILER_KEY is the existing key already
-                // wired for the client-side map tiles. MAPTILER_API_KEY
-                // is supported as a server-only fallback.
-                geocoder: (process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.MAPTILER_API_KEY) ? 'maptiler' : 'none',
-                geocodeFn: maptilerGeocoder,
+                // V10.8.C.1 — always run the chained geocoder. It uses
+                // MapTiler first (when a key is set) and falls back to
+                // Nominatim (free, no key) if MapTiler is missing or
+                // returns 403/empty. This makes city geocoding airtight
+                // even if the MapTiler key is browser-domain-restricted
+                // and rejects server-side calls (the prior bug that left
+                // NOLA on the Louisiana state centroid).
+                geocoder: 'maptiler',
+                geocodeFn: geocodeWithFallback,
                 cache: makeSupabaseGeocodeCache(supabase),
               },
             );

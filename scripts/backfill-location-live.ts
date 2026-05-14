@@ -20,7 +20,7 @@
 import { createClient } from '@supabase/supabase-js'
 import {
   normalizeLocation,
-  maptilerGeocoder,
+  geocodeWithFallback,
   makeSupabaseGeocodeCache,
 } from '../src/lib/ingestion/utils/normalize-location'
 
@@ -38,16 +38,20 @@ async function main() {
   const limit = parseInt(process.env.LIMIT || '500', 10)
   const slug = process.env.SLUG || null
 
-  const hasMaptiler = !!(process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.MAPTILER_API_KEY)
-  const geocoder = hasMaptiler ? maptilerGeocoder : undefined
+  // V10.8.C.1 — always use the chained geocoder. It picks MapTiler
+  // when a key is set and falls back to Nominatim (free, no key) on
+  // any failure. So the script works even on a fresh checkout with
+  // no MAPTILER_API_KEY in env.
   const cache = makeSupabaseGeocodeCache(supabase)
+  const hasMaptiler = !!(process.env.MAPTILER_API_KEY || process.env.NEXT_PUBLIC_MAPTILER_KEY)
 
   console.log('Config:')
   console.log('  dry_run:', dryRun)
   console.log('  force:', force)
   console.log('  limit:', limit)
   console.log('  slug:', slug || '(all)')
-  console.log('  geocoder:', hasMaptiler ? 'maptiler' : 'centroid-only')
+  console.log('  geocoder: maptiler->nominatim (fallback chain)')
+  console.log('  maptiler_key_present:', hasMaptiler)
   console.log('')
 
   let q = (supabase.from('reports') as any)
@@ -84,6 +88,15 @@ async function main() {
         coords_synthetic: r.coords_synthetic,
       }
 
+      // V10.8.C.1 — when re-running the backfill we want the geocoder
+      // to fire even on rows that already have lat/lng (because those
+      // existing coords might be a stale state-centroid we want to
+      // upgrade to a real city geocode). Wipe lat/lng before we feed
+      // the row to normalizeLocation so it skips the "exact" branch
+      // and re-enters the geocoding ladder. Only do this when the
+      // current coords are flagged synthetic — precise lat/lng from
+      // an adapter must be preserved.
+      const stripExisting = r.coords_synthetic === true
       const normalized = await normalizeLocation(
         {
           city: r.city || null,
@@ -91,12 +104,12 @@ async function main() {
           country: r.country || null,
           country_code: r.country_code || null,
           location_name: r.location_name || null,
-          latitude: r.latitude ?? null,
-          longitude: r.longitude ?? null,
+          latitude: stripExisting ? null : (r.latitude ?? null),
+          longitude: stripExisting ? null : (r.longitude ?? null),
         },
         {
-          geocoder: geocoder ? 'maptiler' : 'none',
-          geocodeFn: geocoder,
+          geocoder: 'maptiler',
+          geocodeFn: geocodeWithFallback,
           cache,
         },
       )
