@@ -35,19 +35,17 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
-import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { MapPin } from 'lucide-react'
 import { getSyntheticFitZoom } from '@/lib/ingestion/utils/location-zoom'
 
-const Map = dynamic(
-  () => import('react-map-gl/maplibre').then(mod => mod.default || (mod as any).Map || mod),
-  { ssr: false },
-) as any
-const Marker = dynamic(
-  () => import('react-map-gl/maplibre').then(mod => (mod as any).Marker),
-  { ssr: false },
-) as any
+// V10.9.D.10 — switched from dynamic import (which silently failed
+// to load Marker) to static import. SSR safety is now handled by the
+// parent (ReportPageV2 wraps this component with next/dynamic +
+// ssr:false). Statically importing Map AND Marker together
+// guarantees they share the same module context, so Marker registers
+// correctly with Map's provider.
+import MapGL, { Marker } from 'react-map-gl/maplibre'
 
 const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY || ''
 const MAP_STYLE = MAPTILER_KEY
@@ -239,7 +237,7 @@ export default function ReportLocationMap({
           <RegionBadge label={regionLabel || pinLabel || 'Location'} />
         </div>
       ) : (
-        <Map
+        <MapGL
           initialViewState={initialViewState}
           mapStyle={MAP_STYLE}
           style={{ width: '100%', height: '100%' }}
@@ -289,7 +287,7 @@ export default function ReportLocationMap({
               <RegionBadge label={regionLabel} />
             </div>
           )}
-        </Map>
+        </MapGL>
       )}
 
       {/* Bottom scrim for legibility */}

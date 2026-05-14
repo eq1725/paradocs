@@ -35,7 +35,14 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { ArrowLeft, Bookmark, BookmarkCheck, Share2, Loader2, TrendingUp, FileText, CalendarClock, Heart, User, BookOpen } from 'lucide-react'
 
-import ReportLocationMap, { type LocationPrecision } from './ReportLocationMap'
+// V10.9.D.10 — ReportLocationMap uses static imports of react-map-gl
+// (which require window). Wrap with dynamic + ssr:false here so the
+// SSR-safe boundary lives at the parent level. Marker now reliably
+// renders alongside Map (the previous dynamic-Marker pattern was
+// silently dropping the Marker registration).
+import dynamic from 'next/dynamic'
+import { type LocationPrecision } from './ReportLocationMap'
+const ReportLocationMap = dynamic(() => import('./ReportLocationMap'), { ssr: false })
 import ReportMeta from './ReportMeta'
 import ReportEngagementStrip from './ReportEngagementStrip'
 import ReportPullQuote from './ReportPullQuote'
