@@ -1,11 +1,36 @@
 # Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** May 14, 2026 (V10.8 series COMPLETE — Haiku date escalation shipped)
+**Last updated:** May 14, 2026 (V10.8.F — pre-mass-ingest bug fixes)
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
 
 ---
 
-## Most Recent Session — V10.8.E Haiku date escalation (May 14, 2026, late night)
+## Most Recent Session — V10.8.F bug fixes (May 14, 2026, late night)
+
+Two production bugs surfaced via Chase's review screenshots; both fixed before mass-ingest. See PROJECT_STATUS V10.8.F section for the full diff.
+
+**Shipped end-to-end:**
+- `src/pages/api/admin/backfill-location.ts` — admin endpoint that walks `reports` and re-runs `normalizeLocation` against every row. Idempotent. Supports `slug`, `force`, `dryRun`, `limit`. Auth: admin/ADMIN_API_KEY/CRON_SECRET.
+- `scripts/backfill-location-live.ts` — local driver script that runs the same logic against the live DB via the service role key. Used for the V10.8.F backfill of the 107 existing rows.
+- `src/pages/api/og/report/[slug].tsx` — title-meta collision fix. Title cap 120→90, fonts 46/56/68→42/50/64, lineHeight 1.0→1.1, marginBottom 18→24, NEW explicit minHeight on title block (worst-case 2-line reservation).
+
+**Backfill results against live DB:**
+- 97/107 rows updated, 10 skipped (no location data), 0 failures
+- NOLA report verified: `country_code='US'`, lat/lng=(30.9843, -91.9623) = Louisiana state centroid, `coords_synthetic=true` → pin now renders in middle of Louisiana, not middle of US
+- 40 BFRO/NUFORC rows preserved their precise GPS, got `country_code` added
+- MapTiler key has referer restrictions so backfill ran centroid-only; mass-ingest would benefit from a separate server-side key (`MAPTILER_API_KEY` env var)
+
+**Last commit on main:** TBD (this session's V10.8.F push)
+
+**Action needed from Chase:**
+- (Optional) Add a server-side `MAPTILER_API_KEY` env var to Vercel without referer/domain restrictions. Without it, mass-ingest of new city+state reports falls through to state-centroid precision instead of city-precision. Acceptable but suboptimal.
+
+**Next session pickup:**
+- V10.8 series + bug fixes are all complete. Pipeline is ready for mass ingest.
+
+---
+
+## Earlier Session — V10.8.E Haiku date escalation (May 14, 2026, late night)
 
 **Shipped end-to-end:**
 - `src/lib/ingestion/utils/escalate-date-haiku.ts` — `escalateDateWithHaiku(prose, current, options)`. Pre-flight gate (precision='year' AND month name visible AND prose ≥ 200 chars) → Haiku call (claude-haiku-4-5-20251001, temperature 0, max 250 tokens) → claim-check (every quote must appear verbatim in source) → date validation → upgrade with `source='haiku'`. Injectable `haikuFn` for tests.

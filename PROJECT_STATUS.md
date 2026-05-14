@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** May 14, 2026 (V10.8 series COMPLETE — Haiku date escalation shipped)
+**Last updated:** May 14, 2026 (V10.8.F — pre-mass-ingest bug fixes: location backfill + OG card collision)
 **Project:** discoverparadocs.com (production); beta.discoverparadocs.com (beta)
 **Repo:** github.com/eq1725/paradocs (main branch)
 
@@ -113,6 +113,32 @@ Tests: `scripts/test-escalate-date-haiku.ts` — 12 fixtures using injected mock
 - `test-escalate-date-haiku.ts` (12)
 
 No new schema, no migration, no new env vars — `ANTHROPIC_API_KEY` is already wired for the existing AI services.
+
+### V10.8.F — Pre-mass-ingest bug fixes (SHIPPED, May 14, 2026)
+Two bugs surfaced via live testing on production reports. Both fixed before mass-ingest so we don't propagate them at scale.
+
+**Bug 1 — Louisiana pin rendering at US centroid (~Kansas).** The NOLA UFO report (`ufo-encounter-2000-cu8xwc`) had `city="New Orleans"`, `state_province="Louisiana"`, `country="United States"` but `latitude=null`, `longitude=null`, `country_code=null`. The row predated V10.8.C's `normalizeLocation` so the engine's hook never ran against it, and the render-side fallback was removed in the V10.8.C cleanup commit. Result: the map showed "Louisiana" labels with the pin floating at the US country centroid.
+
+Fix: backfilled all 107 existing approved reports through `normalizeLocation`. New endpoint at `POST /api/admin/backfill-location` (admin-auth + ADMIN_API_KEY + CRON_SECRET supported, same pattern as `backfill-witness-profile`). Local driver script at `scripts/backfill-location-live.ts` for direct admin use. Result: 97 rows updated, 10 skipped (rows with no city/state/country/coords at all — nothing to normalize), 0 failures. The NOLA case now has `country_code='US'`, `latitude=30.9843`, `longitude=-91.9623` (Louisiana state centroid), `coords_synthetic=true`. Pin renders correctly.
+
+Post-backfill stats:
+- 97/107 rows have `country_code` + `lat/lng`
+- 40/107 use precise GPS coords (BFRO/NUFORC rows that supplied lat/lng)
+- 57/107 use centroid fallback (`coords_synthetic=true`) — map renders these as fuzzy markers
+- 10/107 still have no location data (origin-unknown reports — correctly left as `precision='unknown'`)
+
+**MapTiler note:** the existing `NEXT_PUBLIC_MAPTILER_KEY` has referer/domain restrictions that work fine for client-side map tiles but block server-side calls. Backfill ran on centroid-only. To get city-precision geocoding during mass-ingest (rather than state-centroid for any row that has city+state but no coords), Chase should add a separate `MAPTILER_API_KEY` env var with a server-side key (no referer restrictions). Code already prioritizes that env var over the public key. Centroid-only is acceptable for the existing corpus but mass-ingest will benefit from city precision.
+
+**Bug 2 — OG card title-meta collision on long titles.** The pit-bull report's OG card preview showed the second line of the title ("Femoral Artery") overlapping the WHEN/WHERE/WHO label row. Root cause is a known Satori (next/og rasterizer) quirk: it under-counts the bounding box of wrapped text with negative letter-spacing, so the flex layout below stacks into the painted ink. V10.7.H bumped lineHeight 0.88 → 1.0 but didn't fully resolve the worst-case 56-char titles.
+
+Fix at `src/pages/api/og/report/[slug].tsx`:
+1. Title cap tightened 120 → 90 chars (3-line wraps no longer possible).
+2. Font sizes more aggressive: `>70 chars → 42pt` (was 46), `50-70 → 50pt` (was 56), `≤50 → 64pt` (was 68).
+3. `lineHeight: 1.0 → 1.1` for extra descender clearance.
+4. **Explicit `minHeight`** on the title block sized for two-line worst case (100/116/80px per length bucket). Forces flex layout to reserve real space regardless of Satori's measurement.
+5. `marginBottom: 18 → 24` to push the meta strip further down as belt-and-suspenders.
+
+Defensive: the bug came back after a previous fix because the underlying Satori behavior is intermittent — explicit minHeight is the only fully-deterministic fix and that's what V10.8.F lands.
 
 ### V10.8 series complete
 A → B → C → D → E all shipped. Mass-ingest is now backed by:

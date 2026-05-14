@@ -168,7 +168,17 @@ export default async function handler(req: NextRequest) {
     if (!rows || rows.length === 0) return errorImage('Paradocs', 'Report not found')
 
     const r = rows[0]
-    const title = (r.title || 'Untitled report').slice(0, 120)
+    // V10.8.F — cap titles tighter than before. Long titles like "Boy
+    // Survives Pit Bull Attack with Severed Femoral Artery" wrap to two
+    // lines and the second line was overlapping the WHEN/WHERE/WHO label
+    // strip (Satori bounding-box bug — see V10.7.H comment below for
+    // history). 90-char cap with mid-word truncation prevents the three-
+    // line case entirely. The display title fits comfortably in two
+    // 42-50pt lines for any title length we now allow.
+    const rawTitle = (r.title || 'Untitled report')
+    const title = rawTitle.length > 90
+      ? rawTitle.slice(0, 87).replace(/\s+\S*$/, '').trimEnd() + '…'
+      : rawTitle.slice(0, 120)
     // V10.7.H — body-text fallback chain now leads with the pull_quote
     // (the field engineered for share-card display: ≤20 words,
     // editorial third-person, ≥1 concrete sensory detail). Falls back
@@ -338,29 +348,42 @@ export default async function handler(req: NextRequest) {
               position: 'relative',
             }}
           >
-            {/* V10.7.H — Line-height bumped 0.88 → 1.0 (Satori-safe).
-                The previous 0.88 visually bound the two lines into a
-                single typographic block but caused Satori (next/og's
-                rasterizer) to under-count the title's bounding box,
-                which let the WHEN/WHERE/WHO labels stack INTO the
-                title's painted ink. 1.0 means flex layout reads the
-                box height accurately and the meta block sits cleanly
-                below. Title font sizes tightened so 2-line wraps
-                don't push the meta below the social-proof strip:
-                  > 80 chars → 46pt (was 90 → 48)
-                  > 50 chars → 56pt (was 60 → 58)
-                  ≤ 50 chars → 68pt (was 70)
-                marginBottom 26 → 18 since 1.0 line-height already
-                introduces natural daylight below the descenders. */}
+            {/* V10.8.F — Defensive title layout. V10.7.H's 1.0
+                lineHeight + flex layout still let some 2-line titles
+                (the pit-bull case: "Boy Survives Pit Bull Attack with
+                Severed Femoral Artery") collide with the WHEN/WHERE/
+                WHO labels in iMessage/Slack/Twitter previews. Root
+                cause: Satori still under-measures wrapped-text height
+                in some cases, especially with negative letterSpacing.
+                Fix is three layered defenses:
+                  1. More aggressive font shrink at length tiers
+                     (≥70 → 42pt; 50-70 → 50pt; ≤50 → 64pt)
+                  2. Looser lineHeight (1.0 → 1.1) so the painted ink
+                     of the descender row clears the next baseline
+                     even when Satori's bbox is tight.
+                  3. Explicit minHeight on the title block sized for
+                     the worst case (2 lines of text + breathing room).
+                     This forces flex layout to reserve real space
+                     regardless of Satori's measurement.
+                History:
+                  V10.7.H: lineHeight 0.88 → 1.0, sizes 90/48 →
+                           48/68, marginBottom 26 → 18.
+                  V10.8.F: sizes 46/56/68 → 42/50/64, lineHeight
+                           1.0 → 1.1, added minHeight gate. */}
             <div
               style={{
                 display: 'flex',
-                fontSize: title.length > 80 ? 46 : title.length > 50 ? 56 : 68,
+                fontSize: title.length > 70 ? 42 : title.length > 50 ? 50 : 64,
                 fontWeight: 800,
-                lineHeight: 1.0,
+                lineHeight: 1.1,
                 color: '#ffffff',
                 letterSpacing: '-0.025em',
-                marginBottom: 18,
+                marginBottom: 24,
+                // Reserve enough height for two lines at the worst-case
+                // font size in this length bucket. Formula: fontSize *
+                // lineHeight * 2 lines. For the 42pt long-title case
+                // that's 42 * 1.1 * 2 = ~92 → round to 100 for safety.
+                minHeight: title.length > 70 ? 100 : title.length > 50 ? 116 : 80,
               }}
             >
               {title}
