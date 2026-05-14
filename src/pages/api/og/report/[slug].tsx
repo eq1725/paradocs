@@ -42,6 +42,10 @@ interface ReportRow {
   witness_count?: number | null
   paradocs_narrative?: string | null
   feed_hook?: string | null
+  // V10.7.H — pull_quote is the field we engineer specifically for
+  // short, punchy share-card display. It lives inside paradocs_assessment
+  // JSONB, so we fetch the whole assessment and pluck pull_quote from it.
+  paradocs_assessment?: { pull_quote?: string | null } | null
 }
 
 // V10.6.2 — friendly labels match what the rest of the app shows
@@ -130,7 +134,10 @@ export default async function handler(req: NextRequest) {
     }
 
     const baseUrl = `${SUPABASE_URL.replace(/\/+$/, '')}`
-    const reportUrl = `${baseUrl}/rest/v1/reports?slug=eq.${encodeURIComponent(slug)}&status=eq.approved&select=title,answer_line,category,event_date,city,state_province,country,location_name,witness_count,paradocs_narrative,feed_hook&limit=1`
+    // V10.7.H — added paradocs_assessment to the select so we can pull
+    // the V10.7.F-curated pull_quote (editorial third-person, designed
+    // for share-card display).
+    const reportUrl = `${baseUrl}/rest/v1/reports?slug=eq.${encodeURIComponent(slug)}&status=eq.approved&select=title,answer_line,category,event_date,city,state_province,country,location_name,witness_count,paradocs_narrative,feed_hook,paradocs_assessment&limit=1`
 
     // V10.6.8 — fetch everything in parallel. We now load Changa at
     // three weights so the entire card can render in the brand
@@ -159,7 +166,19 @@ export default async function handler(req: NextRequest) {
 
     const r = rows[0]
     const title = (r.title || 'Untitled report').slice(0, 120)
-    const answer = (r.answer_line || r.feed_hook || (r.paradocs_narrative || '').slice(0, 180) || '').slice(0, 200)
+    // V10.7.H — body-text fallback chain now leads with the pull_quote
+    // (the field engineered for share-card display: ≤20 words,
+    // editorial third-person, ≥1 concrete sensory detail). Falls back
+    // through answer_line → feed_hook → first paragraph of narrative
+    // when pull_quote is missing.
+    const pullQuote = (r.paradocs_assessment && r.paradocs_assessment.pull_quote) || ''
+    const answer = (
+      pullQuote
+      || r.answer_line
+      || r.feed_hook
+      || (r.paradocs_narrative || '').slice(0, 180)
+      || ''
+    ).slice(0, 220)
 
     const cat = r.category || 'combination'
     const catLabel = CATEGORY_DISPLAY[cat] || 'Paranormal'
@@ -316,22 +335,29 @@ export default async function handler(req: NextRequest) {
               position: 'relative',
             }}
           >
-            {/* V10.6.12 — Line-height tightened further 0.94 → 0.88.
-                At 70pt Changa, 0.94 still left visible daylight
-                between wrapped lines. 0.88 binds the two lines so
-                they read as a single typographic block — the
-                descenders of one line nearly touch the ascenders
-                of the next, which is the visual cue the eye uses
-                to register 'connected sentence' vs 'two lines'. */}
+            {/* V10.7.H — Line-height bumped 0.88 → 1.0 (Satori-safe).
+                The previous 0.88 visually bound the two lines into a
+                single typographic block but caused Satori (next/og's
+                rasterizer) to under-count the title's bounding box,
+                which let the WHEN/WHERE/WHO labels stack INTO the
+                title's painted ink. 1.0 means flex layout reads the
+                box height accurately and the meta block sits cleanly
+                below. Title font sizes tightened so 2-line wraps
+                don't push the meta below the social-proof strip:
+                  > 80 chars → 46pt (was 90 → 48)
+                  > 50 chars → 56pt (was 60 → 58)
+                  ≤ 50 chars → 68pt (was 70)
+                marginBottom 26 → 18 since 1.0 line-height already
+                introduces natural daylight below the descenders. */}
             <div
               style={{
                 display: 'flex',
-                fontSize: title.length > 90 ? 48 : title.length > 60 ? 58 : 70,
+                fontSize: title.length > 80 ? 46 : title.length > 50 ? 56 : 68,
                 fontWeight: 800,
-                lineHeight: 0.88,
+                lineHeight: 1.0,
                 color: '#ffffff',
                 letterSpacing: '-0.025em',
-                marginBottom: 26,
+                marginBottom: 18,
               }}
             >
               {title}
