@@ -37,7 +37,7 @@ Full details in `PROJECT_STATUS.md` V10.7 section. Quick summary for session-boo
 
 **Pending validation:**
 - ✅ V10.7.D Kansas validation closed May 13 — three successful v10.7.d audit passes on `reports.paradocs_narrative`, live page renders 938-char third-person narrative cleanly. Worth Chasing absent, pattern strip correctly gated by sparse-corpus case.
-- ⏳ V10.7.F backfill — 7 slug-targeted regens needed once v10.7.f deploys. Affected slugs: `pre-birth-memory-bp9szc`, `bigfoot-encounter-near-lowville-new-york-2025-f2rtxz`, `out-of-body-experience-s702js`, `bigfoot-encounter-near-port-townsend-2025-f2rtwd`, `other-experience-72qql1`, `premonition-waking-vision-2017-ouew52`, `psychic-experience-kansas-4hxm98`. Success criterion: zero first-person pronouns in pull_quote across corpus.
+- ✅ V10.7.F backfill closed May 13 — all 7 affected reports regenerated. Post-backfill corpus audit: 0 violations across 107 approved reports (was 7 in pull_quote, 0 in feed_hook). Audit log on `paradocs-analysis-v10.7.f` rows passes claim-check cleanly.
 
 **V10.7.F additions (May 13):**
 - HOOK + PULL QUOTE prompt rules gained explicit "EDITORIAL THIRD-PERSON ONLY" hard rule with the real Kansas failure as counter-example

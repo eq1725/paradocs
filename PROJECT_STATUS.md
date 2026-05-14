@@ -55,7 +55,7 @@ Three layers of defense in `src/lib/services/paradocs-analysis.service.ts`:
 
 ### Pending validation / known issues
 - **V10.7.D Kansas validation — CLOSED (May 13).** Audit log shows three v10.7.d passes on `reports.paradocs_narrative` for the Kansas case, all `claim_check_passed=true`. 938-char third-person narrative renders cleanly on production (verified by live `curl` once the prod basic-auth creds were synced). Worth Chasing is dropped, pattern strip gates correctly on the sparse-corpus case (109 reports, 0 nearby/state/witness-state/phenomenon matches).
-- **V10.7.F backfill — IN FLIGHT.** 7 pull_quotes with first-person voice identified by corpus audit. Need to run slug-targeted regen against the v10.7.f-deployed endpoint. Affected slugs: `pre-birth-memory-bp9szc`, `bigfoot-encounter-near-lowville-new-york-2025-f2rtxz`, `out-of-body-experience-s702js`, `bigfoot-encounter-near-port-townsend-2025-f2rtwd`, `other-experience-72qql1`, `premonition-waking-vision-2017-ouew52`, `psychic-experience-kansas-4hxm98`.
+- **V10.7.F backfill — CLOSED (May 13).** All 7 affected reports regenerated via slug-targeted `POST /api/admin/backfill-analysis`. Post-backfill corpus audit: 0 first-person violations in pull_quote, 0 in feed_hook across 107 approved reports. Audit log shows `paradocs-analysis-v10.7.f` rows with `claim_check_passed=true`. Kansas pull_quote now reads "The object rushed past him, flew directly over his roof, and as soon as it passed the apex, it blinked out of existence."
 - **No backfill run on test corpus** for witness-profile (V10.7.A.1) at scale. Spot-checked 10 reports cleanly. Mass ingest will populate organically.
 
 ---
