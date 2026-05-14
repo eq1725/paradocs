@@ -1,11 +1,44 @@
 # Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** May 14, 2026 (V10.8.H — OG card title line-wrap fix)
+**Last updated:** May 14, 2026 (V10.8.I — map precision fix + V10.9 explore-map design)
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
 
 ---
 
-## Most Recent Session — V10.8.H title line-wrap fix (May 14, 2026, late night)
+## Most Recent Session — V10.8.I map precision fix + V10.9 design (May 14, 2026, late night)
+
+Chase flagged that the pit-bull report (country-only US) was showing zoomed-in on Kansas with a "56 nearby" cluster of other US-country-only reports stacked at the same synthetic centroid. Raised the broader question: how should we handle mass-ingest with mixed-precision locations?
+
+**SME panel convened** (UI/UX, Brand, Data Viz Eng ex-Mapbox/Uber, Cartographer ex-Mapbox/Google). Five-principle consensus:
+1. Synthetic centroid coords NEVER render as pins. Always fuzzy/region/aggregate.
+2. Precision tier drives visual treatment (one ruleset, applied everywhere).
+3. Two-layer aggregate architecture: precise pins + region choropleth.
+4. Server-side aggregation for mass-ingest scale.
+5. `coords_synthetic` is the canonical signal — V10.8.C already shipped it.
+
+**Shipped in V10.8.I:**
+- `src/lib/ingestion/utils/location-zoom.ts` — `getCountryFitZoom(code)`, `getStateFitZoom(country, state)`, `getSyntheticFitZoom({precision, coords_synthetic, countryCode, stateKey})`. Country lookup table covers 30+ continental and tiny-country overrides; default zoom 5. State table covers US/CA/UK/AU largest + smallest, default zoom 6.
+- `src/components/reports/ReportLocationMap.tsx` — accepts new props `coordsSynthetic`, `countryCode`, `stateKey`. Three behavioral changes when `coordsSynthetic=true`: (1) fit-to-country/state zoom from getSyntheticFitZoom() instead of zoom-to-centroid; (2) nearby overlay suppressed entirely (its "X similar nearby" claim is meaningless when both focal and candidates share synthetic centroids); (3) new SyntheticHalo component renders a soft fuzzy circle at the centroid instead of the precise PinSprite.
+- `src/components/reports/ReportPageV2.tsx` — passes coords_synthetic, country_code, state_province through to the map.
+- `supabase/migrations/20260514_v10_8_i_nearby_excludes_synthetic.sql` — updates the V10.7.B.0 RPC to exclude `coords_synthetic=true` rows from both the focal lookup AND the candidate set. Server-side defense-in-depth.
+
+**Shipped as design doc (NOT implemented yet):**
+- `V10.9_EXPLORE_MAP_AGGREGATION_DESIGN.md` — full architecture for the explore-map at 1M+ scale. Two-layer rendering (precise pins + country/state choropleth via Natural Earth GeoJSON), server-side aggregation via materialized view + `/api/map/region-counts` endpoint, zoom-aware visibility, toggle controls. ~1.5 sessions to implement.
+
+**Tests:** no new unit tests (location-zoom is a pure lookup, RPC tested via integration with the report page). All previous suites still green (119 fixtures).
+
+**Last commit on main:** TBD (V10.8.I push)
+
+**Action needed from Chase before deploy:**
+- Apply `supabase/migrations/20260514_v10_8_i_nearby_excludes_synthetic.sql` to project `bhkbctdmwnowfmqpksed`. Idempotent CREATE OR REPLACE.
+
+**Next session pickup:**
+- V10.9 implementation: materialized view + region-counts API + choropleth layer in MapContainer + toggle UI. The design doc covers all decisions.
+- OR mass ingest at scale (V10.8 is complete enough; V10.9 can ship after early mass-ingest data lands).
+
+---
+
+## Earlier Session — V10.8.H title line-wrap fix (May 14, 2026, late night)
 
 After V10.8.G's absolute-positioning rewrite landed, the title still rendered with a massive ~80px vertical gap between line 1 and line 2 (screenshot from Chase, iMessage preview). Diagnosed: Satori sometimes ignores the CSS `lineHeight` property and uses the font's intrinsic OS/2 line metric instead. Changa-800 has loose metrics (~1.5-1.8× font size), so a 60pt title at lineHeight: 1.08 was rendering with ~100px line spacing instead of the expected 65px.
 

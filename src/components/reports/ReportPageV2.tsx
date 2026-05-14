@@ -383,6 +383,15 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                 ? '/map?center=' + report.latitude + ',' + report.longitude + '&zoom=8'
                 : undefined
             }
+            // V10.8.I — pass V10.8.C synthetic-coord signals so the
+            // map renders fit-to-country (or fit-to-state) framing
+            // instead of a misleading zoomed-to-centroid view, and
+            // suppresses the nearby overlay (which would otherwise
+            // pile up other synthetic-centroid reports at the same
+            // fake point).
+            coordsSynthetic={(report as any)?.coords_synthetic === true}
+            countryCode={(report as any)?.country_code || null}
+            stateKey={(report as any)?.state_province || null}
           />
         </div>
 

@@ -38,6 +38,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { MapPin } from 'lucide-react'
+import { getSyntheticFitZoom } from '@/lib/ingestion/utils/location-zoom'
 
 const Map = dynamic(
   () => import('react-map-gl/maplibre').then(mod => mod.default || (mod as any).Map || mod),
@@ -90,6 +91,21 @@ export interface ReportLocationMapProps {
    * Typical value: `/map?center=lat,lng&zoom=8`.
    */
   nearbyHref?: string
+  /**
+   * V10.8.I — synthetic-coord flag from the DB. When true, lat/lng
+   * came from a centroid fallback (V10.8.C) rather than precise
+   * geocoding. Drives:
+   *   - country/state-fit zoom level via getSyntheticFitZoom()
+   *   - suppression of the nearby-reports overlay (the "X nearby"
+   *     claim is meaningless when both the focal and candidates
+   *     share the same synthetic centroid)
+   *   - softer fuzzy-marker styling (no pulsing pin)
+   */
+  coordsSynthetic?: boolean
+  /** V10.8.I — ISO 3166-1 alpha-2. Used by getSyntheticFitZoom. */
+  countryCode?: string | null
+  /** V10.8.I — state key (e.g. "TX" / "ON" / "ENG"). Used by getSyntheticFitZoom. */
+  stateKey?: string | null
 }
 
 export default function ReportLocationMap({
@@ -102,6 +118,9 @@ export default function ReportLocationMap({
   className,
   nearby,
   nearbyHref,
+  coordsSynthetic,
+  countryCode,
+  stateKey,
 }: ReportLocationMapProps) {
   // V10.5.1 — capture the underlying maplibre-gl Map instance via
   // onLoad, not via ref (react-map-gl wrapped in next/dynamic doesn't
@@ -117,22 +136,44 @@ export default function ReportLocationMap({
     typeof latitude === 'number' && typeof longitude === 'number' &&
     Number.isFinite(latitude) && Number.isFinite(longitude) &&
     Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180
-  const showPin = hasUsableCoords && (precision === 'exact' || precision === 'city')
+  const showPin = hasUsableCoords && (precision === 'exact' || precision === 'city') && !coordsSynthetic
+
+  // ── V10.8.I — Suppress nearby overlay for synthetic coords ────
+  //
+  // When the focal report's coords are synthetic (country/state
+  // centroid), the V10.8.I nearby RPC update returns no candidates —
+  // but defense-in-depth, we also hide the overlay client-side.
+  // The "X similar cases nearby" claim is meaningless when the
+  // focal point isn't a real location.
+  const effectiveNearby = coordsSynthetic ? [] : (nearby || [])
+  const nearbyCount = effectiveNearby.length
+  const hasNearby = nearbyCount > 0
 
   // ── Target zoom — precision-driven ────────────────────────
   //
+  // V10.8.I — When coords_synthetic is true, use the country/state
+  // fit zoom from getSyntheticFitZoom() so the user sees the full
+  // admin region instead of a misleadingly-zoomed view of a fake
+  // point. Falls through to the legacy precision-default zoom for
+  // precise-coord reports.
+  //
   // V10.7.B.1 — When we have nearby reports to render, we zoom out
   // ONE LEVEL from the precision-default so the nearby dots are
-  // visible in the viewport. Otherwise the focal pin fills the map
-  // and the nearby dots are off-screen, defeating the purpose.
-  const nearbyCount = (nearby || []).length
-  const hasNearby = nearbyCount > 0
+  // visible in the viewport.
+  const syntheticZoom = getSyntheticFitZoom({
+    precision,
+    coords_synthetic: !!coordsSynthetic,
+    countryCode,
+    stateKey,
+  })
   const precisionDefaultZoom =
     precision === 'exact'   ? 11 :
     precision === 'city'    ? 10 :
     precision === 'region'  ? 6  :
     precision === 'country' ? 4  : 2
-  const targetZoom = hasNearby ? Math.max(7, precisionDefaultZoom - 2) : precisionDefaultZoom
+  const targetZoom = syntheticZoom !== null
+    ? syntheticZoom
+    : (hasNearby ? Math.max(7, precisionDefaultZoom - 2) : precisionDefaultZoom)
 
   // ── Animated flyTo on mount ────────────────────────────────
   const initialZoom = Math.max(2, targetZoom - 4)
@@ -171,9 +212,9 @@ export default function ReportLocationMap({
 
   // ── Compute the max distance across nearby points (for badge) ─
   const farthestKm = useMemo(() => {
-    if (!nearby || nearby.length === 0) return null
-    return Math.round(Math.max(...nearby.map(n => n.distance_km)))
-  }, [nearby])
+    if (!effectiveNearby || effectiveNearby.length === 0) return null
+    return Math.round(Math.max(...effectiveNearby.map(n => n.distance_km)))
+  }, [effectiveNearby])
 
   const wrapperStyle = className && /\bh-/.test(className) ? undefined : { height }
 
@@ -216,8 +257,9 @@ export default function ReportLocationMap({
           {/* V10.7.B.1 — Nearby dots BEHIND the focal pin. Rendered
               even before the flyTo animation completes so the user
               sees the surrounding density at the same time as the
-              focal location. We render up to 50 (the RPC cap). */}
-          {showPin && (nearby || []).map(n => (
+              focal location. We render up to 50 (the RPC cap).
+              V10.8.I — effectiveNearby is empty when coordsSynthetic. */}
+          {showPin && effectiveNearby.map(n => (
             <Marker
               key={n.id}
               latitude={n.latitude}
@@ -230,6 +272,16 @@ export default function ReportLocationMap({
           {showPin && (
             <Marker latitude={latitude!} longitude={longitude!} anchor="bottom">
               <PinSprite label={pinLabel || regionLabel || ''} />
+            </Marker>
+          )}
+          {/* V10.8.I — synthetic-coord soft marker: when we have a
+              centroid fallback, render a soft pulsing halo at the
+              centroid + the region badge floating in the viewport.
+              The halo says "the data is fuzzy in this area" without
+              the precision implication of a sharp pin. */}
+          {!showPin && coordsSynthetic && hasUsableCoords && (
+            <Marker latitude={latitude!} longitude={longitude!} anchor="center">
+              <SyntheticHalo precision={precision} />
             </Marker>
           )}
           {!showPin && regionLabel && (
@@ -326,6 +378,32 @@ function NearbyCountBadge({
         inner
       )}
     </div>
+  )
+}
+
+function SyntheticHalo({ precision }: { precision?: LocationPrecision }) {
+  // V10.8.I — soft halo for synthetic-coord locations. The size
+  // scales with precision: country precision shows the widest halo
+  // (the centroid represents the whole country), state precision
+  // shows a tighter halo. No central dot — we deliberately don't
+  // pretend there's a point. Purple-cyan gradient matches the
+  // brand palette.
+  const size =
+    precision === 'country' ? 90 :
+    precision === 'region'  ? 70 :
+    50
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(168,85,247,0.32) 0%, rgba(168,85,247,0.16) 45%, rgba(168,85,247,0) 75%)',
+        border: '1.5px solid rgba(168,85,247,0.5)',
+        display: 'flex',
+      }}
+      aria-hidden="true"
+    />
   )
 }
 

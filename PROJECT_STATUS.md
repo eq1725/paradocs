@@ -1,6 +1,6 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** May 14, 2026 (V10.8.H — OG card title line-wrap fix)
+**Last updated:** May 14, 2026 (V10.8.I — map precision fix + V10.9 design doc)
 **Project:** discoverparadocs.com (production); beta.discoverparadocs.com (beta)
 **Repo:** github.com/eq1725/paradocs (main branch)
 
