@@ -1,12 +1,36 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** May 13, 2026 (V10.7 report-page push)
+**Last updated:** May 13, 2026 (V10.7 closeout + V10.8 pipeline-hardening kickoff)
 **Project:** discoverparadocs.com (production); beta.discoverparadocs.com (beta)
 **Repo:** github.com/eq1725/paradocs (main branch)
 
 > **Purpose:** This is the top-level PM document. Every dedicated session reads this at startup and updates its section at the end. It serves as the coordination layer that prevents cross-feature dependencies from falling through the cracks.
 >
 > **This document is maintained by the Project Status session** — a dedicated PM session that reviews all feature session updates, identifies conflicts, reprioritizes work, and provides big-picture guidance. Feature sessions update their own sections and the Cross-Feature Notes table; the PM session synthesizes everything.
+
+---
+
+## V10.8 Pipeline Hardening (May 13, 2026) — IN PROGRESS
+
+The first major push since V10.7. Goal: replace 15 ad-hoc per-adapter date/location extractors with unified, tested utilities so mass-ingest produces consistent, audit-trail-backed data without per-row QA. Full design at `V10.8_PIPELINE_HARDENING_DESIGN.md`.
+
+### V10.8.A — Unified extractDate utility (SHIPPED, commit f4257ebe)
+New `src/lib/ingestion/utils/extract-date.ts`. Cascading priority: structured → prose-monthname (★ killer new capability) → prose-numeric → prose-year → approximate-marker. Handles "On April 28th 2007" forms that the previous year-only regex threw away. Test suite at `scripts/test-extract-date.ts` — **43 fixtures all passing** including the pit-bull canonical regression, adversarial cases (April Fool's Day, May showers, "$1,200 in damages"), and structured-vs-prose precedence.
+
+### V10.8.B.1 — Foundation + OBERF as worked example (SHIPPED, commit 5d2e3e45 + 3eef6be7 recovery)
+- Migration `20260514_v10_8_b_date_extraction_audit.sql` adds two nullable columns: `event_date_extracted_from` (extractDate audit trail) and `source_published_at` (pub date for news/blog sources, distinct from event_date).
+- `IngestedReport` (types.ts) gains both fields as optional.
+- `engine.ts` passes both through to insert.
+- **OBERF adapter migrated**: ~45-line `extractOBERFDate` parser replaced with a 15-line `extractDate({ structured: getField(...), prose: content })` call. Sets `event_date_extracted_from` on every OBERF row going forward.
+
+### V10.8.B.2 onward — REMAINING
+- **B.2** — Migrate the other 14 adapters. 6 are "hardcoded unknown" today (Reddit, Reddit-v2, IANDS, Erowid, Shadowlands, YouTube) — zero-risk wins. 6 have existing per-adapter parsers (NDERF, BFRO, GhostsOfAmerica, NUFORC, Wikipedia, News). News also needs the pub-date data migration (one-time backfill: `event_date` → `source_published_at` for current 15 news rows, then re-extract `event_date` via `extractDate`).
+- **C** — Location normalizer + 250-country centroid JSON + state-centroid JSON + `geocode_cache` table migration + MapTiler integration + `coords_synthetic` column. ~1 session.
+- **D** — `validateReportBeforeInsert` (11 warning + 4 error codes) + `ingestion_audit` table migration + `/admin/ingest-audit` page + `'quarantine'` status enum addition. ~0.5 session.
+- **E** — Haiku-assisted date fallback when extractDate returns `precision='year'` but source contains month names. ~$0.001/call. ~0.5 session.
+
+### Critical: migration must be applied before B.2 ships
+The `20260514_v10_8_b_date_extraction_audit.sql` migration must run on the live Supabase DB before any B.2 adapter writes `event_date_extracted_from` or `source_published_at`. Project pattern: paste SQL into the Supabase dashboard SQL editor for project `bhkbctdmwnowfmqpksed`. Migration is idempotent (`ADD COLUMN IF NOT EXISTS`).
 
 ---
 

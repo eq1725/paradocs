@@ -1,7 +1,33 @@
 # Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** May 13, 2026 (V10.7 report-page push)
+**Last updated:** May 13, 2026 (V10.7 closeout + V10.8 pipeline-hardening kickoff)
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
+
+---
+
+## Most Recent Session — V10.7 closeout + V10.8 kickoff (May 13, 2026)
+
+**Shipped end-to-end:**
+- V10.7.F — first-person voice ban on pull_quote + feed_hook
+- V10.7.G — social-media scraper UA bypass (iMessage/Slack/Twitter previews now work)
+- V10.7.H — OG card title-meta collision fix + pull_quote used in body
+- V10.7.I — map country-centroid fallback + precision-aware WHEN formatter
+- V10.8 design doc (`V10.8_PIPELINE_HARDENING_DESIGN.md`)
+- V10.8.A — `extractDate` utility (43/43 fixtures pass)
+- V10.8.B.1 — foundation (migration + types + engine wiring) + OBERF as worked example
+
+**Last commit on main:** `3eef6be7` (V10.8.B.1 types.ts recovery)
+
+**Action needed from Chase before V10.8.B.2 ships:**
+- Apply `supabase/migrations/20260514_v10_8_b_date_extraction_audit.sql` to live DB via Supabase dashboard SQL editor (project `bhkbctdmwnowfmqpksed`). Idempotent two-column `ADD IF NOT EXISTS`.
+
+**Next session pickup:**
+- V10.8.B.2 — migrate 14 remaining adapters (start with the 6 hardcoded-`unknown` ones for cleanest wins: Reddit, Reddit-v2, IANDS, Erowid, Shadowlands, YouTube; then NDERF, BFRO, GhostsOfAmerica, NUFORC, Wikipedia; finally News with pub-date data migration backfill).
+- V10.8.D — validation gates + ingestion_audit table + admin page + quarantine status.
+- V10.8.C — location normalizer + 250-country centroid JSON + MapTiler integration + geocode_cache table.
+- V10.8.E — Haiku-assisted date fallback (queued; conditional on A-D leaving residual gaps but Chase approved building regardless).
+
+**Gotcha encountered twice this session:** GitHub Trees API blob upload via `curl -d` hit "Argument list too long" on files ≥200KB (PROJECT_STATUS.md, then types.ts). Both files got DELETED from main when the empty-SHA propagated through tree creation. Recovered both times via `curl --data-binary @file` pattern. **For next session: always use file-payload pattern (`--data-binary @/tmp/blob_payload.json`) for ANY blob upload, never inline `-d`.**
 
 ---
 
