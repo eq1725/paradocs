@@ -1,12 +1,52 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** May 1, 2026 (Radar/Lab polish continuation)
-**Project:** beta.discoverparadocs.com
+**Last updated:** May 13, 2026 (V10.7 report-page push)
+**Project:** discoverparadocs.com (production); beta.discoverparadocs.com (beta)
 **Repo:** github.com/eq1725/paradocs (main branch)
 
 > **Purpose:** This is the top-level PM document. Every dedicated session reads this at startup and updates its section at the end. It serves as the coordination layer that prevents cross-feature dependencies from falling through the cracks.
 >
 > **This document is maintained by the Project Status session** — a dedicated PM session that reviews all feature session updates, identifies conflicts, reprioritizes work, and provides big-picture guidance. Feature sessions update their own sections and the Cross-Feature Notes table; the PM session synthesizes everything.
+
+---
+
+## V10.7 Report Page Push (May 12–13, 2026) — SHIPPED
+
+The biggest single-session push since V10.4. Goal: bring the report page to mass-market readiness ahead of the millions-of-reports mass ingest. All commits on `main`, deployed to production via Vercel.
+
+### V10.7.A — Witness Profile (per-report demographic extraction)
+- **A.0** migration `20260514_witness_profile_v10_7.sql` — adds `reports.witness_profile JSONB` + generated columns `witness_age_range`, `witness_state_at_event` + indexes.
+- **A.1** `src/lib/services/witness-profile.service.ts` — direct Anthropic fetch (NOT rewrite-pipeline, JSON output), strict prompt with anti-fabrication + privacy bans (no names, no employers, no race/religion inference), bucketed enums only. Hooked into ingestion engine after `generateAndSaveAnswerLine`. Backfill endpoint `/api/admin/backfill-witness-profile`.
+- **A.2** `WitnessProfilePill.tsx` (since absorbed into SourceAndWitnessBlock in V10.7.B.2) — displays age, gender, occupation, state-at-event, alone/with-others as clickable filter chips.
+
+### V10.7.B — Map clustering, nearby reports, page-layout pass
+- **B.0** `nearby_reports_within_km` haversine RPC (`20260514_nearby_reports_rpc_v10_7.sql`). Both `/api/reports/[slug]/nearby` and `getStaticProps` for `/report/[slug]` call it — single source of truth for "X km of Y" math. PostGIS migration path documented.
+- **B.1** `ReportLocationMap.tsx` accepts `nearby` prop; renders small cyan dots around the focal pin + a "X similar cases within Y km" badge with deep link to `/map?center=lat,lng`. Supercluster deferred (decided not worth the overhead at 50 points / 80km).
+- **B.2** Source & Witness merged block (`SourceAndWitnessBlock` sub-component in ReportPageV2.tsx) — collapses three thin chip rows (phenomena chips · credibility band · witness pill) into one unified dateline grid. Pattern strip moved from above-narrative to below-source-block. Mobile map shrunk 35vh → 22vh.
+- **B.4** Desktop side-rail at lg+: 2-column grid `[minmax(0,1fr)_320px]`. Main column is reading content; rail holds dateline + resonance + pattern strip. Sticky `top-24` + `pt-12` to clear navbar and align with H1 title.
+- **B.5/B.6/B.7/B.8/B.9** iterative screenshot-review polish (chip alignment, items-center grid, unified dateline, drop chip pills, resonance position UX-journey fix, tighter prominent variant for narrow column).
+
+### V10.7.D — Claim-check tuning (rewrite-pipeline)
+The V10.6 claim-check was rejecting valid paraphrases on style differences (e.g. "orange" vs "orange hue", "smart-car" vs "compact car", "meditation" vs "eyes closed and focused on breath"). New regime explicitly distinguishes FABRICATION / NARROWING / GENERAL-KNOWLEDGE FILLER (reject) from SYNONYMS / GENERALIZATION / CONTEXTUAL INFERENCE / STRUCTURE (accept). Worked examples for each category baked into the prompt.
+
+`PROMPT_VERSION` bumped to `v10.7.d` in `src/lib/ai/rewrite-pipeline.ts`. Existing rows keep their pre-v10.7.d audit history; new generations will be filterable in `/admin/ai-audit`.
+
+### V10.7.E — Worth Chasing dropped + pattern strip rebalanced
+- "Worth Chasing" open-questions block removed from `ReportBelowFold` (dead-end intellectual content with no CTA). Field still generated and stored for future reuse.
+- Pattern strip dropped same-category chip (duplicated Related Reports). New facets: geographic radius (uses nearby[] data), same state, same witness state (uses V10.7.A.0 `witness_state_at_event` indexed column), same phenomenon type. Header renamed "How this fits the archive" → "Similar cases".
+
+### V10.7.B.4.4 — Slug-targeted analysis regen
+`POST /api/admin/backfill-analysis` now accepts optional `slug` body param for targeted single-report regen. Useful for diagnosing claim-check rejections without walking the full corpus.
+
+### Misc fixes shipped in the push
+- Answer-line char cap 180 → 280, prompt rewritten with 6-item priority list (witness age, state, sequel, etc.). `PROMPT_VERSION` v10.6.28 → v10.7.b.5 (and later v10.7.d for V10.7.D claim-check).
+- OBE-style PlatformBadge hidden when source label is ≤5 chars and not a known platform.
+- ReportMeta + SourceAndWitnessBlock use `items-center` (not `items-start`) for centerline label/value alignment.
+
+### Pending validation / known issues
+- **Kansas test report** (`psychic-experience-kansas-4hxm98`) — narrative regen with v10.7.d prompt not yet verified to pass claim-check. The narrative the AI produced (223 chars, vivid, faithful) was rejected by v10.6.28 claim-check on three nit-picky paraphrasing items; v10.7.d should accept these. **Next action: re-run slug-targeted regen and check audit log for `claim_check_passed = true`.**
+- **"What happened" section** still hidden when `paradocs_narrative` is null (V10.7.C first-person source-excerpt fallback was reverted in V10.7.D). If v10.7.d claim-check still leaves some reports with null narrative, the V10.7.F option is to save the AI narrative anyway with a `narrative_review_needed` flag rather than blocking on claim-check.
+- **No backfill run on test corpus** for witness-profile (V10.7.A.1) at scale. Spot-checked 10 reports cleanly. Mass ingest will populate organically.
 
 ---
 

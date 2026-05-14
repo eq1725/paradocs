@@ -1,7 +1,46 @@
 # Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** May 1, 2026
+**Last updated:** May 13, 2026 (V10.7 report-page push)
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
+
+---
+
+## Most Recent Push — V10.7 Report Page (May 12–13, 2026)
+
+Full details in `PROJECT_STATUS.md` V10.7 section. Quick summary for session-bootstrap:
+
+**Push goal:** bring `/report/[slug]` to mass-market readiness before MILLIONS-of-reports mass ingest.
+
+**Last commit on `main`:** `2128bb4a` — V10.7.E (drop Worth Chasing + rebalance pattern strip)
+
+**Test report:** `psychic-experience-kansas-4hxm98` (id: `d8537a7a-0257-4884-ae5a-b16c16e02acc`). All iteration was screenshot-driven on this URL on both mobile and desktop (lg+).
+
+**Key new infrastructure shipped:**
+- `reports.witness_profile JSONB` + generated columns for indexed filtering (`witness_age_range`, `witness_state_at_event`)
+- `nearby_reports_within_km(p_report_id, p_radius_km, p_limit)` haversine RPC — single source for "X km of Y" queries
+- `src/lib/services/witness-profile.service.ts` — Anthropic Haiku-based structured demographic extraction with bucketed enums
+- `/api/admin/backfill-witness-profile` — chunked backfill endpoint
+- `/api/admin/backfill-analysis` now accepts optional `slug` for targeted regen
+- `PROMPT_VERSION = 'v10.7.d'` in `src/lib/ai/rewrite-pipeline.ts` (claim-check tuned to accept legitimate paraphrases)
+
+**Key UX changes shipped:**
+- Page-layout pass: single 6-row dateline (WHEN/WHERE/WHO/SOURCE/TOPIC/WITNESS) in grid-cols-[88px_1fr], items-center
+- Desktop side-rail at lg+ via grid-cols-[minmax(0,1fr)_320px], sticky `top-24` + `pt-12`
+- Mobile map shrunk 35vh → 22vh
+- Map nearby-dot overlay + "Similar cases nearby" badge
+- Source block badge hidden for short labels (no more "OBE · OBERF")
+- Analysis section hoisted above Related Reports
+- Resonance card moved after dateline (UX-journey fix — engage AFTER facts)
+- Worth Chasing dropped (dead-end intellectual content)
+- Pattern strip rebalanced: nearby radius + state + witness-state + phenomenon (no more same-category dup)
+- Answer-line cap 180 → 280 chars, prompt rewritten for richer specificity (age, sequel, etc.)
+
+**Pending validation:**
+- Re-run regen on Kansas case to confirm v10.7.d claim-check passes the narrative (V10.6 was rejecting good paraphrases)
+- Live-page eyeballing on production once Vercel deploys 2128bb4a
+- If narrative still rejected → V10.7.F: save AI narrative even when claim-check fails (flag for audit review)
+
+**Continuation prompt:** `V10.7_CONTINUATION_PROMPT.md` (created same day)
 
 ---
 
