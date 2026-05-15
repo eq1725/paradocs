@@ -261,6 +261,12 @@ export default function ReportLocationMap({
         const firstSymbolId = style?.layers?.find(
           (L: any) => L.type === 'symbol',
         )?.id
+        // V10.8.O — bumped paint visibility. Live pixel-readback test
+        // confirmed the prior #7e6da1 / 0.55 / width 1.2 was too
+        // subtle on dark UI to register visually (the features WERE
+        // rendered, just invisibly). Increased saturation, opacity,
+        // and width across the zoom curve so state borders read
+        // immediately on both desktop and mobile dark backgrounds.
         if (!map.getLayer('paradocs-admin1-overlay')) {
           map.addLayer(
             {
@@ -273,14 +279,14 @@ export default function ReportLocationMap({
                 ['==', 'maritime', 0],
               ],
               paint: {
-                'line-color': '#7e6da1',
-                'line-opacity': 0.55,
+                'line-color': '#c4b5fd',  // brand-purple-300, more luminous
+                'line-opacity': 0.9,
                 'line-width': [
                   'interpolate', ['linear'], ['zoom'],
-                  3, 0.4,
-                  5, 0.8,
-                  7, 1.2,
-                  10, 1.8,
+                  3, 0.6,
+                  5, 1.2,
+                  7, 1.8,
+                  10, 2.6,
                 ],
               },
             },
@@ -300,14 +306,14 @@ export default function ReportLocationMap({
                 ['==', 'disputed', 0],
               ],
               paint: {
-                'line-color': '#9985c4',
-                'line-opacity': 0.7,
+                'line-color': '#ddd6fe',  // brand-purple-200 — even brighter for country edges
+                'line-opacity': 0.95,
                 'line-width': [
                   'interpolate', ['linear'], ['zoom'],
-                  1, 0.5,
-                  3, 1.0,
-                  6, 1.6,
-                  10, 2.4,
+                  1, 0.8,
+                  3, 1.5,
+                  6, 2.3,
+                  10, 3.2,
                 ],
               },
             },
