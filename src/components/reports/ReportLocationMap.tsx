@@ -98,11 +98,15 @@ function whenMapReady(
   }
 
   map.on('styledata', onData)
+  // V10.8.P — fallback is 600ms (was 2.5s — too long, perceived as a
+  // hang). styledata fires within ~150-300ms on real connections; on
+  // slow connections the flyTo / addLayer queue against the still-
+  // loading style anyway. Worst case the user sees the framing settle
+  // a frame later than ideal.
   const timer = setTimeout(() => {
     if (isCancelled()) return
-    console.warn('[ReportLocationMap] whenMapReady timed out after 2.5s, running anyway')
     run()
-  }, 2500)
+  }, 600)
 
   return () => {
     done = true
@@ -223,7 +227,15 @@ export default function ReportLocationMap({
     if (!containerRef.current || !MAPTILER_KEY) return
     if (mapRef.current) return // already initialized
 
-    const initialZoom = hasUsableCoords ? Math.max(2, targetZoom - 4) : 1.5
+    // V10.8.P — initialize at the target zoom, not zoomed-out. The
+    // wide-out initial was a holdover from when every framing used
+    // flyTo. With the jumpTo path for bbox-fit rows, the wide-out
+    // initial flashes the world before snapping to the target — looks
+    // janky. Start at the right zoom; the framing useEffect can still
+    // refine center / zoom (or animate in for precise-coord rows).
+    const initialZoom = hasUsableCoords
+      ? (syntheticBounds ? Math.max(targetZoom - 0.5, 5) : Math.max(2, targetZoom - 4))
+      : 1.5
     const center: [number, number] = hasUsableCoords ? [longitude!, latitude!] : [0, 20]
 
     const map = new maplibregl.Map({
@@ -429,27 +441,33 @@ export default function ReportLocationMap({
             const fitZoom = typeof cam.zoom === 'number' ? cam.zoom : 5
             const zoomFloor = precision === 'region' || precision === 'state' ? 6 : 0
             const zoom = Math.max(fitZoom, zoomFloor)
-            map.flyTo({
+            // V10.8.P — jumpTo, not flyTo. The bbox path always lands
+            // at a known frame and a 1.2s aerial flight reads as
+            // "page is hanging" on a small report-page header. Show
+            // the right frame immediately.
+            map.jumpTo({
               center,
               zoom: Math.min(zoom, 9),
-              duration: 1200,
-              essential: true,
             })
           } else {
-            // Defensive — if cameraForBounds somehow fails, fall back
-            // to the straight fitBounds path.
-            map.fitBounds(bounds, {
-              padding: pad,
-              duration: 1200,
-              essential: true,
-              maxZoom: 9,
+            // Defensive — if cameraForBounds somehow fails, snap to
+            // the bbox center at a sensible zoom.
+            map.jumpTo({
+              center: [
+                (syntheticBounds[0] + syntheticBounds[2]) / 2,
+                (syntheticBounds[1] + syntheticBounds[3]) / 2,
+              ],
+              zoom: 5,
             })
           }
         } else {
+          // V10.8.P — keep the flyTo for precise-coord rows since the
+          // initial-zoom-out → fly-in motion is part of the "showing
+          // you exactly where this happened" reveal. But shorten it.
           map.flyTo({
             center: [longitude!, latitude!],
             zoom: targetZoom,
-            duration: 1500,
+            duration: 800,
             essential: true,
             easing: (t: number) => 1 - Math.pow(1 - t, 3),
           })
@@ -459,11 +477,13 @@ export default function ReportLocationMap({
       }
     }
 
-    // V10.8.N — robust ready-check (the previous map.once('load',...)
-    // never fired under interactive:false, leaving zoom stuck at the
-    // initial value).
+    // V10.8.N / V10.8.P — robust ready-check + immediate framing.
+    // The previous map.once('load',...) never fired under
+    // interactive:false. Also dropped the 200ms settle timeout — it
+    // was a holdover from when the framing depended on tile readiness;
+    // flyTo handles in-flight tiles fine.
     const cancelToken = { current: false }
-    const cleanup = whenMapReady(map, () => setTimeout(doFrame, 200), cancelToken)
+    const cleanup = whenMapReady(map, doFrame, cancelToken)
 
     return () => {
       cancelled = true
