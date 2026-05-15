@@ -32,6 +32,10 @@
       "schedule": "0 15 * * *"
     },
     {
+      "path": "/api/cron/signal-digest-email",
+      "schedule": "0 14 * * *"
+    },
+    {
       "path": "/api/cron/match-circles-curate",
       "schedule": "0 16 * * *"
     },

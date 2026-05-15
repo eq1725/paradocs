@@ -140,8 +140,10 @@ async function generateCluster(svc: any, userReport: any) {
   var latDelta = CLUSTER_RADIUS_MI / 69 // ~69 mi per degree of latitude
   var lngDelta = CLUSTER_RADIUS_MI / (69 * Math.cos(lat * Math.PI / 180) || 1)
 
+  // V10.9 Phase 3 — also fetch created_at so we can compute the
+  // user's contribution position (foundational vs. recent joiner).
   var query = await svc.from('reports')
-    .select('id, latitude, longitude, event_date')
+    .select('id, latitude, longitude, event_date, created_at')
     .eq('status', 'approved')
     .neq('id', userReport.id)
     .gte('latitude', lat - latDelta)
@@ -167,6 +169,51 @@ async function generateCluster(svc: any, userReport: any) {
   })
   years.sort(function (a, b) { return a - b })
 
+  // V10.9 Phase 3 — cluster-contribution detection.
+  // Frame the user's report against the cluster's CREATION timeline
+  // (when it was added to the archive), not the event_date timeline.
+  // The contribution story is "you put this on our map first" — that's
+  // an archive-contribution claim, not a temporal-event claim. Three
+  // tiers based on the user's percentile rank by created_at:
+  //   - top quartile by oldest created_at AND cluster has ≥3 members
+  //     → "foundational case" callout
+  //   - second quartile → "early case" callout
+  //   - otherwise → no callout (we don't want to trivialize the
+  //     concept by attaching it to every report)
+  var contribution: {
+    is_foundational: boolean
+    is_early: boolean
+    older_than_count: number
+    newer_arrivals_count: number
+  } | null = null
+
+  // We need the user's own report's created_at to compare. Hit it from
+  // the userReport object — already selected in the handler.
+  var userCreatedAtIso = (userReport as any).created_at
+  if (userCreatedAtIso && nearbyReports.length >= 3) {
+    var userCreatedMs = new Date(userCreatedAtIso).getTime()
+    if (!isNaN(userCreatedMs)) {
+      var olderCount = 0
+      var newerCount = 0
+      nearbyReports.forEach(function (r: any) {
+        if (!r.created_at) return
+        var t = new Date(r.created_at).getTime()
+        if (isNaN(t)) return
+        if (t < userCreatedMs) olderCount++
+        else if (t > userCreatedMs) newerCount++
+      })
+      // Foundational: in the top 25% by age (75% are newer than user).
+      var totalCmp = olderCount + newerCount
+      var newerPct = totalCmp > 0 ? newerCount / totalCmp : 0
+      contribution = {
+        is_foundational: newerPct >= 0.75 && newerCount >= 2,
+        is_early: !((newerPct >= 0.75 && newerCount >= 2)) && newerPct >= 0.5 && newerCount >= 1,
+        older_than_count: olderCount,
+        newer_arrivals_count: newerCount,
+      }
+    }
+  }
+
   return {
     skipped: false,
     nearby_count: nearbyReports.length,
@@ -174,6 +221,7 @@ async function generateCluster(svc: any, userReport: any) {
     year_min: years.length > 0 ? years[0] : null,
     year_max: years.length > 0 ? years[years.length - 1] : null,
     dated_count: years.length,
+    contribution: contribution,
   }
 }
 
@@ -266,8 +314,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   var svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
   // 1. Find the user's most recent report.
+  // V10.9 — added created_at for the cluster-contribution callout
+  // (Phase 3) — we frame "foundational" against archive-creation
+  // order, not event_date.
   var reportResult = await svc.from('reports')
-    .select('id, phenomenon_type_id, category, latitude, longitude, event_date, event_time, has_photo_video, witness_count, description, summary, title')
+    .select('id, phenomenon_type_id, category, latitude, longitude, event_date, event_time, has_photo_video, witness_count, description, summary, title, created_at')
     .eq('submitted_by', user.id)
     .order('created_at', { ascending: false })
     .limit(1)

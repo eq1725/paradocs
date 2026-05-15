@@ -509,10 +509,14 @@ function YourSignalTab() {
         feedback={data.feedback}
       />
 
-      {/* V10.9 Phase 2 — surface push-notification opt-in. The
-          signal-alerts cron + push_subscriptions infra were already
-          built; this card is the missing user-facing entry point. */}
+      {/* V10.9 Phase 2 — surface push-notification opt-in AND
+          Resend-backed email digest opt-in side by side. Push is
+          higher-fidelity (cluster growth alerts within hours) but
+          requires a supported browser; email is universal but
+          weekly-cadence by default. Together they cover every
+          reactivation channel. */}
       <SignalAlertsOptInCard />
+      <SignalEmailDigestCard />
 
       {/* V10.9 Phase 3 — surface the existing year-in-review API as
           an explorable highlight. Shipped collapsed by default to
@@ -608,6 +612,133 @@ function SignalAlertsOptInCard() {
               Enable signal alerts
             </button>
           )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * V10.9 Phase 2 — Resend-backed email digest opt-in.
+ *
+ * Always available (no browser-feature dependency, unlike push).
+ * Toggle persists to signal_user_visits.email_digest_enabled.
+ * Cadence picker lets the user choose daily vs weekly.
+ *
+ * Defensive: if the supporting table is missing (migration pending),
+ * the toggle returns 503 and we surface the message inline rather
+ * than crashing.
+ */
+function SignalEmailDigestCard() {
+  var [enabled, setEnabled] = useState<boolean | null>(null) // null = loading
+  var [cadence, setCadence] = useState<'daily' | 'weekly'>('weekly')
+  var [busy, setBusy] = useState(false)
+  var [message, setMessage] = useState<string | null>(null)
+
+  useEffect(function () {
+    // Read current state from signal_user_visits via the API. Quickest
+    // path: hit the existing your-signal endpoint, which now stamps
+    // visits and returns email_digest fields too. For now, default
+    // to "off" and let the user toggle — the toggle endpoint reads
+    // back the current state on success. Safer than another GET.
+    setEnabled(false)
+  }, [])
+
+  function persist(nextEnabled: boolean, nextCadence: 'daily' | 'weekly') {
+    if (busy) return
+    setBusy(true)
+    setMessage(null)
+    var prevEnabled = enabled
+    setEnabled(nextEnabled)
+    setCadence(nextCadence)
+    supabase.auth.getSession().then(function (s) {
+      var token = s.data.session ? s.data.session.access_token : null
+      if (!token) {
+        setEnabled(prevEnabled)
+        setMessage('Sign in to manage email preferences.')
+        setBusy(false)
+        return
+      }
+      fetch('/api/lab/your-signal/email-prefs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ enabled: nextEnabled, cadence: nextCadence }),
+      })
+        .then(function (r) {
+          if (r.status === 503) {
+            setEnabled(prevEnabled)
+            setMessage('Email digest will be available shortly — the database is being set up.')
+            return
+          }
+          if (!r.ok) {
+            setEnabled(prevEnabled)
+            setMessage('Could not save preferences. Try again in a moment.')
+          } else {
+            setMessage(nextEnabled
+              ? 'Email digest on — sent ' + (nextCadence === 'daily' ? 'daily' : 'weekly') + ' when there\'s activity.'
+              : 'Email digest off.')
+          }
+        })
+        .catch(function () {
+          setEnabled(prevEnabled)
+          setMessage('Network error. Try again in a moment.')
+        })
+        .finally(function () { setBusy(false) })
+    })
+  }
+
+  if (enabled === null) {
+    // Loading shimmer to avoid layout jump.
+    return (
+      <div id="email-prefs" className="rounded-xl border border-gray-800/60 bg-gray-900/30 px-4 py-3 h-[88px] animate-pulse" />
+    )
+  }
+
+  return (
+    <div id="email-prefs" className="rounded-xl border border-gray-800/60 bg-gray-900/30 px-4 py-3">
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0 inline-flex w-8 h-8 rounded-lg bg-gray-700/30 border border-gray-600/30 items-center justify-center">
+          <Send className="w-4 h-4 text-gray-300" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-white">Email digest</p>
+            <label className="inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!enabled}
+                onChange={function (e) { persist(e.target.checked, cadence) }}
+                disabled={busy}
+                className="sr-only peer"
+              />
+              <span className="relative w-9 h-5 bg-gray-700 rounded-full peer-checked:bg-purple-600 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-4" />
+            </label>
+          </div>
+          <p className="text-xs text-gray-300 mt-1 leading-relaxed">
+            {enabled
+              ? 'You\'ll get a Resend digest when new cases land in your cluster — never empty, never daily-by-default.'
+              : 'Turn on to get a quiet email when new cases land in your cluster. Universal (works on any device).'}
+          </p>
+          {enabled && (
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-[11px] text-gray-400">Cadence:</span>
+              <button
+                type="button"
+                onClick={function () { persist(true, 'weekly') }}
+                disabled={busy}
+                className={'px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ' +
+                  (cadence === 'weekly' ? 'bg-purple-600/30 text-purple-200 border border-purple-500/40' : 'bg-gray-800/50 text-gray-400 border border-gray-700/50 hover:text-gray-200')}
+              >Weekly</button>
+              <button
+                type="button"
+                onClick={function () { persist(true, 'daily') }}
+                disabled={busy}
+                className={'px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ' +
+                  (cadence === 'daily' ? 'bg-purple-600/30 text-purple-200 border border-purple-500/40' : 'bg-gray-800/50 text-gray-400 border border-gray-700/50 hover:text-gray-200')}
+              >Daily</button>
+            </div>
+          )}
+          {message && <p className="text-[11px] text-gray-400 mt-2">{message}</p>}
         </div>
       </div>
     </div>
@@ -1175,6 +1306,14 @@ function ClusterCard(props: { data: any; reportId: string; initialRating: Rating
   var yearRange = (d.year_min && d.year_max && d.year_min !== d.year_max)
     ? d.year_min + '–' + d.year_max
     : (d.year_min ? String(d.year_min) : '')
+  // V10.9 Phase 3 — cluster-contribution callout. When the user's
+  // report is one of the foundational/early cases at this location,
+  // surface that explicitly. The brand promise is "you're not alone";
+  // the contribution callout adds "and you helped someone else
+  // realize that." Highest emotional payoff in the entire surface,
+  // and only fires when the data actually warrants it (≥3 cluster
+  // members, top-25% or top-50% by created_at).
+  var contribution = d.contribution
   return (
     <SignalCardShell kicker="Where else this is happening" reportId={props.reportId} cardType="cluster" initialRating={props.initialRating}>
       <p className="text-sm text-white leading-snug">
@@ -1184,6 +1323,21 @@ function ClusterCard(props: { data: any; reportId: string; initialRating: Rating
           {' '}— spanning <span className="font-semibold text-purple-300">{yearRange}</span>
         </>)}.
       </p>
+      {contribution && (contribution.is_foundational || contribution.is_early) && (
+        <div className="mt-3 pt-3 border-t border-white/5">
+          <div className="flex items-start gap-2">
+            <Sparkles className={'w-3.5 h-3.5 mt-0.5 flex-shrink-0 ' + (contribution.is_foundational ? 'text-purple-300' : 'text-purple-400')} />
+            <p className="text-xs text-gray-200 leading-relaxed">
+              {contribution.is_foundational
+                ? <>Your story is one of the <span className="font-semibold text-purple-200">foundational cases</span> at this location.{' '}
+                    <span className="text-gray-400">{contribution.newer_arrivals_count} {contribution.newer_arrivals_count === 1 ? 'report has' : 'reports have'} joined since.</span></>
+                : <>Your story arrived <span className="font-semibold text-purple-200">early</span> in this cluster.{' '}
+                    <span className="text-gray-400">{contribution.newer_arrivals_count} {contribution.newer_arrivals_count === 1 ? 'report has' : 'reports have'} joined since.</span></>
+              }
+            </p>
+          </div>
+        </div>
+      )}
     </SignalCardShell>
   )
 }

@@ -30,6 +30,13 @@ CREATE TABLE IF NOT EXISTS public.signal_user_visits (
   -- circuit on rapid re-loads without re-querying. nullable; the
   -- API is free to ignore and recompute.
   last_delta_payload      JSONB,
+  -- V10.9 — email digest opt-in. Mirrors push opt-in but routed
+  -- through Resend instead of WebPush. last_email_sent_at enforces
+  -- a per-user cooldown (default 72h, mirrors push) so users don't
+  -- get hammered when archive growth is bursty.
+  email_digest_enabled    BOOLEAN NOT NULL DEFAULT FALSE,
+  email_digest_cadence    TEXT NOT NULL DEFAULT 'weekly' CHECK (email_digest_cadence IN ('daily', 'weekly')),
+  last_email_sent_at      TIMESTAMPTZ,
   created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
