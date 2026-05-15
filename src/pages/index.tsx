@@ -166,6 +166,24 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // V10.10 — funnel step 1 of 3. landing_view fires only when the
+  // marketing homepage actually renders (i.e. after the first-run
+  // redirect logic above decides this visitor should see the
+  // homepage rather than be bounced to /start or /discover).
+  // landing_view → start_form_open (in /start) → report_submitted
+  // (post-API success in /start) is the funnel chart.
+  useEffect(function () {
+    if (typeof window === 'undefined') return
+    if (!showHome) return
+    try {
+      require('@/lib/posthog').capture('report_share_funnel', {
+        step: 'landing_view',
+        hero_variant: heroTest.variant || null,
+      })
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showHome])
+
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
     if (searchQuery.trim()) {

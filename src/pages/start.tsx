@@ -367,6 +367,20 @@ export default function StartPage() {
   var router = useRouter()
   var [step, setStep] = useState<Step>('experience')
 
+  // V10.10 — funnel step 2 of 3. landing_view fires on /index;
+  // start_form_open fires here on /start mount; report_submitted
+  // fires after the API returns success. PostHog funnel built from
+  // these three step values shows landing → start → submitted
+  // conversion.
+  useEffect(function () {
+    try {
+      require('@/lib/posthog').capture('report_share_funnel', {
+        step: 'start_form_open',
+        referrer: typeof document !== 'undefined' ? document.referrer || null : null,
+      })
+    } catch {}
+  }, [])
+
   // Form state (step 1)
   var [draft, setDraft] = useState<ExperienceDraft>({
     description: '',
@@ -1048,6 +1062,24 @@ export default function StartPage() {
         }
         setReportId(result.report_id)
         setReportSlug(result.slug)
+        // V10.10 — funnel step 3 of 3. Steps 1 (landing_view) and 2
+        // (start_form_open) fire on /index and /start mount; this is
+        // the conversion event we count when computing the
+        // landing → start → submitted funnel in PostHog.
+        try {
+          // Lazy import so non-onboarded paths don't pull posthog into
+          // the start.tsx bundle weight if the user never reaches
+          // submit. (Bundle-wise this is mostly cosmetic since posthog
+          // is loaded by _app, but the dynamic import keeps the
+          // dependency obvious to a grep.)
+          require('@/lib/posthog').capture('report_share_funnel', {
+            step: 'report_submitted',
+            report_id: result.report_id,
+            category: draft.category || null,
+            had_media: pendingMedia.length > 0,
+            description_length: (draft.description || '').length,
+          })
+        } catch {}
         // V9.11.2 #F — mark the funnel as completed so future homepage
         // visits don't bounce this user back to /start.
         try { localStorage.setItem(COMPLETE_KEY, '1') } catch {}

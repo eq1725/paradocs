@@ -51,6 +51,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
+import { capture } from '@/lib/posthog'
 import LabSavesTab from '@/components/dashboard/LabSavesTab'
 import LabCasesTab from '@/components/dashboard/LabCasesTab'
 import LabMapTab from '@/components/dashboard/LabMapTab'
@@ -408,6 +409,27 @@ function YourSignalTab() {
     load()
   }, [])
 
+  // V10.10 — fire signal_tab_open exactly once per mount, after the
+  // payload is in hand so we can include the delta-line state as
+  // properties (drives the "did the delta line correlate with
+  // return-engagement" analysis).
+  useEffect(function () {
+    if (loading) return
+    if (!data) return
+    var slv = data.since_last_visit || {}
+    var prior = slv.previous_visited_at ? new Date(slv.previous_visited_at).getTime() : null
+    var sinceDays = prior ? Math.round((Date.now() - prior) / (1000 * 60 * 60 * 24)) : null
+    capture('signal_tab_open', {
+      has_report: !!data.has_report,
+      is_first_visit: !!slv.is_first_visit,
+      since_last_visit_days: sinceDays,
+      new_in_cluster: slv.new_in_cluster || 0,
+      new_in_archive: slv.new_in_archive || 0,
+      new_peers_opted_in: slv.new_peers_opted_in || 0,
+      had_delta_to_show: ((slv.new_in_cluster || 0) + (slv.new_peers_opted_in || 0)) > 0,
+    })
+  }, [loading, data])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -567,13 +589,17 @@ function SignalAlertsOptInCard() {
         if (result.subscribed) {
           setPermission('granted')
           setMessage('Notifications on — we’ll ping you when 3+ new reports land in your cluster.')
+          capture('signal_alerts_optin', { outcome: 'subscribed' })
         } else if (result.unsupported) {
           setPermission('unsupported')
+          capture('signal_alerts_optin', { outcome: 'unsupported' })
         } else if (result.denied) {
           setPermission('denied')
           setMessage('Permission was denied. You can re-enable in your browser settings under site permissions.')
+          capture('signal_alerts_optin', { outcome: 'denied' })
         } else {
           setMessage(result.error || 'Couldn’t enable notifications.')
+          capture('signal_alerts_optin', { outcome: 'error', error: result.error || null })
         }
       }).finally(function () { setBusy(false) })
     })
@@ -668,15 +694,18 @@ function SignalEmailDigestCard() {
           if (r.status === 503) {
             setEnabled(prevEnabled)
             setMessage('Email digest will be available shortly — the database is being set up.')
+            capture('signal_email_optin', { outcome: 'unavailable', enabled: nextEnabled, cadence: nextCadence })
             return
           }
           if (!r.ok) {
             setEnabled(prevEnabled)
             setMessage('Could not save preferences. Try again in a moment.')
+            capture('signal_email_optin', { outcome: 'error', status: r.status, enabled: nextEnabled, cadence: nextCadence })
           } else {
             setMessage(nextEnabled
               ? 'Email digest on — sent ' + (nextCadence === 'daily' ? 'daily' : 'weekly') + ' when there\'s activity.'
               : 'Email digest off.')
+            capture('signal_email_optin', { outcome: 'saved', enabled: nextEnabled, cadence: nextCadence })
           }
         })
         .catch(function () {
@@ -960,6 +989,12 @@ function AskTheUnknown() {
     if (q.length < 3 || asking) return
     setAsking(true)
     reset()
+    // V10.10 — fire submit BEFORE the request so we capture intent
+    // even if the answer never returns. Question text deliberately
+    // not in props (privacy: would land in the user's PostHog
+    // person profile and the session replay).
+    capture('ask_unknown_submit', { question_length: q.length })
+    var startedAt = Date.now()
     try {
       var s = await supabase.auth.getSession()
       var token = s.data.session ? s.data.session.access_token : null
@@ -972,13 +1007,31 @@ function AskTheUnknown() {
       var data = await resp.json()
       if (!resp.ok) {
         setError(data.error || 'Couldn\'t reach the AI.')
+        capture('ask_unknown_answer_received', {
+          ok: false,
+          status: resp.status,
+          latency_ms: Date.now() - startedAt,
+        })
       } else {
         setAnswer(data.answer)
         setCitations(data.citations || [])
         setRefused(!!data.refused)
+        capture('ask_unknown_answer_received', {
+          ok: true,
+          refused: !!data.refused,
+          has_citations: Array.isArray(data.citations) && data.citations.length > 0,
+          citation_count: Array.isArray(data.citations) ? data.citations.length : 0,
+          answer_length: typeof data.answer === 'string' ? data.answer.length : 0,
+          latency_ms: Date.now() - startedAt,
+        })
       }
     } catch (e: any) {
       setError(e.message || 'Network error')
+      capture('ask_unknown_answer_received', {
+        ok: false,
+        network_error: true,
+        latency_ms: Date.now() - startedAt,
+      })
     } finally {
       setAsking(false)
     }
@@ -1110,6 +1163,11 @@ function ThumbsRow(props: { reportId: string; cardType: CardType; initialRating:
     var prev = rating
     setRating(next)
     setBusy(true)
+    // V10.10 — capture optimistically (matches what the user sees).
+    // If the API fails we'll revert UI state but the analytics event
+    // still fires — preference signal is the user's intent, not the
+    // server's persistence outcome.
+    capture('signal_card_thumbs', { card_type: props.cardType, rating: next })
     supabase.auth.getSession().then(function (s) {
       var token = s.data.session ? s.data.session.access_token : null
       if (!token) { setRating(prev); setBusy(false); return }
@@ -1197,11 +1255,22 @@ function SignalCardShell(props: {
     if (thumbsVisible) return // already shown (initial rating present); nothing to do
     if (!ref.current || typeof IntersectionObserver === 'undefined') return
     var dwellTimer: any = null
+    var dwellFired = false
     var io = new IntersectionObserver(function (entries) {
       var e = entries[0]
       if (e && e.isIntersecting && e.intersectionRatio >= 0.5) {
         if (!dwellTimer) {
-          dwellTimer = setTimeout(function () { setThumbsVisible(true) }, 3000)
+          dwellTimer = setTimeout(function () {
+            setThumbsVisible(true)
+            // V10.10 — signal_card_dwell_3s fires here, the moment we
+            // promote the thumbs row from hidden → visible. This is
+            // the single most reliable engagement signal on the
+            // surface (random scroll-by traffic doesn't dwell).
+            if (!dwellFired && props.cardType) {
+              dwellFired = true
+              capture('signal_card_dwell_3s', { card_type: props.cardType })
+            }
+          }, 3000)
         }
       } else {
         if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = null }
@@ -1212,7 +1281,7 @@ function SignalCardShell(props: {
       io.disconnect()
       if (dwellTimer) clearTimeout(dwellTimer)
     }
-  }, [thumbsVisible])
+  }, [thumbsVisible, props.cardType])
 
   return (
     <div
