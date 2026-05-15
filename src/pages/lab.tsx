@@ -19,7 +19,7 @@
  * SWC: Uses var + function(){} for compatibility with MobileBottomTabs imports.
  */
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
@@ -47,6 +47,7 @@ import {
   ExternalLink,
   Users,
   Heart,
+  ArrowRight,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
@@ -453,34 +454,347 @@ function YourSignalTab() {
     )
   }
 
+  // V10.9 Signal Reframe — pick the strongest non-skipped card to be
+  // the hero. Heuristic: prefer cluster (most concrete: "X cases near
+  // you"), then fingerprint (categorical match), then context, then
+  // didyouknow. The hero gets full attention; the rest live in an
+  // expandable "More signals" strip below the Ask box.
+  var heroCard: { kind: 'cluster' | 'fingerprint' | 'context' | 'did_you_know'; data: any } = (function () {
+    var cl = data.cluster
+    if (cl && !cl.skipped && (cl.nearby_count || 0) >= 1) return { kind: 'cluster', data: cl }
+    var fp = data.fingerprint
+    if (fp && fp.primary_count) return { kind: 'fingerprint', data: fp }
+    var ctx = data.context
+    if (ctx && !ctx.skipped) return { kind: 'context', data: ctx }
+    return { kind: 'did_you_know', data: data.did_you_know }
+  })()
+
   return (
-    <div className="space-y-5 max-w-3xl mx-auto">
+    <div className="space-y-4 max-w-3xl mx-auto">
+      {/* V10.9 — header (kicker simplified to remove "Personalized
+          patterns…" jargon; that's what the cards already say). */}
       <div>
         <h2 className="text-xl font-bold text-white">Your Signal</h2>
-        <p className="text-sm text-gray-400 mt-1 leading-relaxed">
-          Personalized patterns surfaced from your report against the broader archive.
-        </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <FingerprintCard data={data.fingerprint} reportId={data.report_id} initialRating={(data.feedback && data.feedback.fingerprint) || null} />
-        <ClusterCard data={data.cluster} reportId={data.report_id} initialRating={(data.feedback && data.feedback.cluster) || null} />
-        <DidYouKnowCard data={data.did_you_know} reportId={data.report_id} initialRating={(data.feedback && data.feedback.did_you_know) || null} />
-        <ContextCard data={data.context} reportId={data.report_id} initialRating={(data.feedback && data.feedback.context) || null} />
-        {/* V9.13 Phase 3.B — full-width on mobile, spans both cols
-            on desktop so the peer cards have breathing room. */}
-        <div className="sm:col-span-2">
-          <PeopleLikeYouCard data={data.peers} />
+      {/* V10.9 — "Since you last visited" delta line. Single most
+          important addition: gives every visit a return reason and
+          surfaces archive growth visibly. Falls back to a guidance
+          line on first visit / no archive change. */}
+      <SinceLastVisitLine sinceLastVisit={data.since_last_visit} hasReport={true} />
+
+      {/* V10.9 — single hero card. Picked algorithmically for
+          novelty / specificity. Fills the screen on mobile so the
+          first viewport always carries one strong, parseable signal. */}
+      <HeroCardSlot heroCard={heroCard} reportId={data.report_id} feedback={data.feedback} />
+
+      {/* V10.9 — Ask the Unknown lifted directly under the hero,
+          ABOVE the accordion of demoted cards. Engagement data from
+          analogous Q&A surfaces shows the input box must appear in
+          the first viewport or it's effectively invisible. */}
+      <AskTheUnknown />
+
+      {/* V10.9 — peer card (full width). Kept above the accordion
+          because "X people share this signature" is the strongest
+          articulation of the brand promise (you're not alone). */}
+      <PeopleLikeYouCard data={data.peers} />
+
+      {/* V10.9 — expandable "More signals" strip with the cards
+          NOT picked as hero. Collapsed by default on mobile to keep
+          the first viewport tight; one tap to expand. */}
+      <MoreSignalsAccordion
+        heroKind={heroCard.kind}
+        data={data}
+        reportId={data.report_id}
+        feedback={data.feedback}
+      />
+
+      {/* V10.9 Phase 2 — surface push-notification opt-in. The
+          signal-alerts cron + push_subscriptions infra were already
+          built; this card is the missing user-facing entry point. */}
+      <SignalAlertsOptInCard />
+
+      {/* V10.9 Phase 3 — surface the existing year-in-review API as
+          an explorable highlight. Shipped collapsed by default to
+          avoid competing with the active deltas above. */}
+      <YearInReviewEntry />
+
+      <p className="text-[11px] text-gray-500 text-center pt-2 leading-relaxed">
+        Your Signal updates as new reports land in the archive. The thumbs
+        on each card tune what shows up next time.
+      </p>
+    </div>
+  )
+}
+
+/**
+ * V10.9 Phase 2 — Signal-alerts opt-in card.
+ *
+ * Surfaces the existing /api/cron/signal-alerts machinery to users.
+ * Three states based on Notification.permission:
+ *   - 'default' — show CTA to enable push notifications.
+ *   - 'granted' — show confirmation + threshold copy.
+ *   - 'denied' — show how-to-re-enable instructions (browser
+ *     settings > site permissions).
+ *   - 'unsupported' — hide the card entirely (iOS Safari pre-16.4,
+ *     etc.) so we don't promise something we can't deliver.
+ *
+ * Subscribed users can disable via the same toggle in a follow-up
+ * commit; today it's an opt-in-only surface.
+ */
+function SignalAlertsOptInCard() {
+  var [permission, setPermission] = useState<NotificationPermission | 'unsupported' | 'unknown'>('unknown')
+  var [busy, setBusy] = useState(false)
+  var [message, setMessage] = useState<string | null>(null)
+
+  useEffect(function () {
+    // Lazy-import client helper since it touches `window`.
+    import('@/lib/pushNotifications').then(function (mod) {
+      setPermission(mod.getPushPermissionState())
+    })
+  }, [])
+
+  function handleEnable() {
+    if (busy) return
+    setBusy(true)
+    setMessage(null)
+    import('@/lib/pushNotifications').then(function (mod) {
+      mod.requestPushSubscription({ topics: ['your_signal'] }).then(function (result) {
+        if (result.subscribed) {
+          setPermission('granted')
+          setMessage('Notifications on — we’ll ping you when 3+ new reports land in your cluster.')
+        } else if (result.unsupported) {
+          setPermission('unsupported')
+        } else if (result.denied) {
+          setPermission('denied')
+          setMessage('Permission was denied. You can re-enable in your browser settings under site permissions.')
+        } else {
+          setMessage(result.error || 'Couldn’t enable notifications.')
+        }
+      }).finally(function () { setBusy(false) })
+    })
+  }
+
+  if (permission === 'unsupported' || permission === 'unknown') return null
+
+  return (
+    <div className="rounded-xl border border-purple-800/40 bg-purple-950/15 px-4 py-3">
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0 inline-flex w-8 h-8 rounded-lg bg-purple-600/20 border border-purple-500/30 items-center justify-center">
+          <Sparkles className="w-4 h-4 text-purple-300" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-white">
+            {permission === 'granted' ? 'Signal alerts are on' : 'Get a ping when your signal grows'}
+          </p>
+          <p className="text-xs text-gray-300 mt-1 leading-relaxed">
+            {permission === 'granted'
+              ? 'We’ll notify you when 3+ new reports join your cluster, no more than once every 3 days.'
+              : permission === 'denied'
+                ? 'Push permission was denied. Re-enable in your browser site permissions.'
+                : 'Get a quiet, low-volume notification when 3+ new cases share your signature. Capped at one alert per 3 days.'}
+          </p>
+          {message && permission !== 'granted' && (
+            <p className="text-[11px] text-amber-200 mt-1.5">{message}</p>
+          )}
+          {permission === 'default' && (
+            <button
+              type="button"
+              onClick={handleEnable}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs font-semibold transition-colors"
+            >
+              {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+              Enable signal alerts
+            </button>
+          )}
         </div>
       </div>
+    </div>
+  )
+}
 
-      <p className="text-[11px] text-gray-500 text-center pt-2">
-        Your Signal regenerates when you share a new experience or when significant new reports land in the archive.
-        Your thumbs help us tune what shows up here.
-      </p>
+/**
+ * V10.9 Phase 3 — Year-in-review entry card.
+ *
+ * The /api/lab/year-in-review/[year] endpoint already exists. This
+ * card is the user-facing entry point: a quiet "see your year on
+ * Paradocs" link that takes the user to the existing reveal page.
+ * Only shows for years where there's enough archive density to make
+ * the reveal worth viewing.
+ */
+function YearInReviewEntry() {
+  // Default to last full year, falling back to current year — the
+  // existing endpoint handles either.
+  var now = new Date()
+  var year = now.getMonth() < 2 ? now.getFullYear() - 1 : now.getFullYear()
+  return (
+    <Link
+      href={'/lab/year/' + year}
+      className="block rounded-xl border border-gray-800/60 bg-gray-900/30 hover:bg-gray-900/50 px-4 py-3 transition-colors"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-white">{year} on Paradocs</p>
+          <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+            See the patterns the archive surfaced this year, and where your story sits inside them.
+          </p>
+        </div>
+        <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+      </div>
+    </Link>
+  )
+}
 
-      {/* V9.13 Phase 3.A — Ask the Unknown */}
-      <AskTheUnknown />
+/**
+ * V10.9 Signal Reframe — "Since you last visited" delta line.
+ *
+ * The single most important Phase 1 addition. Three outputs:
+ *   - First visit ever: "Welcome — your Signal grows with the archive."
+ *   - Has prior visit + meaningful change: "Since Tuesday: 4 new cases
+ *     share your signature; 1 within 200 miles."
+ *   - Has prior visit + no change: honest "Nothing new in your signal
+ *     yet — your archive contributions are still resonating."
+ *
+ * The honesty matters — the brand promise ("you're not alone") is
+ * undermined by faking activity that didn't happen.
+ */
+function SinceLastVisitLine(props: { sinceLastVisit: any; hasReport: boolean }) {
+  var s = props.sinceLastVisit
+  if (!props.hasReport || !s) return null
+
+  // First visit — frame as a welcome, not a delta.
+  if (s.is_first_visit) {
+    return (
+      <div className="text-sm text-gray-300 bg-purple-950/15 border border-purple-800/40 rounded-lg px-4 py-3 leading-relaxed">
+        <span className="text-purple-300 font-semibold">Welcome to your Signal.</span>{' '}
+        It will grow as new reports land in the archive — check back to see what changes.
+      </div>
+    )
+  }
+
+  var prior = s.previous_visited_at ? new Date(s.previous_visited_at) : null
+  var sinceLabel = prior ? formatSinceLabel(prior) : 'last time'
+
+  var totalNew = (s.new_in_cluster || 0) + (s.new_peers_opted_in || 0)
+
+  if (totalNew === 0) {
+    // Honest empty state — encourages return without faking activity.
+    return (
+      <div className="text-sm text-gray-300 bg-gray-900/40 border border-gray-800/60 rounded-lg px-4 py-3 leading-relaxed">
+        <span className="text-gray-100 font-medium">Nothing new in your signal yet</span>
+        <span className="text-gray-400">
+          {' — the archive grew by ' + (s.new_in_archive || 0) + ' reports since '+ sinceLabel +', but none matched your cluster. Add another experience and your signal will sharpen.'}
+        </span>
+      </div>
+    )
+  }
+
+  // Active delta — the return-reason payload.
+  var parts: string[] = []
+  if (s.new_in_cluster && s.new_in_cluster > 0) {
+    parts.push(s.new_in_cluster === 1
+      ? '1 new case shares your signature'
+      : s.new_in_cluster + ' new cases share your signature')
+  }
+  if (s.new_peers_opted_in && s.new_peers_opted_in > 0) {
+    parts.push(s.new_peers_opted_in === 1
+      ? '1 person opened up to peer connection'
+      : s.new_peers_opted_in + ' people opened up to peer connection')
+  }
+  return (
+    <div className="text-sm text-gray-100 bg-purple-950/20 border border-purple-700/40 rounded-lg px-4 py-3 leading-relaxed">
+      <span className="text-purple-300 font-semibold">Since {sinceLabel}:</span>{' '}
+      {parts.join('; ')}.
+    </div>
+  )
+}
+
+function formatSinceLabel(prior: Date): string {
+  var now = Date.now()
+  var diffMs = now - prior.getTime()
+  var diffMin = Math.floor(diffMs / 60000)
+  var diffHr = Math.floor(diffMin / 60)
+  var diffDay = Math.floor(diffHr / 24)
+  if (diffMin < 60) return 'a moment ago'
+  if (diffHr < 24) return diffHr + (diffHr === 1 ? ' hour ago' : ' hours ago')
+  if (diffDay < 7) {
+    // Use the weekday name if recent: "since Tuesday"
+    return prior.toLocaleDateString('en-US', { weekday: 'long' })
+  }
+  if (diffDay < 30) return diffDay + ' days ago'
+  return prior.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+/**
+ * V10.9 Signal Reframe — single hero card slot.
+ *
+ * Renders whichever card kind was picked by the heuristic in
+ * YourSignalTab as the "hero." Wraps the existing card components
+ * so we don't fork the per-card content — just the position +
+ * visual weight (taller padding, highlight border).
+ */
+function HeroCardSlot(props: { heroCard: { kind: string; data: any }; reportId: string; feedback: any }) {
+  var fb = props.feedback || {}
+  return (
+    <div className="rounded-xl border border-purple-700/40 bg-purple-950/20 p-1">
+      {props.heroCard.kind === 'cluster' && (
+        <ClusterCard data={props.heroCard.data} reportId={props.reportId} initialRating={fb.cluster || null} />
+      )}
+      {props.heroCard.kind === 'fingerprint' && (
+        <FingerprintCard data={props.heroCard.data} reportId={props.reportId} initialRating={fb.fingerprint || null} />
+      )}
+      {props.heroCard.kind === 'context' && (
+        <ContextCard data={props.heroCard.data} reportId={props.reportId} initialRating={fb.context || null} />
+      )}
+      {props.heroCard.kind === 'did_you_know' && (
+        <DidYouKnowCard data={props.heroCard.data} reportId={props.reportId} initialRating={fb.did_you_know || null} />
+      )}
+    </div>
+  )
+}
+
+/**
+ * V10.9 Signal Reframe — accordion of demoted cards.
+ *
+ * Collapsed by default. On expand, renders the three cards NOT
+ * picked as hero in a 1-col mobile / 2-col desktop grid. Keeps the
+ * Signal panel tight on first paint while preserving access to the
+ * full insight set for engaged users.
+ */
+function MoreSignalsAccordion(props: { heroKind: string; data: any; reportId: string; feedback: any }) {
+  var [open, setOpen] = useState(false)
+  var fb = props.feedback || {}
+  var nonHero: Array<{ kind: string; node: React.ReactNode }> = []
+  if (props.heroKind !== 'fingerprint') {
+    nonHero.push({ kind: 'fingerprint', node: <FingerprintCard data={props.data.fingerprint} reportId={props.reportId} initialRating={fb.fingerprint || null} /> })
+  }
+  if (props.heroKind !== 'cluster') {
+    nonHero.push({ kind: 'cluster', node: <ClusterCard data={props.data.cluster} reportId={props.reportId} initialRating={fb.cluster || null} /> })
+  }
+  if (props.heroKind !== 'context') {
+    nonHero.push({ kind: 'context', node: <ContextCard data={props.data.context} reportId={props.reportId} initialRating={fb.context || null} /> })
+  }
+  if (props.heroKind !== 'did_you_know') {
+    nonHero.push({ kind: 'did_you_know', node: <DidYouKnowCard data={props.data.did_you_know} reportId={props.reportId} initialRating={fb.did_you_know || null} /> })
+  }
+  if (nonHero.length === 0) return null
+  return (
+    <div className="rounded-xl border border-gray-800/60 bg-gray-900/30">
+      <button
+        type="button"
+        onClick={function () { setOpen(!open) }}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-200 hover:text-white transition-colors"
+      >
+        <span className="font-medium">More signals</span>
+        <span className="text-xs text-gray-500">{open ? 'Hide' : 'Show ' + nonHero.length}</span>
+      </button>
+      {open && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 pt-0">
+          {nonHero.map(function (c) { return <div key={c.kind}>{c.node}</div> })}
+        </div>
+      )}
     </div>
   )
 }
@@ -719,6 +1033,23 @@ function ThumbsRow(props: { reportId: string; cardType: CardType; initialRating:
   )
 }
 
+/**
+ * V10.9 Signal Reframe — SignalCardShell now uses dwell-triggered
+ * thumbs instead of always-visible. The thumbs row only appears
+ * after the user has dwelled on the card for 3+ seconds (visibility
+ * tracked via IntersectionObserver). Two reasons:
+ *   1. UX — five always-visible thumb rows on a dashboard creates
+ *      ratings fatigue and noisy data (random taps).
+ *   2. ML data quality — dwell-triggered ratings come from users
+ *      who actually engaged with the content, so the preference
+ *      signal is interpretable.
+ *
+ * Pattern is from Snap / Pinterest / TikTok dwell-prompts.
+ *
+ * V10.9 — also fixed kicker color contrast (was text-gray-400 which
+ * fails WCAG AA at 10px on dark; now text-gray-200 for non-highlight,
+ * text-purple-300 for highlight — both pass at small sizes).
+ */
 function SignalCardShell(props: {
   kicker: string
   highlight?: boolean
@@ -728,8 +1059,33 @@ function SignalCardShell(props: {
   trailingTag?: React.ReactNode
   children: React.ReactNode
 }) {
+  var ref = useRef<HTMLDivElement | null>(null)
+  var [thumbsVisible, setThumbsVisible] = useState(!!props.initialRating)
+
+  useEffect(function () {
+    if (thumbsVisible) return // already shown (initial rating present); nothing to do
+    if (!ref.current || typeof IntersectionObserver === 'undefined') return
+    var dwellTimer: any = null
+    var io = new IntersectionObserver(function (entries) {
+      var e = entries[0]
+      if (e && e.isIntersecting && e.intersectionRatio >= 0.5) {
+        if (!dwellTimer) {
+          dwellTimer = setTimeout(function () { setThumbsVisible(true) }, 3000)
+        }
+      } else {
+        if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = null }
+      }
+    }, { threshold: [0, 0.5, 1] })
+    io.observe(ref.current)
+    return function () {
+      io.disconnect()
+      if (dwellTimer) clearTimeout(dwellTimer)
+    }
+  }, [thumbsVisible])
+
   return (
     <div
+      ref={ref}
       className={
         'rounded-xl border p-4 flex flex-col ' +
         (props.highlight
@@ -739,10 +1095,13 @@ function SignalCardShell(props: {
     >
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-1.5">
-          {props.highlight && <Sparkles className="w-3 h-3 text-purple-400" />}
+          {props.highlight && <Sparkles className="w-3 h-3 text-purple-300" />}
           <p className={
             'text-[10px] font-semibold tracking-widest uppercase ' +
-            (props.highlight ? 'text-purple-400' : 'text-gray-400')
+            // V10.9 — bumped contrast: text-gray-400 / text-purple-400
+            // both fail WCAG AA at this size on dark; text-gray-200 /
+            // text-purple-300 pass.
+            (props.highlight ? 'text-purple-300' : 'text-gray-200')
           }>
             {props.kicker}
           </p>
@@ -750,7 +1109,7 @@ function SignalCardShell(props: {
         {props.trailingTag}
       </div>
       <div className="flex-1">{props.children}</div>
-      {props.reportId && props.cardType && (
+      {props.reportId && props.cardType && thumbsVisible && (
         <ThumbsRow reportId={props.reportId} cardType={props.cardType} initialRating={props.initialRating || null} />
       )}
     </div>
@@ -762,7 +1121,7 @@ function FingerprintCard(props: { data: any; reportId: string; initialRating: Ra
   // Strongest signal is `primary_label` with `primary_count` other reports.
   if (!d.primary_label || !d.primary_count) {
     return (
-      <SignalCardShell kicker="Your fingerprint" reportId={props.reportId} cardType="fingerprint" initialRating={props.initialRating}>
+      <SignalCardShell kicker="What your story shares with others" reportId={props.reportId} cardType="fingerprint" initialRating={props.initialRating}>
         <p className="text-sm text-gray-300 leading-snug">
           Your report joins the archive. As more reports cluster around its
           phenomenon type, your fingerprint will sharpen.
@@ -771,7 +1130,7 @@ function FingerprintCard(props: { data: any; reportId: string; initialRating: Ra
     )
   }
   return (
-    <SignalCardShell kicker="Your fingerprint" reportId={props.reportId} cardType="fingerprint" initialRating={props.initialRating}>
+    <SignalCardShell kicker="What your story shares with others" reportId={props.reportId} cardType="fingerprint" initialRating={props.initialRating}>
       <p className="text-sm text-white leading-snug">
         Your report shares its{' '}
         <span className="font-semibold text-purple-300">{d.primary_label}</span>{' '}
@@ -793,7 +1152,7 @@ function ClusterCard(props: { data: any; reportId: string; initialRating: Rating
   var d = props.data || {}
   if (d.skipped) {
     return (
-      <SignalCardShell kicker="Patterns near you" reportId={props.reportId} cardType="cluster" initialRating={props.initialRating}>
+      <SignalCardShell kicker="Where else this is happening" reportId={props.reportId} cardType="cluster" initialRating={props.initialRating}>
         <p className="text-sm text-gray-300 leading-snug">
           {d.reason === 'no_location'
             ? 'Add a location to your report to see how your experience sits inside regional clusters.'
@@ -804,7 +1163,7 @@ function ClusterCard(props: { data: any; reportId: string; initialRating: Rating
   }
   if (!d.nearby_count) {
     return (
-      <SignalCardShell kicker="Patterns near you" reportId={props.reportId} cardType="cluster" initialRating={props.initialRating}>
+      <SignalCardShell kicker="Where else this is happening" reportId={props.reportId} cardType="cluster" initialRating={props.initialRating}>
         <p className="text-sm text-gray-300 leading-snug">
           Your area is sparsely documented &mdash; you may be the first to log
           an experience here. As nearby reports arrive, this card will surface
@@ -817,7 +1176,7 @@ function ClusterCard(props: { data: any; reportId: string; initialRating: Rating
     ? d.year_min + '–' + d.year_max
     : (d.year_min ? String(d.year_min) : '')
   return (
-    <SignalCardShell kicker="Patterns near you" reportId={props.reportId} cardType="cluster" initialRating={props.initialRating}>
+    <SignalCardShell kicker="Where else this is happening" reportId={props.reportId} cardType="cluster" initialRating={props.initialRating}>
       <p className="text-sm text-white leading-snug">
         <span className="font-semibold text-purple-300">{d.nearby_count.toLocaleString()}</span>{' '}
         report{d.nearby_count === 1 ? '' : 's'} within ~{d.radius_mi} miles of your experience
@@ -844,7 +1203,7 @@ function DidYouKnowCard(props: { data: any; reportId: string; initialRating: Rat
   // Phase 1.B / 1.C placeholder state — no Sonnet yet or Sonnet failed.
   if (d.pending) {
     return (
-      <SignalCardShell kicker="Did you know" highlight reportId={props.reportId} cardType="did_you_know" initialRating={props.initialRating}>
+      <SignalCardShell kicker="The thing that surprised our AI" highlight reportId={props.reportId} cardType="did_you_know" initialRating={props.initialRating}>
         <p className="text-sm text-gray-300 leading-snug">
           The AI is reading the archive for surprising correlations connected
           to your experience. This card lights up once a pattern emerges that
@@ -858,7 +1217,7 @@ function DidYouKnowCard(props: { data: any; reportId: string; initialRating: Rat
   }
   return (
     <SignalCardShell
-      kicker="Did you know"
+      kicker="The thing that surprised our AI"
       highlight
       reportId={props.reportId}
       cardType="did_you_know"
@@ -951,7 +1310,7 @@ function PeopleLikeYouCard(props: { data: any }) {
   }
 
   return (
-    <SignalCardShell kicker="People like you">
+    <SignalCardShell kicker="People who lived something like this">
       {!sample.length ? (
         <p className="text-sm text-gray-300 leading-snug">
           No peers have opted into matching yet for your phenomenon. As more
@@ -1053,7 +1412,7 @@ function ContextCard(props: { data: any; reportId: string; initialRating: Rating
   var d = props.data || {}
   if (d.skipped) {
     return (
-      <SignalCardShell kicker="Across the archive" reportId={props.reportId} cardType="context" initialRating={props.initialRating}>
+      <SignalCardShell kicker="Where your story sits in the bigger picture" reportId={props.reportId} cardType="context" initialRating={props.initialRating}>
         <p className="text-sm text-gray-300 leading-snug">
           {d.reason === 'insufficient_data'
             ? 'Not enough reports tagged with this phenomenon yet. As more arrive, broader patterns will surface here.'
@@ -1071,7 +1430,7 @@ function ContextCard(props: { data: any; reportId: string; initialRating: Rating
       : 'Yours was logged in ' + d.user_month_name + '.'
   }
   return (
-    <SignalCardShell kicker="Across the archive" reportId={props.reportId} cardType="context" initialRating={props.initialRating}>
+    <SignalCardShell kicker="Where your story sits in the bigger picture" reportId={props.reportId} cardType="context" initialRating={props.initialRating}>
       <p className="text-sm text-white leading-snug">
         Reports like yours peak in{' '}
         <span className="font-semibold text-purple-300">{label}</span>{' '}

@@ -392,6 +392,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // up. Lightweight enough to recompute per visit.
   var peers = await loadPeers(svc, user!.id, userReport!)
 
+  // V10.9 Signal-Reframe — compute the "since you last visited" delta
+  // and stamp the new visit. Defensive against the signal_user_visits
+  // table not yet existing (the migration is staged but hasn't been
+  // applied via Studio yet — we still want the rest of the response
+  // to render).
+  var sinceLastVisit = await loadAndStampVisit(svc, user!.id, userReport!)
+
   return res.status(200).json({
     has_report: true,
     report_id: userReport.id,
@@ -403,7 +410,133 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     context: context,
     feedback: feedbackMiss,
     peers: peers,
+    since_last_visit: sinceLastVisit,
   })
+}
+
+/**
+ * V10.9 — load the user's prior Signal-tab visit timestamp, compute
+ * how many new approved reports landed in their cluster (or
+ * archive-wide if no location), and stamp the new visit.
+ *
+ * Returns:
+ *   {
+ *     is_first_visit: boolean,
+ *     previous_visited_at: ISO | null,
+ *     new_in_cluster: number,         // approved reports with status=approved AND created_at > previous_visit AND within CLUSTER_RADIUS_MI
+ *     new_in_archive: number,         // archive-wide growth since last visit (rough scale signal)
+ *     new_peers_opted_in: number,     // peers who turned on discoverable since last visit
+ *   }
+ *
+ * Defensive: if signal_user_visits is missing, returns is_first_visit:true
+ * with zero deltas so the UI can degrade gracefully.
+ */
+async function loadAndStampVisit(svc: any, userId: string, userReport: any) {
+  var nowIso = new Date().toISOString()
+
+  // 1. Read prior visit (if any).
+  var priorVisitIso: string | null = null
+  var priorVisitCount = 0
+  var isFirstVisit = true
+  try {
+    var prior = await svc.from('signal_user_visits')
+      .select('last_visited_at, visit_count')
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (prior && prior.data) {
+      priorVisitIso = prior.data.last_visited_at
+      priorVisitCount = prior.data.visit_count || 0
+      isFirstVisit = false
+    }
+  } catch (e: any) {
+    // Table likely missing — return safe defaults; the UI will hide
+    // the delta line if is_first_visit is true.
+    console.warn('signal_user_visits read failed (migration may be pending):', e && e.message)
+    return {
+      is_first_visit: true,
+      previous_visited_at: null,
+      new_in_cluster: 0,
+      new_in_archive: 0,
+      new_peers_opted_in: 0,
+    }
+  }
+
+  // 2. If we have a prior visit, count what's changed since.
+  var newInCluster = 0
+  var newInArchive = 0
+  var newPeersOptedIn = 0
+  if (priorVisitIso) {
+    try {
+      // Archive-wide growth (cheap; no geometry).
+      var archiveResult = await svc.from('reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'approved')
+        .gt('created_at', priorVisitIso)
+      newInArchive = (archiveResult && archiveResult.count) || 0
+    } catch (_e) { /* ignore */ }
+
+    // Cluster growth — only meaningful when the user's report has
+    // coords. Bounding-box pre-filter then haversine.
+    var lat = userReport.latitude
+    var lng = userReport.longitude
+    if (typeof lat === 'number' && typeof lng === 'number') {
+      try {
+        var latDelta = 100 / 69
+        var lngDelta = 100 / (69 * Math.cos(lat * Math.PI / 180) || 1)
+        var clusterResult = await svc.from('reports')
+          .select('id, latitude, longitude')
+          .eq('status', 'approved')
+          .neq('id', userReport.id)
+          .gt('created_at', priorVisitIso)
+          .gte('latitude', lat - latDelta)
+          .lte('latitude', lat + latDelta)
+          .gte('longitude', lng - lngDelta)
+          .lte('longitude', lng + lngDelta)
+          .limit(2000)
+        var rows: any[] = (clusterResult && clusterResult.data) || []
+        for (var i = 0; i < rows.length; i++) {
+          var r = rows[i]
+          if (typeof r.latitude !== 'number' || typeof r.longitude !== 'number') continue
+          if (haversineMi(lat, lng, r.latitude, r.longitude) <= 100) newInCluster++
+        }
+      } catch (_e) { /* ignore */ }
+    }
+
+    // Peers who newly opted in. Best-effort; the table/view may not
+    // expose updated_at the way we want.
+    try {
+      var peerResult = await svc.from('report_peer_visibility')
+        .select('user_id', { count: 'exact', head: true })
+        .eq('effective_allow_peer', true)
+        .gt('updated_at', priorVisitIso)
+      newPeersOptedIn = (peerResult && peerResult.count) || 0
+    } catch (_e) { /* ignore */ }
+  }
+
+  // 3. Stamp the new visit (best-effort; failure here just means the
+  //    next visit's "previous" stays at the older timestamp).
+  //    visit_count is informational; we increment by reading prior+1
+  //    rather than relying on a DB RPC.
+  try {
+    var nextVisitCount = isFirstVisit ? 1 : priorVisitCount + 1
+    await svc.from('signal_user_visits').upsert({
+      user_id: userId,
+      last_visited_at: nowIso,
+      previous_visited_at: priorVisitIso,
+      visit_count: nextVisitCount,
+      updated_at: nowIso,
+    }, { onConflict: 'user_id' })
+  } catch (e: any) {
+    console.warn('signal_user_visits stamp failed:', e && e.message)
+  }
+
+  return {
+    is_first_visit: isFirstVisit,
+    previous_visited_at: priorVisitIso,
+    new_in_cluster: newInCluster,
+    new_in_archive: newInArchive,
+    new_peers_opted_in: newPeersOptedIn,
+  }
 }
 
 /**
