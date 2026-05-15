@@ -286,19 +286,29 @@ export default function ReportLocationMap({
               type: 'line',
               source: 'maptiler_planet',
               'source-layer': 'boundary',
+              // V10.8.Q — admin_level 3 + 4 only. Was [3,4,5,6]; 5
+              // and 6 are county / parish / department lines that
+              // make the map look noisy. 4 is state/province (US
+              // states, AU states, German Länder, etc.); 3 covers
+              // countries that use level 3 for their primary
+              // subdivision (Russia federal subjects, etc.).
               filter: ['all',
-                ['in', 'admin_level', 3, 4, 5, 6],
+                ['in', 'admin_level', 3, 4],
                 ['==', 'maritime', 0],
               ],
               paint: {
                 'line-color': '#c4b5fd',  // brand-purple-300, more luminous
                 'line-opacity': 0.9,
+                // V10.8.Q — bump width at lower zooms so state edges
+                // are visible at fit-zoom (~5-6) on a mobile viewport
+                // when the bbox naturally fits without the prior
+                // zoom-6 floor.
                 'line-width': [
                   'interpolate', ['linear'], ['zoom'],
-                  3, 0.6,
-                  5, 1.2,
-                  7, 1.8,
-                  10, 2.6,
+                  3, 0.8,
+                  5, 1.6,
+                  7, 2.2,
+                  10, 3.0,
                 ],
               },
             },
@@ -439,15 +449,17 @@ export default function ReportLocationMap({
                     (syntheticBounds[1] + syntheticBounds[3]) / 2,
                   ]
             const fitZoom = typeof cam.zoom === 'number' ? cam.zoom : 5
-            const zoomFloor = precision === 'region' || precision === 'state' ? 6 : 0
-            const zoom = Math.max(fitZoom, zoomFloor)
-            // V10.8.P — jumpTo, not flyTo. The bbox path always lands
-            // at a known frame and a 1.2s aerial flight reads as
-            // "page is hanging" on a small report-page header. Show
-            // the right frame immediately.
+            // V10.8.Q — drop the prior zoom-6 floor for state precision.
+            // The floor was a workaround for the basemap not drawing
+            // state borders below ~zoom 6. V10.8.M added our own
+            // overlay layer that draws borders at any zoom, so we no
+            // longer need to over-zoom on wide states like Kansas
+            // (which forced the state to fill the viewport with no
+            // border visible). Just use the natural fit and let the
+            // overlay handle visibility.
             map.jumpTo({
               center,
-              zoom: Math.min(zoom, 9),
+              zoom: Math.min(fitZoom, 9),
             })
           } else {
             // Defensive — if cameraForBounds somehow fails, snap to
