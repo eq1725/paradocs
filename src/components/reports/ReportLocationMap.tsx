@@ -183,6 +183,78 @@ export default function ReportLocationMap({
     // changes, sheet drawer animations, etc.).
     map.once('load', () => {
       try { map.resize() } catch (_e) { /* ignore */ }
+      // V10.8.M — bolder admin-border overlay. The dataviz-dark style
+      // already loads admin0/admin1 boundary geometry (source
+      // maptiler_planet, source-layer boundary) but paints them in
+      // hsl(2, 0%, 28%) — invisible on the dark background, especially
+      // on mobile where viewport gamma is harsher. Add two line
+      // layers using the same vector source: one for state/province
+      // borders (admin_level 3-10), one for country borders (level 2),
+      // both painted in a desaturated brand-purple tinted gray with
+      // enough opacity to read on dark UI. Insert below the first
+      // label/symbol layer so country/state names stay on top.
+      try {
+        const style = map.getStyle()
+        const firstSymbolId = style?.layers?.find(
+          (L: any) => L.type === 'symbol',
+        )?.id
+        if (!map.getLayer('paradocs-admin1-overlay')) {
+          map.addLayer(
+            {
+              id: 'paradocs-admin1-overlay',
+              type: 'line',
+              source: 'maptiler_planet',
+              'source-layer': 'boundary',
+              filter: ['all',
+                ['in', 'admin_level', 3, 4, 5, 6],
+                ['==', 'maritime', 0],
+              ],
+              paint: {
+                'line-color': '#7e6da1',
+                'line-opacity': 0.55,
+                'line-width': [
+                  'interpolate', ['linear'], ['zoom'],
+                  3, 0.4,
+                  5, 0.8,
+                  7, 1.2,
+                  10, 1.8,
+                ],
+              },
+            },
+            firstSymbolId,
+          )
+        }
+        if (!map.getLayer('paradocs-admin0-overlay')) {
+          map.addLayer(
+            {
+              id: 'paradocs-admin0-overlay',
+              type: 'line',
+              source: 'maptiler_planet',
+              'source-layer': 'boundary',
+              filter: ['all',
+                ['==', 'admin_level', 2],
+                ['==', 'maritime', 0],
+                ['==', 'disputed', 0],
+              ],
+              paint: {
+                'line-color': '#9985c4',
+                'line-opacity': 0.7,
+                'line-width': [
+                  'interpolate', ['linear'], ['zoom'],
+                  1, 0.5,
+                  3, 1.0,
+                  6, 1.6,
+                  10, 2.4,
+                ],
+              },
+            },
+            firstSymbolId,
+          )
+        }
+      } catch (_e) {
+        // Style may not be ready or source may be missing on a future
+        // basemap. The overlay is purely cosmetic — silently no-op.
+      }
     })
 
     let resizeObserver: ResizeObserver | null = null
