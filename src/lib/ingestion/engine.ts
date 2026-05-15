@@ -908,8 +908,14 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
 
           if (!insertError && insertedReport) {
             inserted++;
-            if (titleResult.wasImproved) {
-              console.log(`[Ingestion] Title improved: "${originalTitle?.substring(0, 30)}..." -> "${finalTitle.substring(0, 30)}..."`);
+            // V10.8.K — was previously `titleResult.wasImproved`, but
+            // titleResult is block-scoped to the try/catch above and not
+            // visible here, so the line was a latent ReferenceError that
+            // got swallowed by the surrounding try. originalTitle is
+            // declared at outer scope and is truthy iff the title was
+            // improved (set in both the try and catch branches).
+            if (originalTitle) {
+              console.log(`[Ingestion] Title improved: "${originalTitle.substring(0, 30)}..." -> "${finalTitle.substring(0, 30)}..."`);
             }
 
             // Record fuzzy dedup match if one was flagged (now we have both UUIDs)
