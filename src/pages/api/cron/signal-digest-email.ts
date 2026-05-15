@@ -68,6 +68,8 @@ function buildHtml(opts: {
   reportTitle: string
   unsubscribeUrl: string
   signalUrl: string
+  // V10.11 — when present, the email prepends a contribution block.
+  contribution?: { is_foundational: boolean; is_early: boolean; newer_arrivals_count: number } | null
 }): string {
   var name = opts.displayName ? opts.displayName.split(' ')[0] : 'there'
   // V10.9 — keep the HTML embeddable, no external CSS, table-based
@@ -92,6 +94,20 @@ function buildHtml(opts: {
             Hi ${escapeHtml(name)} — since your last visit, the archive has grown around your story
             <em style="color:#a78bfa;font-style:normal;">${escapeHtml(opts.reportTitle)}</em>.
           </p>
+          ${opts.contribution ? `
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.4);border-radius:12px;padding:18px;margin-bottom:20px;">
+            <tr><td>
+              <p style="margin:0 0 6px 0;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#c4b5fd;font-weight:600;">${opts.contribution.is_foundational ? 'Your story anchors a growing cluster' : 'Your story is one of the early cases here'}</p>
+              <p style="margin:0;font-size:14px;line-height:1.5;color:#e5e7eb;">
+                ${opts.contribution.is_foundational
+                  ? 'Your report is one of the foundational cases at this location. '
+                  : 'Your report arrived early in this cluster. '}
+                <span style="color:#a78bfa;font-weight:600;">${opts.contribution.newer_arrivals_count}</span>
+                ${opts.contribution.newer_arrivals_count === 1 ? 'report has' : 'reports have'} joined since you logged yours.
+              </p>
+            </td></tr>
+          </table>
+          ` : ''}
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#1a1a2a;border:1px solid #2a2a44;border-radius:12px;padding:20px;margin-bottom:24px;">
             <tr><td>
               <p style="margin:0 0 12px 0;font-size:13px;color:#94a3b8;">Since you last looked:</p>
@@ -156,8 +172,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Defensive: if the table doesn't exist yet, exit cleanly.
   var subsResult: any
   try {
+    // V10.11 — also pull contribution_callout_pending_at + the cached
+    // contribution payload so the email cron can prepend a high-payoff
+    // contribution block when one's pending. Defensive against the
+    // V10.11 column-add migration not being applied yet — if those
+    // columns don't exist, the SELECT still returns the basic fields
+    // and contribution-related logic just no-ops.
     subsResult = await svc.from('signal_user_visits')
-      .select('user_id, last_visited_at, previous_visited_at, last_email_sent_at, email_digest_cadence')
+      .select('user_id, last_visited_at, previous_visited_at, last_email_sent_at, email_digest_cadence, contribution_callout_pending_at, last_contribution_payload')
       .eq('email_digest_enabled', true)
       .limit(5000)
   } catch (e: any) {
@@ -278,6 +300,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         continue
       }
 
+      // V10.11 — pull contribution callout if pending. Subject line
+      // upgrades to the contribution framing when present (higher
+      // open rate; concrete to the user's own story).
+      var contribPending = !!sub.contribution_callout_pending_at
+      var contribPayload = (contribPending && sub.last_contribution_payload) || null
+
       // Build + send.
       var html = buildHtml({
         displayName: displayName,
@@ -286,12 +314,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         reportTitle: report.title || 'your experience',
         unsubscribeUrl: 'https://www.discoverparadocs.com/lab?tab=signal#email-prefs',
         signalUrl: 'https://www.discoverparadocs.com/lab?tab=signal',
+        contribution: contribPayload,
       })
-      var subject = newInCluster > 0
-        ? (newInCluster === 1
-            ? 'A new case joined your cluster on Paradocs'
-            : newInCluster + ' new cases joined your cluster on Paradocs')
-        : 'New activity in your Signal'
+      var subject: string
+      if (contribPayload && contribPayload.is_foundational) {
+        subject = 'Your story anchors a growing cluster on Paradocs'
+      } else if (contribPayload && contribPayload.is_early) {
+        subject = 'New cases joined the cluster you started'
+      } else if (newInCluster > 0) {
+        subject = newInCluster === 1
+          ? 'A new case joined your cluster on Paradocs'
+          : newInCluster + ' new cases joined your cluster on Paradocs'
+      } else {
+        subject = 'New activity in your Signal'
+      }
 
       var emailResult = await sendEmail({
         to: authUser.email,
@@ -309,11 +345,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         continue
       }
 
-      // Stamp last_email_sent_at so the cooldown advances.
-      await svc.from('signal_user_visits').update({
+      // Stamp last_email_sent_at so the cooldown advances. V10.11 —
+      // also clear contribution_callout_pending_at when we consumed
+      // a contribution callout, so each transition produces exactly
+      // one notification (this digest OR a push, whichever fires
+      // first). Best-effort UPDATE; if the column doesn't exist yet
+      // (migration pending) it'll error and we just skip clearing.
+      var updatePayload: any = {
         last_email_sent_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      }).eq('user_id', sub.user_id)
+      }
+      if (contribPending) {
+        updatePayload.contribution_callout_pending_at = null
+      }
+      await svc.from('signal_user_visits').update(updatePayload).eq('user_id', sub.user_id)
 
       sent++
     } catch (e: any) {

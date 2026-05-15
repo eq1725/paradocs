@@ -448,7 +448,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // table not yet existing (the migration is staged but hasn't been
   // applied via Studio yet — we still want the rest of the response
   // to render).
-  var sinceLastVisit = await loadAndStampVisit(svc, user!.id, userReport!)
+  // V10.11 — also detect cluster-contribution transitions and write
+  // contribution_callout_pending_at when a transition fires (consumed
+  // by the signal-alerts and signal-digest-email crons).
+  var sinceLastVisit = await loadAndStampVisit(svc, user!.id, userReport!, cluster)
 
   return res.status(200).json({
     has_report: true,
@@ -482,21 +485,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
  * Defensive: if signal_user_visits is missing, returns is_first_visit:true
  * with zero deltas so the UI can degrade gracefully.
  */
-async function loadAndStampVisit(svc: any, userId: string, userReport: any) {
+async function loadAndStampVisit(svc: any, userId: string, userReport: any, cluster?: any) {
   var nowIso = new Date().toISOString()
 
-  // 1. Read prior visit (if any).
+  // 1. Read prior visit (if any). V10.11 — also pull the cached
+  // contribution payload so we can diff against the new one.
   var priorVisitIso: string | null = null
   var priorVisitCount = 0
+  var priorContribution: any = null
   var isFirstVisit = true
   try {
     var prior = await svc.from('signal_user_visits')
-      .select('last_visited_at, visit_count')
+      .select('last_visited_at, visit_count, last_contribution_payload')
       .eq('user_id', userId)
       .maybeSingle()
     if (prior && prior.data) {
       priorVisitIso = prior.data.last_visited_at
       priorVisitCount = prior.data.visit_count || 0
+      priorContribution = prior.data.last_contribution_payload || null
       isFirstVisit = false
     }
   } catch (e: any) {
@@ -564,19 +570,48 @@ async function loadAndStampVisit(svc: any, userId: string, userReport: any) {
     } catch (_e) { /* ignore */ }
   }
 
+  // V10.11 — detect contribution transitions. A transition fires when:
+  //   (a) the new contribution.is_foundational is true AND the prior
+  //       contribution wasn't foundational (early→foundational, or
+  //       no-prior→foundational on a fast-growing brand-new cluster), OR
+  //   (b) the user is foundational AND newer_arrivals_count grew by
+  //       ≥5 since the last cached snapshot (continued momentum).
+  //
+  // Either case writes contribution_callout_pending_at so the next
+  // outgoing push or email notification can prepend the contribution
+  // block. The pending timestamp gets cleared by the cron after it's
+  // consumed, so each transition produces exactly one notification.
+  var newContribution = (cluster && cluster.contribution) || null
+  var contributionPendingAt: string | null = null
+  if (newContribution && (newContribution.is_foundational || newContribution.is_early)) {
+    var becameFoundational = !!newContribution.is_foundational &&
+      (!priorContribution || !priorContribution.is_foundational)
+    var foundationalGrew = !!newContribution.is_foundational &&
+      !!priorContribution && !!priorContribution.is_foundational &&
+      ((newContribution.newer_arrivals_count || 0) - (priorContribution.newer_arrivals_count || 0)) >= 5
+    if (becameFoundational || foundationalGrew) {
+      contributionPendingAt = nowIso
+    }
+  }
+
   // 3. Stamp the new visit (best-effort; failure here just means the
   //    next visit's "previous" stays at the older timestamp).
   //    visit_count is informational; we increment by reading prior+1
   //    rather than relying on a DB RPC.
   try {
     var nextVisitCount = isFirstVisit ? 1 : priorVisitCount + 1
-    await svc.from('signal_user_visits').upsert({
+    var upsertPayload: any = {
       user_id: userId,
       last_visited_at: nowIso,
       previous_visited_at: priorVisitIso,
       visit_count: nextVisitCount,
+      last_contribution_payload: newContribution,
       updated_at: nowIso,
-    }, { onConflict: 'user_id' })
+    }
+    if (contributionPendingAt) {
+      upsertPayload.contribution_callout_pending_at = contributionPendingAt
+    }
+    await svc.from('signal_user_visits').upsert(upsertPayload, { onConflict: 'user_id' })
   } catch (e: any) {
     console.warn('signal_user_visits stamp failed:', e && e.message)
   }

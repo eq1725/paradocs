@@ -37,6 +37,15 @@ CREATE TABLE IF NOT EXISTS public.signal_user_visits (
   email_digest_enabled    BOOLEAN NOT NULL DEFAULT FALSE,
   email_digest_cadence    TEXT NOT NULL DEFAULT 'weekly' CHECK (email_digest_cadence IN ('daily', 'weekly')),
   last_email_sent_at      TIMESTAMPTZ,
+  -- V10.11 — cluster-contribution backfill notification.
+  -- last_contribution_payload caches what was last surfaced to the
+  -- user (so the API can detect transitions like early→foundational
+  -- or foundational-with-+5-arrivals).
+  -- contribution_callout_pending_at is set when a transition fires
+  -- and cleared after the next push or email notification consumes
+  -- it, so each transition produces exactly one notification.
+  last_contribution_payload     JSONB,
+  contribution_callout_pending_at TIMESTAMPTZ,
   created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

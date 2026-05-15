@@ -237,19 +237,57 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         continue
       }
 
+      // V10.11 — check for a pending contribution callout. The
+      // /api/lab/your-signal endpoint sets contribution_callout_pending_at
+      // when the user crosses early→foundational or gains 5+ new
+      // arrivals as a foundational case. If pending, replace the
+      // standard "Your Signal grew" copy with a higher-emotional-payoff
+      // contribution title; otherwise keep the standard copy.
+      var contribPending = false
+      var contribPayload: any = null
+      try {
+        var visitRow = await svc.from('signal_user_visits')
+          .select('contribution_callout_pending_at, last_contribution_payload')
+          .eq('user_id', userId)
+          .maybeSingle()
+        if (visitRow && visitRow.data && visitRow.data.contribution_callout_pending_at) {
+          contribPending = true
+          contribPayload = visitRow.data.last_contribution_payload || null
+        }
+      } catch (_e) { /* table may not have columns yet — ignore */ }
+
       // Send a push to every active sub for this user.
       var userSubs = subsByUser[userId] || []
-      var notif = {
-        title: 'Your Signal grew',
-        body: growth === 1
-          ? '1 new report joined your cluster.'
-          : growth + ' new reports joined your cluster.',
-        icon: '/icons/icon-192x192.png',
-        badge: '/icons/icon-192x192.png',
-        data: {
-          url: '/lab?tab=signal',
-          source: 'signal_alert',
-        },
+      var notif: any
+      if (contribPending && contribPayload) {
+        var arrivals = (contribPayload.newer_arrivals_count || 0)
+        notif = {
+          title: contribPayload.is_foundational
+            ? 'Your story anchors a growing cluster'
+            : 'Your story is one of the early cases here',
+          body: arrivals === 1
+            ? '1 new report has joined since you logged yours.'
+            : arrivals + ' new reports have joined since you logged yours.',
+          icon: '/icons/icon-192x192.png',
+          badge: '/icons/icon-192x192.png',
+          data: {
+            url: '/lab?tab=signal',
+            source: 'signal_alert_contribution',
+          },
+        }
+      } else {
+        notif = {
+          title: 'Your Signal grew',
+          body: growth === 1
+            ? '1 new report joined your cluster.'
+            : growth + ' new reports joined your cluster.',
+          icon: '/icons/icon-192x192.png',
+          badge: '/icons/icon-192x192.png',
+          data: {
+            url: '/lab?tab=signal',
+            source: 'signal_alert',
+          },
+        }
       }
 
       var perUserSent = 0
@@ -282,8 +320,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
-      if (perUserSent > 0) alerted++
-      else { skipped++; details.push({ user_id: userId, reason: 'all_subs_failed', cluster_size: clusterSize, growth: growth }) }
+      if (perUserSent > 0) {
+        alerted++
+        // V10.11 — if the alert consumed a pending contribution
+        // callout, clear it so the email cron doesn't also fire on
+        // the same transition. Best-effort update.
+        if (contribPending) {
+          try {
+            await svc.from('signal_user_visits')
+              .update({ contribution_callout_pending_at: null, updated_at: new Date().toISOString() })
+              .eq('user_id', userId)
+          } catch (_e) { /* column may not exist yet — ignore */ }
+        }
+      } else {
+        skipped++
+        details.push({ user_id: userId, reason: 'all_subs_failed', cluster_size: clusterSize, growth: growth })
+      }
 
     } catch (e: any) {
       errors++
