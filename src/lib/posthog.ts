@@ -48,54 +48,54 @@ export function initPostHog(): PostHog | null {
     return null
   }
 
-  // Dynamic import keeps PostHog out of the SSR bundle. The SDK
-  // touches window during construction so it can't be imported at
-  // the module top-level under Next.js.
-  const posthog: PostHog = require('posthog-js').default
+  // V10.10.2 — every step now wrapped in try/catch. The SDK isn't
+  // supposed to throw at init, but if posthog-js loads with a bad
+  // payload, version mismatch, or CSP block, we'd rather no-op the
+  // entire analytics layer than crash _app.tsx for every user.
+  try {
+    // Dynamic import keeps PostHog out of the SSR bundle. The SDK
+    // touches window during construction so it can't be imported at
+    // the module top-level under Next.js.
+    const posthog: PostHog = require('posthog-js').default
 
-  posthog.init(POSTHOG_KEY, {
-    api_host: POSTHOG_HOST,
-    // V10.10 — explicit config choices. Each one matters for our
-    // privacy posture or our cost trajectory; don't change without
-    // re-reading the comments above.
-    autocapture: false,
-    capture_pageview: true,
-    capture_pageleave: true,
-    persistence: 'localStorage+cookie',
-    // Anonymous visitors don't get person profiles — only signed-in
-    // users do. Keeps the per-MAU billing meter focused on the
-    // population we actually care about.
-    person_profiles: 'identified_only',
-    // Session replay config — heavy masking + 10% sample rate.
-    // Inputs are masked by SDK default; we additionally mask all
-    // text so users' report content / Ask the Unknown questions /
-    // chat-style messages never end up in replays.
-    session_recording: {
-      maskAllInputs: true,
-      maskTextSelector: '*',
-      // Block specific selectors as belt-and-suspenders for any
-      // surface where text masking might be insufficient (e.g.
-      // textareas with PII, message threads).
-      blockSelector: '[data-no-replay], textarea, input[type="email"], input[type="tel"]',
-    },
-    // Capture only 10% of sessions for replay. Adjust upward later
-    // if we need more coverage; recording quota is the first thing
-    // to blow past on the free tier.
-    session_recording_sample_rate: 0.1 as any,
-    // Don't auto-start recording until after page-load idle.
-    disable_session_recording: false,
-    // Respect Do Not Track signals.
-    respect_dnt: true,
-    // We pass our own user_id via identify() — disable PostHog's
-    // anonymous-ID-promotion-on-identify so the two ID spaces stay
-    // distinct (anonymous events get attached to authenticated
-    // users on identify, but the anon ID isn't preserved).
-    bootstrap: {},
-  })
+    posthog.init(POSTHOG_KEY, {
+      api_host: POSTHOG_HOST,
+      // V10.10 — explicit config choices. Each one matters for our
+      // privacy posture or our cost trajectory; don't change without
+      // re-reading the comments above.
+      autocapture: false,
+      capture_pageview: true,
+      capture_pageleave: true,
+      persistence: 'localStorage+cookie',
+      // Anonymous visitors don't get person profiles — only signed-in
+      // users do. Keeps the per-MAU billing meter focused on the
+      // population we actually care about.
+      person_profiles: 'identified_only',
+      // V10.10.2 — session recording DISABLED until we re-enable
+      // deliberately. The first hour after V10.10 ship saw widespread
+      // network / data-fetch issues (RADAR-related pages empty, Today
+      // feed empty) — strong signal that the recorder was either
+      // intercepting fetches in a way that broke them, or that the
+      // recorder's MutationObserver was hanging the main thread.
+      // Re-enable in a follow-up after we've ruled in/out — until then
+      // events still flow but nothing records.
+      disable_session_recording: true,
+      // Respect Do Not Track signals.
+      respect_dnt: true,
+      // We pass our own user_id via identify() — disable PostHog's
+      // anonymous-ID-promotion-on-identify so the two ID spaces stay
+      // distinct (anonymous events get attached to authenticated
+      // users on identify, but the anon ID isn't preserved).
+      bootstrap: {},
+    })
 
-  posthogInstance = posthog
+    posthogInstance = posthog
+  } catch (e) {
+    console.warn('[posthog] init failed (analytics disabled):', e)
+    posthogInstance = null
+  }
   initialized = true
-  return posthog
+  return posthogInstance
 }
 
 /**
