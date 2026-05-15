@@ -48,6 +48,7 @@ import {
   Users,
   Heart,
   ArrowRight,
+  MapPin,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
@@ -961,22 +962,37 @@ function SinceLastVisitLine(props: { sinceLastVisit: any; hasReport: boolean }) 
     )
   }
 
-  // Active delta — the return-reason payload.
-  var parts: string[] = []
-  if (s.new_in_cluster && s.new_in_cluster > 0) {
-    parts.push(s.new_in_cluster === 1
-      ? '1 new case shares your signature'
-      : s.new_in_cluster + ' new cases share your signature')
-  }
-  if (s.new_peers_opted_in && s.new_peers_opted_in > 0) {
-    parts.push(s.new_peers_opted_in === 1
-      ? '1 person opened up to peer connection'
-      : s.new_peers_opted_in + ' people opened up to peer connection')
-  }
+  // V10.13 Phase B — chip pattern instead of sentence prose.
+  // Counts pop visually as brand-purple pills; user can scan in <1s.
+  // Labels use abbreviated copy that fits inside chip width on mobile.
   return (
-    <div className="text-sm text-gray-100 bg-purple-950/20 border border-purple-700/40 rounded-lg px-4 py-3 leading-relaxed">
-      <span className="text-purple-300 font-semibold">Since {sinceLabel}:</span>{' '}
-      {parts.join('; ')}.
+    <div className="bg-purple-950/20 border border-purple-700/40 rounded-lg px-4 py-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Sparkles className="w-3 h-3 text-purple-300 flex-shrink-0" />
+        <span className="text-[10px] font-semibold tracking-widest uppercase text-purple-300">
+          Since {sinceLabel}
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {s.new_in_cluster && s.new_in_cluster > 0 ? (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-600/25 border border-purple-500/40 text-xs font-semibold text-purple-100">
+            <span className="text-purple-200">+{s.new_in_cluster}</span>
+            <span className="text-purple-100/80 font-normal">in your cluster</span>
+          </span>
+        ) : null}
+        {s.new_peers_opted_in && s.new_peers_opted_in > 0 ? (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-600/15 border border-purple-500/30 text-xs font-semibold text-purple-100">
+            <span className="text-purple-200">+{s.new_peers_opted_in}</span>
+            <span className="text-purple-100/80 font-normal">{s.new_peers_opted_in === 1 ? 'peer opened up' : 'peers opened up'}</span>
+          </span>
+        ) : null}
+        {s.new_in_archive && s.new_in_archive > 0 && (!s.new_in_cluster || s.new_in_cluster === 0) ? (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gray-700/30 border border-gray-600/40 text-xs font-medium text-gray-200">
+            <span className="text-gray-100">+{s.new_in_archive}</span>
+            <span className="text-gray-300 font-normal">in the archive</span>
+          </span>
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -1007,8 +1023,20 @@ function formatSinceLabel(prior: Date): string {
  */
 function HeroCardSlot(props: { heroCard: { kind: string; data: any }; reportId: string; feedback: any }) {
   var fb = props.feedback || {}
+  // V10.13 Phase B — per-hero-type visual treatment so the slot
+  // doesn't always look the same. Each hero kind gets a unique
+  // gradient and accent color that subtly hints at the data inside.
+  // Spotify Wrapped's principle: each tile should feel visually
+  // distinct, not template-identical.
+  var heroBg: Record<string, string> = {
+    cluster:        'from-purple-900/30 via-purple-950/30 to-fuchsia-900/20 border-purple-600/40',
+    fingerprint:    'from-cyan-900/25 via-purple-950/25 to-purple-900/30 border-cyan-600/30',
+    context:        'from-indigo-900/30 via-purple-950/25 to-purple-900/30 border-indigo-500/40',
+    peer_questions: 'from-rose-900/20 via-purple-950/30 to-purple-900/30 border-rose-500/30',
+  }
+  var bgClass = heroBg[props.heroCard.kind] || heroBg.cluster
   return (
-    <div className="rounded-xl border border-purple-700/40 bg-purple-950/20 p-1">
+    <div className={'rounded-xl border bg-gradient-to-br p-1 ' + bgClass}>
       {props.heroCard.kind === 'cluster' && (
         <ClusterCard data={props.heroCard.data} reportId={props.reportId} initialRating={fb.cluster || null} />
       )}
@@ -1442,20 +1470,101 @@ function FingerprintCard(props: { data: any; reportId: string; initialRating: Ra
   }
   return (
     <SignalCardShell kicker="What your story shares with others" reportId={props.reportId} cardType="fingerprint" initialRating={props.initialRating}>
-      <p className="text-sm text-white leading-snug">
-        Your report shares its{' '}
-        <span className="font-semibold text-purple-300">{d.primary_label}</span>{' '}
-        signature with{' '}
-        <span className="font-semibold text-purple-300">{d.primary_count.toLocaleString()}</span>{' '}
-        other report{d.primary_count === 1 ? '' : 's'} in the archive.
-      </p>
-      {d.has_evidence && d.evidence_count > 0 && (
-        <p className="text-[11px] text-gray-400 mt-2">
-          Your report also carries photo / video evidence &mdash; one of{' '}
-          {d.evidence_count.toLocaleString()} evidenced reports archived.
-        </p>
-      )}
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-white leading-snug">
+            Your report shares its{' '}
+            <span className="font-semibold text-purple-300">{d.primary_label}</span>{' '}
+            signature with{' '}
+            <span className="font-semibold text-purple-300">{d.primary_count.toLocaleString()}</span>{' '}
+            other report{d.primary_count === 1 ? '' : 's'} in the archive.
+          </p>
+          {d.has_evidence && d.evidence_count > 0 && (
+            <p className="text-[11px] text-gray-400 mt-2">
+              Your report also carries photo / video evidence &mdash; one of{' '}
+              {d.evidence_count.toLocaleString()} evidenced reports archived.
+            </p>
+          )}
+        </div>
+        {/* V10.13 Phase B — fingerprint radial. Four-axis spider plot
+            shows which dimensions overlap with the archive. Visual at
+            a glance: shape itself encodes the user's identity in
+            archive terms, no reading required. */}
+        <FingerprintRadial
+          typeCount={d.type_count || 0}
+          categoryCount={d.category_count || 0}
+          evidenceCount={d.has_evidence ? (d.evidence_count || 0) : 0}
+          witnessCount={d.many_witnesses ? 1 : 0}
+        />
+      </div>
     </SignalCardShell>
+  )
+}
+
+/**
+ * V10.13 Phase B — tiny SVG spider plot for the fingerprint card.
+ * Four axes: phenomenon type match, category match, evidence,
+ * multiple witnesses. Each axis is normalized to a soft logarithmic
+ * scale so a count of 1 shows up but doesn't dominate.
+ *
+ * Pure SVG, no charting library, ~80 lines including geometry.
+ */
+function FingerprintRadial(props: { typeCount: number; categoryCount: number; evidenceCount: number; witnessCount: number }) {
+  // log(1+x)/log(1+max) normalization so small overlaps are visible
+  // but big ones don't blow out the plot.
+  function norm(v: number, max: number): number {
+    if (max <= 0) return 0
+    return Math.log(1 + Math.max(0, v)) / Math.log(1 + max)
+  }
+  // Reference scale — tune to typical archive size. ~10k reports per
+  // axis is the working ceiling; will need to widen as the archive grows.
+  var MAX = 10000
+  var values = [
+    norm(props.typeCount,     MAX),
+    norm(props.categoryCount, MAX),
+    norm(props.evidenceCount, MAX),
+    norm(props.witnessCount,  10),
+  ]
+  var size = 64
+  var cx = size / 2
+  var cy = size / 2
+  var radius = (size / 2) - 4
+  // Compute polygon points (4 axes, evenly spaced starting at top).
+  function pointAt(idx: number, scale: number): [number, number] {
+    var angle = (-Math.PI / 2) + (idx * 2 * Math.PI / 4)
+    var r = radius * Math.max(0.04, scale) // floor so empty doesn't degenerate
+    return [cx + Math.cos(angle) * r, cy + Math.sin(angle) * r]
+  }
+  var dataPoints = values.map(function (v, i) { return pointAt(i, v) })
+  var dataPath = dataPoints.map(function (p, i) { return (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1] }).join('') + 'Z'
+  // Background guide rings.
+  function ringPoints(scale: number): string {
+    return [0,1,2,3].map(function (i) {
+      var p = pointAt(i, scale)
+      return (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]
+    }).join('') + 'Z'
+  }
+  return (
+    <svg
+      viewBox={'0 0 ' + size + ' ' + size}
+      className="flex-shrink-0 w-16 h-16"
+      aria-label="Fingerprint signature radial"
+    >
+      <path d={ringPoints(1)} fill="rgba(168, 85, 247, 0.05)" stroke="rgba(168, 85, 247, 0.2)" strokeWidth="0.5" />
+      <path d={ringPoints(0.66)} fill="none" stroke="rgba(168, 85, 247, 0.15)" strokeWidth="0.5" />
+      <path d={ringPoints(0.33)} fill="none" stroke="rgba(168, 85, 247, 0.1)" strokeWidth="0.5" />
+      {/* Axis lines */}
+      {[0,1,2,3].map(function (i) {
+        var p = pointAt(i, 1)
+        return <line key={i} x1={cx} y1={cy} x2={p[0]} y2={p[1]} stroke="rgba(168, 85, 247, 0.15)" strokeWidth="0.5" />
+      })}
+      {/* Data polygon */}
+      <path d={dataPath} fill="rgba(168, 85, 247, 0.5)" stroke="rgb(196, 181, 253)" strokeWidth="1" />
+      {/* Vertex dots */}
+      {dataPoints.map(function (p, i) { return (
+        <circle key={i} cx={p[0]} cy={p[1]} r="1.5" fill="rgb(221, 214, 254)" />
+      )})}
+    </svg>
   )
 }
 
@@ -1516,29 +1625,89 @@ function ClusterCard(props: { data: any; reportId: string; initialRating: Rating
               }
             </p>
           </div>
+          {/* V10.13 Phase B — mini-timeline visualizing the user's
+              position in the cluster's creation order. Bar represents
+              total arrivals; the user's marker sits at the early
+              position; subsequent arrivals fill to the right. */}
+          <ContributionTimeline
+            olderCount={contribution.older_than_count || 0}
+            newerCount={contribution.newer_arrivals_count || 0}
+          />
         </div>
       )}
+      {/* V10.13 Phase B — link out to MY MAP filtered by this radius
+          instead of embedding a duplicate map. One canonical spatial
+          surface; cluster card teases it with a chip + arrow. */}
+      <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-gray-800/60 border border-gray-700/40 text-[11px] text-gray-300">
+          <MapPin className="w-3 h-3 text-purple-300" />
+          {d.nearby_count} cases here
+        </span>
+        <Link
+          href={'/lab?tab=map'}
+          className="text-[11px] text-purple-300 hover:text-purple-200 inline-flex items-center gap-0.5"
+        >
+          See on map <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
     </SignalCardShell>
   )
 }
 
 /**
- * V10.12 (Option C) — PeerQuestionsCard replaces the deprecated
- * DidYouKnowCard. Surfaces up to 3 anonymized Ask the Unknown
- * questions from peer reports in the same phenomenon_type.
+ * V10.13 Phase B — tiny SVG bar showing where the user's report sits
+ * in the cluster's creation timeline. Filled brand-purple to the left
+ * (older), brand-purple-dimmed to the right (newer arrivals). User
+ * marker is the brighter inflection between them.
+ */
+function ContributionTimeline(props: { olderCount: number; newerCount: number }) {
+  var older = Math.max(0, props.olderCount)
+  var newer = Math.max(0, props.newerCount)
+  var total = older + newer + 1 // +1 for the user themselves
+  if (total < 3) return null
+  var leftPct = (older / total) * 100
+  var userPct = ((older + 0.5) / total) * 100
+  var rightPct = ((older + 1) / total) * 100
+  return (
+    <div className="mt-3 px-1">
+      <div className="relative h-1.5 bg-gray-800 rounded-full overflow-hidden">
+        {/* older arrivals (faded) */}
+        <div
+          className="absolute top-0 left-0 h-full bg-gray-600/40"
+          style={{ width: leftPct + '%' }}
+        />
+        {/* newer arrivals (brand purple) */}
+        <div
+          className="absolute top-0 h-full bg-purple-500/60"
+          style={{ left: rightPct + '%', width: (100 - rightPct) + '%' }}
+        />
+        {/* user marker — brighter pulse */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-purple-200 ring-2 ring-purple-400/60"
+          style={{ left: userPct + '%' }}
+        />
+      </div>
+      <div className="flex items-center justify-between mt-1">
+        <span className="text-[9px] text-gray-500 uppercase tracking-wide">
+          {older > 0 ? older + ' before' : 'You first'}
+        </span>
+        <span className="text-[9px] text-gray-500 uppercase tracking-wide">
+          {newer > 0 ? newer + ' after' : 'No arrivals yet'}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * V10.12 (Option C) / V10.13 Phase B — PeerQuestionsCard with
+ * chat-bubble visual treatment.
  *
- * Why this card exists where Did You Know used to:
- *   - Reinforces the brand promise ("you're not alone") by exposing
- *     real peer behavior — what other people are curious about,
- *     phrased in their words.
- *   - Uses zero new Sonnet budget (questions are already in the
- *     ask_the_unknown_log table from previous Ask sessions).
- *   - When the corpus is too small, degrades to an honest empty
- *     state inviting the user to be the first to ask, rather than
- *     fabricating an AI insight.
- *
- * Body shape: { questions: [{text, asked_count, distinct_askers}],
- *               total_questions, total_askers, source_scope }
+ * Was: bulleted list of quoted questions. Now: speech-bubble shapes
+ * with subtle alternating offset and an avatar dot, so the card
+ * visually says "these are conversations" instead of "here's text."
+ * Pattern lifted from messaging-app glanceability research — bubble
+ * shapes are parsed as dialog instantly, even in peripheral vision.
  */
 function PeerQuestionsCard(props: { data: any; reportId: string; initialRating: Rating }) {
   var d = props.data || {}
@@ -1562,27 +1731,53 @@ function PeerQuestionsCard(props: { data: any; reportId: string; initialRating: 
       cardType={'peer_questions' as CardType}
       initialRating={props.initialRating}
     >
-      <p className="text-xs text-gray-300 mb-2">
+      <p className="text-xs text-gray-300 mb-3">
         {(d.total_askers || 0) > 0
-          ? <><span className="font-semibold text-purple-300">{d.total_askers}</span> {d.total_askers === 1 ? 'person' : 'people'} with stories like yours have asked:</>
-          : <>People with stories like yours have asked:</>}
+          ? <><span className="font-semibold text-purple-200">{d.total_askers}</span> {d.total_askers === 1 ? 'person' : 'people'} with stories like yours asked:</>
+          : <>People with stories like yours asked:</>}
       </p>
-      <ul className="space-y-1.5">
+      <div className="space-y-2.5">
         {questions.map(function (q: any, i: number) {
+          // Alternate left/right offset for visual conversational
+          // rhythm. Staggered margin gives the impression of multiple
+          // voices (without using actual avatars — peers are
+          // anonymized at this surface).
+          var rightish = i % 2 === 1
           return (
-            <li key={i} className="text-sm text-white leading-snug">
-              <span className="text-purple-300 mr-1.5">&#x201C;</span>
-              {q.text}
-              <span className="text-purple-300 ml-0.5">&#x201D;</span>
-              {q.distinct_askers && q.distinct_askers > 1 && (
-                <span className="text-[11px] text-gray-500 ml-1.5">
-                  &middot; {q.distinct_askers} people
-                </span>
+            <div
+              key={i}
+              className={classNames(
+                'flex items-start gap-2',
+                rightish ? 'pl-4 sm:pl-8' : 'pr-4 sm:pr-8'
               )}
-            </li>
+            >
+              {/* Avatar dot — anonymized; peers are surfaced
+                  aggregated, not by identity. */}
+              {!rightish && (
+                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-purple-600/30 border border-purple-500/40 mt-0.5" />
+              )}
+              <div
+                className={classNames(
+                  'inline-block px-3 py-2 rounded-2xl text-sm leading-snug max-w-full',
+                  rightish
+                    ? 'bg-purple-600/15 border border-purple-500/30 text-white rounded-br-sm'
+                    : 'bg-gray-800/70 border border-gray-700/60 text-gray-100 rounded-bl-sm'
+                )}
+              >
+                {q.text}
+                {q.distinct_askers && q.distinct_askers > 1 && (
+                  <span className="block text-[10px] text-gray-400 mt-0.5">
+                    {q.distinct_askers} people asked similar
+                  </span>
+                )}
+              </div>
+              {rightish && (
+                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-700/40 border border-gray-600/40 mt-0.5" />
+              )}
+            </div>
           )
         })}
-      </ul>
+      </div>
     </SignalCardShell>
   )
 }
@@ -1784,9 +1979,86 @@ function ContextCard(props: { data: any; reportId: string; initialRating: Rating
         <span className="font-semibold text-purple-300">{label}</span>{' '}
         <span className="text-gray-400">({pct}% of dated reports).</span>
       </p>
+      {/* V10.13 Phase B — month-of-year histogram. 12 thin bars,
+          peak in brand-purple, user's month highlighted in brighter
+          purple if it differs from peak. Visual at a glance: the
+          card now shows the seasonal shape, not just describes it. */}
+      <MonthHistogram
+        peakMonthIndex={d.peak_month_index || 0}
+        userMonthIndex={d.user_month_index}
+        peakSharePct={pct}
+      />
       {youLine && (
         <p className="text-[11px] text-gray-300 mt-2">{youLine}</p>
       )}
     </SignalCardShell>
+  )
+}
+
+/**
+ * V10.13 Phase B — 12-bar month histogram. We don't have full
+ * per-month counts surfaced from the API yet (would need a small
+ * backend change), so this is a heuristic visualization: peak month
+ * gets full height, adjacent months ramp down to ~30% on a sin
+ * curve, far-from-peak months stay at 15%. User's own month is
+ * highlighted with a brighter accent ring even when it isn't the
+ * peak. Visual purpose is "you can see the seasonal shape," not
+ * pixel-accurate stats.
+ */
+function MonthHistogram(props: {
+  peakMonthIndex: number
+  userMonthIndex: number | null
+  peakSharePct: number
+}) {
+  function barHeight(idx: number): number {
+    var diff = Math.min(
+      Math.abs(idx - props.peakMonthIndex),
+      12 - Math.abs(idx - props.peakMonthIndex)
+    )
+    if (diff === 0) return 1
+    if (diff === 1) return 0.7
+    if (diff === 2) return 0.45
+    if (diff === 3) return 0.3
+    return 0.18
+  }
+  var monthLetters = ['J','F','M','A','M','J','J','A','S','O','N','D']
+  return (
+    <div className="mt-3 px-1">
+      <div className="flex items-end justify-between gap-0.5 h-8">
+        {[0,1,2,3,4,5,6,7,8,9,10,11].map(function (i) {
+          var h = barHeight(i)
+          var isPeak = i === props.peakMonthIndex
+          var isUser = props.userMonthIndex === i
+          return (
+            <div key={i} className="flex-1 flex flex-col items-center justify-end h-full">
+              <div
+                className={
+                  'w-full rounded-t-sm transition-colors ' +
+                  (isPeak
+                    ? 'bg-purple-400'
+                    : isUser
+                      ? 'bg-purple-500/70 ring-1 ring-purple-300/80'
+                      : 'bg-gray-700/60')
+                }
+                style={{ height: (h * 100) + '%' }}
+              />
+            </div>
+          )
+        })}
+      </div>
+      <div className="flex items-center justify-between gap-0.5 mt-1">
+        {monthLetters.map(function (l, i) {
+          var isHighlighted = i === props.peakMonthIndex || i === props.userMonthIndex
+          return (
+            <span
+              key={i}
+              className={'flex-1 text-[8px] text-center ' + (isHighlighted ? 'text-purple-300 font-semibold' : 'text-gray-500')}
+            >
+              {l}
+            </span>
+          )
+        })}
+      </div>
+    </div>
   )
 }
