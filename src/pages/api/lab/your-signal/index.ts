@@ -366,6 +366,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // because the cost is a single SELECT and the data changes more
       // often than the deterministic cards). Compute even on cache hit.
       var peerQuestionsHit = await loadPeerQuestions(svc, userReport)
+      // V10.12.1 — email prefs always fresh too. Cheap select; user
+      // can change them between cache windows.
+      var emailPrefsHit = await loadEmailPrefs(svc, user!.id)
       return res.status(200).json({
         has_report: true,
         report_id: userReport.id,
@@ -377,6 +380,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         peer_questions: peerQuestionsHit,
         context:        cacheResult.data.context_payload,
         feedback:       feedbackHit,
+        email_prefs:    emailPrefsHit,
       })
     }
   }
@@ -450,6 +454,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // by the signal-alerts and signal-digest-email crons).
   var sinceLastVisit = await loadAndStampVisit(svc, user!.id, userReport!, cluster)
 
+  // V10.12.1 — return the user's persisted email-digest preferences
+  // so the SignalEmailDigestCard renders with the correct toggle
+  // state on every page load (was previously defaulting to off and
+  // forgetting the user's stored preference between visits).
+  var emailPrefs = await loadEmailPrefs(svc, user!.id)
+
   return res.status(200).json({
     has_report: true,
     report_id: userReport.id,
@@ -463,7 +473,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     feedback: feedbackMiss,
     peers: peers,
     since_last_visit: sinceLastVisit,
+    email_prefs: emailPrefs,
   })
+}
+
+/**
+ * V10.12.1 — read the user's persisted email digest preferences so
+ * the toggle in SignalEmailDigestCard hydrates with the correct
+ * state. Defensive: returns sensible defaults if the row doesn't
+ * exist yet (first-time visitor) or if the column is missing
+ * (migration pending).
+ */
+async function loadEmailPrefs(svc: any, userId: string) {
+  try {
+    var result = await svc.from('signal_user_visits')
+      .select('email_digest_enabled, email_digest_cadence')
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (result && result.data) {
+      return {
+        enabled: !!result.data.email_digest_enabled,
+        cadence: (result.data.email_digest_cadence === 'daily' ? 'daily' : 'weekly') as 'daily' | 'weekly',
+      }
+    }
+    return { enabled: false, cadence: 'weekly' as const }
+  } catch (_e) {
+    return { enabled: false, cadence: 'weekly' as const }
+  }
 }
 
 /**

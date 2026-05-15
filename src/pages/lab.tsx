@@ -566,9 +566,12 @@ function YourSignalTab() {
           higher-fidelity (cluster growth alerts within hours) but
           requires a supported browser; email is universal but
           weekly-cadence by default. Together they cover every
-          reactivation channel. */}
+          reactivation channel.
+          V10.12.1 — email card receives initial state from API
+          response so the toggle reflects persisted preference on
+          page load (was previously always rendering as off). */}
       <SignalAlertsOptInCard />
-      <SignalEmailDigestCard />
+      <SignalEmailDigestCard initialPrefs={data.email_prefs || null} />
 
       {/* V10.9 Phase 3 — surface the existing year-in-review API as
           an explorable highlight. Shipped collapsed by default to
@@ -600,6 +603,13 @@ function YourSignalTab() {
  */
 function SignalAlertsOptInCard() {
   var [permission, setPermission] = useState<NotificationPermission | 'unsupported' | 'unknown'>('unknown')
+  // V10.12.1 — track *active subscription* separately from
+  // permission. permission='granted' just means the user said yes
+  // at some point; the actual push subscription can be torn down
+  // (this device, this app reinstall, or by the user clicking off).
+  // Only when both are true do we render the "alerts on" state with
+  // a toggle to turn off; otherwise we render the enable CTA.
+  var [subscribed, setSubscribed] = useState<boolean | null>(null) // null = loading
   var [busy, setBusy] = useState(false)
   var [message, setMessage] = useState<string | null>(null)
 
@@ -607,6 +617,16 @@ function SignalAlertsOptInCard() {
     // Lazy-import client helper since it touches `window`.
     import('@/lib/pushNotifications').then(function (mod) {
       setPermission(mod.getPushPermissionState())
+      // Inspect the actual subscription on this device.
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then(function (reg) {
+          return reg.pushManager.getSubscription()
+        }).then(function (sub) {
+          setSubscribed(!!sub)
+        }).catch(function () { setSubscribed(false) })
+      } else {
+        setSubscribed(false)
+      }
     })
   }, [])
 
@@ -618,6 +638,7 @@ function SignalAlertsOptInCard() {
       mod.requestPushSubscription({ topics: ['your_signal'] }).then(function (result) {
         if (result.subscribed) {
           setPermission('granted')
+          setSubscribed(true)
           setMessage('Notifications on — we’ll ping you when 3+ new reports land in your cluster.')
           capture('signal_alerts_optin', { outcome: 'subscribed' })
         } else if (result.unsupported) {
@@ -625,6 +646,7 @@ function SignalAlertsOptInCard() {
           capture('signal_alerts_optin', { outcome: 'unsupported' })
         } else if (result.denied) {
           setPermission('denied')
+          setSubscribed(false)
           setMessage('Permission was denied. You can re-enable in your browser settings under site permissions.')
           capture('signal_alerts_optin', { outcome: 'denied' })
         } else {
@@ -635,7 +657,37 @@ function SignalAlertsOptInCard() {
     })
   }
 
-  if (permission === 'unsupported' || permission === 'unknown') return null
+  // V10.12.1 — turn alerts OFF without leaving the tab. Calls the
+  // existing unsubscribeFromPush() helper which tears down the
+  // browser-side subscription via PushManager. Server-side cleanup
+  // happens on the next 410 Gone (signal-alerts cron will get a
+  // 410 on the dead endpoint and mark is_active=false). We don't
+  // call any server endpoint synchronously — the browser unsubscribe
+  // is the source of truth.
+  function handleDisable() {
+    if (busy) return
+    setBusy(true)
+    setMessage(null)
+    import('@/lib/pushNotifications').then(function (mod) {
+      mod.unsubscribeFromPush().then(function (ok) {
+        if (ok) {
+          setSubscribed(false)
+          setMessage('Signal alerts turned off. Your push subscription on this device has been removed.')
+          capture('signal_alerts_optin', { outcome: 'unsubscribed' })
+        } else {
+          setMessage('Couldn’t turn off alerts. Try refreshing and trying again.')
+        }
+      }).finally(function () { setBusy(false) })
+    })
+  }
+
+  if (permission === 'unsupported' || permission === 'unknown' || subscribed === null) return null
+
+  // V10.12.1 — derive the visible state explicitly. Only one of
+  // {enableButton, toggleOn, deniedMessage} renders at a time.
+  var showToggleOn = (permission === 'granted' && subscribed === true)
+  var showEnableButton = !showToggleOn && (permission === 'default' || (permission === 'granted' && subscribed === false))
+  var showDeniedMessage = (permission === 'denied')
 
   return (
     <div className="rounded-xl border border-purple-800/40 bg-purple-950/15 px-4 py-3">
@@ -644,20 +696,37 @@ function SignalAlertsOptInCard() {
           <Sparkles className="w-4 h-4 text-purple-300" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white">
-            {permission === 'granted' ? 'Signal alerts are on' : 'Get a ping when your signal grows'}
-          </p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-white">
+              {showToggleOn ? 'Signal alerts are on' : 'Get a ping when your signal grows'}
+            </p>
+            {/* V10.12.1 — toggle replaces the old "alerts are on" copy
+                with no off path. Same toggle UX as the email card
+                below for consistency. */}
+            {showToggleOn && (
+              <label className="inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={true}
+                  onChange={function () { handleDisable() }}
+                  disabled={busy}
+                  className="sr-only peer"
+                />
+                <span className="relative w-9 h-5 bg-purple-600 rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform after:translate-x-4" />
+              </label>
+            )}
+          </div>
           <p className="text-xs text-gray-300 mt-1 leading-relaxed">
-            {permission === 'granted'
-              ? 'We’ll notify you when 3+ new reports join your cluster, no more than once every 3 days.'
-              : permission === 'denied'
+            {showToggleOn
+              ? 'We’ll notify you when 3+ new reports join your cluster, no more than once every 3 days. Toggle off to turn this off on this device.'
+              : showDeniedMessage
                 ? 'Push permission was denied. Re-enable in your browser site permissions.'
                 : 'Get a quiet, low-volume notification when 3+ new cases share your signature. Capped at one alert per 3 days.'}
           </p>
-          {message && permission !== 'granted' && (
+          {message && (
             <p className="text-[11px] text-amber-200 mt-1.5">{message}</p>
           )}
-          {permission === 'default' && (
+          {showEnableButton && (
             <button
               type="button"
               onClick={handleEnable}
@@ -685,20 +754,32 @@ function SignalAlertsOptInCard() {
  * the toggle returns 503 and we surface the message inline rather
  * than crashing.
  */
-function SignalEmailDigestCard() {
-  var [enabled, setEnabled] = useState<boolean | null>(null) // null = loading
-  var [cadence, setCadence] = useState<'daily' | 'weekly'>('weekly')
+function SignalEmailDigestCard(props: { initialPrefs: { enabled: boolean; cadence: 'daily' | 'weekly' } | null }) {
+  // V10.12.1 — hydrate from the API-returned initialPrefs so the
+  // toggle reflects the persisted state on every page load. Was
+  // previously always rendering as off because the component
+  // initialized state to false without consulting the server.
+  var [enabled, setEnabled] = useState<boolean | null>(
+    props.initialPrefs ? props.initialPrefs.enabled : null
+  )
+  var [cadence, setCadence] = useState<'daily' | 'weekly'>(
+    (props.initialPrefs && props.initialPrefs.cadence) || 'weekly'
+  )
   var [busy, setBusy] = useState(false)
   var [message, setMessage] = useState<string | null>(null)
 
   useEffect(function () {
-    // Read current state from signal_user_visits via the API. Quickest
-    // path: hit the existing your-signal endpoint, which now stamps
-    // visits and returns email_digest fields too. For now, default
-    // to "off" and let the user toggle — the toggle endpoint reads
-    // back the current state on success. Safer than another GET.
-    setEnabled(false)
-  }, [])
+    // If initialPrefs arrives later (e.g. parent's data fetch
+    // finishes after this component mounts), sync to it. Idempotent.
+    if (props.initialPrefs) {
+      setEnabled(props.initialPrefs.enabled)
+      setCadence(props.initialPrefs.cadence)
+    } else if (enabled === null) {
+      // Fallback if the parent never passes prefs (defensive — old
+      // call sites won't crash).
+      setEnabled(false)
+    }
+  }, [props.initialPrefs && props.initialPrefs.enabled, props.initialPrefs && props.initialPrefs.cadence])
 
   function persist(nextEnabled: boolean, nextCadence: 'daily' | 'weekly') {
     if (busy) return
