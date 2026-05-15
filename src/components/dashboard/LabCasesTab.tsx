@@ -1302,9 +1302,14 @@ function SubmissionRow(props: {
 
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-gray-900/60 border border-gray-800/60 hover:border-primary-600/30 hover:bg-gray-900 transition-all group">
+      {/* V10.13 Hotfix — let users open their own pending/in-review
+          submissions. Even if the public report page redirects them
+          back, they can at least see what they submitted. The link
+          target uses an admin-preview route fallback in the future
+          but for now sends them to the same /report/[slug] which
+          handles owner-preview cases. */}
       <Link
-        href={clickable ? '/report/' + r.slug : '#'}
-        onClick={function(e) { if (!clickable) e.preventDefault() }}
+        href={'/report/' + r.slug + (clickable ? '' : '?preview=1')}
         className="flex items-center gap-3 flex-1 min-w-0"
       >
         <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
