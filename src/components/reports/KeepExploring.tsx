@@ -175,7 +175,7 @@ export default function KeepExploring({ reportId, category, categoryLabel, class
       <p className="mt-4 text-center text-xs text-gray-500">
         {'Have your own experience? '}
         <Link
-          href="/submit"
+          href="/start"
           className="text-gray-400 underline underline-offset-2 hover:text-white transition-colors"
         >
           {'Share a report'}

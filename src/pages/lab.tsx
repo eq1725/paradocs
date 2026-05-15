@@ -62,25 +62,46 @@ import { useLabData } from '@/lib/hooks/useLabData'
 import { Star } from 'lucide-react'
 
 // Tab definitions
-// V9.11.6 — Notes tab deprecated in favor of "Your Signal" — AI-driven
-// personal pattern analysis surface (4 insight cards generated from
-// the user's report against the broader ingested archive). The journal
-// feature is removed from the build per product call: low value in the
-// current user journey vs the AI insights replacing it.
-var TAB_KEYS = ['constellation', 'saves', 'cases', 'map', 'signal'] as const
+// V10.14 (Phase D consolidation) — 5 tabs collapsed to 3.
+//   - 'story'  combines RADAR + SIGNAL (your submitted experiences +
+//              AI-driven pattern surface) — one tab, one mental
+//              model: "your story and how it connects."
+//   - 'saves'  combines bookmarks + map + case files via a view-mode
+//              toolbar (list / map / collections) — same data,
+//              three lenses on a single tab.
+//   - 'ask'    promotes Ask the Unknown to first-class navigation.
+//              Was buried inside SIGNAL; returns users will navigate
+//              to it specifically and benefit from a dedicated tab.
+//
+// Backwards-compat redirects in handleTabChange for legacy URLs
+// (?tab=constellation, ?tab=signal, ?tab=cases, ?tab=map, ?tab=notes)
+// so existing bookmarks, deep links, and push notifications keep
+// working.
+var TAB_KEYS = ['story', 'saves', 'ask'] as const
 type TabKey = typeof TAB_KEYS[number]
 
 var TAB_CONFIG: Record<string, { label: string; mobileLabel?: string; icon: typeof Star }> = {
-  constellation: { label: 'Radar', icon: Star },
+  story: { label: 'Your Story', mobileLabel: 'Story', icon: Star },
   saves: { label: 'Saves', icon: Bookmark },
-  cases: { label: 'Cases', icon: FolderOpen },
-  map: { label: 'My Map', icon: MapIcon },
-  signal: { label: 'Your Signal', mobileLabel: 'Signal', icon: Activity },
+  ask:   { label: 'Ask',   icon: Sparkles },
+}
+
+// V10.14 — legacy → new tab mapping for query-string redirects.
+var LEGACY_TAB_REDIRECT: Record<string, TabKey> = {
+  constellation: 'story',
+  signal: 'story',
+  notes: 'story',  // pre-V9.11.6 journal tab; landed in signal before, lands in story now
+  cases: 'saves',  // case-files become a sub-view of Saves
+  map: 'saves',    // map becomes a sub-view of Saves
 }
 
 export default function LabPage() {
   var router = useRouter()
-  var [activeTab, setActiveTab] = useState<TabKey>('constellation')
+  // V10.14 — default tab is 'story' (RADAR + SIGNAL combined).
+  var [activeTab, setActiveTab] = useState<TabKey>('story')
+  // V10.14 — saves view-mode toolbar (list / map / collections).
+  // Lifted to LabPage so the URL can carry it as a sub-state.
+  var [savesView, setSavesView] = useState<'list' | 'map' | 'collections'>('list')
   var [isLoggedIn, setIsLoggedIn] = useState(false)
   var [userProfile, setUserProfile] = useState<any>(null)
   var [loading, setLoading] = useState(true)
@@ -90,16 +111,21 @@ export default function LabPage() {
   // internally when the user isn't authenticated.
   var lab = useLabData()
 
-  // Read tab from URL query
+  // Read tab from URL query.
+  // V10.14 — handles legacy tab keys (constellation, signal, cases,
+  // map, notes) by mapping to the new consolidated keys via
+  // LEGACY_TAB_REDIRECT. Existing bookmarks / push notification
+  // deep links continue to work without breakage.
   useEffect(function() {
     var tabFromQuery = router.query.tab as string
     if (!tabFromQuery) return
-    // V9.11.6 — backwards-compat: ?tab=notes → ?tab=signal so any
-    // bookmarks / push-notification deep links from the legacy
-    // journal era still land somewhere useful.
-    if (tabFromQuery === 'notes') {
-      setActiveTab('signal')
-      router.replace({ query: { ...router.query, tab: 'signal' } }, undefined, { shallow: true })
+    if (LEGACY_TAB_REDIRECT[tabFromQuery]) {
+      var newTab = LEGACY_TAB_REDIRECT[tabFromQuery]
+      setActiveTab(newTab)
+      // Auto-set the saves sub-view when redirecting from cases/map
+      if (tabFromQuery === 'cases') setSavesView('collections')
+      if (tabFromQuery === 'map') setSavesView('map')
+      router.replace({ query: { ...router.query, tab: newTab } }, undefined, { shallow: true })
       return
     }
     if (TAB_KEYS.includes(tabFromQuery as TabKey)) {
@@ -168,13 +194,13 @@ export default function LabPage() {
       <Head>
         <title>Lab | Paradocs</title>
         <meta name="description" content="Your personal research lab — saves, case files, geographic map, and notes." />
-        {activeTab === 'constellation' && (
+        {activeTab === 'story' && (
           <style>{`footer{background:#0a0a14 !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}`}</style>
         )}
       </Head>
 
-      <div className={activeTab === 'constellation' ? 'flex flex-col lg:block lg:h-auto' : ''}
-        style={activeTab === 'constellation' ? { background: '#0a0a14', minHeight: '100dvh', paddingBottom: '24px' } : { background: '#0a0a14' }}>
+      <div className={activeTab === 'story' ? 'flex flex-col lg:block lg:h-auto' : ''}
+        style={activeTab === 'story' ? { background: '#0a0a14', minHeight: '100dvh', paddingBottom: '24px' } : { background: '#0a0a14' }}>
         {/* Header row: title + actions — scrolls away */}
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
           <div className="flex items-center justify-between mb-4 sm:mb-6">
@@ -220,11 +246,11 @@ export default function LabPage() {
         </div>
 
         {/* Tab bar — sticky below header so users can always switch tabs */}
-        <div className="sticky-below-header bg-gray-950/95 backdrop-blur-lg" style={{ background: activeTab === 'constellation' ? '#0a0a14' : undefined }}>
+        <div className="sticky-below-header bg-gray-950/95 backdrop-blur-lg" style={{ background: activeTab === 'story' ? '#0a0a14' : undefined }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className={classNames(
               'flex border-b',
-              activeTab === 'constellation' ? 'border-transparent' : 'border-gray-800'
+              activeTab === 'story' ? 'border-transparent' : 'border-gray-800'
             )}>
               {TAB_KEYS.map(function(tabKey) {
                 var config = TAB_CONFIG[tabKey]
@@ -267,25 +293,30 @@ export default function LabPage() {
             <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
-          /* Tab content — Constellation tab is scrollable like the
-             others. The previous flex-1 min-h-0 wrapper was a
-             leftover from when the RADAR was fixed-height; with the
-             V9.11.5 #30 inline match-preview expansion and the new
-             'Your Report' card above, the tab's content can extend
-             well below the viewport. QA #1 (V10.2): switched to
-             pb-20 + minHeight so the page scrolls naturally on iOS
-             PWA, exposing the match cards below the RADAR. */
-          <div className={activeTab === 'constellation'
-            ? 'pb-20'
-            : ''}>
-            {activeTab === 'constellation' && (
+          /* V10.14 — three consolidated tab surfaces.
+             story → RADAR + SIGNAL embedded stacked
+             saves → toolbar (list / map / collections) + matching pane
+             ask   → standalone Ask the Unknown */
+          <div className={activeTab === 'story' ? 'pb-20' : ''}>
+            {activeTab === 'story' && (
               <div style={{ minHeight: 'calc(100dvh - 200px)' }}>
                 <LabConstellationTab />
+                {/* V10.14 — SIGNAL embedded directly under RADAR.
+                    Single mental model: "your story and how it
+                    connects." No tab switching to see your patterns. */}
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-6">
+                  <YourSignalTab />
+                </div>
               </div>
             )}
-            {activeTab !== 'constellation' && (
+            {activeTab === 'saves' && (
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-20" style={{ minHeight: 'calc(100dvh - 200px)' }}>
-                {activeTab === 'saves' && (
+                {/* V10.14 — view-mode toolbar. Three lenses on the
+                    same data: a feed list, a map, a collections grid
+                    (formerly the Cases tab). All three are sub-views
+                    of Saves, not separate tabs. */}
+                <SavesViewToggle current={savesView} onChange={setSavesView} />
+                {savesView === 'list' && (
                   <LabSavesTab
                     loading={lab.loading}
                     userMapData={lab.userMapData}
@@ -296,7 +327,7 @@ export default function LabPage() {
                     onRefresh={lab.refresh}
                   />
                 )}
-                {activeTab === 'cases' && (
+                {savesView === 'collections' && (
                   <LabCasesTab
                     loading={lab.loading}
                     userMapData={lab.userMapData}
@@ -305,7 +336,7 @@ export default function LabPage() {
                     onRefresh={lab.refresh}
                   />
                 )}
-                {activeTab === 'map' && (
+                {savesView === 'map' && (
                   <LabMapTab
                     loading={lab.loading}
                     userMapData={lab.userMapData}
@@ -314,13 +345,65 @@ export default function LabPage() {
                     onRefresh={lab.refresh}
                   />
                 )}
-                {activeTab === 'signal' && <YourSignalTab />}
+              </div>
+            )}
+            {activeTab === 'ask' && (
+              <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-20" style={{ minHeight: 'calc(100dvh - 200px)' }}>
+                {/* V10.14 — Ask the Unknown promoted to first-class
+                    navigation. Sticky surface that returning users
+                    will navigate to specifically. The component itself
+                    still handles its own auth + rate-limiting. */}
+                <div className="mb-4">
+                  <h2 className="text-xl font-bold text-white">Ask the Unknown</h2>
+                  <p className="text-sm text-gray-400 mt-1 leading-relaxed">
+                    Ask anything about your experience or how it fits across the archive. The AI cites real reports.
+                  </p>
+                </div>
+                <AskTheUnknown />
               </div>
             )}
           </div>
         )}
       </div>
     </>
+  )
+}
+
+/**
+ * V10.14 — Saves view-mode toggle. Three lenses on the same data:
+ *   - list: feed-style ConstellationListView (default)
+ *   - map: geographic Leaflet map
+ *   - collections: case files grid
+ *
+ * URL deep-link: /lab?tab=saves&view=map etc. Preserves PostHog
+ * event names (the inner components keep firing the same events
+ * they did when they were separate tabs). New event 'saves_view_change'
+ * captures view-mode switches so we can measure adoption.
+ */
+function SavesViewToggle(props: { current: 'list' | 'map' | 'collections'; onChange: (v: 'list' | 'map' | 'collections') => void }) {
+  function pick(v: 'list' | 'map' | 'collections') {
+    if (v === props.current) return
+    props.onChange(v)
+    try {
+      var posthog = require('@/lib/posthog')
+      posthog.capture('saves_view_change', { view: v })
+    } catch (_e) {}
+  }
+  var btnBase = 'flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors '
+  var active = 'bg-purple-600/30 text-purple-100 border border-purple-500/40'
+  var idle = 'text-gray-400 hover:text-gray-200 border border-transparent'
+  return (
+    <div className="flex items-center gap-1 mb-4 p-1 bg-gray-900/40 border border-gray-800/60 rounded-lg w-full sm:w-auto sm:inline-flex">
+      <button type="button" onClick={function() { pick('list') }} className={btnBase + (props.current === 'list' ? active : idle)}>
+        <Bookmark className="w-3.5 h-3.5" /> List
+      </button>
+      <button type="button" onClick={function() { pick('map') }} className={btnBase + (props.current === 'map' ? active : idle)}>
+        <MapIcon className="w-3.5 h-3.5" /> Map
+      </button>
+      <button type="button" onClick={function() { pick('collections') }} className={btnBase + (props.current === 'collections' ? active : idle)}>
+        <FolderOpen className="w-3.5 h-3.5" /> Collections
+      </button>
+    </div>
   )
 }
 

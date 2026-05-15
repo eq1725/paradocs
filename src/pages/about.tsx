@@ -192,7 +192,7 @@ export default function AboutPage() {
               Explore Reports
             </Link>
             <Link
-              href="/submit"
+              href="/start"
               className="btn btn-secondary"
             >
               Submit a Report

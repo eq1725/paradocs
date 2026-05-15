@@ -253,7 +253,7 @@ export default function MyReportsPage() {
           </p>
         </div>
         <Link
-          href="/submit"
+          href="/start"
           className={`
             inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors
             ${canSubmitReport
@@ -338,7 +338,7 @@ export default function MyReportsPage() {
             </p>
             {!searchQuery && statusFilter === 'all' && (
               <Link
-                href="/submit"
+                href="/start"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors"
               >
                 <Plus className="w-5 h-5" />
