@@ -466,9 +466,15 @@ function UnauthenticatedPrompt() {
  * not diagnosis.
  */
 function YourSignalTab() {
+  var router = useRouter()
   var [data, setData] = useState<any>(null)
   var [loading, setLoading] = useState(true)
   var [error, setError] = useState<string | null>(null)
+  // V10.15 — read ?focus= from URL (set by the multi-submission
+  // switcher in LabConstellationTab). Passes through to the API
+  // as ?report_id= so SIGNAL re-renders for the focused submission
+  // when the user flips between them in the Story tab.
+  var focusFromUrl = (router.query.focus as string) || null
 
   useEffect(function () {
     function load() {
@@ -481,7 +487,9 @@ function YourSignalTab() {
           setLoading(false)
           return
         }
-        fetch('/api/lab/your-signal', {
+        var url = '/api/lab/your-signal'
+        if (focusFromUrl) url += '?report_id=' + encodeURIComponent(focusFromUrl)
+        fetch(url, {
           headers: { Authorization: 'Bearer ' + session.access_token },
         })
           .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('Failed to load Your Signal')) })
@@ -491,7 +499,7 @@ function YourSignalTab() {
       })
     }
     load()
-  }, [])
+  }, [focusFromUrl])
 
   // V10.10 — fire signal_tab_open exactly once per mount, after the
   // payload is in hand so we can include the delta-line state as

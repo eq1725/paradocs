@@ -18,7 +18,7 @@ import { useRouter } from 'next/router'
 import { supabase } from '@/lib/supabase'
 import { getApiBase } from '@/lib/utils'
 import dynamic from 'next/dynamic'
-import { ChevronDown, MapPin, Calendar, ExternalLink, Users, Camera, Plus, User as UserIcon } from 'lucide-react'
+import { ChevronDown, MapPin, Calendar, ExternalLink, Users, Camera, Plus, User as UserIcon, Activity } from 'lucide-react'
 
 // Dynamic imports for SSR-incompatible components
 var ConstellationReveal = dynamic(
@@ -42,6 +42,14 @@ export default function LabConstellationTab() {
   var router = useRouter()
   var [loading, setLoading] = useState(true)
   var [hasSubmission, setHasSubmission] = useState(false)
+  // V10.15 Phase C — load ALL non-deleted user submissions, not just
+  // the most recent. allReports holds the raw rows; focusedIdx picks
+  // which one drives the constellation; userExperience is derived.
+  // The user can flip between submissions via the switcher pills,
+  // and the focused submission's id is mirrored to the URL
+  // (?focus=reportId) so the embedded YourSignalTab can pick it up.
+  var [allReports, setAllReports] = useState<any[]>([])
+  var [focusedIdx, setFocusedIdx] = useState<number>(0)
   var [userExperience, setUserExperience] = useState<UserExperience | null>(null)
   var [matches, setMatches] = useState<MatchedReport[]>([])
   var [totalExperiences, setTotalExperiences] = useState(0)
@@ -50,7 +58,7 @@ export default function LabConstellationTab() {
   var [notifyToast, setNotifyToast] = useState<string | null>(null)
   var [userEmail, setUserEmail] = useState('')
 
-  // Check if user has any submissions and load their latest
+  // V10.15 — load all non-deleted user submissions on mount.
   useEffect(function() {
     async function loadData() {
       var sessionResult = await supabase.auth.getSession()
@@ -61,22 +69,37 @@ export default function LabConstellationTab() {
       }
       if (session.user.email) setUserEmail(session.user.email)
 
-      // Check for user's most recent submission
       var { data: userReports } = await supabase
         .from('reports')
         .select(`
           id, title, slug, category, description, summary,
           location_description, city, state_province, country,
-          latitude, longitude, event_date,
+          latitude, longitude, event_date, created_at,
           phenomenon_type:phenomenon_types(name)
         `)
         .eq('submitted_by', session.user.id)
         .eq('source_type', 'user_submission')
+        .neq('status', 'deleted')
         .order('created_at', { ascending: false })
-        .limit(1)
+        .limit(50)
 
       if (userReports && userReports.length > 0) {
-        var report = userReports[0]
+        setAllReports(userReports)
+        setHasSubmission(true)
+
+        // V10.15 — honor ?focus=reportId from URL on first load so
+        // deep links from email digests / push notifications can
+        // open a specific submission.
+        var focusFromUrl = router.query.focus as string
+        var initialIdx = 0
+        if (focusFromUrl) {
+          var found = userReports.findIndex(function(r: any) { return r.id === focusFromUrl })
+          if (found >= 0) initialIdx = found
+        }
+        setFocusedIdx(initialIdx)
+
+        // Build the UserExperience from the focused report.
+        var report = userReports[initialIdx]
         var exp: UserExperience = {
           id: report.id,
           type_name: (report as any).phenomenon_type?.name || report.category || '',
@@ -88,9 +111,8 @@ export default function LabConstellationTab() {
           description: report.description || report.summary || '',
         }
         setUserExperience(exp)
-        setHasSubmission(true)
 
-        // Fetch matches from the constellation match API
+        // Fetch matches for the focused report.
         await fetchMatches(report.id, report.category, report.latitude, report.longitude, report.description || report.summary || '', session.access_token)
       }
 
@@ -98,6 +120,42 @@ export default function LabConstellationTab() {
     }
     loadData()
   }, [])
+
+  // V10.15 — when focusedIdx changes, rebuild userExperience and
+  // refetch matches against the newly focused report. Also mirror
+  // the focus to the URL so the embedded YourSignalTab can read it.
+  useEffect(function() {
+    if (allReports.length === 0) return
+    var report = allReports[focusedIdx]
+    if (!report) return
+    var exp: UserExperience = {
+      id: report.id,
+      type_name: (report as any).phenomenon_type?.name || report.category || '',
+      category: report.category || '',
+      location: [report.city, report.state_province].filter(Boolean).join(', ') || report.location_description || 'Unknown',
+      latitude: report.latitude || 30.08,
+      longitude: report.longitude || -94.10,
+      year: report.event_date ? new Date(report.event_date).getFullYear() : new Date().getFullYear(),
+      description: report.description || report.summary || '',
+    }
+    setUserExperience(exp)
+    supabase.auth.getSession().then(function(s) {
+      var token = s.data.session?.access_token || ''
+      if (!token) return
+      fetchMatches(report.id, report.category, report.latitude, report.longitude, report.description || report.summary || '', token)
+    })
+    // Mirror focus to URL (shallow). YourSignalTab will pick it up.
+    var nextQuery = Object.assign({}, router.query, { focus: report.id })
+    router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true })
+    // V10.15 — fire PostHog event so we can measure how often users
+    // actually use the multi-submission switcher (and whether the
+    // option is even surfaced to enough users to matter).
+    try {
+      var posthog = require('@/lib/posthog')
+      posthog.capture('story_focus_change', { report_index: focusedIdx, total_reports: allReports.length })
+    } catch (_e) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedIdx, allReports.length])
 
   var fetchMatches = useCallback(async function(
     reportId: string,
@@ -188,20 +246,89 @@ export default function LabConstellationTab() {
   }
 
   // Has submission — V9.11.5 #16 polished RADAR view.
-  // Replaces the older ConstellationReveal fullscreen experience with
-  // an information-dense RADAR (distance=score, angle=category,
-  // color=category, size=score, pulse=recency) + working filter chips.
+  // V10.15 — wrapped with the multi-submission switcher pill row
+  // when the user has more than one submission. The switcher lets
+  // them flip the RADAR + the embedded SIGNAL focus between any of
+  // their submissions; the focused report ID is mirrored to the URL.
   if (userExperience) {
-    return <PolishedRadarView
-      userExperience={userExperience}
-      matches={matches}
-      totalExperiences={totalExperiences}
-      userEmail={userEmail}
-      router={router}
-    />
+    return (
+      <>
+        {allReports.length > 1 && (
+          <SubmissionSwitcher
+            reports={allReports}
+            focusedIdx={focusedIdx}
+            onFocus={setFocusedIdx}
+          />
+        )}
+        <PolishedRadarView
+          userExperience={userExperience}
+          matches={matches}
+          totalExperiences={totalExperiences}
+          userEmail={userEmail}
+          router={router}
+        />
+      </>
+    )
   }
 
   return null
+}
+
+/**
+ * V10.15 Phase C — submission switcher pill row.
+ *
+ * Renders one pill per user submission. Tap a pill to refocus the
+ * RADAR + embedded SIGNAL on that submission. The focused pill gets
+ * a brand-purple background; others sit in the dim default.
+ *
+ * Hidden when the user has only one submission (no point showing a
+ * switcher with one option). Empty state of the multi-submission
+ * world handled by the parent (single-submission path is unchanged).
+ *
+ * Mobile: pill row scrolls horizontally with snap if there are more
+ * pills than fit. Desktop: pills wrap.
+ */
+function SubmissionSwitcher(props: {
+  reports: any[]
+  focusedIdx: number
+  onFocus: (idx: number) => void
+}) {
+  function pillLabel(r: any): string {
+    var typeName = r.phenomenon_type?.name || r.category || 'Experience'
+    var year = r.event_date ? new Date(r.event_date).getFullYear() : null
+    return year ? typeName + ' ' + year : typeName
+  }
+  return (
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 pb-1">
+      <div className="flex items-center gap-2 mb-2">
+        <Activity className="w-3 h-3 text-purple-300" />
+        <span className="text-[10px] font-semibold tracking-widest uppercase text-purple-300">
+          Your experiences ({props.reports.length})
+        </span>
+      </div>
+      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 sm:-mx-0 px-4 sm:px-0 pb-1 sm:flex-wrap snap-x snap-mandatory sm:snap-none">
+        {props.reports.map(function(r: any, i: number) {
+          var isActive = i === props.focusedIdx
+          return (
+            <button
+              key={r.id}
+              type="button"
+              onClick={function() { props.onFocus(i) }}
+              className={
+                'flex-shrink-0 snap-start inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ' +
+                (isActive
+                  ? 'bg-purple-600/30 text-purple-100 border border-purple-500/50'
+                  : 'bg-gray-900/60 text-gray-300 hover:text-white border border-gray-800/60 hover:border-purple-600/30')
+              }
+            >
+              {isActive && <span className="w-1.5 h-1.5 rounded-full bg-purple-300" />}
+              {pillLabel(r)}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 // ── New polished RADAR view (V9.11.5 #16) ────────────────────────────────────

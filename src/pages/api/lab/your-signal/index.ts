@@ -316,16 +316,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // we never return per-row archive content, only aggregates).
   var svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-  // 1. Find the user's most recent report.
-  // V10.9 — added created_at for the cluster-contribution callout
-  // (Phase 3) — we frame "foundational" against archive-creation
-  // order, not event_date.
-  var reportResult = await svc.from('reports')
+  // 1. Find the report this Signal call is about.
+  //
+  // Default = user's most recent submission. V10.15 — accept
+  // ?report_id=xxx override so the consolidated Story tab can focus
+  // SIGNAL on whichever submission the user has selected via the
+  // multi-submission switcher. The override is constrained to
+  // reports the caller actually owns (submitted_by = user.id) so
+  // it can't be abused to inspect other users' data.
+  var requestedReportId = (req.query.report_id as string) || null
+  var reportQuery = svc.from('reports')
     .select('id, phenomenon_type_id, category, latitude, longitude, event_date, event_time, has_photo_video, witness_count, description, summary, title, created_at')
     .eq('submitted_by', user.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
+    .neq('status', 'deleted')
+  if (requestedReportId) {
+    reportQuery = reportQuery.eq('id', requestedReportId)
+  } else {
+    reportQuery = reportQuery.order('created_at', { ascending: false })
+  }
+  var reportResult = await reportQuery.limit(1).single()
 
   var userReport = reportResult.data
   if (!userReport) {
