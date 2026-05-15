@@ -51,7 +51,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { classNames } from '@/lib/utils'
-import { capture } from '@/lib/posthog'
+import { capture, getFeatureFlag } from '@/lib/posthog'
 import LabSavesTab from '@/components/dashboard/LabSavesTab'
 import LabCasesTab from '@/components/dashboard/LabCasesTab'
 import LabMapTab from '@/components/dashboard/LabMapTab'
@@ -477,19 +477,44 @@ function YourSignalTab() {
   }
 
   // V10.9 Signal Reframe — pick the strongest non-skipped card to be
-  // the hero. Heuristic: prefer cluster (most concrete: "X cases near
-  // you"), then fingerprint (categorical match), then context, then
-  // didyouknow. The hero gets full attention; the rest live in an
-  // expandable "More signals" strip below the Ask box.
-  var heroCard: { kind: 'cluster' | 'fingerprint' | 'context' | 'did_you_know'; data: any } = (function () {
+  // the hero. V10.12 — Did You Know retired; peer_questions takes
+  // its slot in the eligibility ladder (last fallback because cluster/
+  // fingerprint/context all carry a personal count, while
+  // peer_questions is about other people's behavior).
+  //
+  // V10.10.x feature flag: signal-hero-pick-strategy lets us A/B
+  // test alternate orderings (fingerprint-first or context-first) vs
+  // the cluster-first default. The flag override only fires when the
+  // chosen variant has data; we always fall back to the default
+  // heuristic so a flag misconfiguration can't yield an empty hero.
+  var heroCard: { kind: 'cluster' | 'fingerprint' | 'context' | 'peer_questions'; data: any } = (function () {
     var cl = data.cluster
-    if (cl && !cl.skipped && (cl.nearby_count || 0) >= 1) return { kind: 'cluster', data: cl }
     var fp = data.fingerprint
-    if (fp && fp.primary_count) return { kind: 'fingerprint', data: fp }
     var ctx = data.context
-    if (ctx && !ctx.skipped) return { kind: 'context', data: ctx }
-    return { kind: 'did_you_know', data: data.did_you_know }
+    var pq = data.peer_questions
+
+    var hasCluster = cl && !cl.skipped && (cl.nearby_count || 0) >= 1
+    var hasFingerprint = !!(fp && fp.primary_count)
+    var hasContext = !!(ctx && !ctx.skipped)
+    var hasPeerQ = !!(pq && pq.questions && pq.questions.length > 0)
+
+    var flagVariant = getFeatureFlag('signal-hero-pick-strategy')
+    if (flagVariant === 'fingerprint' && hasFingerprint) return { kind: 'fingerprint', data: fp }
+    if (flagVariant === 'context' && hasContext) return { kind: 'context', data: ctx }
+
+    // Default cluster-first heuristic.
+    if (hasCluster) return { kind: 'cluster', data: cl }
+    if (hasFingerprint) return { kind: 'fingerprint', data: fp }
+    if (hasContext) return { kind: 'context', data: ctx }
+    if (hasPeerQ) return { kind: 'peer_questions', data: pq }
+    return { kind: 'cluster', data: cl } // last-resort empty cluster, will render its skipped state
   })()
+
+  // V10.10.x feature flag: signal-ask-placement lets us A/B test the
+  // audit's "Ask above the cards" decision against the legacy
+  // "Ask below the cards" layout. Default = above-cards (current).
+  var askPlacement = getFeatureFlag('signal-ask-placement')
+  var askBelow = askPlacement === 'below-cards'
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
@@ -510,11 +535,13 @@ function YourSignalTab() {
           first viewport always carries one strong, parseable signal. */}
       <HeroCardSlot heroCard={heroCard} reportId={data.report_id} feedback={data.feedback} />
 
-      {/* V10.9 — Ask the Unknown lifted directly under the hero,
-          ABOVE the accordion of demoted cards. Engagement data from
-          analogous Q&A surfaces shows the input box must appear in
-          the first viewport or it's effectively invisible. */}
-      <AskTheUnknown />
+      {/* V10.9 — Ask the Unknown placement controlled by feature flag
+          signal-ask-placement. Default ('above-cards') puts it here,
+          directly under the hero — engagement data from analogous Q&A
+          surfaces shows the input box must appear in the first
+          viewport. Variant ('below-cards') moves it under the
+          accordion to A/B test the audit's hypothesis. */}
+      {!askBelow && <AskTheUnknown />}
 
       {/* V10.9 — peer card (full width). Kept above the accordion
           because "X people share this signature" is the strongest
@@ -530,6 +557,9 @@ function YourSignalTab() {
         reportId={data.report_id}
         feedback={data.feedback}
       />
+
+      {/* Ask the Unknown — alternate placement (below-cards variant). */}
+      {askBelow && <AskTheUnknown />}
 
       {/* V10.9 Phase 2 — surface push-notification opt-in AND
           Resend-backed email digest opt-in side by side. Push is
@@ -907,8 +937,8 @@ function HeroCardSlot(props: { heroCard: { kind: string; data: any }; reportId: 
       {props.heroCard.kind === 'context' && (
         <ContextCard data={props.heroCard.data} reportId={props.reportId} initialRating={fb.context || null} />
       )}
-      {props.heroCard.kind === 'did_you_know' && (
-        <DidYouKnowCard data={props.heroCard.data} reportId={props.reportId} initialRating={fb.did_you_know || null} />
+      {props.heroCard.kind === 'peer_questions' && (
+        <PeerQuestionsCard data={props.heroCard.data} reportId={props.reportId} initialRating={fb.peer_questions || null} />
       )}
     </div>
   )
@@ -935,8 +965,8 @@ function MoreSignalsAccordion(props: { heroKind: string; data: any; reportId: st
   if (props.heroKind !== 'context') {
     nonHero.push({ kind: 'context', node: <ContextCard data={props.data.context} reportId={props.reportId} initialRating={fb.context || null} /> })
   }
-  if (props.heroKind !== 'did_you_know') {
-    nonHero.push({ kind: 'did_you_know', node: <DidYouKnowCard data={props.data.did_you_know} reportId={props.reportId} initialRating={fb.did_you_know || null} /> })
+  if (props.heroKind !== 'peer_questions') {
+    nonHero.push({ kind: 'peer_questions', node: <PeerQuestionsCard data={props.data.peer_questions} reportId={props.reportId} initialRating={fb.peer_questions || null} /> })
   }
   if (nonHero.length === 0) return null
   return (
@@ -1146,7 +1176,7 @@ function AskTheUnknown() {
 
 // ── Card components ─────────────────────────────────────────────────
 
-type CardType = 'fingerprint' | 'cluster' | 'did_you_know' | 'context'
+type CardType = 'fingerprint' | 'cluster' | 'did_you_know' | 'context' | 'peer_questions'
 type Rating = 'up' | 'down' | null
 
 /**
@@ -1411,53 +1441,67 @@ function ClusterCard(props: { data: any; reportId: string; initialRating: Rating
   )
 }
 
-function DidYouKnowCard(props: { data: any; reportId: string; initialRating: Rating }) {
+/**
+ * V10.12 (Option C) — PeerQuestionsCard replaces the deprecated
+ * DidYouKnowCard. Surfaces up to 3 anonymized Ask the Unknown
+ * questions from peer reports in the same phenomenon_type.
+ *
+ * Why this card exists where Did You Know used to:
+ *   - Reinforces the brand promise ("you're not alone") by exposing
+ *     real peer behavior — what other people are curious about,
+ *     phrased in their words.
+ *   - Uses zero new Sonnet budget (questions are already in the
+ *     ask_the_unknown_log table from previous Ask sessions).
+ *   - When the corpus is too small, degrades to an honest empty
+ *     state inviting the user to be the first to ask, rather than
+ *     fabricating an AI insight.
+ *
+ * Body shape: { questions: [{text, asked_count, distinct_askers}],
+ *               total_questions, total_askers, source_scope }
+ */
+function PeerQuestionsCard(props: { data: any; reportId: string; initialRating: Rating }) {
   var d = props.data || {}
-  // V9.12 Phase 2.B — show a forward-looking pill when Sonnet flagged
-  // the insight as predictive (is_predictive: true). Makes it clear
-  // when a "Did you know" is a *forecast* vs. a backward-looking
-  // observation.
-  var predictiveTag = d.is_predictive ? (
-    <span className="inline-flex items-center gap-1 text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-full px-1.5 py-0.5">
-      <Clock className="w-2.5 h-2.5" /> Forward-looking
-    </span>
-  ) : undefined
+  var questions: any[] = (d.questions && d.questions.length > 0) ? d.questions : []
 
-  // Phase 1.B / 1.C placeholder state — no Sonnet yet or Sonnet failed.
-  if (d.pending) {
+  if (questions.length === 0) {
     return (
-      <SignalCardShell kicker="The thing that surprised our AI" highlight reportId={props.reportId} cardType="did_you_know" initialRating={props.initialRating}>
+      <SignalCardShell kicker="What others are asking" highlight reportId={props.reportId} cardType={'peer_questions' as CardType} initialRating={props.initialRating}>
         <p className="text-sm text-gray-300 leading-snug">
-          The AI is reading the archive for surprising correlations connected
-          to your experience. This card lights up once a pattern emerges that
-          only Paradocs can see.
-        </p>
-        <p className="text-[10px] text-gray-500 mt-3 italic">
-          AI insight coming online soon.
+          No one with a story like yours has used Ask the Unknown yet. Be the first &mdash; your question shapes what shows up here for the next reader.
         </p>
       </SignalCardShell>
     )
   }
+
   return (
     <SignalCardShell
-      kicker="The thing that surprised our AI"
+      kicker="What others are asking"
       highlight
       reportId={props.reportId}
-      cardType="did_you_know"
+      cardType={'peer_questions' as CardType}
       initialRating={props.initialRating}
-      trailingTag={predictiveTag}
     >
-      <p className="text-sm text-white leading-snug">
-        {d.headline || d.body || '—'}
+      <p className="text-xs text-gray-300 mb-2">
+        {(d.total_askers || 0) > 0
+          ? <><span className="font-semibold text-purple-300">{d.total_askers}</span> {d.total_askers === 1 ? 'person' : 'people'} with stories like yours have asked:</>
+          : <>People with stories like yours have asked:</>}
       </p>
-      {d.supporting_context && (
-        <p className="text-[11px] text-gray-400 mt-2">{d.supporting_context}</p>
-      )}
-      {d.supporting_count && !d.supporting_context && (
-        <p className="text-[11px] text-gray-400 mt-2">
-          Based on {d.supporting_count.toLocaleString()} archived reports.
-        </p>
-      )}
+      <ul className="space-y-1.5">
+        {questions.map(function (q: any, i: number) {
+          return (
+            <li key={i} className="text-sm text-white leading-snug">
+              <span className="text-purple-300 mr-1.5">&#x201C;</span>
+              {q.text}
+              <span className="text-purple-300 ml-0.5">&#x201D;</span>
+              {q.distinct_askers && q.distinct_askers > 1 && (
+                <span className="text-[11px] text-gray-500 ml-1.5">
+                  &middot; {q.distinct_askers} people
+                </span>
+              )}
+            </li>
+          )
+        })}
+      </ul>
     </SignalCardShell>
   )
 }

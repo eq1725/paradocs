@@ -23,7 +23,10 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
-import { generateDidYouKnow, DidYouKnowPayload } from '@/lib/services/your-signal-ai.service'
+// V10.12 — Sonnet-driven Did You Know is retired. Import retained as
+// a comment for the next archaeologist; the service file still ships
+// because it's referenced from year-in-review and other surfaces.
+// import { generateDidYouKnow, DidYouKnowPayload } from '@/lib/services/your-signal-ai.service'
 
 var SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 var SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -359,16 +362,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .single()
     if (cacheResult.data) {
       var feedbackHit = await loadFeedback()
+      // V10.12 — peer_questions is always fresh (recomputed per visit
+      // because the cost is a single SELECT and the data changes more
+      // often than the deterministic cards). Compute even on cache hit.
+      var peerQuestionsHit = await loadPeerQuestions(svc, userReport)
       return res.status(200).json({
         has_report: true,
         report_id: userReport.id,
         cached: true,
         generated_at: cacheResult.data.generated_at,
-        fingerprint:   cacheResult.data.fingerprint_payload,
-        cluster:       cacheResult.data.cluster_payload,
-        did_you_know:  cacheResult.data.did_you_know_payload,
-        context:       cacheResult.data.context_payload,
-        feedback:      feedbackHit,
+        fingerprint:    cacheResult.data.fingerprint_payload,
+        cluster:        cacheResult.data.cluster_payload,
+        did_you_know:   cacheResult.data.did_you_know_payload,
+        peer_questions: peerQuestionsHit,
+        context:        cacheResult.data.context_payload,
+        feedback:       feedbackHit,
       })
     }
   }
@@ -380,39 +388,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     generateContext(svc, userReport),
   ])
 
-  // Card 3 — Phase 1.C — Sonnet call. Runs SECOND because it depends
-  // on the three deterministic payloads as context. We let it fall
-  // back to the pending placeholder if the call fails (no API key,
-  // network error, unparseable response) so the response always
-  // returns something useful.
-  var didYouKnowResult: DidYouKnowPayload | null = null
-  try {
-    var typeNameLookup: string | null = null
-    if (userReport.phenomenon_type_id) {
-      var t = await svc.from('phenomenon_types').select('name').eq('id', userReport.phenomenon_type_id).single()
-      typeNameLookup = (t && t.data && t.data.name) || null
-    }
-    didYouKnowResult = await generateDidYouKnow({
-      userReport: {
-        title: userReport.title,
-        description: userReport.description,
-        summary: userReport.summary,
-        category: userReport.category,
-        type_name: typeNameLookup,
-        event_date: userReport.event_date,
-        location_name: null, // resolved separately if needed; not critical for V1
-      },
-      fingerprint: fingerprint,
-      cluster: cluster,
-      context: context,
-    })
-  } catch (aiErr) {
-    console.warn('your-signal: Sonnet generation failed:', aiErr)
-  }
+  // V10.12 (Option C from audit) — Card 3 is now "What others are
+  // asking": anonymized aggregation of recent Ask the Unknown
+  // questions from peer reports in the same phenomenon_type or
+  // category. Replaces the Sonnet-generated Did You Know card.
+  // Reasons:
+  //   - Did You Know was the only card that didn't reinforce
+  //     "you're not alone" (audit's structural critique).
+  //   - Peer questions DO reinforce it directly: "47 people with
+  //     signals like yours have asked X."
+  //   - Uses cached Ask history (no new Sonnet calls). Cost moves
+  //     from per-user-per-week Sonnet generation to a single
+  //     aggregation query.
+  // The response key is renamed peer_questions; we also leave a
+  // stub did_you_know for one release so any cached client doesn't
+  // crash on the missing field. Stub can be removed in a follow-up.
+  var peerQuestions = await loadPeerQuestions(svc, userReport)
+  var didYouKnow: any = { pending: true, model: null, deprecated: true }
 
-  var didYouKnow: any = didYouKnowResult || { pending: true, model: null }
-
-  // 4. Write to cache (upsert).
+  // 4. Write to cache (upsert). V10.12 — peer_questions is recomputed
+  // per-visit (cheap query, no AI cost) so we don't bother caching it
+  // separately; the expensive cards (fingerprint, cluster, context)
+  // still get cached.
   try {
     await svc.from('your_signal_insights').upsert({
       user_id: user.id,
@@ -421,10 +418,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       cluster_payload: cluster,
       did_you_know_payload: didYouKnow,
       context_payload: context,
-      ai_model_used: didYouKnowResult ? didYouKnowResult.model : null,
-      ai_input_tokens: didYouKnowResult ? didYouKnowResult.input_tokens : null,
-      ai_output_tokens: didYouKnowResult ? didYouKnowResult.output_tokens : null,
-      ai_cost_usd: didYouKnowResult ? didYouKnowResult.cost_usd : null,
+      ai_model_used: null,
+      ai_input_tokens: null,
+      ai_output_tokens: null,
+      ai_cost_usd: null,
       generated_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     }, { onConflict: 'user_id,report_id' })
@@ -461,11 +458,131 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     fingerprint: fingerprint,
     cluster: cluster,
     did_you_know: didYouKnow,
+    peer_questions: peerQuestions,
     context: context,
     feedback: feedbackMiss,
     peers: peers,
     since_last_visit: sinceLastVisit,
   })
+}
+
+/**
+ * V10.12 (Option C) — "What others are asking" data source.
+ *
+ * Aggregates anonymized Ask the Unknown questions from peers whose
+ * reports share the same phenomenon_type (preferred) or category
+ * (fallback). Returns the top 3 most-asked questions plus the total
+ * number of distinct askers, framed as "X people with signals like
+ * yours have asked these questions."
+ *
+ * Why this is the right substitute for Did You Know:
+ *   - Reinforces "you're not alone" (the brand promise) by exposing
+ *     real peer behavior instead of an isolated AI assertion.
+ *   - Uses cached AI work — every question in ask_the_unknown_log
+ *     already cost a Sonnet call to answer; surfacing the question
+ *     text costs nothing additional.
+ *   - Failure-mode is honest: when the corpus is too small to find
+ *     peer questions, we degrade to a "be the first to ask" empty
+ *     state rather than fabricating an AI fact.
+ *
+ * Defensive: if ask_the_unknown_log doesn't exist (it's optional in
+ * the migration), returns empty payload so the UI shows the
+ * empty state rather than crashing.
+ */
+async function loadPeerQuestions(svc: any, userReport: any) {
+  try {
+    var phenomenonTypeId = userReport.phenomenon_type_id
+    var category = userReport.category
+
+    // Pull peer report IDs first (same phenomenon_type, else same
+    // category, else nothing). Limit to recent 200 — older reports
+    // probably have stale Ask sessions that don't reflect what
+    // current users are curious about.
+    var reportIds: string[] = []
+    if (phenomenonTypeId) {
+      var byType = await svc.from('reports')
+        .select('id')
+        .eq('phenomenon_type_id', phenomenonTypeId)
+        .eq('status', 'approved')
+        .neq('id', userReport.id)
+        .order('created_at', { ascending: false })
+        .limit(200)
+      reportIds = (byType.data || []).map(function (r: any) { return r.id })
+    }
+    if (reportIds.length === 0 && category) {
+      var byCat = await svc.from('reports')
+        .select('id')
+        .eq('category', category)
+        .eq('status', 'approved')
+        .neq('id', userReport.id)
+        .order('created_at', { ascending: false })
+        .limit(200)
+      reportIds = (byCat.data || []).map(function (r: any) { return r.id })
+    }
+    if (reportIds.length === 0) {
+      return { questions: [], total_questions: 0, total_askers: 0, source_scope: 'none' }
+    }
+
+    // Pull Ask history for those reports. Cap at 1000 to bound query
+    // cost; 1000 questions across 200 reports is generous coverage.
+    var askResult = await svc.from('ask_the_unknown_log')
+      .select('user_id, question, created_at')
+      .in('report_id', reportIds)
+      .eq('refused', false)
+      .order('created_at', { ascending: false })
+      .limit(1000)
+    var rows: any[] = (askResult && askResult.data) || []
+    if (rows.length === 0) {
+      return { questions: [], total_questions: 0, total_askers: 0, source_scope: phenomenonTypeId ? 'phenomenon_type' : 'category' }
+    }
+
+    // Aggregate. Normalize question text (lowercase, collapse
+    // whitespace, strip trailing punctuation) so near-duplicates
+    // count together. Track distinct askers per question to filter
+    // out one-person-asked-five-times patterns.
+    function normalize(q: string): string {
+      return String(q || '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .replace(/[.?!,]+$/g, '')
+        .trim()
+    }
+    var byNorm: Record<string, { text: string; count: number; askers: Record<string, boolean> }> = {}
+    var distinctAskers: Record<string, boolean> = {}
+    rows.forEach(function (r: any) {
+      var norm = normalize(r.question)
+      if (norm.length < 5) return // skip junk
+      if (!byNorm[norm]) {
+        byNorm[norm] = { text: r.question, count: 0, askers: {} }
+      }
+      byNorm[norm].count++
+      if (r.user_id) {
+        byNorm[norm].askers[r.user_id] = true
+        distinctAskers[r.user_id] = true
+      }
+    })
+
+    // Rank by distinct-asker count first (catches "10 people asked
+    // similar things"), then by raw count as a tiebreaker. Top 3.
+    var ranked = Object.values(byNorm)
+      .map(function (q) { return { text: q.text, asked_count: q.count, distinct_askers: Object.keys(q.askers).length } })
+      .filter(function (q) { return q.distinct_askers >= 1 })
+      .sort(function (a, b) {
+        if (b.distinct_askers !== a.distinct_askers) return b.distinct_askers - a.distinct_askers
+        return b.asked_count - a.asked_count
+      })
+      .slice(0, 3)
+
+    return {
+      questions: ranked,
+      total_questions: rows.length,
+      total_askers: Object.keys(distinctAskers).length,
+      source_scope: phenomenonTypeId ? 'phenomenon_type' : 'category',
+    }
+  } catch (e: any) {
+    console.warn('your-signal: loadPeerQuestions failed:', e && e.message)
+    return { questions: [], total_questions: 0, total_askers: 0, source_scope: 'error' }
+  }
 }
 
 /**
