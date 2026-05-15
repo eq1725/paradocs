@@ -383,14 +383,15 @@ function PolishedRadarView(props: {
         )
       })()}
 
-      {/* V9.11.5 #31 — "Share another experience" inline CTA.
-          Existing users with one or more reports often have more
-          to share but were getting funneled only through the small
-          header "Submit Report" button. This puts the affordance
-          where the action makes sense — right after the RADAR. */}
+      {/* V9.11.5 #31 / V10.13.1 — "Share another experience" inline
+          CTA. Routes to /start (the consolidated submit funnel) so
+          experienced users get the same flow regardless of which
+          entry point they used (cold onboarding, Cases tab submit,
+          or this RADAR button). /start now detects experienced users
+          and skips the welcome / category-picker steps. */}
       <div className="flex justify-center mb-5">
         <a
-          href="/submit"
+          href="/start"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600/15 border border-purple-500/40 text-sm text-purple-200 hover:bg-purple-600/25 hover:text-white transition-colors"
         >
           <Plus className="w-4 h-4" />

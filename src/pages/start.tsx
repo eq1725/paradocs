@@ -546,13 +546,13 @@ export default function StartPage() {
       return
     }
 
-    // Already signed in + no draft? Just redirect to lab.
-    supabase.auth.getSession().then(function (s) {
-      if (s.data.session && (!d || d.description.trim().length < 50)) {
-        // They're signed in already; onboarding doesn't apply.
-        router.replace('/lab')
-      }
-    })
+    // V10.13.1 — REMOVED the legacy auto-bounce-to-/lab. The funnel
+    // consolidation work makes /start the canonical submit URL for
+    // both first-time AND returning users. Bouncing experienced users
+    // away from /start broke the "Share another experience" path
+    // (and any future link that should bring users back to submit).
+    // The experienced-user useEffect above handles state initialization
+    // (lands them on the experience-form step instead of welcome).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.query.from])
 
