@@ -1211,8 +1211,13 @@ function MySubmissionsSection() {
               status={st}
               StIcon={StIcon}
               onDeleted={function() {
-                // Reload the list after a successful delete so the row vanishes.
-                if (typeof window !== 'undefined') window.location.reload()
+                // V10.13.1 — optimistic local removal. The full-page
+                // reload was landing users in 404s mid-navigation;
+                // cleaner to drop the row from local state and stay
+                // on the lab page. The server has already deleted it
+                // by the time onDeleted fires.
+                setReports(function(prev) { return prev.filter(function(p) { return p.id !== r.id }) })
+                setTotal(function(prev) { return Math.max(0, prev - 1) })
               }}
             />
           )

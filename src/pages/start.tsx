@@ -472,6 +472,35 @@ export default function StartPage() {
 
   // ---------------- mount: detect post-auth return + restore drafts
 
+  // V10.13.1 — detect experienced users and skip the welcome /
+  // category-picker steps. An experienced user is anyone with at
+  // least one prior approved or pending submission. They land
+  // directly on the experience-form step ('experience') with the
+  // tighter copy expected of a returning contributor.
+  useEffect(function () {
+    supabase.auth.getSession().then(function (s) {
+      var session = s.data.session
+      if (!session || !session.user) return
+      // Quick count query — if they have any non-deleted prior report,
+      // they're "experienced." We use the head:true count pattern so
+      // we don't pull row data we don't need.
+      supabase
+        .from('reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('submitted_by', session.user.id)
+        .neq('status', 'deleted')
+        .then(function (res: any) {
+          var n = res && res.count ? res.count : 0
+          if (n > 0) {
+            // Land them in the experience form, not the welcome screen.
+            // The form itself doesn't need a copy change — it's just
+            // skipping the prior steps that hand-hold first-timers.
+            setStep('experience')
+          }
+        })
+    })
+  }, [])
+
   useEffect(function () {
     // Restore drafts.
     var d = loadDraft()

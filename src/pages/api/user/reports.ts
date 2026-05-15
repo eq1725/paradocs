@@ -65,6 +65,12 @@ export default async function handler(
     // Apply status filter
     if (status && status !== 'all') {
       query = query.eq('status', status)
+    } else {
+      // V10.13.1 — by default exclude soft-deleted reports so the
+      // CASES tab doesn't keep showing rows the user just deleted.
+      // Pass ?status=deleted explicitly to surface a "trash" view in
+      // the future.
+      query = query.neq('status', 'deleted')
     }
 
     // Apply search filter
