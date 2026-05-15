@@ -51,7 +51,6 @@ export function initPostHog(): PostHog | null {
   // Dynamic import keeps PostHog out of the SSR bundle. The SDK
   // touches window during construction so it can't be imported at
   // the module top-level under Next.js.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const posthog: PostHog = require('posthog-js').default
 
   posthog.init(POSTHOG_KEY, {
