@@ -177,26 +177,55 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
   }, [report?.title])
 
   // ── Precision logic for the map ────────────────────────────
-  // V10.5 — when the source row has explicit metadata.location_precision,
-  // we trust it. Otherwise we infer from which fields are populated.
-  // CRITICAL: we also detect "centroid-looking" coordinates (state-
-  // capital / country-center placeholders) by checking whether the
-  // coords land suspiciously close to a known state/country centroid.
-  // When detected, we downgrade precision to 'region' so the map
-  // renders a badge instead of a misleading pin (the Georgia → Atlantic
-  // bug stemmed from a state-centroid placeholder coord).
+  //
+  // V10.8.I.2 — clamped precision so the map is always honest about
+  // what the row actually pins down. The metadata precision is still
+  // honored as the upper bound, but it's clamped DOWN to whatever
+  // the populated location fields can justify:
+  //
+  //   - exact / city  requires `city` to be populated
+  //   - region        requires `state_province` to be populated
+  //   - country       requires `country` to be populated
+  //   - unknown       no fields at all
+  //
+  // Why: ingestion sometimes stamps `location_precision='exact'` on
+  // a row that only has country populated (when MapTiler/Nominatim
+  // resolves "Oman" with a country-level accuracy and the engine
+  // marks the coord as exact-ish). Trusting that metadata blindly
+  // makes the map render a precise pin at zoom 11 on what is really
+  // a country-level guess. Clamping to the warranted precision means
+  // every report page frames at the level of the most-specific
+  // geographic field actually stored on the row — Oman shows Oman,
+  // Kansas shows Kansas, "United States" shows the lower 48 — even
+  // when the upstream source over-claims accuracy.
   const mapPrecision: LocationPrecision = useMemo(() => {
     const meta = report?.metadata || {}
     const raw = (meta.location_precision || meta.locationPrecision || '').toString().toLowerCase()
-    if (raw === 'exact') return 'exact'
-    if (raw === 'city' || raw === 'town') return 'city'
-    if (raw === 'region' || raw === 'state' || raw === 'province' || raw === 'county') return 'region'
-    if (raw === 'country') return 'country'
-    // No explicit precision — infer.
-    if (report?.city) return 'city'
-    if (report?.state_province) return 'region'
-    if (report?.country) return 'country'
-    return 'unknown'
+
+    // 1. Map the metadata string to our enum (or null if nothing valid).
+    let claimed: LocationPrecision | null = null
+    if (raw === 'exact') claimed = 'exact'
+    else if (raw === 'city' || raw === 'town') claimed = 'city'
+    else if (raw === 'region' || raw === 'state' || raw === 'province' || raw === 'county') claimed = 'region'
+    else if (raw === 'country') claimed = 'country'
+
+    // 2. Compute what the populated fields can justify.
+    let warranted: LocationPrecision = 'unknown'
+    if (report?.country) warranted = 'country'
+    if (report?.state_province) warranted = 'region'
+    if (report?.city) warranted = 'city'
+
+    // 3. Pick the LESS precise of (claimed, warranted). 'exact' is
+    //    only honored when warranted is 'city' — street-level
+    //    accuracy requires at least a city to anchor it.
+    const ranks: Record<LocationPrecision, number> = {
+      unknown: 0, country: 1, region: 2, city: 3, exact: 4,
+    }
+    if (claimed === 'exact') {
+      return warranted === 'city' ? 'exact' : warranted
+    }
+    if (claimed && ranks[claimed] < ranks[warranted]) return claimed
+    return warranted
   }, [report])
 
   const pinLabel = useMemo(() => {

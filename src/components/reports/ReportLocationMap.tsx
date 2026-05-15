@@ -37,7 +37,7 @@ import Link from 'next/link'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { MapPin } from 'lucide-react'
-import { getSyntheticFitZoom } from '@/lib/ingestion/utils/location-zoom'
+import { getSyntheticFitZoom, getPrecisionFitBounds, type BoundsTuple } from '@/lib/ingestion/utils/location-zoom'
 
 const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY || ''
 const MAP_STYLE = MAPTILER_KEY
@@ -101,10 +101,41 @@ export default function ReportLocationMap({
     Number.isFinite(latitude) && Number.isFinite(longitude) &&
     Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180
 
+  // V10.8.I.2 — render decisions:
+  //   - showPin: precise pin (with pulse). Requires city-or-finer
+  //     precision AND non-synthetic coords. The clamped precision in
+  //     ReportPageV2 means precision='exact' is only set when the row
+  //     truly has a city populated — so over-claimed metadata can no
+  //     longer flip this on for country-only rows.
+  //   - showHalo: fuzzy halo (region / country precision). Fires when
+  //     we have usable coords but the precision is region or country
+  //     — regardless of whether the coords were stored as synthetic
+  //     or returned by a country-accuracy geocode.
   const showPin = hasUsableCoords && (precision === 'exact' || precision === 'city') && !coordsSynthetic
-  const effectiveNearby = coordsSynthetic ? [] : (nearby || [])
+  const showHalo =
+    hasUsableCoords && !showPin &&
+    (precision === 'country' || precision === 'region' || coordsSynthetic === true)
+  const effectiveNearby = (coordsSynthetic || showHalo) ? [] : (nearby || [])
 
-  // ── Target zoom ────────────────────────────────────────────
+  // ── Target framing ─────────────────────────────────────────
+  //
+  // V10.8.I.1 — when the (clamped) precision tells us the row only
+  // pins down a country or a region, prefer a real bounding-box fit
+  // over a fixed zoom number. The bbox path calls map.fitBounds with
+  // consistent padding, which gives accurate framing regardless of
+  // viewport size — the fixed-zoom path was sized for desktop and on
+  // mobile showed nothing but a halo on featureless tile area.
+  //
+  // We deliberately do NOT gate this on `coords_synthetic`. A row
+  // with precision='country' should frame the country whether the
+  // coords were stored as a centroid or whether MapTiler returned
+  // country-level accuracy on a real geocode call — the visible UI
+  // is the same in both cases.
+  const syntheticBounds = getPrecisionFitBounds({
+    precision,
+    countryCode,
+    stateKey,
+  })
   const syntheticZoom = getSyntheticFitZoom({
     precision,
     coords_synthetic: !!coordsSynthetic,
@@ -183,37 +214,75 @@ export default function ReportLocationMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // initialize once; subsequent effects update markers/zoom
 
-  // ── flyTo the target zoom after the map loads ──────────────
+  // ── Frame the map after it loads ───────────────────────────
+  //
+  // V10.8.I.1 — three paths:
+  //   1. Synthetic + bbox known  → map.fitBounds(bbox, { padding })
+  //      This frames the actual country/state polygon and works
+  //      regardless of viewport size (small mobile or large desktop).
+  //   2. Synthetic + no bbox     → flyTo({ zoom: syntheticZoom })
+  //      Fallback for cities or unknowns.
+  //   3. Precise coords          → flyTo({ zoom: targetZoom })
+  //      Drops the pin at the precision-appropriate zoom.
+  //
+  // Padding is asymmetric on mobile because the region label sits in
+  // the top-left and the bottom scrim covers the lower 48px. We bias
+  // the fit toward the visible center so neither overlay clips the
+  // halo.
   useEffect(() => {
     const map = mapRef.current
     if (!map || !hasUsableCoords) return
 
     let cancelled = false
-    function doFly() {
+    function doFrame() {
       if (cancelled || !map) return
       try {
-        map.flyTo({
-          center: [longitude!, latitude!],
-          zoom: targetZoom,
-          duration: 1500,
-          essential: true,
-          easing: (t: number) => 1 - Math.pow(1 - t, 3),
-        })
+        if (syntheticBounds) {
+          // fitBounds takes [[w,s],[e,n]]. Padding accounts for the
+          // top-left region label (~80px wide) and bottom scrim (~48px).
+          map.fitBounds(
+            [
+              [syntheticBounds[0], syntheticBounds[1]],
+              [syntheticBounds[2], syntheticBounds[3]],
+            ],
+            {
+              padding: { top: 36, right: 24, bottom: 56, left: 24 },
+              duration: 1200,
+              essential: true,
+              maxZoom: 9, // keep tiny features (Vatican, Monaco, RI) legible
+            },
+          )
+        } else {
+          map.flyTo({
+            center: [longitude!, latitude!],
+            zoom: targetZoom,
+            duration: 1500,
+            essential: true,
+            easing: (t: number) => 1 - Math.pow(1 - t, 3),
+          })
+        }
       } catch (e) {
         // ignore — map may not be ready yet
       }
     }
 
     if (map.loaded()) {
-      // Map is already loaded — fly immediately after a tiny delay so
-      // the user sees the transition from initial zoom.
-      setTimeout(doFly, 200)
+      setTimeout(doFrame, 200)
     } else {
-      map.once('load', () => setTimeout(doFly, 200))
+      map.once('load', () => setTimeout(doFrame, 200))
     }
 
     return () => { cancelled = true }
-  }, [latitude, longitude, hasUsableCoords, targetZoom])
+  }, [
+    latitude,
+    longitude,
+    hasUsableCoords,
+    targetZoom,
+    syntheticBounds && syntheticBounds[0],
+    syntheticBounds && syntheticBounds[1],
+    syntheticBounds && syntheticBounds[2],
+    syntheticBounds && syntheticBounds[3],
+  ])
 
   // ── Imperative focal marker (PinSprite OR SyntheticHalo) ──
   useEffect(() => {
@@ -229,7 +298,7 @@ export default function ReportLocationMap({
 
       const el = showPin
         ? buildPinSpriteElement()
-        : (coordsSynthetic ? buildSyntheticHaloElement(precision) : null)
+        : (showHalo ? buildSyntheticHaloElement(precision) : null)
       if (!el) return
 
       const marker = new maplibregl.Marker({

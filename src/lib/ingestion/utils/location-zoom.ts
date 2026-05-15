@@ -1,23 +1,26 @@
 /**
- * location-zoom — V10.8.I
+ * location-zoom — V10.8.I → V10.8.I.1
  *
- * Precision-aware zoom heuristics for the report-page map (and any
- * future "fit to admin region" use). When a report's coords are
- * synthetic (centroid fallback for country or state precision), the
- * map shouldn't drop a pin at zoom 4-6 like it would for a precise
- * location — it should frame the WHOLE country/state so the user
- * reads "this is a country-level report" from the map's framing.
+ * Precision-aware framing for the report-page map (and any future
+ * "fit to admin region" use). When a report's coords are synthetic
+ * (centroid fallback for country/state/region precision), the map
+ * must FRAME the actual feature — not drop a pin at a guessed zoom
+ * level. A "Kansas" report should show Kansas. An "Oman" report
+ * should show Oman. A "United States" report should show the
+ * contiguous 48. A "Vatican" report should show the Vatican at the
+ * tightest legible zoom.
  *
- * SME panel consensus (V10.8.I): cartographic convention says a
- * country-precision row gets a country-fit view, region-precision
- * row gets a state-fit view, and the pin is suppressed entirely so
- * the centroid never reads as a precise location.
+ * V10.8.I shipped a per-precision zoom number that worked on a
+ * 1200×600 desktop viewport but degraded badly on the 380×200 mobile
+ * report-header map: the halo and tile background dominated the
+ * frame and the user couldn't tell where in the world they were.
  *
- * Why a lookup table instead of bbox math: we only need a sensible
- * zoom level, not millimeter-accurate framing. The 30-or-so largest
- * countries / states / provinces have outsized geographic spans that
- * need explicit override; everything else falls into a sensible
- * default zoom bucket.
+ * V10.8.I.1 fixes this by serving real bounding boxes (country +
+ * state polygons from Natural Earth admin0/admin1) and having the
+ * map call `map.fitBounds(bbox, { padding })` so the framing is
+ * accurate regardless of viewport size. The old zoom-number helpers
+ * stay as a fallback for any code path that doesn't have a bbox
+ * (cities and unknowns).
  */
 
 /**
@@ -138,8 +141,19 @@ export function getStateFitZoom(
   stateKey: string | null | undefined,
 ): number {
   if (!countryCode || !stateKey) return STATE_FIT_ZOOM_DEFAULT
-  const k = String(countryCode).toUpperCase() + '|' + String(stateKey)
-  return STATE_FIT_ZOOM_OVERRIDE[k] ?? STATE_FIT_ZOOM_DEFAULT
+  const cc = String(countryCode).toUpperCase()
+  // Direct postal-code match first.
+  const direct = STATE_FIT_ZOOM_OVERRIDE[cc + '|' + String(stateKey)]
+  if (direct !== undefined) return direct
+  // Fall back to name→postal lookup so consumers can pass full state
+  // names (DB writes "Kansas" not "KS"). resolveStateKey is defined
+  // alongside the bbox helpers below.
+  const resolved = resolveStateKey(cc, String(stateKey))
+  if (resolved) {
+    const v = STATE_FIT_ZOOM_OVERRIDE[cc + '|' + resolved]
+    if (v !== undefined) return v
+  }
+  return STATE_FIT_ZOOM_DEFAULT
 }
 
 /**
@@ -168,4 +182,112 @@ export function getSyntheticFitZoom(opts: {
   }
   if (opts.precision === 'city') return 8
   return null
+}
+
+// ── V10.8.I.1 — bbox-based framing ───────────────────────────────
+//
+// Real bounding boxes for every country (Natural Earth admin0) and
+// every US/CA/AU/UK first-class subdivision (Natural Earth admin1).
+// Antimeridian-crossing entries (US, RU, FJ, NZ, KI, US|AK) are
+// hand-overridden so we don't accidentally frame the entire planet.
+//
+// Format: [west, south, east, north] in WGS84 degrees. Identical
+// shape to maplibre's LngLatBoundsLike when interpreted as
+// [[w,s],[e,n]]. We export them as flat arrays + a small wrapper
+// so consumers don't need to know our internal shape.
+
+import countryBboxes from './country-bboxes.json'
+import stateBboxes from './state-bboxes.json'
+import stateCentroids from './state-centroids.json'
+
+export type BoundsTuple = [number, number, number, number]
+
+export function getCountryBbox(countryCode: string | null | undefined): BoundsTuple | null {
+  if (!countryCode) return null
+  const b = (countryBboxes as Record<string, BoundsTuple>)[String(countryCode).toUpperCase()]
+  return b || null
+}
+
+// Build a "<country>|<lowercased name or alias>" → postal lookup so
+// callers can pass either "KS" or "Kansas" (the DB stores the full
+// name in state_province; the bbox map is keyed by postal code).
+// Also includes aliases declared in state-centroids.json.
+const STATE_NAME_TO_KEY: Record<string, string> = {}
+for (const cc of Object.keys(stateCentroids as Record<string, unknown>)) {
+  if (cc.startsWith('$')) continue
+  const sub = (stateCentroids as any)[cc] as Record<string, { name: string; aliases?: string[] }>
+  for (const postal of Object.keys(sub)) {
+    const entry = sub[postal]
+    STATE_NAME_TO_KEY[cc + '|' + postal.toLowerCase()] = postal
+    if (entry?.name) {
+      STATE_NAME_TO_KEY[cc + '|' + entry.name.toLowerCase()] = postal
+    }
+    for (const alias of entry?.aliases || []) {
+      STATE_NAME_TO_KEY[cc + '|' + String(alias).toLowerCase()] = postal
+    }
+  }
+}
+
+function resolveStateKey(countryCode: string, stateKey: string): string | null {
+  // Try direct (postal code) first.
+  const sub = (stateBboxes as Record<string, Record<string, BoundsTuple>>)[countryCode]
+  if (sub && sub[stateKey]) return stateKey
+  // Fall back to name → postal lookup.
+  return STATE_NAME_TO_KEY[countryCode + '|' + stateKey.toLowerCase()] || null
+}
+
+export function getStateBbox(
+  countryCode: string | null | undefined,
+  stateKey: string | null | undefined,
+): BoundsTuple | null {
+  if (!countryCode || !stateKey) return null
+  const cc = String(countryCode).toUpperCase()
+  const sub = (stateBboxes as Record<string, Record<string, BoundsTuple>>)[cc]
+  if (!sub) return null
+  const resolved = resolveStateKey(cc, String(stateKey))
+  if (!resolved) return null
+  return sub[resolved] || null
+}
+
+/**
+ * Returns the bounding box that should frame this report given its
+ * (already-clamped) precision, or null when bbox framing isn't
+ * appropriate (city / exact precision uses a precise pin instead).
+ *
+ * V10.8.I.1 NB: this no longer requires `coords_synthetic === true`.
+ * The semantic is: "if the precision says we only know the country
+ * or the region, frame that feature." Whether the coords landed at
+ * a real centroid or via a server-side geocode that resolved to
+ * country-level accuracy is irrelevant — both want the same UI.
+ *
+ * Precedence:
+ *   - 'country' precision  → country bbox  (Oman → Oman polygon)
+ *   - 'region' / 'state'   → state bbox    (Kansas → Kansas polygon)
+ *   - 'city' / 'exact'     → null (caller renders a precise pin)
+ *   - 'unknown' / null     → null (no usable framing info)
+ */
+export function getPrecisionFitBounds(opts: {
+  precision: string | null | undefined
+  countryCode?: string | null
+  stateKey?: string | null
+}): BoundsTuple | null {
+  if (opts.precision === 'country') return getCountryBbox(opts.countryCode)
+  if (opts.precision === 'region' || opts.precision === 'state') {
+    return getStateBbox(opts.countryCode, opts.stateKey)
+  }
+  return null
+}
+
+/**
+ * @deprecated Use `getPrecisionFitBounds`. Kept as a thin wrapper so
+ * any older call sites that gated on `coords_synthetic` still work
+ * but the recommended path drops that gate.
+ */
+export function getSyntheticFitBounds(opts: {
+  precision: string | null | undefined
+  coords_synthetic: boolean | null | undefined
+  countryCode?: string | null
+  stateKey?: string | null
+}): BoundsTuple | null {
+  return getPrecisionFitBounds(opts)
 }
