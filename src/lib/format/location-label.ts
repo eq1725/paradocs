@@ -91,3 +91,11 @@ export function formatLocationLabel(
   // Cap to maxParts (preferring city + state over country if we must drop).
   return deduped.slice(0, maxParts).join(', ')
 }
+
+// ── Helpers ─────────────────────────────────────────────────────
+
+function trim(value: string | null | undefined): string | null {
+  if (value == null) return null
+  const t = String(value).trim()
+  return t.length > 0 ? t : null
+}
