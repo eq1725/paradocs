@@ -44,6 +44,73 @@ const MAP_STYLE = MAPTILER_KEY
   ? `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${MAPTILER_KEY}`
   : ''
 
+/**
+ * V10.8.N — robust "map is ready for layer/camera ops" helper.
+ *
+ * Replaces every previous `map.once('load', fn)` in this file. Live
+ * inspection of the deployed Kansas page showed the `load` event was
+ * never firing under our `interactive: false` Map config, so the
+ * framing flyTo + the V10.8.M overlay-add never ran (zoom stuck at 2,
+ * no admin layers added — but the focal marker did render because its
+ * useEffect re-runs on dep changes and falls into a `loaded()` check).
+ *
+ * Strategy:
+ *   1. Synchronous fast path: if isStyleLoaded() is true, run now.
+ *   2. Listen for `styledata` (fires reliably whenever the style
+ *      mutates, including initial load), re-checking isStyleLoaded
+ *      each fire.
+ *   3. setTimeout fallback at 2.5s — if the events never settle,
+ *      run anyway. flyTo / fitBounds / addLayer all queue safely
+ *      against an in-flight style.
+ *   4. Cancellation token (cancelRef.current = true) so unmount
+ *      cleanup blocks the late callback.
+ */
+function whenMapReady(
+  map: maplibregl.Map,
+  fn: () => void,
+  cancelRef?: { current: boolean },
+): () => void {
+  let done = false
+  const isCancelled = () => done || cancelRef?.current === true
+
+  const run = () => {
+    if (isCancelled()) return
+    done = true
+    map.off('styledata', onData)
+    clearTimeout(timer)
+    try { fn() } catch (e) {
+      // Surface the error to console so a future regression isn't
+      // silently swallowed (V10.8.J trim() and V10.8.M overlay both
+      // failed silently for hours before live inspection).
+      console.warn('[ReportLocationMap] whenMapReady fn threw:', e)
+    }
+  }
+
+  const onData = () => {
+    if (isCancelled()) return
+    if (map.isStyleLoaded()) run()
+  }
+
+  if (map.isStyleLoaded()) {
+    // Defer one tick so callers can be sure their refs are set.
+    Promise.resolve().then(run)
+    return () => { done = true }
+  }
+
+  map.on('styledata', onData)
+  const timer = setTimeout(() => {
+    if (isCancelled()) return
+    console.warn('[ReportLocationMap] whenMapReady timed out after 2.5s, running anyway')
+    run()
+  }, 2500)
+
+  return () => {
+    done = true
+    map.off('styledata', onData)
+    clearTimeout(timer)
+  }
+}
+
 export type LocationPrecision =
   | 'exact'      // lat/lng accurate to within a city block
   | 'city'       // city-level precision
@@ -174,14 +241,10 @@ export default function ReportLocationMap({
     })
     mapRef.current = map
 
-    // V10.9.D.14 — maplibre's canvas is sized at construction time
-    // based on the container's bounding box. Inside a flex/absolute-
-    // positioned parent that hasn't laid out yet, the container can
-    // be tiny → canvas tiny → most of the map area renders empty
-    // dark below the actual tiles. Force a resize once the map loads,
-    // and again whenever the container resizes (CSS reflow on viewport
-    // changes, sheet drawer animations, etc.).
-    map.once('load', () => {
+    // V10.9.D.14 / V10.8.N — resize after the map is ready (was
+    // map.once('load', ...) but that never fires under our config —
+    // see whenMapReady for details).
+    whenMapReady(map, () => {
       try { map.resize() } catch (_e) { /* ignore */ }
       // V10.8.M — bolder admin-border overlay. The dataviz-dark style
       // already loads admin0/admin1 boundary geometry (source
@@ -251,9 +314,12 @@ export default function ReportLocationMap({
             firstSymbolId,
           )
         }
-      } catch (_e) {
-        // Style may not be ready or source may be missing on a future
-        // basemap. The overlay is purely cosmetic — silently no-op.
+      } catch (e) {
+        // V10.8.N — was silently swallowed; now logged so a regression
+        // surfaces in console instead of just looking like "borders
+        // mysteriously not showing." Still non-fatal — overlay is
+        // cosmetic, never blocks marker/framing.
+        console.warn('[ReportLocationMap] addLayer overlay failed:', e)
       }
     })
 
@@ -387,13 +453,17 @@ export default function ReportLocationMap({
       }
     }
 
-    if (map.loaded()) {
-      setTimeout(doFrame, 200)
-    } else {
-      map.once('load', () => setTimeout(doFrame, 200))
-    }
+    // V10.8.N — robust ready-check (the previous map.once('load',...)
+    // never fired under interactive:false, leaving zoom stuck at the
+    // initial value).
+    const cancelToken = { current: false }
+    const cleanup = whenMapReady(map, () => setTimeout(doFrame, 200), cancelToken)
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      cancelToken.current = true
+      cleanup()
+    }
   }, [
     latitude,
     longitude,
@@ -431,9 +501,13 @@ export default function ReportLocationMap({
       focalMarkerRef.current = marker
     }
 
-    if (map.loaded()) attach(map)
-    else map.once('load', () => attach(map))
-  }, [latitude, longitude, hasUsableCoords, showPin, coordsSynthetic, precision])
+    const cancelToken = { current: false }
+    const cleanup = whenMapReady(map, () => attach(map), cancelToken)
+    return () => {
+      cancelToken.current = true
+      cleanup()
+    }
+  }, [latitude, longitude, hasUsableCoords, showPin, showHalo, coordsSynthetic, precision])
 
   // ── Imperative nearby markers ──────────────────────────────
   useEffect(() => {
@@ -455,10 +529,15 @@ export default function ReportLocationMap({
       }
     }
 
-    if (map.loaded()) attach(map)
-    else map.once('load', () => attach(map))
-    // Don't return a cleanup that removes markers per-run — clearing
-    // is done inside `attach` so re-runs replace prior markers cleanly.
+    const cancelToken = { current: false }
+    const cleanup = whenMapReady(map, () => attach(map), cancelToken)
+    // Cleanup cancels the ready callback if the effect re-runs before
+    // it fires. Markers themselves are cleared inside `attach` so
+    // re-runs replace prior markers cleanly.
+    return () => {
+      cancelToken.current = true
+      cleanup()
+    }
   }, [effectiveNearby, showPin])
 
   // ── Render container + region label overlay ────────────────
