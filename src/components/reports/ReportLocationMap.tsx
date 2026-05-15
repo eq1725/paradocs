@@ -238,13 +238,23 @@ export default function ReportLocationMap({
       if (cancelled || !map) return
       try {
         if (syntheticBounds) {
-          // V10.8.J.1 — viewport-aware padding. On the small mobile
-          // map header (~190px tall, ~390px wide) generous padding
-          // forces the fit-zoom too far out and the basemap (dataviz-
-          // dark) stops rendering state borders below ~zoom 5. We
-          // measure the actual container and scale padding down on
-          // narrow viewports so the actual fit-zoom is high enough
-          // for borders to draw.
+          // V10.8.L — viewport-aware framing with a hard zoom floor
+          // for state-precision rows.
+          //
+          // The previous V10.8.J.1 fix scaled padding down on small
+          // viewports, but Kansas's bbox is wide (7.4° lng) so the
+          // fit-zoom only moved from ~5.3 (desktop padding) to ~5.6
+          // (mobile padding) — both still below MapTiler dataviz-
+          // dark's state-border render threshold (around zoom 6). The
+          // halo+badge looked fine but the basemap rendered as an
+          // unbordered tan blob.
+          //
+          // Fix: compute the would-be fit camera with cameraForBounds,
+          // then if the resulting zoom is below the threshold for
+          // visible borders at this precision, override the zoom up
+          // to that floor (centered on the bbox center). State
+          // borders need ≥6, country borders are always visible so
+          // no floor needed.
           const cont = map.getContainer()
           const cw = cont?.clientWidth || 600
           const ch = cont?.clientHeight || 300
@@ -253,18 +263,44 @@ export default function ReportLocationMap({
             ? { top: 14, right: 12, bottom: 26, left: 12 }
             : { top: 36, right: 24, bottom: 56, left: 24 }
 
-          map.fitBounds(
-            [
-              [syntheticBounds[0], syntheticBounds[1]],
-              [syntheticBounds[2], syntheticBounds[3]],
-            ],
-            {
+          const bounds: [[number, number], [number, number]] = [
+            [syntheticBounds[0], syntheticBounds[1]],
+            [syntheticBounds[2], syntheticBounds[3]],
+          ]
+
+          // cameraForBounds returns the CameraOptions maplibre would
+          // adopt for fitBounds with these bounds + padding. We then
+          // post-process to enforce our zoom floor.
+          const cam = map.cameraForBounds(bounds, { padding: pad, maxZoom: 9 })
+          if (cam) {
+            const camCenter = cam.center as { lng: number; lat: number } | [number, number] | undefined
+            const center: [number, number] = Array.isArray(camCenter)
+              ? [camCenter[0], camCenter[1]]
+              : camCenter
+                ? [camCenter.lng, camCenter.lat]
+                : [
+                    (syntheticBounds[0] + syntheticBounds[2]) / 2,
+                    (syntheticBounds[1] + syntheticBounds[3]) / 2,
+                  ]
+            const fitZoom = typeof cam.zoom === 'number' ? cam.zoom : 5
+            const zoomFloor = precision === 'region' || precision === 'state' ? 6 : 0
+            const zoom = Math.max(fitZoom, zoomFloor)
+            map.flyTo({
+              center,
+              zoom: Math.min(zoom, 9),
+              duration: 1200,
+              essential: true,
+            })
+          } else {
+            // Defensive — if cameraForBounds somehow fails, fall back
+            // to the straight fitBounds path.
+            map.fitBounds(bounds, {
               padding: pad,
               duration: 1200,
               essential: true,
-              maxZoom: 9, // keep tiny features (Vatican, Monaco, RI) legible
-            },
-          )
+              maxZoom: 9,
+            })
+          }
         } else {
           map.flyTo({
             center: [longitude!, latitude!],
