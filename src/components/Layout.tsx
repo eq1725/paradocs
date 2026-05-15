@@ -272,7 +272,7 @@ export default function Layout({ children }: LayoutProps) {
             <div>
               <h4 className="font-medium text-white mb-4">Community</h4>
               <ul className="space-y-2 text-sm text-gray-400">
-                <li><Link href="/submit" className="hover:text-white">Submit Report</Link></li>
+                <li><Link href="/start" className="hover:text-white">Submit Report</Link></li>
                 <li><Link href="/discover" className="hover:text-white">Today</Link></li>
                 <li><Link href="/lab" className="hover:text-white">Lab</Link></li>
                 <li><Link href="/about" className="hover:text-white">About</Link></li>

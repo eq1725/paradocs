@@ -191,7 +191,7 @@ export default function LabPage() {
             <div className="flex items-center gap-2">
               {/* Submit Report link */}
               <Link
-                href="/submit"
+                href="/start"
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-primary-400 bg-primary-600/10 border border-primary-600/20 hover:bg-primary-600/20 transition-colors"
               >
                 <PlusCircle className="w-4 h-4" />

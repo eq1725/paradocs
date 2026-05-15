@@ -645,7 +645,7 @@ function PolishedRadarView(props: {
       {/* Persistent "add another experience" CTA */}
       <div className="mt-6 pt-4 border-t border-gray-800/60 flex flex-col items-center gap-3">
         <a
-          href="/submit"
+          href="/start"
           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-purple-600/20 border border-purple-500/40 text-purple-200 text-sm font-medium hover:bg-purple-600/30 transition-colors"
         >
           + Add another experience
