@@ -238,15 +238,28 @@ export default function ReportLocationMap({
       if (cancelled || !map) return
       try {
         if (syntheticBounds) {
-          // fitBounds takes [[w,s],[e,n]]. Padding accounts for the
-          // top-left region label (~80px wide) and bottom scrim (~48px).
+          // V10.8.J.1 — viewport-aware padding. On the small mobile
+          // map header (~190px tall, ~390px wide) generous padding
+          // forces the fit-zoom too far out and the basemap (dataviz-
+          // dark) stops rendering state borders below ~zoom 5. We
+          // measure the actual container and scale padding down on
+          // narrow viewports so the actual fit-zoom is high enough
+          // for borders to draw.
+          const cont = map.getContainer()
+          const cw = cont?.clientWidth || 600
+          const ch = cont?.clientHeight || 300
+          const isCompact = cw < 600 || ch < 280
+          const pad = isCompact
+            ? { top: 14, right: 12, bottom: 26, left: 12 }
+            : { top: 36, right: 24, bottom: 56, left: 24 }
+
           map.fitBounds(
             [
               [syntheticBounds[0], syntheticBounds[1]],
               [syntheticBounds[2], syntheticBounds[3]],
             ],
             {
-              padding: { top: 36, right: 24, bottom: 56, left: 24 },
+              padding: pad,
               duration: 1200,
               essential: true,
               maxZoom: 9, // keep tiny features (Vatican, Monaco, RI) legible
@@ -536,33 +549,36 @@ function buildSyntheticHaloElement(precision?: LocationPrecision): HTMLDivElemen
   return root
 }
 
-function buildNearbyDotElement(slug: string, title: string, distanceKm: number): HTMLAnchorElement {
+function buildNearbyDotElement(slug: string, title: string, distanceKm: number): HTMLSpanElement {
+  // V10.8.J.2 — non-interactive context dot. Previously this was a
+  // clickable <a href="/report/{slug}"> which let the report-page map
+  // pull the reader away from the article they're currently reading.
+  // The map header is meant to convey "this case happened here, and
+  // here are nearby ones" — navigation belongs to the Related Reports
+  // section below the article. Render as a plain <span> with a
+  // hover-only tooltip via the title attribute and pointer-events
+  // disabled at the layer level so dragging/clicking the map is
+  // unaffected.
   const distanceMi = Math.round(distanceKm * 0.621371)
-  const a = document.createElement('a')
-  a.href = '/report/' + slug
-  a.title = title + ' · ' + distanceMi + ' mi away'
-  a.setAttribute('aria-label', 'Nearby case: ' + title + ', ' + distanceMi + ' miles away')
-  a.style.cssText = 'display:block;pointer-events:auto;text-decoration:none;'
+  const span = document.createElement('span')
+  span.title = title + ' · ' + distanceMi + ' mi away'
+  span.setAttribute('aria-label', 'Nearby case: ' + title + ', ' + distanceMi + ' miles away')
+  span.style.cssText = 'display:block;pointer-events:none;'
 
   const dot = document.createElement('span')
   dot.style.cssText =
-    'display:block;width:8px;height:8px;border-radius:9999px;' +
-    'background:rgba(34,211,238,0.8);border:1px solid rgba(165,243,252,0.4);' +
-    'box-shadow:0 0 4px rgba(0,0,0,0.5);' +
-    'transition:all 150ms ease;'
-  a.appendChild(dot)
+    'display:block;width:7px;height:7px;border-radius:9999px;' +
+    'background:rgba(34,211,238,0.55);border:1px solid rgba(165,243,252,0.3);' +
+    'box-shadow:0 0 4px rgba(0,0,0,0.5);'
+  span.appendChild(dot)
 
-  // Hover state via CSS-in-JS event handlers (no Tailwind JIT here).
-  a.addEventListener('mouseenter', () => {
-    dot.style.background = 'rgb(103, 232, 249)'
-    dot.style.transform = 'scale(1.5)'
-  })
-  a.addEventListener('mouseleave', () => {
-    dot.style.background = 'rgba(34,211,238,0.8)'
-    dot.style.transform = ''
-  })
+  // V10.8.J.2 — `slug` is intentionally unused now that the dot is
+  // non-clickable. Reference it once so TypeScript / linters don't
+  // flag it as dead code (and so a future reviewer can see we kept
+  // the slug threading on purpose for hover-debug surfaces).
+  void slug
 
-  return a
+  return span
 }
 
 // ── React subcomponents (still used for the badge overlay) ──

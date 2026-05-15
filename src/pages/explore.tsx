@@ -29,6 +29,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonType, PhenomenonCategory, CredibilityLevel, ContentType } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CONTENT_TYPE_CONFIG, COUNTRIES } from '@/lib/constants'
+import { formatLocationLabel } from '@/lib/format/location-label'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import PhenomenonIcon from '@/components/ui/PhenomenonIcon'
 import CategoryFilter from '@/components/CategoryFilter'
@@ -1010,8 +1011,11 @@ function ExploreBrowseMode() {
                   {latestReports.map(function(report) {
                     var catConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
                     var accent = CATEGORY_ACCENT[report.category] || CATEGORY_ACCENT.combination
-                    var locationParts = [report.city || report.location_name, report.state_province].filter(Boolean)
-                    var locationStr = locationParts.length > 0 ? locationParts.slice(0, 2).join(', ') : null
+                    // V10.8.J — canonical location label (handles dedup
+                    // and city-vs-location_name fallback so we don't
+                    // emit "Kansas, Kansas" when city=null + location_name=
+                    // "Kansas" + state_province="Kansas").
+                    var locationStr = formatLocationLabel(report, { maxParts: 2 })
                     var timeAgo = formatRelativeDate(report.created_at)
                     return (
                       <Link
@@ -1189,8 +1193,7 @@ function ExploreBrowseMode() {
                             {section.reports.map(function(report) {
                               var catConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
                               // Credibility badge intentionally omitted (QA/QC Apr 14 2026)
-                              var locationParts = [report.city || report.location_name, report.state_province, report.country].filter(Boolean)
-                              var locationStr = locationParts.length > 0 ? locationParts.slice(0, 2).join(', ') : null
+                              var locationStr = formatLocationLabel(report, { maxParts: 2 })
                               return (
                                 <Link key={report.id} href={'/report/' + report.slug} className="min-w-[270px] sm:min-w-[310px] max-w-[290px] sm:max-w-[330px] flex-shrink-0 snap-start glass-card p-4 sm:p-5 hover:border-primary-500/30 transition-all group/card flex flex-col">
                                   <div className="flex items-start gap-3 mb-2.5">
@@ -1797,7 +1800,7 @@ function ExploreSearchMode() {
           {/* Fulltext results */}
           {results.length > 0 && results.map(function(report) {
             var config = (CATEGORY_CONFIG as any)[report.category] || CATEGORY_CONFIG.combination
-            var locationParts = [report.city || report.location_name, report.state_province, report.country].filter(Boolean)
+            var locationStr = formatLocationLabel(report, { maxParts: 3 })
             return (
               <Link key={report.id} href={'/report/' + report.slug} className="block glass-card p-4 hover:border-primary-500/30 transition-all group">
                 <div className="flex items-start gap-3">
@@ -1809,7 +1812,7 @@ function ExploreSearchMode() {
                     <h3 className="font-medium text-white text-sm group-hover:text-primary-300 transition-colors line-clamp-2">{report.title}</h3>
                     {((report as any).feed_hook || report.summary) && <p className="text-xs text-gray-500 line-clamp-2 mt-1">{(report as any).feed_hook || report.summary}</p>}
                     <div className="flex items-center gap-3 mt-2 text-[11px] text-gray-600">
-                      {locationParts.length > 0 && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{locationParts.slice(0, 2).join(', ')}</span>}
+                      {locationStr && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{locationStr}</span>}
                       {report.event_date && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(report.event_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>}
                     </div>
                   </div>
