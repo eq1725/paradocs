@@ -8,12 +8,19 @@ import { CATEGORY_CONFIG, CREDIBILITY_CONFIG } from '@/lib/constants'
 import { formatRelativeDate, formatDate, truncate, classNames } from '@/lib/utils'
 import SourceBadge from './SourceBadge'
 import CategoryIcon from '@/components/ui/CategoryIcon'
+import IngestedBadge, { isIngested } from '@/components/IngestedBadge'
 
 interface ReportCardProps {
   report: Report & {
     phenomenon_type?: PhenomenonType | null;
     source_label?: string | null;
     source_url?: string | null;
+    // B0.2 — distinguishes user-submitted from ingested at the row
+    // level. Optional here because the DB type may not have it yet
+    // (auto-generated types lag the migration).
+    report_type?: string | null;
+    original_report_id?: string | null;
+    metadata?: Record<string, any> | null;
   }
   variant?: 'default' | 'compact' | 'featured'
 }
@@ -41,12 +48,27 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
                 <p className="text-sm text-gray-400 truncate">
                   {report.location_name || 'Unknown location'}
                 </p>
-                {report.source_type && report.source_type !== 'user' && (
-                  <SourceBadge
-                    sourceType={report.source_type}
-                    sourceLabel={report.source_label || undefined}
-                    variant="minimal"
+                {/* B0.3 — provenance: IngestedBadge for ingested
+                    rows (renders "via NUFORC #12345" etc with link
+                    back), SourceBadge for editorial/curated rows
+                    (legacy path). User-submitted = no badge. */}
+                {isIngested(report) ? (
+                  <IngestedBadge
+                    variant="compact"
+                    source_type={report.source_type}
+                    original_report_id={report.original_report_id}
+                    source_url={report.source_url}
+                    source_label={report.source_label}
+                    metadata={report.metadata}
                   />
+                ) : (
+                  report.source_type && report.source_type !== 'user' && (
+                    <SourceBadge
+                      sourceType={report.source_type}
+                      sourceLabel={report.source_label || undefined}
+                      variant="minimal"
+                    />
+                  )
                 )}
               </div>
             </div>
@@ -182,12 +204,25 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
                 <ThumbsUp className="w-3 h-3" />
                 {report.upvotes}
               </span>
-              {report.source_type && report.source_type !== 'user' && (
-                <SourceBadge
-                  sourceType={report.source_type}
-                  sourceLabel={report.source_label || undefined}
-                  variant="minimal"
+              {/* B0.3 — provenance: IngestedBadge for ingested rows,
+                  SourceBadge for editorial/curated (legacy). */}
+              {isIngested(report) ? (
+                <IngestedBadge
+                  variant="compact"
+                  source_type={report.source_type}
+                  original_report_id={report.original_report_id}
+                  source_url={report.source_url}
+                  source_label={report.source_label}
+                  metadata={report.metadata}
                 />
+              ) : (
+                report.source_type && report.source_type !== 'user' && (
+                  <SourceBadge
+                    sourceType={report.source_type}
+                    sourceLabel={report.source_label || undefined}
+                    variant="minimal"
+                  />
+                )
               )}
             </div>
           </div>

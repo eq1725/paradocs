@@ -25,6 +25,7 @@ import { classNames } from '@/lib/utils'
 import { Avatar } from '@/components/AvatarSelector'
 import NavigationHelper from '@/components/NavigationHelper'
 import { MobileBottomTabs } from '@/components/mobile/MobileBottomTabs'
+import NotificationsBell from '@/components/NotificationsBell'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -156,6 +157,12 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* Right section */}
             <div className="flex items-center gap-3">
+              {/* T1.9 — Notifications bell. Authenticated only; renders
+                  the user_notifications dropdown. Placed before avatar
+                  so it's consistently to the left of the user menu on
+                  every layout breakpoint. */}
+              {!loading && user && <NotificationsBell />}
+
               {/* User menu */}
               {!loading && (
                 user ? (

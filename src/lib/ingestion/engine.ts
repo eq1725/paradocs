@@ -143,10 +143,129 @@ async function linkReportToCanonicalPhenomenonBySlug(
       },
       { onConflict: 'report_id,phenomenon_id', ignoreDuplicates: true },
     );
-  return !upsertError;
+  if (upsertError) return false;
+
+  // T1.6 — lazy image auto-sourcing on first report-tag. Fire-and-
+  // forget: if this is the phenomenon's first tagged report and it
+  // has no image yet, mark it for the next image-search cron pass.
+  // Non-blocking — never let image enrichment fail an ingestion.
+  enqueueImageSearchIfNeeded(supabase, phen.id).catch(function (err) {
+    console.log('[Ingestion] enqueueImageSearchIfNeeded error (non-fatal):', err);
+  });
+
+  return true;
+}
+
+// T1.6 — mark a phenomenon as needing an image search if it currently
+// has no primary image AND no prior search status. Uses
+// profile_review_status='pending_search' as a queue marker; the
+// existing auto-search-profile-images endpoint already selects
+// phenomena with `primary_image_url IS NULL`, so 'pending_search' rows
+// are processed by the same job. On a successful search, the endpoint
+// overwrites the status with 'unreviewed' for admin approval in
+// /admin/media-review.
+//
+// Follow-up infrastructure (tracked separately): a periodic cron entry
+// that calls auto-search-profile-images via CRON_SECRET auth so this
+// queue actually drains without manual admin action. Until that lands,
+// this helper still produces useful state (admin can see queued items
+// in /admin/media-review filtered by status) and the engine-side
+// contract is correct.
+async function enqueueImageSearchIfNeeded(
+  supabase: SupabaseClient,
+  phenomenonId: string,
+): Promise<void> {
+  try {
+    const { data: phen, error } = await supabase
+      .from('phenomena')
+      .select('id, name, primary_image_url, profile_review_status')
+      .eq('id', phenomenonId)
+      .maybeSingle();
+    if (error || !phen) return;
+
+    // Already has an image, OR already searched (unreviewed/approved/
+    // denied/pending_search): nothing to do.
+    if (phen.primary_image_url) return;
+    if (phen.profile_review_status) return;
+
+    // Race-safe marker: only update if status is still null.
+    await supabase
+      .from('phenomena')
+      .update({
+        profile_review_status: 'pending_search',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', phenomenonId)
+      .is('profile_review_status', null);
+
+    console.log('[Ingestion] enqueued image search for phenomenon:', phen.name);
+  } catch (err) {
+    // Non-fatal — image enrichment is not core ingestion
+    console.log('[Ingestion] enqueueImageSearchIfNeeded failed:', err);
+  }
 }
 
 // Pattern-match a single report to phenomena (lightweight, no AI)
+// B0.3.x — stopword list for the pattern matcher. Any phenomenon name
+// or alias matching one of these (case-insensitive) is rejected as a
+// pattern because it would fire on common English narrative usage and
+// produce false-positive tag links. This protects ingestion quality
+// downstream of the SQL-side alias cleanup. The SQL cleanup removes
+// these from `phenomena.aliases`, but the matcher also uses `name` as
+// a pattern, and we don't want to rename phenomena just to dodge
+// matcher behavior. Filter here so the systemic fix is at the right
+// layer.
+//
+// Adding more stopwords: keep lowercase. Anything < 5 characters that
+// is a real English word, or any single common noun, is a strong
+// candidate.
+const MATCHER_STOPWORDS = new Set<string>([
+  // Common English words ≤ 4 chars
+  'did', 'was', 'has', 'had', 'can', 'may', 'our', 'out', 'all',
+  'and', 'are', 'but', 'for', 'his', 'her', 'him', 'one', 'two',
+  'now', 'new', 'use', 'see', 'top', 'won', 'win', 'run', 'put',
+  'got', 'big', 'box', 'low', 'old', 'any', 'its', 'too',
+  // Common single-word nouns/adjectives that narratives use generically
+  'light', 'dark', 'sound', 'voice', 'dream', 'vision', 'ghost',
+  'spirit', 'soul', 'mind', 'body', 'field', 'focus', 'focusing',
+  'breath', 'energy', 'force', 'wave', 'peace', 'love', 'faith',
+  'hope', 'fear', 'time', 'space', 'flow', 'fire', 'water', 'earth',
+  'wind', 'healing', 'balance', 'awakening', 'awareness', 'presence',
+  'consciousness', 'enlightenment', 'transcendence', 'magic', 'witch',
+  'meditation', 'prayer', 'intuition', 'silence', 'calm', 'death',
+  'life', 'contact', 'reading', 'channel', 'channeling',
+  // Multi-word phrases that are still over-broad
+  'fragmented consciousness', 'plural identity',
+]);
+
+function isMatcherSafePattern(pattern: string | null | undefined): boolean {
+  if (!pattern) return false;
+  const trimmed = pattern.trim();
+  if (trimmed.length === 0) return false;
+
+  // FIRST: stopword check, case-insensitive. This catches "DID" which
+  // would otherwise pass the acronym rule below. Any word in the stop
+  // list is rejected regardless of casing.
+  if (MATCHER_STOPWORDS.has(trimmed.toLowerCase())) return false;
+
+  // SECOND: length-based heuristic for things NOT in the stopword list.
+  // 4 chars or fewer is risky territory because of word-boundary
+  // collisions with common English. Exception: pure-uppercase acronyms
+  // (3+ chars) signal the user typed it AS an acronym — case-insensitive
+  // regex will still match lowercase occurrences in narrative, but
+  // narratives that contain "NDE" / "OBE" / "ESP" in uppercase are
+  // strong signal regardless. Without this exception, we'd reject all
+  // the legitimate experiencer-acronym aliases.
+  if (trimmed.length <= 4) {
+    if (trimmed === trimmed.toUpperCase() && /^[A-Z]+$/.test(trimmed) && trimmed.length >= 3) {
+      return true;
+    }
+    return false;
+  }
+
+  return true;
+}
+
 async function identifyPhenomenaForReport(
   supabase: SupabaseClient,
   reportId: string,
@@ -163,6 +282,14 @@ async function identifyPhenomenaForReport(
 
   for (const phenomenon of phenomena) {
     for (const pattern of phenomenon.patterns) {
+      // B0.3.x — skip patterns that would cause false positives on
+      // common English usage. Without this guard, "Focusing" the
+      // phenomenon name fires on any "focusing on my breath" type
+      // narrative, "Light Adaptation" fires on any "bright light",
+      // and a phenomenon with alias "DID" tags every report where
+      // the narrator says "I did X".
+      if (!isMatcherSafePattern(pattern)) continue;
+
       const regex = new RegExp(`\\b${escapeRegex(pattern)}\\b`, 'i');
       if (regex.test(searchText)) {
         let confidence = 0.6;
@@ -198,7 +325,14 @@ async function identifyPhenomenaForReport(
         ignoreDuplicates: true,
       });
 
-    if (!error) linked++;
+    if (!error) {
+      linked++;
+      // T1.6 — same lazy image search hook as the canonical-slug path.
+      // Fire-and-forget; never block ingestion on enrichment.
+      enqueueImageSearchIfNeeded(supabase, match.phenomenonId).catch(function (err) {
+        console.log('[Ingestion] enqueueImageSearchIfNeeded error (non-fatal):', err);
+      });
+    }
   }
 
   // Also set phenomenon_type_id on the report via the linked phenomenon's own type.
@@ -797,7 +931,13 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
               source_url: report.source_url,
               original_title: originalTitle,
               upvotes: 0,
-              view_count: 0
+              view_count: 0,
+              // B0.2 — every row inserted by the ingestion engine is
+              // an indexed external source (NUFORC/BFRO/NDERF/etc.).
+              // User-submitted reports go through /api/onboarding/submit,
+              // which never calls this code path, so 'ingested' here is
+              // unconditionally correct.
+              report_type: 'ingested',
           };
           // V10.8.B passes through the extractDate audit fields. The
           // engine sends them on insert (top of new-row branch); the

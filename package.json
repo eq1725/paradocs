@@ -12,7 +12,14 @@
     "typecheck": "node scripts/typecheck-gate.js",
     "typecheck:full": "tsc --noEmit -p tsconfig.json",
     "seed": "node scripts/seed-data.js",
-    "batch-import": "npx ts-node scripts/batch-import-reddit.ts"
+    "batch-import": "npx ts-node scripts/batch-import-reddit.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:install": "playwright install --with-deps chromium",
+    "cap:build": "PARADOCS_CAPACITOR=1 next build && next export -o out",
+    "cap:sync": "npm run cap:build && npx cap sync",
+    "cap:open:ios": "npx cap open ios",
+    "cap:open:android": "npx cap open android"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",
@@ -53,9 +60,17 @@
     "supercluster": "^8.0.1",
     "tippy.js": "^6.3.7",
     "tiptap-markdown": "^0.9.0",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2",
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/app": "^6.0.1",
+    "@capacitor/push-notifications": "^6.0.2",
+    "@capacitor/share": "^6.0.2"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.1.2",
+    "@playwright/test": "^1.49.0",
     "@types/d3": "^7.4.3",
     "@types/leaflet": "^1.9.12",
     "@types/node": "^22.5.4",

@@ -896,7 +896,14 @@ function ExploreBrowseMode() {
     if (browseView === 'reports') loadReports()
   }, [loadReports, browseView])
 
-  // Load phenomena for a category
+  // Load phenomena for a category.
+  // T1.4 — only surface phenomena that have at least one tagged report.
+  // Encyclopedia entries are a tag vocabulary now, not a content library;
+  // entries with report_count === 0 have nothing to drill into, so we
+  // hide them from the browse surface to keep the experience populated
+  // and avoid empty per-phenomenon pages. Pre-mass-ingestion this means
+  // categories will look sparse — by design. Track B (ingestion) fills
+  // them in.
   var loadPhenomena = useCallback(async function(cat: string) {
     setPhenomenaLoading(true)
     try {
@@ -904,6 +911,8 @@ function ExploreBrowseMode() {
         .from('phenomena')
         .select('id,name,slug,category,icon,ai_summary,report_count,primary_image_url,aliases,ai_quick_facts')
         .eq('category', cat)
+        .gt('report_count', 0)
+        .order('report_count', { ascending: false })
         .order('name', { ascending: true })
         .limit(500)
       var result = await q
@@ -1134,7 +1143,7 @@ function ExploreBrowseMode() {
                         </div>
                         <div className="flex items-center gap-3">
                           {section.id === 'spotlight' && (
-                            <Link href="/phenomena" className="text-xs sm:text-sm font-medium text-primary-400 hover:text-primary-300 transition-colors whitespace-nowrap">
+                            <Link href="/explore?view=categories" className="text-xs sm:text-sm font-medium text-primary-400 hover:text-primary-300 transition-colors whitespace-nowrap">
                               See all <ChevronRightIcon className="w-3 h-3 inline -mt-0.5" />
                             </Link>
                           )}
@@ -1176,7 +1185,7 @@ function ExploreBrowseMode() {
                                 </Link>
                               )
                             })}
-                            <Link href="/phenomena" className="min-w-[50vw] sm:min-w-[180px] flex-shrink-0 snap-start flex flex-col items-center justify-center rounded-xl border border-white/10 hover:border-primary-500/30 bg-white/[0.02] hover:bg-white/[0.04] transition-all gap-3 px-6">
+                            <Link href="/explore?view=categories" className="min-w-[50vw] sm:min-w-[180px] flex-shrink-0 snap-start flex flex-col items-center justify-center rounded-xl border border-white/10 hover:border-primary-500/30 bg-white/[0.02] hover:bg-white/[0.04] transition-all gap-3 px-6">
                               <BookOpen className="w-8 h-8 text-primary-400" />
                               <span className="text-sm font-medium text-primary-400">Browse Encyclopedia</span>
                               <span className="text-xs text-gray-500">Every phenomenon</span>
@@ -1275,7 +1284,10 @@ function ExploreBrowseMode() {
               </span>
               <div>
                 <h2 className="text-xl font-bold text-white">{(CATEGORY_CONFIG as any)[selectedCategoryForPhenomena]?.label || selectedCategoryForPhenomena}</h2>
-                <p className="text-sm text-gray-500">{phenomena.length} phenomena</p>
+                {/* T1.4 — count reflects phenomena WITH tagged reports only */}
+                <p className="text-sm text-gray-500">
+                  {phenomena.length === 1 ? '1 phenomenon with reports' : phenomena.length.toLocaleString() + ' phenomena with reports'}
+                </p>
               </div>
             </div>
             <button onClick={function() { handleViewReports(selectedCategoryForPhenomena!) }} className="hidden sm:flex px-4 py-2 bg-primary-500/10 border border-primary-500/20 rounded-lg text-primary-400 text-sm font-medium hover:bg-primary-500/20 transition-all">
@@ -1340,7 +1352,19 @@ function ExploreBrowseMode() {
             </div>
           ) : sorted.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-400">{phenomenaFilter ? 'No phenomena match your filter.' : 'No phenomena found in this category.'}</p>
+              {/* T1.4 — empty state reflects "no tagged reports yet" rather
+                  than "no entries exist". Categories may have many encyclopedia
+                  entries that simply have no tagged reports yet. */}
+              <p className="text-gray-400">
+                {phenomenaFilter
+                  ? 'No phenomena match your filter.'
+                  : 'No tagged reports in this category yet.'}
+              </p>
+              {!phenomenaFilter && (
+                <p className="text-xs text-gray-500 mt-2 max-w-sm mx-auto">
+                  As reports get submitted or indexed and tagged with phenomena in this category, they&apos;ll show up here.
+                </p>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

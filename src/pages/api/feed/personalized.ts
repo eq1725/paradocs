@@ -69,25 +69,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     var sections: FeedSection[] = []
 
-    // === SECTION 1: Encyclopedia Spotlight (everyone sees this) ===
-    // Show richly-enriched phenomena with images — the "wow" factor
-    var placeholderUrl = 'https://bhkbctdmwnowfmqpksed.supabase.co/storage/v1/object/public/phenomena-images/default-cryptid.jpg'
-
+    // === SECTION 1: Top Phenomena Right Now (everyone sees this) ===
+    // T1.5 — pivot from ai_summary-driven to data-driven. Surface the
+    // most-tagged phenomena regardless of ai_* content or image presence.
+    // Cards render with category icon when primary_image_url is missing
+    // (the rendering layer in explore.tsx ~line 1163 has the `hasImage`
+    // check that gracefully degrades). The encyclopedia is now a tag
+    // vocabulary, not a content library, so "spotlight" means "what's
+    // being discussed", not "what we've written copy for".
     var { data: spotlightPhenomena } = await supabase
       .from('phenomena')
       .select('id, name, slug, category, icon, ai_summary, ai_quick_facts, primary_image_url, report_count, aliases')
       .eq('status', 'active')
-      .not('ai_summary', 'is', null)
-      .not('primary_image_url', 'is', null)
-      .neq('primary_image_url', placeholderUrl)
+      .gt('report_count', 0)
       .order('report_count', { ascending: false })
       .limit(8)
 
     if (spotlightPhenomena && spotlightPhenomena.length > 0) {
       sections.push({
         id: 'spotlight',
-        title: 'Encyclopedia Spotlight',
-        subtitle: 'Dive into the world\u2019s most documented phenomena',
+        title: 'Top Phenomena Right Now',
+        subtitle: 'Most-tagged across recent reports',
         type: 'phenomena',
         phenomena: spotlightPhenomena
       })

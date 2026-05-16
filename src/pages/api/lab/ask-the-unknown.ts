@@ -40,7 +40,16 @@ var SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 var MAX_QUESTION_LEN = 500
 var MIN_QUESTION_LEN = 3
 var CLUSTER_RADIUS_MI = 100
-var DAILY_LIMIT_PER_USER = 20
+// E0.7 — daily ask cap is tier-driven. Resolved from
+// subscription_tiers.limits.ask_questions_per_day per E0.5 spec:
+//   - Free: 2/day (cost ceiling + conversion trigger)
+//   - Basic: -1 (unlimited)
+//   - Pro: -1 (unlimited)
+// FALLBACK is used when the tier lookup fails OR the user has no
+// resolvable subscription (e.g. profile migration in flight). We
+// fail open to the FREE limit so anonymous-edge-case users aren't
+// suddenly handed Pro-tier access by accident.
+var FREE_DAILY_LIMIT_FALLBACK = 2
 
 function haversineMi(lat1: number, lng1: number, lat2: number, lng2: number): number {
   var R = 3959
@@ -72,23 +81,59 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   var svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-  // --- Rate limit -------------------------------------------------
-  // Cheap counter via the cached your_signal_insights table:
-  // we re-use the cache audit fields (ai_cost_usd > 0 implies a
-  // Sonnet call from this user). For the rate limit we count
-  // anything we logged in the last 24h, including ask history rows
-  // (table optional — fail-open if missing).
+  // --- Tier-aware rate limit (E0.7) ------------------------------
+  // Resolve the user's effective ask-per-day cap from their active
+  // subscription tier. Free defaults to FREE_DAILY_LIMIT_FALLBACK
+  // (2/day per E0.5 spec); Basic and Pro have -1 (unlimited).
+  // Fail open to FREE_DAILY_LIMIT_FALLBACK if either lookup fails so
+  // we err on the side of cost-control.
+  var dailyLimit = FREE_DAILY_LIMIT_FALLBACK
+  var resolvedTier = 'free'
+  try {
+    var subRes = await (svc.from('user_subscriptions') as any)
+      .select('tier:subscription_tiers(name, limits)')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+    var tierRow = (subRes && subRes.data && (subRes.data as any).tier) || null
+    if (tierRow) {
+      resolvedTier = String(tierRow.name || 'free')
+      var limitVal = tierRow.limits && typeof tierRow.limits === 'object'
+        ? tierRow.limits.ask_questions_per_day
+        : undefined
+      if (typeof limitVal === 'number') dailyLimit = limitVal
+    }
+  } catch (_) { /* default to free fallback */ }
+
+  // Count today's Asks (best-effort; if log table is unavailable we
+  // fail open on the count but keep the limit in place).
   var dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  var todayCount = 0
   try {
     var historyResult = await svc.from('ask_the_unknown_log')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', user.id)
       .gte('created_at', dayAgo)
-    var todayCount = (historyResult && historyResult.count) || 0
-    if (todayCount >= DAILY_LIMIT_PER_USER) {
-      return res.status(429).json({ error: 'You\'ve reached today\'s ask limit (' + DAILY_LIMIT_PER_USER + '). Try again tomorrow.' })
-    }
-  } catch (_) { /* table missing or unreachable — fail open */ }
+    todayCount = (historyResult && historyResult.count) || 0
+  } catch (_) { /* table missing — assume 0, still apply tier limit */ }
+
+  // -1 = unlimited (Basic / Pro). Any positive value = hard cap.
+  if (dailyLimit !== -1 && todayCount >= dailyLimit) {
+    return res.status(429).json({
+      error: 'You\'ve reached today\'s Ask limit on the Free plan (' + dailyLimit + ' per day).',
+      upgrade_to: 'basic',
+      reason: 'daily_ask_cap',
+      tier: resolvedTier,
+      used: todayCount,
+      limit: dailyLimit,
+      // Client renders this directly in the upgrade modal — see
+      // docs/TIER_DESIGN_V2.md § "Conversion trigger surfaces".
+      upgrade_message: 'Unlock unlimited Ask the Unknown questions with Basic — $5.99/mo.',
+      upgrade_url: '/account/subscription',
+    })
+  }
 
   // --- User report ------------------------------------------------
   var reportResult = await svc.from('reports')

@@ -25,6 +25,92 @@ import { verifyAndAuditRewrite, PROMPT_VERSION } from '@/lib/ai/rewrite-pipeline
 var ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001'
 var ANTHROPIC_FALLBACK = 'claude-3-5-haiku-20241022'
 
+// B0.7 — Haiku 4.5 pricing per million tokens as of May 2026.
+// Source: anthropic.com/pricing. Update when Anthropic publishes a
+// price change; the rest of the cost-tracking machinery is constant.
+var HAIKU_INPUT_USD_PER_M = 1.0
+var HAIKU_OUTPUT_USD_PER_M = 5.0
+
+// Daily spend ceiling for paradocs_narrative generation across ALL
+// reports system-wide. When today's logged completed spend exceeds
+// this, no further calls fire — the report still inserts but without
+// narrative, and the next day's first ingestion pass picks up
+// unnarrated reports first. Env var override for ops flexibility.
+var DAILY_COST_CAP_USD = (function () {
+  var raw = process.env.PARADOCS_HAIKU_DAILY_CAP
+  if (!raw) return 50.0
+  var n = parseFloat(raw)
+  return isNaN(n) || n < 0 ? 50.0 : n
+})()
+
+/**
+ * B0.7 — sum today's completed paradocs_narrative spend. Returns 0
+ * if the cost-log table is missing (fail open — we'd rather burn
+ * a little money than block ingestion when the table isn't applied).
+ */
+async function getTodaysParadocsSpend(supabase: any): Promise<number> {
+  try {
+    var todayStart = new Date()
+    todayStart.setUTCHours(0, 0, 0, 0)
+    var result = await supabase
+      .from('paradocs_narrative_cost_log')
+      .select('cost_usd')
+      .gte('created_at', todayStart.toISOString())
+      .eq('status', 'completed')
+    var rows = (result && result.data) || []
+    var sum = 0
+    for (var i = 0; i < rows.length; i++) sum += parseFloat(rows[i].cost_usd) || 0
+    return sum
+  } catch (_e) {
+    return 0
+  }
+}
+
+/**
+ * B0.7 — compute USD cost from token counts + model.
+ * Currently only Haiku 4.5 + fallback are priced; other models
+ * (Sonnet) return 0 here because they're paid for elsewhere
+ * (your-signal-ai.service.ts owns its own pricing).
+ */
+function computeHaikuCost(model: string | null, inputTokens: number, outputTokens: number): number {
+  if (!model) return 0
+  var mLower = String(model).toLowerCase()
+  if (mLower.indexOf('haiku') < 0) return 0
+  return (
+    (inputTokens / 1_000_000) * HAIKU_INPUT_USD_PER_M +
+    (outputTokens / 1_000_000) * HAIKU_OUTPUT_USD_PER_M
+  )
+}
+
+/**
+ * B0.7 — log a generation event (completed, skipped, or failed).
+ * Best-effort; logging failure does not block the calling code.
+ */
+async function logParadocsCost(
+  supabase: any,
+  args: {
+    report_id: string | null
+    model: string
+    input_tokens: number | null
+    output_tokens: number | null
+    cost_usd: number
+    status: 'completed' | 'skipped_cap' | 'failed'
+    reason?: string | null
+  },
+): Promise<void> {
+  try {
+    await supabase.from('paradocs_narrative_cost_log').insert({
+      report_id: args.report_id,
+      model: args.model,
+      input_tokens: args.input_tokens,
+      output_tokens: args.output_tokens,
+      cost_usd: args.cost_usd,
+      status: args.status,
+      reason: args.reason || null,
+    })
+  } catch (_e) { /* table may not exist yet; non-fatal */ }
+}
+
 // ============================================
 // Types
 // ============================================
@@ -621,8 +707,12 @@ async function callClaudeOnce(
   systemPrompt: string,
   userPrompt: string,
   maxTokens: number,
-  temperature: number
-): Promise<{ text: string | null; retryable: boolean; status: number }> {
+  temperature: number,
+  // B0.7 — optional reportId for cost-log correlation. When provided,
+  // every successful call writes a row to paradocs_narrative_cost_log
+  // with the per-call USD spend computed from token usage.
+  reportId?: string | null,
+): Promise<{ text: string | null; retryable: boolean; status: number; inputTokens?: number; outputTokens?: number }> {
   var controller = new AbortController()
   var timeoutId = setTimeout(function() { controller.abort() }, REQUEST_TIMEOUT_MS)
 
@@ -662,8 +752,26 @@ async function callClaudeOnce(
 
     var data = await resp.json()
     if (data.content && data.content.length > 0 && data.content[0].text) {
-      console.log('[ParadocsAnalysis] OK from ' + modelName + ' (' + data.content[0].text.length + ' chars, ' + (data.usage ? data.usage.output_tokens : '?') + ' tokens)')
-      return { text: data.content[0].text.trim(), retryable: false, status: 200 }
+      var inputTokens = data.usage ? data.usage.input_tokens : 0
+      var outputTokens = data.usage ? data.usage.output_tokens : 0
+      console.log('[ParadocsAnalysis] OK from ' + modelName + ' (' + data.content[0].text.length + ' chars, ' + outputTokens + ' tokens)')
+
+      // B0.7 — log per-call cost so the daily cap can sum it. Best-
+      // effort; never block on logging failure.
+      var costUsd = computeHaikuCost(modelName, inputTokens, outputTokens)
+      try {
+        var supabaseLog = createServerClient()
+        await logParadocsCost(supabaseLog, {
+          report_id: reportId || null,
+          model: modelName,
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          cost_usd: costUsd,
+          status: 'completed',
+        })
+      } catch (_e) { /* non-fatal */ }
+
+      return { text: data.content[0].text.trim(), retryable: false, status: 200, inputTokens: inputTokens, outputTokens: outputTokens }
     }
 
     console.warn('[ParadocsAnalysis] Empty content from ' + modelName + ', stop_reason: ' + (data.stop_reason || 'none'))
@@ -684,7 +792,9 @@ async function callClaude(
   systemPrompt: string,
   userPrompt: string,
   maxTokens: number,
-  temperature?: number
+  temperature?: number,
+  // B0.7 — optional reportId for cost-log correlation.
+  reportId?: string | null,
 ): Promise<string | null> {
   var apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
@@ -696,17 +806,17 @@ async function callClaude(
   var models = [ANTHROPIC_MODEL, ANTHROPIC_FALLBACK]
 
   // Try primary model with 2 attempts
-  var r1 = await callClaudeOnce(apiKey, models[0], systemPrompt, userPrompt, maxTokens, temp)
+  var r1 = await callClaudeOnce(apiKey, models[0], systemPrompt, userPrompt, maxTokens, temp, reportId)
   if (r1.text) return r1.text
 
   if (r1.retryable) {
     await sleep(2000)
-    var r2 = await callClaudeOnce(apiKey, models[0], systemPrompt, userPrompt, maxTokens, temp)
+    var r2 = await callClaudeOnce(apiKey, models[0], systemPrompt, userPrompt, maxTokens, temp, reportId)
     if (r2.text) return r2.text
   }
 
   // Try fallback model
-  var r3 = await callClaudeOnce(apiKey, models[1], systemPrompt, userPrompt, maxTokens, temp)
+  var r3 = await callClaudeOnce(apiKey, models[1], systemPrompt, userPrompt, maxTokens, temp, reportId)
   if (r3.text) return r3.text
 
   console.error('[ParadocsAnalysis] All attempts exhausted')
@@ -1142,9 +1252,36 @@ export async function generateParadocsAnalysis(
 
   console.log('[ParadocsAnalysis] Generating for: ' + reportId + ' (' + ((report as any).title || 'untitled').substring(0, 40) + ')')
 
+  // B0.7 — daily cost cap check. Done HERE rather than in callClaude
+  // because the cap applies only to paradocs_narrative generation,
+  // not every Anthropic call in the codebase (the per-user Sonnet
+  // surfaces enforce their own caps via E0.7). When the cap is hit,
+  // we log a skip event so the admin dashboard sees the bottleneck,
+  // and return null — the caller treats this as a transient failure
+  // and the report inserts without narrative. Next day's ingestion
+  // pass picks up unnarrated reports first.
+  var todaysSpend = await getTodaysParadocsSpend(supabase)
+  if (todaysSpend >= DAILY_COST_CAP_USD) {
+    console.warn(
+      '[ParadocsAnalysis] DAILY CAP HIT — skipped ' + reportId +
+      ' (spend $' + todaysSpend.toFixed(2) + ' >= cap $' + DAILY_COST_CAP_USD.toFixed(2) + ')'
+    )
+    await logParadocsCost(supabase, {
+      report_id: reportId,
+      model: 'skipped',
+      input_tokens: null,
+      output_tokens: null,
+      cost_usd: 0,
+      status: 'skipped_cap',
+      reason: 'daily_spend=' + todaysSpend.toFixed(4) + ' cap=' + DAILY_COST_CAP_USD.toFixed(2),
+    })
+    return null
+  }
+
   // Single call, temperature 0.4 for consistent quality
   // 1200 tokens needed — added suggested_category + discovery_tags fields
-  var response = await callClaude(SYSTEM_PROMPT, userPrompt, 1800, 0.4)
+  // B0.7 — pass reportId so callClaudeOnce can correlate the cost-log row
+  var response = await callClaude(SYSTEM_PROMPT, userPrompt, 1800, 0.4, reportId)
 
   if (response) {
     var result = parseAnalysisJson(response)

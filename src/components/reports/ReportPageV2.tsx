@@ -44,6 +44,7 @@ import dynamic from 'next/dynamic'
 import { type LocationPrecision } from './ReportLocationMap'
 const ReportLocationMap = dynamic(() => import('./ReportLocationMap'), { ssr: false })
 import ReportMeta from './ReportMeta'
+import IngestedBadge, { isIngested } from '@/components/IngestedBadge'
 import ReportEngagementStrip from './ReportEngagementStrip'
 import ReportPullQuote from './ReportPullQuote'
 import ReportRelatedReports from './ReportRelatedReports'
@@ -528,6 +529,24 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                 carries the source attribution plus account type and
                 indexed year, which is strictly more information than
                 the kicker had. Showing both was duplicate. */}
+
+            {/* B0.3 — IngestedBadge (header variant) when this report
+                was indexed from an external source. Renders above the
+                title so the provenance is visible before the user
+                reads the headline. Tone: "Indexed from [source] →"
+                with a link to the canonical source URL. */}
+            {isIngested(report) && (
+              <div className="mb-3">
+                <IngestedBadge
+                  variant="header"
+                  source_type={report?.source_type}
+                  original_report_id={report?.original_report_id}
+                  source_url={report?.source_url}
+                  source_label={report?.source_label}
+                  metadata={report?.metadata}
+                />
+              </div>
+            )}
 
             {/* ── 2. Title ────────────────────────────────────── */}
             <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight mb-3">
