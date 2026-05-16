@@ -18,7 +18,9 @@ import { useRouter } from 'next/router'
 import { supabase } from '@/lib/supabase'
 import { getApiBase } from '@/lib/utils'
 import dynamic from 'next/dynamic'
-import { ChevronDown, MapPin, Calendar, ExternalLink, Users, Camera, Plus, User as UserIcon, Activity } from 'lucide-react'
+import { ChevronDown, ChevronRight, MapPin, Calendar, ExternalLink, Users, Camera, Plus, User as UserIcon, Activity, Trash2, Loader2, X as XIcon } from 'lucide-react'
+import Link from 'next/link'
+import CategoryIcon from '@/components/ui/CategoryIcon'
 
 // Dynamic imports for SSR-incompatible components
 var ConstellationReveal = dynamic(
@@ -245,21 +247,54 @@ export default function LabConstellationTab() {
     )
   }
 
+  // V10.16 Phase E.1 — handler when a submission is deleted from
+  // the Manage panel. Removes the row from local state, refocuses
+  // safely, and if it was the user's last submission, flips back
+  // to the onboarding state.
+  function handleSubmissionDeleted(deletedId: string) {
+    setAllReports(function (prev) {
+      var next = prev.filter(function (r) { return r.id !== deletedId })
+      if (next.length === 0) {
+        // No submissions left — return to onboarding state.
+        setHasSubmission(false)
+        setUserExperience(null)
+        setMatches([])
+      } else {
+        // Refocus: if the deleted submission was focused or earlier
+        // in the list, the index might now point past the array end
+        // or to a different row. Clamp to a valid index.
+        setFocusedIdx(function (current) {
+          // If the deleted index was the focused one, prefer staying
+          // at the same numeric index (so the user sees the next
+          // submission in line). Clamp to next.length - 1.
+          var deletedIdx = prev.findIndex(function (r) { return r.id === deletedId })
+          if (deletedIdx === -1) return Math.min(current, next.length - 1)
+          if (current === deletedIdx) return Math.min(current, next.length - 1)
+          if (current > deletedIdx) return current - 1
+          return current
+        })
+      }
+      return next
+    })
+  }
+
   // Has submission — V9.11.5 #16 polished RADAR view.
   // V10.15 — wrapped with the multi-submission switcher pill row
   // when the user has more than one submission. The switcher lets
   // them flip the RADAR + the embedded SIGNAL focus between any of
   // their submissions; the focused report ID is mirrored to the URL.
+  // V10.16 Phase E.1 — switcher ALWAYS renders (even with one
+  // submission) so the Manage affordance is reachable. Was hidden
+  // for single-submission users in V10.15.
   if (userExperience) {
     return (
       <>
-        {allReports.length > 1 && (
-          <SubmissionSwitcher
-            reports={allReports}
-            focusedIdx={focusedIdx}
-            onFocus={setFocusedIdx}
-          />
-        )}
+        <SubmissionSwitcher
+          reports={allReports}
+          focusedIdx={focusedIdx}
+          onFocus={setFocusedIdx}
+          onDeleted={handleSubmissionDeleted}
+        />
         <PolishedRadarView
           userExperience={userExperience}
           matches={matches}
@@ -275,57 +310,262 @@ export default function LabConstellationTab() {
 }
 
 /**
- * V10.15 Phase C — submission switcher pill row.
+ * V10.15 Phase C / V10.16 Phase E.1 — submission switcher pill row
+ * with Manage panel.
  *
- * Renders one pill per user submission. Tap a pill to refocus the
- * RADAR + embedded SIGNAL on that submission. The focused pill gets
- * a brand-purple background; others sit in the dim default.
+ * Renders one pill per user submission for focus-switching. Tap a
+ * pill to refocus RADAR + embedded SIGNAL. Always renders (even for
+ * single-submission users) so the Manage affordance is reachable.
  *
- * Hidden when the user has only one submission (no point showing a
- * switcher with one option). Empty state of the multi-submission
- * world handled by the parent (single-submission path is unchanged).
+ * The trailing Manage gear pill opens a slide-up panel listing all
+ * submissions with edit/delete actions. This is the canonical home
+ * for "manage your submitted reports" — moved off the CASES tab in
+ * V10.16 because Collections (case files) is a research-workflow
+ * metaphor that doesn't fit user-submitted stories.
  *
- * Mobile: pill row scrolls horizontally with snap if there are more
- * pills than fit. Desktop: pills wrap.
+ * Mobile: pill row scrolls horizontally with snap. Desktop: wraps.
+ * The Manage panel is a full-screen modal on mobile, a centered
+ * dialog on desktop.
  */
 function SubmissionSwitcher(props: {
   reports: any[]
   focusedIdx: number
   onFocus: (idx: number) => void
+  onDeleted: (deletedId: string) => void
 }) {
+  var [manageOpen, setManageOpen] = useState(false)
   function pillLabel(r: any): string {
     var typeName = r.phenomenon_type?.name || r.category || 'Experience'
     var year = r.event_date ? new Date(r.event_date).getFullYear() : null
     return year ? typeName + ' ' + year : typeName
   }
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 pb-1">
-      <div className="flex items-center gap-2 mb-2">
-        <Activity className="w-3 h-3 text-purple-300" />
-        <span className="text-[10px] font-semibold tracking-widest uppercase text-purple-300">
-          Your experiences ({props.reports.length})
-        </span>
+    <>
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 pb-1">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2">
+            <Activity className="w-3 h-3 text-purple-300" />
+            <span className="text-[10px] font-semibold tracking-widest uppercase text-purple-300">
+              Your {props.reports.length === 1 ? 'experience' : 'experiences (' + props.reports.length + ')'}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={function () { setManageOpen(true) }}
+            className="inline-flex items-center gap-1 text-[10px] font-semibold tracking-widest uppercase text-gray-400 hover:text-purple-300 transition-colors"
+            aria-label="Manage your submissions"
+          >
+            Manage <ChevronRight className="w-3 h-3" />
+          </button>
+        </div>
+        {props.reports.length > 1 && (
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 sm:-mx-0 px-4 sm:px-0 pb-1 sm:flex-wrap snap-x snap-mandatory sm:snap-none">
+            {props.reports.map(function(r: any, i: number) {
+              var isActive = i === props.focusedIdx
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={function() { props.onFocus(i) }}
+                  className={
+                    'flex-shrink-0 snap-start inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ' +
+                    (isActive
+                      ? 'bg-purple-600/30 text-purple-100 border border-purple-500/50'
+                      : 'bg-gray-900/60 text-gray-300 hover:text-white border border-gray-800/60 hover:border-purple-600/30')
+                  }
+                >
+                  {isActive && <span className="w-1.5 h-1.5 rounded-full bg-purple-300" />}
+                  {pillLabel(r)}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
-      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 sm:-mx-0 px-4 sm:px-0 pb-1 sm:flex-wrap snap-x snap-mandatory sm:snap-none">
-        {props.reports.map(function(r: any, i: number) {
-          var isActive = i === props.focusedIdx
-          return (
-            <button
-              key={r.id}
-              type="button"
-              onClick={function() { props.onFocus(i) }}
-              className={
-                'flex-shrink-0 snap-start inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ' +
-                (isActive
-                  ? 'bg-purple-600/30 text-purple-100 border border-purple-500/50'
-                  : 'bg-gray-900/60 text-gray-300 hover:text-white border border-gray-800/60 hover:border-purple-600/30')
-              }
-            >
-              {isActive && <span className="w-1.5 h-1.5 rounded-full bg-purple-300" />}
-              {pillLabel(r)}
-            </button>
-          )
-        })}
+      {manageOpen && (
+        <ManageSubmissionsPanel
+          reports={props.reports}
+          onClose={function () { setManageOpen(false) }}
+          onDeleted={function (id: string) {
+            props.onDeleted(id)
+            // If the user just deleted their last submission, close
+            // the panel automatically — the parent flips back to
+            // the onboarding state and the panel would render over
+            // an empty Story.
+            if (props.reports.length <= 1) setManageOpen(false)
+          }}
+        />
+      )}
+    </>
+  )
+}
+
+/**
+ * V10.16 Phase E.1 — ManageSubmissionsPanel.
+ *
+ * Slide-up modal (mobile) / centered dialog (desktop) listing the
+ * user's submissions. Each row shows title, status, date and an
+ * inline two-step Delete affordance. Future: edit, restore from
+ * trash, share permalink.
+ *
+ * Delete uses the same /api/reports/[slug]/delete endpoint as the
+ * Cases tab; on success calls onDeleted(id) so the parent can drop
+ * the row from its allReports state and refocus.
+ *
+ * Closes on backdrop tap, Escape key, or the X button.
+ */
+function ManageSubmissionsPanel(props: {
+  reports: any[]
+  onClose: () => void
+  onDeleted: (id: string) => void
+}) {
+  useEffect(function () {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') props.onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return function () {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [])
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={props.onClose}
+    >
+      <div
+        className="w-full sm:max-w-lg bg-gray-950 border border-gray-800 sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[88dvh] flex flex-col"
+        onClick={function (e) { e.stopPropagation() }}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+          <div>
+            <h2 className="text-base font-semibold text-white">Manage your submissions</h2>
+            <p className="text-[11px] text-gray-500 mt-0.5">{props.reports.length} {props.reports.length === 1 ? 'experience' : 'experiences'} shared</p>
+          </div>
+          <button
+            type="button"
+            onClick={props.onClose}
+            aria-label="Close manage submissions"
+            className="w-8 h-8 inline-flex items-center justify-center rounded-md text-gray-400 hover:text-white hover:bg-gray-800/60 transition-colors"
+          >
+            <XIcon className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+          {props.reports.map(function (r: any) {
+            return (
+              <ManageSubmissionRow key={r.id} report={r} onDeleted={props.onDeleted} />
+            )
+          })}
+        </div>
+        <div className="border-t border-gray-800 px-4 py-3">
+          <Link
+            href="/start"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-purple-300 hover:text-purple-200"
+          >
+            <Plus className="w-4 h-4" />
+            Share another experience
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * V10.16 Phase E.1 — ManageSubmissionRow.
+ *
+ * Single row in the Manage panel. Two-step inline delete (matches
+ * the iOS Mail / Notes confirm pattern). Status pill on the right.
+ * Tapping the title navigates to /report/[slug] for approved
+ * submissions; pending submissions stay non-navigating (status pill
+ * communicates why).
+ */
+function ManageSubmissionRow(props: { report: any; onDeleted: (id: string) => void }) {
+  var r = props.report
+  var [confirming, setConfirming] = useState(false)
+  var [busy, setBusy] = useState(false)
+  var [errMsg, setErrMsg] = useState<string | null>(null)
+  useEffect(function () {
+    if (!confirming) return
+    var t = setTimeout(function () { setConfirming(false) }, 4000)
+    return function () { clearTimeout(t) }
+  }, [confirming])
+  function handleDelete(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (busy) return
+    if (!confirming) { setConfirming(true); return }
+    setBusy(true)
+    setErrMsg(null)
+    supabase.auth.getSession().then(function (s) {
+      var token = s.data.session ? s.data.session.access_token : null
+      if (!token) { setErrMsg('Sign in again to delete.'); setBusy(false); return }
+      fetch('/api/reports/' + encodeURIComponent(r.slug) + '/delete', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token },
+      })
+        .then(function (resp) {
+          if (!resp.ok) return resp.json().then(function (j) { throw new Error(j.error || 'Delete failed') })
+          props.onDeleted(r.id)
+        })
+        .catch(function (e: any) {
+          setErrMsg(e.message || 'Delete failed')
+          setBusy(false)
+          setConfirming(false)
+        })
+    })
+  }
+  var status = (r.status || 'pending') as string
+  var statusLabel = status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')
+  var clickable = status === 'approved' || status === 'published'
+  var typeLabel = r.phenomenon_type?.name || r.category || 'Experience'
+  var date = r.event_date ? new Date(r.event_date).getFullYear() : (r.created_at ? new Date(r.created_at).toLocaleDateString() : '')
+  return (
+    <div className="rounded-lg bg-gray-900/60 border border-gray-800/60 px-3 py-2.5">
+      <div className="flex items-start gap-3">
+        <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
+          <CategoryIcon category={r.category} size={14} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            {clickable ? (
+              <Link href={'/report/' + r.slug} className="text-sm font-medium text-white truncate hover:text-purple-300">
+                {r.title || 'Untitled Report'}
+              </Link>
+            ) : (
+              <span className="text-sm font-medium text-white truncate">{r.title || 'Untitled Report'}</span>
+            )}
+          </div>
+          <div className="text-[10px] text-gray-500 mt-0.5">
+            {typeLabel}{date ? ' · ' + date : ''}
+          </div>
+          {errMsg && <p className="text-[10px] text-red-300 mt-1">{errMsg}</p>}
+        </div>
+        <span className={'flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ' +
+          (status === 'approved' || status === 'published'
+            ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
+            : status === 'rejected'
+              ? 'bg-red-500/10 border-red-500/40 text-red-300'
+              : 'bg-amber-500/10 border-amber-500/40 text-amber-300')}>
+          {statusLabel}
+        </span>
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={busy}
+          aria-label={confirming ? 'Tap again to confirm delete' : 'Delete this submission'}
+          className={
+            'flex-shrink-0 inline-flex items-center justify-center transition-all ' +
+            (confirming
+              ? 'gap-1 px-2 py-1 rounded-md bg-red-500/15 border border-red-500/40 text-red-300 text-[10px] font-semibold'
+              : 'w-7 h-7 rounded-md text-gray-500 hover:text-red-300 hover:bg-red-500/10')
+          }
+        >
+          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : confirming ? (<><Trash2 className="w-3 h-3" /> Confirm</>) : <Trash2 className="w-3.5 h-3.5" />}
+        </button>
       </div>
     </div>
   )

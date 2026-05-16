@@ -122,8 +122,12 @@ export default function LabCasesTab({
         </button>
       </div>
 
-      {/* My Submissions — pinned section showing user's submitted reports */}
-      <MySubmissionsSection />
+      {/* V10.16 Phase E.1 — MySubmissionsSection removed. User
+          submissions are now managed exclusively from the
+          SubmissionSwitcher's Manage panel on the Story tab
+          (semantic home: user-submitted stories belong with
+          "Your Story," not in Collections which is a research
+          workflow metaphor). */}
 
       {/* CaseFileBar — horizontal filter strip, only shown when there's
           something to filter. The primary "+ New" button lives in the header
