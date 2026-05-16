@@ -531,12 +531,22 @@ export default function StartPage() {
             return
           }
 
-          // Have auth + draft → submit; have auth + no draft → reveal nothing
+          // T1.8 funnel event: user completed signup
+          try {
+            require('@/lib/posthog').capture('signup_complete', {
+              referrer: typeof document !== 'undefined' ? document.referrer || null : null,
+              had_draft: !!(d && d.description.trim().length >= 30),
+            })
+          } catch {}
+
           if (d && d.description.trim().length >= 30) {
+            // Legacy / experience-first carryover: draft filled, run submit
             setStep('submit')
           } else {
-            // Edge case: no draft. Send to discover.
-            router.replace('/discover')
+            // T1.8 — account-first: post-auth user with no draft lands on
+            // the experience form (rather than bouncing to /discover).
+            // Their flow continues seamlessly: account → experience → submit.
+            setStep('experience')
           }
         } else {
           // Auth not active yet (race) — show check-email again.
@@ -546,13 +556,22 @@ export default function StartPage() {
       return
     }
 
-    // V10.13.1 — REMOVED the legacy auto-bounce-to-/lab. The funnel
-    // consolidation work makes /start the canonical submit URL for
-    // both first-time AND returning users. Bouncing experienced users
-    // away from /start broke the "Share another experience" path
-    // (and any future link that should bring users back to submit).
-    // The experienced-user useEffect above handles state initialization
-    // (lands them on the experience-form step instead of welcome).
+    // T1.8 — initial step decision for non-auth-callback mount.
+    // Authed users (returning) land on 'experience' (the form, current
+    // default via useState). Unauthed users land on 'account' (sign up
+    // first per the account-first onboarding flip). Previously the
+    // default useState put everyone on 'experience' even when unauthed,
+    // forcing them to fill the form before being asked for an email.
+    supabase.auth.getSession().then(function (s) {
+      if (!s.data.session) {
+        setStep('account')
+        try {
+          require('@/lib/posthog').capture('signup_intent', {
+            referrer: typeof document !== 'undefined' ? document.referrer || null : null,
+          })
+        } catch {}
+      }
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.query.from])
 
@@ -950,21 +969,31 @@ export default function StartPage() {
 
   function continueToAccount() {
     setError(null)
-    // V9.11.5 #27 — Min length 30 → 50 (panel verdict). 30 chars is barely
-    // a sentence; 50 is roughly a sentence with one descriptor and produces
-    // meaningfully better RADAR matches without pushing real users away
-    // (most descriptions in our corpus run >> 50 chars).
     if (draft.description.trim().length < 50) {
       setError('Add a few more words so we can find good matches — even one extra sentence helps.')
       return
     }
-    // V9.11.5 #13 — Clear any stale ACCOUNT_ONLY_KEY from a prior
-    // "share later" test in this browser. Without this, the post-auth
-    // handler sees the stale flag and routes the user straight to
-    // /discover, skipping their actual submit + RADAR reveal.
     try { localStorage.removeItem(ACCOUNT_ONLY_KEY) } catch {}
     saveDraft(draft)
-    setStep('account')
+
+    // T1.8 — auth-aware progression. In the account-first flow, users
+    // arriving at 'experience' are already authenticated; from here they
+    // go straight to 'submit'. Unauthed users hitting the form (legacy
+    // path or back-button edge case) fall through to the original
+    // experience → account → check-email magic-link flow.
+    supabase.auth.getSession().then(function (s) {
+      if (s.data.session) {
+        try {
+          require('@/lib/posthog').capture('submit_started', {
+            description_length: draft.description.length,
+            category: draft.category || null,
+          })
+        } catch {}
+        setStep('submit')
+      } else {
+        setStep('account')
+      }
+    })
   }
 
   function handleSkip() {
@@ -1108,7 +1137,43 @@ export default function StartPage() {
             had_media: pendingMedia.length > 0,
             description_length: (draft.description || '').length,
           })
+          // T1.8 — explicit submit_complete event for the account-first
+          // funnel (signup_intent → signup_complete → submit_started →
+          // submit_complete).
+          require('@/lib/posthog').capture('submit_complete', {
+            report_id: result.report_id,
+            category: draft.category || null,
+            description_length: (draft.description || '').length,
+          })
         } catch {}
+
+        // T1.8 + E0.5 — activate 7-day Basic trial on first-experience
+        // submission. Fire-and-forget; never block the reveal animation.
+        // The endpoint is idempotent — calling on subsequent submissions
+        // or for users already on a paid tier is a no-op.
+        try {
+          fetch('/api/subscription/activate-trial', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: 'Bearer ' + session.access_token,
+            },
+          })
+            .then(function (r) { return r.ok ? r.json() : null })
+            .then(function (data: any) {
+              if (data && data.activated) {
+                try {
+                  require('@/lib/posthog').capture('trial_activated', {
+                    tier: data.tier,
+                    trial_ends_at: data.trial_ends_at,
+                    triggered_by: 'first_submission',
+                  })
+                } catch {}
+              }
+            })
+            .catch(function () { /* non-fatal */ })
+        } catch { /* non-fatal */ }
+
         // V9.11.2 #F — mark the funnel as completed so future homepage
         // visits don't bounce this user back to /start.
         try { localStorage.setItem(COMPLETE_KEY, '1') } catch {}
