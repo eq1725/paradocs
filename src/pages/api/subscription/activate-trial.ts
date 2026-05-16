@@ -72,11 +72,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .limit(1)
       .maybeSingle();
 
+    // No subscription row exists at all — user predates the default-tier
+    // trigger from 003_subscriptions.sql, OR the trigger failed silently.
+    // Either way, INSERT a new trial subscription rather than no-op'ing.
+    // This makes the endpoint resilient against missing-row edge cases.
     if (subErr || !currentSub) {
+      var nowInsert = new Date();
+      var trialEndsInsert = new Date(nowInsert.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+
+      var { error: insertErr } = await (supabase
+        .from('user_subscriptions') as any)
+        .insert({
+          user_id: user.id,
+          tier_id: basicTier.id,
+          status: 'active',
+          is_trial: true,
+          trial_started_at: nowInsert.toISOString(),
+          trial_ends_at: trialEndsInsert.toISOString(),
+          started_at: nowInsert.toISOString(),
+        });
+
+      if (insertErr) {
+        console.error('[activate-trial] insert (no prior sub) failed:', insertErr);
+        return res.status(500).json({ error: 'Failed to activate trial (insert)' });
+      }
+
+      await (supabase.from('profiles') as any)
+        .update({ current_tier_id: basicTier.id })
+        .eq('id', user.id);
+
+      console.log('[activate-trial] activated (via INSERT) for user', user.id, 'until', trialEndsInsert.toISOString());
+
       return res.status(200).json({
         ok: true,
-        activated: false,
-        reason: 'no_eligible_subscription',
+        activated: true,
+        trial_ends_at: trialEndsInsert.toISOString(),
+        tier: 'basic',
+        via: 'insert',
       });
     }
 
