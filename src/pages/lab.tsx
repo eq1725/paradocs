@@ -627,13 +627,11 @@ function YourSignalTab() {
           first viewport always carries one strong, parseable signal. */}
       <HeroCardSlot heroCard={heroCard} reportId={data.report_id} feedback={data.feedback} />
 
-      {/* V10.9 — Ask the Unknown placement controlled by feature flag
-          signal-ask-placement. Default ('above-cards') puts it here,
-          directly under the hero — engagement data from analogous Q&A
-          surfaces shows the input box must appear in the first
-          viewport. Variant ('below-cards') moves it under the
-          accordion to A/B test the audit's hypothesis. */}
-      {!askBelow && <AskTheUnknown />}
+      {/* V10.16 (Phase E) — AskTheUnknown removed from Story.
+          It now lives exclusively on the ASK tab (Phase D Lab
+          consolidation), so embedding it here was duplication.
+          Story tab is tighter; users who want to ask navigate to
+          the ASK tab directly. */}
 
       {/* V10.9 — peer card (full width). Kept above the accordion
           because "X people share this signature" is the strongest
@@ -650,30 +648,56 @@ function YourSignalTab() {
         feedback={data.feedback}
       />
 
-      {/* Ask the Unknown — alternate placement (below-cards variant). */}
-      {askBelow && <AskTheUnknown />}
-
-      {/* V10.9 Phase 2 — surface push-notification opt-in AND
-          Resend-backed email digest opt-in side by side. Push is
-          higher-fidelity (cluster growth alerts within hours) but
-          requires a supported browser; email is universal but
-          weekly-cadence by default. Together they cover every
-          reactivation channel.
-          V10.12.1 — email card receives initial state from API
-          response so the toggle reflects persisted preference on
-          page load (was previously always rendering as off). */}
-      <SignalAlertsOptInCard />
-      <SignalEmailDigestCard initialPrefs={data.email_prefs || null} />
-
-      {/* V10.9 Phase 3 — surface the existing year-in-review API as
-          an explorable highlight. Shipped collapsed by default to
-          avoid competing with the active deltas above. */}
-      <YearInReviewEntry />
+      {/* V10.16 (Phase E) — three secondary surfaces (push opt-in,
+          email opt-in, year-in-review) collapsed into one expandable
+          "Notifications & sharing" accordion. They were ~500px of
+          stacked vertical real estate on mobile, none of which were
+          part of the core "your story" payload. The expander keeps
+          them accessible but out of the way. */}
+      <NotificationsAndSharingAccordion emailPrefs={data.email_prefs || null} />
 
       <p className="text-[11px] text-gray-500 text-center pt-2 leading-relaxed">
         Your Signal updates as new reports land in the archive. The thumbs
         on each card tune what shows up next time.
       </p>
+    </div>
+  )
+}
+
+/**
+ * V10.16 (Phase E) — collapses the three secondary surfaces (push
+ * alerts, email digest, year-in-review) into a single accordion at
+ * the bottom of the Story tab. Three discrete settings/utility
+ * blocks become one tap-to-expand, saving ~500px of mobile vertical
+ * space without removing access.
+ *
+ * Kept as a single expander rather than three (each could be its
+ * own expander) because they share a "secondary engagement" theme —
+ * notifications and the periodic reveal aren't the user's primary
+ * Signal payload, they're how the user opts back in over time.
+ */
+function NotificationsAndSharingAccordion(props: {
+  emailPrefs: { enabled: boolean; cadence: 'daily' | 'weekly' } | null
+}) {
+  var [open, setOpen] = useState(false)
+  return (
+    <div className="rounded-xl border border-gray-800/60 bg-gray-900/30">
+      <button
+        type="button"
+        onClick={function () { setOpen(!open) }}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-200 hover:text-white transition-colors"
+      >
+        <span className="font-medium">Notifications &amp; sharing</span>
+        <span className="text-xs text-gray-500">{open ? 'Hide' : 'Show'}</span>
+      </button>
+      {open && (
+        <div className="px-3 pb-3 pt-0 space-y-3">
+          <SignalAlertsOptInCard />
+          <SignalEmailDigestCard initialPrefs={props.emailPrefs} />
+          <YearInReviewEntry />
+        </div>
+      )}
     </div>
   )
 }

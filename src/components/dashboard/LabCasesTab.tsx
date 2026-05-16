@@ -1304,38 +1304,66 @@ function SubmissionRow(props: {
   }
 
   var clickable = r.status === 'published' || r.status === 'approved'
+  var [expanded, setExpanded] = useState(false)
+
+  // V10.16 — fix the /report?preview=1 404 by inline-expanding
+  // pending/in-review reports instead of linking to the public
+  // report page (which getStaticProps-filters them out). Approved
+  // reports still link to /report/[slug]. Pending reports get an
+  // inline preview pane with the title, description, location,
+  // and submission date — same data the public page would show.
+  function handleRowClick(e: React.MouseEvent) {
+    if (clickable) return // let the Link navigate as normal
+    e.preventDefault()
+    e.stopPropagation()
+    setExpanded(function(p) { return !p })
+  }
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-gray-900/60 border border-gray-800/60 hover:border-primary-600/30 hover:bg-gray-900 transition-all group">
-      {/* V10.13 Hotfix — let users open their own pending/in-review
-          submissions. Even if the public report page redirects them
-          back, they can at least see what they submitted. The link
-          target uses an admin-preview route fallback in the future
-          but for now sends them to the same /report/[slug] which
-          handles owner-preview cases. */}
-      <Link
-        href={'/report/' + r.slug + (clickable ? '' : '?preview=1')}
-        className="flex items-center gap-3 flex-1 min-w-0"
-      >
-        <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
-          <CategoryIcon category={r.category} size={14} />
+    <div className="rounded-lg bg-gray-900/60 border border-gray-800/60 hover:border-primary-600/30 transition-all group">
+      <div className="flex items-center gap-3 px-3 py-2.5">
+        {clickable ? (
+          <Link
+            href={'/report/' + r.slug}
+            className="flex items-center gap-3 flex-1 min-w-0"
+          >
+            <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
+              <CategoryIcon category={r.category} size={14} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-white truncate">{r.title || 'Untitled Report'}</div>
+              <div className="text-[10px] text-gray-500">
+                {new Date(r.created_at).toLocaleDateString()}
+              </div>
+            </div>
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={handleRowClick}
+            className="flex items-center gap-3 flex-1 min-w-0 text-left"
+            aria-expanded={expanded}
+          >
+            <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
+              <CategoryIcon category={r.category} size={14} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-white truncate">{r.title || 'Untitled Report'}</div>
+              <div className="text-[10px] text-gray-500">
+                {new Date(r.created_at).toLocaleDateString()} · tap to preview
+              </div>
+            </div>
+          </button>
+        )}
+        <div className={classNames('flex items-center gap-1 px-2 py-1 rounded-full border text-[10px] font-semibold', st.bg, st.color)}>
+          <StIcon className="w-3 h-3" />
+          {st.label}
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-white truncate">{r.title || 'Untitled Report'}</div>
-          <div className="text-[10px] text-gray-500">
-            {new Date(r.created_at).toLocaleDateString()}
-          </div>
-        </div>
-      </Link>
-      <div className={classNames('flex items-center gap-1 px-2 py-1 rounded-full border text-[10px] font-semibold', st.bg, st.color)}>
-        <StIcon className="w-3 h-3" />
-        {st.label}
-      </div>
-      {clickable && (
-        <Link href={'/report/' + r.slug}>
-          <ExternalLink className="w-3.5 h-3.5 text-gray-600 group-hover:text-primary-400 transition-colors flex-shrink-0" />
-        </Link>
-      )}
+        {clickable && (
+          <Link href={'/report/' + r.slug}>
+            <ExternalLink className="w-3.5 h-3.5 text-gray-600 group-hover:text-primary-400 transition-colors flex-shrink-0" />
+          </Link>
+        )}
       {/* V10.13 Phase A — inline delete with two-step confirm. */}
       <button
         type="button"
@@ -1362,6 +1390,30 @@ function SubmissionRow(props: {
         )}
       </button>
       {errMsg && <span className="text-[10px] text-red-300 ml-1">{errMsg}</span>}
+      </div>
+      {/* V10.16 — inline preview pane for pending/in-review reports.
+          Shows the title, description, and location the user
+          submitted, without leaving the page. Avoids the 404 path
+          when clicking into a not-yet-approved report. */}
+      {expanded && !clickable && (
+        <div className="px-3 pb-3 pt-1 border-t border-gray-800/40">
+          <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1 font-semibold">
+            Your submission
+          </p>
+          <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-line">
+            {r.description || r.summary || 'No description provided.'}
+          </p>
+          {(r.city || r.state_province || r.country) && (
+            <p className="text-[11px] text-gray-400 mt-2">
+              <span className="text-gray-500">Location: </span>
+              {[r.city, r.state_province, r.country].filter(Boolean).join(', ')}
+            </p>
+          )}
+          <p className="text-[10px] text-gray-500 mt-2 italic">
+            This is what reviewers see. Once approved, this submission becomes a public report.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
