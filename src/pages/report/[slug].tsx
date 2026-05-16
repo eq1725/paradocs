@@ -285,11 +285,14 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
 
       // Geographic radius — count from the nearby array we already
       // fetched. Cheap (already in memory). Pairs with the map at top.
+      // V10.9.D.8 — display in miles for US-focused audience. Internal
+      // radius stays in km because the haversine RPC takes km.
       if (nearby.length > 0 && (reportData as any).latitude && (reportData as any).longitude) {
         const radiusKm = 80
+        const radiusMi = Math.round(radiusKm * 0.621371) // ≈ 50 mi
         const nm = nearby.length
         patterns.push({
-          label: nm.toLocaleString() + ' similar cases within ' + radiusKm + ' km',
+          label: nm.toLocaleString() + ' similar cases within ' + radiusMi + ' mi',
           count: nm,
           href: '/map?center=' + (reportData as any).latitude + ',' + (reportData as any).longitude + '&zoom=8',
         })

@@ -142,6 +142,109 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ checked: 0, alerted: 0, skipped: 0, errors: 0, reason: 'no_subscribed_users' })
   }
 
+  // E0.8 — tier gating. Daily Signal Alerts push is a Basic+ feature
+  // per the V2 tier design. Resolve each user's tier and filter the
+  // batch down to basic/pro. Free users with the your_signal topic
+  // get a one-time "moved to Basic" push (handled below) then are
+  // unsubscribed from the topic so subsequent runs skip them.
+  var freeUserIds: string[] = []
+  var tierByUser: Record<string, string> = {}
+  try {
+    var subTierResult = await (svc.from('user_subscriptions') as any)
+      .select('user_id, tier:subscription_tiers(name)')
+      .in('user_id', userIds)
+      .eq('status', 'active')
+    var subRows: any[] = (subTierResult && subTierResult.data) || []
+    subRows.forEach(function (r: any) {
+      var tierName = (r.tier && r.tier.name) || 'free'
+      tierByUser[r.user_id] = tierName
+    })
+    // Users with no active subscription row default to 'free'.
+    userIds.forEach(function (uid) {
+      if (!tierByUser[uid]) tierByUser[uid] = 'free'
+    })
+  } catch (e) {
+    // Fail-closed on the gating: if we can't resolve tiers, skip
+    // everyone (no spurious sends to free users). Logs will surface
+    // the lookup failure.
+    console.error('[signal-alerts] tier resolution failed:', e)
+    return res.status(500).json({ error: 'Tier resolution failed' })
+  }
+
+  // Split into paid (eligible) and free (will get one-time notice).
+  var paidUserIds = userIds.filter(function (uid) {
+    var t = tierByUser[uid]
+    return t === 'basic' || t === 'pro' || t === 'enterprise'
+  })
+  freeUserIds = userIds.filter(function (uid) {
+    return !(tierByUser[uid] === 'basic' || tierByUser[uid] === 'pro' || tierByUser[uid] === 'enterprise')
+  })
+
+  // E0.8 — one-time "Signal Alerts are now Basic" notice to free users
+  // who previously opted into the topic. Sent best-effort, then their
+  // your_signal topic is removed so they don't keep showing up in
+  // future runs.
+  var freeNoticeSent = 0
+  for (var fIdx = 0; fIdx < freeUserIds.length; fIdx++) {
+    var freeUserId = freeUserIds[fIdx]
+    var freeSubs = subsByUser[freeUserId] || []
+    var noticeNotif = {
+      title: 'Daily Signal Alerts are now part of Basic',
+      body: 'Upgrade to keep getting Signal pushes when patterns shift near your experiences. $5.99/mo.',
+      icon: '/icons/icon-192x192.png',
+      badge: '/icons/icon-192x192.png',
+      data: {
+        url: '/account/subscription',
+        source: 'signal_alert_tier_notice',
+      },
+    }
+    for (var fs = 0; fs < freeSubs.length; fs++) {
+      try {
+        await webpush.sendNotification(
+          { endpoint: freeSubs[fs].endpoint, keys: { p256dh: freeSubs[fs].p256dh, auth: freeSubs[fs].auth_secret } },
+          JSON.stringify(noticeNotif),
+          { TTL: 24 * 60 * 60 }
+        )
+      } catch (_e) { /* sub may be dead; ignore */ }
+    }
+    // Remove your_signal topic so this push doesn't repeat tomorrow.
+    try {
+      for (var rs = 0; rs < freeSubs.length; rs++) {
+        var existingTopics: string[] = Array.isArray(freeSubs[rs].topics) ? freeSubs[rs].topics : []
+        var newTopics = existingTopics.filter(function (t: string) { return t !== 'your_signal' })
+        await svc.from('push_subscriptions')
+          .update({ topics: newTopics })
+          .eq('endpoint', freeSubs[rs].endpoint)
+      }
+    } catch (_e) { /* non-fatal */ }
+    // Log to user_notifications so they see this in their bell (T1.9).
+    try {
+      await svc.from('user_notifications').insert({
+        user_id: freeUserId,
+        type: 'tier_change',
+        title: noticeNotif.title,
+        body: noticeNotif.body,
+        link_url: '/account/subscription',
+        metadata: { source: 'signal_alert_tier_notice' },
+      })
+    } catch (_e) { /* non-fatal */ }
+    freeNoticeSent++
+  }
+
+  // Replace the working list with paid users only — the rest of the
+  // function processes the Signal Alert push as before.
+  userIds = paidUserIds
+  if (userIds.length === 0) {
+    return res.status(200).json({
+      checked: 0,
+      alerted: 0,
+      skipped: 0,
+      errors: 0,
+      free_notices_sent: freeNoticeSent,
+      reason: 'no_paid_users_subscribed',
+    })
+  }
+
   // 2) Load existing alert states for these users in one shot.
   var stateResult = await svc.from('signal_alert_state')
     .select('*')
@@ -237,19 +340,57 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         continue
       }
 
+      // V10.11 — check for a pending contribution callout. The
+      // /api/lab/your-signal endpoint sets contribution_callout_pending_at
+      // when the user crosses early→foundational or gains 5+ new
+      // arrivals as a foundational case. If pending, replace the
+      // standard "Your Signal grew" copy with a higher-emotional-payoff
+      // contribution title; otherwise keep the standard copy.
+      var contribPending = false
+      var contribPayload: any = null
+      try {
+        var visitRow = await svc.from('signal_user_visits')
+          .select('contribution_callout_pending_at, last_contribution_payload')
+          .eq('user_id', userId)
+          .maybeSingle()
+        if (visitRow && visitRow.data && visitRow.data.contribution_callout_pending_at) {
+          contribPending = true
+          contribPayload = visitRow.data.last_contribution_payload || null
+        }
+      } catch (_e) { /* table may not have columns yet — ignore */ }
+
       // Send a push to every active sub for this user.
       var userSubs = subsByUser[userId] || []
-      var notif = {
-        title: 'Your Signal grew',
-        body: growth === 1
-          ? '1 new report joined your cluster.'
-          : growth + ' new reports joined your cluster.',
-        icon: '/icons/icon-192x192.png',
-        badge: '/icons/icon-192x192.png',
-        data: {
-          url: '/lab?tab=signal',
-          source: 'signal_alert',
-        },
+      var notif: any
+      if (contribPending && contribPayload) {
+        var arrivals = (contribPayload.newer_arrivals_count || 0)
+        notif = {
+          title: contribPayload.is_foundational
+            ? 'Your story anchors a growing cluster'
+            : 'Your story is one of the early cases here',
+          body: arrivals === 1
+            ? '1 new report has joined since you logged yours.'
+            : arrivals + ' new reports have joined since you logged yours.',
+          icon: '/icons/icon-192x192.png',
+          badge: '/icons/icon-192x192.png',
+          data: {
+            url: '/lab?tab=signal',
+            source: 'signal_alert_contribution',
+          },
+        }
+      } else {
+        notif = {
+          title: 'Your Signal grew',
+          body: growth === 1
+            ? '1 new report joined your cluster.'
+            : growth + ' new reports joined your cluster.',
+          icon: '/icons/icon-192x192.png',
+          badge: '/icons/icon-192x192.png',
+          data: {
+            url: '/lab?tab=signal',
+            source: 'signal_alert',
+          },
+        }
       }
 
       var perUserSent = 0
@@ -282,8 +423,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
-      if (perUserSent > 0) alerted++
-      else { skipped++; details.push({ user_id: userId, reason: 'all_subs_failed', cluster_size: clusterSize, growth: growth }) }
+      if (perUserSent > 0) {
+        alerted++
+        // V10.11 — if the alert consumed a pending contribution
+        // callout, clear it so the email cron doesn't also fire on
+        // the same transition. Best-effort update.
+        if (contribPending) {
+          try {
+            await svc.from('signal_user_visits')
+              .update({ contribution_callout_pending_at: null, updated_at: new Date().toISOString() })
+              .eq('user_id', userId)
+          } catch (_e) { /* column may not exist yet — ignore */ }
+        }
+
+        // T1.9 — log to user_notifications so the bell dropdown
+        // surfaces this alert. Best-effort; table may not exist on
+        // older deploys until 20260516_user_notifications migration
+        // runs. Failure is non-fatal.
+        try {
+          await svc.from('user_notifications').insert({
+            user_id: userId,
+            type: 'signal_alert',
+            title: notif.title,
+            body: notif.body,
+            link_url: (notif.data && notif.data.url) || '/lab?tab=story',
+            metadata: {
+              cluster_size: clusterSize,
+              growth: growth,
+              source: (notif.data && notif.data.source) || 'signal_alert',
+            },
+          })
+        } catch (_e) { /* user_notifications may not exist yet */ }
+      } else {
+        skipped++
+        details.push({ user_id: userId, reason: 'all_subs_failed', cluster_size: clusterSize, growth: growth })
+      }
 
     } catch (e: any) {
       errors++
@@ -299,6 +473,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     errors: errors,
     batch_size: batch.length,
     total_candidates: userIds.length,
+    free_notices_sent: freeNoticeSent, // E0.8 — one-time tier-gating notice
     details: details.slice(0, 50), // Trim for response size; full log in Vercel function output.
   })
 }

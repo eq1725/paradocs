@@ -367,6 +367,20 @@ export default function StartPage() {
   var router = useRouter()
   var [step, setStep] = useState<Step>('experience')
 
+  // V10.10 — funnel step 2 of 3. landing_view fires on /index;
+  // start_form_open fires here on /start mount; report_submitted
+  // fires after the API returns success. PostHog funnel built from
+  // these three step values shows landing → start → submitted
+  // conversion.
+  useEffect(function () {
+    try {
+      require('@/lib/posthog').capture('report_share_funnel', {
+        step: 'start_form_open',
+        referrer: typeof document !== 'undefined' ? document.referrer || null : null,
+      })
+    } catch {}
+  }, [])
+
   // Form state (step 1)
   var [draft, setDraft] = useState<ExperienceDraft>({
     description: '',
@@ -458,6 +472,35 @@ export default function StartPage() {
 
   // ---------------- mount: detect post-auth return + restore drafts
 
+  // V10.13.1 — detect experienced users and skip the welcome /
+  // category-picker steps. An experienced user is anyone with at
+  // least one prior approved or pending submission. They land
+  // directly on the experience-form step ('experience') with the
+  // tighter copy expected of a returning contributor.
+  useEffect(function () {
+    supabase.auth.getSession().then(function (s) {
+      var session = s.data.session
+      if (!session || !session.user) return
+      // Quick count query — if they have any non-deleted prior report,
+      // they're "experienced." We use the head:true count pattern so
+      // we don't pull row data we don't need.
+      supabase
+        .from('reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('submitted_by', session.user.id)
+        .neq('status', 'deleted')
+        .then(function (res: any) {
+          var n = res && res.count ? res.count : 0
+          if (n > 0) {
+            // Land them in the experience form, not the welcome screen.
+            // The form itself doesn't need a copy change — it's just
+            // skipping the prior steps that hand-hold first-timers.
+            setStep('experience')
+          }
+        })
+    })
+  }, [])
+
   useEffect(function () {
     // Restore drafts.
     var d = loadDraft()
@@ -465,22 +508,20 @@ export default function StartPage() {
     var a = loadAccount()
     if (a) setAccount(a)
 
-    // If we just came back from auth callback, jump to submit step.
+    // T1.8 — account-first onboarding flip. If we just came back from
+    // auth callback, route based on what the user had pre-auth:
+    //   - draft present (legacy or returning) → submit
+    //   - no draft (new account-first flow) → experience (fill form now)
     if (router.query.from === 'auth') {
-      // Need a session; check + advance.
       supabase.auth.getSession().then(function (s) {
         if (s.data.session) {
-          // V9.11.2 — if user picked "share later", skip submit + go to /discover
-          // even if there's a draft. They may have typed something then changed
-          // their mind; honor their final choice.
+          // V9.11.2 — "share later" path: bypass submit, land on /discover.
           var accountOnly = (function () {
             try { return localStorage.getItem(ACCOUNT_ONLY_KEY) === '1' } catch { return false }
           })()
           if (accountOnly) {
             try {
               localStorage.removeItem(ACCOUNT_ONLY_KEY)
-              // V9.11.2 #F — they've finished onboarding (just without
-              // a first report). Mark complete so / doesn't bounce them.
               localStorage.setItem(COMPLETE_KEY, '1')
             } catch {}
             clearDraft()
@@ -488,12 +529,20 @@ export default function StartPage() {
             return
           }
 
-          // Have auth + draft → submit; have auth + no draft → reveal nothing
+          // T1.8 funnel event: user completed signup
+          try {
+            require('@/lib/posthog').capture('signup_complete', {
+              referrer: typeof document !== 'undefined' ? document.referrer || null : null,
+              had_draft: !!(d && d.description.trim().length >= 30),
+            })
+          } catch {}
+
           if (d && d.description.trim().length >= 30) {
+            // Legacy / experience-first carryover: draft is filled, run submit
             setStep('submit')
           } else {
-            // Edge case: no draft. Send to discover.
-            router.replace('/discover')
+            // T1.8 — account-first: post-auth user lands on the experience form
+            setStep('experience')
           }
         } else {
           // Auth not active yet (race) — show check-email again.
@@ -503,12 +552,24 @@ export default function StartPage() {
       return
     }
 
-    // Already signed in + no draft? Just redirect to lab.
+    // T1.8 — initial step decision for non-auth-callback mount:
+    //   - Authed users (returning) land on 'experience' (the form)
+    //   - Unauthed users land on 'account' (sign up first per the
+    //     account-first onboarding flip)
+    // The previous behavior implicitly landed everyone on 'experience'
+    // via the default useState, gating account capture to post-form.
     supabase.auth.getSession().then(function (s) {
-      if (s.data.session && (!d || d.description.trim().length < 50)) {
-        // They're signed in already; onboarding doesn't apply.
-        router.replace('/lab')
+      if (!s.data.session) {
+        setStep('account')
+        try {
+          require('@/lib/posthog').capture('signup_intent', {
+            referrer: typeof document !== 'undefined' ? document.referrer || null : null,
+          })
+        } catch {}
       }
+      // Authed users keep the default 'experience' step (or get bumped
+      // by the experienced-user useEffect above, which also sets
+      // 'experience' so this is effectively a no-op for them).
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.query.from])
@@ -916,12 +977,29 @@ export default function StartPage() {
       return
     }
     // V9.11.5 #13 — Clear any stale ACCOUNT_ONLY_KEY from a prior
-    // "share later" test in this browser. Without this, the post-auth
-    // handler sees the stale flag and routes the user straight to
-    // /discover, skipping their actual submit + RADAR reveal.
+    // "share later" test in this browser.
     try { localStorage.removeItem(ACCOUNT_ONLY_KEY) } catch {}
     saveDraft(draft)
-    setStep('account')
+
+    // T1.8 — auth-aware progression. In the account-first flow, users
+    // arriving at 'experience' are already authenticated; from here they
+    // go straight to submit. Unauthed users hitting the form (legacy
+    // path or back-button edge case) fall through to the original
+    // experience → account → check-email magic-link flow.
+    supabase.auth.getSession().then(function (s) {
+      if (s.data.session) {
+        // T1.8 funnel: form completed by authed user, submitting now
+        try {
+          require('@/lib/posthog').capture('submit_started', {
+            description_length: draft.description.length,
+            category: draft.category || null,
+          })
+        } catch {}
+        setStep('submit')
+      } else {
+        setStep('account')
+      }
+    })
   }
 
   function handleSkip() {
@@ -1048,6 +1126,63 @@ export default function StartPage() {
         }
         setReportId(result.report_id)
         setReportSlug(result.slug)
+        // V10.10 — funnel step 3 of 3. Steps 1 (landing_view) and 2
+        // (start_form_open) fire on /index and /start mount; this is
+        // the conversion event we count when computing the
+        // landing → start → submitted funnel in PostHog.
+        try {
+          // Lazy import so non-onboarded paths don't pull posthog into
+          // the start.tsx bundle weight if the user never reaches
+          // submit. (Bundle-wise this is mostly cosmetic since posthog
+          // is loaded by _app, but the dynamic import keeps the
+          // dependency obvious to a grep.)
+          require('@/lib/posthog').capture('report_share_funnel', {
+            step: 'report_submitted',
+            report_id: result.report_id,
+            category: draft.category || null,
+            had_media: pendingMedia.length > 0,
+            description_length: (draft.description || '').length,
+          })
+          // T1.8 — explicit submit_complete event for the account-first
+          // funnel (signup_intent → signup_complete → submit_started →
+          // submit_complete). Mirrors report_share_funnel:report_submitted
+          // but keyed for the new funnel.
+          require('@/lib/posthog').capture('submit_complete', {
+            report_id: result.report_id,
+            category: draft.category || null,
+            description_length: (draft.description || '').length,
+          })
+        } catch {}
+
+        // T1.8 + E0.5 — activate 7-day Basic trial on first-experience
+        // submission. Fire-and-forget; never block the reveal animation
+        // on the trial endpoint. The endpoint is idempotent — calling
+        // it on subsequent submissions or for users already on a paid
+        // tier is a no-op. See docs/TIER_DESIGN_V2.md § "Free trial
+        // mechanics".
+        try {
+          fetch('/api/subscription/activate-trial', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: 'Bearer ' + session.access_token,
+            },
+          })
+            .then(function (r) { return r.ok ? r.json() : null })
+            .then(function (data: any) {
+              if (data && data.activated) {
+                try {
+                  require('@/lib/posthog').capture('trial_activated', {
+                    tier: data.tier,
+                    trial_ends_at: data.trial_ends_at,
+                    triggered_by: 'first_submission',
+                  })
+                } catch {}
+              }
+            })
+            .catch(function () { /* non-fatal */ })
+        } catch { /* non-fatal */ }
+
         // V9.11.2 #F — mark the funnel as completed so future homepage
         // visits don't bounce this user back to /start.
         try { localStorage.setItem(COMPLETE_KEY, '1') } catch {}
@@ -2089,30 +2224,47 @@ export default function StartPage() {
             </div>
           )}
 
-          {/* ============= STEP 2 — ACCOUNT ============= */}
+          {/* ============= STEP 2 — ACCOUNT =============
+              T1.8 — in the account-first flow this is the FIRST screen
+              an unauthed user sees on /start. Three copy paths:
+                - accountOnly: came in via "share later" — keep legacy copy
+                - draft filled: legacy experience-first carryover (user
+                  filled the form pre-auth) — "save your experience" copy
+                - new account-first default (no draft): "Sign up to share
+                  your experience" — emphasizes the value before the ask
+              The Back button only renders when there's draft content to
+              go back to (i.e., the legacy experience-first path). In the
+              new account-first flow there's nothing behind 'account'. */}
           {step === 'account' && (() => {
-            // V9.11.2 — different headline depending on whether the user
-            // is sharing an experience now ("one more step") or skipped
-            // straight to account creation ("share later").
             var accountOnly = false
             try { accountOnly = localStorage.getItem(ACCOUNT_ONLY_KEY) === '1' } catch {}
+            var hasDraftContent = draft.description.trim().length >= 50
+            var showBack = hasDraftContent && !accountOnly
             return (
             <div className="space-y-6">
               <div>
-                <button
-                  type="button"
-                  onClick={function () { setStep('experience') }}
-                  className="text-sm text-gray-400 hover:text-white mb-3 inline-flex items-center gap-1"
-                >
-                  ← Back
-                </button>
+                {showBack && (
+                  <button
+                    type="button"
+                    onClick={function () { setStep('experience') }}
+                    className="text-sm text-gray-400 hover:text-white mb-3 inline-flex items-center gap-1"
+                  >
+                    ← Back
+                  </button>
+                )}
                 <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
-                  {accountOnly ? 'Create your account.' : 'One more step.'}
+                  {accountOnly
+                    ? 'Create your account.'
+                    : hasDraftContent
+                      ? 'One more step.'
+                      : 'Sign up to share your experience.'}
                 </h1>
                 <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed">
                   {accountOnly
                     ? 'We’ll email you a one-tap sign-in link. No password to remember. You can share your experience anytime.'
-                    : 'We’ll save your experience and email you a one-tap sign-in link. No password to remember.'}
+                    : hasDraftContent
+                      ? 'We’ll save your experience and email you a one-tap sign-in link. No password to remember.'
+                      : 'Free to start. We’ll email you a one-tap sign-in link — no password to remember — then walk you through sharing what happened.'}
                 </p>
               </div>
 
@@ -2214,6 +2366,27 @@ export default function StartPage() {
               <p className="text-[10px] text-gray-500 text-center leading-relaxed">
                 We email a one-tap sign-in link instead of asking you for a password.
               </p>
+
+              {/* T1.8 — escape hatch for account-first users who landed
+                  here cold and want to bail without signing up. Only
+                  rendered when they didn't come from the experience-
+                  first flow (no draft content) and didn't pick "share
+                  later". Matches the visual treatment of the experience-
+                  step skip link for consistency. */}
+              {!hasDraftContent && !accountOnly && (
+                <div className="text-center pt-1">
+                  <button
+                    type="button"
+                    onClick={handleSkip}
+                    className="text-sm text-gray-400 hover:text-gray-200 transition-colors py-1"
+                  >
+                    Browse Paradocs first →
+                  </button>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    No account needed to browse.
+                  </p>
+                </div>
+              )}
             </div>
             )
           })()}

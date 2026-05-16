@@ -1,12 +1,157 @@
 # Paradocs — Project Status & Session Coordination
 
-**Last updated:** May 13, 2026 (V10.7 report-page push)
+**Last updated:** May 14, 2026 (V10.9.D — RegionTotals icon+popover, mobile spacing)
 **Project:** discoverparadocs.com (production); beta.discoverparadocs.com (beta)
 **Repo:** github.com/eq1725/paradocs (main branch)
 
 > **Purpose:** This is the top-level PM document. Every dedicated session reads this at startup and updates its section at the end. It serves as the coordination layer that prevents cross-feature dependencies from falling through the cracks.
 >
 > **This document is maintained by the Project Status session** — a dedicated PM session that reviews all feature session updates, identifies conflicts, reprioritizes work, and provides big-picture guidance. Feature sessions update their own sections and the Cross-Feature Notes table; the PM session synthesizes everything.
+
+---
+
+## V10.8 Pipeline Hardening (May 13–14, 2026) — COMPLETE
+
+The first major push since V10.7. Goal: replace 15 ad-hoc per-adapter date/location extractors with unified, tested utilities so mass-ingest produces consistent, audit-trail-backed data without per-row QA. Full design at `V10.8_PIPELINE_HARDENING_DESIGN.md`.
+
+### V10.8.A — Unified extractDate utility (SHIPPED, commit f4257ebe)
+New `src/lib/ingestion/utils/extract-date.ts`. Cascading priority: structured → prose-monthname (★ killer new capability) → prose-numeric → prose-year → approximate-marker. Handles "On April 28th 2007" forms that the previous year-only regex threw away. Test suite at `scripts/test-extract-date.ts` — **43 fixtures all passing** including the pit-bull canonical regression, adversarial cases (April Fool's Day, May showers, "$1,200 in damages"), and structured-vs-prose precedence.
+
+### V10.8.B.1 — Foundation + OBERF as worked example (SHIPPED, commit 5d2e3e45 + 3eef6be7 recovery)
+- Migration `20260514_v10_8_b_date_extraction_audit.sql` adds two nullable columns: `event_date_extracted_from` (extractDate audit trail) and `source_published_at` (pub date for news/blog sources, distinct from event_date).
+- `IngestedReport` (types.ts) gains both fields as optional.
+- `engine.ts` passes both through to insert.
+- **OBERF adapter migrated**: ~45-line `extractOBERFDate` parser replaced with a 15-line `extractDate({ structured: getField(...), prose: content })` call. Sets `event_date_extracted_from` on every OBERF row going forward.
+
+### V10.8.B.2 — Remaining 14 adapters migrated (SHIPPED, May 14, 2026)
+All 12 production adapters now delegate to the unified `extractDate` utility (OBERF migrated as the V10.8.B.1 worked example; the remaining 12 land in B.2). Every report row going forward carries `event_date_extracted_from` ∈ {`structured`, `prose-monthname`, `prose-numeric`, `prose-year`, `none`} for audit-trail filtering in `/admin/ingest-audit` once V10.8.D lands.
+
+Per-adapter changes:
+- **Easy wins (6 adapters that hardcoded `precision='unknown'`)** — Reddit, Reddit-v2, IANDS, Erowid, Shadowlands, YouTube. Reddit/Reddit-v2 and YouTube also move the post/upload timestamp out of `event_date` into the new `source_published_at` column (it's the post-publication date, not the event date). Erowid additionally surfaces the page's "Published:" date in `source_published_at` when present.
+- **Existing parsers replaced (5 adapters)** — NDERF (`extractNDEDate` now a 15-line wrapper around `extractDate` with the questionnaire field as `structured` and the narrative as `prose`); BFRO (assembled YEAR+MONTH+DATE string → structured slot, with description as a prose fallback when the structured fields are missing); GhostsOfAmerica (regex `(?:in|on|around|circa)\s+...` replaced with full `extractDate` over the story body); NUFORC ("Occurred" column → structured slot with the time tail stripped); Wikipedia (date cell → structured, lede → prose; precision now per-row from `extractDate` instead of hardcoded `'year'`).
+- **News pub-date split** — biggest semantic change. News no longer stores `publishedAt` in `event_date` with `precision='exact'` (the long-standing bug). `source_published_at` now gets the publication timestamp; `event_date` comes from `extractDate({ prose: title + body })`. One-time backfill SQL at `supabase/migrations/20260514_v10_8_b_2_news_pubdate_backfill.sql` moves the current ~15 news rows over to the new shape (copy `event_date` → `source_published_at`, null out `event_date` so a re-ingest pass repopulates it cleanly).
+
+Smoke test at `scripts/test-v10-8-b2-adapters.ts` (16 fixtures across all migrated adapters) — all passing. The original V10.8.A test suite at `scripts/test-extract-date.ts` is still green at 43/43.
+
+**Action needed from Chase before deploy:** Apply `supabase/migrations/20260514_v10_8_b_2_news_pubdate_backfill.sql` to the live Supabase DB (project `bhkbctdmwnowfmqpksed`) via the dashboard SQL editor. The `event_date_extracted_from` + `source_published_at` columns were added by the V10.8.B.1 migration that should already be applied.
+
+### V10.8.D — Ingestion validation gates + audit table (SHIPPED, May 14, 2026)
+`src/lib/ingestion/utils/validate-report.ts` exports `validateReportBeforeInsert(report)` returning `{ ok, warnings, errors }`. The engine now runs this immediately before every INSERT into `reports`. Policy: errors flip the row to `status='quarantine'` (still inserted so it can be triaged); warnings advise but don't gate.
+
+Codes shipped (15 total) match the design doc exactly:
+- **Errors (4):** `MISSING_REQUIRED` (source_url / source_label / description), `DATE_INVALID` (event_date doesn't parse YYYY-MM-DD), `LOC_OUT_OF_RANGE` (lat/lng outside ±90/±180), `DUPLICATE_ORIGINAL_ID` (code reserved — the engine's existing exact-match lookup already handles this case).
+- **Warnings (11):** `DATE_SENTINEL_EXACT` (precision=exact but date matches `-01-01`), `DATE_FUTURE`, `DATE_TOO_OLD` (year < 1800, exempted for `religion_mythology`/`folklore`), `LOC_COORDS_ORIGIN`, `LOC_COUNTRY_NO_COORDS`, `LOC_COORDS_NO_COUNTRY`, `LOC_STATE_COUNTRY_MISMATCH` (US/CA/UK/AU state tables; long-tail countries permissive until V10.8.C), `TEXT_TITLE_GENERIC`, `TEXT_NARRATIVE_EMPTY`, `WITNESS_PROFILE_MISSING`, `CATEGORY_UNKNOWN`.
+
+Audit infrastructure:
+- New table `ingestion_audit(id, report_id, adapter, severity, code, message, field, payload, created_at)` with indexes on `(adapter, code, created_at)` and `(severity, created_at)` for the dashboard rollups.
+- `'quarantine'` value added to `report_status` enum via `ALTER TYPE` (idempotent).
+- Migration: `supabase/migrations/20260514_v10_8_d_ingestion_audit.sql`.
+
+Admin observability:
+- `/admin/ingest-audit` page (Tailwind, matches `/admin/ai-audit` styling). Top tile: 7-day totals (warnings, errors, quarantine queue). Below: top-5 codes + top-5 adapters by frequency (clickable to filter). Row list shows code · adapter · field · time + structured payload JSON dump.
+- API `/api/admin/ingest-audit` (admin-auth gated). Filters: severity, code, adapter, since_days. Computes aggregations server-side from `ingestion_audit` in one round-trip.
+
+Engine wiring:
+- `IngestionResult` gains optional `recordsQuarantined` and `recordsWithWarnings` counters.
+- `recordIngestionAudit` helper writes flag batches asynchronously; audit-log failure is logged but never blocks ingestion.
+- The insert path now also passes `event_date_extracted_from` and `source_published_at` through to `insertData` (closing a B.1 oversight where the UPDATE branch wrote these but the INSERT branch dropped them).
+
+Tests: `scripts/test-validate-report.ts` — 26 table-driven fixtures covering every code + ok-flag combinations. All passing. Original V10.8.A (43 fixtures) + V10.8.B.2 smoke (16 fixtures) still green — 85 total green fixtures across the pipeline.
+
+**Action needed from Chase before deploy:** Apply `supabase/migrations/20260514_v10_8_d_ingestion_audit.sql` to project `bhkbctdmwnowfmqpksed` via the dashboard SQL editor. The migration is idempotent (`ADD VALUE IF NOT EXISTS` for the enum, `CREATE TABLE IF NOT EXISTS` for the audit table).
+
+### V10.8.C — Unified location normalizer (SHIPPED, May 14, 2026)
+`src/lib/ingestion/utils/normalize-location.ts` exports `normalizeLocation(raw, options)` — async cascading pipeline that runs on every report immediately before validation:
+
+1. **Country alias folding** — `country-centroids.json` ships ~210 ISO 3166-1 alpha-2 entries (Natural Earth admin0 source). Aliases include the variants we've seen in ingested data: `USA`, `U.S.A.`, `America`, `Britain`, `UK`, `Holland`, `Czechia`, `Burma`, `Macedonia`, etc. Resolves to canonical name + `country_code`.
+2. **State/province validation** — `state-centroids.json` covers US states (50 + DC), Canadian provinces (10 + 3 territories), UK home nations (4), Australian states/territories (8). Mismatched state/country combos preserve the raw state string so `validateReportBeforeInsert` can still emit `LOC_STATE_COUNTRY_MISMATCH`, but the centroid fallback ignores the bad state and falls through to country-level.
+3. **Geocoding ladder** — `exact lat/lng → MapTiler city geocode → state centroid → country centroid → unknown`. `coords_synthetic=true` on the row whenever lat/lng came from a centroid fallback.
+4. **Range/sanity gates** — coords outside ±90/±180 are dropped and the row falls back through the ladder. `(0,0)` without country is treated as a parsing-bug signal and nulls both coords.
+
+MapTiler integration:
+- `maptilerGeocoder` reads `MAPTILER_API_KEY` from env. Returns `null` on failure (caller falls through to centroids).
+- Cache: `geocode_cache` table keyed by lowercased `city|state|country` tuple. `makeSupabaseGeocodeCache(supabase)` wraps it as the `GeocodeCacheLike` interface. Best-effort: any DB error swallowed.
+- Cost: free with Chase's MapTiler flex plan. Expected ~70% cache hit during mass-ingest of 1M reports.
+
+Engine hook:
+- `normalizeLocation` runs in the INSERT branch immediately before `validateReportBeforeInsert`. Output overwrites the `insertData` location fields (`city`, `state_province`, `country`, `country_code`, `location_name`, `latitude`, `longitude`) plus the new `coords_synthetic` column. `location_precision` goes into `metadata` for the map renderer (legacy storage location).
+- Non-fatal: any normalization failure logs and continues with the adapter-supplied values.
+
+Migration:
+- `supabase/migrations/20260514_v10_8_c_geocode_cache.sql` — creates `geocode_cache(query PK, lat, lng, accuracy, geocoded_at)` with descending `geocoded_at` index, adds `reports.coords_synthetic BOOLEAN NOT NULL DEFAULT FALSE`, adds `reports.country_code TEXT` with partial index for non-null values. Fully idempotent.
+
+Render-side cleanup:
+- The V10.7.I `COUNTRY_CENTROIDS` table in `ReportPageV2` has been deleted (28 hand-curated countries no longer needed). `mapCoords` now reads `report.latitude`/`report.longitude` + `report.coords_synthetic` directly. When `coords_synthetic=true`, the map zooms to country-scale and uses fuzzy-marker styling so a centroid pin isn't mistaken for a real address.
+
+Tests: `scripts/test-normalize-location.ts` — 22 fixtures covering country alias folding, state-country validation, the four-rung geocoding ladder (with mock MapTiler), and range/sanity gates including the cache-hit short-circuit path. All passing. Pipeline test coverage now 107 green fixtures (43 + 16 + 26 + 22).
+
+**Action needed from Chase before deploy:**
+- Apply `supabase/migrations/20260514_v10_8_c_geocode_cache.sql` to project `bhkbctdmwnowfmqpksed`.
+- Add `MAPTILER_API_KEY` to Vercel env vars (uses your MapTiler flex plan). Without it, the engine gracefully degrades to centroid-only geocoding — `LOC_COUNTRY_NO_COORDS` warnings will drop to near-zero either way, but city-precision pins for new ingest rows depend on the key being present.
+
+### V10.8.E — Haiku-assisted date fallback (SHIPPED, May 14, 2026)
+Final rung of the date extraction ladder. `src/lib/ingestion/utils/escalate-date-haiku.ts` exports `escalateDateWithHaiku(prose, currentExtract, options)` — an async function that the engine calls after the regex layer (V10.8.A) finishes. Pre-flight gates make most rows free:
+
+1. **Pre-flight (no LLM call)** — skip when `precision != 'year'`, when prose contains no month name (regex check), or when prose is shorter than the length floor (default 200 chars).
+2. **Haiku call** — Claude Haiku 4.5 with `temperature=0`, max 250 tokens. Strict JSON output: `{date, precision, year_quote, month_quote?, day_quote?}`. System prompt forbids paraphrasing — every quote must be verbatim from the source.
+3. **Claim-check** — verify every quote string is a substring of the source prose (case-insensitive). Reject if any quote is fabricated. Reject if the returned year doesn't match the regex layer's year.
+4. **Date validation** — reject impossible dates (Feb 30), years outside `[1800, currentYear+1]`. Rebuild the ISO string from validated parts so a precision='month' answer always uses the `-01` day sentinel.
+5. **On success** → upgrade `event_date`, set `event_date_precision` to Haiku's value (month or exact), set `event_date_extracted_from='haiku'`, store concatenated quotes in `matchedText` for forensics.
+
+Engine wiring:
+- Runs inside the per-report loop in `engine.ts`, right after `enrichReport` and before quality scoring, so both the quality scorer and `validateReportBeforeInsert` see the upgraded precision.
+- Wrapped in try/catch — Haiku failure is logged and the row continues with its year-precision date. Non-blocking.
+- Reads `ANTHROPIC_API_KEY` from env; gracefully returns null when absent.
+
+Cost gate: at mass-ingest scale (~1M rows), expected ~50–100K qualifying candidates × ~$0.001/call ≈ $50–100 total. Chase pre-approved.
+
+Tests: `scripts/test-escalate-date-haiku.ts` — 12 fixtures using injected mock haikuFn. Covers happy paths (exact + month precision upgrades), all three pre-flight gates (precision/length/no-month), and every rejection path (null response, fabricated quotes, mismatched year, invalid date shape, impossible date, malformed JSON, case-folding claim-check). Pipeline test coverage now **119 green fixtures** across:
+- `test-extract-date.ts` (43)
+- `test-v10-8-b2-adapters.ts` (16)
+- `test-validate-report.ts` (26)
+- `test-normalize-location.ts` (22)
+- `test-escalate-date-haiku.ts` (12)
+
+No new schema, no migration, no new env vars — `ANTHROPIC_API_KEY` is already wired for the existing AI services.
+
+### V10.8.F — Pre-mass-ingest bug fixes (SHIPPED, May 14, 2026)
+Two bugs surfaced via live testing on production reports. Both fixed before mass-ingest so we don't propagate them at scale.
+
+**Bug 1 — Louisiana pin rendering at US centroid (~Kansas).** The NOLA UFO report (`ufo-encounter-2000-cu8xwc`) had `city="New Orleans"`, `state_province="Louisiana"`, `country="United States"` but `latitude=null`, `longitude=null`, `country_code=null`. The row predated V10.8.C's `normalizeLocation` so the engine's hook never ran against it, and the render-side fallback was removed in the V10.8.C cleanup commit. Result: the map showed "Louisiana" labels with the pin floating at the US country centroid.
+
+Fix: backfilled all 107 existing approved reports through `normalizeLocation`. New endpoint at `POST /api/admin/backfill-location` (admin-auth + ADMIN_API_KEY + CRON_SECRET supported, same pattern as `backfill-witness-profile`). Local driver script at `scripts/backfill-location-live.ts` for direct admin use. Result: 97 rows updated, 10 skipped (rows with no city/state/country/coords at all — nothing to normalize), 0 failures. The NOLA case now has `country_code='US'`, `latitude=30.9843`, `longitude=-91.9623` (Louisiana state centroid), `coords_synthetic=true`. Pin renders correctly.
+
+Post-backfill stats:
+- 97/107 rows have `country_code` + `lat/lng`
+- 40/107 use precise GPS coords (BFRO/NUFORC rows that supplied lat/lng)
+- 57/107 use centroid fallback (`coords_synthetic=true`) — map renders these as fuzzy markers
+- 10/107 still have no location data (origin-unknown reports — correctly left as `precision='unknown'`)
+
+**MapTiler note:** the existing `NEXT_PUBLIC_MAPTILER_KEY` has referer/domain restrictions that work fine for client-side map tiles but block server-side calls. Backfill ran on centroid-only. To get city-precision geocoding during mass-ingest (rather than state-centroid for any row that has city+state but no coords), Chase should add a separate `MAPTILER_API_KEY` env var with a server-side key (no referer restrictions). Code already prioritizes that env var over the public key. Centroid-only is acceptable for the existing corpus but mass-ingest will benefit from city precision.
+
+**Bug 2 — OG card title-meta collision on long titles.** The pit-bull report's OG card preview showed the second line of the title ("Femoral Artery") overlapping the WHEN/WHERE/WHO label row. Root cause is a known Satori (next/og rasterizer) quirk: it under-counts the bounding box of wrapped text with negative letter-spacing, so the flex layout below stacks into the painted ink. V10.7.H bumped lineHeight 0.88 → 1.0 but didn't fully resolve the worst-case 56-char titles.
+
+Fix at `src/pages/api/og/report/[slug].tsx`:
+1. Title cap tightened 120 → 90 chars (3-line wraps no longer possible).
+2. Font sizes more aggressive: `>70 chars → 42pt` (was 46), `50-70 → 50pt` (was 56), `≤50 → 64pt` (was 68).
+3. `lineHeight: 1.0 → 1.1` for extra descender clearance.
+4. **Explicit `minHeight`** on the title block sized for two-line worst case (100/116/80px per length bucket). Forces flex layout to reserve real space regardless of Satori's measurement.
+5. `marginBottom: 18 → 24` to push the meta strip further down as belt-and-suspenders.
+
+Defensive: the bug came back after a previous fix because the underlying Satori behavior is intermittent — explicit minHeight is the only fully-deterministic fix and that's what V10.8.F lands.
+
+### V10.8 series complete
+A → B → C → D → E all shipped. Mass-ingest is now backed by:
+- **A** unified date extractor with audit trail
+- **B** all 14 adapters migrated to use it
+- **C** unified location normalizer with country/state centroids + MapTiler geocoding
+- **D** validation gates with quarantine status + `/admin/ingest-audit` dashboard
+- **E** Haiku date escalation for the residual year-only cases
+
+Total: 4 migrations, 6 new utilities, 119 green fixtures, 5 commits on main (`f4257ebe` → `5d2e3e45` → `3eef6be7` → `0d83bace` → `a7eef57e` → `3f234800` → `1e350950` → `c25a9251` → V10.8.E push). Ready for mass-ingest scale.
+
+### Migration status (V10.8.B.1 + B.2)
+The `20260514_v10_8_b_date_extraction_audit.sql` migration (adds `event_date_extracted_from` + `source_published_at` columns) was applied during V10.8.B.1 setup. The new `20260514_v10_8_b_2_news_pubdate_backfill.sql` migration ships with V10.8.B.2 and needs to run once against the live DB to move the ~15 existing news rows over to the new pub-date / event-date split. Both migrations are idempotent. Project pattern: paste SQL into the Supabase dashboard SQL editor for project `bhkbctdmwnowfmqpksed`.
 
 ---
 
@@ -35,6 +180,16 @@ The V10.6 claim-check was rejecting valid paraphrases on style differences (e.g.
 - "Worth Chasing" open-questions block removed from `ReportBelowFold` (dead-end intellectual content with no CTA). Field still generated and stored for future reuse.
 - Pattern strip dropped same-category chip (duplicated Related Reports). New facets: geographic radius (uses nearby[] data), same state, same witness state (uses V10.7.A.0 `witness_state_at_event` indexed column), same phenomenon type. Header renamed "How this fits the archive" → "Similar cases".
 
+### V10.7.F — Editorial third-person enforcement on hook + pull_quote
+The pull_quote renders inside a styled blockquote with curly quotation marks. When the model produced first-person language (e.g. Kansas case: "It rushed past me, flew directly over my roof…") the page read like a direct witness quote — a policy violation since Paradocs is an index with original editorial commentary, never republished witness speech. Corpus audit found 7/103 (7%) pull_quotes contained first-person pronouns; 0 feed_hooks after correcting an initial regex false-positive on hyphenated compounds.
+
+Three layers of defense in `src/lib/services/paradocs-analysis.service.ts`:
+1. **Prompt hardening** — HOOK RULES + PULL QUOTE RULES gained an explicit "EDITORIAL THIRD-PERSON ONLY" hard rule with the real Kansas failure as a counter-example.
+2. **Post-process gate** — `findFirstPersonPronouns()` detects `\b(I|me|my|mine|we|us|our|ours)\b` at word boundaries. Hyphenated-compound tokens (`I-80`, `strip-mine`, `we-the-people`) are correctly excluded.
+3. **Retry-on-violation** — first attempt with violation forces a fresh generation. Second attempt with persistent violation ships with the offending field blanked rather than blocking the row.
+
+`PROMPT_VERSION` bumped to `v10.7.f` in `src/lib/ai/rewrite-pipeline.ts`. Audit rows filterable by `paradocs-analysis-v10.7.f%`. The 7 affected slugs need targeted regen via `POST /api/admin/backfill-analysis {"slug": ...}`.
+
 ### V10.7.B.4.4 — Slug-targeted analysis regen
 `POST /api/admin/backfill-analysis` now accepts optional `slug` body param for targeted single-report regen. Useful for diagnosing claim-check rejections without walking the full corpus.
 
@@ -44,8 +199,8 @@ The V10.6 claim-check was rejecting valid paraphrases on style differences (e.g.
 - ReportMeta + SourceAndWitnessBlock use `items-center` (not `items-start`) for centerline label/value alignment.
 
 ### Pending validation / known issues
-- **Kansas test report** (`psychic-experience-kansas-4hxm98`) — narrative regen with v10.7.d prompt not yet verified to pass claim-check. The narrative the AI produced (223 chars, vivid, faithful) was rejected by v10.6.28 claim-check on three nit-picky paraphrasing items; v10.7.d should accept these. **Next action: re-run slug-targeted regen and check audit log for `claim_check_passed = true`.**
-- **"What happened" section** still hidden when `paradocs_narrative` is null (V10.7.C first-person source-excerpt fallback was reverted in V10.7.D). If v10.7.d claim-check still leaves some reports with null narrative, the V10.7.F option is to save the AI narrative anyway with a `narrative_review_needed` flag rather than blocking on claim-check.
+- **V10.7.D Kansas validation — CLOSED (May 13).** Audit log shows three v10.7.d passes on `reports.paradocs_narrative` for the Kansas case, all `claim_check_passed=true`. 938-char third-person narrative renders cleanly on production (verified by live `curl` once the prod basic-auth creds were synced). Worth Chasing is dropped, pattern strip gates correctly on the sparse-corpus case (109 reports, 0 nearby/state/witness-state/phenomenon matches).
+- **V10.7.F backfill — CLOSED (May 13).** All 7 affected reports regenerated via slug-targeted `POST /api/admin/backfill-analysis`. Post-backfill corpus audit: 0 first-person violations in pull_quote, 0 in feed_hook across 107 approved reports. Audit log shows `paradocs-analysis-v10.7.f` rows with `claim_check_passed=true`. Kansas pull_quote now reads "The object rushed past him, flew directly over his roof, and as soon as it passed the apex, it blinked out of existence."
 - **No backfill run on test corpus** for witness-profile (V10.7.A.1) at scale. Spot-checked 10 reports cleanly. Mass ingest will populate organically.
 
 ---

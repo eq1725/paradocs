@@ -98,7 +98,7 @@ const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
  *   better than padded prose or an INSUFFICIENT bail.' Same
  *   editorial intent (rich, sensory, paragraph-form), less brittle.
  */
-export const PROMPT_VERSION = 'v10.7.d'
+export const PROMPT_VERSION = 'v10.7.f'
 
 // ── Types ───────────────────────────────────────────────────
 

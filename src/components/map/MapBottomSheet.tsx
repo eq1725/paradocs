@@ -6,19 +6,27 @@
  */
 
 import React, { useCallback, useRef, useEffect, useState } from 'react'
+import { X } from 'lucide-react'
 import { MapFilters, ReportProperties, CATEGORY_COLORS } from './mapStyles'
 import { CategoryIcon } from '@/components/ui/CategoryIcon'
 import { PhenomenonCategory } from '@/lib/database.types'
 import MapReportCard from './MapReportCard'
 import MapFilterPanel from './MapFilterPanel'
 import MapTimeline from './MapTimeline'
+import type { RegionBucket } from './useViewportData'
 
 type SnapPoint = 'peek' | 'half' | 'full'
 
 const SNAP_HEIGHTS = {
-  peek: 100,  // drag handle + stat line (above nav bar)
+  // V10.9.D.6 — Peek tuned per visual review.
+  //   100px (original): ~50px of dead space below visible content.
+  //   56px (V10.9.D.5): too tight — stat line + Explore link clipped
+  //     under the bottom nav bar. Only the drag handle showed.
+  //   78px (this rev): handle (~22) + stat line (~28) + 28px buffer.
+  //     Fits content with breathing room, no dead space below it.
+  peek: 78,
   half: 360,  // report card
-  full: 0,    // calculated as vh * 0.85
+  full: 0,    // calculated dynamically via fullHeight
 }
 
 interface MapBottomSheetProps {
@@ -37,6 +45,14 @@ interface MapBottomSheetProps {
   dateTo?: number | null
   onDateChange?: (from: number | null, to: number | null) => void
   yearHistogram?: { year: number; count: number }[]
+  /**
+   * V10.9.C — region totals for synthetic-coord reports. Rendered as
+   * its own section inside the sheet (mobile-only — desktop has the
+   * RegionTotalsPanel floating overlay). Optional; section only
+   * appears when there's at least one bucket.
+   */
+  regionBuckets?: RegionBucket[]
+  regionTotalCount?: number
 }
 
 // Format category name for display
@@ -63,6 +79,8 @@ export default function MapBottomSheet({
   dateTo,
   onDateChange,
   yearHistogram = [],
+  regionBuckets = [],
+  regionTotalCount = 0,
 }: MapBottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null)
   const dragStartY = useRef(0)
@@ -70,9 +88,31 @@ export default function MapBottomSheet({
   const [currentHeight, setCurrentHeight] = useState(SNAP_HEIGHTS.peek)
   const [isDragging, setIsDragging] = useState(false)
 
-  // Calculate full height
+  // V10.9.D.4 — Full-snap height per Chase's clarification.
+  //
+  // Target layout (from his desktop-mobile screenshot):
+  //   - Map/Browse/Search tabs visible at top
+  //   - Small map gap below tabs (~40px) so the user sees a strip of
+  //     map and knows the map is still underneath
+  //   - X button at top-right of the drawer
+  //   - Year/period row + slider + filter content below
+  //
+  // Sizing budget:
+  //   chrome above wrapper:    safe-area + 56 header + 48 tabs ≈ 165
+  //   visible map gap:         40
+  //   bottom anchor (sheet):   56
+  //   ────────────────────────────────────
+  //   total taken from vh:     261
+  //
+  // Drawer height = window.innerHeight - 261. On a 866px viewport
+  // that's 605px (≈ 0.70 vh). On a 970px viewport (Chase's narrow
+  // desktop screenshot) that's 709px. Drawer top in viewport ≈
+  // y=205 in both cases — right where Chase's screenshot shows it.
+  const TOP_CHROME = 165         // safe-area + header + tabs
+  const MAP_GAP = 40             // visible map strip above the drawer
+  const BOTTOM_INSET = 56        // sheet's bottom anchor (above bottom-nav)
   const fullHeight = typeof window !== 'undefined'
-    ? Math.round(window.innerHeight * 0.85)
+    ? Math.max(400, window.innerHeight - TOP_CHROME - MAP_GAP - BOTTOM_INSET)
     : 600
 
   const getSnapHeight = useCallback(
@@ -260,6 +300,16 @@ export default function MapBottomSheet({
     window.addEventListener('mouseup', onMouseUp)
   }
 
+  // V10.9.D.4 — In 'full' state the drawer fits cleanly in the visible
+  // area below the tabs (with a ~40px map strip above). The drag
+  // chrome lives at the natural top of the drawer:
+  //   - Drag handle (small horizontal bar, centered) — tappable to
+  //     cycle snaps
+  //   - X dismiss button — top-right corner of the drawer
+  //   - Stat line ("40 sightings mapped") — hidden in 'full' state
+  //     because it's redundant when the full filter UI is on screen
+  const isFull = snap === 'full'
+
   return (
     <div
       ref={sheetRef}
@@ -269,43 +319,87 @@ export default function MapBottomSheet({
         transition: isDragging ? 'none' : 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
       }}
     >
-      {/* Drag zone — handle + stat line, tall enough to grab easily */}
+      {/* V10.9.C — drag handle made larger + obvious. Tap the handle
+          to cycle peek → half → full → peek so users have a tap
+          alternative to dragging. */}
       <div
         ref={dragZoneRef}
-        className="cursor-grab active:cursor-grabbing touch-none select-none"
+        className="cursor-grab active:cursor-grabbing touch-none select-none relative"
         onMouseDown={onMouseDown}
       >
-        {/* Visual drag handle */}
-        <div className="flex justify-center pt-2.5 pb-1">
-          <div className="w-10 h-1 bg-gray-600 rounded-full" />
-        </div>
+        {/* Visual drag handle — bigger tap target, hover highlight */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (snap === 'peek') onSnapChange('half')
+            else if (snap === 'half') onSnapChange('full')
+            else onSnapChange('peek')
+          }}
+          className="w-full flex justify-center pt-3 pb-2"
+          aria-label={
+            snap === 'full' ? 'Collapse panel' :
+            snap === 'half' ? 'Expand panel' : 'Open panel'
+          }
+        >
+          <span className="w-12 h-1.5 bg-gray-500 hover:bg-gray-400 rounded-full transition-colors" />
+        </button>
 
-        {/* Stat line — part of the drag zone so the whole top is swipeable */}
-        <div className="flex items-center justify-between text-xs text-gray-400 pb-2 px-4">
-          <span>
-            {filteredCount.toLocaleString()} sighting{filteredCount !== 1 ? 's' : ''} mapped
-          </span>
-          {selectedReport && (
-            <button
-              onClick={() => onSnapChange('half')}
-              className="text-purple-400 font-medium"
-            >
-              View selected
-            </button>
-          )}
-          {!selectedReport && snap === 'peek' && (
-            <button
-              onClick={() => onSnapChange('half')}
-              className="text-purple-400 font-medium"
-            >
-              Explore
-            </button>
-          )}
-        </div>
+        {/* V10.9.D.4 — X dismiss button restored to the drawer's
+            top-right (since the drawer now fits in the visible area,
+            this is naturally where the user expects it). One-tap
+            collapse to peek. */}
+        {isFull && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onSnapChange('peek')
+            }}
+            className="absolute top-2 right-3 z-10 flex items-center justify-center w-8 h-8 rounded-full bg-gray-800/80 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
+            aria-label="Close panel"
+          >
+            <X size={16} />
+          </button>
+        )}
+
+        {/* Stat line — peek/half only. In 'full' state it's hidden so
+            the year/period row sits cleanly right below the drag
+            handle + X button. */}
+        {!isFull && (
+          <div className="flex items-center justify-between text-xs text-gray-400 pb-2 px-4">
+            <span>
+              {filteredCount.toLocaleString()} sighting{filteredCount !== 1 ? 's' : ''} mapped
+            </span>
+            {selectedReport && (
+              <button
+                onClick={() => onSnapChange('half')}
+                className="text-purple-400 font-medium"
+              >
+                View selected
+              </button>
+            )}
+            {!selectedReport && snap === 'peek' && (
+              <button
+                onClick={() => onSnapChange('half')}
+                className="text-purple-400 font-medium"
+              >
+                Explore
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Content below drag zone */}
-      <div ref={contentRef} className="overflow-y-auto px-4" style={{ height: `calc(100% - 56px)` }}>
+      {/* V10.9.D.4 — content area sizing.
+          peek/half: drag zone is ~56px (handle + stat line)
+          full:      drag zone is ~32px (just handle, stat hidden) */}
+      <div
+        ref={contentRef}
+        className="overflow-y-auto px-4"
+        style={{ height: isFull ? `calc(100% - 32px)` : `calc(100% - 56px)` }}
+      >
         {/* Half state: report card OR stats overview */}
         {snap !== 'peek' && selectedReport && (
           <div className="pb-4">
@@ -383,6 +477,38 @@ export default function MapBottomSheet({
                       className="px-2.5 py-1 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-700/50 rounded-full text-xs text-gray-300 hover:text-white transition-colors"
                     >
                       {name} <span className="text-gray-500">{count}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* V10.9.C — Region totals (synthetic-coord reports). Parallel
+                to Top Locations but counts reports that have country
+                or state precision only — these aren't pinned on the
+                map (to avoid false centroid clustering) but are counted
+                here so the user sees the data exists. */}
+            {regionTotalCount > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                  Region totals
+                </h3>
+                <p className="text-[11px] text-gray-500 mb-2 leading-snug">
+                  {regionTotalCount.toLocaleString()} report{regionTotalCount === 1 ? '' : 's'} with country/state-only location. Tap to filter.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {regionBuckets.slice(0, 8).map((b) => (
+                    <button
+                      key={b.code}
+                      onClick={() => onFilterChange('country', filters.country === b.name ? (null as any) : b.name)}
+                      className={
+                        'px-2.5 py-1 border rounded-full text-xs transition-colors ' +
+                        (filters.country === b.name
+                          ? 'bg-purple-900/40 border-purple-500/50 text-white'
+                          : 'bg-gray-800/80 hover:bg-gray-700/80 border-gray-700/50 text-gray-300 hover:text-white')
+                      }
+                    >
+                      {b.name} <span className="text-gray-500">{b.total.toLocaleString()}</span>
                     </button>
                   ))}
                 </div>

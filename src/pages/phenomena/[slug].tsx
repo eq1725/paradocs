@@ -1,101 +1,57 @@
 'use client'
 
+/**
+ * Phenomenon page — thin "Reports tagged [X]" view.
+ *
+ * T1.3 simplification: stripped ai_* descriptive copy rendering per
+ * the encyclopedia → tag-vocabulary pivot. The route is preserved
+ * (Q1=b) so SEO and inbound links keep working; ai_* fields remain
+ * in the DB (Q3=a) but are no longer rendered.
+ *
+ * What renders:
+ *   - Small icon/image, category chip, H1 name, "N reports tagged"
+ *   - YourSignalForPhenomenon personalized callout (silent for anon)
+ *   - Grid of tagged reports (or empty-state CTA back to /explore)
+ *   - Tag-fallback branch (slug has no encyclopedia entry but does
+ *     have tagged reports) preserved as the lighter fallback.
+ *
+ * What was removed (vs. the pre-T1.3 ~1125-line file):
+ *   - Tab nav (Overview / History / Media / Reports)
+ *   - All ai_description / ai_history / ai_characteristics / ai_theories
+ *     / ai_paradocs_analysis / ai_quick_facts / ai_cultural_impact /
+ *     ai_notable_sightings rendering
+ *   - Quick Facts sidebar, Recent Reports sidebar, PhenomenonMiniMap
+ *   - Media tab (phenomena_media + image_gallery rendering)
+ *   - Lightbox modal
+ *   - AskTheUnknown widget (depended on ai_description for context)
+ *   - ContentSection helper
+ *
+ * The /api/phenomena/[slug] endpoint is untouched — it still returns
+ * the ai_* fields; we just don't render them. Separate cleanup later
+ * if we want to trim the API response too.
+ */
+
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import Link from 'next/link'
+import { ArrowLeft, FileText, Telescope } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import {
-  ArrowLeft,
-  Calendar,
-  MapPin,
-  FileText,
-  History,
-  Fingerprint,
-  Lightbulb,
-  BookOpen,
-  ExternalLink,
-  Eye,
-  ThumbsUp,
-  Image,
-  Video,
-  Play,
-  ZoomIn,
-  AlertTriangle,
-  Clock,
-  Star,
-  Globe2,
-} from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
-import CategoryIcon from '@/components/ui/CategoryIcon'
 import PhenomenonIcon from '@/components/ui/PhenomenonIcon'
-import type { PhenomenonCategory } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
-import AskTheUnknown from '@/components/AskTheUnknown'
-import PhenomenonMiniMap from '@/components/PhenomenonMiniMap'
 import YourSignalForPhenomenon from '@/components/phenomena/YourSignalForPhenomenon'
 import { BackToTodayBar } from '@/components/discover/BackToTodayBar'
 
 interface Phenomenon {
-  id: string
+  id: string | null
   name: string
   slug: string
-  aliases: string[]
-  category: string
-  icon: string
-  ai_summary: string | null
-  ai_description: string | null
-  ai_history: string | null
-  ai_characteristics: string | null
-  ai_notable_sightings: string | null
-  ai_theories: string | null
-  ai_cultural_impact: string | null
-  ai_paradocs_analysis: string | null
-  ai_generated_at: string | null
-  report_count: number
-  primary_image_url: string | null
-  first_reported_date: string | null
-  last_reported_date: string | null
-  primary_regions: string[]
-  image_gallery: GalleryItem[] | null
-  ai_quick_facts?: {
-    origin?: string
-    first_documented?: string
-    classification?: string
-    danger_level?: string
-    typical_encounter?: string
-    evidence_types?: string
-    active_period?: string
-    notable_feature?: string
-    cultural_significance?: string
-  } | null
-}
-
-interface GalleryItem {
-  url: string
-  thumbnail_url?: string
-  type: 'image' | 'video' | 'illustration'
-  caption?: string
-  source?: string
-  source_url?: string
-  license?: string
-  width?: number
-  height?: number
-}
-
-interface MediaItem {
-  id: string
-  media_type: 'image' | 'video' | 'document' | 'illustration'
-  original_url: string
-  stored_url: string | null
-  thumbnail_url: string | null
-  caption: string | null
-  source: string | null
-  source_url: string | null
-  license: string | null
-  is_profile: boolean
-  tags: string[] | null
-  sort_order: number
+  category: string | null
+  icon?: string
+  aliases?: string[]
+  primary_image_url?: string | null
+  report_count?: number
 }
 
 interface RelatedReport {
@@ -107,22 +63,18 @@ interface RelatedReport {
   location_name: string
   country: string
   event_date: string
-  credibility: string
   view_count: number
-  match_confidence: number
+  match_confidence?: number
 }
 
 export default function PhenomenonPage() {
   const router = useRouter()
   const { slug } = router.query
 
-  const [phenomenon, setPhenomenon] = useState<Phenomenon | any | null>(null)
+  const [phenomenon, setPhenomenon] = useState<Phenomenon | null>(null)
   const [reports, setReports] = useState<RelatedReport[]>([])
-  const [media, setMedia] = useState<MediaItem[]>([])
   const [loading, setLoading] = useState(true)
   const [isTagFallback, setIsTagFallback] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'media' | 'reports'>('overview')
-  const [lightboxImage, setLightboxImage] = useState<{ url: string; caption?: string; source?: string } | null>(null)
 
   useEffect(() => {
     if (slug && typeof slug === 'string') {
@@ -130,53 +82,63 @@ export default function PhenomenonPage() {
     }
   }, [slug])
 
-  // ESC key closes lightbox
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setLightboxImage(null)
-    }
-    if (lightboxImage) {
-      document.addEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = 'hidden'
-    }
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = ''
-    }
-  }, [lightboxImage])
-
   async function loadPhenomenon(phenomenonSlug: string) {
     try {
       const res = await fetch(`/api/phenomena/${phenomenonSlug}`)
       if (!res.ok) {
-        router.push('/phenomena')
+        // No encyclopedia entry AND no tagged-report fallback either —
+        // route to the category browse surface rather than the
+        // deprecated /phenomena index (which 301s anyway per T1.2).
+        router.push('/explore?view=categories')
         return
       }
       const data = await res.json()
       setPhenomenon(data.phenomenon)
       setReports(data.reports || [])
-      setMedia(data.media || [])
       setIsTagFallback(!!data.is_tag_fallback)
 
-      // Track view for constellation map (non-blocking)
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.access_token && data.phenomenon) {
-          fetch('/api/activity/track', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-            body: JSON.stringify({
-              action_type: 'view',
-              phenomenon_id: data.phenomenon.id,
-              category: data.phenomenon.category || null,
-            }),
-          }).catch(() => {})
-        }
-      })
+      // Track view for constellation map — non-blocking, signed-in only.
+      if (data.phenomenon?.id) {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.access_token) {
+            fetch('/api/activity/track', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({
+                action_type: 'view',
+                phenomenon_id: data.phenomenon.id,
+                category: data.phenomenon.category || null,
+              }),
+            }).catch(() => {})
+          }
+        })
+      }
     } catch (error) {
       console.error('Error loading phenomenon:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  // Back navigation — use router.back() when the user arrived from
+  // /explore or /phenomena so scroll/filter state is preserved;
+  // otherwise route to the category browse surface.
+  function handleBack() {
+    try {
+      const stored = sessionStorage.getItem('paradocs_nav_ctx')
+      if (stored) {
+        const ctx = JSON.parse(stored)
+        const referrerBase = ctx.referrerPath?.split('?')[0]
+        if (referrerBase === '/explore' || referrerBase === '/phenomena') {
+          router.back()
+          return
+        }
+      }
+    } catch {}
+    router.push('/explore?view=categories')
   }
 
   if (loading) {
@@ -192,23 +154,24 @@ export default function PhenomenonPage() {
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-400 text-lg mb-4">Phenomenon not found</p>
-          <Link href="/phenomena" className="text-purple-400 hover:text-purple-300">
-            Return to Encyclopedia
+          <Link href="/explore?view=categories" className="text-purple-400 hover:text-purple-300">
+            Browse categories
           </Link>
         </div>
       </div>
     )
   }
 
-  // Tag-fallback view: no encyclopedia entry exists for this slug, but we
-  // found reports tagged with it. Render a lightweight "Reports tagged with
-  // X" page so Related-Phenomena links from analysis always land somewhere
-  // useful instead of redirecting to the encyclopedia index.
+  // ── Tag-fallback branch ───────────────────────────────────────────
+  // No encyclopedia entry exists for this slug, but the API found
+  // reports whose tags array contains it. Preserved from pre-T1.3 so
+  // Related-Phenomena links from Paradocs Analysis always land
+  // somewhere useful.
   if (isTagFallback) {
     return (
       <>
         <Head>
-          <title>{phenomenon.name} Reports - Paradocs</title>
+          <title>{phenomenon.name} reports — Paradocs</title>
           <meta name="description" content={`Reports tagged with ${phenomenon.name} on Paradocs.`} />
         </Head>
         <div className="min-h-screen bg-gray-950">
@@ -222,41 +185,22 @@ export default function PhenomenonPage() {
             </button>
 
             <div className="mb-6">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-purple-400/80 mb-2">Reports tagged with</p>
-              <h1 className="text-3xl sm:text-4xl font-display font-bold text-white mb-3">{phenomenon.name}</h1>
+              <p className="text-[11px] uppercase tracking-[0.14em] text-purple-400/80 mb-2">
+                Reports tagged with
+              </p>
+              <h1 className="text-3xl sm:text-4xl font-display font-bold text-white mb-3">
+                {phenomenon.name}
+              </h1>
               <p className="text-sm text-gray-500">
-                {reports.length} {reports.length === 1 ? 'report' : 'reports'} • No encyclopedia entry yet for this phenomenon.
+                {reports.length} {reports.length === 1 ? 'report' : 'reports'} · No encyclopedia entry yet for this phenomenon.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {reports.map((report) => (
-                <Link
-                  key={report.id}
-                  href={`/report/${report.slug}`}
-                  className="block rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-purple-500/30 transition-all p-4"
-                >
-                  <h3 className="text-[15px] font-semibold text-white leading-snug mb-1.5 line-clamp-2">
-                    {report.title}
-                  </h3>
-                  {report.summary && (
-                    <p className="text-xs text-gray-400 leading-relaxed line-clamp-3 mb-2">
-                      {report.summary}
-                    </p>
-                  )}
-                  <div className="flex flex-wrap gap-3 text-[11px] text-gray-500">
-                    {report.location_name && <span>{report.location_name}</span>}
-                    {report.event_date && (
-                      <span>{(report.event_date.match(/\d{4}/) || [''])[0]}</span>
-                    )}
-                  </div>
-                </Link>
-              ))}
-            </div>
+            <ReportGrid reports={reports} />
 
             <div className="mt-10 text-center">
-              <Link href="/phenomena" className="text-xs text-gray-500 hover:text-purple-300">
-                Browse the full encyclopedia →
+              <Link href="/explore?view=categories" className="text-xs text-gray-500 hover:text-purple-300">
+                Browse all categories →
               </Link>
             </div>
           </div>
@@ -265,860 +209,150 @@ export default function PhenomenonPage() {
     )
   }
 
-  const config = CATEGORY_CONFIG[phenomenon.category as keyof typeof CATEGORY_CONFIG]
+  // ── Main render ───────────────────────────────────────────────────
+  const config = phenomenon.category
+    ? CATEGORY_CONFIG[phenomenon.category as keyof typeof CATEGORY_CONFIG]
+    : null
+  const reportCount = phenomenon.report_count ?? reports.length
 
   return (
     <>
       <Head>
-        <title>{phenomenon.name} - Phenomena Encyclopedia - Paradocs</title>
-        <meta name="description" content={phenomenon.ai_summary || `Learn about ${phenomenon.name} in our paranormal phenomena encyclopedia.`} />
+        <title>{phenomenon.name} reports — Paradocs</title>
+        <meta
+          name="description"
+          content={`${reportCount} ${reportCount === 1 ? 'report' : 'reports'} tagged with ${phenomenon.name}${config?.label ? ` in the ${config.label} category` : ''} on Paradocs.`}
+        />
       </Head>
 
-      {/* Back-to-Today bar — shown when user came from /discover (Today) */}
+      {/* Shown only when user came from /discover (Today feed) */}
       <BackToTodayBar />
 
       <div className="min-h-screen bg-gray-950">
-        {/* Hero Section */}
-        <div className="relative bg-gradient-to-b from-gray-900 to-gray-950 border-b border-gray-800">
-          {/* Background Image Overlay */}
-          {phenomenon.primary_image_url && (
-            <div className="absolute inset-0 overflow-hidden">
-              <img
-                src={phenomenon.primary_image_url}
-                alt=""
-                className="w-full h-full object-cover opacity-10"
-                referrerPolicy="no-referrer"
-                loading="lazy"
-              />
-            </div>
-          )}
-
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {/* Back Link — use router.back() to preserve scroll position when user came from the encyclopedia */}
+        {/* Hero — small, focused. Name + category + report count. */}
+        <div className="border-b border-gray-800">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
             <button
-              onClick={() => {
-                try {
-                  const stored = sessionStorage.getItem('paradocs_nav_ctx')
-                  if (stored) {
-                    const ctx = JSON.parse(stored)
-                    if (ctx.referrerPath && ctx.referrerPath.split('?')[0] === '/phenomena') {
-                      router.back()
-                      return
-                    }
-                  }
-                } catch {}
-                router.push('/phenomena')
-              }}
-              className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-6"
+              onClick={handleBack}
+              className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-5"
             >
               <ArrowLeft className="w-4 h-4" />
-              Back to Encyclopedia
+              Back
             </button>
 
-            <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
-              {/* Icon/Image */}
-              <div className="w-24 h-24 sm:w-32 sm:h-32 flex items-center justify-center bg-gray-800/50 rounded-2xl border border-gray-700 shrink-0 overflow-hidden relative">
+            <div className="flex items-center gap-4 sm:gap-5">
+              {/* Small icon/image — 56-64px, anchored left */}
+              <div className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-gray-800/60 rounded-xl border border-gray-700 shrink-0 overflow-hidden">
                 {phenomenon.primary_image_url ? (
-                  <>
-                    <img
-                      src={phenomenon.primary_image_url}
-                      alt=""
-                      className="absolute inset-0 w-full h-full object-cover object-top rounded-2xl blur-md scale-110 opacity-40"
-                      referrerPolicy="no-referrer"
-                      loading="lazy"
-                      aria-hidden="true"
-                    />
-                    <img
-                      src={phenomenon.primary_image_url}
-                      alt={phenomenon.name}
-                      className="relative w-full h-full object-contain rounded-2xl"
-                      referrerPolicy="no-referrer"
-                      loading="lazy"
-                    />
-                  </>
+                  <img
+                    src={phenomenon.primary_image_url}
+                    alt={phenomenon.name}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                    loading="lazy"
+                  />
                 ) : (
-                  <span className="text-5xl sm:text-7xl">
-                    <PhenomenonIcon slug={phenomenon.slug} fallbackEmoji={phenomenon.icon} category={phenomenon.category} size={72} />
-                  </span>
+                  <PhenomenonIcon
+                    slug={phenomenon.slug}
+                    fallbackEmoji={phenomenon.icon}
+                    category={phenomenon.category || undefined}
+                    size={40}
+                  />
                 )}
               </div>
 
-              {/* Title & Meta */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 mb-2">
+                {config && (
                   <span className={classNames(
-                    'px-3 py-1 rounded-full text-xs sm:text-sm',
-                    config?.bgColor || 'bg-gray-800',
-                    config?.color || 'text-gray-400'
+                    'inline-block px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs mb-1.5',
+                    config.bgColor || 'bg-gray-800',
+                    config.color || 'text-gray-400'
                   )}>
-                    {config?.label}
+                    {config.label}
                   </span>
-                </div>
-
-                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-3">
+                )}
+                <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight">
                   {phenomenon.name}
                 </h1>
-
-                {phenomenon.aliases && phenomenon.aliases.length > 0 && (
-                  <p className="text-gray-400 mb-4 text-sm sm:text-base">
-                    Also known as: {phenomenon.aliases.join(', ')}
-                  </p>
-                )}
-
-                {phenomenon.ai_summary && (
-                  <p className="text-base sm:text-lg text-gray-300 max-w-3xl">
-                    {phenomenon.ai_summary}
-                  </p>
-                )}
-
-                {/* Stats */}
-                <div className="flex flex-wrap gap-3 sm:gap-6 mt-4 sm:mt-6 text-xs sm:text-sm text-gray-400">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4" />
-                    <span>{phenomenon.report_count} reports</span>
-                  </div>
-                  {phenomenon.first_reported_date && (
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4" />
-                      <span className="hidden sm:inline">First reported: </span>
-                      <span>{new Date(phenomenon.first_reported_date).toLocaleDateString()}</span>
-                    </div>
-                  )}
-                  {phenomenon.primary_regions && phenomenon.primary_regions.length > 0 && (
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4" />
-                      <span>{phenomenon.primary_regions.slice(0, 2).join(', ')}</span>
-                    </div>
-                  )}
-                </div>
+                <p className="text-sm text-gray-400 mt-1 flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5" />
+                  {reportCount === 1
+                    ? '1 report tagged'
+                    : `${reportCount.toLocaleString()} reports tagged`}
+                </p>
               </div>
             </div>
           </div>
-
-          {/* V10 Phase 4.D — Personalized callout when this user
-              has reports connected to this phenomenon. Silent
-              (renders nothing) for anonymous users or no-match
-              cases. Sits inside the hero container so it stays
-              above the tab strip. */}
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4">
-            <YourSignalForPhenomenon slug={phenomenon.slug} />
-          </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-sm border-b border-gray-800">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <nav className="flex gap-4 sm:gap-8 overflow-x-auto scrollbar-hide">
-              <button
-                onClick={() => setActiveTab('overview')}
-                className={classNames(
-                  'py-4 border-b-2 font-medium transition-colors whitespace-nowrap text-sm sm:text-base',
-                  activeTab === 'overview'
-                    ? 'border-purple-500 text-white'
-                    : 'border-transparent text-gray-400 hover:text-white'
-                )}
-              >
-                Overview
-              </button>
-              <button
-                onClick={() => setActiveTab('history')}
-                className={classNames(
-                  'py-4 border-b-2 font-medium transition-colors whitespace-nowrap text-sm sm:text-base',
-                  activeTab === 'history'
-                    ? 'border-purple-500 text-white'
-                    : 'border-transparent text-gray-400 hover:text-white'
-                )}
-              >
-                History
-              </button>
-              <button
-                onClick={() => setActiveTab('media')}
-                className={classNames(
-                  'py-4 border-b-2 font-medium transition-colors whitespace-nowrap text-sm sm:text-base',
-                  activeTab === 'media'
-                    ? 'border-purple-500 text-white'
-                    : 'border-transparent text-gray-400 hover:text-white'
-                )}
-              >
-                Media {media.length > 0 ? '(' + media.length + ')' : (phenomenon.image_gallery && phenomenon.image_gallery.length > 0 ? '(' + phenomenon.image_gallery.length + ')' : '')}
-              </button>
-              <button
-                onClick={() => setActiveTab('reports')}
-                className={classNames(
-                  'py-4 border-b-2 font-medium transition-colors whitespace-nowrap text-sm sm:text-base',
-                  activeTab === 'reports'
-                    ? 'border-purple-500 text-white'
-                    : 'border-transparent text-gray-400 hover:text-white'
-                )}
-              >
-                Reports ({reports.length})
-              </button>
-            </nav>
-          </div>
+        {/* Personalized callout — silent for anon / no-match cases */}
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          <YourSignalForPhenomenon slug={phenomenon.slug} />
         </div>
 
-        {/* Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
-          {activeTab === 'overview' && (
-          <>
-
-          {/* Top section: Sidebar + Main Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-
-          {/* Sidebar - shows first on mobile, last on desktop */}
-          <div className="order-first lg:order-last space-y-6">
-                {/* Phenomenon Location Map - scrolls away naturally */}
-                {phenomenon.primary_regions && phenomenon.primary_regions.length > 0 && (
-                  <PhenomenonMiniMap
-                    regions={phenomenon.primary_regions}
-                    phenomenonName={phenomenon.name}
-                  />
-                )}
-
-          <div className="lg:sticky lg:top-20 space-y-6">
-                {/* Quick Stats Card */}
-                <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                  <h3 className="text-lg font-semibold text-white mb-4">Quick Facts</h3>
-                  <dl className="space-y-4">
-                    {phenomenon.aliases && phenomenon.aliases.length > 0 && (
-                      <div>
-                        <dt className="text-sm text-gray-400">Also Known As</dt>
-                        <dd className="text-white text-sm mt-1 flex flex-wrap gap-1.5">
-                          {phenomenon.aliases.map((alias: string, i: number) => (
-                            <span key={i} className="bg-gray-800 px-2 py-0.5 rounded text-gray-300 text-xs">
-                              {alias}
-                            </span>
-                          ))}
-                        </dd>
-                      </div>
-                    )}
-                    <div>
-                      <dt className="text-sm text-gray-400">Category</dt>
-                      <dd className="text-white flex items-center gap-2 mt-1">
-                        <CategoryIcon category={phenomenon.category as PhenomenonCategory} size={16} />
-                        {config?.label}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-sm text-gray-400">Total Reports</dt>
-                      <dd className="text-2xl font-bold text-purple-400">{phenomenon.report_count}</dd>
-                    </div>
-                    {phenomenon.first_reported_date && (
-                      <div>
-                        <dt className="text-sm text-gray-400">First Reported</dt>
-                        <dd className="text-white">{new Date(phenomenon.first_reported_date).toLocaleDateString()}</dd>
-                      </div>
-                    )}
-                    {phenomenon.last_reported_date && (
-                      <div>
-                        <dt className="text-sm text-gray-400">Most Recent</dt>
-                        <dd className="text-white">{new Date(phenomenon.last_reported_date).toLocaleDateString()}</dd>
-                      </div>
-                    )}
-
-                    {/* AI-Generated Quick Facts */}
-                    {phenomenon.ai_quick_facts && (
-                      <>
-                        <div className="border-t border-gray-700 my-2" />
-
-                        {phenomenon.ai_quick_facts.origin && (
-                          <div>
-                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <MapPin className="w-3.5 h-3.5" /> Origin
-                            </dt>
-                            <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.origin}</dd>
-                          </div>
-                        )}
-
-                        {phenomenon.ai_quick_facts.classification && (
-                          <div>
-                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <Fingerprint className="w-3.5 h-3.5" /> Classification
-                            </dt>
-                            <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.classification}</dd>
-                          </div>
-                        )}
-
-                        {phenomenon.ai_quick_facts.first_documented && (
-                          <div>
-                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <Calendar className="w-3.5 h-3.5" /> First Documented
-                            </dt>
-                            <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.first_documented}</dd>
-                          </div>
-                        )}
-
-                        {phenomenon.ai_quick_facts.danger_level && (
-                          <div>
-                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <AlertTriangle className="w-3.5 h-3.5" /> Danger Level
-                            </dt>
-                            <dd className={classNames(
-                              'text-sm mt-1 font-medium',
-                              phenomenon.ai_quick_facts.danger_level.toLowerCase().includes('high') || phenomenon.ai_quick_facts.danger_level.toLowerCase().includes('dangerous')
-                                ? 'text-red-400'
-                                : phenomenon.ai_quick_facts.danger_level.toLowerCase().includes('moderate') || phenomenon.ai_quick_facts.danger_level.toLowerCase().includes('caution')
-                                  ? 'text-yellow-400'
-                                  : phenomenon.ai_quick_facts.danger_level.toLowerCase().includes('low') || phenomenon.ai_quick_facts.danger_level.toLowerCase().includes('benign') || phenomenon.ai_quick_facts.danger_level.toLowerCase().includes('harmless')
-                                    ? 'text-green-400'
-                                    : 'text-gray-300'
-                            )}>
-                              {phenomenon.ai_quick_facts.danger_level}
-                            </dd>
-                          </div>
-                        )}
-
-                        {phenomenon.ai_quick_facts.typical_encounter && (
-                          <div>
-                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <Eye className="w-3.5 h-3.5" /> Typical Encounter
-                            </dt>
-                            <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.typical_encounter}</dd>
-                          </div>
-                        )}
-
-                        {phenomenon.ai_quick_facts.evidence_types && (
-                          <div>
-                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <FileText className="w-3.5 h-3.5" /> Evidence
-                            </dt>
-                            <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.evidence_types}</dd>
-                          </div>
-                        )}
-
-                        {phenomenon.ai_quick_facts.active_period && (
-                          <div>
-                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5" /> Active Period
-                            </dt>
-                            <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.active_period}</dd>
-                          </div>
-                        )}
-
-                        {phenomenon.ai_quick_facts.notable_feature && (
-                          <div>
-                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <Star className="w-3.5 h-3.5" /> Notable Feature
-                            </dt>
-                            <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.notable_feature}</dd>
-                          </div>
-                        )}
-
-                        {phenomenon.ai_quick_facts.cultural_significance && (
-                          <div>
-                            <dt className="text-sm text-gray-400 flex items-center gap-1.5">
-                              <Globe2 className="w-3.5 h-3.5" /> Cultural Significance
-                            </dt>
-                            <dd className="text-white text-sm mt-1">{phenomenon.ai_quick_facts.cultural_significance}</dd>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </dl>
-                </div>
-
-                {/* Recent Reports */}
-                {reports.length > 0 && (
-                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                    <h3 className="text-lg font-semibold text-white mb-4">Recent Reports</h3>
-                    <div className="space-y-3">
-                      {reports.slice(0, 5).map(report => (
-                        <Link
-                          key={report.id}
-                          href={`/report/${report.slug}`}
-                          className="block p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition-colors"
-                        >
-                          <h4 className="text-sm text-white font-medium line-clamp-1">{report.title}</h4>
-                          <p className="text-xs text-gray-400 mt-1">
-                            {report.location_name || report.country || 'Unknown location'}
-                            {report.event_date && ` ÃÂ¢ÃÂÃÂ¢ ${new Date(report.event_date).toLocaleDateString()}`}
-                          </p>
-                        </Link>
-                      ))}
-                    </div>
-                    {reports.length > 5 && (
-                      <button
-                        onClick={() => setActiveTab('reports')}
-                        className="mt-4 text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
-                      >
-                        View all {reports.length} reports
-                        <ExternalLink className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                )}
-          </div>
-          </div>
-
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-8">
-                {/* Description */}
-                {phenomenon.ai_description && (
-                  <ContentSection
-                    icon={<BookOpen className="w-5 h-5" />}
-                    title="Description"
-                    content={phenomenon.ai_description}
-                  />
-                )}
-
-                {/* Paradocs Analysis - Convergence Insight */}
-                {phenomenon.ai_theories && (
-                  <section className="relative rounded-xl overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-900/40 via-indigo-900/30 to-gray-900/40 rounded-xl" />
-                    <div className="absolute inset-0 border border-purple-500/30 rounded-xl" />
-                    <div className="relative p-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                          <Lightbulb className="w-4 h-4 text-purple-400" />
-                        </div>
-                        <div>
-                          <h2 className="text-lg font-semibold text-white">Paradocs Analysis</h2>
-                          <p className="text-xs text-purple-400 font-medium tracking-wider uppercase">Cross-Framework Convergence</p>
-                        </div>
-                      </div>
-                      <div className="prose prose-invert prose-gray max-w-none">
-                        {phenomenon.ai_paradocs_analysis ? (
-                          phenomenon.ai_paradocs_analysis.split('\n\n').map(function(paragraph, i) {
-                            return React.createElement('p', { key: i, className: 'text-gray-300 leading-relaxed mb-4 last:mb-0' }, paragraph);
-                          })
-                        ) : null}
-                      </div>
-                    </div>
-                  </section>
-                )}
-
-                {/* Characteristics and Theories side by side within main content flow */}
-                {(phenomenon.ai_characteristics || phenomenon.ai_theories) && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-                  {/* Characteristics */}
-                  {phenomenon.ai_characteristics && (
-                    <ContentSection
-                      icon={<Fingerprint className="w-5 h-5" />}
-                      title="Characteristics"
-                      content={phenomenon.ai_characteristics}
-                    />
-                  )}
-
-                  {/* Theories */}
-                  {phenomenon.ai_theories && (
-                    <ContentSection
-                      icon={<Lightbulb className="w-5 h-5" />}
-                      title="Theories & Explanations"
-                      content={phenomenon.ai_theories}
-                    />
-                  )}
-                </div>
-                )}
-
-          </div>
-          </div>
-
-          </>
-          )}
-
-          {activeTab === 'history' && (
-            <div className="max-w-4xl mx-auto space-y-8">
-              {/* History */}
-              {phenomenon.ai_history && (
-                <ContentSection
-                  icon={<History className="w-5 h-5" />}
-                  title="Historical Background"
-                  content={phenomenon.ai_history}
-                />
-              )}
-
-              {/* Notable Sightings */}
-              {phenomenon.ai_notable_sightings && (
-                <ContentSection
-                  icon={<Eye className="w-5 h-5" />}
-                  title="Notable Sightings"
-                  content={phenomenon.ai_notable_sightings}
-                />
-              )}
-
-              {/* Cultural Impact */}
-              {phenomenon.ai_cultural_impact && (
-                <ContentSection
-                  icon={<BookOpen className="w-5 h-5" />}
-                  title="Cultural Impact"
-                  content={phenomenon.ai_cultural_impact}
-                />
-              )}
-
-            </div>
-          )}
-
-          {activeTab === 'media' && (
-            <div>
-              {media.length > 0 ? (
-                <div className="space-y-8">
-                  {/* Images & Illustrations Section */}
-                  {media.filter(function(m) { return m.media_type === 'image' || m.media_type === 'illustration'; }).length > 0 && (
-                    <section>
-                      <h2 className="flex items-center gap-3 text-xl font-semibold text-white mb-6">
-                        <span className="text-purple-400"><Image className="w-5 h-5" /></span>
-                        Images & Illustrations
-                      </h2>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {media.filter(function(m) { return m.media_type === 'image' || m.media_type === 'illustration'; }).map(function(item) {
-                          var displayUrl = item.stored_url || item.original_url;
-                          var thumbUrl = item.thumbnail_url || displayUrl;
-                          return (
-                            <button
-                              key={item.id}
-                              onClick={function() { setLightboxImage({ url: displayUrl, caption: item.caption || undefined, source: item.source || undefined }); }}
-                              className="group block bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-purple-500/50 transition-all text-left cursor-pointer"
-                            >
-                              <div className="relative aspect-video bg-gray-800">
-                                <img
-                                  src={thumbUrl}
-                                  alt={item.caption || phenomenon.name}
-                                  className="w-full h-full object-cover"
-                                  referrerPolicy="no-referrer"
-                                  loading="lazy"
-                                />
-                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                                  <ZoomIn className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                                </div>
-                                {item.is_profile && (
-                                  <span className="absolute top-2 left-2 bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">Profile</span>
-                                )}
-                              </div>
-                              <div className="p-3">
-                                {item.caption && (
-                                  <p className="text-sm text-gray-300 line-clamp-2">{item.caption}</p>
-                                )}
-                                <div className="flex items-center gap-2 mt-1">
-                                  {item.source && (
-                                    <span className="text-xs text-gray-500">{'Source: ' + item.source}</span>
-                                  )}
-                                  {item.license && (
-                                    <span className="text-xs text-gray-600">{item.license}</span>
-                                  )}
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </section>
-                  )}
-
-                  {/* Videos Section */}
-                  {media.filter(function(m) { return m.media_type === 'video'; }).length > 0 && (
-                    <section>
-                      <h2 className="flex items-center gap-3 text-xl font-semibold text-white mb-6">
-                        <span className="text-purple-400"><Video className="w-5 h-5" /></span>
-                        Videos & Documentaries
-                      </h2>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {media.filter(function(m) { return m.media_type === 'video'; }).map(function(item) {
-                          var videoUrl = item.original_url;
-                          var ytMatch = videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
-                          var youtubeId = ytMatch ? ytMatch[1] : null;
-                          return (
-                            <div key={item.id} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-                              {youtubeId ? (
-                                <div className="aspect-video">
-                                  <iframe
-                                    src={'https://www.youtube.com/embed/' + youtubeId}
-                                    title={item.caption || phenomenon.name}
-                                    className="w-full h-full"
-                                    allowFullScreen
-                                    loading="lazy"
-                                  />
-                                </div>
-                              ) : (
-                                <a
-                                  href={videoUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="block relative aspect-video bg-gray-800"
-                                >
-                                  {item.thumbnail_url && (
-                                    <img src={item.thumbnail_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                  )}
-                                  <div className="absolute inset-0 flex items-center justify-center">
-                                    <Play className="w-12 h-12 text-white/80" />
-                                  </div>
-                                </a>
-                              )}
-                              <div className="p-3">
-                                {item.caption && (
-                                  <p className="text-sm text-gray-300 line-clamp-2">{item.caption}</p>
-                                )}
-                                {item.source && (
-                                  <p className="text-xs text-gray-500 mt-1">{item.source}</p>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </section>
-                  )}
-
-                  {/* Documents & Reports Section */}
-                  {media.filter(function(m) { return m.media_type === 'document'; }).length > 0 && (
-                    <section>
-                      <h2 className="flex items-center gap-3 text-xl font-semibold text-white mb-6">
-                        <span className="text-purple-400"><FileText className="w-5 h-5" /></span>
-                        Documents & Official Reports
-                      </h2>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {media.filter(function(m) { return m.media_type === 'document'; }).map(function(item) {
-                          var isGov = item.source && /FBI|NSA|CIA|FOIA|GAO|DoD|Pentagon|Navy|Air Force|government/i.test(item.source);
-                          return (
-                            <a
-                              key={item.id}
-                              href={item.source_url || item.original_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-start gap-4 bg-gray-900 border border-gray-800 rounded-xl p-4 hover:border-purple-500/50 transition-all"
-                            >
-                              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center">
-                                <FileText className="w-5 h-5 text-gray-400" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm text-gray-200 font-medium line-clamp-2">{item.caption || 'Official Document'}</p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  {isGov && (
-                                    <span className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded-full">Official</span>
-                                  )}
-                                  {item.source && (
-                                    <span className="text-xs text-gray-500">{item.source}</span>
-                                  )}
-                                </div>
-                              </div>
-                              <ExternalLink className="w-4 h-4 text-gray-500 flex-shrink-0 mt-1" />
-                            </a>
-                          );
-                        })}
-                      </div>
-                    </section>
-                  )}
-                </div>
-              ) : phenomenon.image_gallery && phenomenon.image_gallery.length > 0 ? (
-                <div className="space-y-8">
-                  {/* Legacy fallback: render from image_gallery JSONB */}
-                  {phenomenon.image_gallery.filter(function(item) { return item.type !== 'video'; }).length > 0 && (
-                    <section>
-                      <h2 className="flex items-center gap-3 text-xl font-semibold text-white mb-6">
-                        <span className="text-purple-400"><Image className="w-5 h-5" /></span>
-                        Images & Illustrations
-                      </h2>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {phenomenon.image_gallery.filter(function(item) { return item.type !== 'video'; }).map(function(item, i) {
-                          return (
-                            <button
-                              key={i}
-                              onClick={function() { setLightboxImage({ url: item.url, caption: item.caption, source: item.source }); }}
-                              className="group block bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-purple-500/50 transition-all text-left cursor-pointer"
-                            >
-                              <div className="relative aspect-video bg-gray-800">
-                                <img
-                                  src={item.thumbnail_url || item.url}
-                                  alt={item.caption || phenomenon.name}
-                                  className="w-full h-full object-cover"
-                                  referrerPolicy="no-referrer"
-                                  loading="lazy"
-                                />
-                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                                  <ZoomIn className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                                </div>
-                              </div>
-                              {item.caption && (
-                                <div className="p-3">
-                                  <p className="text-sm text-gray-300 line-clamp-2">{item.caption}</p>
-                                  {item.source && (
-                                    <p className="text-xs text-gray-500 mt-1">{'Source: ' + item.source}</p>
-                                  )}
-                                </div>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </section>
-                  )}
-                  {phenomenon.image_gallery.filter(function(item) { return item.type === 'video'; }).length > 0 && (
-                    <section>
-                      <h2 className="flex items-center gap-3 text-xl font-semibold text-white mb-6">
-                        <span className="text-purple-400"><Video className="w-5 h-5" /></span>
-                        Videos & Documentaries
-                      </h2>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {phenomenon.image_gallery.filter(function(item) { return item.type === 'video'; }).map(function(item, i) {
-                          var ytMatch = item.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
-                          var youtubeId = ytMatch ? ytMatch[1] : null;
-                          return (
-                            <div key={i} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-                              {youtubeId ? (
-                                <div className="aspect-video">
-                                  <iframe
-                                    src={'https://www.youtube.com/embed/' + youtubeId}
-                                    title={item.caption || phenomenon.name}
-                                    className="w-full h-full"
-                                    allowFullScreen
-                                    loading="lazy"
-                                  />
-                                </div>
-                              ) : (
-                                <a
-                                  href={item.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="block relative aspect-video bg-gray-800"
-                                >
-                                  {item.thumbnail_url && (
-                                    <img src={item.thumbnail_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                  )}
-                                  <div className="absolute inset-0 flex items-center justify-center">
-                                    <Play className="w-12 h-12 text-white/80" />
-                                  </div>
-                                </a>
-                              )}
-                              {item.caption && (
-                                <div className="p-3">
-                                  <p className="text-sm text-gray-300 line-clamp-2">{item.caption}</p>
-                                  {item.source && (
-                                    <p className="text-xs text-gray-500 mt-1">{item.source}</p>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </section>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <Image className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                  <p className="text-gray-400">No media gallery available for this phenomenon yet.</p>
-                  <p className="text-gray-500 text-sm mt-2">Media will be added as research continues.</p>
-                </div>
-              )}
-            </div>
-          )}
-
-                    {activeTab === 'reports' && (
-            <div>
-              <p className="text-gray-400 mb-6">
-                Showing {reports.length} reports related to {phenomenon.name}
-              </p>
-
-              {reports.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-gray-400">No reports linked to this phenomenon yet.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {reports.map(report => {
-                    return (
-                      <Link
-                        key={report.id}
-                        href={`/report/${report.slug}`}
-                        className="block bg-gray-900 border border-gray-800 rounded-xl p-4 hover:border-purple-500/50 transition-all"
-                      >
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <h3 className="text-white font-medium line-clamp-2">{report.title}</h3>
-                          {report.match_confidence >= 0.8 && (
-                            <span className="text-xs px-2 py-0.5 bg-green-900/50 text-green-400 rounded">
-                              High match
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-400 line-clamp-2 mb-3">{report.summary}</p>
-                        <div className="flex items-center justify-between text-xs text-gray-500">
-                          <span>{report.location_name || report.country || 'Unknown'}</span>
-                          <div className="flex items-center gap-3">
-                            {/* Credibility badge intentionally omitted (QA/QC Apr 14 2026) */}
-                            <span className="flex items-center gap-1">
-                              <Eye className="w-3 h-3" />
-                              {report.view_count}
-                            </span>
-                          </div>
-                        </div>
-                      </Link>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+        {/* Reports grid (or empty state) */}
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+          {reports.length === 0 ? (
+            <EmptyState phenomenonName={phenomenon.name} />
+          ) : (
+            <ReportGrid reports={reports} />
           )}
         </div>
       </div>
-      <AskTheUnknown
-        context={{
-          type: 'phenomenon',
-          name: phenomenon.name,
-          category: phenomenon.category,
-          description: phenomenon.ai_description || phenomenon.ai_summary || '',
-          reportCount: phenomenon.report_count
-        }}
-      />
-
-      {/* Image Lightbox Modal */}
-      {lightboxImage && (
-        <div
-          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 cursor-pointer"
-          onClick={() => setLightboxImage(null)}
-        >
-          <div className="relative max-w-5xl max-h-[90vh] w-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => setLightboxImage(null)}
-              className="absolute -top-10 right-0 text-white/70 hover:text-white text-sm flex items-center gap-1 transition-colors"
-            >
-              Press ESC or click outside to close
-            </button>
-            <img
-              src={lightboxImage.url}
-              alt={lightboxImage.caption || phenomenon.name}
-              className="max-w-full max-h-[80vh] object-contain rounded-lg"
-              referrerPolicy="no-referrer"
-            />
-            {(lightboxImage.caption || lightboxImage.source) && (
-              <div className="mt-4 text-center max-w-2xl">
-                {lightboxImage.caption && (
-                  <p className="text-white text-sm">{lightboxImage.caption}</p>
-                )}
-                {lightboxImage.source && (
-                  <p className="text-gray-500 text-xs mt-1">Source: {lightboxImage.source}</p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </>
   )
 }
 
-function ContentSection({
-  icon,
-  title,
-  content,
-}: {
-  icon: React.ReactNode
-  title: string
-  content: string
-}) {
+// ── Sub-components ────────────────────────────────────────────────
+
+function ReportGrid({ reports }: { reports: RelatedReport[] }) {
   return (
-    <section className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-      <h2 className="flex items-center gap-3 text-xl font-semibold text-white mb-4">
-        <span className="text-purple-400">{icon}</span>
-        {title}
-      </h2>
-      <div className="prose prose-invert prose-gray max-w-none">
-        {content.split('\n\n').map((paragraph, i) => (
-          <p key={i} className="text-gray-300 leading-relaxed mb-4 last:mb-0">
-            {paragraph}
-          </p>
-        ))}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {reports.map(report => (
+        <Link
+          key={report.id}
+          href={`/report/${report.slug}`}
+          className="block rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-purple-500/30 transition-all p-4"
+        >
+          <h3 className="text-[15px] font-semibold text-white leading-snug mb-1.5 line-clamp-2">
+            {report.title}
+          </h3>
+          {report.summary && (
+            <p className="text-xs text-gray-400 leading-relaxed line-clamp-3 mb-2">
+              {report.summary}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-3 text-[11px] text-gray-500">
+            {report.location_name && <span>{report.location_name}</span>}
+            {!report.location_name && report.country && <span>{report.country}</span>}
+            {report.event_date && (
+              <span>{(report.event_date.match(/\d{4}/) || [''])[0]}</span>
+            )}
+          </div>
+        </Link>
+      ))}
+    </div>
+  )
+}
+
+function EmptyState({ phenomenonName }: { phenomenonName: string }) {
+  return (
+    <div className="text-center py-12 sm:py-16">
+      <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gray-900 border border-gray-800 mb-5">
+        <Telescope className="w-6 h-6 text-gray-500" />
       </div>
-    </section>
+      <h2 className="text-lg font-semibold text-white mb-2">
+        No reports tagged with {phenomenonName} yet
+      </h2>
+      <p className="text-sm text-gray-400 max-w-md mx-auto mb-6">
+        As reports get submitted or indexed and tagged with this phenomenon, they&apos;ll show up here.
+      </p>
+      <Link
+        href="/explore?view=categories"
+        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium text-white bg-purple-600 hover:bg-purple-500 transition-colors"
+      >
+        Browse other categories
+      </Link>
+    </div>
   )
 }

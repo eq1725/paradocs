@@ -29,6 +29,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { Report, PhenomenonType, PhenomenonCategory, CredibilityLevel, ContentType } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CONTENT_TYPE_CONFIG, COUNTRIES } from '@/lib/constants'
+import { formatLocationLabel } from '@/lib/format/location-label'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import PhenomenonIcon from '@/components/ui/PhenomenonIcon'
 import CategoryFilter from '@/components/CategoryFilter'
@@ -42,6 +43,8 @@ import MapSpotlightRow from '@/components/map/MapSpotlightRow'
 // Map imports — dynamic to avoid SSR
 import { useMapState } from '@/components/map/useMapState'
 import { useViewportData } from '@/components/map/useViewportData'
+import { useChoroplethData } from '@/components/map/useChoroplethData'
+import RegionTotalsPanel from '@/components/map/RegionTotalsPanel'
 import { ReportProperties } from '@/components/map/mapStyles'
 import MapControls, { BasemapStyle } from '@/components/map/MapControls'
 import MapFilterPanel from '@/components/map/MapFilterPanel'
@@ -266,9 +269,16 @@ export default function ExplorePage() {
       </Head>
 
       {/* ─── Mode Tabs (always visible at top) ─── */}
+      {/* V10.9.D — removed the `safe-area-pt` modifier on map mode.
+          It was double-counting the iOS safe-area inset: <main> already
+          has main-content-pt which equals 3.5rem + safe-area-inset-top,
+          and `sticky-below-header` here uses the same offset for its
+          sticky `top` value. Adding `safe-area-pt` on top of that
+          pushed the tabs ~60px below where they should sit, leaving
+          the huge gap between the wordmark and the tabs on iPhones
+          with a Dynamic Island. */}
       <div className={classNames(
-        'sticky-below-header bg-gray-950/95 backdrop-blur-lg border-b border-white/5',
-        mode === 'map' ? 'safe-area-pt' : ''
+        'sticky-below-header bg-gray-950/95 backdrop-blur-lg border-b border-white/5'
       )}>
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center gap-1 py-2">
@@ -361,6 +371,11 @@ function ExploreMapMode() {
   var error = viewportData.error
   var supercluster = viewportData.supercluster
   var getReport = viewportData.getReport
+  // V10.9.A — region totals for synthetic-coord reports (country/state
+  // only). These don't show as pins; the RegionTotalsPanel surfaces
+  // them as honest counts.
+  var regionBuckets = viewportData.regionBuckets
+  var regionTotalCount = viewportData.regionTotalCount
 
   var selectedReport: ReportProperties | null = useMemo(function() {
     if (!selectedReportId) return null
@@ -405,8 +420,22 @@ function ExploreMapMode() {
     setHeatmapActive(!heatmapActive)
   }, [heatmapActive, setHeatmapActive])
 
+  // V10.9.B — choropleth fill layer. Default ON so users see the
+  // region density layer the first time they load the map after
+  // mass-ingest data lands; can toggle off via the map controls.
+  var [choroplethActive, setChoroplethActive] = useState(true)
+  var handleToggleChoropleth = useCallback(function() {
+    setChoroplethActive(function(v: boolean) { return !v })
+  }, [])
+
+  var choropleth = useChoroplethData(regionBuckets, choroplethActive)
+
   return (
-    <div className="fixed inset-0 bg-gray-950" style={{ top: 'calc(56px + 48px + env(safe-area-inset-top, 0px))' }}>
+    <div
+      data-map-fullscreen-target
+      className="fixed inset-0 bg-gray-950"
+      style={{ top: 'calc(56px + 48px + env(safe-area-inset-top, 0px))' }}
+    >
       {/* Map fills viewport below tabs */}
       <MapContainer
         features={features}
@@ -420,6 +449,23 @@ function ExploreMapMode() {
         flyToTarget={flyToTarget}
         basemapStyle={basemapStyle}
         mapPadding={filterPanelOpen ? MAP_PADDING_WITH_FILTERS : MAP_PADDING_DEFAULT}
+        choroplethGeoJson={choroplethActive ? choropleth.geojson : null}
+        choroplethMaxCount={choropleth.maxCount}
+        onChoroplethCountryClick={function(_code, name) {
+          setFilters({ ...filters, country: filters.country === name ? null : name })
+        }}
+      />
+
+      {/* V10.9.A — Region totals panel for synthetic-coord reports.
+          Surfaces country/state-precision reports as honest aggregate
+          counts instead of misleading map clusters. */}
+      <RegionTotalsPanel
+        buckets={regionBuckets}
+        total={regionTotalCount}
+        activeCountry={filters.country}
+        onCountryClick={function(_code, name) {
+          setFilters({ ...filters, country: filters.country === name ? null : name })
+        }}
       />
 
       {/* Loading overlay */}
@@ -490,6 +536,8 @@ function ExploreMapMode() {
         onLocateMe={handleLocateMe}
         basemapStyle={basemapStyle}
         onBasemapChange={setBasemapStyle}
+        choroplethActive={choroplethActive}
+        onToggleChoropleth={handleToggleChoropleth}
         className="absolute bottom-4 right-4 z-20 lg:bottom-[90px] lg:right-6 max-lg:bottom-[150px]"
       />
 
@@ -532,6 +580,8 @@ function ExploreMapMode() {
         dateTo={filters.dateTo}
         onDateChange={handleDateChange}
         yearHistogram={yearHistogram}
+        regionBuckets={regionBuckets}
+        regionTotalCount={regionTotalCount}
       />
     </div>
   )
@@ -846,7 +896,14 @@ function ExploreBrowseMode() {
     if (browseView === 'reports') loadReports()
   }, [loadReports, browseView])
 
-  // Load phenomena for a category
+  // Load phenomena for a category.
+  // T1.4 — only surface phenomena that have at least one tagged report.
+  // Encyclopedia entries are a tag vocabulary now, not a content library;
+  // entries with report_count === 0 have nothing to drill into, so we
+  // hide them from the browse surface to keep the experience populated
+  // and avoid empty per-phenomenon pages. Pre-mass-ingestion this means
+  // categories will look sparse — by design. Track B (ingestion) fills
+  // them in.
   var loadPhenomena = useCallback(async function(cat: string) {
     setPhenomenaLoading(true)
     try {
@@ -854,6 +911,8 @@ function ExploreBrowseMode() {
         .from('phenomena')
         .select('id,name,slug,category,icon,ai_summary,report_count,primary_image_url,aliases,ai_quick_facts')
         .eq('category', cat)
+        .gt('report_count', 0)
+        .order('report_count', { ascending: false })
         .order('name', { ascending: true })
         .limit(500)
       var result = await q
@@ -961,8 +1020,11 @@ function ExploreBrowseMode() {
                   {latestReports.map(function(report) {
                     var catConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
                     var accent = CATEGORY_ACCENT[report.category] || CATEGORY_ACCENT.combination
-                    var locationParts = [report.city || report.location_name, report.state_province].filter(Boolean)
-                    var locationStr = locationParts.length > 0 ? locationParts.slice(0, 2).join(', ') : null
+                    // V10.8.J — canonical location label (handles dedup
+                    // and city-vs-location_name fallback so we don't
+                    // emit "Kansas, Kansas" when city=null + location_name=
+                    // "Kansas" + state_province="Kansas").
+                    var locationStr = formatLocationLabel(report, { maxParts: 2 })
                     var timeAgo = formatRelativeDate(report.created_at)
                     return (
                       <Link
@@ -1081,7 +1143,7 @@ function ExploreBrowseMode() {
                         </div>
                         <div className="flex items-center gap-3">
                           {section.id === 'spotlight' && (
-                            <Link href="/phenomena" className="text-xs sm:text-sm font-medium text-primary-400 hover:text-primary-300 transition-colors whitespace-nowrap">
+                            <Link href="/explore?view=categories" className="text-xs sm:text-sm font-medium text-primary-400 hover:text-primary-300 transition-colors whitespace-nowrap">
                               See all <ChevronRightIcon className="w-3 h-3 inline -mt-0.5" />
                             </Link>
                           )}
@@ -1123,7 +1185,7 @@ function ExploreBrowseMode() {
                                 </Link>
                               )
                             })}
-                            <Link href="/phenomena" className="min-w-[50vw] sm:min-w-[180px] flex-shrink-0 snap-start flex flex-col items-center justify-center rounded-xl border border-white/10 hover:border-primary-500/30 bg-white/[0.02] hover:bg-white/[0.04] transition-all gap-3 px-6">
+                            <Link href="/explore?view=categories" className="min-w-[50vw] sm:min-w-[180px] flex-shrink-0 snap-start flex flex-col items-center justify-center rounded-xl border border-white/10 hover:border-primary-500/30 bg-white/[0.02] hover:bg-white/[0.04] transition-all gap-3 px-6">
                               <BookOpen className="w-8 h-8 text-primary-400" />
                               <span className="text-sm font-medium text-primary-400">Browse Encyclopedia</span>
                               <span className="text-xs text-gray-500">Every phenomenon</span>
@@ -1140,8 +1202,7 @@ function ExploreBrowseMode() {
                             {section.reports.map(function(report) {
                               var catConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
                               // Credibility badge intentionally omitted (QA/QC Apr 14 2026)
-                              var locationParts = [report.city || report.location_name, report.state_province, report.country].filter(Boolean)
-                              var locationStr = locationParts.length > 0 ? locationParts.slice(0, 2).join(', ') : null
+                              var locationStr = formatLocationLabel(report, { maxParts: 2 })
                               return (
                                 <Link key={report.id} href={'/report/' + report.slug} className="min-w-[270px] sm:min-w-[310px] max-w-[290px] sm:max-w-[330px] flex-shrink-0 snap-start glass-card p-4 sm:p-5 hover:border-primary-500/30 transition-all group/card flex flex-col">
                                   <div className="flex items-start gap-3 mb-2.5">
@@ -1223,7 +1284,10 @@ function ExploreBrowseMode() {
               </span>
               <div>
                 <h2 className="text-xl font-bold text-white">{(CATEGORY_CONFIG as any)[selectedCategoryForPhenomena]?.label || selectedCategoryForPhenomena}</h2>
-                <p className="text-sm text-gray-500">{phenomena.length} phenomena</p>
+                {/* T1.4 — count reflects phenomena WITH tagged reports only */}
+                <p className="text-sm text-gray-500">
+                  {phenomena.length === 1 ? '1 phenomenon with reports' : phenomena.length.toLocaleString() + ' phenomena with reports'}
+                </p>
               </div>
             </div>
             <button onClick={function() { handleViewReports(selectedCategoryForPhenomena!) }} className="hidden sm:flex px-4 py-2 bg-primary-500/10 border border-primary-500/20 rounded-lg text-primary-400 text-sm font-medium hover:bg-primary-500/20 transition-all">
@@ -1288,7 +1352,19 @@ function ExploreBrowseMode() {
             </div>
           ) : sorted.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-400">{phenomenaFilter ? 'No phenomena match your filter.' : 'No phenomena found in this category.'}</p>
+              {/* T1.4 — empty state reflects "no tagged reports yet" rather
+                  than "no entries exist". Categories may have many encyclopedia
+                  entries that simply have no tagged reports yet. */}
+              <p className="text-gray-400">
+                {phenomenaFilter
+                  ? 'No phenomena match your filter.'
+                  : 'No tagged reports in this category yet.'}
+              </p>
+              {!phenomenaFilter && (
+                <p className="text-xs text-gray-500 mt-2 max-w-sm mx-auto">
+                  As reports get submitted or indexed and tagged with phenomena in this category, they&apos;ll show up here.
+                </p>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1748,7 +1824,7 @@ function ExploreSearchMode() {
           {/* Fulltext results */}
           {results.length > 0 && results.map(function(report) {
             var config = (CATEGORY_CONFIG as any)[report.category] || CATEGORY_CONFIG.combination
-            var locationParts = [report.city || report.location_name, report.state_province, report.country].filter(Boolean)
+            var locationStr = formatLocationLabel(report, { maxParts: 3 })
             return (
               <Link key={report.id} href={'/report/' + report.slug} className="block glass-card p-4 hover:border-primary-500/30 transition-all group">
                 <div className="flex items-start gap-3">
@@ -1760,7 +1836,7 @@ function ExploreSearchMode() {
                     <h3 className="font-medium text-white text-sm group-hover:text-primary-300 transition-colors line-clamp-2">{report.title}</h3>
                     {((report as any).feed_hook || report.summary) && <p className="text-xs text-gray-500 line-clamp-2 mt-1">{(report as any).feed_hook || report.summary}</p>}
                     <div className="flex items-center gap-3 mt-2 text-[11px] text-gray-600">
-                      {locationParts.length > 0 && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{locationParts.slice(0, 2).join(', ')}</span>}
+                      {locationStr && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{locationStr}</span>}
                       {report.event_date && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(report.event_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>}
                     </div>
                   </div>

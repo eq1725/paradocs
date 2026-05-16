@@ -25,6 +25,92 @@ import { verifyAndAuditRewrite, PROMPT_VERSION } from '@/lib/ai/rewrite-pipeline
 var ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001'
 var ANTHROPIC_FALLBACK = 'claude-3-5-haiku-20241022'
 
+// B0.7 — Haiku 4.5 pricing per million tokens as of May 2026.
+// Source: anthropic.com/pricing. Update when Anthropic publishes a
+// price change; the rest of the cost-tracking machinery is constant.
+var HAIKU_INPUT_USD_PER_M = 1.0
+var HAIKU_OUTPUT_USD_PER_M = 5.0
+
+// Daily spend ceiling for paradocs_narrative generation across ALL
+// reports system-wide. When today's logged completed spend exceeds
+// this, no further calls fire — the report still inserts but without
+// narrative, and the next day's first ingestion pass picks up
+// unnarrated reports first. Env var override for ops flexibility.
+var DAILY_COST_CAP_USD = (function () {
+  var raw = process.env.PARADOCS_HAIKU_DAILY_CAP
+  if (!raw) return 50.0
+  var n = parseFloat(raw)
+  return isNaN(n) || n < 0 ? 50.0 : n
+})()
+
+/**
+ * B0.7 — sum today's completed paradocs_narrative spend. Returns 0
+ * if the cost-log table is missing (fail open — we'd rather burn
+ * a little money than block ingestion when the table isn't applied).
+ */
+async function getTodaysParadocsSpend(supabase: any): Promise<number> {
+  try {
+    var todayStart = new Date()
+    todayStart.setUTCHours(0, 0, 0, 0)
+    var result = await supabase
+      .from('paradocs_narrative_cost_log')
+      .select('cost_usd')
+      .gte('created_at', todayStart.toISOString())
+      .eq('status', 'completed')
+    var rows = (result && result.data) || []
+    var sum = 0
+    for (var i = 0; i < rows.length; i++) sum += parseFloat(rows[i].cost_usd) || 0
+    return sum
+  } catch (_e) {
+    return 0
+  }
+}
+
+/**
+ * B0.7 — compute USD cost from token counts + model.
+ * Currently only Haiku 4.5 + fallback are priced; other models
+ * (Sonnet) return 0 here because they're paid for elsewhere
+ * (your-signal-ai.service.ts owns its own pricing).
+ */
+function computeHaikuCost(model: string | null, inputTokens: number, outputTokens: number): number {
+  if (!model) return 0
+  var mLower = String(model).toLowerCase()
+  if (mLower.indexOf('haiku') < 0) return 0
+  return (
+    (inputTokens / 1_000_000) * HAIKU_INPUT_USD_PER_M +
+    (outputTokens / 1_000_000) * HAIKU_OUTPUT_USD_PER_M
+  )
+}
+
+/**
+ * B0.7 — log a generation event (completed, skipped, or failed).
+ * Best-effort; logging failure does not block the calling code.
+ */
+async function logParadocsCost(
+  supabase: any,
+  args: {
+    report_id: string | null
+    model: string
+    input_tokens: number | null
+    output_tokens: number | null
+    cost_usd: number
+    status: 'completed' | 'skipped_cap' | 'failed'
+    reason?: string | null
+  },
+): Promise<void> {
+  try {
+    await supabase.from('paradocs_narrative_cost_log').insert({
+      report_id: args.report_id,
+      model: args.model,
+      input_tokens: args.input_tokens,
+      output_tokens: args.output_tokens,
+      cost_usd: args.cost_usd,
+      status: args.status,
+      reason: args.reason || null,
+    })
+  } catch (_e) { /* table may not exist yet; non-fatal */ }
+}
+
 // ============================================
 // Types
 // ============================================
@@ -156,7 +242,15 @@ var SYSTEM_PROMPT = ANTI_FABRICATION_PREAMBLE
   + '- Never start with "A witness" or "In [year]".\n'
   + '- Use specificity: durations, behaviors, sounds, number of witnesses, physical details.\n'
   + '- Create an open loop the reader must resolve by reading further.\n'
-  + '- NEVER include precise clock times (e.g. "at 21:19"). Vague times are fine ("after midnight").\n\n'
+  + '- NEVER include precise clock times (e.g. "at 21:19"). Vague times are fine ("after midnight").\n'
+  + '- V10.7.F HARD RULE — EDITORIAL THIRD-PERSON ONLY. The hook is OUR archive\'s editorial '
+  + 'voice — NEVER a witness quote. NEVER use first-person pronouns: I, me, my, mine, we, us, '
+  + 'our, ours. Use third-person framing: "the witness", "a 19-year-old", "she", "he", "they", '
+  + 'or no subject at all if the structure permits.\n'
+  + '  GOOD: "A nineteen-year-old in meditation opens his eyes to find a smoke trail morphing '
+  + 'into a bright orange sphere fifty feet away."\n'
+  + '  BAD:  "I opened my eyes mid-meditation to find a smoke trail morphing into a bright '
+  + 'orange sphere." (first-person — reads as a witness quote, forbidden)\n\n'
   + 'ANALYSIS RULES (V10.6.25 — the narrative IS the page body, not a summary):\n'
   + '\n'
   + 'LENGTH AND SHAPE:\n'
@@ -277,6 +371,16 @@ var SYSTEM_PROMPT = ANTI_FABRICATION_PREAMBLE
   + 'words or any banned phrase from the list above. If found, rewrite it before returning.\n\n'
   + 'PULL QUOTE RULES:\n'
   + '- Write an ORIGINAL editorial line. This is YOUR analytical insight, not a witness quote.\n'
+  + '- V10.7.F HARD RULE — EDITORIAL THIRD-PERSON ONLY. The pull_quote is rendered on the report '
+  + 'page inside a styled blockquote with curly quotation marks. If you use first-person voice, '
+  + 'the reader sees what looks like a direct quote from the experiencer — which is a policy '
+  + 'violation. NEVER use first-person pronouns: I, me, my, mine, we, us, our, ours. Use '
+  + 'third-person framing only: "the witness", "the object", "the figure", "she", "he", "they", '
+  + 'or pure description with no subject.\n'
+  + '  REAL FAILURE EXAMPLE (must not be replicated): "It rushed past me, flew directly over '
+  + 'my roof, and as soon as it passed the apex, it blinked out of existence."  (Forbidden: me, my.)\n'
+  + '  GOOD REWRITE: "The object cleared the roofline at high speed and vanished mid-arc with '
+  + 'no afterglow and no debris."\n'
   + '- CRITICAL: Do NOT rephrase, restructure, or echo the witness\'s own words. If the witness '
   + 'said "A man couldn\'t have covered that much ground in the dark" you CANNOT write a similar sentence. '
   + 'Instead write something like "The terrain alone rules out human-speed movement at that distance."\n'
@@ -603,8 +707,12 @@ async function callClaudeOnce(
   systemPrompt: string,
   userPrompt: string,
   maxTokens: number,
-  temperature: number
-): Promise<{ text: string | null; retryable: boolean; status: number }> {
+  temperature: number,
+  // B0.7 — optional reportId for cost-log correlation. When provided,
+  // every successful call writes a row to paradocs_narrative_cost_log
+  // with the per-call USD spend computed from token usage.
+  reportId?: string | null,
+): Promise<{ text: string | null; retryable: boolean; status: number; inputTokens?: number; outputTokens?: number }> {
   var controller = new AbortController()
   var timeoutId = setTimeout(function() { controller.abort() }, REQUEST_TIMEOUT_MS)
 
@@ -644,8 +752,26 @@ async function callClaudeOnce(
 
     var data = await resp.json()
     if (data.content && data.content.length > 0 && data.content[0].text) {
-      console.log('[ParadocsAnalysis] OK from ' + modelName + ' (' + data.content[0].text.length + ' chars, ' + (data.usage ? data.usage.output_tokens : '?') + ' tokens)')
-      return { text: data.content[0].text.trim(), retryable: false, status: 200 }
+      var inputTokens = data.usage ? data.usage.input_tokens : 0
+      var outputTokens = data.usage ? data.usage.output_tokens : 0
+      console.log('[ParadocsAnalysis] OK from ' + modelName + ' (' + data.content[0].text.length + ' chars, ' + outputTokens + ' tokens)')
+
+      // B0.7 — log per-call cost so the daily cap can sum it. Best-
+      // effort; never block on logging failure.
+      var costUsd = computeHaikuCost(modelName, inputTokens, outputTokens)
+      try {
+        var supabaseLog = createServerClient()
+        await logParadocsCost(supabaseLog, {
+          report_id: reportId || null,
+          model: modelName,
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          cost_usd: costUsd,
+          status: 'completed',
+        })
+      } catch (_e) { /* non-fatal */ }
+
+      return { text: data.content[0].text.trim(), retryable: false, status: 200, inputTokens: inputTokens, outputTokens: outputTokens }
     }
 
     console.warn('[ParadocsAnalysis] Empty content from ' + modelName + ', stop_reason: ' + (data.stop_reason || 'none'))
@@ -666,7 +792,9 @@ async function callClaude(
   systemPrompt: string,
   userPrompt: string,
   maxTokens: number,
-  temperature?: number
+  temperature?: number,
+  // B0.7 — optional reportId for cost-log correlation.
+  reportId?: string | null,
 ): Promise<string | null> {
   var apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
@@ -678,17 +806,17 @@ async function callClaude(
   var models = [ANTHROPIC_MODEL, ANTHROPIC_FALLBACK]
 
   // Try primary model with 2 attempts
-  var r1 = await callClaudeOnce(apiKey, models[0], systemPrompt, userPrompt, maxTokens, temp)
+  var r1 = await callClaudeOnce(apiKey, models[0], systemPrompt, userPrompt, maxTokens, temp, reportId)
   if (r1.text) return r1.text
 
   if (r1.retryable) {
     await sleep(2000)
-    var r2 = await callClaudeOnce(apiKey, models[0], systemPrompt, userPrompt, maxTokens, temp)
+    var r2 = await callClaudeOnce(apiKey, models[0], systemPrompt, userPrompt, maxTokens, temp, reportId)
     if (r2.text) return r2.text
   }
 
   // Try fallback model
-  var r3 = await callClaudeOnce(apiKey, models[1], systemPrompt, userPrompt, maxTokens, temp)
+  var r3 = await callClaudeOnce(apiKey, models[1], systemPrompt, userPrompt, maxTokens, temp, reportId)
   if (r3.text) return r3.text
 
   console.error('[ParadocsAnalysis] All attempts exhausted')
@@ -810,6 +938,72 @@ export function stripExperiencerNames(text: string): string {
   return cleaned
 }
 
+// V10.7.F — editorial third-person enforcement for short, blockquote-style
+// fields (hook + pull_quote). Detects first-person pronouns (I, me, my,
+// mine, we, us, our, ours) at word boundaries. Excludes hyphenated
+// compound tokens where the matched word is glued to another word /
+// number via "-" — e.g. "I-80" (highway), "strip-mine" (compound noun),
+// "U.S.-issued" (compound modifier). Returns the list of offending
+// tokens for logging.
+//
+// Why field-scoped: narrative + frames are intentionally permitted to use
+// "we" or "our" in a Paradocs-collective sense ("we track this pattern
+// across cases"). The two fields that render quote-styled (pull_quote in
+// a styled blockquote with curly marks, hook as a short editorial line)
+// are where first-person pronouns are misread as direct witness speech.
+export function findFirstPersonPronouns(text: string): string[] {
+  if (!text) return []
+  var re = /\b(I|me|my|mine|we|us|our|ours)\b/gi
+  var hits: string[] = []
+  var m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    var idx = m.index
+    var len = m[0].length
+    // Skip if this is part of a hyphenated compound. Hyphen on either
+    // side, immediately adjacent to a letter or digit on the OTHER side
+    // of the hyphen, means the matched substring is morphologically a
+    // compound segment, not a standalone word. Covers:
+    //   "strip-mine" → "mine" preceded by "-p"
+    //   "I-80"       → "I" followed by "-8"
+    //   "we-the-people" → "we" followed by "-t"
+    var prev = text.charAt(idx - 1)
+    var prev2 = text.charAt(idx - 2)
+    if (prev === '-' && /[A-Za-z0-9]/.test(prev2)) continue
+    var next = text.charAt(idx + len)
+    var next2 = text.charAt(idx + len + 1)
+    if (next === '-' && /[A-Za-z0-9]/.test(next2)) continue
+    hits.push(m[0])
+  }
+  return hits
+}
+
+// V10.7.F — apply the editorial-voice rule to hook + pull_quote. If a
+// field violates, blank it. Returns the list of violations seen. The
+// orchestrator (generateParadocsAnalysisOnce + generateAndSaveDirect)
+// inspects the return value and decides whether to retry the whole
+// generation (preferred — small cost, fresh draw) or accept the partial
+// result on the final attempt. NOT called from sanitizeAnalysisResult
+// because retry-vs-accept is a caller decision that depends on attempt
+// count.
+export function enforceEditorialVoice(r: ParadocsAnalysisResult): { hook: string[]; pull_quote: string[] } {
+  var v = { hook: [] as string[], pull_quote: [] as string[] }
+  if (r.hook) {
+    var hookHits = findFirstPersonPronouns(r.hook)
+    if (hookHits.length > 0) {
+      v.hook = hookHits
+      r.hook = ''
+    }
+  }
+  if (r.pull_quote) {
+    var pqHits = findFirstPersonPronouns(r.pull_quote)
+    if (pqHits.length > 0) {
+      v.pull_quote = pqHits
+      r.pull_quote = ''
+    }
+  }
+  return v
+}
+
 function sanitizeAnalysisResult(r: ParadocsAnalysisResult): ParadocsAnalysisResult {
   r.hook = stripExperiencerNames(r.hook)
   r.analysis = stripExperiencerNames(r.analysis)
@@ -824,6 +1018,10 @@ function sanitizeAnalysisResult(r: ParadocsAnalysisResult): ParadocsAnalysisResu
       }
     })
   }
+  // NOTE: V10.7.F editorial-voice enforcement (first-person pronoun ban
+  // on hook + pull_quote) is intentionally NOT called here — the orchestrator
+  // runs enforceEditorialVoice() per attempt so it can retry on the first
+  // violation rather than silently blanking fields.
   return r
 }
 
@@ -1054,9 +1252,36 @@ export async function generateParadocsAnalysis(
 
   console.log('[ParadocsAnalysis] Generating for: ' + reportId + ' (' + ((report as any).title || 'untitled').substring(0, 40) + ')')
 
+  // B0.7 — daily cost cap check. Done HERE rather than in callClaude
+  // because the cap applies only to paradocs_narrative generation,
+  // not every Anthropic call in the codebase (the per-user Sonnet
+  // surfaces enforce their own caps via E0.7). When the cap is hit,
+  // we log a skip event so the admin dashboard sees the bottleneck,
+  // and return null — the caller treats this as a transient failure
+  // and the report inserts without narrative. Next day's ingestion
+  // pass picks up unnarrated reports first.
+  var todaysSpend = await getTodaysParadocsSpend(supabase)
+  if (todaysSpend >= DAILY_COST_CAP_USD) {
+    console.warn(
+      '[ParadocsAnalysis] DAILY CAP HIT — skipped ' + reportId +
+      ' (spend $' + todaysSpend.toFixed(2) + ' >= cap $' + DAILY_COST_CAP_USD.toFixed(2) + ')'
+    )
+    await logParadocsCost(supabase, {
+      report_id: reportId,
+      model: 'skipped',
+      input_tokens: null,
+      output_tokens: null,
+      cost_usd: 0,
+      status: 'skipped_cap',
+      reason: 'daily_spend=' + todaysSpend.toFixed(4) + ' cap=' + DAILY_COST_CAP_USD.toFixed(2),
+    })
+    return null
+  }
+
   // Single call, temperature 0.4 for consistent quality
   // 1200 tokens needed — added suggested_category + discovery_tags fields
-  var response = await callClaude(SYSTEM_PROMPT, userPrompt, 1800, 0.4)
+  // B0.7 — pass reportId so callClaudeOnce can correlate the cost-log row
+  var response = await callClaude(SYSTEM_PROMPT, userPrompt, 1800, 0.4, reportId)
 
   if (response) {
     var result = parseAnalysisJson(response)
@@ -1067,10 +1292,27 @@ export async function generateParadocsAnalysis(
         console.log('[ParadocsAnalysis] Trimmed analysis from ' + countWords(result.analysis) + ' to ' + countWords(trimmedAnalysis) + ' words (budget: ' + analysisWordBudget + ')')
         result.analysis = trimmedAnalysis
       }
-      console.log('[ParadocsAnalysis] Success for ' + reportId + ' (hook: ' + result.hook.length + ' chars, analysis: ' + result.analysis.length + ' chars)')
-      return result
+      // V10.7.F — first-person pronoun gate on hook + pull_quote. If
+      // either field has 1st-person pronouns, blank it and fall through
+      // to the retry path. On the retry we accept whatever the next
+      // attempt produces (even if still violating — better to ship the
+      // rest of the analysis with a null pull_quote than block the row).
+      var voiceFails = enforceEditorialVoice(result)
+      if (voiceFails.hook.length > 0 || voiceFails.pull_quote.length > 0) {
+        console.warn(
+          '[ParadocsAnalysis] V10.7.F voice violation on attempt 1 for ' + reportId +
+          ' — hook: ' + JSON.stringify(voiceFails.hook) +
+          ' pull_quote: ' + JSON.stringify(voiceFails.pull_quote) +
+          ' — retrying'
+        )
+        // Fall through to retry block below.
+      } else {
+        console.log('[ParadocsAnalysis] Success for ' + reportId + ' (hook: ' + result.hook.length + ' chars, analysis: ' + result.analysis.length + ' chars)')
+        return result
+      }
+    } else {
+      console.warn('[ParadocsAnalysis] Parse failed for ' + reportId + '. Raw: ' + response.substring(0, 300))
     }
-    console.warn('[ParadocsAnalysis] Parse failed for ' + reportId + '. Raw: ' + response.substring(0, 300))
   } else {
     console.warn('[ParadocsAnalysis] API returned null for ' + reportId)
   }
@@ -1086,6 +1328,21 @@ export async function generateParadocsAnalysis(
       var retryTrimmed = trimAnalysisToWords(retryResult.analysis, analysisWordBudget)
       if (retryTrimmed !== retryResult.analysis) {
         retryResult.analysis = retryTrimmed
+      }
+      // V10.7.F — re-apply the voice gate on the retry. If it still
+      // violates, accept the result with offending field(s) blanked
+      // rather than block ingestion. The save layer will write empty
+      // strings, the render layer falls through (the report page hides
+      // the pull-quote block when empty), and the audit row preserves
+      // the violation so we can spot-check later.
+      var retryVoiceFails = enforceEditorialVoice(retryResult)
+      if (retryVoiceFails.hook.length > 0 || retryVoiceFails.pull_quote.length > 0) {
+        console.warn(
+          '[ParadocsAnalysis] V10.7.F voice violation on attempt 2 for ' + reportId +
+          ' — hook: ' + JSON.stringify(retryVoiceFails.hook) +
+          ' pull_quote: ' + JSON.stringify(retryVoiceFails.pull_quote) +
+          ' — accepting with offending field(s) blanked'
+        )
       }
       console.log('[ParadocsAnalysis] Retry success for ' + reportId)
       return retryResult
@@ -1484,6 +1741,24 @@ export async function generateAndSaveDirect(reportId: string): Promise<{ success
     // Trim analysis
     var trimmed = trimAnalysisToWords(result.analysis, analysisWordBudget)
     if (trimmed !== result.analysis) result.analysis = trimmed
+
+    // V10.7.F — apply the editorial-voice (no first-person pronouns)
+    // gate to hook + pull_quote. The direct path does a SINGLE call
+    // and does not retry on voice failure — we accept the result with
+    // offending field(s) blanked rather than block the row. Worst case
+    // is a null pull_quote on a small fraction of reports; the
+    // multi-attempt orchestrator (generateAndSaveParadocsAnalysis) is
+    // the preferred ingestion path and DOES retry. This path exists
+    // for one-shot debug / dry-run usage.
+    var directVoiceFails = enforceEditorialVoice(result)
+    if (directVoiceFails.hook.length > 0 || directVoiceFails.pull_quote.length > 0) {
+      console.warn(
+        '[ParadocsAnalysis] V10.7.F voice violation (direct path, no retry) for ' + reportId +
+        ' — hook: ' + JSON.stringify(directVoiceFails.hook) +
+        ' pull_quote: ' + JSON.stringify(directVoiceFails.pull_quote) +
+        ' — accepting with offending field(s) blanked'
+      )
+    }
 
     // V10.4 — claim-check every text field against the source.
     // Failed fields get nulled out before persistence; audit log

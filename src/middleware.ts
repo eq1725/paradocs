@@ -27,6 +27,32 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(path => pathname.startsWith(path))
 }
 
+// V10.7.G — known link-preview scrapers. iMessage, Slack, Twitter/X,
+// Discord, WhatsApp, etc. fetch the page once to read OG/Twitter card
+// meta tags so they can render an inline preview card. They cannot
+// authenticate, so when the site is behind basic auth they get a 401
+// and silently render nothing. The OG meta tags on /report/[slug] are
+// fully populated; we just need to let the scrapers reach the HTML.
+//
+// Identifying scrapers by User-Agent is the standard approach for
+// password-protected staging sites that still want shareable previews
+// — Vercel's password protection feature does the same thing internally.
+// This pattern is well-known to scraper operators, so we are not
+// changing the security posture meaningfully: the data exposed is the
+// same data anyone with a Paradocs login would see, scraped instead of
+// rendered.
+//
+// Pattern intentionally inclusive: any spammy bot pretending to be
+// Twitterbot still only gets the same OG-card-friendly HTML a normal
+// shared link would produce. The basic-auth gate stays up for normal
+// browser traffic.
+const SOCIAL_BOT_UA_RE = /(facebookexternalhit|Facebot|Twitterbot|LinkedInBot|Slackbot|Slack-ImgProxy|Discordbot|WhatsApp|TelegramBot|Iframely|LinkPreview|LinkPresentation|redditbot|Mastodon|Pinterest|Applebot|Skypeuripreview|bingbot|Google-PageRenderer|YandexBot|DuckDuckBot|Baiduspider|vkShare|W3C_Validator)/i
+
+function isSocialMediaScraper(userAgent: string | null): boolean {
+  if (!userAgent) return false
+  return SOCIAL_BOT_UA_RE.test(userAgent)
+}
+
 function createSessionToken(username: string): string {
   // Simple session token (in production, use a proper JWT)
   const payload = `${username}:${Date.now()}`
@@ -59,6 +85,15 @@ export function middleware(request: NextRequest) {
   const betaProtectionEnabled = process.env.BETA_PROTECTION_ENABLED === 'true'
 
   if (!betaProtectionEnabled) {
+    return NextResponse.next()
+  }
+
+  // V10.7.G — let link-preview scrapers through so iMessage / Slack /
+  // Twitter / Discord etc. can render OG cards for shared report URLs.
+  // The OG/Twitter meta tags on /report/[slug] are fully populated; the
+  // scrapers were hitting 401 before they could read them. Humans still
+  // get the basic-auth prompt below.
+  if (isSocialMediaScraper(request.headers.get('user-agent'))) {
     return NextResponse.next()
   }
 

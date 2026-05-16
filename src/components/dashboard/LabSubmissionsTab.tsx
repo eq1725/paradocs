@@ -190,7 +190,7 @@ export default function LabSubmissionsTab() {
 
         {/* Submit new */}
         <Link
-          href="/submit"
+          href="/start"
           className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white bg-primary-600 hover:bg-primary-500 transition-colors whitespace-nowrap"
         >
           <PlusCircle className="w-4 h-4" />
@@ -347,7 +347,7 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
         you can track its review status right here.
       </p>
       <Link
-        href="/submit"
+        href="/start"
         className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-primary-600 hover:bg-primary-500 transition-colors"
       >
         <PlusCircle className="w-4 h-4" />

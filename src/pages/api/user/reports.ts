@@ -44,7 +44,12 @@ export default async function handler(
     const limitNum = Math.min(parseInt(limit as string, 10), 50)
     const offset = (pageNum - 1) * limitNum
 
-    // Build query
+    // Build query.
+    // V10.16 — added description, summary, city, state_province,
+    // country so the CASES tab inline-preview pane can show the
+    // full submission content for pending/in-review reports (which
+    // can't be linked to /report/[slug] because that page filters
+    // on status='approved').
     let query = supabase
       .from('reports')
       .select(`
@@ -53,7 +58,12 @@ export default async function handler(
         slug,
         status,
         category,
+        description,
+        summary,
         location_description,
+        city,
+        state_province,
+        country,
         event_date,
         created_at,
         updated_at,
@@ -65,6 +75,12 @@ export default async function handler(
     // Apply status filter
     if (status && status !== 'all') {
       query = query.eq('status', status)
+    } else {
+      // V10.13.1 — by default exclude soft-deleted reports so the
+      // CASES tab doesn't keep showing rows the user just deleted.
+      // Pass ?status=deleted explicitly to surface a "trash" view in
+      // the future.
+      query = query.neq('status', 'deleted')
     }
 
     // Apply search filter

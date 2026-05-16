@@ -55,6 +55,18 @@ interface MapContainerProps {
   basemapStyle?: string
   /** Dynamic padding for map content (e.g. when filter panel opens) */
   mapPadding?: { top: number; bottom: number; left: number; right: number }
+  /**
+   * V10.9.B — country choropleth GeoJSON (Natural Earth admin0
+   * polygons joined with synthetic-coord report counts via the
+   * V10.9.A materialized view). When non-null, the fill layer
+   * renders below the cluster/pin layers. Caller controls visibility
+   * via the "Regions / Combined" toolbar toggle.
+   */
+  choroplethGeoJson?: GeoJSON.FeatureCollection | null
+  /** Max report_count across choropleth features (color normalization). */
+  choroplethMaxCount?: number
+  /** Click on a country polygon → toggle that country's filter. */
+  onChoroplethCountryClick?: (code: string, name: string) => void
 }
 
 export default function MapContainer({
@@ -69,6 +81,9 @@ export default function MapContainer({
   flyToTarget,
   basemapStyle = 'dark',
   mapPadding,
+  choroplethGeoJson,
+  choroplethMaxCount = 0,
+  onChoroplethCountryClick,
 }: MapContainerProps) {
   const mapRef = useRef<MapRef>(null)
   const [viewState, setViewState] = useState<{
@@ -185,6 +200,17 @@ export default function MapContainer({
       const props = feature.properties
       if (!props) return
 
+      // V10.9.B — choropleth country polygon click → filter toggle.
+      // Detect by source id (a stable property MapLibre attaches).
+      if ((feature as any).source === 'choropleth-source') {
+        const code = (props as any).country_code as string | undefined
+        const name = (props as any).country_name as string | undefined
+        if (code && name && onChoroplethCountryClick) {
+          onChoroplethCountryClick(code, name)
+        }
+        return
+      }
+
       // Cluster click → zoom in
       if (props.cluster && supercluster) {
         const clusterId = props.cluster_id
@@ -207,7 +233,7 @@ export default function MapContainer({
         onSelectReport(props.id as string)
       }
     },
-    [supercluster, onSelectReport]
+    [supercluster, onSelectReport, onChoroplethCountryClick]
   )
 
   // ─── Cursor changes ───────────────────────────────────────
@@ -234,7 +260,7 @@ export default function MapContainer({
       style={{ width: '100%', height: '100%' }}
       minZoom={MAP_BOUNDS.minZoom}
       maxZoom={MAP_BOUNDS.maxZoom}
-      interactiveLayerIds={['clusters', 'unclustered-point', 'unclustered-point-fuzzy']}
+      interactiveLayerIds={['clusters', 'unclustered-point', 'unclustered-point-fuzzy', 'choropleth-fill']}
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -242,6 +268,63 @@ export default function MapContainer({
     >
       {/* Navigation controls — hidden on mobile via CSS */}
       <NavigationControl position="top-right" showCompass={false} />
+
+      {/* ─── V10.9.B — Country choropleth fill layer ───
+          Sits below every other layer (heatmap, pins, clusters) so
+          it reads as the basemap-level "where is the data fuzzy"
+          signal. Visible at zoom <= 5 (continental/country-level
+          views), faded out by zoom 6+ when individual pins/clusters
+          carry the story.
+
+          Paint: log-scaled opacity tied to report_count. Countries
+          with no data render fully transparent — only countries
+          that actually have synthetic-coord reports are highlighted.
+          Hover: brightened stroke. Click: country filter toggle. */}
+      {choroplethGeoJson && (
+        <Source id="choropleth-source" type="geojson" data={choroplethGeoJson}>
+          <Layer
+            id="choropleth-fill"
+            type="fill"
+            paint={{
+              'fill-color': '#a855f7', // brand purple — same as the report pin color
+              'fill-opacity': [
+                'case',
+                ['==', ['get', 'has_data'], false],
+                0,
+                // Log-scale opacity so a single-report country is
+                // visible but doesn't dominate vs a 10K-report
+                // country. Cap at 0.55 so the basemap labels are
+                // still legible.
+                [
+                  'interpolate', ['linear'],
+                  ['ln', ['max', 1, ['get', 'report_count']]],
+                  0, 0.10,                                       // 1 report
+                  Math.log(Math.max(2, choroplethMaxCount)), 0.55, // most reports
+                ],
+              ] as any,
+            }}
+            layout={{
+              visibility: 'visible',
+            }}
+            filter={['<=', ['zoom'], 5.5] as any}
+          />
+          <Layer
+            id="choropleth-stroke"
+            type="line"
+            paint={{
+              'line-color': '#a855f7',
+              'line-width': [
+                'case',
+                ['==', ['get', 'has_data'], false],
+                0,
+                1.0,
+              ] as any,
+              'line-opacity': 0.7,
+            }}
+            filter={['<=', ['zoom'], 5.5] as any}
+          />
+        </Source>
+      )}
 
       {/* ─── Heatmap: separate source with ALL raw points (not clustered) ─── */}
       {heatmapActive && (

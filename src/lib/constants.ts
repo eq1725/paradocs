@@ -13,21 +13,24 @@ export const CATEGORY_CONFIG: Record<PhenomenonCategory, {
   description: string
 }> = {
   ufos_aliens: {
-    label: 'UFOs & Aliens',
+    // T1.7 — dual-label for mass-market accessibility (acronym + plain-language gloss)
+    label: 'UAP (UFOs & aliens)',
     color: 'text-green-400',
     bgColor: 'bg-green-400/20',
     icon: '🛸',
     description: 'UAP sightings, close encounters, abductions, and unidentified submerged objects.'
   },
   cryptids: {
-    label: 'Cryptids',
+    // T1.7 — dual-label
+    label: 'Cryptid (Bigfoot, Mothman, etc.)',
     color: 'text-amber-400',
     bgColor: 'bg-amber-400/20',
     icon: '🦶',
     description: 'Encounters with creatures that don\'t fit any known species.'
   },
   ghosts_hauntings: {
-    label: 'Ghosts & Hauntings',
+    // T1.7 — dual-label
+    label: 'Ghost (apparitions & hauntings)',
     color: 'text-purple-400',
     bgColor: 'bg-purple-400/20',
     icon: '👻',
@@ -41,7 +44,8 @@ export const CATEGORY_CONFIG: Record<PhenomenonCategory, {
     description: 'Telepathy, precognition, channeling, synchronicity, and after-death communication.'
   },
   consciousness_practices: {
-    label: 'Consciousness Practices',
+    // T1.7 — dual-label (plain-language gloss for the consciousness category)
+    label: 'OBE / NDE / Meditation',
     color: 'text-indigo-400',
     bgColor: 'bg-indigo-400/20',
     icon: '🧘',
@@ -76,7 +80,8 @@ export const CATEGORY_CONFIG: Record<PhenomenonCategory, {
     description: 'Visions, miracles, and encounters documented through spiritual traditions.'
   },
   esoteric_practices: {
-    label: 'Esoteric Practices',
+    // T1.7 — dual-label (added "& Occult" gloss)
+    label: 'Esoteric & Occult',
     color: 'text-violet-400',
     bgColor: 'bg-violet-400/20',
     icon: '✨',

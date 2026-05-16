@@ -1,0 +1,66 @@
+name: E2E (Playwright)
+
+# T1.13 — runs the Playwright suite on every push to main and on PRs.
+# Currently runs only the smoke tests in CI; the four flow tests are
+# gated behind test.skip() until the test-backend story lands (see
+# tests/e2e/README.md). Once PLAYWRIGHT_TEST_USER_EMAIL is added as a
+# repo secret + a paradocs-test Supabase project exists, the gated
+# flows activate automatically with no workflow changes needed.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  e2e:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Build Next.js
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Start Next.js
+        run: |
+          npm run start &
+          npx wait-on http://localhost:3000 -t 60000
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          PORT: '3000'
+
+      - name: Run Playwright tests
+        run: npm run test:e2e
+        env:
+          CI: 'true'
+          PLAYWRIGHT_BASE_URL: 'http://localhost:3000'
+          # Flow tests auto-activate when this secret exists. Until then
+          # they stay test.skip()-ed and only the smoke suite runs.
+          PLAYWRIGHT_TEST_USER_EMAIL: ${{ secrets.PLAYWRIGHT_TEST_USER_EMAIL }}
+          PLAYWRIGHT_TEST_USER_PASSWORD: ${{ secrets.PLAYWRIGHT_TEST_USER_PASSWORD }}
+
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30

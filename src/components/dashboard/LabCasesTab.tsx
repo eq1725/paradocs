@@ -122,8 +122,12 @@ export default function LabCasesTab({
         </button>
       </div>
 
-      {/* My Submissions — pinned section showing user's submitted reports */}
-      <MySubmissionsSection />
+      {/* V10.16 Phase E.1 — MySubmissionsSection removed. User
+          submissions are now managed exclusively from the
+          SubmissionSwitcher's Manage panel on the Story tab
+          (semantic home: user-submitted stories belong with
+          "Your Story," not in Collections which is a research
+          workflow metaphor). */}
 
       {/* CaseFileBar — horizontal filter strip, only shown when there's
           something to filter. The primary "+ New" button lives in the header
@@ -1205,28 +1209,21 @@ function MySubmissionsSection() {
           var st = SUB_STATUS[r.status] || SUB_STATUS.pending
           var StIcon = st.icon
           return (
-            <Link
+            <SubmissionRow
               key={r.id}
-              href={r.status === 'published' || r.status === 'approved' ? '/report/' + r.slug : '#'}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-gray-900/60 border border-gray-800/60 hover:border-primary-600/30 hover:bg-gray-900 transition-all group"
-            >
-              <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
-                <CategoryIcon category={r.category} size={14} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-white truncate">{r.title || 'Untitled Report'}</div>
-                <div className="text-[10px] text-gray-500">
-                  {new Date(r.created_at).toLocaleDateString()}
-                </div>
-              </div>
-              <div className={classNames('flex items-center gap-1 px-2 py-1 rounded-full border text-[10px] font-semibold', st.bg, st.color)}>
-                <StIcon className="w-3 h-3" />
-                {st.label}
-              </div>
-              {(r.status === 'published' || r.status === 'approved') && (
-                <ExternalLink className="w-3.5 h-3.5 text-gray-600 group-hover:text-primary-400 transition-colors flex-shrink-0" />
-              )}
-            </Link>
+              report={r}
+              status={st}
+              StIcon={StIcon}
+              onDeleted={function() {
+                // V10.13.1 — optimistic local removal. The full-page
+                // reload was landing users in 404s mid-navigation;
+                // cleaner to drop the row from local state and stay
+                // on the lab page. The server has already deleted it
+                // by the time onDeleted fires.
+                setReports(function(prev) { return prev.filter(function(p) { return p.id !== r.id }) })
+                setTotal(function(prev) { return Math.max(0, prev - 1) })
+              }}
+            />
           )
         })}
       </div>
@@ -1237,6 +1234,189 @@ function MySubmissionsSection() {
         >
           Show all {total} submissions
         </button>
+      )}
+    </div>
+  )
+}
+
+/**
+ * V10.13 Phase A — submission row with inline delete affordance.
+ *
+ * Tap the kebab → confirm → POST /api/reports/[slug]/delete →
+ * onDeleted callback so the parent list refreshes. Uses an inline
+ * confirm step (no modal) — kebab opens to "Tap again to confirm
+ * delete" with a 4-second auto-cancel. Matches the iOS Mail / Apple
+ * Notes inline-confirm pattern.
+ */
+function SubmissionRow(props: {
+  report: any
+  status: any
+  StIcon: any
+  onDeleted: () => void
+}) {
+  var r = props.report
+  var st = props.status
+  var StIcon = props.StIcon
+  var [confirming, setConfirming] = useState(false)
+  var [busy, setBusy] = useState(false)
+  var [errMsg, setErrMsg] = useState<string | null>(null)
+
+  // Auto-cancel the confirm state after 4 seconds.
+  useEffect(function() {
+    if (!confirming) return
+    var t = setTimeout(function() { setConfirming(false) }, 4000)
+    return function() { clearTimeout(t) }
+  }, [confirming])
+
+  function handleDelete(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (busy) return
+    if (!confirming) {
+      setConfirming(true)
+      return
+    }
+    setBusy(true)
+    setErrMsg(null)
+    supabase.auth.getSession().then(function(s) {
+      var token = s.data.session ? s.data.session.access_token : null
+      if (!token) {
+        setBusy(false)
+        setErrMsg('Sign in again to delete.')
+        return
+      }
+      fetch('/api/reports/' + encodeURIComponent(r.slug) + '/delete', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token },
+      })
+        .then(function(resp) {
+          if (!resp.ok) return resp.json().then(function(j) { throw new Error(j.error || 'Delete failed') })
+          props.onDeleted()
+        })
+        .catch(function(e: any) {
+          setErrMsg(e.message || 'Delete failed')
+          setBusy(false)
+          setConfirming(false)
+        })
+    })
+  }
+
+  function handleTrashKeydown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      handleDelete(e as any)
+    }
+  }
+
+  var clickable = r.status === 'published' || r.status === 'approved'
+  var [expanded, setExpanded] = useState(false)
+
+  // V10.16 — fix the /report?preview=1 404 by inline-expanding
+  // pending/in-review reports instead of linking to the public
+  // report page (which getStaticProps-filters them out). Approved
+  // reports still link to /report/[slug]. Pending reports get an
+  // inline preview pane with the title, description, location,
+  // and submission date — same data the public page would show.
+  function handleRowClick(e: React.MouseEvent) {
+    if (clickable) return // let the Link navigate as normal
+    e.preventDefault()
+    e.stopPropagation()
+    setExpanded(function(p) { return !p })
+  }
+
+  return (
+    <div className="rounded-lg bg-gray-900/60 border border-gray-800/60 hover:border-primary-600/30 transition-all group">
+      <div className="flex items-center gap-3 px-3 py-2.5">
+        {clickable ? (
+          <Link
+            href={'/report/' + r.slug}
+            className="flex items-center gap-3 flex-1 min-w-0"
+          >
+            <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
+              <CategoryIcon category={r.category} size={14} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-white truncate">{r.title || 'Untitled Report'}</div>
+              <div className="text-[10px] text-gray-500">
+                {new Date(r.created_at).toLocaleDateString()}
+              </div>
+            </div>
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={handleRowClick}
+            className="flex items-center gap-3 flex-1 min-w-0 text-left"
+            aria-expanded={expanded}
+          >
+            <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">
+              <CategoryIcon category={r.category} size={14} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-white truncate">{r.title || 'Untitled Report'}</div>
+              <div className="text-[10px] text-gray-500">
+                {new Date(r.created_at).toLocaleDateString()} · tap to preview
+              </div>
+            </div>
+          </button>
+        )}
+        <div className={classNames('flex items-center gap-1 px-2 py-1 rounded-full border text-[10px] font-semibold', st.bg, st.color)}>
+          <StIcon className="w-3 h-3" />
+          {st.label}
+        </div>
+        {clickable && (
+          <Link href={'/report/' + r.slug}>
+            <ExternalLink className="w-3.5 h-3.5 text-gray-600 group-hover:text-primary-400 transition-colors flex-shrink-0" />
+          </Link>
+        )}
+      {/* V10.13 Phase A — inline delete with two-step confirm. */}
+      <button
+        type="button"
+        onClick={handleDelete}
+        onKeyDown={handleTrashKeydown}
+        disabled={busy}
+        aria-label={confirming ? 'Tap again to confirm delete' : 'Delete this submission'}
+        title={confirming ? 'Tap again to confirm delete' : 'Delete'}
+        className={classNames(
+          'flex-shrink-0 inline-flex items-center justify-center transition-all',
+          confirming
+            ? 'gap-1 px-2 py-1 rounded-md bg-red-500/15 border border-red-500/40 text-red-300 text-[10px] font-semibold'
+            : 'w-7 h-7 rounded-md text-gray-500 hover:text-red-300 hover:bg-red-500/10'
+        )}
+      >
+        {busy ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : confirming ? (
+          <>
+            <Trash2 className="w-3 h-3" /> Confirm
+          </>
+        ) : (
+          <Trash2 className="w-3.5 h-3.5" />
+        )}
+      </button>
+      {errMsg && <span className="text-[10px] text-red-300 ml-1">{errMsg}</span>}
+      </div>
+      {/* V10.16 — inline preview pane for pending/in-review reports.
+          Shows the title, description, and location the user
+          submitted, without leaving the page. Avoids the 404 path
+          when clicking into a not-yet-approved report. */}
+      {expanded && !clickable && (
+        <div className="px-3 pb-3 pt-1 border-t border-gray-800/40">
+          <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1 font-semibold">
+            Your submission
+          </p>
+          <p className="text-sm text-gray-200 leading-relaxed whitespace-pre-line">
+            {r.description || r.summary || 'No description provided.'}
+          </p>
+          {(r.city || r.state_province || r.country) && (
+            <p className="text-[11px] text-gray-400 mt-2">
+              <span className="text-gray-500">Location: </span>
+              {[r.city, r.state_province, r.country].filter(Boolean).join(', ')}
+            </p>
+          )}
+          <p className="text-[10px] text-gray-500 mt-2 italic">
+            This is what reviewers see. Once approved, this submission becomes a public report.
+          </p>
+        </div>
       )}
     </div>
   )

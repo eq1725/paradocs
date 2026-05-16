@@ -43,6 +43,16 @@ export interface ReportMetaProps {
   eventDate?: string | null      // YYYY-MM-DD, YYYY-MM, YYYY, or null
   /** Optional free-text date string if event_date wasn't structured. */
   eventDateText?: string | null
+  /**
+   * V10.7.I — explicit precision marker. When set, drives the display
+   * granularity regardless of the day/month placeholders in event_date:
+   *   'year'    → "2007"
+   *   'month'   → "April 2007"  (uses month from event_date)
+   *   'exact'   → "April 28, 2007"
+   *   'unknown' → fall through to event_date_text or null
+   * Falls back to the legacy "Jan 1 = year-only" heuristic when null.
+   */
+  eventDatePrecision?: 'exact' | 'day' | 'month' | 'year' | 'unknown' | null
 
   // ── Where ──
   city?: string | null
@@ -129,27 +139,61 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
                 'July', 'August', 'September', 'October', 'November', 'December']
 
 function formatWhen(props: ReportMetaProps): string | null {
-  // Prefer the structured event_date when present.
-  if (props.eventDate) {
-    const raw = props.eventDate.trim()
-    // YYYY-MM-DD with real day
+  const raw = (props.eventDate || '').trim()
+  const precision = props.eventDatePrecision || null
+
+  // V10.7.I — when precision is known explicitly, it drives the display
+  // granularity regardless of the day/month sentinel placeholders. The
+  // schema already stores precision; we just have to read it.
+  if (raw && precision === 'year') {
+    const m = raw.match(/^(\d{4})/)
+    return m ? m[1] : raw
+  }
+  if (raw && precision === 'month') {
+    const m = raw.match(/^(\d{4})-(\d{2})/)
+    if (m) {
+      const y = Number(m[1])
+      const mo = Number(m[2])
+      const monthName = MONTHS[mo - 1] || ''
+      return monthName ? monthName + ' ' + y : String(y)
+    }
+    return raw
+  }
+  if (raw && (precision === 'exact' || precision === 'day')) {
+    const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (m) {
+      const y = Number(m[1])
+      const mo = Number(m[2])
+      const d = Number(m[3])
+      const monthName = MONTHS[mo - 1] || ''
+      return monthName ? monthName + ' ' + d + ', ' + y : String(y)
+    }
+    return raw
+  }
+  // precision === 'unknown' explicitly means "don't pretend we know".
+  if (precision === 'unknown') {
+    if (props.eventDateText) return props.eventDateText.trim()
+    return null
+  }
+
+  // Legacy fallback when no precision marker is set: infer from shape
+  // of the event_date string. Preserves the V10.6 behavior for old rows
+  // whose event_date_precision was never populated.
+  if (raw) {
     if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
       const [y, m, d] = raw.split('-').map(Number)
-      // Sentinel placeholders we should strip: -01-01 with no
-      // sub-day precision marker usually means "year only".
+      // Heuristic: -01-01 with no precision marker usually means "year
+      // only" (year stored as Jan 1 sentinel). Mirror precision='year'.
       if (m === 1 && d === 1) return String(y)
       const month = MONTHS[m - 1] || ''
       return month ? month + ' ' + d + ', ' + y : String(y)
     }
-    // YYYY-MM
     if (/^\d{4}-\d{2}$/.test(raw)) {
       const [y, m] = raw.split('-').map(Number)
       const month = MONTHS[m - 1] || ''
       return month ? month + ' ' + y : String(y)
     }
-    // Year only
     if (/^\d{4}$/.test(raw)) return raw
-    // Anything else is free-form — render as-is, trimmed.
     return raw
   }
   if (props.eventDateText) return props.eventDateText.trim()

@@ -23,6 +23,7 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { FileText, Pen } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
+import { formatLocationLabel } from '@/lib/format/location-label'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import type { PhenomenonCategory } from '@/lib/database.types'
 import { classNames } from '@/lib/utils'
@@ -821,12 +822,10 @@ export function TextReportCard(props: {
   var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG]
   var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
 
+  // V10.8.J — canonical location label (handles city/state/country
+  // dedup so "Kansas, Kansas" can never render).
   var hasLocation = !!(item.city || item.state_province || item.country || item.location_name)
-  var locationParts: string[] = []
-  if (item.city) locationParts.push(item.city)
-  if (item.state_province) locationParts.push(item.state_province)
-  if (item.country) locationParts.push(item.country)
-  var locationStr = locationParts.join(', ')
+  var locationStr = formatLocationLabel(item, { maxParts: 3 }) || ''
 
   // Badge parts: category + year (if known)
   var badgeParts: string[] = []

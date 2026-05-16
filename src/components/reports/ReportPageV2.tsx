@@ -35,8 +35,16 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { ArrowLeft, Bookmark, BookmarkCheck, Share2, Loader2, TrendingUp, FileText, CalendarClock, Heart, User, BookOpen } from 'lucide-react'
 
-import ReportLocationMap, { type LocationPrecision } from './ReportLocationMap'
+// V10.9.D.10 — ReportLocationMap uses static imports of react-map-gl
+// (which require window). Wrap with dynamic + ssr:false here so the
+// SSR-safe boundary lives at the parent level. Marker now reliably
+// renders alongside Map (the previous dynamic-Marker pattern was
+// silently dropping the Marker registration).
+import dynamic from 'next/dynamic'
+import { type LocationPrecision } from './ReportLocationMap'
+const ReportLocationMap = dynamic(() => import('./ReportLocationMap'), { ssr: false })
 import ReportMeta from './ReportMeta'
+import IngestedBadge, { isIngested } from '@/components/IngestedBadge'
 import ReportEngagementStrip from './ReportEngagementStrip'
 import ReportPullQuote from './ReportPullQuote'
 import ReportRelatedReports from './ReportRelatedReports'
@@ -170,25 +178,55 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
   }, [report?.title])
 
   // ── Precision logic for the map ────────────────────────────
-  // V10.5 — when the source row has explicit metadata.location_precision,
-  // we trust it. Otherwise we infer from which fields are populated.
-  // CRITICAL: we also detect "centroid-looking" coordinates (state-
-  // capital / country-center placeholders) by checking whether the
-  // coords land suspiciously close to a known state/country centroid.
-  // When detected, we downgrade precision to 'region' so the map
-  // renders a badge instead of a misleading pin (the Georgia → Atlantic
-  // bug stemmed from a state-centroid placeholder coord).
+  //
+  // V10.8.I.2 — clamped precision so the map is always honest about
+  // what the row actually pins down. The metadata precision is still
+  // honored as the upper bound, but it's clamped DOWN to whatever
+  // the populated location fields can justify:
+  //
+  //   - exact / city  requires `city` to be populated
+  //   - region        requires `state_province` to be populated
+  //   - country       requires `country` to be populated
+  //   - unknown       no fields at all
+  //
+  // Why: ingestion sometimes stamps `location_precision='exact'` on
+  // a row that only has country populated (when MapTiler/Nominatim
+  // resolves "Oman" with a country-level accuracy and the engine
+  // marks the coord as exact-ish). Trusting that metadata blindly
+  // makes the map render a precise pin at zoom 11 on what is really
+  // a country-level guess. Clamping to the warranted precision means
+  // every report page frames at the level of the most-specific
+  // geographic field actually stored on the row — Oman shows Oman,
+  // Kansas shows Kansas, "United States" shows the lower 48 — even
+  // when the upstream source over-claims accuracy.
   const mapPrecision: LocationPrecision = useMemo(() => {
     const meta = report?.metadata || {}
     const raw = (meta.location_precision || meta.locationPrecision || '').toString().toLowerCase()
-    if (raw === 'exact') return 'exact'
-    if (raw === 'city' || raw === 'town') return 'city'
-    if (raw === 'region' || raw === 'state' || raw === 'province' || raw === 'county') return 'region'
-    if (raw === 'country') return 'country'
-    // No explicit precision — infer.
-    if (report?.city) return 'city'
-    if (report?.state_province || report?.country) return 'region'
-    return 'unknown'
+
+    // 1. Map the metadata string to our enum (or null if nothing valid).
+    let claimed: LocationPrecision | null = null
+    if (raw === 'exact') claimed = 'exact'
+    else if (raw === 'city' || raw === 'town') claimed = 'city'
+    else if (raw === 'region' || raw === 'state' || raw === 'province' || raw === 'county') claimed = 'region'
+    else if (raw === 'country') claimed = 'country'
+
+    // 2. Compute what the populated fields can justify.
+    let warranted: LocationPrecision = 'unknown'
+    if (report?.country) warranted = 'country'
+    if (report?.state_province) warranted = 'region'
+    if (report?.city) warranted = 'city'
+
+    // 3. Pick the LESS precise of (claimed, warranted). 'exact' is
+    //    only honored when warranted is 'city' — street-level
+    //    accuracy requires at least a city to anchor it.
+    const ranks: Record<LocationPrecision, number> = {
+      unknown: 0, country: 1, region: 2, city: 3, exact: 4,
+    }
+    if (claimed === 'exact') {
+      return warranted === 'city' ? 'exact' : warranted
+    }
+    if (claimed && ranks[claimed] < ranks[warranted]) return claimed
+    return warranted
   }, [report])
 
   const pinLabel = useMemo(() => {
@@ -200,9 +238,53 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
   const regionLabel = useMemo(() => {
     const parts: string[] = []
     if (report?.state_province) parts.push(report.state_province)
-    if (report?.country && report.country !== 'United States') parts.push(report.country)
+    // V10.7.I — always include country when there's no finer location.
+    // The previous "skip US" rule made country-only US reports render
+    // with no badge at all when state was missing too.
+    if (report?.country) {
+      if (parts.length > 0 && (report.country === 'United States' || report.country === 'USA')) {
+        // State present — omit the redundant USA suffix
+      } else {
+        parts.push(report.country)
+      }
+    }
     return parts.length ? parts.join(', ') : (report?.location_name || null)
   }, [report])
+
+  // V10.8.C — the engine's normalizeLocation utility now fills lat/lng
+  // for every row before insert (precise geocode → state centroid →
+  // country centroid). reports.coords_synthetic is the canonical "this
+  // is a fuzzy pin, not a real address" flag. The render-side
+  // COUNTRY_CENTROIDS table from V10.7.I has been removed — we just
+  // read what the DB gives us.
+  const mapCoords = useMemo(() => {
+    if (typeof report?.latitude === 'number' && typeof report?.longitude === 'number') {
+      const synthetic = (report as any).coords_synthetic === true
+      return { lat: report.latitude, lng: report.longitude, fromFallback: synthetic }
+    }
+    return null
+  }, [report])
+
+  // V10.9.D.11 — When coords are synthetic, use the metadata
+  // precision rather than always falling back to 'country'. The
+  // V10.8.C normalizeLocation sets metadata.location_precision to
+  // reflect WHICH centroid was used (city / state / country), so
+  // mapPrecision already carries that signal — we just need to
+  // honor it instead of stomping it. NOLA case: state centroid
+  // → mapPrecision='region' → halo sized for state, map zoomed
+  // for state. Country-only synthetic rows still resolve to
+  // 'country' via the underlying mapPrecision logic.
+  const mapPrecisionResolved: LocationPrecision = useMemo(() => {
+    if (mapCoords && mapCoords.fromFallback) {
+      // Trust the metadata precision when synthetic — the only
+      // exception is 'exact' which makes no sense for synthetic
+      // coords (centroid is never exact). Treat that as 'city'
+      // so the marker isn't oversized.
+      if (mapPrecision === 'exact') return 'city'
+      return mapPrecision
+    }
+    return mapPrecision
+  }, [mapCoords, mapPrecision])
 
   // ── Phenomenology display ──────────────────────────────────
   const phenomenonTypeName = (report?.phenomenon_type && (report.phenomenon_type as any).name) || null
@@ -337,9 +419,9 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
             keeps the focal pin readable at both sizes. */}
         <div className="relative h-[22vh] sm:h-[35vh] min-h-[160px] max-h-[320px]">
           <ReportLocationMap
-            latitude={report?.latitude}
-            longitude={report?.longitude}
-            precision={mapPrecision}
+            latitude={mapCoords ? mapCoords.lat : report?.latitude}
+            longitude={mapCoords ? mapCoords.lng : report?.longitude}
+            precision={mapPrecisionResolved}
             pinLabel={pinLabel}
             regionLabel={regionLabel}
             height={1000 /* let the wrapper control via CSS */}
@@ -350,6 +432,15 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                 ? '/map?center=' + report.latitude + ',' + report.longitude + '&zoom=8'
                 : undefined
             }
+            // V10.8.I — pass V10.8.C synthetic-coord signals so the
+            // map renders fit-to-country (or fit-to-state) framing
+            // instead of a misleading zoomed-to-centroid view, and
+            // suppresses the nearby overlay (which would otherwise
+            // pile up other synthetic-centroid reports at the same
+            // fake point).
+            coordsSynthetic={(report as any)?.coords_synthetic === true}
+            countryCode={(report as any)?.country_code || null}
+            stateKey={(report as any)?.state_province || null}
           />
         </div>
 
@@ -439,6 +530,24 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                 indexed year, which is strictly more information than
                 the kicker had. Showing both was duplicate. */}
 
+            {/* B0.3 — IngestedBadge (header variant) when this report
+                was indexed from an external source. Renders above the
+                title so the provenance is visible before the user
+                reads the headline. Tone: "Indexed from [source] →"
+                with a link to the canonical source URL. */}
+            {isIngested(report) && (
+              <div className="mb-3">
+                <IngestedBadge
+                  variant="header"
+                  source_type={report?.source_type}
+                  original_report_id={report?.original_report_id}
+                  source_url={report?.source_url}
+                  source_label={report?.source_label}
+                  metadata={report?.metadata}
+                />
+              </div>
+            )}
+
             {/* ── 2. Title ────────────────────────────────────── */}
             <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight mb-3">
               {sanitized.title || 'Untitled report'}
@@ -464,6 +573,7 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                 submitterDisplayName={submitterDisplayName}
                 eventDate={report?.event_date}
                 eventDateText={report?.event_date_text}
+                eventDatePrecision={(report as any)?.event_date_precision || null}
                 city={report?.city}
                 stateProvince={report?.state_province}
                 country={report?.country}
@@ -645,6 +755,7 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                 submitterDisplayName={submitterDisplayName}
                 eventDate={report?.event_date}
                 eventDateText={report?.event_date_text}
+                eventDatePrecision={(report as any)?.event_date_precision || null}
                 city={report?.city}
                 stateProvince={report?.state_province}
                 country={report?.country}

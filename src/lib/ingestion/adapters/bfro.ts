@@ -2,6 +2,7 @@
 // Fetches Bigfoot sighting reports from bfro.net
 
 import { SourceAdapter, AdapterResult, ScrapedReport } from '../types';
+import { extractDate, type DateExtractionSource } from '../utils/extract-date';
 
 // US State mapping
 const STATE_MAP: Record<string, string> = {
@@ -634,8 +635,19 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
     if (!dateStr) {
       console.log('[BFRO] #' + reportNumber + ' WARNING: No date found anywhere');
     }
-    // Now parse the date
-    eventDate = parseDate(dateStr);
+    // V10.8.B.2 — delegate to unified extractDate utility. BFRO's structured
+    // date string (built above from YEAR/MONTH/DATE fields) goes into the
+    // structured slot. We can't pass the narrative as prose here because the
+    // description hasn't been extracted yet at this point in the function;
+    // bfroDateSource captures the audit trail.
+    var bfroDateSource: DateExtractionSource = 'none';
+    if (dateStr) {
+      var bfroExtract = extractDate({ structured: dateStr });
+      if (bfroExtract.date) {
+        eventDate = bfroExtract.date;
+        bfroDateSource = bfroExtract.source;
+      }
+    }
     year = eventDate ? eventDate.substring(0, 4) : (dateStr ? (dateStr.match(/\d{4}/)?.[0] || '') : '');
 
     // Additional structured sections
@@ -912,28 +924,25 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
       console.log(`[BFRO] Report #${reportNumber} has photos on source page`);
     }
 
-    // Determine event_date_precision based on what we parsed from
+    // V10.8.B.2 — derive precision (and try a prose fallback) via the
+    // unified extractDate utility. The structured date was already attempted
+    // upstream (sets eventDate + bfroDateSource); here we either propagate
+    // its precision via a re-run on the structured form, or run a fresh
+    // pass over the OBSERVED+ALSO NOTICED narrative when the structured
+    // date is missing.
     let eventDatePrecision: 'exact' | 'month' | 'year' | 'decade' | 'estimated' | 'unknown' = 'unknown';
     if (eventDate && dateStr) {
-      var dsClean = dateStr.trim();
-      // If dateStr was just a bare year (e.g., "2023")
-      if (/^\d{4}$/.test(dsClean)) {
-        eventDatePrecision = 'year';
-      }
-      // If dateStr was "Month Year" without a day
-      else if (/^\w+\s+\d{4}$/.test(dsClean)) {
-        eventDatePrecision = 'month';
-      }
-      // If dateStr has a full date (day+month+year in any format)
-      else if (/\d{1,2}/.test(dsClean) && /\d{4}/.test(dsClean) && (/\w{3,}/.test(dsClean) || /\//.test(dsClean) || /-/.test(dsClean))) {
-        eventDatePrecision = 'exact';
-      }
-      // "Month DD" without year — we inferred the year, so it's estimated
-      else if (/^\w+\s+\d{1,2}$/.test(dsClean)) {
-        eventDatePrecision = 'estimated';
-      }
-      else {
-        eventDatePrecision = 'estimated';
+      var bfroPrecisionRerun = extractDate({ structured: dateStr });
+      eventDatePrecision = bfroPrecisionRerun.precision;
+    } else if (!eventDate && description) {
+      var bfroProseExtract = extractDate({ prose: description });
+      if (bfroProseExtract.date) {
+        eventDate = bfroProseExtract.date;
+        eventDatePrecision = bfroProseExtract.precision;
+        bfroDateSource = bfroProseExtract.source;
+        // Keep `year` in sync for downstream title generation
+        year = eventDate.substring(0, 4);
+        console.log('[BFRO] #' + reportNumber + ' date from prose fallback: ' + eventDate + ' (' + bfroProseExtract.source + ')');
       }
     }
 
@@ -981,6 +990,7 @@ async function parseReportPage(html: string, reportNumber: string, baseUrl: stri
       event_date: eventDate,
       event_time: eventTime,
       event_date_precision: eventDatePrecision,
+      event_date_extracted_from: bfroDateSource,
       credibility: getCredibility(classification),
       witness_count: witnessCount,
       has_official_report: !!followUp, // BFRO follow-up = investigated

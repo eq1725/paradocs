@@ -3,8 +3,8 @@
  * Positioned bottom-right on desktop, above bottom sheet on mobile
  */
 
-import React, { useCallback, useState } from 'react'
-import { Flame, Locate, Maximize, Minimize, Globe, Mountain } from 'lucide-react'
+import React, { useCallback, useEffect, useState } from 'react'
+import { Flame, Locate, Maximize, Minimize, Globe, Mountain, Map as MapIcon } from 'lucide-react'
 
 export type BasemapStyle = 'dark' | 'satellite' | 'terrain'
 
@@ -15,6 +15,13 @@ interface MapControlsProps {
   basemapStyle: BasemapStyle
   onBasemapChange: (style: BasemapStyle) => void
   className?: string
+  /**
+   * V10.9.B — choropleth toggle. When true, the country fill layer
+   * renders on the explore-map. Default false so the map matches
+   * the V10.9.A behavior unless the user opts in.
+   */
+  choroplethActive?: boolean
+  onToggleChoropleth?: () => void
 }
 
 const BASEMAP_CYCLE: BasemapStyle[] = ['dark', 'satellite', 'terrain']
@@ -26,17 +33,49 @@ export default function MapControls({
   basemapStyle,
   onBasemapChange,
   className = '',
+  choroplethActive = false,
+  onToggleChoropleth,
 }: MapControlsProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
 
+  // V10.9.D.5 — Fullscreen the map's wrapper element, NOT
+  // document.documentElement. The previous behavior put the entire
+  // <html> in fullscreen mode which caused Chrome/Safari to render
+  // only the wordmark (the layout's fixed-position children get
+  // re-stacked relative to the new fullscreen container and the
+  // map's `fixed inset-0` wrapper ends up invisible behind whatever
+  // root element wins the stacking-context battle).
+  //
+  // Targeting a specific element keeps everything inside that element
+  // (map, controls, panels) visible in fullscreen and exits cleanly.
+  // We look up the explore wrapper by class — it's the closest fixed
+  // ancestor of the map controls.
   const toggleFullscreen = useCallback(() => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.()
-      setIsFullscreen(true)
-    } else {
+    if (document.fullscreenElement) {
       document.exitFullscreen?.()
       setIsFullscreen(false)
+      return
     }
+    // Find the map's wrapper. Walk up from a known map element first
+    // (the maplibregl canvas), fall back to the explore wrapper class.
+    const target =
+      (document.querySelector('[data-map-fullscreen-target]') as HTMLElement | null) ||
+      (document.querySelector('.maplibregl-map')?.closest('div[style*="inset-0"], div.fixed') as HTMLElement | null) ||
+      document.documentElement
+    target.requestFullscreen?.().then(
+      () => setIsFullscreen(true),
+      () => setIsFullscreen(false),
+    )
+  }, [])
+
+  // Sync local state with browser fullscreen state (e.g. user hits
+  // ESC to exit). Without this listener the icon stays "expanded"
+  // and the next click would try to RE-fullscreen instead of enter
+  // fullscreen.
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
   }, [])
 
   const cycleBasemap = useCallback(() => {
@@ -79,6 +118,20 @@ export default function MapControls({
       >
         <Flame size={18} />
       </button>
+
+      {/* V10.9.B — Choropleth toggle. Tints countries by the number
+          of synthetic-coord reports they contain (the same data shown
+          in the Region Totals panel). Visible at low zoom only. */}
+      {onToggleChoropleth && (
+        <button
+          onClick={onToggleChoropleth}
+          className={choroplethActive ? buttonActive : buttonBase}
+          title={choroplethActive ? 'Hide regions' : 'Show regions'}
+          aria-label={choroplethActive ? 'Hide region density' : 'Show region density'}
+        >
+          <MapIcon size={18} />
+        </button>
+      )}
 
       {/* Locate me */}
       <button

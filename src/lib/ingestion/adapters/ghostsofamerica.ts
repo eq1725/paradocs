@@ -2,6 +2,7 @@
 // Scrapes user-submitted ghost sighting reports from ghostsofamerica.com
 
 import { SourceAdapter, AdapterResult, ScrapedReport } from '../types';
+import { extractDate, type DateExtractionSource } from '../utils/extract-date';
 
 // Rate limiting helper
 function delay(ms: number): Promise<void> {
@@ -88,24 +89,13 @@ function parseGhostStories(html: string, stateName: string, cityName?: string): 
       ? locationMatch[1]
       : (cityName || stateName);
 
-    // Try to extract date
-    const dateMatch = cleanContent.match(/(?:in|on|around|circa)\s+(\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4}|(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})/i);
-    let eventDate: string | undefined;
-    if (dateMatch) {
-      const dateStr = dateMatch[1];
-      if (/^\d{4}$/.test(dateStr)) {
-        eventDate = `${dateStr}-01-01`; // Just year, use Jan 1
-      } else {
-        try {
-          const parsed = new Date(dateStr);
-          if (!isNaN(parsed.getTime())) {
-            eventDate = parsed.toISOString().split('T')[0];
-          }
-        } catch {
-          // Ignore parsing errors
-        }
-      }
-    }
+    // V10.8.B.2 — delegate date extraction to the unified utility. GoA pages
+    // don't expose a structured header date field, so the whole cleanContent
+    // body goes in as prose. Captures "April 28, 2007"-style narrative dates
+    // and month-only / year-only fallbacks (precision degraded automatically).
+    const extracted = extractDate({ prose: cleanContent });
+    const eventDate: string | undefined = extracted.date || undefined;
+    const eventDateSource: DateExtractionSource = extracted.source;
 
     // Generate unique ID
     const reportId = `goa-${stateName.toLowerCase().replace(/\s+/g, '-')}-${storyIndex++}`;
@@ -154,15 +144,9 @@ function parseGhostStories(html: string, stateName: string, cityName?: string): 
       credibility = 'low';
     }
 
-    // Determine event_date_precision
-    var datePrecision: 'exact' | 'month' | 'year' | 'decade' | 'estimated' | 'unknown' = 'unknown';
-    if (eventDate) {
-      if (/^\d{4}-01-01$/.test(eventDate) && dateMatch && /^\d{4}$/.test(dateMatch[1])) {
-        datePrecision = 'year';
-      } else {
-        datePrecision = 'exact';
-      }
-    }
+    // V10.8.B.2 — precision now comes from extractDate (above) rather than
+    // post-hoc inspection of the raw regex match.
+    const datePrecision: 'exact' | 'month' | 'year' | 'decade' | 'estimated' | 'unknown' = extracted.precision;
 
     reports.push({
       title: title.length > 100 ? title.substring(0, 97) + '...' : title,
@@ -175,6 +159,7 @@ function parseGhostStories(html: string, stateName: string, cityName?: string): 
       city: cityName,
       event_date: eventDate,
       event_date_precision: datePrecision,
+      event_date_extracted_from: eventDateSource,
       credibility,
       source_type: 'ghostsofamerica',
       original_report_id: reportId,
@@ -206,6 +191,9 @@ function parseGhostStories(html: string, stateName: string, cityName?: string): 
 
       const reportId = `goa-${stateName.toLowerCase().replace(/\s+/g, '-')}-p${storyIndex++}`;
 
+      // V10.8.B.2 — fallback paragraphs also get unified extractDate.
+      const fbExtracted = extractDate({ prose: cleanContent });
+
       reports.push({
         title: `Ghost Story from ${cityName || stateName}`,
         summary: cleanContent.substring(0, 197) + '...',
@@ -219,7 +207,9 @@ function parseGhostStories(html: string, stateName: string, cityName?: string): 
         source_type: 'ghostsofamerica',
         original_report_id: reportId,
         tags: ['ghost-story'],
-        event_date_precision: 'unknown',
+        event_date: fbExtracted.date || undefined,
+        event_date_precision: fbExtracted.precision,
+        event_date_extracted_from: fbExtracted.source,
         // New quality system fields
         source_label: 'Ghosts of America',
         source_url: 'https://www.ghostsofamerica.com/ghosts/' + (Object.keys(STATE_NAMES).find(function(k) { return STATE_NAMES[k] === stateName; }) || stateName.toLowerCase().replace(/\s+/g, '')) + '/',

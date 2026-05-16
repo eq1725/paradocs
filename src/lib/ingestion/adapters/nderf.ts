@@ -7,6 +7,7 @@
 
 import { SourceAdapter, AdapterResult, ScrapedReport } from '../types';
 import { tokenizeEmotions, EmotionToken } from '../emotion-vocab';
+import { extractDate, type DateExtractionSource } from '../utils/extract-date';
 
 // Rate limiting helper
 function delay(ms: number): Promise<void> {
@@ -513,71 +514,45 @@ export function buildCaseProfile(
   return profile;
 }
 
-// Extract Date of NDE from NDERF page
-// Formats seen: "2/4/2014", "05/00/2010" (00=unknown day), "1930", etc.
-function extractNDEDate(html: string): { date: string | undefined; precision: 'exact' | 'month' | 'year' | 'unknown' } {
+// Extract Date of NDE from an NDERF page.
+//
+// V10.8.B.2 — delegates to the unified extractDate utility. NDERF's structured
+// "Date of NDE" field uses MM/DD/YYYY with 0 sentinels for unknown parts
+// ("05/00/2010" = month precision) — extractDate's structured parser handles
+// that exact form. We also pass the narrative as prose so that the rare cases
+// where the questionnaire field is missing (or unparseable) still capture
+// "On April 28th 2007"-style narrative-opening dates that the previous regex
+// threw away. Returns the extractDate audit source so the engine can store it
+// in reports.event_date_extracted_from.
+function extractNDEDate(
+  html: string,
+  content: string,
+): {
+  date: string | undefined;
+  precision: 'exact' | 'month' | 'year' | 'unknown';
+  source: DateExtractionSource;
+} {
   const raw = extractField(html, 'Date of NDE');
   if (!raw) {
-    console.log(`[NDERF] No "Date of NDE" field found`);
-    return { date: undefined, precision: 'unknown' };
-  }
-  console.log(`[NDERF] Raw Date of NDE: "${raw}"`);
-
-  // MM/DD/YYYY or M/D/YYYY (year can be 2 or 4 digits, e.g. "07/27/0023" means 2023)
-  const mdyMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
-  if (mdyMatch) {
-    const month = parseInt(mdyMatch[1], 10);
-    const day = parseInt(mdyMatch[2], 10);
-    let year = parseInt(mdyMatch[3], 10);
-
-    // Fix 2-digit or small years: 0023 → 2023, 85 → 1985, etc.
-    if (year < 100) {
-      year = year < 50 ? 2000 + year : 1900 + year;
-      console.log(`[NDERF] Corrected small year: ${mdyMatch[3]} → ${year}`);
-    }
-
-    // Both month and day are 0 — year-only precision
-    if (month === 0 && day === 0) {
-      console.log(`[NDERF] Parsed date: ${year} (year precision, month=00/day=00)`);
-      return { date: `${year}-01-01`, precision: 'year' };
-    }
-
-    // Month is 0 but day isn't (shouldn't happen, but handle gracefully)
-    if (month === 0) {
-      console.log(`[NDERF] Parsed date: ${year} (year precision, month=00)`);
-      return { date: `${year}-01-01`, precision: 'year' };
-    }
-
-    if (day === 0) {
-      // Unknown day — month precision
-      const monthStr = String(month).padStart(2, '0');
-      console.log(`[NDERF] Parsed date: ${year}-${monthStr} (month precision, day=00)`);
-      return { date: `${year}-${monthStr}-01`, precision: 'month' };
-    }
-
-    const monthStr = String(month).padStart(2, '0');
-    const dayStr = String(day).padStart(2, '0');
-    console.log(`[NDERF] Parsed date: ${year}-${monthStr}-${dayStr} (exact)`);
-    return { date: `${year}-${monthStr}-${dayStr}`, precision: 'exact' };
+    console.log(`[NDERF] No "Date of NDE" field found — falling back to prose`);
+  } else {
+    console.log(`[NDERF] Raw Date of NDE: "${raw}"`);
   }
 
-  // Just a year: "1930", "2010"
-  const yearMatch = raw.match(/^(\d{4})$/);
-  if (yearMatch) {
-    console.log(`[NDERF] Parsed date: ${yearMatch[1]} (year precision)`);
-    return { date: `${yearMatch[1]}-01-01`, precision: 'year' };
-  }
+  const result = extractDate({
+    structured: raw || null,
+    prose: content || null,
+  });
 
-  // Month/Year only: "05/2010"
-  const myMatch = raw.match(/^(\d{1,2})\/(\d{4})$/);
-  if (myMatch) {
-    const monthStr = String(parseInt(myMatch[1], 10)).padStart(2, '0');
-    console.log(`[NDERF] Parsed date: ${myMatch[2]}-${monthStr} (month precision)`);
-    return { date: `${myMatch[2]}-${monthStr}-01`, precision: 'month' };
-  }
+  console.log(
+    `[NDERF] extractDate result: date=${result.date || 'none'} precision=${result.precision} source=${result.source}`,
+  );
 
-  console.log(`[NDERF] Could not parse date: "${raw}"`);
-  return { date: undefined, precision: 'unknown' };
+  return {
+    date: result.date || undefined,
+    precision: result.precision,
+    source: result.source,
+  };
 }
 
 // US state name-to-abbreviation map for location extraction
@@ -976,11 +951,14 @@ async function parseExperiencePage(html: string, id: string, name: string): Prom
   else if (lowerHtml.includes('questionable') || idLower.includes('questionable')) nderfTier = 'questionable';
 
   // --- FIX 1: Extract date from "Date of NDE" questionnaire field ---
-  const { date: eventDate, precision: datePrecision } = extractNDEDate(html);
+  // V10.8.B.2 — extractNDEDate now delegates to the unified extractDate
+  // utility and also tries the narrative as prose when the structured
+  // field is missing or unparseable. dateSource is the audit trail.
+  const { date: eventDate, precision: datePrecision, source: dateSource } = extractNDEDate(html, content);
 
   // --- FIX 2: Extract gender ---
   const gender = extractField(html, 'Gender');
-  console.log(`[NDERF] ${id}: gender=${gender || 'unknown'}, date=${eventDate || 'none'}, precision=${datePrecision}`);
+  console.log(`[NDERF] ${id}: gender=${gender || 'unknown'}, date=${eventDate || 'none'}, precision=${datePrecision}, source=${dateSource}`);
 
   // --- FIX 3: Extract location from narrative (LLM-first) ---
   // `extractLocationSmart` calls Claude with an event-location-specific
@@ -1039,6 +1017,7 @@ async function parseExperiencePage(html: string, id: string, name: string): Prom
     location_precision: location.precision,
     event_date: eventDate,
     event_date_precision: datePrecision,
+    event_date_extracted_from: dateSource,
     credibility: determineCredibility(content, nderfTier),
     source_type: 'nderf',
     original_report_id: `nderf-${id}`,

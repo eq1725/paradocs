@@ -77,6 +77,18 @@ export interface ScrapedReport {
   media?: ScrapedMediaItem[];
   // Event date precision for On This Date feature
   event_date_precision?: 'exact' | 'month' | 'year' | 'decade' | 'estimated' | 'unknown';
+  // V10.8.B — extractDate audit fields. Set by adapters that call
+  // the unified extractDate utility (V10.8.A). Adapters that still
+  // use legacy per-source parsers leave these undefined; engine.ts
+  // passes through whatever the adapter provides.
+  event_date_extracted_from?: 'structured' | 'prose-monthname' | 'prose-numeric' | 'prose-year' | 'haiku' | 'none';
+  // V10.8.B — publication date of the source (news articles, blog
+  // posts, podcast episodes). Distinct from event_date. The news
+  // adapter previously stored pub_date in event_date with
+  // precision='exact'; after V10.8.B that gets stored here and
+  // event_date is reserved for the actual event date (extractDate
+  // result on the article body).
+  source_published_at?: string;
   // Location precision — how accurate the coordinates are, if we have any.
   //   exact   = adapter supplied a GPS-accurate pair (BFRO, NUFORC some cases)
   //   city    = geocoded from "City, State"

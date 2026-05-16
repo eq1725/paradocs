@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Shield, ArrowLeft } from 'lucide-react'
 
 export default function PrivacyPolicyPage() {
-  const lastUpdated = 'February 2026'
+  const lastUpdated = 'May 2026'
 
   return (
     <>
@@ -104,9 +104,56 @@ export default function PrivacyPolicyPage() {
             </p>
           </section>
 
-          {/* Section 4 */}
+          {/* Section 3.5 — Indexed Content (B0.6) */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-4">4. Information Sharing</h2>
+            <h2 className="text-xl font-semibold text-white mb-4">4. Indexed Content from Public Sources</h2>
+            <p className="mb-4 text-gray-400">
+              In addition to first-person reports submitted directly by Paradocs users, our archive
+              indexes content that has been made publicly available by other sources — research
+              organizations, online communities, and historical archives. Every indexed report on
+              Paradocs is clearly marked as such, with attribution to the original source and a
+              link back to where it was first published.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-white font-medium mb-2">What gets indexed</h3>
+                <ul className="list-disc list-inside space-y-2 text-gray-400 ml-2">
+                  <li>Case archives from research organizations (NUFORC, NDERF, OBERF, BFRO, IANDS, and similar)</li>
+                  <li>Publicly archived discussions from online communities (e.g., Reddit, via established archival sources)</li>
+                  <li>Historical case records and public-domain archive material</li>
+                  <li>Wikipedia entries and other openly-licensed reference content (with attribution per the CC-BY-SA license)</li>
+                </ul>
+              </div>
+              <div>
+                <h3 className="text-white font-medium mb-2">How we treat indexed content</h3>
+                <ul className="list-disc list-inside space-y-2 text-gray-400 ml-2">
+                  <li><strong className="text-white">Index, don&apos;t republish:</strong> we summarize and link back rather than reproducing source content in full</li>
+                  <li><strong className="text-white">Original analysis:</strong> the Paradocs-voice narrative around an indexed case is our own commentary, not a copy of the source</li>
+                  <li><strong className="text-white">Visible attribution:</strong> every indexed report shows the originating source and links back to the canonical entry</li>
+                  <li><strong className="text-white">No author contact:</strong> indexed reports never expose the original author&apos;s identity or open a direct-contact channel</li>
+                </ul>
+              </div>
+              <div>
+                <h3 className="text-white font-medium mb-2">Takedown contact</h3>
+                <p className="text-gray-400">
+                  If your content has been indexed and you would like it removed, email{' '}
+                  <a href="mailto:takedown@discoverparadocs.com" className="text-primary-400 hover:underline">
+                    takedown@discoverparadocs.com
+                  </a>
+                  {' '}with a link to the indexed report and a brief verification (your account
+                  on the source platform, the URL of your original post, etc.). We respond within
+                  7 business days and remove the indexed entry from Paradocs once we&apos;ve confirmed
+                  the request is from the original author or rights-holder. We honor user deletions
+                  from upstream sources as well — if the original post has been deleted at the
+                  source, our indexed entry is removed automatically on the next reconciliation pass.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Section 5 */}
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-4">5. Information Sharing</h2>
             <p className="mb-4 text-gray-400">
               We do not sell your personal information. We may share information in limited circumstances:
             </p>
@@ -120,7 +167,7 @@ export default function PrivacyPolicyPage() {
 
           {/* Section 5 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-4">5. Data Security</h2>
+            <h2 className="text-xl font-semibold text-white mb-4">6. Data Security</h2>
             <p className="text-gray-400">
               We implement industry-standard security measures to protect your information,
               including encryption in transit (HTTPS), secure data storage, access controls,
@@ -131,7 +178,7 @@ export default function PrivacyPolicyPage() {
 
           {/* Section 6 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-4">6. Your Rights & Choices</h2>
+            <h2 className="text-xl font-semibold text-white mb-4">7. Your Rights & Choices</h2>
             <p className="mb-4 text-gray-400">You have the right to:</p>
             <ul className="list-disc list-inside space-y-2 text-gray-400 ml-2">
               <li>Access the personal information we hold about you</li>
@@ -151,7 +198,7 @@ export default function PrivacyPolicyPage() {
 
           {/* Section 7 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-4">7. Cookies</h2>
+            <h2 className="text-xl font-semibold text-white mb-4">8. Cookies</h2>
             <p className="text-gray-400">
               We use cookies and similar technologies for essential site functionality (keeping
               you logged in), analytics (understanding how people use Paradocs), and preferences
@@ -162,7 +209,7 @@ export default function PrivacyPolicyPage() {
 
           {/* Section 8 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-4">8. Children's Privacy</h2>
+            <h2 className="text-xl font-semibold text-white mb-4">9. Children&apos;s Privacy</h2>
             <p className="text-gray-400">
               Paradocs is not intended for children under 13. We do not knowingly collect
               personal information from children under 13. If you believe we have collected
@@ -172,7 +219,7 @@ export default function PrivacyPolicyPage() {
 
           {/* Section 9 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-4">9. International Users</h2>
+            <h2 className="text-xl font-semibold text-white mb-4">10. International Users</h2>
             <p className="text-gray-400">
               Paradocs is operated from the United States. If you access Paradocs from outside
               the US, your information may be transferred to, stored, and processed in the US
@@ -183,7 +230,7 @@ export default function PrivacyPolicyPage() {
 
           {/* Section 10 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-4">10. Changes to This Policy</h2>
+            <h2 className="text-xl font-semibold text-white mb-4">11. Changes to This Policy</h2>
             <p className="text-gray-400">
               We may update this privacy policy from time to time. We will notify you of
               significant changes by posting a notice on Paradocs or sending you an email.
@@ -194,7 +241,7 @@ export default function PrivacyPolicyPage() {
 
           {/* Section 11 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-4">11. Contact Us</h2>
+            <h2 className="text-xl font-semibold text-white mb-4">12. Contact Us</h2>
             <p className="text-gray-400">
               If you have questions about this privacy policy or our data practices, contact us at:
             </p>

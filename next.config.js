@@ -1,13 +1,54 @@
 /** @type {import('next').NextConfig} */
+
+// C1.2 — Capacitor static export mode.
+// When building for the iOS/Android Capacitor shells we need a fully
+// static `out/` directory (no server-side rendering, no API routes
+// running on-device). Web production builds (Vercel) keep the full
+// SSR + API surface.
+//
+// Trigger: PARADOCS_CAPACITOR=1 (set by the `cap:build` npm script).
+//
+// Caveats baked into native build:
+//   - API routes don't ship into the static bundle. The native shells
+//     continue to call /api/* against the deployed Vercel origin via
+//     the absolute API base URL (NEXT_PUBLIC_SITE_URL).
+//   - getServerSideProps pages need conversion to getStaticProps or
+//     pure client-fetch. Current SSR pages in the repo:
+//     src/pages/story/[id].tsx, src/pages/cases/public/[slug].tsx,
+//     src/pages/dashboard/constellation.tsx. Audit these before
+//     shipping Capacitor builds; if they don't render correctly under
+//     static export, either convert them or hide them from the native
+//     surface (web users keep the SSR version on Vercel).
+//   - Image optimization via next/image is disabled in static export;
+//     `images.unoptimized: true` is set conditionally below.
+const IS_CAPACITOR_BUILD = process.env.PARADOCS_CAPACITOR === '1'
+
 const nextConfig = {
   reactStrictMode: true,
+  // C1.2 — static export gated on Capacitor build env flag
+  ...(IS_CAPACITOR_BUILD ? { output: 'export', trailingSlash: true } : {}),
   async redirects() {
+    // C1.2 — redirects() requires a runtime; static export doesn't have one.
+    // Capacitor builds skip the redirect table — native users navigate via
+    // in-app routing, never via direct URL typing, so URL-level redirects
+    // aren't meaningful for the native shell.
+    if (IS_CAPACITOR_BUILD) return []
     return [
-      // /encyclopedia is a friendly alias for the phenomena directory.
-      // Both land on /phenomena* so users see the full encyclopedia browse.
+      // T1.2: /phenomena index is deprecated as a standalone surface.
+      // Encyclopedia browsing now happens via /explore "Browse by Category"
+      // drill-down. The /phenomena/[slug] deep-dive routes still exist
+      // (T1.3 simplifies them to thin "Reports tagged X" pages) — only the
+      // index page is killed.
+      {
+        source: '/phenomena',
+        destination: '/explore?view=categories',
+        permanent: true,
+      },
+      // /encyclopedia is a friendly alias — also routes to /explore now.
+      // Slug-level encyclopedia URLs preserved (route to thin reports page).
       {
         source: '/encyclopedia',
-        destination: '/phenomena',
+        destination: '/explore?view=categories',
         permanent: true,
       },
       {
@@ -106,7 +147,30 @@ const nextConfig = {
     ]
   },
   async rewrites() {
+    // C1.2 — rewrites() requires a runtime. Capacitor builds skip them.
+    // Native code that needs to hit PostHog directly (i.e. not via the
+    // /_posthog/* proxy) does so by setting NEXT_PUBLIC_POSTHOG_HOST to
+    // the upstream URL in the Capacitor build env. The /:slug fallback
+    // is also web-only — native navigation goes through the in-app
+    // router rather than URL string matching.
+    if (IS_CAPACITOR_BUILD) return []
     return {
+      // T1.12 — PostHog reverse proxy under our own origin so iCloud
+      // Private Relay (which blocks third-party telemetry origins
+      // including i.posthog.com) doesn't drop session recordings or
+      // events. Configured BEFORE the fallback so /_posthog/* doesn't
+      // get caught by the /:slug → /phenomena/:slug catch-all.
+      // Reference: https://posthog.com/docs/advanced/proxy
+      beforeFiles: [
+        {
+          source: '/_posthog/static/:path*',
+          destination: 'https://us-assets.i.posthog.com/static/:path*',
+        },
+        {
+          source: '/_posthog/:path*',
+          destination: 'https://us.i.posthog.com/:path*',
+        },
+      ],
       fallback: [
         {
           source: '/:slug',
@@ -126,6 +190,10 @@ const nextConfig = {
         hostname: '**.supabase.co',
       },
     ],
+    // C1.2 — static export doesn't have a runtime to do image optimization.
+    // The native shells display unoptimized images sourced from the bundled
+    // static export + the deployed Vercel origin.
+    ...(IS_CAPACITOR_BUILD ? { unoptimized: true } : {}),
   },
 }
 

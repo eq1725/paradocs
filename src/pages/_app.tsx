@@ -7,6 +7,8 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import { Analytics } from '@vercel/analytics/next'
 import Layout from '@/components/Layout'
 import { ToastProvider } from '@/components/Toast'
+import { initPostHog, identify, reset, capture } from '@/lib/posthog'
+import { supabase } from '@/lib/supabase'
 
 // Pages that should NOT have the main app layout (nav, footer, etc.)
 const STANDALONE_PAGES = ['/beta-access', '/survey']
@@ -30,6 +32,67 @@ export default function App({ Component, pageProps }: AppProps) {
       })
     }
   }, [])
+
+  // V10.10 / V10.10.2 — initialize PostHog once on mount, then attach
+  // an auth listener that calls identify() on sign-in and reset() on
+  // sign-out. Wrapped in try/catch as a defense-in-depth: analytics
+  // must never crash the app shell.
+  useEffect(function() {
+    var sub: any = null
+    try {
+      initPostHog()
+
+      // Identify any existing session immediately on mount.
+      supabase.auth.getSession().then(function(res) {
+        try {
+          var session = res.data.session
+          if (session && session.user) {
+            identify(session.user.id, {
+              email: session.user.email || undefined,
+            })
+          }
+        } catch (_e) { /* never throw from analytics */ }
+      }).catch(function() { /* silently swallow */ })
+
+      // Subscribe to auth changes so identify/reset stay in sync.
+      sub = supabase.auth.onAuthStateChange(function(event, session) {
+        try {
+          if (event === 'SIGNED_IN' && session && session.user) {
+            identify(session.user.id, {
+              email: session.user.email || undefined,
+            })
+            capture('user_signed_in', { method: session.user.app_metadata?.provider || 'unknown' })
+          } else if (event === 'SIGNED_OUT') {
+            capture('user_signed_out')
+            reset()
+          }
+        } catch (_e) { /* never throw from analytics */ }
+      })
+    } catch (e) {
+      console.warn('[_app] PostHog/auth-listener init failed:', e)
+    }
+
+    return function() {
+      try {
+        if (sub && sub.data && sub.data.subscription) {
+          sub.data.subscription.unsubscribe()
+        }
+      } catch (_e) { /* ignore */ }
+    }
+  }, [])
+
+  // V10.10 — capture client-side route changes as named pageviews
+  // (in addition to PostHog's auto-pageview on first load). Without
+  // this, SPA navigations show as a single pageview per session.
+  useEffect(function() {
+    function onRouteChange(url: string) {
+      capture('$pageview', { $current_url: url })
+    }
+    router.events.on('routeChangeComplete', onRouteChange)
+    return function() {
+      router.events.off('routeChangeComplete', onRouteChange)
+    }
+  }, [router.events])
 
   return (
     <>

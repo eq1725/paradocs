@@ -1,7 +1,379 @@
 # Paradocs — Session Notes & Dev Continuity
 
-**Last updated:** May 13, 2026 (V10.7 report-page push)
+**Last updated:** May 14, 2026 (V10.9.D — Region Totals icon+popover + mobile double-padding fix)
 **Purpose:** Comprehensive session notes so any new Claude session can pick up exactly where we left off.
+
+---
+
+## Most Recent Session — V10.9.D RegionTotals redesign + mobile spacing (May 14, 2026, late night)
+
+Two QA items after V10.9.C deployed.
+
+**1. Desktop: Region Totals box reads as clunky chrome.**
+SME panel converged on demoting from always-visible chrome to a secondary tool — same visual language as the existing right-rail control stack.
+
+- New trigger: 40×40 round button positioned above the MapControls stack at `lg:bottom-[200px] lg:right-4`. Pin icon, brand-purple count badge ("57"). Reads the badge value at a glance without opening anything.
+- Click trigger → popover slides out leftward (anchored `right-12 bottom-0`), 288px wide, brand-styled (dark + purple). Same list + footer copy as before.
+- Three close paths: outside-click, ESC, explicit X in the popover header.
+- Hidden entirely when `total === 0` (no chrome when no data).
+- Mobile unaffected — V10.9.C's bottom-sheet section is still the mobile path.
+
+**2. Mobile: huge gap between Paradocs wordmark and Map/Browse/Search tabs.**
+Bug: explore.tsx tabs container had `safe-area-pt` ON map mode, but `<main>` already includes `safe-area-inset-top` via the `main-content-pt` class. Double padding on iPhones with Dynamic Island added ~60px below the header that shouldn't be there.
+
+Fix: removed the `safe-area-pt` conditional. The `sticky-below-header` class on the tabs already correctly handles the safe-area inset for the sticky `top` value, and the parent `main-content-pt` handles the initial offset. Single source of truth.
+
+**Files changed:**
+- `src/components/map/RegionTotalsPanel.tsx` — complete rewrite as icon trigger + popover
+- `src/pages/explore.tsx` — removed double safe-area padding on tabs container
+
+**Last commit on main:** TBD (V10.9.D push)
+
+**No action needed from Chase** — code-only.
+
+---
+
+## Earlier Session — V10.9.C explore-map polish (May 14, 2026, late night)
+
+Four UI/UX issues Chase flagged after V10.9.B deployed. All fixed in a single polish pass.
+
+**1. Desktop: RegionTotalsPanel overlapping MapLibre zoom controls (top-right).**
+Moved the panel from `top-3 right-3` to `lg:top-20 lg:right-3` so the zoom +/- buttons get their default top-right slot. Panel now sits below them with ~80px clearance.
+
+**2. Mobile: RegionTotalsPanel overlapping the Filters button + stat bar.**
+Floating panel now hides on mobile (`hidden lg:block`). The same data appears as a "Region totals" section inside the existing MapBottomSheet, parallel to "Top Locations". Tap-to-filter UX is identical; visual chip styling distinguishes synthetic-coord regions (purple tint when active) from precise-coord top countries.
+
+**3. Mobile: filters drawer hard to dismiss when fully extended.**
+- Drag handle bumped from 10×1px to 12×1.5px and gained a hover state (gray-500 → gray-400).
+- Tap-on-handle now cycles snaps (peek → half → full → peek). Pure-tap dismiss path, no drag required.
+- New explicit close X button (top-right of the sheet) that only appears when `snap === 'full'`. One-tap path to peek.
+
+**4. Desktop: footer competing for scroll on the map page.**
+Extended the V9.11.5 footer-hide pattern in `Layout.tsx` to suppress the footer on both `/explore?mode=map` AND `/map`. Map page now occupies the full viewport with no scroll-to-footer trap.
+
+**Files changed:**
+- `src/components/map/RegionTotalsPanel.tsx` — positioning + mobile hide
+- `src/components/map/MapBottomSheet.tsx` — drag-handle tap cycle, close X, new region-totals section
+- `src/pages/explore.tsx` — pass regionBuckets/regionTotalCount to the sheet
+- `src/components/Layout.tsx` — footer hide on map routes
+
+**Last commit on main:** TBD (V10.9.C push)
+
+**No action needed from Chase** — code-only, no migrations, no env vars.
+
+---
+
+## Earlier Session — V10.9.B choropleth + engine refresh (May 14, 2026, late night)
+
+Chase requested both follow-ups in V10.9.A: wire the materialized-view refresh into the engine, AND ship the choropleth fill layer. Both done.
+
+**Shipped end-to-end:**
+
+- `supabase/migrations/20260514_v10_9_refresh_region_counts_fn.sql` — `refresh_region_counts()` Postgres function (SECURITY DEFINER) wrapping `REFRESH MATERIALIZED VIEW CONCURRENTLY report_region_counts`. Soft-fails on transient locks so it can't break ingestion. Granted to service_role + authenticated.
+- `src/lib/ingestion/engine.ts` — after every successful ingestion run with `inserted > 0`, calls `supabase.rpc('refresh_region_counts')`. Non-blocking try/catch around it; logs OK / failure but never aborts.
+- `src/components/map/useChoroplethData.ts` — new hook. Lazy-fetches Natural Earth 110m admin0 GeoJSON (~100KB, public domain, github raw URL) on first toggle-on, caches at module level. Joins polygons with the region-counts API response keyed by ISO_A2 (with ISO_A2_EH fallback for Norway/France etc). Returns `{ geojson, maxCount, loading }`. Recomputes when buckets change so category filters propagate.
+- `src/components/map/MapContainer.tsx` — new optional props `choroplethGeoJson`, `choroplethMaxCount`, `onChoroplethCountryClick`. New `choropleth-source` GeoJSON source + `choropleth-fill` (log-scaled opacity from 0.10 → 0.55) + `choropleth-stroke` line layers. Both filtered to `zoom <= 5.5` so they fade out when pins take over. Click handler routes country polygon clicks to the country-filter callback.
+- `src/components/map/MapControls.tsx` — new "Regions" toggle button (Map icon from lucide-react). Optional prop set; if `onToggleChoropleth` is omitted, button is hidden.
+- `src/pages/explore.tsx` — wires `useChoroplethData(regionBuckets, choroplethActive)`, default `choroplethActive=true`. Passes joined GeoJSON to MapContainer, toggle handler to MapControls. Click on a country polygon toggles the country filter (same UX as the RegionTotalsPanel).
+
+**Result on current corpus:**
+- Choropleth fills the US polygon at ~55% opacity purple (the 57 synthetic-coord reports). Other countries are transparent because they have zero synthetic-coord reports.
+- Toggle button on the bottom-right MapControls strip lets users hide the choropleth.
+- At zoom > 5.5 the choropleth fades out and pins take over.
+- Engine refreshes the materialized view after every ingestion batch (when inserted > 0), so the panel + choropleth stay current during mass ingest.
+
+**Tests:** tsc clean against V10.9.B changes. The two pre-existing engine.ts errors (titleResult + rejectedDetails) are unchanged from V10.8.D.
+
+**Last commit on main:** TBD (V10.9.B push)
+
+**Action needed from Chase before deploy:**
+- Apply `supabase/migrations/20260514_v10_9_refresh_region_counts_fn.sql`. Creates the `refresh_region_counts()` function. Idempotent CREATE OR REPLACE.
+- No other migrations or env-var changes.
+
+---
+
+## Earlier Session — V10.9.A explore-map region totals (May 14, 2026, late night)
+
+After V10.8.I fixed the report-page maps, the /explore?mode=map page still piled the same 57 synthetic-coord US reports at the country centroid (Kansas). Implemented the V10.9.A first cut of the design doc to fix it for both current corpus and mass-ingest scale.
+
+**Shipped end-to-end:**
+- `supabase/migrations/20260514_v10_9_region_counts.sql` — materialized view `report_region_counts(country_code, country, state_province, category, report_count)` aggregating synthetic-coord approved reports. Unique composite index for `REFRESH MATERIALIZED VIEW CONCURRENTLY`. Designed for 1M+ scale: view stays ≤10K rows even worst-case.
+- `src/pages/api/map/region-counts.ts` — public GET endpoint reads the view. Query params: `level=country|state`, `country=US`, `category=ufos_aliens`. Returns `{ level, total, buckets: [{ code, name, total, by_category }] }`. 5-min edge cache.
+- `src/components/map/useViewportData.ts` — pin-layer query now filters `coords_synthetic=false` (eliminates the false cluster). Separate fetch from /api/map/region-counts populates new `regionBuckets` + `regionTotalCount` return fields. Category filter applies to both layers.
+- `src/components/map/RegionTotalsPanel.tsx` — floating overlay (top-right, collapsible). Shows total + top-8 countries by count. Click a row to toggle that country's filter. Includes copy explaining why these reports aren't pinned ("These reports specify only a country or state. They're counted here instead of pinned to avoid false clustering at region centroids.").
+- `src/pages/explore.tsx` — imports + renders the panel, wires the click handler to `setFilters({...filters, country: ...})`.
+
+**Result on current corpus:**
+- The "57 at Kansas" cluster disappears from the pin layer entirely.
+- RegionTotalsPanel shows "United States — 57" with a click target that filters explore by country.
+- Precise-coord BFRO/NUFORC pins remain unchanged.
+
+**What's deferred to V10.9.B (next session):**
+- Choropleth fill layer — country/state polygons (Natural Earth GeoJSON) colored by report count.
+- Toggle controls (Pins / Regions / Combined).
+- Per the design doc — the materialized view + API already feed it; just need the GeoJSON + MapLibre fill layer.
+
+**Last commit on main:** TBD (V10.9.A push)
+
+**Action needed from Chase before deploy:**
+- Apply `supabase/migrations/20260514_v10_9_region_counts.sql`. Creates the materialized view + initial refresh.
+- After mass-ingest batches, run `REFRESH MATERIALIZED VIEW CONCURRENTLY report_region_counts;` either via cron or as an ingestion-engine hook to keep the panel fresh.
+
+---
+
+## Earlier Session — V10.8.I map precision fix + V10.9 design (May 14, 2026, late night)
+
+Chase flagged that the pit-bull report (country-only US) was showing zoomed-in on Kansas with a "56 nearby" cluster of other US-country-only reports stacked at the same synthetic centroid. Raised the broader question: how should we handle mass-ingest with mixed-precision locations?
+
+**SME panel convened** (UI/UX, Brand, Data Viz Eng ex-Mapbox/Uber, Cartographer ex-Mapbox/Google). Five-principle consensus:
+1. Synthetic centroid coords NEVER render as pins. Always fuzzy/region/aggregate.
+2. Precision tier drives visual treatment (one ruleset, applied everywhere).
+3. Two-layer aggregate architecture: precise pins + region choropleth.
+4. Server-side aggregation for mass-ingest scale.
+5. `coords_synthetic` is the canonical signal — V10.8.C already shipped it.
+
+**Shipped in V10.8.I:**
+- `src/lib/ingestion/utils/location-zoom.ts` — `getCountryFitZoom(code)`, `getStateFitZoom(country, state)`, `getSyntheticFitZoom({precision, coords_synthetic, countryCode, stateKey})`. Country lookup table covers 30+ continental and tiny-country overrides; default zoom 5. State table covers US/CA/UK/AU largest + smallest, default zoom 6.
+- `src/components/reports/ReportLocationMap.tsx` — accepts new props `coordsSynthetic`, `countryCode`, `stateKey`. Three behavioral changes when `coordsSynthetic=true`: (1) fit-to-country/state zoom from getSyntheticFitZoom() instead of zoom-to-centroid; (2) nearby overlay suppressed entirely (its "X similar nearby" claim is meaningless when both focal and candidates share synthetic centroids); (3) new SyntheticHalo component renders a soft fuzzy circle at the centroid instead of the precise PinSprite.
+- `src/components/reports/ReportPageV2.tsx` — passes coords_synthetic, country_code, state_province through to the map.
+- `supabase/migrations/20260514_v10_8_i_nearby_excludes_synthetic.sql` — updates the V10.7.B.0 RPC to exclude `coords_synthetic=true` rows from both the focal lookup AND the candidate set. Server-side defense-in-depth.
+
+**Shipped as design doc (NOT implemented yet):**
+- `V10.9_EXPLORE_MAP_AGGREGATION_DESIGN.md` — full architecture for the explore-map at 1M+ scale. Two-layer rendering (precise pins + country/state choropleth via Natural Earth GeoJSON), server-side aggregation via materialized view + `/api/map/region-counts` endpoint, zoom-aware visibility, toggle controls. ~1.5 sessions to implement.
+
+**Tests:** no new unit tests (location-zoom is a pure lookup, RPC tested via integration with the report page). All previous suites still green (119 fixtures).
+
+**Last commit on main:** TBD (V10.8.I push)
+
+**Action needed from Chase before deploy:**
+- Apply `supabase/migrations/20260514_v10_8_i_nearby_excludes_synthetic.sql` to project `bhkbctdmwnowfmqpksed`. Idempotent CREATE OR REPLACE.
+
+**Next session pickup:**
+- V10.9 implementation: materialized view + region-counts API + choropleth layer in MapContainer + toggle UI. The design doc covers all decisions.
+- OR mass ingest at scale (V10.8 is complete enough; V10.9 can ship after early mass-ingest data lands).
+
+---
+
+## Earlier Session — V10.8.H title line-wrap fix (May 14, 2026, late night)
+
+After V10.8.G's absolute-positioning rewrite landed, the title still rendered with a massive ~80px vertical gap between line 1 and line 2 (screenshot from Chase, iMessage preview). Diagnosed: Satori sometimes ignores the CSS `lineHeight` property and uses the font's intrinsic OS/2 line metric instead. Changa-800 has loose metrics (~1.5-1.8× font size), so a 60pt title at lineHeight: 1.08 was rendering with ~100px line spacing instead of the expected 65px.
+
+**The bulletproof fix:** pre-wrap title and pull-quote text into individual lines server-side, then render each line as a separately absolute-positioned `<div>` with its own explicit Y coordinate. Satori never does the line wrap, so the font metric never enters the picture. Line spacing is now whatever pixel value the code chooses (titleFontSize × 1.0 for tight display headlines, quoteFontSize × 1.32 for body copy).
+
+**Implementation:**
+- New `wrapToLines(text, maxCharsPerLine, maxLines)` helper. Greedy word wrap; hard-breaks oversized words; truncates with ellipsis if it hits the line cap.
+- Title: pre-wrap into ≤2 lines using a maxCharsPerLine calibrated per font tier (28/33/39 for 68/60/52pt). Each line at `top: TITLE_TOP + i * titleFontSize`.
+- Pull quote: pre-wrap into ≤4 lines using a maxCharsPerLine adjusted for the 72px drop-quote indent. Each line at `top: QUOTE_TOP + i * round(quoteFontSize * 1.32)`.
+- Drop quote glyph rendered as its own absolute element at the left edge of the quote zone.
+
+Verified locally against the pit-bull case + 5 other real titles. Wrap output matches expectations exactly.
+
+**Files changed:** `src/pages/api/og/report/[slug].tsx` only.
+
+**Last commit on main:** TBD (this session's V10.8.H push)
+
+---
+
+## Earlier Session — V10.8.G OG card redesign (May 14, 2026, late night)
+
+After V10.8.F's defensive fixes still left visible title/meta collision in iMessage previews, Chase asked for an SME panel review. Convened four reviewer perspectives (UI/UX, Brand, Frontend Engineer/next-og, iMessage QA) and the consensus was to abandon flex layout entirely for absolute positioning.
+
+**Root cause confirmed by panel:** Satori (next/og's rasterizer) has known bounding-box quirks with wrapped text at large fonts + negative letter-spacing. Flex layouts that compose elements vertically rely on accurate intrinsic-height measurement, which Satori sometimes under-counts → adjacent flex children stack into the painted-but-unmeasured ink. V10.7.H (lineHeight 0.88→1.0) and V10.8.F (minHeight + tighter fonts) both reduced but did not eliminate the collision.
+
+**The real fix (V10.8.G):** complete rewrite using `position: absolute` with explicit (top, left, width, height) for every element. Card is 1200×630 forever — "responsive" was never a constraint. Zero collision risk because elements never reflow into each other.
+
+**Design changes per the SME briefs:**
+- **Anya Patel (UI/UX):** simplified to 4 zones — brand strip / title hero / pull-quote with accent rule / dateline + footer. Killed competing focal points.
+- **Marcus Chen (Brand):** category becomes a vertical color rail on the left edge of the hero zone (case-file stamp) instead of a chip; top-right gets a compact dot+text tag with glow.
+- **Sarah Kim (next-og expert):** every element at explicit pixel coordinates. Title and quote blocks have fixed height + `overflow: hidden`. No flex stacking, no `flex: 1`.
+- **Diego Ortega (iMessage QA):** killed the WHEN/WHERE/WHO labels (iMessage decimation makes them mush). Dateline is a single horizontal line with icons + bullet separators at 22pt minimum. Footer pulled above the bottom 55px so iMessage can't crop it.
+
+**Files changed:** complete rewrite of `src/pages/api/og/report/[slug].tsx`. Added Lora italic for the pull-quote serif treatment. Title font tiers tightened (60-char threshold instead of 70/50). Title cap 90→80. Quote cap 220→200. Pull-quote zone uses larger drop quote (90pt vs prior 84pt) plus brand-purple color.
+
+**Test surface:** longest-title row in current corpus is 64 chars; pit-bull is 56 chars; both fit cleanly in the new title zone. Pull-quote zone handles up to 200-char quotes at 26pt floor.
+
+**Last commit on main:** TBD (this session's V10.8.G push)
+
+---
+
+## Earlier Session — V10.8.F bug fixes (May 14, 2026, late night)
+
+Two production bugs surfaced via Chase's review screenshots; both fixed before mass-ingest. See PROJECT_STATUS V10.8.F section for the full diff.
+
+**Shipped end-to-end:**
+- `src/pages/api/admin/backfill-location.ts` — admin endpoint that walks `reports` and re-runs `normalizeLocation` against every row. Idempotent. Supports `slug`, `force`, `dryRun`, `limit`. Auth: admin/ADMIN_API_KEY/CRON_SECRET.
+- `scripts/backfill-location-live.ts` — local driver script that runs the same logic against the live DB via the service role key. Used for the V10.8.F backfill of the 107 existing rows.
+- `src/pages/api/og/report/[slug].tsx` — title-meta collision fix. Title cap 120→90, fonts 46/56/68→42/50/64, lineHeight 1.0→1.1, marginBottom 18→24, NEW explicit minHeight on title block (worst-case 2-line reservation).
+
+**Backfill results against live DB:**
+- 97/107 rows updated, 10 skipped (no location data), 0 failures
+- NOLA report verified: `country_code='US'`, lat/lng=(30.9843, -91.9623) = Louisiana state centroid, `coords_synthetic=true` → pin now renders in middle of Louisiana, not middle of US
+- 40 BFRO/NUFORC rows preserved their precise GPS, got `country_code` added
+- MapTiler key has referer restrictions so backfill ran centroid-only; mass-ingest would benefit from a separate server-side key (`MAPTILER_API_KEY` env var)
+
+**Last commit on main:** TBD (this session's V10.8.F push)
+
+**Action needed from Chase:**
+- (Optional) Add a server-side `MAPTILER_API_KEY` env var to Vercel without referer/domain restrictions. Without it, mass-ingest of new city+state reports falls through to state-centroid precision instead of city-precision. Acceptable but suboptimal.
+
+**Next session pickup:**
+- V10.8 series + bug fixes are all complete. Pipeline is ready for mass ingest.
+
+---
+
+## Earlier Session — V10.8.E Haiku date escalation (May 14, 2026, late night)
+
+**Shipped end-to-end:**
+- `src/lib/ingestion/utils/escalate-date-haiku.ts` — `escalateDateWithHaiku(prose, current, options)`. Pre-flight gate (precision='year' AND month name visible AND prose ≥ 200 chars) → Haiku call (claude-haiku-4-5-20251001, temperature 0, max 250 tokens) → claim-check (every quote must appear verbatim in source) → date validation → upgrade with `source='haiku'`. Injectable `haikuFn` for tests.
+- `src/lib/ingestion/utils/extract-date.ts` — `DateExtractionSource` type gains `'haiku'` value.
+- `src/lib/ingestion/engine.ts` — escalator hooked into per-report loop, right after `enrichReport` and before quality scoring. Wrapped in try/catch — non-blocking. Reads `ANTHROPIC_API_KEY` from env (already configured).
+- `scripts/test-escalate-date-haiku.ts` — 12 fixtures (mock haikuFn) covering happy paths, pre-flight skips, and every rejection path.
+
+**Tests green (119 total):**
+- extract-date.ts: 43/43
+- test-v10-8-b2-adapters.ts: 16/16
+- test-validate-report.ts: 26/26
+- test-normalize-location.ts: 22/22
+- test-escalate-date-haiku.ts: 12/12
+
+**Last commit on main:** TBD (this session's V10.8.E push)
+
+**Action needed from Chase:** none — no migration, no new env vars. `ANTHROPIC_API_KEY` is already wired and powers the escalation.
+
+**V10.8 series is COMPLETE.** A → B → C → D → E all shipped. Pipeline-hardening goal achieved: every row going forward carries a unified-extracted date with audit trail, validated location with centroids, validation flags on either side of the insert gate, and Haiku as the last-resort date escalator. Mass-ingest can begin.
+
+**Next session pickup (after V10.8):**
+- Mass ingest at scale per Launch Path step 3 (YouTube, Erowid, Reddit fresh via Arctic Shift, forums, news, etc.). Target: 1M+ for closed beta. Cost: ~$750-1,000 per 1M for all AI generation.
+- OR Algorithmic feed work (Sprint 2 features) — behavioral events table, V1 scored ranking, cold-start onboarding, session-context weighting, depth gating.
+- OR Stripe integration to unblock subscription/payments (blocked on Stripe key).
+
+**Gotchas / known issues:**
+- The two pre-existing tsc errors in `engine.ts` (line 907: `titleResult` out-of-scope; line 1216: `rejectedDetails`) are unchanged. SWC tolerates them.
+- The escalator runs synchronously inside the per-report loop. At mass-ingest scale (say 50/min), this adds ~1-2s per row when the gate triggers. If throughput becomes a concern, easy parallelization paths exist (Promise.all in batches of 5).
+- `event_date_extracted_from='haiku'` is filterable in `/admin/ingest-audit` (V10.8.D dashboard) but the audit table doesn't log Haiku calls separately — that's a possible V10.8.F if forensic visibility into rejected escalations becomes useful.
+
+---
+
+## Earlier Session — V10.8.C location normalizer (May 14, 2026, late evening)
+
+**Shipped end-to-end:**
+- `src/lib/ingestion/utils/normalize-location.ts` — `normalizeLocation(raw, options)`. Cascading pipeline: country alias folding → state validation → geocoding ladder (exact → MapTiler → state centroid → country centroid → unknown) → range/sanity gates. Sets `coords_synthetic=true` whenever coords came from a centroid fallback.
+- `src/lib/ingestion/utils/country-centroids.json` — ~210 ISO 3166-1 alpha-2 entries from Natural Earth admin0, with aliases (USA/U.S.A./America/Britain/UK/Holland/Czechia/Burma/Macedonia/...). Top-30 entries hand-tweaked for legibility (UK uses England-center not Irish Sea).
+- `src/lib/ingestion/utils/state-centroids.json` — US states (50 + DC), CA provinces (10 + 3 territories), UK home nations (4), AU states/territories (8). Includes both abbreviation and full name as lookup keys.
+- `supabase/migrations/20260514_v10_8_c_geocode_cache.sql` — `geocode_cache` table (key=`city|state|country`), `reports.coords_synthetic BOOLEAN`, `reports.country_code TEXT` with partial index. Idempotent.
+- `src/lib/ingestion/engine.ts` — normalizeLocation hooked in the INSERT branch immediately before `validateReportBeforeInsert`. Output overwrites `insertData` location fields. MapTiler used when `MAPTILER_API_KEY` is set; falls through to centroids otherwise. `makeSupabaseGeocodeCache` wires the cache to the `geocode_cache` table.
+- `src/components/reports/ReportPageV2.tsx` — V10.7.I render-side `COUNTRY_CENTROIDS` table deleted (28 hand-curated countries → 0 needed). `mapCoords` reads `coords_synthetic` from the DB directly to drive the fuzzy-marker styling.
+- `scripts/test-normalize-location.ts` — 22 fixtures: country alias folding, state-country validation, the four-rung ladder (mocked MapTiler), range/sanity gates, cache-hit short-circuit.
+
+**Tests green (107 total):**
+- extract-date.ts: 43/43
+- test-v10-8-b2-adapters.ts: 16/16
+- test-validate-report.ts: 26/26
+- test-normalize-location.ts: 22/22
+
+**Last commit on main:** TBD (this session's V10.8.C push)
+
+**Action needed from Chase before deploy:**
+- Apply `supabase/migrations/20260514_v10_8_c_geocode_cache.sql` to project `bhkbctdmwnowfmqpksed`.
+- Add `MAPTILER_API_KEY` to Vercel env vars (your MapTiler flex plan). Without it the engine falls through to centroid-only — every row still has lat/lng, but new ingestion won't get city-precision pins until the key is wired.
+
+**Next session pickup:**
+- V10.8.E — Haiku-assisted date fallback. Run when `extractDate` returns `precision='year'` but the source contains visible month names. Validates the LLM's output appears verbatim in the source (claim-check style) before storing. `event_date_extracted_from='haiku'`. ~$0.001/call. Final piece of the V10.8 series.
+
+**Gotchas / known issues:**
+- The state-centroids table is intentionally first-class only for US/CA/UK/AU. Mexico, Brazil, India, China, etc. — common ingestion sources — currently fall through from state-level to country-centroid. If `LOC_COUNTRY_NO_COORDS` warnings spike for a specific country during mass-ingest, expanding the state table is the right next move. (Or: trust MapTiler to handle the long tail given a city+state query.)
+- The UPDATE branch in `engine.ts` does NOT call `normalizeLocation` — only the INSERT branch. Re-ingestion of existing rows preserves the adapter-supplied location values. Backfilling the existing ~109 reports to fold country aliases and fill `coords_synthetic` is a one-time admin task (not done as part of V10.8.C — Chase explicitly approved "ready the pipeline, don't QA current rows").
+- Two pre-existing tsc errors in `engine.ts` (line 871: `titleResult` out-of-scope; line 1180: `rejectedDetails`). Both unchanged from V10.8.D. Next.js / SWC tolerates them.
+
+---
+
+## Earlier Session — V10.8.D validation + audit (May 14, 2026, evening)
+
+**Shipped end-to-end:**
+- `src/lib/ingestion/utils/validate-report.ts` — `validateReportBeforeInsert` with 4 error codes + 11 warning codes. State-country membership table covers US/CA/UK/AU.
+- `supabase/migrations/20260514_v10_8_d_ingestion_audit.sql` — adds `'quarantine'` to `report_status` enum and creates `ingestion_audit` table with indexes.
+- `src/lib/ingestion/engine.ts` — validation hooked immediately before insert; errors flip status to `quarantine`; flags batched into `ingestion_audit` post-insert (best-effort). New counters `recordsQuarantined` and `recordsWithWarnings` on `IngestionResult`. Also fixes a B.1 oversight where the INSERT branch dropped `event_date_extracted_from` and `source_published_at` (the UPDATE branch had them correct).
+- `src/pages/api/admin/ingest-audit.ts` — admin-auth gated GET endpoint returning rows + 7-day aggregates (top codes, top adapters, severity totals) + quarantine queue size.
+- `src/pages/admin/ingest-audit.tsx` — dashboard page. Top stats tile, top-5 codes / adapters strip (clickable to filter), filterable row list with payload JSON dump.
+- `scripts/test-validate-report.ts` — 26 table-driven fixtures, all passing.
+
+**Tests green:**
+- extract-date.ts: 43/43
+- test-v10-8-b2-adapters.ts: 16/16
+- test-validate-report.ts: 26/26
+- Total pipeline coverage: 85 green fixtures
+
+**Last commit on main:** TBD (this session's V10.8.D push)
+
+**Action needed from Chase before deploy:**
+- Apply `supabase/migrations/20260514_v10_8_d_ingestion_audit.sql` to project `bhkbctdmwnowfmqpksed` via the dashboard SQL editor. Idempotent. Adds the enum value + audit table + indexes.
+
+**Next session pickup:**
+- V10.8.C — `normalizeLocation` utility + 250-country centroid JSON + state-centroid JSON + `geocode_cache` table migration + MapTiler integration + `coords_synthetic` column. Will eliminate `LOC_COUNTRY_NO_COORDS` warnings by always filling centroid coords during ingestion. Render-side `COUNTRY_CENTROIDS` in `ReportPageV2` can come out in the same commit.
+- V10.8.E — Haiku-assisted date fallback. Conditional but Chase pre-approved.
+
+**Gotchas / known issues:**
+- Two pre-existing tsc errors in `engine.ts` (line 819: `titleResult` out-of-scope reference; line 1128: `rejectedDetails` returned but not in `IngestionResult` type). Both existed before V10.8.D and continue to compile fine through Next.js / SWC. Flagging for a future cleanup pass but not blocking.
+- `LOC_STATE_COUNTRY_MISMATCH` only fires for countries in the membership table (US/CA/UK/AU). All other countries are permissive — a "Texas, Mexico" entry would currently pass without warning. V10.8.C's `normalizeLocation` is the right place to widen this.
+
+---
+
+## Earlier Session — V10.8.B.2 adapter migration (May 14, 2026)
+
+**Shipped end-to-end:**
+- V10.8.B.2 — 12 adapters migrated to the unified `extractDate` utility (OBERF was migrated in B.1 as the worked example; B.2 covers everyone else)
+- New backfill migration `supabase/migrations/20260514_v10_8_b_2_news_pubdate_backfill.sql` for the ~15 existing news rows
+- New smoke-test script `scripts/test-v10-8-b2-adapters.ts` (16 fixtures, all passing) — covers one or more sample-prose cases per migrated adapter
+
+**Adapter-by-adapter notes:**
+- **Reddit / Reddit-v2 / YouTube** — moved `created_utc` / `publishedAt` from `event_date` into the new `source_published_at` column. Run `extractDate({ prose: postBody/description })` for the actual event date. Both Reddit comment + post paths covered; YouTube video + comment paths covered. Reddit-v2's `afterEpoch` filter switched from `event_date` → `source_published_at` so it still filters by post-creation time.
+- **IANDS** — was `event_date: undefined` already, now `extractDate({ prose: content })` so NDE narratives like "In April 2007 I was in a car accident" get captured.
+- **Erowid** — `extractDate({ structured: profile.experienceYear, prose: parsed.body })`. Page's "Published:" date becomes `source_published_at` when parseable.
+- **Shadowlands** — `extractDate({ prose: description })`; captures era cues like "Civil War" → 1865 via the new approximate-marker path.
+- **NDERF** — `extractNDEDate` now a 15-line wrapper around `extractDate`. Structured "Date of NDE" field with `MM/DD/YYYY` and `04/00/2010`-style sentinels still parses correctly. Narrative fallback handles the rare cases where the questionnaire field is missing.
+- **BFRO** — `extractDate({ structured: <assembled YEAR+MONTH+DATE string> })`. Description fallback fires when the structured fields couldn't produce a date. The 23-line post-hoc `eventDatePrecision` block (year-vs-month-vs-exact regex sniffing) is replaced by a one-liner that reads `precision` off the extractDate result.
+- **GhostsOfAmerica** — replaced narrow `(?:in|on|around|circa)\s+...` regex with full `extractDate` over the story body. Fallback bullet-list path now also runs extractDate.
+- **NUFORC** — "Occurred" column gets time tail stripped (`split(' ')[0]`) before going into the structured slot. Description passed as prose fallback. Precision now comes from extractDate.
+- **Wikipedia** — date cell → structured, lede → prose. Precision was hardcoded `'year'`, now comes from extractDate result.
+- **News** — biggest semantic change: pub-date split. `publishedAt` → `source_published_at`. `event_date` ← `extractDate({ prose: title + fullDescription })`. Migration `20260514_v10_8_b_2_news_pubdate_backfill.sql` repairs the existing rows: copies their `event_date` → `source_published_at`, nulls `event_date`, sets `event_date_extracted_from='none'` so a re-ingestion pass can repopulate it cleanly.
+
+**Last commit on main:** TBD (this session's V10.8.B.2 push)
+
+**Action needed from Chase before deploy:**
+- Apply `supabase/migrations/20260514_v10_8_b_2_news_pubdate_backfill.sql` to the live DB via Supabase dashboard SQL editor (project `bhkbctdmwnowfmqpksed`). It's idempotent (gated on `source_published_at IS NULL`).
+
+**Next session pickup:**
+- V10.8.D — `validateReportBeforeInsert` (11 warning + 4 error codes) + `ingestion_audit` table migration + `/admin/ingest-audit` page + `'quarantine'` status enum addition. Hooked in `engine.ts` immediately before insert.
+- V10.8.C — `normalizeLocation` utility + 250-country centroid JSON + state-centroid JSON + `geocode_cache` table migration + MapTiler integration + `coords_synthetic` column.
+- V10.8.E — Haiku-assisted date fallback. Conditional but Chase pre-approved building regardless.
+
+**Gotchas encountered:** None new. The pre-existing tsc errors in `bfro.ts:714` (`function extractCount` inside a block) and `nuforc.ts:100` (Set spread) and `nuforc.ts:589` (assigning to `descMatch`) were already in the codebase before this session and compile fine through Next.js / SWC. Worth flagging for a future cleanup pass.
+
+---
+
+## Earlier Session — V10.7 closeout + V10.8 kickoff (May 13, 2026)
+
+**Shipped end-to-end:**
+- V10.7.F — first-person voice ban on pull_quote + feed_hook
+- V10.7.G — social-media scraper UA bypass (iMessage/Slack/Twitter previews now work)
+- V10.7.H — OG card title-meta collision fix + pull_quote used in body
+- V10.7.I — map country-centroid fallback + precision-aware WHEN formatter
+- V10.8 design doc (`V10.8_PIPELINE_HARDENING_DESIGN.md`)
+- V10.8.A — `extractDate` utility (43/43 fixtures pass)
+- V10.8.B.1 — foundation (migration + types + engine wiring) + OBERF as worked example
+
+**Last commit on main:** `3eef6be7` (V10.8.B.1 types.ts recovery)
+
+**Action needed from Chase before V10.8.B.2 ships:**
+- Apply `supabase/migrations/20260514_v10_8_b_date_extraction_audit.sql` to live DB via Supabase dashboard SQL editor (project `bhkbctdmwnowfmqpksed`). Idempotent two-column `ADD IF NOT EXISTS`.
+
+**Next session pickup:**
+- V10.8.B.2 — migrate 14 remaining adapters (start with the 6 hardcoded-`unknown` ones for cleanest wins: Reddit, Reddit-v2, IANDS, Erowid, Shadowlands, YouTube; then NDERF, BFRO, GhostsOfAmerica, NUFORC, Wikipedia; finally News with pub-date data migration backfill).
+- V10.8.D — validation gates + ingestion_audit table + admin page + quarantine status.
+- V10.8.C — location normalizer + 250-country centroid JSON + MapTiler integration + geocode_cache table.
+- V10.8.E — Haiku-assisted date fallback (queued; conditional on A-D leaving residual gaps but Chase approved building regardless).
+
+**Gotcha encountered twice this session:** GitHub Trees API blob upload via `curl -d` hit "Argument list too long" on files ≥200KB (PROJECT_STATUS.md, then types.ts). Both files got DELETED from main when the empty-SHA propagated through tree creation. Recovered both times via `curl --data-binary @file` pattern. **For next session: always use file-payload pattern (`--data-binary @/tmp/blob_payload.json`) for ANY blob upload, never inline `-d`.**
 
 ---
 
@@ -11,7 +383,7 @@ Full details in `PROJECT_STATUS.md` V10.7 section. Quick summary for session-boo
 
 **Push goal:** bring `/report/[slug]` to mass-market readiness before MILLIONS-of-reports mass ingest.
 
-**Last commit on `main`:** `2128bb4a` — V10.7.E (drop Worth Chasing + rebalance pattern strip)
+**Last commit on `main`:** `3ec141e2` — V10.7.F (ban first-person voice in pull_quote + feed_hook)
 
 **Test report:** `psychic-experience-kansas-4hxm98` (id: `d8537a7a-0257-4884-ae5a-b16c16e02acc`). All iteration was screenshot-driven on this URL on both mobile and desktop (lg+).
 
@@ -21,7 +393,7 @@ Full details in `PROJECT_STATUS.md` V10.7 section. Quick summary for session-boo
 - `src/lib/services/witness-profile.service.ts` — Anthropic Haiku-based structured demographic extraction with bucketed enums
 - `/api/admin/backfill-witness-profile` — chunked backfill endpoint
 - `/api/admin/backfill-analysis` now accepts optional `slug` for targeted regen
-- `PROMPT_VERSION = 'v10.7.d'` in `src/lib/ai/rewrite-pipeline.ts` (claim-check tuned to accept legitimate paraphrases)
+- `PROMPT_VERSION = 'v10.7.f'` in `src/lib/ai/rewrite-pipeline.ts` (v10.7.d claim-check tuning + v10.7.f editorial third-person enforcement)
 
 **Key UX changes shipped:**
 - Page-layout pass: single 6-row dateline (WHEN/WHERE/WHO/SOURCE/TOPIC/WITNESS) in grid-cols-[88px_1fr], items-center
@@ -36,9 +408,13 @@ Full details in `PROJECT_STATUS.md` V10.7 section. Quick summary for session-boo
 - Answer-line cap 180 → 280 chars, prompt rewritten for richer specificity (age, sequel, etc.)
 
 **Pending validation:**
-- Re-run regen on Kansas case to confirm v10.7.d claim-check passes the narrative (V10.6 was rejecting good paraphrases)
-- Live-page eyeballing on production once Vercel deploys 2128bb4a
-- If narrative still rejected → V10.7.F: save AI narrative even when claim-check fails (flag for audit review)
+- ✅ V10.7.D Kansas validation closed May 13 — three successful v10.7.d audit passes on `reports.paradocs_narrative`, live page renders 938-char third-person narrative cleanly. Worth Chasing absent, pattern strip correctly gated by sparse-corpus case.
+- ✅ V10.7.F backfill closed May 13 — all 7 affected reports regenerated. Post-backfill corpus audit: 0 violations across 107 approved reports (was 7 in pull_quote, 0 in feed_hook). Audit log on `paradocs-analysis-v10.7.f` rows passes claim-check cleanly.
+
+**V10.7.F additions (May 13):**
+- HOOK + PULL QUOTE prompt rules gained explicit "EDITORIAL THIRD-PERSON ONLY" hard rule with the real Kansas failure as counter-example
+- `findFirstPersonPronouns()` + `enforceEditorialVoice()` added to `paradocs-analysis.service.ts`; wired into both `generateParadocsAnalysisOnce` (retries on attempt-1 violation) and `generateAndSaveDirect` (single-shot, accepts-with-blank on violation)
+- Hyphenated-compound exclusion handles `I-80`, `strip-mine`, `we-the-people` — confirmed against 15-case test battery, corpus-wide false-positive count is 0
 
 **Continuation prompt:** `V10.7_CONTINUATION_PROMPT.md` (created same day)
 
