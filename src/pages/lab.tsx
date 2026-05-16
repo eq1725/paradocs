@@ -20,6 +20,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
@@ -298,17 +299,34 @@ export default function LabPage() {
              saves → toolbar (list / map / collections) + matching pane
              ask   → standalone Ask the Unknown */
           <div className={activeTab === 'story' ? 'pb-20' : ''}>
-            {activeTab === 'story' && (
-              <div style={{ minHeight: 'calc(100dvh - 200px)' }}>
-                <LabConstellationTab />
-                {/* V10.14 — SIGNAL embedded directly under RADAR.
-                    Single mental model: "your story and how it
-                    connects." No tab switching to see your patterns. */}
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-6">
-                  <YourSignalTab />
+            {activeTab === 'story' && (() => {
+              // T1.11 — when arriving from a digest email or push
+              // notification, elevate the SIGNAL "Since you last
+              // visited" delta line above RADAR for this single visit.
+              // Default position (below RADAR, inside SIGNAL) is
+              // preserved for all other entry points. URL-param only,
+              // no persistence.
+              var fromParam = router.query.from
+              var elevateDelta = fromParam === 'digest' || fromParam === 'push'
+              return (
+                <div style={{ minHeight: 'calc(100dvh - 200px)' }}>
+                  {elevateDelta && (
+                    <div
+                      id="delta-line-elevated-slot"
+                      data-delta-elevated="true"
+                      className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2"
+                    />
+                  )}
+                  <LabConstellationTab />
+                  {/* V10.14 — SIGNAL embedded directly under RADAR.
+                      Single mental model: "your story and how it
+                      connects." No tab switching to see your patterns. */}
+                  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-6">
+                    <YourSignalTab />
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
             {activeTab === 'saves' && (
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-20" style={{ minHeight: 'calc(100dvh - 200px)' }}>
                 {/* V10.14 — view-mode toolbar. Three lenses on the
@@ -602,6 +620,20 @@ function YourSignalTab() {
     return { kind: 'cluster', data: cl } // last-resort empty cluster, will render its skipped state
   })()
 
+  // T1.10 — carousel variant of the hero slot. When the feature flag
+  // signal-hero-pick-strategy is set to 'carousel', render all four
+  // cards in a snap-x horizontal scroller with pagination dots instead
+  // of the single algorithmically-picked hero. MoreSignalsAccordion is
+  // hidden when active (cards already in the carousel).
+  var heroCarouselEnabled = getFeatureFlag('signal-hero-pick-strategy') === 'carousel'
+
+  // E0.6 — Free users get full AI Story analysis on their FIRST
+  // submitted experience. Subsequent experiences get only Cards 1-2
+  // (cluster + fingerprint, deterministic); Card 3 (context, Sonnet-
+  // derived) renders a locked-state CTA. Basic/Pro get full AI on
+  // every experience. See docs/TIER_DESIGN_V2.md.
+  var aiCardsLocked = data.tier_name === 'free' && !data.is_first_submission
+
   // V10.10.x feature flag: signal-ask-placement lets us A/B test the
   // audit's "Ask above the cards" decision against the legacy
   // "Ask below the cards" layout. Default = above-cards (current).
@@ -616,16 +648,30 @@ function YourSignalTab() {
         <h2 className="text-xl font-bold text-white">Your Signal</h2>
       </div>
 
-      {/* V10.9 — "Since you last visited" delta line. Single most
-          important addition: gives every visit a return reason and
-          surfaces archive growth visibly. Falls back to a guidance
-          line on first visit / no archive change. */}
-      <SinceLastVisitLine sinceLastVisit={data.since_last_visit} hasReport={true} />
+      {/* V10.9 — "Since you last visited" delta line. T1.11 — when
+          visit was referred from digest/push, the same line renders
+          into the elevated slot above RADAR via portal. */}
+      <DeltaLineSlot sinceLastVisit={data.since_last_visit} hasReport={true} />
 
-      {/* V10.9 — single hero card. Picked algorithmically for
-          novelty / specificity. Fills the screen on mobile so the
-          first viewport always carries one strong, parseable signal. */}
-      <HeroCardSlot heroCard={heroCard} reportId={data.report_id} feedback={data.feedback} />
+      {/* V10.9 — single hero card. T1.10 — carousel variant when
+          signal-hero-pick-strategy=carousel renders all 4 cards.
+          E0.6 — aiCardsLocked swaps Sonnet context card for a
+          locked-state upgrade CTA on Free 2nd+ submissions. */}
+      {heroCarouselEnabled ? (
+        <HeroCardCarousel
+          data={data}
+          reportId={data.report_id}
+          feedback={data.feedback}
+          aiCardsLocked={aiCardsLocked}
+        />
+      ) : (
+        <HeroCardSlot
+          heroCard={heroCard}
+          reportId={data.report_id}
+          feedback={data.feedback}
+          aiCardsLocked={aiCardsLocked}
+        />
+      )}
 
       {/* V10.16 (Phase E) — AskTheUnknown removed from Story.
           It now lives exclusively on the ASK tab (Phase D Lab
@@ -639,14 +685,17 @@ function YourSignalTab() {
       <PeopleLikeYouCard data={data.peers} />
 
       {/* V10.9 — expandable "More signals" strip with the cards
-          NOT picked as hero. Collapsed by default on mobile to keep
-          the first viewport tight; one tap to expand. */}
-      <MoreSignalsAccordion
-        heroKind={heroCard.kind}
-        data={data}
-        reportId={data.report_id}
-        feedback={data.feedback}
-      />
+          NOT picked as hero. T1.10 — hidden when the carousel variant
+          is active (all four cards already in the carousel). */}
+      {!heroCarouselEnabled && (
+        <MoreSignalsAccordion
+          heroKind={heroCard.kind}
+          data={data}
+          reportId={data.report_id}
+          feedback={data.feedback}
+          aiCardsLocked={aiCardsLocked}
+        />
+      )}
 
       {/* V10.16 (Phase E) — three secondary surfaces (push opt-in,
           email opt-in, year-in-review) collapsed into one expandable
@@ -1136,13 +1185,8 @@ function formatSinceLabel(prior: Date): string {
  * so we don't fork the per-card content — just the position +
  * visual weight (taller padding, highlight border).
  */
-function HeroCardSlot(props: { heroCard: { kind: string; data: any }; reportId: string; feedback: any }) {
+function HeroCardSlot(props: { heroCard: { kind: string; data: any }; reportId: string; feedback: any; aiCardsLocked?: boolean }) {
   var fb = props.feedback || {}
-  // V10.13 Phase B — per-hero-type visual treatment so the slot
-  // doesn't always look the same. Each hero kind gets a unique
-  // gradient and accent color that subtly hints at the data inside.
-  // Spotify Wrapped's principle: each tile should feel visually
-  // distinct, not template-identical.
   var heroBg: Record<string, string> = {
     cluster:        'from-purple-900/30 via-purple-950/30 to-fuchsia-900/20 border-purple-600/40',
     fingerprint:    'from-cyan-900/25 via-purple-950/25 to-purple-900/30 border-cyan-600/30',
@@ -1150,6 +1194,10 @@ function HeroCardSlot(props: { heroCard: { kind: string; data: any }; reportId: 
     peer_questions: 'from-rose-900/20 via-purple-950/30 to-purple-900/30 border-rose-500/30',
   }
   var bgClass = heroBg[props.heroCard.kind] || heroBg.cluster
+  // E0.6 — Sonnet-derived 'context' card is locked for Free users
+  // beyond their first submitted experience. Locked-state IS the
+  // conversion trigger surface.
+  var lockContext = props.aiCardsLocked && props.heroCard.kind === 'context'
   return (
     <div className={'rounded-xl border bg-gradient-to-br p-1 ' + bgClass}>
       {props.heroCard.kind === 'cluster' && (
@@ -1159,10 +1207,191 @@ function HeroCardSlot(props: { heroCard: { kind: string; data: any }; reportId: 
         <FingerprintCard data={props.heroCard.data} reportId={props.reportId} initialRating={fb.fingerprint || null} />
       )}
       {props.heroCard.kind === 'context' && (
-        <ContextCard data={props.heroCard.data} reportId={props.reportId} initialRating={fb.context || null} />
+        lockContext
+          ? <LockedAICard kind="context" />
+          : <ContextCard data={props.heroCard.data} reportId={props.reportId} initialRating={fb.context || null} />
       )}
       {props.heroCard.kind === 'peer_questions' && (
         <PeerQuestionsCard data={props.heroCard.data} reportId={props.reportId} initialRating={fb.peer_questions || null} />
+      )}
+    </div>
+  )
+}
+
+/**
+ * E0.6 — Locked-state placeholder for Sonnet-derived insight cards
+ * shown to Free users beyond their first submitted experience.
+ * Conversion trigger surface per docs/TIER_DESIGN_V2.md.
+ */
+function LockedAICard(props: { kind: string }) {
+  return (
+    <div className="px-5 py-6 sm:py-7 text-center">
+      <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-purple-600/20 border border-purple-500/30 mb-3">
+        <Lock className="w-5 h-5 text-purple-300" />
+      </div>
+      <h3 className="text-sm sm:text-base font-semibold text-white mb-1.5">
+        Full AI Story analysis on every experience
+      </h3>
+      <p className="text-xs sm:text-[13px] text-gray-300 leading-relaxed max-w-sm mx-auto mb-4">
+        Your first experience got the full Sonnet 4.6 analysis &mdash; surprising patterns,
+        cross-archive context, and 3 Asks tied to it. Get the same on every experience you
+        share with Basic.
+      </p>
+      <Link
+        href="/account/subscription"
+        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold text-white bg-purple-600 hover:bg-purple-500 transition-colors"
+      >
+        Upgrade to Basic &middot; $5.99/mo
+        <ArrowRight className="w-3.5 h-3.5" />
+      </Link>
+      <p className="text-[10px] text-gray-500 mt-3">
+        7-day free trial included. Cancel anytime.
+      </p>
+    </div>
+  )
+}
+
+/**
+ * T1.11 — DeltaLineSlot wraps SinceLastVisitLine and decides where
+ * to render it. When the current URL has ?from=digest or ?from=push,
+ * portals the line into the elevated slot above RADAR; otherwise
+ * renders inline (above the hero card).
+ */
+function DeltaLineSlot(props: { sinceLastVisit: any; hasReport: boolean }) {
+  var router = useRouter()
+  var fromParam = router.query.from
+  var elevate = fromParam === 'digest' || fromParam === 'push'
+
+  var [target, setTarget] = useState<HTMLElement | null>(null)
+  useEffect(function () {
+    if (!elevate) {
+      setTarget(null)
+      return
+    }
+    var raf = requestAnimationFrame(function () {
+      var el = document.getElementById('delta-line-elevated-slot')
+      setTarget(el)
+    })
+    return function () { cancelAnimationFrame(raf) }
+  }, [elevate])
+
+  var line = <SinceLastVisitLine sinceLastVisit={props.sinceLastVisit} hasReport={props.hasReport} />
+  if (elevate && target) {
+    return createPortal(line, target)
+  }
+  return line
+}
+
+/**
+ * T1.10 — Hero card carousel. Renders all four Signal cards in a
+ * snap-x mandatory horizontal scroller with edge-peek + pagination
+ * dots. Flag-gated via signal-hero-pick-strategy === 'carousel'.
+ * Replaces both HeroCardSlot AND MoreSignalsAccordion when active.
+ */
+function HeroCardCarousel(props: { data: any; reportId: string; feedback: any; aiCardsLocked?: boolean }) {
+  var fb = props.feedback || {}
+  var scrollerRef = useRef<HTMLDivElement | null>(null)
+  var [activeIndex, setActiveIndex] = useState(0)
+
+  // E0.6 — 'context' slide swaps for a locked-state CTA on Free users
+  // beyond their first submitted experience.
+  var slides: Array<{ kind: string; node: React.ReactNode }> = []
+  if (props.data.cluster && !props.data.cluster.skipped) {
+    slides.push({ kind: 'cluster', node: <ClusterCard data={props.data.cluster} reportId={props.reportId} initialRating={fb.cluster || null} /> })
+  }
+  if (props.data.fingerprint && props.data.fingerprint.primary_count) {
+    slides.push({ kind: 'fingerprint', node: <FingerprintCard data={props.data.fingerprint} reportId={props.reportId} initialRating={fb.fingerprint || null} /> })
+  }
+  if (props.aiCardsLocked) {
+    slides.push({ kind: 'context', node: <LockedAICard kind="context" /> })
+  } else if (props.data.context && !props.data.context.skipped) {
+    slides.push({ kind: 'context', node: <ContextCard data={props.data.context} reportId={props.reportId} initialRating={fb.context || null} /> })
+  }
+  if (props.data.peer_questions && props.data.peer_questions.questions && props.data.peer_questions.questions.length > 0) {
+    slides.push({ kind: 'peer_questions', node: <PeerQuestionsCard data={props.data.peer_questions} reportId={props.reportId} initialRating={fb.peer_questions || null} /> })
+  }
+
+  var heroBg: Record<string, string> = {
+    cluster:        'from-purple-900/30 via-purple-950/30 to-fuchsia-900/20 border-purple-600/40',
+    fingerprint:    'from-cyan-900/25 via-purple-950/25 to-purple-900/30 border-cyan-600/30',
+    context:        'from-indigo-900/30 via-purple-950/25 to-purple-900/30 border-indigo-500/40',
+    peer_questions: 'from-rose-900/20 via-purple-950/30 to-purple-900/30 border-rose-500/30',
+  }
+
+  useEffect(function () {
+    var scroller = scrollerRef.current
+    if (!scroller || typeof IntersectionObserver === 'undefined') return
+    var slideEls = Array.from(scroller.querySelectorAll<HTMLElement>('[data-carousel-slide]'))
+    if (slideEls.length === 0) return
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
+          var idx = slideEls.indexOf(entry.target as HTMLElement)
+          if (idx >= 0) setActiveIndex(idx)
+        }
+      })
+    }, { root: scroller, threshold: [0.6, 0.8] })
+    slideEls.forEach(function (el) { io.observe(el) })
+    return function () { io.disconnect() }
+  }, [slides.length])
+
+  if (slides.length === 0) {
+    return (
+      <div className={'rounded-xl border bg-gradient-to-br p-1 ' + heroBg.cluster}>
+        <ClusterCard data={props.data.cluster} reportId={props.reportId} initialRating={fb.cluster || null} />
+      </div>
+    )
+  }
+
+  function scrollToSlide(i: number) {
+    var scroller = scrollerRef.current
+    if (!scroller) return
+    var slideEls = Array.from(scroller.querySelectorAll<HTMLElement>('[data-carousel-slide]'))
+    var target = slideEls[i]
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+  }
+
+  return (
+    <div className="space-y-3">
+      <div
+        ref={scrollerRef}
+        className="overflow-x-auto snap-x snap-mandatory scrollbar-hide -mx-4 px-4"
+        style={{ scrollSnapType: 'x mandatory' }}
+      >
+        <div className="flex gap-3 pb-1">
+          {slides.map(function (slide) {
+            var bg = heroBg[slide.kind] || heroBg.cluster
+            return (
+              <div
+                key={slide.kind}
+                data-carousel-slide
+                className="snap-center flex-shrink-0 w-[82vw] sm:w-[420px]"
+              >
+                <div className={'rounded-xl border bg-gradient-to-br p-1 ' + bg}>
+                  {slide.node}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      {slides.length > 1 && (
+        <div className="flex justify-center gap-1.5 pt-1">
+          {slides.map(function (_, i) {
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={function () { scrollToSlide(i) }}
+                className={classNames(
+                  'h-1.5 rounded-full transition-all',
+                  i === activeIndex ? 'w-6 bg-purple-400' : 'w-1.5 bg-gray-700 hover:bg-gray-600'
+                )}
+                aria-label={'Go to slide ' + (i + 1)}
+              />
+            )
+          })}
+        </div>
       )}
     </div>
   )
@@ -1176,7 +1405,7 @@ function HeroCardSlot(props: { heroCard: { kind: string; data: any }; reportId: 
  * Signal panel tight on first paint while preserving access to the
  * full insight set for engaged users.
  */
-function MoreSignalsAccordion(props: { heroKind: string; data: any; reportId: string; feedback: any }) {
+function MoreSignalsAccordion(props: { heroKind: string; data: any; reportId: string; feedback: any; aiCardsLocked?: boolean }) {
   var [open, setOpen] = useState(false)
   var fb = props.feedback || {}
   var nonHero: Array<{ kind: string; node: React.ReactNode }> = []
@@ -1187,7 +1416,13 @@ function MoreSignalsAccordion(props: { heroKind: string; data: any; reportId: st
     nonHero.push({ kind: 'cluster', node: <ClusterCard data={props.data.cluster} reportId={props.reportId} initialRating={fb.cluster || null} /> })
   }
   if (props.heroKind !== 'context') {
-    nonHero.push({ kind: 'context', node: <ContextCard data={props.data.context} reportId={props.reportId} initialRating={fb.context || null} /> })
+    // E0.6 — locked context card for Free users beyond first submission.
+    nonHero.push({
+      kind: 'context',
+      node: props.aiCardsLocked
+        ? <LockedAICard kind="context" />
+        : <ContextCard data={props.data.context} reportId={props.reportId} initialRating={fb.context || null} />,
+    })
   }
   if (props.heroKind !== 'peer_questions') {
     nonHero.push({ kind: 'peer_questions', node: <PeerQuestionsCard data={props.data.peer_questions} reportId={props.reportId} initialRating={fb.peer_questions || null} /> })
