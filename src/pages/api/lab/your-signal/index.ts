@@ -469,6 +469,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // forgetting the user's stored preference between visits).
   var emailPrefs = await loadEmailPrefs(svc, user!.id)
 
+  // E0.6 — resolve the user's tier + first-submission status so the
+  // client can render the locked-state on Sonnet-derived cards for
+  // Free users beyond their first submission. Both lookups are
+  // best-effort; on failure we fall back to 'free' + true.
+  var tierName = 'free'
+  try {
+    var tierResult = await (svc.from('user_subscriptions') as any)
+      .select('tier:subscription_tiers(name)')
+      .eq('user_id', user!.id)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    var tierRow = tierResult && tierResult.data && (tierResult.data as any).tier
+    if (tierRow && tierRow.name) tierName = String(tierRow.name)
+  } catch (_) { /* default to free */ }
+
+  var isFirstSubmission = true
+  try {
+    var allSubsResult = await svc.from('reports')
+      .select('id, created_at')
+      .eq('submitted_by', user!.id)
+      .neq('status', 'deleted')
+      .order('created_at', { ascending: true })
+      .limit(2)
+    var subs: any[] = (allSubsResult && allSubsResult.data) || []
+    if (subs.length > 0) {
+      isFirstSubmission = subs[0].id === userReport.id
+    }
+  } catch (_) { /* default to true */ }
+
   return res.status(200).json({
     has_report: true,
     report_id: userReport.id,
@@ -483,6 +514,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     peers: peers,
     since_last_visit: sinceLastVisit,
     email_prefs: emailPrefs,
+    // E0.6 — drives the locked-state rendering on Sonnet cards for
+    // Free users beyond their first experience.
+    tier_name: tierName,
+    is_first_submission: isFirstSubmission,
   })
 }
 
@@ -811,10 +846,14 @@ async function loadPeers(svc: any, currentUserId: string, userReport: any) {
     if (!filterVal) return { count_opted_in_total: 0, sample: [] }
 
     // Pull candidate reports (recent, approved, same type/category, not us).
+    // B0.4 — ingested reports never appear as peer candidates. Their
+    // "author" is an external source (NUFORC, Reddit, etc.), not a
+    // Paradocs user who could receive a DM.
     var query = await svc.from('reports')
-      .select('id, slug, title, submitted_by, created_at')
+      .select('id, slug, title, submitted_by, created_at, report_type')
       .eq(filterCol, filterVal)
       .eq('status', 'approved')
+      .eq('report_type', 'submitted')
       .neq('submitted_by', currentUserId)
       .order('created_at', { ascending: false })
       .limit(200)

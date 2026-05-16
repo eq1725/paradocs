@@ -360,6 +360,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       await svc.from('signal_user_visits').update(updatePayload).eq('user_id', sub.user_id)
 
+      // T1.9 — log to user_notifications so the bell dropdown surfaces
+      // this digest. Best-effort.
+      try {
+        await svc.from('user_notifications').insert({
+          user_id: sub.user_id,
+          type: 'signal_digest',
+          title: subject,
+          body: newInCluster > 0
+            ? (newInCluster === 1
+                ? '1 new case in your cluster.'
+                : newInCluster + ' new cases in your cluster.')
+            : 'New activity in your Signal.',
+          link_url: '/lab?tab=story',
+          metadata: {
+            cadence: sub.email_digest_cadence,
+            new_in_cluster: newInCluster,
+            source: 'signal_digest_email',
+          },
+        })
+      } catch (_e) { /* user_notifications may not exist yet */ }
+
       sent++
     } catch (e: any) {
       errors++
