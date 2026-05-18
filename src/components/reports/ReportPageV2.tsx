@@ -56,6 +56,7 @@ import ResonanceButton from './ResonanceButton'
 import { stripPiiWithLogging } from '@/lib/ai/pii-filter'
 import { supabase } from '@/lib/supabase'
 import { CATEGORY_CONFIG } from '@/lib/constants'
+import AuthPromptModal from '@/components/AuthPromptModal'
 
 // ── Props ───────────────────────────────────────────────────
 
@@ -100,6 +101,9 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
   // ── Save state + handler (preserved from legacy page) ─────
   const [user, setUser] = useState<any>(null)
   const [isSaved, setIsSaved] = useState(false)
+  // Panel-feedback (May 2026): when an anonymous visitor taps Save,
+  // surface a soft signup modal instead of letting the button no-op.
+  const [authPromptOpen, setAuthPromptOpen] = useState(false)
   const [savedId, setSavedId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -130,7 +134,14 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
   }, [report?.id])
 
   const handleSave = useCallback(async () => {
-    if (!user || !report || saving) return
+    // Panel-feedback (May 2026): anonymous taps surface the auth
+    // prompt modal instead of silently no-op'ing. Once signed in,
+    // the user lands back on this page and can tap Save again.
+    if (!user) {
+      setAuthPromptOpen(true)
+      return
+    }
+    if (!report || saving) return
     setSaving(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -803,6 +814,15 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
         </div>
         </div>
       </article>
+      {/* Panel-feedback (May 2026): soft signup prompt fired by the
+          Save button when no user session exists. Replaces the prior
+          silent no-op. */}
+      <AuthPromptModal
+        open={authPromptOpen}
+        onClose={function () { setAuthPromptOpen(false) }}
+        action="Save this report"
+        subtitle="Keep a private list of cases that catch your eye."
+      />
     </>
   )
 }

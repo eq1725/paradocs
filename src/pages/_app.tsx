@@ -7,6 +7,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import { Analytics } from '@vercel/analytics/next'
 import Layout from '@/components/Layout'
 import { ToastProvider } from '@/components/Toast'
+import SoftConversionBanner from '@/components/SoftConversionBanner'
 import { initPostHog, identify, reset, capture } from '@/lib/posthog'
 import { supabase } from '@/lib/supabase'
 
@@ -208,6 +209,11 @@ export default function App({ Component, pageProps }: AppProps) {
             <Component {...pageProps} />
           </Layout>
         )}
+        {/* Panel-feedback (May 2026): browse-first onboarding —
+            after the cold visitor has demonstrated interest by viewing
+            5+ report/phenomena pages, surface a soft conversion CTA.
+            Hidden for signed-in users; dismissible with a 7-day TTL. */}
+        <SoftConversionBanner />
       </ToastProvider>
       <SpeedInsights />
       <Analytics />

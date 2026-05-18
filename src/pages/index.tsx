@@ -133,34 +133,34 @@ export default function Home() {
   // should see the homepage.
   var [showHome, setShowHome] = useState(false)
 
-  // V9.11.2 #E — first-run redirect.
+  // Panel-feedback (May 2026) — kill the cold-visitor auto-redirect.
   //
-  // - ?force_home=1 in the URL skips the redirect entirely (use this when
-  //   linking to the marketing page from email blasts, press kits, etc.).
-  // - localStorage flags 'paradocs_onboarding_skipped_v1' or
-  //   'paradocs_onboarding_complete_v1' mean the user has already
-  //   passed through the funnel — show them the homepage.
-  // - Any active Supabase session = returning user → /discover.
-  // - Otherwise = cold visitor → /start.
+  // Previously this hook bounced every cold visitor straight to /start,
+  // forcing signup before the user understood what Paradocs was. Panel
+  // review (UX/Conversion/SEO/T&S/App Store all unanimous): "browse-first
+  // with soft conversion" beats "forced signup wall" on every metric —
+  // total conversion rate, return rate, organic search traffic, and
+  // App Store review pass rate. The homepage is now the landing page
+  // for cold visitors, the same as Wikipedia / Reddit / Stack Overflow.
+  //
+  // Remaining behavior:
+  //   - Signed-in returning users still bounce to /discover (their feed).
+  //   - Cold + anonymous visitors see the homepage. They convert via the
+  //     hero CTA, soft-conversion banner after N views, or top-nav.
+  //   - ?force_home=1 query param preserved as the legacy escape hatch
+  //     for press kits / email blasts (no behavior change for those).
   useEffect(function () {
     if (typeof window === 'undefined') return
-    var params = new URLSearchParams(window.location.search)
-    if (params.has('force_home')) { setShowHome(true); return }
-    var skipped = false
-    var completed = false
-    try {
-      skipped = localStorage.getItem('paradocs_onboarding_skipped_v1') === '1'
-      completed = localStorage.getItem('paradocs_onboarding_complete_v1') === '1'
-    } catch {}
-    if (skipped || completed) { setShowHome(true); return }
     supabase.auth.getSession().then(function (s) {
       if (s && s.data && s.data.session) {
+        // Signed-in user — send them to their personalized feed.
         router.replace('/discover')
         return
       }
-      router.replace('/start')
+      // Cold or anonymous visitor — show the homepage.
+      setShowHome(true)
     }).catch(function () {
-      // If session check fails for any reason, fail open — show homepage.
+      // Session check failed — fail open, show homepage.
       setShowHome(true)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
