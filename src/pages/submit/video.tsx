@@ -96,7 +96,7 @@ export default function SubmitVideoPage() {
 
           <h1 className="text-lg font-semibold text-white mb-1">Share your experience on camera</h1>
           <p className="text-sm text-gray-400 mb-5 leading-relaxed">
-            Up to 60 seconds. We&rsquo;ll auto-transcribe it and ask you to confirm where and when it
+            Up to 5 minutes. We&rsquo;ll auto-transcribe it and ask you to confirm where and when it
             happened before it goes live.
           </p>
 
