@@ -2558,24 +2558,48 @@ export default function StartPage() {
                 </p>
               </div>
 
-              {/* Preview of what they unlock — anticipation builder */}
+              {/* Preview of what they unlock — anticipation builder.
+                  T1.8 (May 2026): bullets adapt to whether the user
+                  has actually typed an experience. Account-first
+                  visitors see a "what's waiting for you" framing;
+                  draft-first visitors see the original "your report
+                  + matches" framing. */}
               <div className="max-w-sm mx-auto text-left bg-gray-900/40 border border-gray-800/60 rounded-xl p-4 space-y-2.5">
                 <p className="text-[10px] font-semibold tracking-widest uppercase text-purple-400">
                   Once you tap the link
                 </p>
                 <ul className="space-y-2 text-sm text-gray-200 leading-relaxed">
-                  <li className="flex items-start gap-2.5">
-                    <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                    <span>Your experience joins the archive</span>
-                  </li>
-                  <li className="flex items-start gap-2.5">
-                    <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                    <span>We surface others who&rsquo;ve had something like it</span>
-                  </li>
-                  <li className="flex items-start gap-2.5">
-                    <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                    <span>Your personal RADAR maps patterns across thousands of reports</span>
-                  </li>
+                  {draft.description.trim().length >= 30 ? (
+                    <>
+                      <li className="flex items-start gap-2.5">
+                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        <span>Your experience joins the archive</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        <span>We surface others who&rsquo;ve had something like it</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        <span>Your personal RADAR maps patterns across thousands of reports</span>
+                      </li>
+                    </>
+                  ) : (
+                    <>
+                      <li className="flex items-start gap-2.5">
+                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        <span>Your account is created &mdash; no password needed</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        <span>Browse thousands of paranormal, UFO, and unexplained reports</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <Check className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        <span>Share your own experience whenever you&rsquo;re ready &mdash; we&rsquo;ll match it to similar cases</span>
+                      </li>
+                    </>
+                  )}
                 </ul>
               </div>
 
