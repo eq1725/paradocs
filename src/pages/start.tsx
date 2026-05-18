@@ -58,6 +58,15 @@ type Step =
   | 'done'            // step 6 — finished, redirecting
 
 interface ExperienceDraft {
+  /**
+   * Panel-feedback (May 2026): the body and title are now distinct
+   * fields. The body ("what happened?") is required and renders as
+   * the report-page description. The title is optional — left blank,
+   * we auto-suggest one via Haiku when the user has finished typing
+   * the body, and the server makes the same call as a fallback if
+   * neither user-typed nor accepted-suggestion is present.
+   */
+  title: string
   description: string
   /** Canonical PhenomenonCategory slug (e.g. 'ufos_aliens', 'ghosts_hauntings'). */
   category: PhenomenonCategory | ''
@@ -81,6 +90,17 @@ interface ExperienceDraft {
   city: string
   latitude: string
   longitude: string
+  /**
+   * Panel-feedback (May 2026) — location precision tier. Derived
+   * client-side based on which location fields are populated:
+   * lat+lng → 'exact' (drops a pin on the report-page map),
+   * city → 'city' (renders a radius circle),
+   * state_province → 'region',
+   * country → 'country' (country chip only, no map).
+   * Server re-derives if absent, but we send the client's view so
+   * the user's intent is preserved.
+   */
+  location_precision: 'exact' | 'city' | 'region' | 'country'
 
   // Witnesses
   witness_count: string
@@ -383,6 +403,7 @@ export default function StartPage() {
 
   // Form state (step 1)
   var [draft, setDraft] = useState<ExperienceDraft>({
+    title: '',
     description: '',
     category: '',
     phenomenon_type_id: '',
@@ -398,6 +419,7 @@ export default function StartPage() {
     city: '',
     latitude: '',
     longitude: '',
+    location_precision: 'exact',
     witness_count: '1',
     submitter_was_witness: false,
     has_physical_evidence: false,
@@ -427,6 +449,54 @@ export default function StartPage() {
   // Geolocation state
   var [geolocating, setGeolocating] = useState(false)
   var [geoError, setGeoError] = useState('')
+
+  // Panel-feedback (May 2026) — auto-title suggestion state. The user
+  // pastes their experience body into the textarea, and after they
+  // pause typing for ~1.2s with ≥120 chars and no title yet, we call
+  // /api/onboarding/suggest-title to propose one. The user can accept
+  // it with one click or write their own. Fully optional — empty
+  // title is fine; the server falls back to the same logic.
+  var [titleSuggestion, setTitleSuggestion] = useState<string>('')
+  var [titleSuggesting, setTitleSuggesting] = useState(false)
+  var [titleSuggestError, setTitleSuggestError] = useState<string | null>(null)
+  // Track which description we suggested for, so a quick re-edit
+  // doesn't immediately re-fire the suggest call. We only re-suggest
+  // when the body has materially diverged from the cached one.
+  var [titleSuggestedForBody, setTitleSuggestedForBody] = useState<string>('')
+
+  useEffect(function () {
+    var body = (draft.description || '').trim()
+    // Don't auto-suggest if body too short, user already has a title,
+    // or we've already suggested for an equivalent body.
+    if (body.length < 120) return
+    if (draft.title) return
+    // Cheap fingerprint — first 200 chars. If body hasn't materially
+    // changed since the last suggest, skip the network call.
+    var bodyFingerprint = body.slice(0, 200)
+    if (bodyFingerprint === titleSuggestedForBody) return
+
+    var timer = setTimeout(function () {
+      setTitleSuggesting(true)
+      setTitleSuggestError(null)
+      fetch('/api/onboarding/suggest-title', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: body, category: draft.category || null }),
+      })
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('Couldn\'t suggest a title')) })
+        .then(function (data: any) {
+          if (data && typeof data.title === 'string' && data.title.length > 0) {
+            setTitleSuggestion(data.title)
+            setTitleSuggestedForBody(bodyFingerprint)
+          }
+        })
+        .catch(function (err: any) {
+          setTitleSuggestError(err?.message || 'Couldn\'t suggest a title')
+        })
+        .finally(function () { setTitleSuggesting(false) })
+    }, 1200)
+    return function () { clearTimeout(timer) }
+  }, [draft.description, draft.category, draft.title, titleSuggestedForBody])
 
   // Pending media — staged in memory, uploaded after auth completes.
   // We can't persist File objects in localStorage, so the user has to
@@ -1083,6 +1153,7 @@ export default function StartPage() {
             Authorization: 'Bearer ' + session.access_token,
           },
           body: JSON.stringify({
+            title: draft.title || null,
             description: draft.description,
             // Default to 'combination' when uncategorised — that's the
             // catch-all PhenomenonCategory, replaces the deprecated
@@ -1103,6 +1174,16 @@ export default function StartPage() {
             city: draft.city || null,
             latitude: draft.latitude || null,
             longitude: draft.longitude || null,
+            // Panel-feedback (May 2026): derived client-side based on which
+            // location fields are filled. The server re-derives if absent
+            // but we send the client's view so the user's intent is preserved.
+            location_precision: (function () {
+              if (draft.latitude && draft.longitude) return 'exact'
+              if (draft.city) return 'city'
+              if (draft.state_province) return 'region'
+              if (draft.country) return 'country'
+              return draft.location_precision || 'exact'
+            })(),
             witness_count: draft.witness_count ? parseInt(draft.witness_count, 10) : null,
             submitter_was_witness: draft.submitter_was_witness,
             has_physical_evidence: draft.has_physical_evidence,
@@ -1282,10 +1363,15 @@ export default function StartPage() {
                 </div>
               )}
 
-              {/* Textarea */}
+              {/* Textarea — body of the report. Panel-feedback (May
+                  2026): renamed label to "What happened?" because the
+                  field maps to reports.description, which surfaces on
+                  the report page under the same heading. The previous
+                  "Your experience" label confused users into thinking
+                  this single field was the entire report. */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2" htmlFor="exp-desc">
-                  Your experience
+                  What happened?
                 </label>
                 <textarea
                   id="exp-desc"
@@ -1320,6 +1406,70 @@ export default function StartPage() {
                   }</span>
                   <span className="text-gray-500">{draft.description.length} / 2000</span>
                 </div>
+                {/* Panel-feedback (May 2026) — entry point into the
+                    video capture flow. Users who'd rather record can
+                    jump straight to /submit/video. The route gates on
+                    sign-in (sending back here if not authed), so we
+                    don't need to duplicate that check on this side. */}
+                <p className="text-[11px] text-gray-500 mt-2 text-center">
+                  Rather record it?{' '}
+                  <Link href="/submit/video" className="text-purple-300 hover:text-purple-200 underline underline-offset-2">
+                    Tell us on camera instead
+                  </Link>
+                </p>
+              </div>
+
+              {/* Panel-feedback (May 2026) — Title field.
+                  Optional; auto-suggested via Haiku once the user has
+                  ≥120 chars of body. Click the suggestion to accept it;
+                  type your own to override. Leaving it blank is fine —
+                  the server runs the same suggestion as a fallback.
+                  Why we collect this: the report-page hero needs a
+                  proper short title. Before this change, the body's
+                  first sentence was being used as the title which made
+                  the title field on the report page look like a
+                  truncated body. */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2" htmlFor="exp-title">
+                  Title <span className="text-gray-500 font-normal">(optional — we&rsquo;ll suggest one)</span>
+                </label>
+                <input
+                  id="exp-title"
+                  type="text"
+                  value={draft.title}
+                  onChange={function (e) { setDraft(function (d) { return { ...d, title: e.target.value } }) }}
+                  placeholder={titleSuggestion ? titleSuggestion : 'A short headline for your experience'}
+                  maxLength={140}
+                  className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-3 text-base placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                />
+                {/* Suggestion affordance — only show when we have a
+                    suggestion AND the user hasn't typed their own. */}
+                {titleSuggestion && !draft.title && (
+                  <div className="mt-2 flex items-center justify-between gap-2 px-1">
+                    <p className="text-xs text-gray-400 leading-snug">
+                      <span className="text-purple-300/80">Suggested:</span>{' '}
+                      <span className="italic">&ldquo;{titleSuggestion}&rdquo;</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={function () { setDraft(function (d) { return { ...d, title: titleSuggestion } }) }}
+                      className="text-xs text-purple-300 hover:text-purple-200 underline underline-offset-2 whitespace-nowrap"
+                    >
+                      Use this
+                    </button>
+                  </div>
+                )}
+                {titleSuggesting && !titleSuggestion && (
+                  <p className="text-xs text-gray-500 mt-2 px-1 flex items-center gap-1.5">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Drafting a title for you…
+                  </p>
+                )}
+                {titleSuggestError && (
+                  <p className="text-xs text-gray-500 mt-2 px-1">
+                    Couldn&rsquo;t suggest a title — type your own, or leave blank and we&rsquo;ll handle it on save.
+                  </p>
+                )}
               </div>
 
               {/* Phenomenology picker (V9.11.1).
@@ -2172,12 +2322,42 @@ export default function StartPage() {
                 You can share more experiences anytime from your account.
               </p>
 
+              {/* Panel-feedback (May 2026) — submitted experiences must
+                  enforce location + date (even approximate). Without
+                  these, the report page map collapses and the Today
+                  feed pin can't drop. The button stays disabled until
+                  all three (description, location, date) are filled,
+                  and we surface a friendly checklist immediately above
+                  so users know exactly what's still needed. */}
+              {(function () {
+                var missing: string[] = []
+                if (draft.description.trim().length < 50) missing.push('a longer description (at least 50 characters)')
+                var hasLocation = !!(draft.latitude && draft.longitude) || !!draft.city || !!draft.state_province || !!draft.country
+                if (!hasLocation) missing.push('where this happened (even just a country is fine)')
+                if (!draft.event_date) missing.push('when this happened (even a year is fine)')
+                if (missing.length === 0) return null
+                return (
+                  <div className="rounded-lg border border-amber-900/40 bg-amber-950/20 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-300/80 mb-1.5">A few more things</p>
+                    <p className="text-xs text-amber-100/90 leading-relaxed">
+                      To finish your report, please add {missing.join('; ')}.
+                    </p>
+                  </div>
+                )
+              })()}
+
               {/* Continue + Skip */}
               <div className="space-y-3 pt-2">
                 <button
                   type="button"
                   onClick={continueToAccount}
-                  disabled={draft.description.trim().length < 50}
+                  disabled={(function () {
+                    if (draft.description.trim().length < 50) return true
+                    var hasLocation = !!(draft.latitude && draft.longitude) || !!draft.city || !!draft.state_province || !!draft.country
+                    if (!hasLocation) return true
+                    if (!draft.event_date) return true
+                    return false
+                  })()}
                   className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-40"
                 >
                   Continue

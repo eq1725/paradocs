@@ -9,6 +9,7 @@ import { formatRelativeDate, formatDate, truncate, classNames } from '@/lib/util
 import SourceBadge from './SourceBadge'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import IngestedBadge, { isIngested } from '@/components/IngestedBadge'
+import InlineVideoPlayer from '@/components/video/InlineVideoPlayer'
 
 interface ReportCardProps {
   report: Report & {
@@ -21,6 +22,20 @@ interface ReportCardProps {
     report_type?: string | null;
     original_report_id?: string | null;
     metadata?: Record<string, any> | null;
+    // Panel-feedback (May 2026), video pipeline. Optional video
+    // playback data — when present, the card renders an inline
+    // vertical autoplay-muted player above the title. The feed
+    // endpoint joins report_videos on report.id and returns the
+    // signed URL + segments here. has_video is the denormalized
+    // boolean from the reports.has_video column maintained by the
+    // report_videos trigger.
+    has_video?: boolean | null;
+    video?: {
+      playback_url: string;
+      thumbnail_url?: string | null;
+      segments?: any[] | null;
+      video_id?: string;
+    } | null;
   }
   variant?: 'default' | 'compact' | 'featured'
 }
@@ -159,6 +174,25 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
   return (
     <Link href={`/report/${report.slug}`} className="block group">
       <div className="glass-card p-5 hover:scale-[1.01] transition-transform">
+        {/* Panel-feedback (May 2026), video pipeline. When the report
+            has a publishable video attached, render an inline lazy-
+            loaded autoplay-muted vertical player above the standard
+            card content. Tapping the card still navigates to the full
+            report page (the outer Link wraps everything), but the
+            player gets its own tap-for-sound affordance once it auto-
+            plays. Falls through to text-only rendering when no video. */}
+        {report.has_video && report.video?.playback_url && (
+          <div className="mb-4 -mx-1">
+            <InlineVideoPlayer
+              reportId={report.id as string}
+              videoId={report.video.video_id}
+              playbackUrl={report.video.playback_url}
+              thumbnailUrl={report.video.thumbnail_url || null}
+              segments={report.video.segments || null}
+              className="max-w-[300px] mx-auto"
+            />
+          </div>
+        )}
         <div className="flex items-start gap-4">
           <div className={classNames(
             'w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0',

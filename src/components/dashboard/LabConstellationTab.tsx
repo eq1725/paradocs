@@ -232,19 +232,16 @@ export default function LabConstellationTab() {
     )
   }
 
-  // No submissions yet — show the experience onboarding flow
+  // No submissions yet — V10.x panel-feedback (May 2026):
+  // The old ExperienceOnboarding Q&A picker ("What did you notice first?")
+  // was dead-clicking for users with no reports because its filters had
+  // nothing to filter against. Removed. The YourSignalTab empty state
+  // renders directly below this component and carries the "Your Signal
+  // grows with your story" headline + the "Share your first experience"
+  // CTA. We return null here so the page reads as a single, clean
+  // empty state rather than two stacked dead zones.
   if (!hasSubmission && !showReveal) {
-    return (
-      <div className="" style={{ minHeight: 'calc(100dvh - 180px)' }}>
-        <ExperienceOnboarding
-          onComplete={handleOnboardingComplete}
-          onSkip={function() {
-            // Let them browse — switch to Saves tab
-            router.replace('/lab?tab=saves', undefined, { shallow: true })
-          }}
-        />
-      </div>
-    )
+    return null
   }
 
   // V10.16 Phase E.1 — handler when a submission is deleted from

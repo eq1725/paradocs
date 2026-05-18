@@ -201,7 +201,14 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
   // when the upstream source over-claims accuracy.
   const mapPrecision: LocationPrecision = useMemo(() => {
     const meta = report?.metadata || {}
-    const raw = (meta.location_precision || meta.locationPrecision || '').toString().toLowerCase()
+    // Panel-feedback (May 2026): submitted reports now write the
+    // location_precision tier directly to the top-level reports
+    // column (see 20260518_report_location_precision.sql). Prefer
+    // the column when present; fall back to the legacy metadata
+    // hint for older rows where ingestion stamped precision into
+    // the JSON metadata blob.
+    const columnPrecision = (report as any)?.location_precision
+    const raw = (columnPrecision || meta.location_precision || meta.locationPrecision || '').toString().toLowerCase()
 
     // 1. Map the metadata string to our enum (or null if nothing valid).
     let claimed: LocationPrecision | null = null

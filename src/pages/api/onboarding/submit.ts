@@ -43,6 +43,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { moderateExperience } from '@/lib/services/text-moderation-experience.service'
+import { suggestOnboardingTitle } from '@/lib/services/onboarding-title.service'
 
 interface SubmitPayload {
   description: string                 // required, 30-2000 chars
@@ -66,6 +67,16 @@ interface SubmitPayload {
   country?: string | null
   latitude?: string | null
   longitude?: string | null
+  /**
+   * Panel-feedback (May 2026): submitted experiences must enforce
+   * location at submit-time. The precision tier drives the report-page
+   * map widget render — 'exact' shows a pin, 'city/region' shows a
+   * radius circle, 'country' shows just a chip. Derived from which
+   * location fields the user provided (lat+lng → exact, city → city,
+   * state → region, country → country). Defaults to 'exact' when not
+   * provided so behavior matches the historical row format.
+   */
+  location_precision?: 'exact' | 'city' | 'region' | 'country' | null
 
   witness_count?: number | null
   submitter_was_witness?: boolean
@@ -143,7 +154,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // Build the report row.
-  var title = (p.title || '').toString().trim() || makeTitle(description)
+  //
+  // Title resolution order (panel-feedback May 2026):
+  //   1. User-typed title (or accepted Haiku suggestion from the
+  //      client-side suggest-title call). Strongest signal — the user
+  //      saw it and approved it.
+  //   2. Server-side Haiku call. The client may have skipped or hadn't
+  //      finished suggesting before submit fired; we run the same
+  //      generator here as a fallback so we don't fall back to the
+  //      truncated-first-sentence fallback. (Chase's feedback was
+  //      that the truncated-first-sentence titles look like a body
+  //      preview, not a title.)
+  //   3. makeTitle first-sentence — last-resort safety net when Haiku
+  //      is unconfigured or errors out.
+  var clientTitle = (p.title || '').toString().trim()
+  var title: string
+  if (clientTitle) {
+    title = clientTitle
+  } else {
+    var generated = await suggestOnboardingTitle(description, p.category || null)
+    if (generated.title) {
+      title = generated.title
+    } else {
+      title = makeTitle(description)
+    }
+  }
   var summary = description.slice(0, 200) + (description.length > 200 ? '…' : '')
   // V9.11.1 — default to canonical 'combination' (catch-all category) instead
   // of the legacy 'unexplained_event' string the prerelease used.
@@ -205,6 +240,45 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (p.country) insert.country = p.country
   if (p.latitude) insert.latitude = parseFloat(p.latitude)
   if (p.longitude) insert.longitude = parseFloat(p.longitude)
+
+  // Panel-feedback (May 2026): derive + persist location_precision so
+  // the report page map widget knows whether to drop a pin or render
+  // a radius circle. We trust an explicitly supplied precision over
+  // the client-derived one but fall back to deriving it from the
+  // fields present. Defaults to 'exact' to preserve historical
+  // behavior for any caller that doesn't pass the field at all.
+  var derivedPrecision: 'exact' | 'city' | 'region' | 'country' = 'exact'
+  if (p.latitude && p.longitude) derivedPrecision = 'exact'
+  else if (p.city) derivedPrecision = 'city'
+  else if (p.state_province) derivedPrecision = 'region'
+  else if (p.country) derivedPrecision = 'country'
+  insert.location_precision = p.location_precision || derivedPrecision
+
+  // Panel-feedback (May 2026): submitted experiences must have at
+  // least an approximate date or year. If none provided, the row
+  // would render with a blank date label on the report page and miss
+  // the temporal-pattern surfaces. The /start client enforces this
+  // too; this is the belt-and-suspenders server-side check.
+  var hasAnyDate = !!(p.event_date || (insert.event_date_raw && insert.event_date_raw.length > 0))
+  if (!hasAnyDate) {
+    return res.status(400).json({
+      ok: false,
+      error: 'Please pick at least a year for when this happened — even an approximate one helps us place your experience.',
+      reason: 'missing_event_date',
+    })
+  }
+
+  // Panel-feedback (May 2026): same for location — at minimum a
+  // country chip. Without any location at all the report page map
+  // can't render and the Today feed can't pin the report.
+  var hasAnyLocation = !!(p.latitude && p.longitude) || !!p.city || !!p.state_province || !!p.country
+  if (!hasAnyLocation) {
+    return res.status(400).json({
+      ok: false,
+      error: 'Please add where this happened — even just a country helps. You can be as specific or general as you want.',
+      reason: 'missing_location',
+    })
+  }
 
   if (typeof p.has_physical_evidence === 'boolean') insert.has_physical_evidence = p.has_physical_evidence
   if (typeof p.has_photo_video === 'boolean') insert.has_photo_video = p.has_photo_video
