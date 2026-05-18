@@ -2397,28 +2397,42 @@ export default function StartPage() {
 
           {/* ============= STEP 2 — ACCOUNT ============= */}
           {step === 'account' && (() => {
-            // V9.11.2 — different headline depending on whether the user
-            // is sharing an experience now ("one more step") or skipped
-            // straight to account creation ("share later").
-            var accountOnly = false
-            try { accountOnly = localStorage.getItem(ACCOUNT_ONLY_KEY) === '1' } catch {}
+            // T1.8 (May 2026) — onboarding is account-first by default
+            // for unauthed visitors. The earlier 'one more step / save
+            // your experience' copy assumed the user had already typed
+            // an experience; in the account-first flow they haven't, so
+            // that wording was vestigial and misleading. The
+            // ACCOUNT_ONLY_KEY localStorage flag (set by the legacy
+            // 'create my account, share later' CTA) is still respected
+            // but the difference between the two paths is now just a
+            // line of nuance, not two different headlines.
+            var hasDraft = false
+            try {
+              hasDraft = !!(localStorage.getItem(DRAFT_KEY) && draft.description.trim().length > 0)
+            } catch {}
             return (
             <div className="space-y-6">
               <div>
-                <button
-                  type="button"
-                  onClick={function () { setStep('experience') }}
-                  className="text-sm text-gray-400 hover:text-white mb-3 inline-flex items-center gap-1"
-                >
-                  ← Back
-                </button>
+                {/* Back to experience only when there's actually a
+                    draft to return to. For an unauthed account-first
+                    visitor with no draft, the back button just dumped
+                    them on an empty form they didn't intend to fill. */}
+                {hasDraft && (
+                  <button
+                    type="button"
+                    onClick={function () { setStep('experience') }}
+                    className="text-sm text-gray-400 hover:text-white mb-3 inline-flex items-center gap-1"
+                  >
+                    ← Back to your experience
+                  </button>
+                )}
                 <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
-                  {accountOnly ? 'Create your account.' : 'One more step.'}
+                  Create your account.
                 </h1>
                 <p className="text-sm sm:text-base text-gray-300 mt-2 leading-relaxed">
-                  {accountOnly
-                    ? 'We’ll email you a one-tap sign-in link. No password to remember. You can share your experience anytime.'
-                    : 'We’ll save your experience and email you a one-tap sign-in link. No password to remember.'}
+                  {hasDraft
+                    ? 'We’ll save what you wrote and email you a one-tap sign-in link. No password to remember.'
+                    : 'We’ll email you a one-tap sign-in link. No password to remember. Share an experience whenever you’re ready.'}
                 </p>
               </div>
 
