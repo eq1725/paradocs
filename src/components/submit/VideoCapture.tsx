@@ -415,7 +415,12 @@ export default function VideoCapture(props: VideoCaptureProps) {
 
   // ── Render ──────────────────────────────────────────────────
   // Native iOS path: a giant "Tap to open camera" hero + a hidden file input.
-  if (useNative && phase !== 'review' && phase !== 'uploading') {
+  // Panel-feedback (May 2026 — 6th round, fix 2): only show the
+  // hero when truly idle. The original condition let
+  // phase='processing' fall through to this branch which RE-RENDERED
+  // the "Tap to open camera" hero during the 25s Whisper wait,
+  // hiding the "Adding magic to your video…" screen entirely.
+  if (useNative && phase === 'idle') {
     return (
       <div className="w-full max-w-md mx-auto">
         <button
