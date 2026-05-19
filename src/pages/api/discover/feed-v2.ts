@@ -585,13 +585,36 @@ export default async function handler(
           // left open. Re-fetch the feed for fresher URLs after that.
           var SIGNED_TTL_SEC = 4 * 60 * 60
           var withUrls = await Promise.all(videoRows.map(async function (v: any) {
+            var bucket = v.storage_bucket || 'report_videos'
+            // V10.7.E.7 — derive the sibling poster path by swapping
+            // the video file's extension to .jpg. Convention set by
+            // upload-url.ts. Sign both URLs in parallel; the poster
+            // URL is optional (the front-end falls back to no poster
+            // if missing, no fatal effect on playback).
+            var posterPath: string | null = null
             try {
-              var bucket = v.storage_bucket || 'report_videos'
-              var signed = await (supabase.storage as any)
-                .from(bucket)
-                .createSignedUrl(v.storage_path, SIGNED_TTL_SEC)
+              var p = (v.storage_path as string) || ''
+              var dot = p.lastIndexOf('.')
+              if (dot > 0) posterPath = p.substring(0, dot) + '.jpg'
+            } catch (_) { /* leave poster null */ }
+
+            try {
+              var signResults = await Promise.all([
+                (supabase.storage as any)
+                  .from(bucket)
+                  .createSignedUrl(v.storage_path, SIGNED_TTL_SEC),
+                posterPath
+                  ? (supabase.storage as any).from(bucket).createSignedUrl(posterPath, SIGNED_TTL_SEC).catch(function () { return null })
+                  : Promise.resolve(null),
+              ])
+              var signed: any = signResults[0]
+              var posterSigned: any = signResults[1]
               if (signed?.data?.signedUrl) {
-                return { ...v, playback_url: signed.data.signedUrl }
+                return {
+                  ...v,
+                  playback_url: signed.data.signedUrl,
+                  poster_url: posterSigned?.data?.signedUrl || null,
+                }
               }
               // V10.7.E — QA #3 (May 2026). The previous catch swallowed
               // every signed-URL failure silently, so a misconfigured
@@ -626,6 +649,7 @@ export default async function handler(
             reportMap[v.report_id].video = {
               video_id: v.id,
               playback_url: v.playback_url || null,
+              poster_url: v.poster_url || null,
               segments: v.transcript_segments || null,
               duration_sec: v.duration_sec,
               transcript_lang: v.transcript_lang || null,

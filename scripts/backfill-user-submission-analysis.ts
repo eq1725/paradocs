@@ -26,7 +26,10 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
-import { generateAndSaveDirect } from '../src/lib/services/paradocs-analysis.service'
+// Use the retry orchestrator, not generateAndSaveDirect — when a
+// field fails claim-check the orchestrator does a corrective retry
+// instead of silently blanking the field. Matches what /publish does.
+import { generateAndSaveParadocsAnalysis } from '../src/lib/services/paradocs-analysis.service'
 
 async function main() {
   var supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
@@ -85,12 +88,12 @@ async function main() {
     var row: any = rows[i]
     console.log('\n[' + (i + 1) + '/' + rows.length + '] Generating for ' + row.id + '…')
     try {
-      var result = await generateAndSaveDirect(row.id)
-      if (result.success) {
+      var saved = await generateAndSaveParadocsAnalysis(row.id)
+      if (saved) {
         console.log('  ✓ saved')
         ok++
       } else {
-        console.warn('  ✗ failed:', result.error)
+        console.warn('  ✗ returned false')
         failed++
       }
     } catch (e: any) {

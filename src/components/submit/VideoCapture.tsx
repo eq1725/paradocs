@@ -387,6 +387,30 @@ export default function VideoCapture(props: VideoCaptureProps) {
 
       await putBlobWithProgress(urlData.signed_url, recordedBlob, mimeBase)
 
+      // V10.7.E.7 — best-effort poster upload. We already captured
+      // a poster data URL client-side (posterUrl state) for the
+      // review screen; convert it to a Blob and PUT it to the
+      // sibling poster signed URL so feed-v2 can serve it as the
+      // <video poster=…> attribute on Today. Failure is non-fatal:
+      // the video plays fine without a poster, the browser just
+      // paints a black box until the first frame loads.
+      if (posterUrl && urlData.poster_signed_url) {
+        try {
+          var posterRes = await fetch(posterUrl)
+          var posterBlob = await posterRes.blob()
+          var posterPut = await fetch(urlData.poster_signed_url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'image/jpeg' },
+            body: posterBlob,
+          })
+          if (!posterPut.ok) {
+            console.warn('[VideoCapture] poster upload non-OK:', posterPut.status)
+          }
+        } catch (posterErr: any) {
+          console.warn('[VideoCapture] poster upload failed (non-fatal):', posterErr?.message)
+        }
+      }
+
       // Panel-feedback (May 2026 — 3rd round): /finalize now runs
       // Whisper + Haiku synchronously, which can take 10-60s. Show
       // a dedicated "processing" screen so the user knows we're

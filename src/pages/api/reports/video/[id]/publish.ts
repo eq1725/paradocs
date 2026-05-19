@@ -35,7 +35,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
-import { generateAndSaveDirect } from '@/lib/services/paradocs-analysis.service'
+import { generateAndSaveParadocsAnalysis } from '@/lib/services/paradocs-analysis.service'
 
 // V10.7.E.4 — let the Sonnet analysis pass finish synchronously
 // inside this endpoint. Whisper + Haiku already ran in /finalize, so
@@ -249,7 +249,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // users saw the "Paradocs is analyzing this account…" placeholder
   // indefinitely.
   //
-  // Trade-off: publish now takes 30-60s instead of 2-3s, but the
+  // V10.7.E.7 — switched from generateAndSaveDirect to the retry
+  // orchestrator (generateAndSaveParadocsAnalysis). When a field
+  // fails claim-check, the orchestrator does a second Sonnet call
+  // with corrective context ("your previous attempt was rejected
+  // for hook — try again, be more conservative") and keeps the
+  // better result. Costs ~$0.01 extra on the rows that need it and
+  // ~30s extra wall-clock when the retry fires; in exchange the
+  // hook + pull_quote fields stop getting silently blanked. Round 6
+  // backfill of the Triangle UFO report had its hook blanked by the
+  // single-shot path; this is the fix.
+  //
+  // Trade-off: publish now takes 30-90s instead of 2-3s, but the
   // user lands on a fully-populated report page (frames + open
   // questions + pull quote + feed_hook + paradocs_narrative). That's
   // a meaningful UX upgrade over "look at our analysis later".
@@ -261,11 +272,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   var analysisOk = false
   if (!modOutcome.flagged) {
     try {
-      console.log('[video/publish] starting paradocs analysis for', (video as any).report_id)
-      var aResult = await generateAndSaveDirect((video as any).report_id)
-      analysisOk = !!aResult.success
-      if (!aResult.success) {
-        console.warn('[video/publish] analysis failed:', aResult.error)
+      console.log('[video/publish] starting paradocs analysis (orchestrator) for', (video as any).report_id)
+      analysisOk = await generateAndSaveParadocsAnalysis((video as any).report_id)
+      if (!analysisOk) {
+        console.warn('[video/publish] analysis returned false for', (video as any).report_id)
       } else {
         console.log('[video/publish] paradocs analysis saved for', (video as any).report_id)
       }

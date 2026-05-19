@@ -85,6 +85,20 @@ export default function Document() {
             browsers pick differently from multiple <link rel="icon">
             tags. Removed the duplicates here so the v5 transparent
             purple-P is the only declaration the browser sees. */}
+        {/* V10.7.E.7 — preconnect to Supabase Storage so the first
+            video / poster fetch on /discover doesn't pay the DNS +
+            TLS handshake cost (~100-300ms on cellular). The env var
+            lives in NEXT_PUBLIC_SUPABASE_URL which is the API
+            hostname; Storage shares the same origin via the
+            /storage/v1 path prefix so the same preconnect works for
+            both signed-URL fetches. Cheap; if SUPABASE_URL isn't set
+            (local dev), the tag is omitted. */}
+        {process.env.NEXT_PUBLIC_SUPABASE_URL && (
+          <>
+            <link rel="preconnect" href={process.env.NEXT_PUBLIC_SUPABASE_URL} crossOrigin="anonymous" />
+            <link rel="dns-prefetch" href={process.env.NEXT_PUBLIC_SUPABASE_URL} />
+          </>
+        )}
         {/* V10.2 splash CSS — inlined so it's available before any
             external stylesheet loads. Gated to display-mode:
             standalone so it only renders in PWA launch contexts. */}

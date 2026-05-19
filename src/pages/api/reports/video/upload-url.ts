@@ -115,6 +115,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   var fileId = crypto.randomUUID()
   var storagePath = userId + '/' + draftReportId + '/' + fileId + '.' + ext
+  // V10.7.E.7 — convention: poster lives at the same Storage path
+  // with .jpg extension. Avoids a schema change; feed-v2 derives it
+  // the same way at render time. JPEG works for both H.264/.mov and
+  // .webm video sources. If the client fails to upload a poster the
+  // video still works — the <video> element just falls back to its
+  // own first-frame render.
+  var posterPath = userId + '/' + draftReportId + '/' + fileId + '.jpg'
 
   // ── 4. Create the report_videos row ─────────────────────────
   var { data: videoRow, error: videoErr } = await (admin.from('report_videos') as any).insert({
@@ -153,6 +160,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: 'Could not generate upload URL' })
   }
 
+  // V10.7.E.7 — sibling signed upload URL for the poster JPEG. The
+  // client uploads it after the video (best-effort; a failed poster
+  // upload doesn't roll back the video upload). 2h TTL matches the
+  // video upload window.
+  var posterSigned: { signedUrl: string; token: string } | null = null
+  try {
+    var { data: ps, error: psErr } = await admin.storage
+      .from(BUCKET)
+      .createSignedUploadUrl(posterPath)
+    if (!psErr && ps) {
+      posterSigned = { signedUrl: ps.signedUrl, token: ps.token }
+    } else {
+      console.warn('[video/upload-url] poster signed URL failed (non-fatal):', psErr?.message)
+    }
+  } catch (e: any) {
+    console.warn('[video/upload-url] poster signed URL threw (non-fatal):', e?.message || e)
+  }
+
   return res.status(200).json({
     ok: true,
     report_id: draftReportId,
@@ -160,6 +185,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     storage_path: storagePath,
     signed_url: signed.signedUrl,
     upload_token: signed.token,
+    poster_storage_path: posterPath,
+    poster_signed_url: posterSigned?.signedUrl || null,
+    poster_upload_token: posterSigned?.token || null,
     review_url: '/submit/video-review/' + draftReportId,
   })
 }

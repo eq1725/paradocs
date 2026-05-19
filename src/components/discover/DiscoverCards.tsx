@@ -156,6 +156,8 @@ export interface ReportItem {
   video?: {
     video_id: string
     playback_url: string | null
+    /** V10.7.E.7 — optional poster JPEG (sibling .jpg in Storage). */
+    poster_url?: string | null
     segments: any[] | null
     duration_sec: number | null
     transcript_lang: string | null

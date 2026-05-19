@@ -194,11 +194,27 @@ export default function VideoReportCard(props: VideoReportCardProps) {
         <video
           ref={videoRef}
           src={video.playback_url}
+          // V10.7.E.7 — first-paint thumbnail. The poster JPEG was
+          // captured client-side at submit and uploaded as a sibling
+          // file to the video. feed-v2 signs both URLs in parallel.
+          // With a poster set the browser paints the thumbnail
+          // INSTANTLY (before any video bytes load), instead of a
+          // black square while the first frame buffers.
+          poster={(video as any).poster_url || undefined}
           className="absolute inset-0 w-full h-full object-cover"
           playsInline
           muted={muted}
           loop
-          preload="auto"
+          // V10.7.E.7 — preload tuning. Only the active feed card
+          // gets the full preload="auto" (browser eagerly fetches
+          // bytes for instant playback). Off-screen / out-of-focus
+          // cards get preload="metadata" — browser just grabs the
+          // header so it knows duration + dimensions for the poster,
+          // skipping multi-MB body downloads for cards the user may
+          // never reach. Browsers don't always honour preload=metadata
+          // perfectly, but on Safari iOS it noticeably cuts cellular
+          // bytes on long feed scrolls.
+          preload={props.isActive ? 'auto' : 'metadata'}
           controlsList="nodownload nofullscreen"
           disablePictureInPicture
           // V10.7.E.3 — tap the video surface to toggle mute. iOS
