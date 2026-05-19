@@ -13,6 +13,9 @@ import AIInsight from '@/components/homepage/AIInsight'
 import LabShowcase from '@/components/homepage/LabShowcase'
 import HowItWorks from '@/components/homepage/HowItWorks'
 import DataProofCTA from '@/components/homepage/DataProofCTA'
+import InlineSignupCTA from '@/components/homepage/InlineSignupCTA'
+import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 
 /* Rotating search placeholder queries — real examples that model depth */
 var SEARCH_EXAMPLES = [
@@ -138,19 +141,22 @@ export default function Home() {
   // Previously this hook bounced every cold visitor straight to /start,
   // forcing signup before the user understood what Paradocs was. Panel
   // review (UX/Conversion/SEO/T&S/App Store all unanimous): "browse-first
-  // with soft conversion" beats "forced signup wall" on every metric —
-  // total conversion rate, return rate, organic search traffic, and
-  // App Store review pass rate. The homepage is now the landing page
-  // for cold visitors, the same as Wikipedia / Reddit / Stack Overflow.
+  // with soft conversion" beats "forced signup wall" on every metric.
   //
-  // Remaining behavior:
-  //   - Signed-in returning users still bounce to /discover (their feed).
-  //   - Cold + anonymous visitors see the homepage. They convert via the
-  //     hero CTA, soft-conversion banner after N views, or top-nav.
-  //   - ?force_home=1 query param preserved as the legacy escape hatch
-  //     for press kits / email blasts (no behavior change for those).
+  // Behavior:
+  //   - Cold + anonymous visitors see the homepage.
+  //   - Signed-in returning users bounce to /discover (their feed) —
+  //     matches the Twitter/Instagram/TikTok pattern.
+  //   - ?force_home=1 query param overrides the signed-in bounce so
+  //     authed users can revisit the marketing page (for testing,
+  //     press kits, email blasts, etc.).
   useEffect(function () {
     if (typeof window === 'undefined') return
+    var params = new URLSearchParams(window.location.search)
+    if (params.has('force_home')) {
+      setShowHome(true)
+      return
+    }
     supabase.auth.getSession().then(function (s) {
       if (s && s.data && s.data.session) {
         // Signed-in user — send them to their personalized feed.
@@ -279,6 +285,30 @@ export default function Home() {
               <span className="text-primary-400">Millions</span> of real experiences across <span className="text-primary-400">4,792</span> phenomena types
             </p>
 
+            {/* Panel-feedback (May 2026): hero now carries a primary
+                "Create free account" CTA plus a secondary "Browse the
+                archive" link. Industry standard for content-first
+                landing pages; pairs with the soft signup banner and
+                the inline CTAs below. */}
+            <div className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Link
+                href="/start"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary-500 hover:bg-primary-400 text-white text-sm font-semibold transition-colors"
+              >
+                Create free account
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link
+                href="/discover"
+                className="inline-flex items-center justify-center px-6 py-3 text-sm font-medium text-gray-300 hover:text-white border border-gray-700 hover:border-gray-500 rounded-full transition-colors"
+              >
+                Browse the archive
+              </Link>
+            </div>
+            <p className="mt-3 text-[12px] text-gray-500">
+              Free forever — no card required.
+            </p>
+
           </div>
         </div>
       </section>
@@ -292,17 +322,47 @@ export default function Home() {
       {/* === SECTION 4: Feed Showcase === */}
       <FeedShowcase />
 
+      {/* Panel-feedback (May 2026): inline conversion CTA after the
+          Today feed preview. The user has just seen real content; this
+          is their highest-intent moment. */}
+      <InlineSignupCTA
+        headline="Save reports + see patterns that match your interests."
+        subhead="Create a free account to bookmark cases, follow regions and phenomena, and unlock your personal RADAR view."
+        variant="primary"
+        trackAs="homepage_inline_cta_after_feed"
+      />
+
       {/* === SECTION 5: Map Showcase === */}
       <MapShowcase />
 
       {/* === SECTION 6: Lab / Investigate Showcase === */}
       <LabShowcase />
 
+      {/* Panel-feedback (May 2026): secondary CTA after Lab showcase.
+          Softer follow-up so the page doesn't feel "salesy" with two
+          back-to-back hero blocks. */}
+      <InlineSignupCTA
+        headline="Get your own RADAR view."
+        subhead="Share an experience and we'll match it across thousands of similar cases."
+        variant="secondary"
+        trackAs="homepage_inline_cta_after_lab"
+      />
+
       {/* === SECTION 7: How It Works + FAQ === */}
       <HowItWorks />
 
       {/* === SECTION 8: Data Proof + CTA === */}
       <DataProofCTA />
+
+      {/* Panel-feedback (May 2026): closing big CTA. Users who've
+          scrolled this far are in the converted-or-leaving cohort —
+          last chance to convert with a strong final push. */}
+      <InlineSignupCTA
+        headline="Ready to add your experience?"
+        subhead="Sign up in 10 seconds — no password, no card. Just an email and a one-tap sign-in link."
+        variant="primary"
+        trackAs="homepage_inline_cta_footer"
+      />
     </>
   )
 }

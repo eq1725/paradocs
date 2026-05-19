@@ -90,6 +90,60 @@ function isIosDevice(): boolean {
 
 type Phase = 'idle' | 'recording' | 'review' | 'uploading' | 'error'
 
+/**
+ * Panel-feedback (May 2026): iOS Safari doesn't render the first
+ * frame of a <video> element as its poster automatically — the
+ * preview shows a black box until the user taps play. Generate a
+ * poster frame client-side from the recorded blob so the review
+ * screen shows a still preview at-a-glance.
+ *
+ * Returns a data: URL (best-effort). On any failure we resolve
+ * with empty string and the caller falls back to no poster.
+ */
+function capturePosterFromBlob(blob: Blob): Promise<string> {
+  return new Promise(function (resolve) {
+    try {
+      var url = URL.createObjectURL(blob)
+      var v = document.createElement('video')
+      v.muted = true
+      v.playsInline = true
+      v.preload = 'metadata'
+      v.src = url
+      var settled = false
+      function finish(result: string) {
+        if (settled) return
+        settled = true
+        URL.revokeObjectURL(url)
+        resolve(result)
+      }
+      v.onloadeddata = function () {
+        try {
+          // Some codecs return a black frame at 0s; seek slightly in.
+          v.currentTime = Math.min(0.1, (v.duration || 0.1) / 2)
+        } catch { finish('') }
+      }
+      v.onseeked = function () {
+        try {
+          var canvas = document.createElement('canvas')
+          var w = v.videoWidth || 720
+          var h = v.videoHeight || 1280
+          // Cap to keep the data URL small (~200kb).
+          var scale = Math.min(1, 360 / Math.max(w, 1))
+          canvas.width = Math.round(w * scale)
+          canvas.height = Math.round(h * scale)
+          var ctx = canvas.getContext('2d')
+          if (!ctx) { finish(''); return }
+          ctx.drawImage(v, 0, 0, canvas.width, canvas.height)
+          finish(canvas.toDataURL('image/jpeg', 0.78))
+        } catch { finish('') }
+      }
+      v.onerror = function () { finish('') }
+      // Safety timeout — if the codec never fires events, bail.
+      window.setTimeout(function () { finish('') }, 4000)
+    } catch { resolve('') }
+  })
+}
+
 export default function VideoCapture(props: VideoCaptureProps) {
   var router = useRouter()
   var liveVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -107,6 +161,7 @@ export default function VideoCapture(props: VideoCaptureProps) {
   var [recordedBlob, setRecordedBlob] = useState<Blob | null>(null)
   var [recordedMime, setRecordedMime] = useState<string>('video/webm')
   var [previewUrl, setPreviewUrl] = useState<string>('')
+  var [posterUrl, setPosterUrl] = useState<string>('')
   var [uploadProgress, setUploadProgress] = useState<number>(0)
 
   useEffect(function () {
@@ -161,6 +216,9 @@ export default function VideoCapture(props: VideoCaptureProps) {
         }
       }
     } catch {}
+    // Panel-feedback (May 2026): generate a poster frame so the
+    // preview shows a still rather than a black box.
+    capturePosterFromBlob(file).then(function (poster) { setPosterUrl(poster) })
     setPhase('review')
   }
 
@@ -211,6 +269,9 @@ export default function VideoCapture(props: VideoCaptureProps) {
         setRecordedBlob(blob)
         var url = URL.createObjectURL(blob)
         setPreviewUrl(url)
+        // Panel-feedback (May 2026): generate poster frame so the
+        // preview shows a still rather than a black box.
+        capturePosterFromBlob(blob).then(function (poster) { setPosterUrl(poster) })
         setPhase('review')
         if (liveVideoRef.current) liveVideoRef.current.pause()
       }
@@ -244,6 +305,7 @@ export default function VideoCapture(props: VideoCaptureProps) {
   function handleRetake() {
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     setPreviewUrl('')
+    setPosterUrl('')
     setRecordedBlob(null)
     setRecordedSec(0)
     setUploadProgress(0)
@@ -399,6 +461,8 @@ export default function VideoCapture(props: VideoCaptureProps) {
             ref={previewVideoRef}
             className="w-full h-full object-contain"
             src={previewUrl}
+            poster={posterUrl || undefined}
+            preload="metadata"
             controls
             playsInline
           />

@@ -30,7 +30,10 @@ import { useRouter } from 'next/router'
 import { X, Sparkles } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
-var VIEW_THRESHOLD = 5
+// Panel-feedback (May 2026): dropped from 5 to 3. Earlier intent
+// capture without being pushy — the 7-day dismissal TTL still
+// prevents badgering.
+var VIEW_THRESHOLD = 3
 var DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000  // 7 days
 var VIEW_COUNT_KEY = 'paradocs_anon_view_count'
 var DISMISSED_AT_KEY = 'paradocs_soft_conversion_dismissed_at'

@@ -26,6 +26,7 @@ import { useRouter } from 'next/router'
 import { ArrowLeft, Loader2, AlertCircle, CheckCircle2, MapPin, Calendar, Globe, Tag } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { CATEGORY_CONFIG } from '@/lib/constants'
+import LocationAutocomplete, { type GeocodeSuggestion } from '@/components/LocationAutocomplete'
 
 interface VideoData {
   id: string
@@ -398,13 +399,26 @@ export default function VideoReviewPage() {
           )}
 
           {video && (
-            <div className="rounded-2xl overflow-hidden bg-black border border-gray-800 mb-6 aspect-[9/16] max-h-[60vh] w-full mx-auto" style={{ maxWidth: '380px' }}>
-              <video
-                src={video.playback_url}
-                controls
-                playsInline
-                className="w-full h-full object-contain bg-black"
-              />
+            <div className="mx-auto mb-6" style={{ maxWidth: '420px' }}>
+              <div className="rounded-2xl overflow-hidden bg-black border border-gray-800 aspect-[9/16] max-h-[70vh] w-full">
+                <video
+                  src={video.playback_url}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="w-full h-full object-contain bg-black"
+                />
+              </div>
+              {/* Panel-feedback (May 2026): surface actual video
+                  specs so the user can verify quality and we have a
+                  quick diagnostic when "quality looks off" surfaces. */}
+              <p className="text-[11px] text-gray-500 mt-2 text-center">
+                {[
+                  video.duration_sec ? Math.round(video.duration_sec) + 's' : null,
+                  video.mime_type ? video.mime_type.split(';')[0] : null,
+                  (video as any).size_bytes ? ((video as any).size_bytes / (1024 * 1024)).toFixed(1) + ' MB' : null,
+                ].filter(Boolean).join(' · ')}
+              </p>
             </div>
           )}
 
@@ -493,52 +507,49 @@ export default function VideoReviewPage() {
                 Even just a country is fine — but the more precise, the better the map and matches.
               </p>
               <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="text"
+                <LocationAutocomplete
+                  field="city"
                   value={form.city}
-                  onChange={function (e) { markTouched('city'); setForm(function (f) { return { ...f, city: e.target.value } }) }}
-                  onBlur={function () {
-                    // Panel-feedback (May 2026): geocode the city to
-                    // auto-populate state + country if those haven't
-                    // been touched. Defensive: silently skip when
-                    // city is empty or untouched fields already have
-                    // values.
-                    var q = (form.city || '').trim()
-                    if (!q || q.length < 2) return
-                    fetch('/api/geocode/forward?q=' + encodeURIComponent(q))
-                      .then(function (r) { return r.ok ? r.json() : null })
-                      .then(function (data: any) {
-                        if (!data || !data.hit) return
-                        var hit = data.hit
-                        setForm(function (f) {
-                          var next: any = { ...f }
-                          if (!userTouchedRef.current.has('state_province') && hit.state) next.state_province = hit.state
-                          if (!userTouchedRef.current.has('country') && hit.country) next.country = hit.country
-                          if (!userTouchedRef.current.has('latitude') && hit.latitude) next.latitude = String(hit.latitude)
-                          if (!userTouchedRef.current.has('longitude') && hit.longitude) next.longitude = String(hit.longitude)
-                          return next
-                        })
-                      })
-                      .catch(function () { /* silent */ })
+                  onChange={function (v) { markTouched('city'); setForm(function (f) { return { ...f, city: v } }) }}
+                  onSuggestionSelect={function (s: GeocodeSuggestion) {
+                    // Atomically populate the related fields the user
+                    // hasn't already touched.
+                    setForm(function (f) {
+                      var next: any = { ...f, city: s.city || s.label }
+                      if (!userTouchedRef.current.has('state_province') && s.state) next.state_province = s.state
+                      if (!userTouchedRef.current.has('country') && s.country) next.country = s.country
+                      if (!userTouchedRef.current.has('latitude') && s.latitude != null) next.latitude = String(s.latitude)
+                      if (!userTouchedRef.current.has('longitude') && s.longitude != null) next.longitude = String(s.longitude)
+                      return next
+                    })
                   }}
                   placeholder="City"
-                  className="bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500"
                 />
-                <input
-                  type="text"
+                <LocationAutocomplete
+                  field="state"
                   value={form.state_province}
-                  onChange={function (e) { markTouched('state_province'); setForm(function (f) { return { ...f, state_province: e.target.value } }) }}
+                  onChange={function (v) { markTouched('state_province'); setForm(function (f) { return { ...f, state_province: v } }) }}
+                  onSuggestionSelect={function (s: GeocodeSuggestion) {
+                    setForm(function (f) {
+                      var next: any = { ...f, state_province: s.state || s.label }
+                      if (!userTouchedRef.current.has('country') && s.country) next.country = s.country
+                      return next
+                    })
+                  }}
                   placeholder="State / Province"
-                  className="bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500"
                 />
               </div>
-              <input
-                type="text"
-                value={form.country}
-                onChange={function (e) { markTouched('country'); setForm(function (f) { return { ...f, country: e.target.value } }) }}
-                placeholder="Country"
-                className="mt-2 w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500"
-              />
+              <div className="mt-2">
+                <LocationAutocomplete
+                  field="country"
+                  value={form.country}
+                  onChange={function (v) { markTouched('country'); setForm(function (f) { return { ...f, country: v } }) }}
+                  onSuggestionSelect={function (s: GeocodeSuggestion) {
+                    setForm(function (f) { return { ...f, country: s.country || s.label } })
+                  }}
+                  placeholder="Country"
+                />
+              </div>
             </div>
 
             {/* Date */}
@@ -584,36 +595,102 @@ export default function VideoReviewPage() {
                   className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500"
                 />
               )}
-              {form.event_date_precision === 'month' && (
-                <input
-                  type="month"
-                  value={form.event_date}
-                  max={todayMonthIso()}
-                  onChange={function (e) { markTouched('event_date'); setForm(function (f) { return { ...f, event_date: e.target.value } }) }}
-                  className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500"
-                />
-              )}
-              {form.event_date_precision === 'year' && (
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={1900}
-                  max={currentYear()}
-                  value={form.event_date}
-                  onChange={function (e) { markTouched('event_date'); setForm(function (f) { return { ...f, event_date: e.target.value } }) }}
-                  placeholder={'e.g. 2018'}
-                  className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500"
-                />
-              )}
-              {form.event_date_precision === 'decade' && (
-                <input
-                  type="text"
-                  value={form.event_date}
-                  onChange={function (e) { markTouched('event_date'); setForm(function (f) { return { ...f, event_date: e.target.value } }) }}
-                  placeholder={'e.g. 1990s (must be ' + currentDecade() + 's or earlier)'}
-                  className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500"
-                />
-              )}
+              {form.event_date_precision === 'month' && (() => {
+                // Panel-feedback (May 2026): iOS Safari's native
+                // <input type="month"> picker shows future years in
+                // the scroll wheel even when max= is set. Custom
+                // year + month dropdowns we fully control.
+                var parts = (form.event_date || '').split('-')
+                var selYear = parts[0] || ''
+                var selMonth = parts[1] || ''
+                var thisYear = currentYear()
+                var thisMonth = new Date().getMonth() + 1 // 1-12
+                var years: number[] = []
+                for (var y = thisYear; y >= 1900; y--) years.push(y)
+                var months = [
+                  { v: '01', l: 'January' }, { v: '02', l: 'February' }, { v: '03', l: 'March' },
+                  { v: '04', l: 'April' }, { v: '05', l: 'May' }, { v: '06', l: 'June' },
+                  { v: '07', l: 'July' }, { v: '08', l: 'August' }, { v: '09', l: 'September' },
+                  { v: '10', l: 'October' }, { v: '11', l: 'November' }, { v: '12', l: 'December' },
+                ]
+                function compose(yv: string, mv: string): string {
+                  if (!yv || !mv) return ''
+                  return yv + '-' + mv
+                }
+                return (
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={selMonth}
+                      onChange={function (e) {
+                        markTouched('event_date')
+                        setForm(function (f) { return { ...f, event_date: compose(selYear, e.target.value) } })
+                      }}
+                      className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500"
+                    >
+                      <option value="">Month</option>
+                      {months.map(function (m) {
+                        // Hide future months when current year is selected.
+                        if (selYear && parseInt(selYear, 10) === thisYear && parseInt(m.v, 10) > thisMonth) return null
+                        return <option key={m.v} value={m.v}>{m.l}</option>
+                      })}
+                    </select>
+                    <select
+                      value={selYear}
+                      onChange={function (e) {
+                        markTouched('event_date')
+                        // If the previously-selected month is now in the
+                        // future relative to the new year, clear it.
+                        var ny = e.target.value
+                        var nm = selMonth
+                        if (ny && parseInt(ny, 10) === thisYear && nm && parseInt(nm, 10) > thisMonth) {
+                          nm = ''
+                        }
+                        setForm(function (f) { return { ...f, event_date: compose(ny, nm) } })
+                      }}
+                      className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500"
+                    >
+                      <option value="">Year</option>
+                      {years.map(function (y) {
+                        return <option key={y} value={String(y)}>{y}</option>
+                      })}
+                    </select>
+                  </div>
+                )
+              })()}
+              {form.event_date_precision === 'year' && (() => {
+                var thisYear = currentYear()
+                var years: number[] = []
+                for (var y = thisYear; y >= 1900; y--) years.push(y)
+                return (
+                  <select
+                    value={form.event_date}
+                    onChange={function (e) { markTouched('event_date'); setForm(function (f) { return { ...f, event_date: e.target.value } }) }}
+                    className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="">Select a year</option>
+                    {years.map(function (y) {
+                      return <option key={y} value={String(y)}>{y}</option>
+                    })}
+                  </select>
+                )
+              })()}
+              {form.event_date_precision === 'decade' && (() => {
+                var currDecade = currentDecade()
+                var decades: string[] = []
+                for (var d = currDecade; d >= 1900; d -= 10) decades.push(d + 's')
+                return (
+                  <select
+                    value={form.event_date}
+                    onChange={function (e) { markTouched('event_date'); setForm(function (f) { return { ...f, event_date: e.target.value } }) }}
+                    className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="">Select a decade</option>
+                    {decades.map(function (d) {
+                      return <option key={d} value={d}>{d}</option>
+                    })}
+                  </select>
+                )
+              })()}
             </div>
 
             {/* Visibility */}
@@ -664,23 +741,26 @@ export default function VideoReviewPage() {
               </div>
             )}
 
-            {/* Panel-feedback (May 2026): block Publish while the
-                transcript is still being generated. Otherwise the
-                user publishes with no auto-suggestions, defeating
-                the whole point of the wait. */}
+            {/* Panel-feedback (May 2026 — 2nd revision): don't block
+                Publish while transcript is still generating. Users
+                won't wait. If transcript hasn't arrived by Publish,
+                fine — it lands later and gets attached to the
+                already-live report. The "Suggestions added" toast
+                still fires for users who happen to be on the page
+                when it arrives. */}
             <button
               type="submit"
-              disabled={publishing || (video !== null && video.status === 'transcribing')}
+              disabled={publishing}
               className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-50"
             >
               {publishing && <Loader2 className="w-4 h-4 animate-spin" />}
-              {video !== null && video.status === 'transcribing' && !publishing && <Loader2 className="w-4 h-4 animate-spin" />}
-              {publishing
-                ? 'Publishing…'
-                : (video !== null && video.status === 'transcribing'
-                    ? 'Waiting for transcript…'
-                    : 'Publish video')}
+              {publishing ? 'Publishing…' : 'Publish video'}
             </button>
+            {video !== null && video.status === 'transcribing' && (
+              <p className="text-[11px] text-purple-200/70 text-center mt-1">
+                Transcribing in the background — feel free to publish now and we&rsquo;ll attach the transcript when it lands.
+              </p>
+            )}
             <p className="text-[11px] text-gray-500 text-center px-4 leading-relaxed">
               By publishing, you confirm this is your video and you have rights to anyone shown in it.
               You can take it down at any time.

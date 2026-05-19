@@ -46,6 +46,7 @@ import RadarVisualization from '@/components/radar/RadarVisualization'
 // Lazy-loaded so the Leaflet bundle (~50KB) only ships when the user
 // expands the "Where" section.
 const LocationPicker = dynamic(() => import('@/components/LocationPicker'), { ssr: false })
+import LocationAutocomplete from '@/components/LocationAutocomplete'
 
 // ---------------------------------------------------------------- types
 
@@ -1883,32 +1884,19 @@ export default function StartPage() {
 
                     <div>
                       <label className="block text-xs font-medium text-gray-400 mb-1">City / Town</label>
-                      <input
-                        type="text"
+                      <LocationAutocomplete
+                        field="city"
                         value={draft.city}
-                        onChange={function (e) { setDraft(function (d) { return { ...d, city: e.target.value } }) }}
-                        onBlur={function () {
-                          // Panel-feedback (May 2026): geocode city
-                          // to auto-fill state + country when those
-                          // are still empty. Defensive: silent no-op
-                          // on any failure or missing MAPBOX_TOKEN.
-                          var q = (draft.city || '').trim()
-                          if (!q || q.length < 2) return
-                          fetch('/api/geocode/forward?q=' + encodeURIComponent(q))
-                            .then(function (r) { return r.ok ? r.json() : null })
-                            .then(function (data: any) {
-                              if (!data || !data.hit) return
-                              var hit = data.hit
-                              setDraft(function (d) {
-                                var next: any = { ...d }
-                                if (!d.state_province && hit.state) next.state_province = hit.state
-                                if (!d.country && hit.country) next.country = hit.country
-                                if (!d.latitude && hit.latitude) next.latitude = String(hit.latitude)
-                                if (!d.longitude && hit.longitude) next.longitude = String(hit.longitude)
-                                return next
-                              })
-                            })
-                            .catch(function () { /* silent */ })
+                        onChange={function (v) { setDraft(function (d) { return { ...d, city: v } }) }}
+                        onSuggestionSelect={function (s) {
+                          setDraft(function (d) {
+                            var next: any = { ...d, city: s.city || s.label }
+                            if (!d.state_province && s.state) next.state_province = s.state
+                            if (!d.country && s.country) next.country = s.country
+                            if (!d.latitude && s.latitude != null) next.latitude = String(s.latitude)
+                            if (!d.longitude && s.longitude != null) next.longitude = String(s.longitude)
+                            return next
+                          })
                         }}
                         placeholder="e.g. Phoenix"
                         className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"

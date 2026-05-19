@@ -215,13 +215,25 @@ export default function Layout({ children }: LayoutProps) {
                     </div>
                   </>
                 ) : (
-                  <Link
-                    href="/login"
-                    className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-white bg-white/10 border border-white/15 hover:bg-primary-600 hover:border-primary-500 transition-all"
-                  >
-                    <LogIn className="w-4 h-4" />
-                    Sign in
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href="/login"
+                      className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-gray-300 hover:text-white"
+                    >
+                      <LogIn className="w-3.5 h-3.5" />
+                      Sign in
+                    </Link>
+                    {/* Panel-feedback (May 2026): top-nav Sign up CTA
+                        beside Sign in. Visible across all browse
+                        surfaces so users can convert whenever they're
+                        ready, not just from the homepage. */}
+                    <Link
+                      href="/start"
+                      className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-semibold text-white bg-purple-600 hover:bg-purple-500 transition-colors"
+                    >
+                      Sign up
+                    </Link>
+                  </div>
                 )
               )}
             </div>

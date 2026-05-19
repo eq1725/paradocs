@@ -127,6 +127,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: 'Could not finalize video' })
   }
 
+  // Panel-feedback (May 2026): kick off transcription immediately
+  // instead of waiting up to 5 minutes for the next cron tick.
+  // Fire-and-forget: we don't await, don't block the response.
+  // The cron still runs as a backup retry mechanism in case this
+  // immediate kick fails or the lambda warm-up is slow.
+  if (nextStatus === 'transcribing' && process.env.CRON_SECRET) {
+    try {
+      var proto = (req.headers['x-forwarded-proto'] as string) || 'https'
+      var host = (req.headers['x-forwarded-host'] as string) || req.headers.host
+      if (host) {
+        var transcribeUrl = proto + '://' + host + '/api/cron/transcribe-videos'
+        // Don't await — fire and forget. The cron is idempotent and
+        // looks for rows in 'transcribing' status; if our row is the
+        // only one, it'll process just that. If multiple are queued,
+        // it processes up to MAX_PER_RUN of them.
+        fetch(transcribeUrl, {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + process.env.CRON_SECRET },
+        }).catch(function (e: any) {
+          console.warn('[video/finalize] immediate transcribe kick failed (cron backup will retry):', e?.message)
+        })
+      }
+    } catch (e: any) {
+      console.warn('[video/finalize] could not schedule immediate transcribe:', e?.message)
+    }
+  }
+
   return res.status(200).json({
     ok: true,
     report_id: reportId,
