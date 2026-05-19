@@ -307,7 +307,6 @@ export default function Layout({ children }: LayoutProps) {
           </div>
           <div className="mt-8 pt-8 border-t border-white/5 text-center text-sm text-gray-500">
             <p>{'\u00A9'} {new Date().getFullYear()} <span className="font-brand text-white tracking-tight">Paradocs<span style={{color:'#9000F0'}}>.</span></span> All rights reserved.</p>
-            <p className="mt-2 text-xs text-gray-600">As an Amazon Associate, Paradocs earns from qualifying purchases.</p>
           </div>
         </div>
       </footer>

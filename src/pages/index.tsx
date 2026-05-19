@@ -115,7 +115,9 @@ var HERO_VARIANTS: Record<string, { headline: string; subheadline: string }> = {
   },
   E: {
     headline: 'Something Strange Is Happening \u2014 And We\u2019re Documenting It',
-    subheadline: 'Millions of paranormal reports. AI-powered analysis. Research tools for everyone from casual browsers to professional investigators.',
+    // Panel-feedback (May 2026 \u2014 2nd round): trimmed the unverifiable
+    // "millions" claim for pre-launch honesty. Specific, concrete.
+    subheadline: 'A growing archive of first-person paranormal reports, AI-powered pattern analysis, and tools for casual browsers and serious investigators alike.',
   },
 }
 
@@ -280,9 +282,15 @@ export default function Home() {
               </div>
             </form>
 
-            {/* Trust line */}
-            <p className="mt-6 text-base font-medium tracking-wide text-gray-400">
-              <span className="text-primary-400">Millions</span> of real experiences across <span className="text-primary-400">4,792</span> phenomena types
+            {/* Trust line — Panel-feedback (May 2026 — 2nd round):
+                "Millions" was an unverifiable overclaim for pre-launch.
+                Replaced with a more honest, specific framing that's
+                still compelling. We can dial this up post-launch as
+                real numbers grow. */}
+            <p className="mt-6 text-sm sm:text-base font-medium tracking-wide text-gray-400">
+              First-person reports across <span className="text-primary-400">UFOs</span>,{' '}
+              <span className="text-primary-400">hauntings</span>,{' '}
+              <span className="text-primary-400">cryptids</span>, NDEs, and dozens more.
             </p>
 
             {/* Panel-feedback (May 2026): hero now carries a primary
@@ -316,6 +324,13 @@ export default function Home() {
       {/* === SECTION 2: Quick Nav Strip === */}
       <QuickNavStrip />
 
+      {/* Panel-feedback (May 2026 — 2nd round): HowItWorks moved up
+          from below the showcases. New visitors need to understand
+          what Paradocs IS before scrolling through feature surfaces;
+          the prior order showed value-prop sections to people who
+          hadn't been told what the product was yet. */}
+      <HowItWorks />
+
       {/* === SECTION 3: AI Pattern Insight === */}
       <AIInsight />
 
@@ -348,10 +363,7 @@ export default function Home() {
         trackAs="homepage_inline_cta_after_lab"
       />
 
-      {/* === SECTION 7: How It Works + FAQ === */}
-      <HowItWorks />
-
-      {/* === SECTION 8: Data Proof + CTA === */}
+      {/* === SECTION 7: Data Proof + CTA === */}
       <DataProofCTA />
 
       {/* Panel-feedback (May 2026): closing big CTA. Users who've

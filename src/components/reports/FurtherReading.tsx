@@ -127,9 +127,11 @@ export default function FurtherReading({ reportId, className }: FurtherReadingPr
         })}
       </div>
 
-      {/* Affiliate disclosure — always visible, tasteful */}
+      {/* Editorial note — book recommendations are editorially selected
+          from source material cited in the report. No affiliate links
+          pre-launch (May 2026); disclosure removed accordingly. */}
       <p className="mt-4 pt-3 border-t border-white/[0.05] text-[10px] text-gray-600 leading-relaxed">
-        As an Amazon Associate, Paradocs earns from qualifying purchases. Book recommendations are editorially selected based on source material cited in this report.
+        Book recommendations are editorially selected based on source material cited in this report.
       </p>
     </div>
   )

@@ -248,6 +248,16 @@ export default function VideoReviewPage() {
       setError('Please pick at least a year for when this happened.')
       return
     }
+    // Panel-feedback (May 2026): partial month/year (e.g. "2024-" or
+    // "-03") is allowed as form state to preserve the user's pick
+    // across taps, but we reject incomplete values at publish.
+    if (form.event_date_precision === 'month') {
+      var mParts = form.event_date.split('-')
+      if (!mParts[0] || !mParts[1]) {
+        setError('Please pick both a month and a year.')
+        return
+      }
+    }
 
     setPublishing(true)
     var sessionResult = await supabase.auth.getSession()
@@ -400,12 +410,13 @@ export default function VideoReviewPage() {
 
           {video && (
             <div className="mx-auto mb-6" style={{ maxWidth: '420px' }}>
-              <div className="rounded-2xl overflow-hidden bg-black border border-gray-800 aspect-[9/16] max-h-[70vh] w-full">
+              <div className="rounded-2xl overflow-hidden bg-black border border-gray-800 aspect-[9/16] max-h-[70vh] w-full relative">
                 <video
                   src={video.playback_url}
                   controls
                   playsInline
                   preload="metadata"
+                  poster={video.playback_url + '#t=0.1'}
                   className="w-full h-full object-contain bg-black"
                 />
               </div>
@@ -512,16 +523,27 @@ export default function VideoReviewPage() {
                   value={form.city}
                   onChange={function (v) { markTouched('city'); setForm(function (f) { return { ...f, city: v } }) }}
                   onSuggestionSelect={function (s: GeocodeSuggestion) {
-                    // Atomically populate the related fields the user
-                    // hasn't already touched.
+                    // Panel-feedback (May 2026 — 2nd round): explicit
+                    // suggestion tap is the strongest possible opt-in.
+                    // Force-fill all structured fields, even if iOS
+                    // AutoFill quietly touched them earlier. Mark them
+                    // touched after the fact so subsequent suggestions
+                    // don't unconditionally overwrite.
                     setForm(function (f) {
-                      var next: any = { ...f, city: s.city || s.label }
-                      if (!userTouchedRef.current.has('state_province') && s.state) next.state_province = s.state
-                      if (!userTouchedRef.current.has('country') && s.country) next.country = s.country
-                      if (!userTouchedRef.current.has('latitude') && s.latitude != null) next.latitude = String(s.latitude)
-                      if (!userTouchedRef.current.has('longitude') && s.longitude != null) next.longitude = String(s.longitude)
-                      return next
+                      return {
+                        ...f,
+                        city: s.city || s.label,
+                        state_province: s.state || f.state_province,
+                        country: s.country || f.country,
+                        latitude: s.latitude != null ? String(s.latitude) : f.latitude,
+                        longitude: s.longitude != null ? String(s.longitude) : f.longitude,
+                      }
                     })
+                    userTouchedRef.current.add('city')
+                    if (s.state) userTouchedRef.current.add('state_province')
+                    if (s.country) userTouchedRef.current.add('country')
+                    if (s.latitude != null) userTouchedRef.current.add('latitude')
+                    if (s.longitude != null) userTouchedRef.current.add('longitude')
                   }}
                   placeholder="City"
                 />
@@ -531,10 +553,14 @@ export default function VideoReviewPage() {
                   onChange={function (v) { markTouched('state_province'); setForm(function (f) { return { ...f, state_province: v } }) }}
                   onSuggestionSelect={function (s: GeocodeSuggestion) {
                     setForm(function (f) {
-                      var next: any = { ...f, state_province: s.state || s.label }
-                      if (!userTouchedRef.current.has('country') && s.country) next.country = s.country
-                      return next
+                      return {
+                        ...f,
+                        state_province: s.state || s.label,
+                        country: s.country || f.country,
+                      }
                     })
+                    userTouchedRef.current.add('state_province')
+                    if (s.country) userTouchedRef.current.add('country')
                   }}
                   placeholder="State / Province"
                 />
@@ -596,15 +622,20 @@ export default function VideoReviewPage() {
                 />
               )}
               {form.event_date_precision === 'month' && (() => {
-                // Panel-feedback (May 2026): iOS Safari's native
-                // <input type="month"> picker shows future years in
-                // the scroll wheel even when max= is set. Custom
-                // year + month dropdowns we fully control.
+                // Panel-feedback (May 2026 — 2nd round):
+                //   - iOS native <input type="month"> ignores max= for
+                //     its scroll wheel; replaced with two custom selects.
+                //   - We store partial state in form.event_date so picking
+                //     month-first or year-first doesn't erase the pick.
+                //     Format: "YYYY-MM" with empty parts allowed.
+                //   - Use setForm callback (fresh state) instead of a
+                //     render-time closure so the second pick sees the
+                //     first pick's value.
                 var parts = (form.event_date || '').split('-')
                 var selYear = parts[0] || ''
                 var selMonth = parts[1] || ''
                 var thisYear = currentYear()
-                var thisMonth = new Date().getMonth() + 1 // 1-12
+                var thisMonth = new Date().getMonth() + 1
                 var years: number[] = []
                 for (var y = thisYear; y >= 1900; y--) years.push(y)
                 var months = [
@@ -613,47 +644,59 @@ export default function VideoReviewPage() {
                   { v: '07', l: 'July' }, { v: '08', l: 'August' }, { v: '09', l: 'September' },
                   { v: '10', l: 'October' }, { v: '11', l: 'November' }, { v: '12', l: 'December' },
                 ]
-                function compose(yv: string, mv: string): string {
-                  if (!yv || !mv) return ''
-                  return yv + '-' + mv
-                }
+                var monthLabel = selMonth ? (months.find(function (m) { return m.v === selMonth }) || { l: '' }).l : ''
+                var fullySelected = !!(selYear && selMonth)
                 return (
-                  <div className="grid grid-cols-2 gap-2">
-                    <select
-                      value={selMonth}
-                      onChange={function (e) {
-                        markTouched('event_date')
-                        setForm(function (f) { return { ...f, event_date: compose(selYear, e.target.value) } })
-                      }}
-                      className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500"
-                    >
-                      <option value="">Month</option>
-                      {months.map(function (m) {
-                        // Hide future months when current year is selected.
-                        if (selYear && parseInt(selYear, 10) === thisYear && parseInt(m.v, 10) > thisMonth) return null
-                        return <option key={m.v} value={m.v}>{m.l}</option>
-                      })}
-                    </select>
-                    <select
-                      value={selYear}
-                      onChange={function (e) {
-                        markTouched('event_date')
-                        // If the previously-selected month is now in the
-                        // future relative to the new year, clear it.
-                        var ny = e.target.value
-                        var nm = selMonth
-                        if (ny && parseInt(ny, 10) === thisYear && nm && parseInt(nm, 10) > thisMonth) {
-                          nm = ''
-                        }
-                        setForm(function (f) { return { ...f, event_date: compose(ny, nm) } })
-                      }}
-                      className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500"
-                    >
-                      <option value="">Year</option>
-                      {years.map(function (y) {
-                        return <option key={y} value={String(y)}>{y}</option>
-                      })}
-                    </select>
+                  <div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <select
+                        value={selMonth}
+                        onChange={function (e) {
+                          markTouched('event_date')
+                          var newMonth = e.target.value
+                          setForm(function (f) {
+                            var cParts = (f.event_date || '').split('-')
+                            var cYear = cParts[0] || ''
+                            return { ...f, event_date: cYear + '-' + newMonth }
+                          })
+                        }}
+                        className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500"
+                      >
+                        <option value="">Month</option>
+                        {months.map(function (m) {
+                          if (selYear && parseInt(selYear, 10) === thisYear && parseInt(m.v, 10) > thisMonth) return null
+                          return <option key={m.v} value={m.v}>{m.l}</option>
+                        })}
+                      </select>
+                      <select
+                        value={selYear}
+                        onChange={function (e) {
+                          markTouched('event_date')
+                          var newYear = e.target.value
+                          setForm(function (f) {
+                            var cParts = (f.event_date || '').split('-')
+                            var cMonth = cParts[1] || ''
+                            // If the previously-picked month is now in the
+                            // future relative to the new year, clear it.
+                            if (newYear && parseInt(newYear, 10) === thisYear && cMonth && parseInt(cMonth, 10) > thisMonth) {
+                              cMonth = ''
+                            }
+                            return { ...f, event_date: newYear + '-' + cMonth }
+                          })
+                        }}
+                        className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500"
+                      >
+                        <option value="">Year</option>
+                        {years.map(function (y) {
+                          return <option key={y} value={String(y)}>{y}</option>
+                        })}
+                      </select>
+                    </div>
+                    <p className={'mt-2 text-[11px] ' + (fullySelected ? 'text-purple-200/80' : 'text-gray-500')}>
+                      {fullySelected
+                        ? 'Selected: ' + monthLabel + ' ' + selYear
+                        : 'Pick both month and year.'}
+                    </p>
                   </div>
                 )
               })()}

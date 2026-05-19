@@ -154,7 +154,15 @@ export default function VideoCapture(props: VideoCaptureProps) {
   var timerRef = useRef<number | null>(null)
   var nativeInputRef = useRef<HTMLInputElement | null>(null)
 
-  var [useNative, setUseNative] = useState<boolean>(false)
+  // Panel-feedback (May 2026 — 2nd round): compute initial useNative
+  // synchronously in the useState initializer so iPhones don't see a
+  // flash of MediaRecorder UI before the effect fires. Also stores the
+  // OS detection result so a manual "Use system camera" fallback can
+  // force the native path even if UA detection is fooled.
+  var [useNative, setUseNative] = useState<boolean>(function () {
+    if (typeof navigator === 'undefined') return false
+    return isIosDevice()
+  })
   var [phase, setPhase] = useState<Phase>('idle')
   var [error, setError] = useState<string | null>(null)
   var [recordedSec, setRecordedSec] = useState(0)
@@ -163,10 +171,6 @@ export default function VideoCapture(props: VideoCaptureProps) {
   var [previewUrl, setPreviewUrl] = useState<string>('')
   var [posterUrl, setPosterUrl] = useState<string>('')
   var [uploadProgress, setUploadProgress] = useState<number>(0)
-
-  useEffect(function () {
-    setUseNative(isIosDevice())
-  }, [])
 
   useEffect(function () {
     return function () {
@@ -457,15 +461,33 @@ export default function VideoCapture(props: VideoCaptureProps) {
           />
         )}
         {phase === 'review' && previewUrl && (
-          <video
-            ref={previewVideoRef}
-            className="w-full h-full object-contain"
-            src={previewUrl}
-            poster={posterUrl || undefined}
-            preload="metadata"
-            controls
-            playsInline
-          />
+          // Panel-feedback (May 2026 — 2nd round): iOS Safari can be
+          // flaky about rendering <video poster=""> before the user
+          // hits play. Layer a CSS background-image with the same
+          // poster data URL behind the video. The video itself uses
+          // object-contain so the background fills any letterbox
+          // bars. Once the user starts playback, the video's own
+          // frames cover the background. Belt-and-suspenders.
+          <div
+            className="relative w-full h-full"
+            style={posterUrl ? {
+              backgroundImage: 'url(' + posterUrl + ')',
+              backgroundSize: 'contain',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+              backgroundColor: '#000',
+            } : { backgroundColor: '#000' }}
+          >
+            <video
+              ref={previewVideoRef}
+              className="w-full h-full object-contain"
+              src={previewUrl}
+              poster={posterUrl || undefined}
+              preload="metadata"
+              controls
+              playsInline
+            />
+          </div>
         )}
         {phase === 'recording' && (
           <div className="absolute top-3 left-3 flex items-center gap-2 px-2 py-1 rounded-full bg-red-600/90 text-white text-xs font-semibold">
@@ -491,6 +513,16 @@ export default function VideoCapture(props: VideoCaptureProps) {
             >
               <Video className="w-4 h-4" />
               Start recording
+            </button>
+            {/* Panel-feedback (May 2026 — 2nd round): manual fallback
+                so iOS users whose UA detection somehow fails can still
+                force the native path. Cheap belt-and-suspenders. */}
+            <button
+              type="button"
+              onClick={function () { setUseNative(true) }}
+              className="block mx-auto text-xs text-gray-400 hover:text-gray-200 underline underline-offset-2"
+            >
+              On a phone? Use system camera instead
             </button>
             {props.onCancel && (
               <button

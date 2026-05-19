@@ -1889,13 +1889,19 @@ export default function StartPage() {
                         value={draft.city}
                         onChange={function (v) { setDraft(function (d) { return { ...d, city: v } }) }}
                         onSuggestionSelect={function (s) {
+                          // Panel-feedback (May 2026 — 2nd round): force-
+                          // fill structured fields even if user already
+                          // typed in them. Explicit suggestion tap is
+                          // the strongest possible opt-in.
                           setDraft(function (d) {
-                            var next: any = { ...d, city: s.city || s.label }
-                            if (!d.state_province && s.state) next.state_province = s.state
-                            if (!d.country && s.country) next.country = s.country
-                            if (!d.latitude && s.latitude != null) next.latitude = String(s.latitude)
-                            if (!d.longitude && s.longitude != null) next.longitude = String(s.longitude)
-                            return next
+                            return {
+                              ...d,
+                              city: s.city || s.label,
+                              state_province: s.state || d.state_province,
+                              country: s.country || d.country,
+                              latitude: s.latitude != null ? String(s.latitude) : d.latitude,
+                              longitude: s.longitude != null ? String(s.longitude) : d.longitude,
+                            }
                           })
                         }}
                         placeholder="e.g. Phoenix"
