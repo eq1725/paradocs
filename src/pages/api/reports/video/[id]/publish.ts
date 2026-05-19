@@ -137,6 +137,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Please pick at least a year for when this happened.' })
   }
 
+  // Panel-feedback (May 2026): reject future event dates.
+  var nowYear = new Date().getFullYear()
+  var precisionMode = p.event_date_precision || 'exact'
+  if (precisionMode === 'exact') {
+    var todayStr = new Date().toISOString().split('T')[0]
+    if (p.event_date > todayStr) {
+      return res.status(400).json({ error: 'Event date cannot be in the future.' })
+    }
+  } else {
+    var yearMatch = (p.event_date || '').toString().match(/(\d{4})/)
+    if (yearMatch) {
+      var year = parseInt(yearMatch[1], 10)
+      if (year > nowYear) {
+        return res.status(400).json({ error: 'Event year cannot be in the future.' })
+      }
+    }
+  }
+
   // Derive location_precision if not supplied.
   var derivedPrecision: 'exact' | 'city' | 'region' | 'country' = 'exact'
   if (p.latitude && p.longitude) derivedPrecision = 'exact'

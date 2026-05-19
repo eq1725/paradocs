@@ -268,6 +268,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 
+  // Panel-feedback (May 2026): reject future dates. The UI caps the
+  // picker but free-text year / decade modes can still slip through,
+  // and a malicious client can post anything. Cap at today.
+  var futureDateRejected = (function () {
+    var nowYear = new Date().getFullYear()
+    if (insert.event_date && typeof insert.event_date === 'string') {
+      // event_date is YYYY-MM-DD; compare lexicographically.
+      var todayStr = new Date().toISOString().split('T')[0]
+      if (insert.event_date > todayStr) return true
+    }
+    if (insert.event_date_raw && typeof insert.event_date_raw === 'string') {
+      // Match a 4-digit year anywhere in the raw string and reject if > current year.
+      var yearMatch = insert.event_date_raw.match(/(\d{4})/)
+      if (yearMatch) {
+        var year = parseInt(yearMatch[1], 10)
+        if (year > nowYear) return true
+      }
+    }
+    return false
+  })()
+  if (futureDateRejected) {
+    return res.status(400).json({
+      ok: false,
+      error: 'Event date cannot be in the future.',
+      reason: 'future_event_date',
+    })
+  }
+
   // Panel-feedback (May 2026): same for location — at minimum a
   // country chip. Without any location at all the report page map
   // can't render and the Today feed can't pin the report.

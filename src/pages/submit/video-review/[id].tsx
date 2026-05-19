@@ -19,12 +19,13 @@
  * SWC: var + function() form.
  */
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { ArrowLeft, Loader2, AlertCircle, CheckCircle2, MapPin, Calendar, Globe } from 'lucide-react'
+import { ArrowLeft, Loader2, AlertCircle, CheckCircle2, MapPin, Calendar, Globe, Tag } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { CATEGORY_CONFIG } from '@/lib/constants'
 
 interface VideoData {
   id: string
@@ -78,6 +79,24 @@ interface FormState {
 
 var POLL_INTERVAL_MS = 4000
 
+// Panel-feedback (May 2026): cap event dates at today. The browser
+// will refuse picks beyond `max=`; we still validate server-side as
+// belt-and-suspenders for free-text year/decade modes.
+function todayIso(): string {
+  var d = new Date()
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+}
+function todayMonthIso(): string {
+  var d = new Date()
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+}
+function currentYear(): number {
+  return new Date().getFullYear()
+}
+function currentDecade(): number {
+  return Math.floor(new Date().getFullYear() / 10) * 10
+}
+
 export default function VideoReviewPage() {
   var router = useRouter()
   var reportId = (router.query.id as string) || ''
@@ -89,10 +108,28 @@ export default function VideoReviewPage() {
   var [publishing, setPublishing] = useState(false)
   var [published, setPublished] = useState<{ needs_admin_review: boolean; report_id: string } | null>(null)
 
+  // Panel-feedback (May 2026): track which fields the user has
+  // explicitly typed/changed vs which were auto-prefilled from the
+  // Haiku extraction. When the transcript arrives via polling, we
+  // overwrite only the fields the user hasn't touched.
+  var userTouchedRef = useRef<Set<keyof FormState>>(new Set())
+  // Toast banner for "Suggestions added" notification.
+  var [showSuggestionsToast, setShowSuggestionsToast] = useState(false)
+
+  // Wrapper that marks a field as user-touched as soon as they edit it.
+  function markTouched(field: keyof FormState) {
+    userTouchedRef.current.add(field)
+  }
+
   var [form, setForm] = useState<FormState>({
     title: '',
     description: '',
-    category: 'combination',
+    // Panel-feedback (May 2026): video reports must pick a real
+    // category rather than silently defaulting to 'combination'. The
+    // initial value is empty; the picker UI auto-selects the first
+    // Haiku category_hint when transcription lands, otherwise the
+    // user must explicitly choose before Publish enables.
+    category: '',
     city: '',
     state_province: '',
     country: '',
@@ -120,17 +157,22 @@ export default function VideoReviewPage() {
       if (!resp.ok || !data.ok) {
         throw new Error(data.error || 'Could not load video')
       }
+      var previouslyTranscribing = video && video.status === 'transcribing'
+      var nowReadyForReview = data.video?.status === 'ready_for_review'
       setVideo(data.video)
       setReport(data.report)
-      // Prefill form on first load only — once the user has started
-      // editing, we don't want a re-poll to wipe their progress.
+      // Panel-feedback (May 2026): merge prefill across polls.
+      // Only update fields the user hasn't explicitly touched.
+      // This way the first load gets a clean slate, and later
+      // transcript-arrival (status: transcribing → ready_for_review)
+      // fills in Haiku suggestions without clobbering user edits.
       setForm(function (current) {
-        if (current.description) return current // already touched
-        var em = data.video?.extracted_meta || {}
-        return {
+        var em = (data.video && data.video.extracted_meta) || {}
+        var touched = userTouchedRef.current
+        var defaults: FormState = {
           title: data.report?.title || em.proposed_title || '',
           description: data.report?.description || em.proposed_description || data.video?.transcript || '',
-          category: data.report?.category || (em.category_hints && em.category_hints[0]) || 'combination',
+          category: data.report?.category || (em.category_hints && em.category_hints[0]) || '',
           city: data.report?.city || '',
           state_province: data.report?.state_province || '',
           country: data.report?.country || '',
@@ -141,7 +183,28 @@ export default function VideoReviewPage() {
           visibility: (data.report?.visibility as any) || 'public',
           share_anonymously: false,
         }
+        return {
+          title: touched.has('title') ? current.title : defaults.title,
+          description: touched.has('description') ? current.description : defaults.description,
+          category: touched.has('category') ? current.category : defaults.category,
+          city: touched.has('city') ? current.city : defaults.city,
+          state_province: touched.has('state_province') ? current.state_province : defaults.state_province,
+          country: touched.has('country') ? current.country : defaults.country,
+          latitude: touched.has('latitude') ? current.latitude : defaults.latitude,
+          longitude: touched.has('longitude') ? current.longitude : defaults.longitude,
+          event_date: touched.has('event_date') ? current.event_date : defaults.event_date,
+          event_date_precision: touched.has('event_date_precision') ? current.event_date_precision : defaults.event_date_precision,
+          visibility: touched.has('visibility') ? current.visibility : defaults.visibility,
+          share_anonymously: touched.has('share_anonymously') ? current.share_anonymously : defaults.share_anonymously,
+        }
       })
+      // If we just transitioned from transcribing → ready_for_review,
+      // flash a "Suggestions added" toast so the user notices the
+      // form was prefilled.
+      if (previouslyTranscribing && nowReadyForReview) {
+        setShowSuggestionsToast(true)
+        window.setTimeout(function () { setShowSuggestionsToast(false) }, 4000)
+      }
     } catch (e: any) {
       setError(e?.message || 'Could not load video')
     } finally {
@@ -169,6 +232,10 @@ export default function VideoReviewPage() {
     // Client-side validation matches the server-side checks.
     if (form.description.trim().length < 30) {
       setError('Description must be at least 30 characters.')
+      return
+    }
+    if (!form.category) {
+      setError('Please pick a category that best fits your experience.')
       return
     }
     var hasLocation = !!(form.latitude && form.longitude) || !!form.city || !!form.state_province || !!form.country
@@ -314,6 +381,22 @@ export default function VideoReviewPage() {
             </div>
           )}
 
+          {/* Panel-feedback (May 2026): one-shot toast when the
+              transcript arrives and we prefill the form. Auto-hides
+              after ~4s; if the user already touched a field, that
+              field stays as the user typed it. */}
+          {showSuggestionsToast && (
+            <div className="rounded-lg border border-emerald-900/40 bg-emerald-950/30 p-3 mb-6 flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-300 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-emerald-200">Suggestions added.</p>
+                <p className="text-xs text-emerald-200/80 mt-0.5">
+                  We filled in a title and description from your video&rsquo;s transcript. Tweak whatever you like before publishing.
+                </p>
+              </div>
+            </div>
+          )}
+
           {video && (
             <div className="rounded-2xl overflow-hidden bg-black border border-gray-800 mb-6 aspect-[9/16] max-h-[60vh] w-full mx-auto" style={{ maxWidth: '380px' }}>
               <video
@@ -335,7 +418,7 @@ export default function VideoReviewPage() {
                 id="vr-title"
                 type="text"
                 value={form.title}
-                onChange={function (e) { setForm(function (f) { return { ...f, title: e.target.value } }) }}
+                onChange={function (e) { markTouched('title'); setForm(function (f) { return { ...f, title: e.target.value } }) }}
                 placeholder="A short headline for your experience"
                 maxLength={140}
                 className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500"
@@ -350,7 +433,7 @@ export default function VideoReviewPage() {
               <textarea
                 id="vr-desc"
                 value={form.description}
-                onChange={function (e) { setForm(function (f) { return { ...f, description: e.target.value } }) }}
+                onChange={function (e) { markTouched('description'); setForm(function (f) { return { ...f, description: e.target.value } }) }}
                 rows={6}
                 maxLength={4000}
                 placeholder={video && video.transcript ? video.transcript : 'Tell us about what happened. We\'ll use this as the report body.'}
@@ -361,6 +444,43 @@ export default function VideoReviewPage() {
                   We auto-transcribed your video — feel free to keep it as-is or refine it.
                 </p>
               )}
+            </div>
+
+            {/* Category — Panel-feedback (May 2026): required for
+                video reports. Prefer Haiku-suggested hint if present.
+                Hide the editorial-only categories. */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5 flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-gray-400" />
+                What kind of experience was this?
+              </label>
+              <p className="text-xs text-gray-500 mb-2 leading-relaxed">
+                {video && video.extracted_meta && (video.extracted_meta.category_hints || []).length > 0
+                  ? 'We suggested a starting category from your transcript — change it if it\'s off.'
+                  : 'Pick the closest category. You can always edit it later.'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(CATEGORY_CONFIG) as Array<keyof typeof CATEGORY_CONFIG>).map(function (key) {
+                  var conf = (CATEGORY_CONFIG as any)[key]
+                  var active = form.category === key
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={function () { markTouched('category'); setForm(function (f) { return { ...f, category: key } }) }}
+                      className={
+                        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ' +
+                        (active
+                          ? 'bg-purple-600/30 text-purple-100 border-purple-500/40'
+                          : 'bg-gray-900/60 text-gray-400 border-gray-800 hover:text-gray-200')
+                      }
+                    >
+                      <span>{conf.icon}</span>
+                      <span>{conf.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             {/* Location */}
@@ -376,14 +496,38 @@ export default function VideoReviewPage() {
                 <input
                   type="text"
                   value={form.city}
-                  onChange={function (e) { setForm(function (f) { return { ...f, city: e.target.value } }) }}
+                  onChange={function (e) { markTouched('city'); setForm(function (f) { return { ...f, city: e.target.value } }) }}
+                  onBlur={function () {
+                    // Panel-feedback (May 2026): geocode the city to
+                    // auto-populate state + country if those haven't
+                    // been touched. Defensive: silently skip when
+                    // city is empty or untouched fields already have
+                    // values.
+                    var q = (form.city || '').trim()
+                    if (!q || q.length < 2) return
+                    fetch('/api/geocode/forward?q=' + encodeURIComponent(q))
+                      .then(function (r) { return r.ok ? r.json() : null })
+                      .then(function (data: any) {
+                        if (!data || !data.hit) return
+                        var hit = data.hit
+                        setForm(function (f) {
+                          var next: any = { ...f }
+                          if (!userTouchedRef.current.has('state_province') && hit.state) next.state_province = hit.state
+                          if (!userTouchedRef.current.has('country') && hit.country) next.country = hit.country
+                          if (!userTouchedRef.current.has('latitude') && hit.latitude) next.latitude = String(hit.latitude)
+                          if (!userTouchedRef.current.has('longitude') && hit.longitude) next.longitude = String(hit.longitude)
+                          return next
+                        })
+                      })
+                      .catch(function () { /* silent */ })
+                  }}
                   placeholder="City"
                   className="bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500"
                 />
                 <input
                   type="text"
                   value={form.state_province}
-                  onChange={function (e) { setForm(function (f) { return { ...f, state_province: e.target.value } }) }}
+                  onChange={function (e) { markTouched('state_province'); setForm(function (f) { return { ...f, state_province: e.target.value } }) }}
                   placeholder="State / Province"
                   className="bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500"
                 />
@@ -391,7 +535,7 @@ export default function VideoReviewPage() {
               <input
                 type="text"
                 value={form.country}
-                onChange={function (e) { setForm(function (f) { return { ...f, country: e.target.value } }) }}
+                onChange={function (e) { markTouched('country'); setForm(function (f) { return { ...f, country: e.target.value } }) }}
                 placeholder="Country"
                 className="mt-2 w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500"
               />
@@ -418,7 +562,7 @@ export default function VideoReviewPage() {
                     <button
                       key={o.v}
                       type="button"
-                      onClick={function () { setForm(function (f) { return { ...f, event_date_precision: o.v, event_date: '' } }) }}
+                      onClick={function () { markTouched('event_date_precision'); markTouched('event_date'); setForm(function (f) { return { ...f, event_date_precision: o.v, event_date: '' } }) }}
                       className={
                         'px-3 py-1.5 rounded-full text-xs font-medium transition-colors ' +
                         (active
@@ -435,7 +579,8 @@ export default function VideoReviewPage() {
                 <input
                   type="date"
                   value={form.event_date}
-                  onChange={function (e) { setForm(function (f) { return { ...f, event_date: e.target.value } }) }}
+                  max={todayIso()}
+                  onChange={function (e) { markTouched('event_date'); setForm(function (f) { return { ...f, event_date: e.target.value } }) }}
                   className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500"
                 />
               )}
@@ -443,16 +588,29 @@ export default function VideoReviewPage() {
                 <input
                   type="month"
                   value={form.event_date}
-                  onChange={function (e) { setForm(function (f) { return { ...f, event_date: e.target.value } }) }}
+                  max={todayMonthIso()}
+                  onChange={function (e) { markTouched('event_date'); setForm(function (f) { return { ...f, event_date: e.target.value } }) }}
                   className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500"
                 />
               )}
-              {(form.event_date_precision === 'year' || form.event_date_precision === 'decade') && (
+              {form.event_date_precision === 'year' && (
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1900}
+                  max={currentYear()}
+                  value={form.event_date}
+                  onChange={function (e) { markTouched('event_date'); setForm(function (f) { return { ...f, event_date: e.target.value } }) }}
+                  placeholder={'e.g. 2018'}
+                  className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500"
+                />
+              )}
+              {form.event_date_precision === 'decade' && (
                 <input
                   type="text"
                   value={form.event_date}
-                  onChange={function (e) { setForm(function (f) { return { ...f, event_date: e.target.value } }) }}
-                  placeholder={form.event_date_precision === 'year' ? 'e.g. 2018' : 'e.g. 1990s'}
+                  onChange={function (e) { markTouched('event_date'); setForm(function (f) { return { ...f, event_date: e.target.value } }) }}
+                  placeholder={'e.g. 1990s (must be ' + currentDecade() + 's or earlier)'}
                   className="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500"
                 />
               )}
@@ -475,7 +633,7 @@ export default function VideoReviewPage() {
                     <button
                       key={o.v}
                       type="button"
-                      onClick={function () { setForm(function (f) { return { ...f, visibility: o.v } }) }}
+                      onClick={function () { markTouched('visibility'); setForm(function (f) { return { ...f, visibility: o.v } }) }}
                       className={
                         'px-3 py-2 rounded-lg text-xs font-medium transition-colors ' +
                         (active
@@ -492,7 +650,7 @@ export default function VideoReviewPage() {
                 <input
                   type="checkbox"
                   checked={form.share_anonymously}
-                  onChange={function (e) { setForm(function (f) { return { ...f, share_anonymously: e.target.checked } }) }}
+                  onChange={function (e) { markTouched('share_anonymously'); setForm(function (f) { return { ...f, share_anonymously: e.target.checked } }) }}
                   className="w-4 h-4 accent-purple-500"
                 />
                 <span className="text-gray-300">Share anonymously</span>
@@ -506,13 +664,22 @@ export default function VideoReviewPage() {
               </div>
             )}
 
+            {/* Panel-feedback (May 2026): block Publish while the
+                transcript is still being generated. Otherwise the
+                user publishes with no auto-suggestions, defeating
+                the whole point of the wait. */}
             <button
               type="submit"
-              disabled={publishing}
+              disabled={publishing || (video !== null && video.status === 'transcribing')}
               className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors disabled:opacity-50"
             >
-              {publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {publishing ? 'Publishing…' : 'Publish video'}
+              {publishing && <Loader2 className="w-4 h-4 animate-spin" />}
+              {video !== null && video.status === 'transcribing' && !publishing && <Loader2 className="w-4 h-4 animate-spin" />}
+              {publishing
+                ? 'Publishing…'
+                : (video !== null && video.status === 'transcribing'
+                    ? 'Waiting for transcript…'
+                    : 'Publish video')}
             </button>
             <p className="text-[11px] text-gray-500 text-center px-4 leading-relaxed">
               By publishing, you confirm this is your video and you have rights to anyone shown in it.

@@ -1363,6 +1363,29 @@ export default function StartPage() {
                 </div>
               )}
 
+              {/* Panel-feedback (May 2026 — 2nd revision): visible
+                  Type/Record segmented control at the top of the
+                  experience step. Most mobile users prefer to
+                  share on camera; burying the option as a small text
+                  link hides the most-wanted path. */}
+              <div className="flex w-full p-1 bg-gray-900/60 border border-gray-800 rounded-full">
+                <button
+                  type="button"
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold bg-purple-600 text-white"
+                  aria-pressed="true"
+                >
+                  <FileText className="w-4 h-4" />
+                  Type your story
+                </button>
+                <Link
+                  href="/submit/video"
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium text-gray-300 hover:text-white"
+                >
+                  <Camera className="w-4 h-4" />
+                  Record on camera
+                </Link>
+              </div>
+
               {/* Textarea — body of the report. Panel-feedback (May
                   2026): renamed label to "What happened?" because the
                   field maps to reports.description, which surfaces on
@@ -1406,17 +1429,6 @@ export default function StartPage() {
                   }</span>
                   <span className="text-gray-500">{draft.description.length} / 2000</span>
                 </div>
-                {/* Panel-feedback (May 2026) — entry point into the
-                    video capture flow. Users who'd rather record can
-                    jump straight to /submit/video. The route gates on
-                    sign-in (sending back here if not authed), so we
-                    don't need to duplicate that check on this side. */}
-                <p className="text-[11px] text-gray-500 mt-2 text-center">
-                  Rather record it?{' '}
-                  <Link href="/submit/video" className="text-purple-300 hover:text-purple-200 underline underline-offset-2">
-                    Tell us on camera instead
-                  </Link>
-                </p>
               </div>
 
               {/* Panel-feedback (May 2026) — Title field.
@@ -1746,6 +1758,10 @@ export default function StartPage() {
                         <input
                           type="month"
                           value={draft.event_date}
+                          max={(function () {
+                            var d = new Date()
+                            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+                          })()}
                           onChange={function (e) { setDraft(function (d) { return { ...d, event_date: e.target.value } }) }}
                           className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
                         />
@@ -1871,6 +1887,29 @@ export default function StartPage() {
                         type="text"
                         value={draft.city}
                         onChange={function (e) { setDraft(function (d) { return { ...d, city: e.target.value } }) }}
+                        onBlur={function () {
+                          // Panel-feedback (May 2026): geocode city
+                          // to auto-fill state + country when those
+                          // are still empty. Defensive: silent no-op
+                          // on any failure or missing MAPBOX_TOKEN.
+                          var q = (draft.city || '').trim()
+                          if (!q || q.length < 2) return
+                          fetch('/api/geocode/forward?q=' + encodeURIComponent(q))
+                            .then(function (r) { return r.ok ? r.json() : null })
+                            .then(function (data: any) {
+                              if (!data || !data.hit) return
+                              var hit = data.hit
+                              setDraft(function (d) {
+                                var next: any = { ...d }
+                                if (!d.state_province && hit.state) next.state_province = hit.state
+                                if (!d.country && hit.country) next.country = hit.country
+                                if (!d.latitude && hit.latitude) next.latitude = String(hit.latitude)
+                                if (!d.longitude && hit.longitude) next.longitude = String(hit.longitude)
+                                return next
+                              })
+                            })
+                            .catch(function () { /* silent */ })
+                        }}
                         placeholder="e.g. Phoenix"
                         className="w-full bg-gray-900/80 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                       />

@@ -3,44 +3,36 @@
 /**
  * VideoCapture — Phase A first-party video recorder
  *
- * Panel-feedback (May 2026). MediaRecorder-based vertical (9:16)
- * video capture with a 5-minute cap, in-browser preview before
- * submit, and direct-to-Storage upload via a signed URL issued by
- * /api/reports/video/upload-url.
+ * Panel-feedback (May 2026 — 2nd revision):
  *
- * Why direct-to-Storage:
- *   The original endpoint pushed bytes through a Vercel serverless
- *   function (~50 MB request body limit on Pro). iPhone HEVC 1080p
- *   recordings can be 250–300 MB for a 5-minute clip — well over
- *   that ceiling. Direct uploads to Supabase Storage bypass the
- *   function entirely.
+ * The original MediaRecorder-only implementation produced landscape,
+ * over-zoomed recordings on iPhone because:
+ *   1. iPhone front-camera sensors are physically landscape and the
+ *      web MediaRecorder API doesn't honor device orientation.
+ *   2. CSS object-cover cropped the wider sensor frame to "look"
+ *      vertical, producing the zoomed-face artifact.
+ *   3. iOS Safari requires user-gesture activation before
+ *      getUserMedia returns a stream, so the in-page live preview
+ *      was empty on first mount.
  *
- * Upload flow:
- *   1. Record locally → Blob.
- *   2. POST /api/reports/video/upload-url to get a signed PUT URL
- *      + new draft report_id + video_id.
- *   3. PUT the blob directly to that signed URL.
- *   4. POST /api/reports/video/[report_id]/finalize to flip status
- *      out of 'uploading'.
- *   5. Navigate to /submit/video-review/[report_id].
+ * Fix: on iOS, prefer the native camera via
+ *      <input type="file" accept="video/*" capture="user">.
+ * The system camera app launches, the user records with proper
+ * rotation + stabilization + zoom controls, the resulting file
+ * comes back with correct EXIF orientation. Same upload + review
+ * pipeline downstream.
  *
- * State machine:
- *   idle      → user hasn't pressed Record yet
- *   recording → recorder running; timer counts up; stop at 300s or tap
- *   review    → blob captured, preview playing; user can re-record or upload
- *   uploading → /upload-url → PUT → /finalize
- *   error     → unrecoverable; user gets a retry CTA
+ * Non-iOS browsers (desktop Chrome/Firefox/Edge, Android Chrome) keep
+ * the existing MediaRecorder path because their MediaRecorder
+ * implementations are well-behaved.
  *
- * Limits:
- *   - 5-minute (300s) hard cap.
- *   - Defaults to 9:16 vertical (720×1280).
- *   - 500 MB client-side size guard matches the Storage bucket cap.
+ * State machine (MediaRecorder path):
+ *   idle → recording → review → uploading → (next page)
+ *                          ↘   → error
  *
- * Browser support:
- *   MediaRecorder API + getUserMedia. Works on Chrome, Firefox,
- *   Edge, and Safari ≥ 14.1. iOS Safari requires HTTPS or
- *   localhost. Capacitor's native camera plugin gets wired in
- *   the C1.3 platform-add step.
+ * State machine (native iOS path):
+ *   idle → (system camera takes over) → review → uploading → (next page)
+ *                                                  ↘   → error
  *
  * SWC: var + function() form.
  */
@@ -51,19 +43,13 @@ import { Video, RefreshCw, ArrowRight, Loader2, AlertCircle } from 'lucide-react
 import { supabase } from '@/lib/supabase'
 
 interface VideoCaptureProps {
-  /** Called after the upload succeeds with the new report_id. Optional —
-   *  default behavior is to navigate to /submit/video-review/[id]. */
   onUploaded?: (payload: { report_id: string; video_id: string; review_url: string }) => void
-  /** Optional cancel handler — when user backs out. */
   onCancel?: () => void
 }
 
-var MAX_DURATION_SEC = 300            // 5 minutes
-var MAX_BYTES = 500 * 1024 * 1024     // 500 MB matches the bucket cap
+var MAX_DURATION_SEC = 300
+var MAX_BYTES = 500 * 1024 * 1024
 
-// Preferred mime types in priority order. The recorder picks the
-// first one the browser supports. iPhone Safari supports mp4 from
-// iOS 14.5+; Android Chrome emits webm.
 var MIME_CANDIDATES = [
   'video/mp4',
   'video/webm;codecs=vp9,opus',
@@ -81,8 +67,6 @@ function pickSupportedMime(): string {
   return 'video/webm'
 }
 
-/** Strip the codecs= suffix so server-side validation only sees the
- *  base MIME ("video/webm;codecs=vp9" → "video/webm"). */
 function baseMime(full: string): string {
   return (full || '').split(';')[0].trim().toLowerCase()
 }
@@ -91,6 +75,17 @@ function formatDuration(sec: number): string {
   var m = Math.floor(sec / 60)
   var s = sec % 60
   return m + ':' + (s < 10 ? '0' : '') + s
+}
+
+/** UA-detect iOS. Treat anything with iPhone/iPad/iPod or the modern
+ *  Safari-on-iPadOS pattern (Mac + touch) as iOS. */
+function isIosDevice(): boolean {
+  if (typeof navigator === 'undefined') return false
+  var ua = navigator.userAgent || ''
+  if (/iPhone|iPad|iPod/i.test(ua)) return true
+  // iPadOS 13+ reports as Mac with maxTouchPoints > 1.
+  if (/Macintosh/i.test(ua) && (navigator as any).maxTouchPoints > 1) return true
+  return false
 }
 
 type Phase = 'idle' | 'recording' | 'review' | 'uploading' | 'error'
@@ -103,7 +98,9 @@ export default function VideoCapture(props: VideoCaptureProps) {
   var streamRef = useRef<MediaStream | null>(null)
   var chunksRef = useRef<Blob[]>([])
   var timerRef = useRef<number | null>(null)
+  var nativeInputRef = useRef<HTMLInputElement | null>(null)
 
+  var [useNative, setUseNative] = useState<boolean>(false)
   var [phase, setPhase] = useState<Phase>('idle')
   var [error, setError] = useState<string | null>(null)
   var [recordedSec, setRecordedSec] = useState(0)
@@ -111,6 +108,10 @@ export default function VideoCapture(props: VideoCaptureProps) {
   var [recordedMime, setRecordedMime] = useState<string>('video/webm')
   var [previewUrl, setPreviewUrl] = useState<string>('')
   var [uploadProgress, setUploadProgress] = useState<number>(0)
+
+  useEffect(function () {
+    setUseNative(isIosDevice())
+  }, [])
 
   useEffect(function () {
     return function () {
@@ -128,15 +129,46 @@ export default function VideoCapture(props: VideoCaptureProps) {
     }
   }
 
-  async function startCamera(): Promise<MediaStream | null> {
+  // ── Native iOS path ────────────────────────────────────────
+  function handleNativeOpen() {
+    setError(null)
+    if (nativeInputRef.current) {
+      nativeInputRef.current.value = ''
+      nativeInputRef.current.click()
+    }
+  }
+
+  function handleNativeFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    var file = e.target.files && e.target.files[0]
+    if (!file) return
+    if (file.size > MAX_BYTES) {
+      setError('That video is over the ' + Math.floor(MAX_BYTES / (1024 * 1024)) + ' MB cap. Try a shorter recording.')
+      setPhase('error')
+      return
+    }
+    setRecordedBlob(file)
+    setRecordedMime(file.type || 'video/mp4')
+    var url = URL.createObjectURL(file)
+    setPreviewUrl(url)
+    // Try to read duration via a hidden <video> probe.
+    try {
+      var probe = document.createElement('video')
+      probe.preload = 'metadata'
+      probe.src = url
+      probe.onloadedmetadata = function () {
+        if (probe.duration && isFinite(probe.duration)) {
+          setRecordedSec(Math.round(probe.duration))
+        }
+      }
+    } catch {}
+    setPhase('review')
+  }
+
+  // ── MediaRecorder path (desktop / Android) ─────────────────
+  async function startCameraMR(): Promise<MediaStream | null> {
     try {
       var stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'user',
-          width: { ideal: 720 },
-          height: { ideal: 1280 },
-          aspectRatio: 9 / 16,
-        },
+        video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 1280 }, aspectRatio: 9 / 16 },
         audio: true,
       })
       streamRef.current = stream
@@ -155,14 +187,14 @@ export default function VideoCapture(props: VideoCaptureProps) {
     }
   }
 
-  async function handleStart() {
+  async function handleStartMR() {
     setError(null)
     setRecordedSec(0)
     setRecordedBlob(null)
     setUploadProgress(0)
     chunksRef.current = []
 
-    var stream = streamRef.current || await startCamera()
+    var stream = streamRef.current || await startCameraMR()
     if (!stream) return
 
     var mime = pickSupportedMime()
@@ -190,9 +222,7 @@ export default function VideoCapture(props: VideoCaptureProps) {
       timerRef.current = window.setInterval(function () {
         var sec = Math.floor((Date.now() - startedAt) / 1000)
         setRecordedSec(sec)
-        if (sec >= MAX_DURATION_SEC) {
-          handleStop()
-        }
+        if (sec >= MAX_DURATION_SEC) handleStopMR()
       }, 250)
     } catch (err: any) {
       console.error('[VideoCapture] recorder failed:', err?.message)
@@ -201,7 +231,7 @@ export default function VideoCapture(props: VideoCaptureProps) {
     }
   }
 
-  function handleStop() {
+  function handleStopMR() {
     if (timerRef.current !== null) {
       window.clearInterval(timerRef.current)
       timerRef.current = null
@@ -219,15 +249,13 @@ export default function VideoCapture(props: VideoCaptureProps) {
     setUploadProgress(0)
     setPhase('idle')
     chunksRef.current = []
-    if (liveVideoRef.current && streamRef.current) {
+    if (!useNative && liveVideoRef.current && streamRef.current) {
       liveVideoRef.current.srcObject = streamRef.current
       liveVideoRef.current.play().catch(function () {})
     }
   }
 
-  // Step 1: ask the server for a signed upload URL + draft rows.
-  // Step 2: PUT the blob directly to that URL with progress tracking.
-  // Step 3: POST /finalize to flip status.
+  // ── Upload (shared by both paths) ──────────────────────────
   async function putBlobWithProgress(url: string, blob: Blob, mime: string): Promise<void> {
     return new Promise(function (resolve, reject) {
       var xhr = new XMLHttpRequest()
@@ -250,7 +278,7 @@ export default function VideoCapture(props: VideoCaptureProps) {
   async function handleUpload() {
     if (!recordedBlob) return
     if (recordedBlob.size > MAX_BYTES) {
-      setError('That video is over the ' + Math.floor(MAX_BYTES / (1024 * 1024)) + ' MB cap. Try recording a shorter clip.')
+      setError('That video is over the ' + Math.floor(MAX_BYTES / (1024 * 1024)) + ' MB cap. Try a shorter clip.')
       return
     }
     setPhase('uploading')
@@ -267,51 +295,26 @@ export default function VideoCapture(props: VideoCaptureProps) {
 
     try {
       var mimeBase = baseMime(recordedMime)
-
-      // Step 1: get the signed upload URL + draft rows.
       var urlResp = await fetch('/api/reports/video/upload-url', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + session.access_token,
-        },
-        body: JSON.stringify({
-          mime_type: mimeBase,
-          size_bytes: recordedBlob.size,
-          duration_sec: recordedSec,
-        }),
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({ mime_type: mimeBase, size_bytes: recordedBlob.size, duration_sec: recordedSec }),
       })
       var urlData = await urlResp.json()
-      if (!urlResp.ok || !urlData.ok) {
-        throw new Error(urlData.error || 'Could not start upload')
-      }
+      if (!urlResp.ok || !urlData.ok) throw new Error(urlData.error || 'Could not start upload')
 
-      // Step 2: PUT the blob to Supabase Storage directly.
       await putBlobWithProgress(urlData.signed_url, recordedBlob, mimeBase)
 
-      // Step 3: finalize — verifies the upload landed and flips status.
       var finalizeResp = await fetch('/api/reports/video/' + encodeURIComponent(urlData.report_id) + '/finalize', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + session.access_token,
-        },
-        body: JSON.stringify({
-          duration_sec: recordedSec,
-          size_bytes: recordedBlob.size,
-        }),
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({ duration_sec: recordedSec, size_bytes: recordedBlob.size }),
       })
       var finalizeData = await finalizeResp.json()
-      if (!finalizeResp.ok || !finalizeData.ok) {
-        throw new Error(finalizeData.error || 'Could not finalize upload')
-      }
+      if (!finalizeResp.ok || !finalizeData.ok) throw new Error(finalizeData.error || 'Could not finalize upload')
 
       if (props.onUploaded) {
-        props.onUploaded({
-          report_id: urlData.report_id,
-          video_id: urlData.video_id,
-          review_url: urlData.review_url,
-        })
+        props.onUploaded({ report_id: urlData.report_id, video_id: urlData.video_id, review_url: urlData.review_url })
       } else {
         router.push(urlData.review_url)
       }
@@ -322,10 +325,67 @@ export default function VideoCapture(props: VideoCaptureProps) {
     }
   }
 
+  // ── Render ──────────────────────────────────────────────────
+  // Native iOS path: a giant "Tap to open camera" hero + a hidden file input.
+  if (useNative && phase !== 'review' && phase !== 'uploading') {
+    return (
+      <div className="w-full max-w-md mx-auto">
+        <button
+          type="button"
+          onClick={handleNativeOpen}
+          className="w-full aspect-[9/16] max-h-[60vh] rounded-2xl border border-purple-700/50 bg-gradient-to-br from-purple-950/60 to-gray-950/60 flex flex-col items-center justify-center gap-4 text-white hover:from-purple-900/60 hover:to-gray-900/60 transition-colors"
+        >
+          <div className="w-16 h-16 rounded-full bg-purple-600/30 border border-purple-500/30 flex items-center justify-center">
+            <Video className="w-8 h-8 text-purple-200" />
+          </div>
+          <div className="text-center px-6">
+            <p className="text-base font-semibold">Tap to open camera</p>
+            <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
+              Up to 5 minutes · Your iPhone&rsquo;s camera handles the recording — vertical, properly oriented.
+            </p>
+          </div>
+        </button>
+        <input
+          ref={nativeInputRef}
+          type="file"
+          accept="video/*"
+          capture="user"
+          onChange={handleNativeFileChange}
+          className="hidden"
+        />
+        {props.onCancel && (
+          <button
+            type="button"
+            onClick={props.onCancel}
+            className="block mx-auto mt-4 text-sm text-gray-400 hover:text-gray-200"
+          >
+            Cancel
+          </button>
+        )}
+        {phase === 'error' && error && (
+          <div className="mt-4 rounded-lg border border-red-900/40 bg-red-950/30 p-3 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-red-300 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-xs text-red-200">{error}</p>
+              <button
+                type="button"
+                onClick={function () { setPhase('idle'); setError(null) }}
+                className="mt-2 text-xs text-red-100 underline underline-offset-2"
+              >
+                Try again
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // MediaRecorder path (desktop / Android) + review state for both paths.
   return (
     <div className="w-full max-w-md mx-auto">
       <div className="relative aspect-[9/16] w-full bg-black rounded-2xl overflow-hidden border border-gray-800/80">
-        {(phase === 'idle' || phase === 'recording') && (
+        {(phase === 'idle' || phase === 'recording') && !useNative && (
           <video
             ref={liveVideoRef}
             className="w-full h-full object-cover"
@@ -337,7 +397,7 @@ export default function VideoCapture(props: VideoCaptureProps) {
         {phase === 'review' && previewUrl && (
           <video
             ref={previewVideoRef}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
             src={previewUrl}
             controls
             playsInline
@@ -349,7 +409,7 @@ export default function VideoCapture(props: VideoCaptureProps) {
             REC {formatDuration(recordedSec)} / {formatDuration(MAX_DURATION_SEC)}
           </div>
         )}
-        {phase === 'idle' && (
+        {phase === 'idle' && !useNative && (
           <div className="absolute inset-0 flex flex-col items-center justify-end pb-8 pointer-events-none">
             <p className="text-white/80 text-sm font-medium">Tell us about your experience</p>
             <p className="text-white/50 text-xs mt-1">Up to {Math.floor(MAX_DURATION_SEC / 60)} minutes · vertical</p>
@@ -358,11 +418,11 @@ export default function VideoCapture(props: VideoCaptureProps) {
       </div>
 
       <div className="mt-4 space-y-3">
-        {phase === 'idle' && (
+        {phase === 'idle' && !useNative && (
           <>
             <button
               type="button"
-              onClick={handleStart}
+              onClick={handleStartMR}
               className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors"
             >
               <Video className="w-4 h-4" />
@@ -383,7 +443,7 @@ export default function VideoCapture(props: VideoCaptureProps) {
         {phase === 'recording' && (
           <button
             type="button"
-            onClick={handleStop}
+            onClick={handleStopMR}
             className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-full transition-colors"
           >
             <span className="inline-block w-3 h-3 bg-white rounded-sm" />
@@ -403,16 +463,27 @@ export default function VideoCapture(props: VideoCaptureProps) {
             </button>
             <button
               type="button"
-              onClick={handleRetake}
+              onClick={useNative ? handleNativeOpen : handleRetake}
               className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 text-sm text-gray-300 hover:text-white border border-gray-700 hover:border-gray-500 rounded-full transition-colors"
             >
               <RefreshCw className="w-4 h-4" />
-              Record again
+              {useNative ? 'Record again' : 'Record again'}
             </button>
             {recordedBlob && (
               <p className="text-[11px] text-gray-500 text-center">
-                {formatDuration(recordedSec)} · {(recordedBlob.size / (1024 * 1024)).toFixed(1)} MB
+                {recordedSec > 0 ? formatDuration(recordedSec) + ' · ' : ''}{(recordedBlob.size / (1024 * 1024)).toFixed(1)} MB
               </p>
+            )}
+            {/* Hidden input stays in DOM so the "Record again" button can re-trigger native capture on iOS. */}
+            {useNative && (
+              <input
+                ref={nativeInputRef}
+                type="file"
+                accept="video/*"
+                capture="user"
+                onChange={handleNativeFileChange}
+                className="hidden"
+              />
             )}
           </>
         )}
