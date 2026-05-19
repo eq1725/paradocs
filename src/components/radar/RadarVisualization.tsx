@@ -221,87 +221,104 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
   const viewBox = `${-halfSize} ${-halfSize} ${size} ${size}`
 
   // V10.2 — Real radar behavior: dots ping when the sweep arm crosses
-  // them, rather than blinking on independent timers. We precompute
-  // each dot's angle (from atan2 of its position), figure out at what
-  // offset within the SWEEP_PERIOD_MS cycle the arm will pass over it,
-  // and schedule a one-shot "ping" CSS animation on that dot at that
-  // moment. Pure DOM manipulation via refs — no React re-renders per
-  // frame.
+  // them, rather than blinking on independent timers.
+  //
+  // V10.7.E (QA #1, May 2026) — the previous setTimeout scheduler drifted
+  // out of phase with the CSS sweep because (1) `performance.now()` is
+  // read inside useEffect AFTER React mounts the SVG, missing the few-ms
+  // gap during which the CSS animation has already been running, and
+  // (2) cross-browser SVG `transform-box`/`transform-origin` differences
+  // can subtly delay when the sweep arm visually reaches angle 0. Chase
+  // reported the blip didn't fire when the bright beam crossed it.
+  //
+  // The fix: drop scheduled timers entirely. Instead, run a single rAF
+  // loop that reads the sweep group's actual `getAnimations()[0]`
+  // `currentTime` — the same timeline the browser is using to render
+  // the rotation — and pings each dot the moment that current animation
+  // angle crosses the dot's angle. This makes the JS scheduler and the
+  // CSS sweep impossible to drift apart by construction.
   //
   // SWEEP_PERIOD_MS must stay in lockstep with the @keyframes
-  // radar-sweep duration in the inline <style> below. Bump both
-  // together if you re-tune the rotation speed.
+  // radar-sweep duration in the inline <style> below.
   const SWEEP_PERIOD_MS = 4000
   const dotGroupRefs = useRef<Record<string, SVGGElement | null>>({})
+  const sweepGroupRef = useRef<SVGGElement | null>(null)
 
   useEffect(() => {
     if (reducedMotion) return
-    // Reveal mode: wait until match dots have animated in (stage 3)
-    // before starting the ping schedule.
     if (mode === 'reveal' && revealStage < 3) return
 
     // Precompute each dot's angle in degrees clockwise from +x (3
-    // o'clock). The SVG sweep arm rotates clockwise starting at 0deg
-    // pointing at +x, so the arm's instantaneous angle at time t is
-    // (t / SWEEP_PERIOD_MS) * 360 mod 360. A dot at angle θ deg
-    // (clockwise from +x) is first crossed at (θ / 360) *
-    // SWEEP_PERIOD_MS ms after mount, and every SWEEP_PERIOD_MS
-    // thereafter.
-    const matchPositions = filtered.map((m, idx) => ({
-      id: m.id,
-      pos: positionForMatch(m, radius, idx),
-    }))
-
-    const timers: number[] = []
-    const intervals: number[] = []
+    // o'clock). SVG y is inverted (positive y is down), but atan2(y, x)
+    // in SVG space gives us the angle measured clockwise from +x
+    // directly — exactly what we want.
+    const matchAngles = filtered.map((m, idx) => {
+      const pos = positionForMatch(m, radius, idx)
+      const rad = Math.atan2(pos.y, pos.x)
+      const deg = ((rad * 180) / Math.PI + 360) % 360
+      return { id: m.id, deg: deg }
+    })
 
     function pingDot(id: string) {
       const el = dotGroupRefs.current[id]
       if (!el) return
-      // Force animation restart: remove + reflow + re-add the class.
       el.classList.remove('radar-ping-active')
-      // getBoundingClientRect() is a method call that triggers a synchronous
-      // reflow as a documented browser behavior — voiding the return value
-      // keeps it tree-shake/eslint-safe.
       void el.getBoundingClientRect()
-      // requestAnimationFrame guarantees the remove takes effect
-      // before the re-add (otherwise React/browser batching can
-      // collapse the toggle).
-      requestAnimationFrame(() => {
+      requestAnimationFrame(function () {
         el.classList.add('radar-ping-active')
       })
     }
 
-    const startedAt = performance.now()
+    // Last sweep angle we observed (deg). When the current angle wraps
+    // past a dot's angle since the previous frame, ping it.
+    var lastAngleDeg = -1
+    var rafHandle = 0
+    var cancelled = false
 
-    matchPositions.forEach(({ id, pos }) => {
-      // SVG y is inverted (positive y is down), but atan2(y, x) in
-      // SVG space gives us the angle measured clockwise from +x
-      // directly — exactly what we want.
-      const rad = Math.atan2(pos.y, pos.x)
-      const deg = ((rad * 180) / Math.PI + 360) % 360
-      const firstCrossMs = (deg / 360) * SWEEP_PERIOD_MS
+    function getCurrentSweepDeg(): number {
+      // Prefer the actual CSS animation's timeline if available. This
+      // makes the JS angle match the rendered angle to sub-frame
+      // precision, regardless of when useEffect actually ran.
+      var sweepEl = sweepGroupRef.current as any
+      if (sweepEl && typeof sweepEl.getAnimations === 'function') {
+        var anims = sweepEl.getAnimations()
+        if (anims && anims.length > 0) {
+          var anim = anims[0]
+          var ct = typeof anim.currentTime === 'number' ? anim.currentTime : null
+          if (ct !== null) {
+            return ((ct % SWEEP_PERIOD_MS) / SWEEP_PERIOD_MS) * 360
+          }
+        }
+      }
+      // Fallback: derive from performance.now() with the assumption
+      // the animation started at mount. Less accurate but safe in
+      // environments without Web Animations introspection.
+      return ((performance.now() % SWEEP_PERIOD_MS) / SWEEP_PERIOD_MS) * 360
+    }
 
-      // Account for any sweep cycles that have already elapsed since
-      // animation started (in case effect re-runs after a filter change).
-      const elapsed = performance.now() - startedAt
-      const cycleOffset = elapsed % SWEEP_PERIOD_MS
-      let initialDelay = firstCrossMs - cycleOffset
-      if (initialDelay < 0) initialDelay += SWEEP_PERIOD_MS
+    function tick() {
+      if (cancelled) return
+      var current = getCurrentSweepDeg()
+      // Detect each dot crossing in this frame's [lastAngle, current]
+      // interval, handling wrap-around at 360→0.
+      if (lastAngleDeg >= 0) {
+        var wrapped = current < lastAngleDeg
+        for (var i = 0; i < matchAngles.length; i++) {
+          var ma = matchAngles[i]
+          var crossed = wrapped
+            ? (ma.deg > lastAngleDeg || ma.deg <= current)
+            : (ma.deg > lastAngleDeg && ma.deg <= current)
+          if (crossed) pingDot(ma.id)
+        }
+      }
+      lastAngleDeg = current
+      rafHandle = window.requestAnimationFrame(tick)
+    }
 
-      timers.push(
-        window.setTimeout(() => {
-          pingDot(id)
-          intervals.push(
-            window.setInterval(() => pingDot(id), SWEEP_PERIOD_MS),
-          )
-        }, initialDelay),
-      )
-    })
-
-    return () => {
-      timers.forEach(clearTimeout)
-      intervals.forEach(clearInterval)
+    rafHandle = window.requestAnimationFrame(tick)
+    return function () {
+      cancelled = true
+      if (rafHandle) window.cancelAnimationFrame(rafHandle)
     }
   }, [filtered, reducedMotion, mode, revealStage, radius])
 
@@ -374,7 +391,10 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
             SWEEP_PERIOD_MS constant up in the ping-scheduling
             useEffect — bump both together. */}
         {!reducedMotion && (mode === 'idle' || revealStage >= 3) && (
-          <g style={{ transformOrigin: '0 0', animation: 'radar-sweep 4s linear infinite' }}>
+          <g
+            ref={sweepGroupRef}
+            className="radar-sweep-group"
+          >
             {/* Trailing phosphor wedge — sweeps clockwise (the wedge
                 sits BEHIND the leading edge, so it trails as the arm
                 advances). Drawn going counter-clockwise from +x for
@@ -537,6 +557,16 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
             - radar-dot-flash on .radar-dot-core (brightens fill)
             - radar-ping-out on .radar-ping-ring (expanding ring) */}
       <style>{`
+        /* V10.7.E — anchor the sweep's pivot at the group's own (0,0)
+           in user space (which is the radar center, since our viewBox
+           is centered). Using transform-box: view-box + 50%/50% in a
+           viewBox that's centered on (0,0) yields the same point, but
+           making it explicit avoids Safari/Chrome differences. */
+        .radar-sweep-group {
+          transform-box: view-box;
+          transform-origin: 50% 50%;
+          animation: radar-sweep 4s linear infinite;
+        }
         @keyframes radar-sweep {
           from { transform: rotate(0deg); }
           to   { transform: rotate(360deg); }

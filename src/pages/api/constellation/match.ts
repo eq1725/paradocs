@@ -80,34 +80,74 @@ function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
 
 // ── Sensory keyword extraction ────────────────────────────────────────────
 
-var SENSORY_KEYWORDS: Record<string, string[]> = {
-  'Shadow figure':        ['shadow', 'dark', 'figure', 'silhouette', 'tall', 'black', 'shape', 'humanoid'],
-  'Paralysis':            ['paralyzed', 'paralysis', 'couldnt move', 'frozen', 'unable', 'pinned'],
-  'Dread / Fear':         ['dread', 'terror', 'fear', 'terrified', 'scared', 'panic', 'evil'],
-  'Nighttime':            ['night', '3am', '2am', '4am', 'dark', 'midnight', 'bedtime', 'asleep'],
-  'Bedroom':              ['bed', 'bedroom', 'room', 'doorway', 'sleeping', 'woke'],
-  'Sound':                ['sound', 'noise', 'voice', 'whisper', 'footsteps', 'bang', 'knock'],
-  'Light':                ['light', 'glow', 'bright', 'flash', 'orb', 'illuminated', 'beam'],
-  'Duration short':       ['seconds', 'brief', 'instant', 'momentary', 'quick', 'flash'],
-  'Duration medium':      ['minutes', 'few minutes', 'several minutes', 'lasted'],
-  'Multiple witnesses':   ['witnesses', 'both saw', 'we all', 'everyone', 'others saw', 'friend saw'],
-  'Physical evidence':    ['evidence', 'marks', 'burns', 'footprint', 'photograph', 'video', 'recording'],
-  'Recurring':            ['again', 'recurring', 'multiple times', 'happened before', 'keeps happening'],
-  'Entity aware':         ['watched', 'stared', 'looked at me', 'aware', 'intelligent', 'intentional'],
-  'Temperature':          ['cold', 'freezing', 'chill', 'warm', 'heat', 'temperature'],
-  'Electromagnetic':      ['static', 'electric', 'tingling', 'hair stood', 'interference', 'battery'],
-  'Out of body':          ['floating', 'above', 'looking down', 'out of body', 'detached', 'hovering'],
-  'Craft / Vehicle':      ['craft', 'triangle', 'disc', 'saucer', 'hovering', 'silent', 'formation'],
+// Per-label config. `keywords` are the indicator terms. `category`
+// (optional) restricts the label to a subset of phenomenon categories
+// — e.g. 'Shadow figure' is a ghost/cryptid pattern, so we don't
+// surface it as a top dimension on a UAP report just because the
+// description happened to mention 'dark' or 'tall'. `minHits` is the
+// minimum number of distinct indicator terms required for the label
+// to activate (defaults to 2 — single-word matches were producing
+// embarrassing false positives like 'Shadow figure: 91%' on triangle
+// UFO reports that used the word 'dark').
+//
+// May 2026 — Chase saw a Triangle UFO test report match Kansas at
+// 91% 'Shadow figure' because both descriptions contained the word
+// 'shadow' or 'dark'. The fix has two parts: (1) require ≥2 distinct
+// keyword hits before a sensory label activates, and (2) gate the
+// most cross-category-prone labels (Shadow figure, Craft / Vehicle,
+// Bedroom) to the categories they actually describe.
+interface SensoryLabelConfig {
+  keywords: string[]
+  /** Categories where this label is allowed to surface. Empty = all. */
+  categories?: string[]
+  /** Min distinct keyword hits required to activate. Default 2. */
+  minHits?: number
 }
 
-function extractSensoryProfile(text: string): Set<string> {
+var SENSORY_LABELS: Record<string, SensoryLabelConfig> = {
+  'Shadow figure':        { keywords: ['shadow figure', 'shadow person', 'shadow man', 'shadow people', 'silhouette', 'humanoid figure', 'figure standing', 'figure in the doorway'], minHits: 1, categories: ['ghosts_hauntings', 'cryptids', 'perception_sensory'] },
+  'Paralysis':            { keywords: ['paralyzed', 'paralysis', "couldn't move", 'couldnt move', 'frozen in place', 'pinned to the bed', 'unable to move'], minHits: 1 },
+  'Dread / Fear':         { keywords: ['dread', 'terror', 'terrified', 'panicked', 'overwhelming fear', 'sense of evil'], minHits: 1 },
+  'Nighttime':            { keywords: ['night', '3am', '2am', '4am', 'midnight', 'bedtime', 'asleep', 'after dark', 'late at night'], minHits: 2 },
+  'Bedroom':              { keywords: ['bedroom', 'in bed', 'sleeping', 'woke up', 'doorway of the bedroom', 'foot of the bed'], minHits: 1, categories: ['ghosts_hauntings', 'perception_sensory', 'consciousness_practices', 'psychological_experiences'] },
+  'Sound':                { keywords: ['voice', 'whisper', 'footsteps', 'banging', 'knocking', 'humming sound', 'strange noise'], minHits: 1 },
+  'Light':                { keywords: ['bright light', 'glowing', 'orb', 'illuminated', 'beam of light', 'flash of light'], minHits: 1 },
+  'Duration short':       { keywords: ['few seconds', 'a second', 'momentary', 'instantly', 'lasted seconds'], minHits: 1 },
+  'Duration medium':      { keywords: ['few minutes', 'several minutes', 'lasted minutes', '10 minutes', '15 minutes'], minHits: 1 },
+  'Multiple witnesses':   { keywords: ['both saw', 'we all saw', 'everyone saw', 'others saw', 'my friend saw', 'we watched together'], minHits: 1 },
+  'Physical evidence':    { keywords: ['burn marks', 'footprint', 'physical evidence', 'photograph', 'recorded it', 'video proof', 'scorch'], minHits: 1 },
+  'Recurring':            { keywords: ['happened again', 'recurring', 'multiple times', 'keeps happening', 'happens often', 'second time'], minHits: 1 },
+  'Entity aware':         { keywords: ['stared at me', 'looked at me', 'watched me', 'aware of me', 'turned toward', 'made eye contact'], minHits: 1 },
+  'Temperature':          { keywords: ['freezing', 'sudden cold', 'icy', 'temperature dropped', 'heat wave', 'unusually warm'], minHits: 1 },
+  'Electromagnetic':      { keywords: ['static electricity', 'hair stood', 'tingling', 'interference', 'battery drained', 'electronics failed'], minHits: 1 },
+  'Out of body':          { keywords: ['out of body', 'looking down at myself', 'floating above', 'detached from', 'hovering above my body'], minHits: 1, categories: ['consciousness_practices', 'psychological_experiences'] },
+  'Craft / Vehicle':      { keywords: ['triangle craft', 'disc-shaped', 'saucer', 'silent craft', 'hovering craft', 'formation of lights', 'metallic craft'], minHits: 1, categories: ['ufos_aliens'] },
+}
+
+// Back-compat alias — preserved so any older import sites keep working.
+var SENSORY_KEYWORDS: Record<string, string[]> = Object.keys(SENSORY_LABELS).reduce(function (acc, k) {
+  acc[k] = SENSORY_LABELS[k].keywords
+  return acc
+}, {} as Record<string, string[]>)
+
+function countDistinctHits(lower: string, keywords: string[]): number {
+  var hits = 0
+  for (var i = 0; i < keywords.length; i++) {
+    if (lower.indexOf(keywords[i]) !== -1) hits++
+  }
+  return hits
+}
+
+function extractSensoryProfile(text: string, category?: string | null): Set<string> {
   if (!text) return new Set()
   var lower = text.toLowerCase()
   var matched = new Set<string>()
-  Object.keys(SENSORY_KEYWORDS).forEach(function(label) {
-    var keywords = SENSORY_KEYWORDS[label]
-    var found = keywords.some(function(kw) { return lower.includes(kw) })
-    if (found) matched.add(label)
+  Object.keys(SENSORY_LABELS).forEach(function(label) {
+    var cfg = SENSORY_LABELS[label]
+    if (cfg.categories && category && cfg.categories.indexOf(category) === -1) return
+    var minHits = typeof cfg.minHits === 'number' ? cfg.minHits : 2
+    var hits = countDistinctHits(lower, cfg.keywords)
+    if (hits >= minHits) matched.add(label)
   })
   return matched
 }
@@ -187,7 +227,7 @@ function computeMatchDimensions(
   dims.push({ label: 'Description similarity', score: contentScore })
 
   // 5. Sensory overlap (weight: 0.25)
-  var targetSensory = extractSensoryProfile(target.description || '')
+  var targetSensory = extractSensoryProfile(target.description || '', target.category)
   var sensoryScore = jaccardSimilarity(source.sensory, targetSensory)
   // Boost for sensory matches (these are more meaningful)
   sensoryScore = Math.min(sensoryScore * 2.0, 1.0)
@@ -292,7 +332,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     lng: lng,
     event_date: sourceReport?.event_date || null,
     description: description || '',
-    sensory: extractSensoryProfile(description || ''),
+    sensory: extractSensoryProfile(description || '', category || null),
     tokens: tokenize(description || ''),
   }
 
