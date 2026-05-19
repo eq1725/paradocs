@@ -39,13 +39,15 @@ export interface ExtractedMeta {
  * Send a video Blob to OpenAI Whisper. Returns the transcription
  * plus word-level segments for caption generation.
  *
- * Panel-feedback (May 2026 — 5th round): Whisper's accepted formats
- * list does NOT include 'mov' / 'quicktime' even though iPhone
- * records in that container by default. The underlying codec is
- * almost always H.264 + AAC, which is byte-compatible with MP4 —
- * Whisper's reject is purely on the filename extension. We rename
- * the file in the multipart form so Whisper accepts it without
- * needing client-side transcoding.
+ * Panel-feedback (May 2026 — 5th round, 2nd fix): Whisper rejects
+ * BOTH the filename extension AND the multipart Content-Type. iPhone
+ * .mov uploads have `blob.type = 'video/quicktime'` which Whisper
+ * doesn't accept; our earlier filename-rename was necessary but not
+ * sufficient. We now also wrap the blob into a fresh Blob with an
+ * explicit `type: 'video/mp4'`. Underlying bytes are unchanged —
+ * QuickTime/MOV containers are byte-compatible with MP4 because both
+ * use the MPEG-4 Part 14 container format. Only the metadata we
+ * advertise to Whisper changes.
  *
  * Throws on Whisper API failure — callers should retry with backoff
  * or fall back to manual review.
@@ -54,22 +56,32 @@ export async function runWhisper(blob: Blob, filename: string): Promise<WhisperR
   if (!process.env.OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY not configured')
   }
-  // Whisper-friendly extensions (the API checks the upload filename).
-  // Translate QuickTime / iPhone-default formats to mp4 since the
-  // container is the same.
   var lcName = (filename || '').toLowerCase()
   var lcType = (blob.type || '').toLowerCase()
   var whisperFilename = filename || 'video.mp4'
-  if (lcName.endsWith('.mov') || lcName.endsWith('.m4v') || lcType.indexOf('quicktime') !== -1) {
+  // Pick the target extension + mime that Whisper will accept.
+  var targetMime = 'video/mp4'
+  if (lcType.indexOf('webm') !== -1 || lcName.endsWith('.webm')) {
+    targetMime = 'video/webm'
+    if (!lcName.endsWith('.webm')) whisperFilename = whisperFilename + '.webm'
+  } else if (lcName.endsWith('.mov') || lcName.endsWith('.m4v') || lcType.indexOf('quicktime') !== -1) {
+    // iPhone QuickTime — masquerade as MP4 (bytes are compatible).
     whisperFilename = whisperFilename.replace(/\.(mov|m4v)$/i, '') + '.mp4'
+    targetMime = 'video/mp4'
   } else if (!/\.(flac|m4a|mp3|mp4|mpeg|mpga|oga|ogg|wav|webm)$/i.test(lcName)) {
-    // Unknown extension — guess from MIME type, fall back to mp4.
-    if (lcType.indexOf('webm') !== -1) whisperFilename = whisperFilename + '.webm'
-    else whisperFilename = whisperFilename + '.mp4'
+    // Unknown extension — default to mp4.
+    whisperFilename = whisperFilename + '.mp4'
+    targetMime = 'video/mp4'
   }
 
+  // CRITICAL: wrap into a fresh Blob with the right type so the
+  // multipart form Content-Type matches the whisperFilename.
+  // Without this, FormData inherits blob.type ('video/quicktime')
+  // and Whisper rejects despite the .mp4 filename.
+  var whisperBlob = new Blob([blob], { type: targetMime })
+
   var form = new FormData()
-  form.append('file', blob, whisperFilename)
+  form.append('file', whisperBlob, whisperFilename)
   form.append('model', 'whisper-1')
   form.append('response_format', 'verbose_json')
   form.append('timestamp_granularities[]', 'segment')
