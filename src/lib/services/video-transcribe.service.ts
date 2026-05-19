@@ -36,18 +36,80 @@ export interface ExtractedMeta {
 }
 
 /**
+ * Patch an iPhone .mov file's ftyp box from QuickTime brand ('qt  ')
+ * to MP4 brand ('mp42'). The first 24 bytes of an MP4/MOV file are:
+ *
+ *   [0..3]   uint32 BE box_size      (typically 32 for ftyp)
+ *   [4..7]   'ftyp'                  (box type)
+ *   [8..11]  major_brand             ('qt  ' = QuickTime, 'isom'/'mp42' = MP4)
+ *   [12..15] minor_version
+ *   [16..N]  compatible_brands       (each 4 bytes)
+ *
+ * iPhone QuickTime files use 'qt  ' as major_brand. Whisper does
+ * byte-level sniffing and rejects this even after we rename the
+ * filename and Content-Type. Patching the brand to 'mp42' tells
+ * Whisper to parse as MP4 — which works because the underlying
+ * H.264/HEVC + AAC streams are MP4-compatible.
+ *
+ * Also patches compatible_brands occurrences of 'qt  ' so Whisper
+ * doesn't see the QuickTime hint in the secondary list.
+ *
+ * Returns the original bytes if no patching is needed.
+ */
+function patchMovFtypToMp4(buf: ArrayBuffer): ArrayBuffer {
+  var u8 = new Uint8Array(buf)
+  if (u8.length < 24) return buf
+  // Confirm ftyp box at offset 4-7.
+  if (u8[4] !== 0x66 || u8[5] !== 0x74 || u8[6] !== 0x79 || u8[7] !== 0x70) {
+    return buf
+  }
+  // Read box size from bytes 0-3 (big-endian uint32). Constrain to
+  // a sane range so we don't walk off the end on a corrupt header.
+  var boxSize = (u8[0] << 24) | (u8[1] << 16) | (u8[2] << 8) | u8[3]
+  if (boxSize < 16 || boxSize > Math.min(u8.length, 256)) {
+    // Default to a conservative scan size if box_size looks wrong.
+    boxSize = Math.min(64, u8.length)
+  }
+  var patched = false
+  // Major brand at 8-11.
+  if (u8[8] === 0x71 && u8[9] === 0x74 && u8[10] === 0x20 && u8[11] === 0x20) {
+    u8[8] = 0x6d  // 'm'
+    u8[9] = 0x70  // 'p'
+    u8[10] = 0x34 // '4'
+    u8[11] = 0x32 // '2'
+    patched = true
+  }
+  // Compatible brands run from offset 16 to boxSize. Each is 4 bytes.
+  for (var i = 16; i + 4 <= boxSize; i += 4) {
+    if (u8[i] === 0x71 && u8[i + 1] === 0x74 && u8[i + 2] === 0x20 && u8[i + 3] === 0x20) {
+      u8[i] = 0x6d
+      u8[i + 1] = 0x70
+      u8[i + 2] = 0x34
+      u8[i + 3] = 0x32
+      patched = true
+    }
+  }
+  if (patched) {
+    console.log('[video-transcribe] patched ftyp box (qt   → mp42)')
+  }
+  return buf
+}
+
+/**
  * Send a video Blob to OpenAI Whisper. Returns the transcription
  * plus word-level segments for caption generation.
  *
- * Panel-feedback (May 2026 — 5th round, 2nd fix): Whisper rejects
- * BOTH the filename extension AND the multipart Content-Type. iPhone
- * .mov uploads have `blob.type = 'video/quicktime'` which Whisper
- * doesn't accept; our earlier filename-rename was necessary but not
- * sufficient. We now also wrap the blob into a fresh Blob with an
- * explicit `type: 'video/mp4'`. Underlying bytes are unchanged —
- * QuickTime/MOV containers are byte-compatible with MP4 because both
- * use the MPEG-4 Part 14 container format. Only the metadata we
- * advertise to Whisper changes.
+ * Panel-feedback (May 2026 — 5th round, 3rd fix):
+ *   First fix: rename filename to .mp4. Insufficient.
+ *   Second fix: also wrap Blob with type='video/mp4'. Insufficient.
+ *   Third fix: also patch the ftyp box major_brand from 'qt  ' to
+ *     'mp42' in-place. Whisper does byte-level sniffing of the MP4
+ *     container header and rejects 'qt  ' brand specifically. Patching
+ *     the brand metadata is safe because iPhone .mov audio/video
+ *     streams are MP4-compatible (H.264/HEVC + AAC inside MPEG-4 Part
+ *     14 container).
+ *
+ * Also adds aggressive logging so failures are debuggable.
  *
  * Throws on Whisper API failure — callers should retry with backoff
  * or fall back to manual review.
@@ -59,26 +121,46 @@ export async function runWhisper(blob: Blob, filename: string): Promise<WhisperR
   var lcName = (filename || '').toLowerCase()
   var lcType = (blob.type || '').toLowerCase()
   var whisperFilename = filename || 'video.mp4'
-  // Pick the target extension + mime that Whisper will accept.
   var targetMime = 'video/mp4'
+  var needsFtypPatch = false
+
   if (lcType.indexOf('webm') !== -1 || lcName.endsWith('.webm')) {
     targetMime = 'video/webm'
     if (!lcName.endsWith('.webm')) whisperFilename = whisperFilename + '.webm'
   } else if (lcName.endsWith('.mov') || lcName.endsWith('.m4v') || lcType.indexOf('quicktime') !== -1) {
-    // iPhone QuickTime — masquerade as MP4 (bytes are compatible).
     whisperFilename = whisperFilename.replace(/\.(mov|m4v)$/i, '') + '.mp4'
     targetMime = 'video/mp4'
+    needsFtypPatch = true
   } else if (!/\.(flac|m4a|mp3|mp4|mpeg|mpga|oga|ogg|wav|webm)$/i.test(lcName)) {
-    // Unknown extension — default to mp4.
     whisperFilename = whisperFilename + '.mp4'
     targetMime = 'video/mp4'
+    // Could be QuickTime with no extension hint — patch defensively.
+    needsFtypPatch = true
   }
 
-  // CRITICAL: wrap into a fresh Blob with the right type so the
-  // multipart form Content-Type matches the whisperFilename.
-  // Without this, FormData inherits blob.type ('video/quicktime')
-  // and Whisper rejects despite the .mp4 filename.
-  var whisperBlob = new Blob([blob], { type: targetMime })
+  console.log('[video-transcribe] runWhisper',
+    'in_filename=' + filename,
+    'in_blob_type=' + lcType,
+    'out_filename=' + whisperFilename,
+    'out_mime=' + targetMime,
+    'needs_ftyp_patch=' + needsFtypPatch,
+    'bytes=' + blob.size)
+
+  // Read the bytes ONCE for inspection + (optional) ftyp patch.
+  var ab = await blob.arrayBuffer()
+  if (needsFtypPatch) ab = patchMovFtypToMp4(ab)
+
+  // Log the first 16 bytes (hex) so we can see what Whisper sees.
+  // Useful if the patch path isn't matching what we expect.
+  try {
+    var head = new Uint8Array(ab).slice(0, 16)
+    var hex = Array.from(head).map(function (b: number) {
+      return b.toString(16).padStart(2, '0')
+    }).join(' ')
+    console.log('[video-transcribe] first 16 bytes hex:', hex)
+  } catch {}
+
+  var whisperBlob = new Blob([ab], { type: targetMime })
 
   var form = new FormData()
   form.append('file', whisperBlob, whisperFilename)
@@ -93,8 +175,10 @@ export async function runWhisper(blob: Blob, filename: string): Promise<WhisperR
   })
   if (!resp.ok) {
     var text = await resp.text()
+    console.error('[video-transcribe] Whisper rejected', resp.status, text.slice(0, 300))
     throw new Error('Whisper API ' + resp.status + ': ' + text.slice(0, 200))
   }
+  console.log('[video-transcribe] Whisper accepted')
   return await resp.json()
 }
 
