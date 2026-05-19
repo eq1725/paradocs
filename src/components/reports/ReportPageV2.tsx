@@ -382,6 +382,22 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
   // to "Curated case" (descriptive, not endorsing).
   const isCurated = !!(report?.featured || report?.source_type === 'curated' || report?.source_type === 'editorial')
 
+  // V10.7.E.10 — user-submitted video report detector. Gates the
+  // video-first layout changes (collapsed meta line, no SourceBlock,
+  // first-person quote treatment, transcript disclosure, action row
+  // under video) so the ingested report format (Kansas, NUFORC,
+  // OBERF) stays exactly as it is. Both surfaces should feel
+  // complementary, not identical.
+  const isUserVideo = !!(report?.source_type === 'user_submission' && report?.has_video && report?.video?.playback_url)
+  const videoDurationSec = report?.video?.duration_sec || null
+  function fmtDuration(sec: number | null): string {
+    if (!sec || sec <= 0) return ''
+    var m = Math.floor(sec / 60)
+    var s = Math.floor(sec % 60)
+    return m + ':' + (s < 10 ? '0' + s : s)
+  }
+  const videoDurationLabel = fmtDuration(videoDurationSec)
+
   // V10.6 — OG image URL MUST be absolute. Social platforms
   // (iMessage, Slack, Twitter, Discord, etc.) fetch the og:image
   // independently of the page request, so a relative URL
@@ -616,7 +632,8 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                 viewCount={viewCount}
                 savedCount={savedCount}
                 commentCount={commentCount}
-                readTimeWords={readTimeWords}
+                readTimeWords={isUserVideo ? null : readTimeWords}
+                videoDurationSec={isUserVideo ? videoDurationSec : null}
                 className="mt-3 mb-4"
               />
               {report?.slug && (
@@ -680,7 +697,15 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                   playbackUrl={report.video.playback_url}
                   thumbnailUrl={report.video.poster_url || null}
                   segments={report.video.segments || null}
+                  // V10.7.E.10 — report-page mode: native controls
+                  // visible from the start, no autoplay, no
+                  // 'Tap for sound' overlay. The article surface
+                  // expects deliberate watch behaviour.
+                  mode="watch"
                 />
+                {/* Video duration + transcript disclosure live in
+                    the action row + below the player; see further
+                    down in the component. */}
               </div>
             )}
 
@@ -713,8 +738,16 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               </div>
             ) : null}
 
-            {/* ── 7. Source attribution + media (3 tiers) ────── */}
-            {sourceUrl && (
+            {/* ── 7. Source attribution + media (3 tiers) ──────
+                V10.7.E.10 — skip the SourceBlock entirely for user
+                video submissions. There IS no external source to
+                attribute (we ARE the source), and a "Read original
+                at NUFORC →" block on a self-submitted video reads
+                as a broken link or a mistake. Below the video the
+                action row + transcript carry the equivalent
+                affordances. Ingested reports keep this block
+                unchanged. */}
+            {sourceUrl && !isUserVideo && (
               <SourceBlock
                 sourceUrl={sourceUrl}
                 sourceLabel={sourceLabel}
@@ -831,7 +864,8 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                 viewCount={viewCount}
                 savedCount={savedCount}
                 commentCount={commentCount}
-                readTimeWords={readTimeWords}
+                readTimeWords={isUserVideo ? null : readTimeWords}
+                videoDurationSec={isUserVideo ? videoDurationSec : null}
               />
               {report?.slug && (
                 <ResonanceButton

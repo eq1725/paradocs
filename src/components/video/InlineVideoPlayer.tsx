@@ -48,6 +48,18 @@ interface InlineVideoPlayerProps {
   segments?: TranscriptSegment[] | null
   /** Optional className applied to the outer wrapper. */
   className?: string
+  /**
+   * V10.7.E.9 — surface mode.
+   *   'feed'  (default) — Today / scroll feed convention: lazy-load,
+   *                       autoplay muted on viewport entry, controls
+   *                       only appear after first play, tap-to-mute hint.
+   *   'watch'           — report-page convention: don't autoplay, show
+   *                       controls from the start, no tap-to-mute hint
+   *                       (the controls expose the same mute button).
+   *                       Captions ARE still rendered.
+   * The 'feed' default keeps existing callers working unchanged.
+   */
+  mode?: 'feed' | 'watch'
 }
 
 /**
@@ -112,15 +124,22 @@ export default function InlineVideoPlayer(props: InlineVideoPlayerProps) {
     return function () { io.disconnect() }
   }, [shouldLoad])
 
+  var mode = props.mode || 'feed'
+
   // Autoplay muted once loaded — Stories pattern. Some browsers
   // refuse autoplay if the user hasn't interacted yet; in that case
   // the player stays paused on the poster.
+  //
+  // V10.7.E.9 — only in 'feed' mode. The 'watch' (report-page) mode
+  // expects the user to click play deliberately; autoplaying audioless
+  // video on an article-style page is more disruptive than helpful.
   useEffect(function () {
     if (!shouldLoad) return
+    if (mode !== 'feed') return
     var v = videoRef.current
     if (!v) return
     v.play().then(function () { setHasPlayed(true) }).catch(function () { /* autoplay blocked */ })
-  }, [shouldLoad])
+  }, [shouldLoad, mode])
 
   var vttUrl = useMemo(function () { return segmentsToVttDataUrl(props.segments) }, [props.segments])
 
@@ -136,9 +155,17 @@ export default function InlineVideoPlayer(props: InlineVideoPlayerProps) {
           poster={props.thumbnailUrl || undefined}
           className="w-full h-full object-cover"
           playsInline
-          muted
-          loop
-          controls={hasPlayed}
+          // V10.7.E.9 — 'watch' mode unmutes by default since the
+          // user is deliberately watching this on a report page. The
+          // browser's native controls expose the mute button if they
+          // change their mind.
+          muted={mode === 'feed'}
+          loop={mode === 'feed'}
+          // V10.7.E.9 — watch mode shows controls immediately so the
+          // player looks and behaves like an article video player.
+          // Feed mode keeps the controls-after-play behavior so the
+          // first impression is the clean autoplay thumbnail.
+          controls={mode === 'watch' ? true : hasPlayed}
           preload="metadata"
         >
           {vttUrl && (
@@ -160,8 +187,9 @@ export default function InlineVideoPlayer(props: InlineVideoPlayerProps) {
       )}
       {/* Tap-to-unmute affordance once playing. The native controls
           eventually appear, but this hint exists for the brief
-          autoplay-muted window. */}
-      {hasPlayed && (
+          autoplay-muted window. V10.7.E.9: only in 'feed' mode —
+          the 'watch' mode already shows native controls. */}
+      {mode === 'feed' && hasPlayed && (
         <button
           type="button"
           onClick={function () {

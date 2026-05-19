@@ -27,6 +27,13 @@ export interface ReportEngagementStripProps {
   commentCount?: number | null
   /** Words to estimate read time from. Pass the narrative + any other prose visible above-fold. */
   readTimeWords?: number | null
+  /**
+   * V10.7.E.10 — when present, replace the 'X min read' chip with a
+   * video-duration chip (e.g. '0:27 video'). Pass total seconds.
+   * The read-time chip is misleading on a video report — the primary
+   * artifact is the video, not the prose.
+   */
+  videoDurationSec?: number | null
   className?: string
 }
 
@@ -35,6 +42,7 @@ export default function ReportEngagementStrip({
   savedCount,
   commentCount,
   readTimeWords,
+  videoDurationSec,
   className,
 }: ReportEngagementStripProps) {
   const items: Array<{ icon: any; text: string; tint: string }> = []
@@ -43,11 +51,20 @@ export default function ReportEngagementStrip({
   const s = typeof savedCount === 'number' ? savedCount : null
   const c = typeof commentCount === 'number' ? commentCount : null
   const w = typeof readTimeWords === 'number' && readTimeWords > 0 ? readTimeWords : null
+  const vd = typeof videoDurationSec === 'number' && videoDurationSec > 0 ? videoDurationSec : null
 
   if (v !== null && v > 0) items.push({ icon: Eye, text: formatCount(v) + ' viewed', tint: 'text-gray-300' })
   if (s !== null && s > 0) items.push({ icon: Bookmark, text: formatCount(s) + ' saved', tint: 'text-purple-300/90' })
   if (c !== null && c > 0) items.push({ icon: MessageSquare, text: formatCount(c) + (c === 1 ? ' comment' : ' comments'), tint: 'text-cyan-300/90' })
-  if (w !== null) {
+  // V10.7.E.10 — video duration takes precedence over read-time on
+  // video reports. A 'X min read' chip on a 27-second selfie video
+  // misframes the primary artifact.
+  if (vd !== null) {
+    const dm = Math.floor(vd / 60)
+    const ds = Math.floor(vd % 60)
+    const dStr = dm + ':' + (ds < 10 ? '0' + ds : ds)
+    items.push({ icon: Clock, text: dStr + ' video', tint: 'text-gray-400' })
+  } else if (w !== null) {
     const mins = Math.max(1, Math.ceil(w / 200))
     items.push({ icon: Clock, text: mins + ' min read', tint: 'text-gray-400' })
   }
