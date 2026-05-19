@@ -21,6 +21,10 @@
  *
  *   Optional: REPORT_ID=<uuid> to backfill a single specific report.
  *   Optional: DRY_RUN=1 to list candidates without running Sonnet.
+ *   Optional: FORCE=1 — when REPORT_ID is set, regenerate even if
+ *             paradocs_narrative is already populated. Useful for
+ *             picking up prompt changes (genderless framing,
+ *             video-medium hint, etc.) on already-analyzed reports.
  *
  * SWC: var + function() form.
  */
@@ -46,6 +50,7 @@ async function main() {
   var supabase = createClient(supabaseUrl, supabaseKey)
   var dryRun = process.env.DRY_RUN === '1'
   var singleId = process.env.REPORT_ID || null
+  var force = process.env.FORCE === '1'
 
   var query = supabase
     .from('reports')
@@ -56,10 +61,23 @@ async function main() {
     .order('created_at', { ascending: true })
 
   if (singleId) {
-    query = supabase
-      .from('reports')
-      .select('id, slug, title, source_type, has_video, status, created_at, paradocs_narrative')
-      .eq('id', singleId)
+    // Single-report mode. By default we keep the same "only if
+    // narrative is null" filter so an accidental re-run on a
+    // populated row is a no-op. FORCE=1 lifts that filter for
+    // prompt-change reruns (e.g. picking up the V10.7.E.8 genderless
+    // rule on an already-analyzed report).
+    if (force) {
+      query = supabase
+        .from('reports')
+        .select('id, slug, title, source_type, has_video, status, created_at, paradocs_narrative')
+        .eq('id', singleId)
+    } else {
+      query = supabase
+        .from('reports')
+        .select('id, slug, title, source_type, has_video, status, created_at, paradocs_narrative')
+        .eq('id', singleId)
+        .is('paradocs_narrative', null)
+    }
   }
 
   var { data: rows, error } = await query
