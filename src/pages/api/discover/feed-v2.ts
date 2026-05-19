@@ -586,13 +586,35 @@ export default async function handler(
           var SIGNED_TTL_SEC = 4 * 60 * 60
           var withUrls = await Promise.all(videoRows.map(async function (v: any) {
             try {
+              var bucket = v.storage_bucket || 'report_videos'
               var signed = await (supabase.storage as any)
-                .from(v.storage_bucket || 'report_videos')
+                .from(bucket)
                 .createSignedUrl(v.storage_path, SIGNED_TTL_SEC)
               if (signed?.data?.signedUrl) {
                 return { ...v, playback_url: signed.data.signedUrl }
               }
-            } catch {}
+              // V10.7.E — QA #3 (May 2026). The previous catch swallowed
+              // every signed-URL failure silently, so a misconfigured
+              // bucket or RLS rule looked identical to a healthy feed
+              // and the front-end fell through to the text card. Log
+              // the failure mode explicitly so Vercel logs make this
+              // obvious next time.
+              console.warn('[feed-v2] createSignedUrl returned no URL', {
+                video_id: v.id,
+                report_id: v.report_id,
+                bucket: bucket,
+                storage_path: v.storage_path,
+                signed_error: signed?.error?.message || null,
+              })
+            } catch (e: any) {
+              console.warn('[feed-v2] createSignedUrl threw', {
+                video_id: v.id,
+                report_id: v.report_id,
+                bucket: v.storage_bucket || 'report_videos',
+                storage_path: v.storage_path,
+                message: e?.message || String(e),
+              })
+            }
             return v
           }))
 
