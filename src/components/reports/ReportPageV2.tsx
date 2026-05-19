@@ -589,7 +589,7 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               <ReportMeta
                 anonymizeSubmitter={anonymize}
                 submitterDisplayName={submitterDisplayName}
-                eventDate={report?.event_date}
+                eventDate={report?.event_date || (report as any)?.event_date_raw || null}
                 eventDateText={report?.event_date_text}
                 eventDatePrecision={(report as any)?.event_date_precision || null}
                 city={report?.city}
@@ -771,7 +771,7 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               <ReportMeta
                 anonymizeSubmitter={anonymize}
                 submitterDisplayName={submitterDisplayName}
-                eventDate={report?.event_date}
+                eventDate={report?.event_date || (report as any)?.event_date_raw || null}
                 eventDateText={report?.event_date_text}
                 eventDatePrecision={(report as any)?.event_date_precision || null}
                 city={report?.city}
@@ -866,9 +866,19 @@ function sanitizeReport(report: any): {
 
   // Narrative — the centerpiece of the page. Most likely place
   // for a PII leak; the regex backstop runs here too.
+  //
+  // V10.7.D — fall through to report.description for reports that
+  // don't have a Paradocs-written narrative yet (e.g. user-submitted
+  // video reports — Whisper extracts a first-person description that
+  // is stored on reports.description; paradocs_narrative is only
+  // populated for the editorialised ingested reports). Without the
+  // fallback the "What happened" body silently vanishes on freshly
+  // published video reports, which made the page feel empty.
   const narrative = report.paradocs_narrative
     ? stripPiiWithLogging(report.paradocs_narrative, { field: 'reports.paradocs_narrative', reportId })
-    : null
+    : (report.description
+        ? stripPiiWithLogging(report.description, { field: 'reports.description', reportId })
+        : null)
 
   // Pull quote + alternative explanations (V10.4 dropped
   // credibility_signal — we DO NOT surface it anywhere).

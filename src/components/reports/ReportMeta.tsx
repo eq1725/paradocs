@@ -52,7 +52,7 @@ export interface ReportMetaProps {
    *   'unknown' → fall through to event_date_text or null
    * Falls back to the legacy "Jan 1 = year-only" heuristic when null.
    */
-  eventDatePrecision?: 'exact' | 'day' | 'month' | 'year' | 'unknown' | null
+  eventDatePrecision?: 'exact' | 'day' | 'month' | 'year' | 'decade' | 'unknown' | null
 
   // ── Where ──
   city?: string | null
@@ -148,6 +148,16 @@ function formatWhen(props: ReportMetaProps): string | null {
   if (raw && precision === 'year') {
     const m = raw.match(/^(\d{4})/)
     return m ? m[1] : raw
+  }
+  if (raw && precision === 'decade') {
+    // Form stores decade as e.g. '1990s' or '1990'. Normalize to 'the 1990s'.
+    const m = raw.match(/^(\d{3,4})/)
+    if (m) {
+      const yy = m[1]
+      const decade = yy.endsWith('0') ? yy + 's' : yy.replace(/\d$/, '0') + 's'
+      return 'the ' + decade
+    }
+    return raw
   }
   if (raw && precision === 'month') {
     const m = raw.match(/^(\d{4})-(\d{2})/)
