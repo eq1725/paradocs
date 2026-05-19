@@ -339,9 +339,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  var user = await getAuthenticatedUser(req);
-  if (!user || user.email !== ADMIN_EMAIL) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  // V10.7.E.10 — accept service-role Bearer for cron-driven calls
+  // from /api/cron/auto-image-search. The admin user-email auth path
+  // still works for manual UI runs; the service-role short-circuit
+  // is so the cron can fire without impersonating an admin session.
+  var authHeader = req.headers.authorization || '';
+  var serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  var isServiceRole = !!(serviceKey && authHeader === 'Bearer ' + serviceKey);
+  if (!isServiceRole) {
+    var user = await getAuthenticatedUser(req);
+    if (!user || user.email !== ADMIN_EMAIL) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
   }
 
   var supabase = getSupabaseAdmin();
