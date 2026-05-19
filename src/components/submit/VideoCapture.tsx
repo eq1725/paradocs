@@ -209,7 +209,14 @@ export default function VideoCapture(props: VideoCaptureProps) {
     setRecordedMime(file.type || 'video/mp4')
     var url = URL.createObjectURL(file)
     setPreviewUrl(url)
-    // Try to read duration via a hidden <video> probe.
+    // Panel-feedback (May 2026 — 6th round): flip to 'review'
+    // IMMEDIATELY so the UI doesn't show a flash of "Tap to open
+    // camera" while the poster capture runs async. The video element
+    // shows the iOS native play-button placeholder briefly until the
+    // poster data URL lands (~200ms-1s); much better UX than the
+    // hero button flashing back into view.
+    setPhase('review')
+    // Read duration via a hidden <video> probe (fire-and-forget).
     try {
       var probe = document.createElement('video')
       probe.preload = 'metadata'
@@ -220,21 +227,10 @@ export default function VideoCapture(props: VideoCaptureProps) {
         }
       }
     } catch {}
-    // Panel-feedback (May 2026 — 3rd round): generate the poster
-    // BEFORE flipping to 'review' so the preview never shows a black
-    // box. Capped at 2s so a slow codec doesn't stall the UI; if it
-    // times out we still proceed and the user just sees the iOS
-    // play-button placeholder briefly.
-    try {
-      var poster = await Promise.race([
-        capturePosterFromBlob(file),
-        new Promise<string>(function (resolve) { window.setTimeout(function () { resolve('') }, 2000) }),
-      ])
+    // Poster capture happens async — review is already showing.
+    capturePosterFromBlob(file).then(function (poster) {
       setPosterUrl(poster)
-    } catch {
-      setPosterUrl('')
-    }
-    setPhase('review')
+    }).catch(function () {})
   }
 
   // ── MediaRecorder path (desktop / Android) ─────────────────
