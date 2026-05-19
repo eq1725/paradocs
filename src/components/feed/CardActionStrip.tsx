@@ -45,6 +45,10 @@ interface CardActionStripProps {
    *  with a backdrop blur for contrast. 'embedded' is the same
    *  vertical strip with no backdrop (for text cards on dark bg). */
   variant?: 'overlay' | 'embedded'
+  /** V10.7.E.11 — flex direction. 'col' (default) is the right-edge
+   *  Today-feed strip. 'row' is a horizontal toolbar suitable for
+   *  placement under a video on a report page. */
+  direction?: 'col' | 'row'
 }
 
 export default function CardActionStrip(props: CardActionStripProps) {
@@ -102,8 +106,13 @@ export default function CardActionStrip(props: CardActionStripProps) {
     ? 'text-red-300 bg-black/40 backdrop-blur-sm'
     : 'text-red-300 bg-red-500/15'
 
+  var direction = props.direction || 'col'
+  var containerCls = direction === 'row'
+    ? 'flex flex-row items-center gap-2'
+    : 'flex flex-col items-center gap-2.5'
+
   return (
-    <div className="flex flex-col items-center gap-2.5">
+    <div className={containerCls}>
       <button
         type="button"
         aria-label={props.isSaved ? 'Saved' : 'Save'}

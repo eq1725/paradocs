@@ -51,6 +51,7 @@ import ReportRelatedReports from './ReportRelatedReports'
 // V10.7.B.2 — ReportPhenomenaChips usage absorbed into SourceAndWitnessBlock; import retained removed.
 import SourceBlock from './SourceBlock'
 import InlineVideoPlayer from '@/components/video/InlineVideoPlayer'
+import CardActionStrip from '@/components/feed/CardActionStrip'
 import ReportBelowFold, { type RelatedReport, type AlternativeExplanation } from './ReportBelowFold'
 import ResonanceButton from './ResonanceButton'
 // V10.7.B.2 — WitnessProfilePill standalone usage replaced by SourceAndWitnessBlock; component file kept for backward-compat.
@@ -689,8 +690,17 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                 lazy-load, captions). Only renders when the report
                 has an approved video and feed-v2 / getStaticProps
                 successfully signed a playback URL. */}
+            {/* V10.7.E.11 — two-column desktop layout for user video
+                reports. On mobile the block stays centered max-w-md.
+                On lg+ it floats left at w-80 (320px), so the narrative
+                + analysis content flows around the video to the right
+                instead of leaving the desktop column half-empty under
+                a centered portrait video. Margin-bottom on the float
+                container clears after the content extends below the
+                video (typically the analysis block is taller than the
+                video so this is a non-issue). */}
             {report?.has_video && report?.video?.playback_url && (
-              <div className="mb-6 max-w-md mx-auto">
+              <div className="mb-6 max-w-md mx-auto lg:float-left lg:max-w-none lg:w-80 lg:mx-0 lg:mr-6 lg:mt-1">
                 <InlineVideoPlayer
                   reportId={report.id}
                   videoId={report.video.video_id}
@@ -703,24 +713,94 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                   // expects deliberate watch behaviour.
                   mode="watch"
                 />
-                {/* Video duration + transcript disclosure live in
-                    the action row + below the player; see further
-                    down in the component. */}
+
+                {/* V10.7.E.11 — horizontal action toolbar directly
+                    under the video. Save / thumbs up / thumbs down /
+                    share, mirroring YouTube + TikTok web conventions.
+                    On a single-page entry point (Google / social share
+                    landing here), the engagement controls need to be
+                    visible above the fold — burying them in a corner
+                    of the top bar made them easy to miss. */}
+                <div className="mt-3 flex justify-center">
+                  <CardActionStrip
+                    reportId={report.id}
+                    isSaved={isSaved}
+                    onSave={function (e) {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      handleSave()
+                    }}
+                    onShare={function (e) {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      handleShare()
+                    }}
+                    onUnauthed={function () { setAuthPromptOpen(true) }}
+                    category={report.category}
+                    variant="embedded"
+                    direction="row"
+                  />
+                </div>
+
+                {/* V10.7.E.11 — transcript disclosure. Collapsed
+                    by default so it doesn't overwhelm the page;
+                    SEO crawlers still see the raw text in the
+                    <details> contents, and screen readers /
+                    keyboard users can expand and read. Each
+                    segment shows its timestamp. */}
+                {Array.isArray((report.video as any).segments) && (report.video as any).segments.length > 0 && (
+                  <details className="mt-4 rounded-lg border border-gray-800 bg-gray-900/40 p-3 text-sm">
+                    <summary className="cursor-pointer text-gray-300 font-medium select-none">
+                      Read transcript
+                    </summary>
+                    <div className="mt-3 space-y-2 text-gray-300 leading-relaxed">
+                      {((report.video as any).segments as Array<{ start: number; end: number; text: string }>).map(function (seg, i: number) {
+                        var mm = Math.floor((seg.start || 0) / 60)
+                        var ss = Math.floor((seg.start || 0) % 60)
+                        var ts = mm + ':' + (ss < 10 ? '0' + ss : ss)
+                        return (
+                          <p key={i} className="text-[13px]">
+                            <span className="text-gray-500 font-mono mr-2">{ts}</span>
+                            {(seg.text || '').trim()}
+                          </p>
+                        )
+                      })}
+                    </div>
+                  </details>
+                )}
               </div>
             )}
 
             {narrativeParagraphs.length > 0 ? (
               <div className="mb-6">
                 <p className="text-[10px] uppercase tracking-widest font-semibold text-gray-500 mb-3">
-                  What happened
+                  {isUserVideo ? 'In their words' : 'What happened'}
                 </p>
-                <div className="prose prose-invert max-w-none">
-                  {narrativeParagraphs.map((p, i) => (
-                    <p key={i} className="text-base text-gray-100 leading-relaxed mb-4 last:mb-0">
-                      {p}
-                    </p>
-                  ))}
-                </div>
+                {/* V10.7.E.11 — for user video submissions, the
+                    narrative IS the witness's own first-person account
+                    (Whisper transcript polished). Visually separate
+                    it from the third-person Paradocs analysis below
+                    with a quote-style treatment so the voice shift
+                    doesn't whiplash the reader. Ingested reports
+                    keep the existing plain-prose treatment because
+                    paradocs_narrative on those is OUR editorial voice. */}
+                {isUserVideo ? (
+                  <blockquote className="border-l-2 border-purple-700/50 pl-4 py-1 prose prose-invert max-w-none">
+                    {narrativeParagraphs.map((p, i) => (
+                      <p key={i} className="text-base text-gray-100 leading-relaxed italic mb-4 last:mb-0">
+                        {p}
+                      </p>
+                    ))}
+                  </blockquote>
+                ) : (
+                  <div className="prose prose-invert max-w-none">
+                    {narrativeParagraphs.map((p, i) => (
+                      <p key={i} className="text-base text-gray-100 leading-relaxed mb-4 last:mb-0">
+                        {p}
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : sourceExcerpt ? (
               <div className="mb-6">
@@ -806,11 +886,15 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
             {/* ── 7b. Related Reports (V10.6, repositioned V10.7.B.5)
                 Stays in main column at all breakpoints — needs the
                 wider sm:grid-cols-2 layout that wouldn't fit in the
-                320px right rail. */}
+                320px right rail.
+                V10.7.E.11 — clear-left so the lg:float-left video on
+                user video reports doesn't push Related Reports up
+                next to it. We want the related rail to span the full
+                column width below the body + analysis. */}
             {relatedReports && relatedReports.length > 0 && (
               <ReportRelatedReports
                 items={relatedReports}
-                className="my-6"
+                className="my-6 lg:clear-left"
               />
             )}
             </main>

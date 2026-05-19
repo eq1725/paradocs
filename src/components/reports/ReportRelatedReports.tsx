@@ -66,19 +66,34 @@ export default function ReportRelatedReports({ items, className }: ReportRelated
   const exploreHref = anchorCategory ? '/explore?category=' + encodeURIComponent(anchorCategory) : null
 
   return (
-    <section className={className || ''} aria-label="Related reports">
-      <header className="flex items-center justify-between gap-2 mb-3">
-        <div className="flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-purple-400" />
-          <h2 className="text-sm font-semibold text-white">
-            {heading}
-            <span className="text-gray-500 font-normal"> · {list.length} showing</span>
-          </h2>
+    <section
+      className={'rounded-xl border border-purple-700/30 bg-gradient-to-br from-purple-950/30 via-gray-900/40 to-gray-900/30 p-4 sm:p-5 ' + (className || '')}
+      aria-label="Related reports"
+    >
+      {/* V10.7.E.11 — promoted Related Reports rail. After a reader
+          finishes the analysis, the natural CTA is 'show me more
+          like this'. Previously this block was a thin two-line header
+          + grid; bumping it to a bordered card with a larger H2 +
+          intro line gives it the visual weight of a destination, not
+          a footnote. */}
+      <header className="flex items-center justify-between gap-2 mb-4">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-md flex-shrink-0 bg-purple-600/20 border border-purple-500/40">
+            <BookOpen className="w-4 h-4 text-purple-300" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-white leading-tight">
+              {heading}
+            </h2>
+            <p className="text-[11px] text-gray-500 leading-tight">
+              Keep exploring · {list.length} showing
+            </p>
+          </div>
         </div>
         {exploreHref && (
           <Link
             href={exploreHref}
-            className="text-xs text-purple-300 hover:text-purple-200 font-medium inline-flex items-center gap-1 transition-colors"
+            className="text-xs text-purple-300 hover:text-purple-200 font-medium inline-flex items-center gap-1 transition-colors flex-shrink-0"
           >
             See all
             <span aria-hidden="true">→</span>
@@ -86,7 +101,7 @@ export default function ReportRelatedReports({ items, className }: ReportRelated
         )}
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {list.map(r => (
           <RelatedCard key={r.id} report={r} />
         ))}
