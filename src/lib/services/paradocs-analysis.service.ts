@@ -630,6 +630,35 @@ function buildUserPrompt(report: any, analysisWordBudget: number): string {
   if (report.source_label || report.source_type) parts.push('SOURCE: ' + (report.source_label || report.source_type))
   if (report.category) parts.push('CATEGORY: ' + report.category)
 
+  // V10.7.E.5 — MEDIUM hint. When the report has an attached
+  // user-submitted video (has_video=true), the narrative we're
+  // analyzing is a Whisper transcription of the witness speaking
+  // on camera. The default analysis voice is calibrated for written
+  // accounts ("the witness writes…", "the report states…") which
+  // reads awkwardly when the source is a 30-second selfie video.
+  // Tell the model what medium it's working with so it can pick the
+  // right verbs ("recounts on camera", "says into the camera",
+  // "describes in the video"), and preserve the on-camera framing
+  // when relevant ("the witness pauses before saying X", "the
+  // delivery is matter-of-fact"). Same writer voice rules otherwise —
+  // no first-person pronouns, no quoting/paraphrasing.
+  if (report.has_video) {
+    parts.push(
+      'MEDIUM: This report is a short user-submitted video; the narrative below is a Whisper '
+      + 'transcription of the witness speaking on camera. Prefer video-aware verbs ("recounts on camera", '
+      + '"says into the camera", "describes in the video", "the witness pauses before…") over written-account '
+      + 'verbs ("writes", "the report states", "the account claims"). If on-camera delivery details are '
+      + 'visible in the transcript (laughter, hesitation, emphasis), you may briefly note them in the analysis '
+      + 'or pull_quote, but do NOT invent any non-verbal detail not literally present in the transcript text.'
+    )
+  } else if (report.source_type === 'user_submission') {
+    parts.push(
+      'MEDIUM: This is a first-party written submission from the witness themselves (not a third-party '
+      + 'ingest). Use written-account verbs ("the witness writes", "describes", "recounts") and keep the '
+      + 'analysis grounded entirely in what the narrative states. Same anti-fabrication rules apply.'
+    )
+  }
+
   // V10.6.15 — All structured metadata DELIBERATELY excluded from
   // the source packet: location (V10.6.14 found these corrupt for
   // a slice of the corpus) AND event_date (V10.6.15 found OBERF
@@ -1213,7 +1242,7 @@ export async function generateParadocsAnalysis(
 
   var { data: report, error: fetchError } = await supabase
     .from('reports')
-    .select('id, title, summary, description, category, location_name, country, state_province, city, event_date, credibility, source_type, source_label, tags, latitude, longitude, has_photo_video, has_official_report, witness_count, metadata')
+    .select('id, title, summary, description, category, location_name, country, state_province, city, event_date, credibility, source_type, source_label, tags, latitude, longitude, has_photo_video, has_video, has_official_report, witness_count, metadata')
     .eq('id', reportId)
     .single()
 
@@ -1685,7 +1714,7 @@ export async function generateAndSaveDirect(reportId: string): Promise<{ success
     // Fetch report
     var { data: report, error: fetchError } = await supabase
       .from('reports')
-      .select('id, title, summary, description, category, location_name, country, state_province, city, event_date, credibility, source_type, source_label, tags, latitude, longitude, has_photo_video, has_official_report, witness_count, metadata')
+      .select('id, title, summary, description, category, location_name, country, state_province, city, event_date, credibility, source_type, source_label, tags, latitude, longitude, has_photo_video, has_video, has_official_report, witness_count, metadata')
       .eq('id', reportId)
       .single()
 
