@@ -39,6 +39,49 @@ var PaywallModal = dynamic(
 import type { MatchedReport, UserExperience } from '@/components/constellation/ConstellationReveal'
 import type { ExperienceData } from '@/components/constellation/ExperienceOnboarding'
 import RadarVisualization, { CATEGORY_COLORS, CATEGORY_LABELS } from '@/components/radar/RadarVisualization'
+import { CATEGORY_CONFIG } from '@/lib/constants'
+import { Pencil } from 'lucide-react'
+import EditReportModal from './EditReportModal'
+
+/**
+ * Panel-feedback (May 2026 — 5th round). Resolve a category slug to
+ * a human-readable label. Falls through to a Title-Cased version of
+ * the slug if the category isn't in CATEGORY_CONFIG.
+ */
+function resolveCategoryLabel(slug: string | null | undefined): string {
+  if (!slug) return ''
+  var conf = (CATEGORY_CONFIG as any)[slug]
+  if (conf && conf.label) return conf.label
+  // Fallback: title-case the slug ("ufos_aliens" → "UFOs Aliens")
+  return slug.split('_').map(function (s: string) {
+    return s.length > 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s
+  }).join(' ')
+}
+
+/**
+ * Panel-feedback (May 2026 — 5th round). Resolve the EVENT year for
+ * display. Prefers event_date (exact), falls back to event_date_raw
+ * (year/decade/month-only modes), then returns null rather than
+ * defaulting to the current year (which was misleading users into
+ * thinking their 1999 report happened in 2026).
+ */
+function resolveEventYear(r: any): number | null {
+  if (!r) return null
+  if (r.event_date) {
+    try {
+      var y = new Date(r.event_date).getFullYear()
+      if (!isNaN(y) && y > 1800 && y < 2200) return y
+    } catch {}
+  }
+  if (r.event_date_raw) {
+    var m = String(r.event_date_raw).match(/(\d{4})/)
+    if (m) {
+      var y2 = parseInt(m[1], 10)
+      if (!isNaN(y2) && y2 > 1800 && y2 < 2200) return y2
+    }
+  }
+  return null
+}
 
 export default function LabConstellationTab() {
   var router = useRouter()
@@ -76,7 +119,7 @@ export default function LabConstellationTab() {
         .select(`
           id, title, slug, category, description, summary,
           location_description, city, state_province, country,
-          latitude, longitude, event_date, created_at,
+          latitude, longitude, event_date, event_date_raw, event_date_precision, created_at,
           phenomenon_type:phenomenon_types(name)
         `)
         .eq('submitted_by', session.user.id)
@@ -102,16 +145,27 @@ export default function LabConstellationTab() {
 
         // Build the UserExperience from the focused report.
         var report = userReports[initialIdx]
+        var resolvedYear0 = resolveEventYear(report)
         var exp: UserExperience = {
           id: report.id,
-          type_name: (report as any).phenomenon_type?.name || report.category || '',
+          // Panel-feedback (May 2026 — 5th round): use friendly
+          // category label instead of raw slug as the fallback when
+          // the user didn't pick a specific phenomenon_type.
+          type_name: (report as any).phenomenon_type?.name || resolveCategoryLabel(report.category) || 'Your experience',
           category: report.category || '',
           location: [report.city, report.state_province].filter(Boolean).join(', ') || report.location_description || 'Unknown',
           latitude: report.latitude || 30.08,
           longitude: report.longitude || -94.10,
-          year: report.event_date ? new Date(report.event_date).getFullYear() : new Date().getFullYear(),
+          // Panel-feedback (May 2026 — 5th round): resolveEventYear
+          // prefers event_date, falls back to event_date_raw, returns
+          // null (not current year) so we don't lie about when the
+          // event happened.
+          year: resolvedYear0 != null ? resolvedYear0 : (new Date().getFullYear() as any),
           description: report.description || report.summary || '',
         }
+        // If we couldn't resolve a year, mark the field so the UI
+        // can render "Date unknown" instead of a misleading number.
+        if (resolvedYear0 == null) (exp as any).year_unknown = true
         setUserExperience(exp)
 
         // Fetch matches for the focused report.
@@ -130,16 +184,18 @@ export default function LabConstellationTab() {
     if (allReports.length === 0) return
     var report = allReports[focusedIdx]
     if (!report) return
+    var resolvedYear = resolveEventYear(report)
     var exp: UserExperience = {
       id: report.id,
-      type_name: (report as any).phenomenon_type?.name || report.category || '',
+      type_name: (report as any).phenomenon_type?.name || resolveCategoryLabel(report.category) || 'Your experience',
       category: report.category || '',
       location: [report.city, report.state_province].filter(Boolean).join(', ') || report.location_description || 'Unknown',
       latitude: report.latitude || 30.08,
       longitude: report.longitude || -94.10,
-      year: report.event_date ? new Date(report.event_date).getFullYear() : new Date().getFullYear(),
+      year: resolvedYear != null ? resolvedYear : (new Date().getFullYear() as any),
       description: report.description || report.summary || '',
     }
+    if (resolvedYear == null) (exp as any).year_unknown = true
     setUserExperience(exp)
     supabase.auth.getSession().then(function(s) {
       var token = s.data.session?.access_token || ''
@@ -298,6 +354,49 @@ export default function LabConstellationTab() {
           totalExperiences={totalExperiences}
           userEmail={userEmail}
           router={router}
+          reportRaw={allReports[focusedIdx] || null}
+          onReportEdited={function () {
+            // After a successful edit, refetch the user's reports
+            // so the card reflects the changes.
+            supabase.auth.getSession().then(function (s) {
+              var session = s.data.session
+              if (!session) return
+              supabase
+                .from('reports')
+                .select(`
+                  id, title, slug, category, description, summary,
+                  location_description, city, state_province, country,
+                  latitude, longitude, event_date, event_date_raw, event_date_precision, created_at,
+                  phenomenon_type:phenomenon_types(name)
+                `)
+                .eq('submitted_by', session.user.id)
+                .eq('source_type', 'user_submission')
+                .neq('status', 'deleted')
+                .order('created_at', { ascending: false })
+                .limit(50)
+                .then(function (r: any) {
+                  if (r.data && r.data.length > 0) {
+                    setAllReports(r.data)
+                    // Refresh userExperience from the same focused index.
+                    var idx = Math.min(focusedIdx, r.data.length - 1)
+                    var report = r.data[idx]
+                    var resolved = resolveEventYear(report)
+                    var nextExp: UserExperience = {
+                      id: report.id,
+                      type_name: (report as any).phenomenon_type?.name || resolveCategoryLabel(report.category) || 'Your experience',
+                      category: report.category || '',
+                      location: [report.city, report.state_province].filter(Boolean).join(', ') || report.location_description || 'Unknown',
+                      latitude: report.latitude || 30.08,
+                      longitude: report.longitude || -94.10,
+                      year: resolved != null ? resolved : (new Date().getFullYear() as any),
+                      description: report.description || report.summary || '',
+                    }
+                    if (resolved == null) (nextExp as any).year_unknown = true
+                    setUserExperience(nextExp)
+                  }
+                })
+            })
+          }}
         />
       </>
     )
@@ -591,9 +690,16 @@ function PolishedRadarView(props: {
   totalExperiences: number
   userEmail: string
   router: any
+  // Panel-feedback (May 2026 — 5th round): pass the raw report so
+  // the edit modal can prefill all fields. Optional so legacy
+  // invocations don't break.
+  reportRaw?: any
+  onReportEdited?: () => void
 }) {
   var [filter, setFilter] = useState<'all' | 'high' | 'nearby'>('all')
   var [notifyToast, setNotifyToast] = useState<string | null>(null)
+  // Panel-feedback (May 2026 — 5th round): edit modal state.
+  var [showEditModal, setShowEditModal] = useState(false)
   // V9.11.5 #30 — inline match preview state. Clicking a dot or
   // card expands the corresponding card in place rather than
   // navigating away. Same UX on mobile + desktop.
@@ -668,14 +774,25 @@ function PolishedRadarView(props: {
 
   // V9.11.5 #31 — derived display fields for the user's own report.
   // userExperience.type_name is the phenomenology label they picked
-  // (e.g. "UFO Sighting"); falls back to category if missing.
-  var ownTitle = props.userExperience.type_name || props.userExperience.category || 'Your experience'
+  // (e.g. "UFO Sighting"); falls back to a FRIENDLY category label
+  // when no phenomenon_type was selected (panel-feedback May 2026
+  // 5th round — was rendering raw "ufos_aliens" slug before).
+  var ownTitle = props.userExperience.type_name
+    || resolveCategoryLabel(props.userExperience.category)
+    || 'Your experience'
   var ownDescription = (props.userExperience.description || '').trim()
   var ownSnippet = ownDescription.length > 240
     ? ownDescription.substring(0, 240).trim() + '…'
     : ownDescription
   var ownLocation = props.userExperience.location || ''
-  var ownYear = props.userExperience.year ? String(props.userExperience.year) : ''
+  // Panel-feedback (May 2026 — 5th round): don't show created_at year
+  // when event_date is genuinely unknown. The data layer flags this
+  // via year_unknown so we can render 'Date unknown' instead of
+  // lying about when the event occurred.
+  var ownYearUnknown = !!(props.userExperience as any).year_unknown
+  var ownYear = ownYearUnknown
+    ? ''
+    : (props.userExperience.year ? String(props.userExperience.year) : '')
 
   return (
     <div className="px-4 sm:px-6 py-6 max-w-3xl mx-auto">
@@ -824,12 +941,37 @@ function PolishedRadarView(props: {
               </div>
             )}
             <p className="text-[11px] text-gray-500 leading-relaxed">
-              This is the report we&rsquo;re matching against. To edit it or share another
-              experience, use the buttons above.
+              This is the report we&rsquo;re matching against.
             </p>
+            {/* Panel-feedback (May 2026 — 5th round): Edit affordance.
+                Opens an in-place modal; saves go through moderation
+                with default auto-approve so ~95% land live without
+                admin intervention. */}
+            {props.reportRaw && (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={function () { setShowEditModal(true) }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-purple-700/50 text-xs font-medium text-purple-200 hover:bg-purple-600/20 transition-colors"
+                >
+                  <Pencil className="w-3 h-3" />
+                  Edit report
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Edit modal — mounted once at the card level, drives via state. */}
+      {props.reportRaw && (
+        <EditReportModal
+          open={showEditModal}
+          onClose={function () { setShowEditModal(false) }}
+          onSaved={function () { if (props.onReportEdited) props.onReportEdited() }}
+          report={props.reportRaw}
+        />
+      )}
 
       {/* Filter chips */}
       <div className="flex justify-center gap-2 mb-2 flex-wrap">
