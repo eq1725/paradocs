@@ -771,9 +771,17 @@ export default async function handler(
         // DB `summary` field may be a verbatim first-300-chars excerpt of
         // the source narrative. We never ship that to the client — swap
         // in an AI-generated alternative (paradocs_narrative / feed_hook).
-        var isCuratedRow = r.source_type === 'curated' || r.source_type === 'editorial';
+        //
+        // V10.7.E (QA #3, May 2026) — user_submission rows ARE safe to
+        // surface raw summary for: it's the user's own first-person
+        // account (or Whisper transcription of it). Previously these
+        // rows were treated like ingested third-party content and had
+        // their summary blanked, leaving the card body empty.
+        var isSafeSummarySource = r.source_type === 'curated'
+          || r.source_type === 'editorial'
+          || r.source_type === 'user_submission';
         var safeSummary = r.summary;
-        if (!isCuratedRow) {
+        if (!isSafeSummarySource) {
           var n = r.paradocs_narrative;
           safeSummary = (n ? (n.length > 200 ? n.slice(0, 197).trim() + '...' : n) : null) || r.feed_hook || null;
         }
@@ -804,6 +812,16 @@ export default async function handler(
           comment_count: r.comment_count,
           has_photo_video: r.has_photo_video,
           has_physical_evidence: r.has_physical_evidence,
+          // V10.7.E (QA #3) — pass through has_video + the joined video
+          // object (signed playback URL + transcript segments) so the
+          // feed renderer can choose the TikTok-style VideoReportCard
+          // for approved user video submissions. Previously these two
+          // fields were computed inside the handler but never returned
+          // in the response, so the front-end check
+          // `report.has_video && report.video?.playback_url` always
+          // failed and the card fell through to the text branch.
+          has_video: r.has_video || false,
+          video: r.video || null,
           content_type: r.content_type,
           location_name: r.location_name,
           source_type: r.source_type,
