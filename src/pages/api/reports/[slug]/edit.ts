@@ -53,8 +53,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  var reportId = (req.query.id as string) || ''
-  if (!reportId) return res.status(400).json({ error: 'Missing report id' })
+  // The dynamic segment is named [slug] for parent-route consistency
+  // but accepts either a UUID (report.id) or a string slug. Resolve
+  // by whichever matches.
+  var identifier = (req.query.slug as string) || (req.query.id as string) || ''
+  if (!identifier) return res.status(400).json({ error: 'Missing report identifier' })
 
   var authHeader = req.headers.authorization || ''
   var accessToken = authHeader.indexOf('Bearer ') === 0 ? authHeader.slice(7) : ''
@@ -68,12 +71,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (authErr || !userData?.user) return res.status(401).json({ error: 'Not authenticated' })
   var userId = userData.user.id
 
-  // Ownership check.
-  var { data: existing, error: existingErr } = await admin
+  // Ownership check. Accept either UUID (id) or slug — id lookups
+  // are typed UUIDs in Supabase, so we use .or() against both
+  // columns; the index on each makes this cheap.
+  var lookupQuery = admin
     .from('reports')
     .select('id, submitted_by, status, description, source_type')
-    .eq('id', reportId)
-    .maybeSingle()
+  // UUIDs have the canonical 8-4-4-4-12 hex shape. Cheap regex test.
+  var looksLikeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier)
+  if (looksLikeUuid) lookupQuery = lookupQuery.eq('id', identifier)
+  else lookupQuery = lookupQuery.eq('slug', identifier)
+
+  var { data: existing, error: existingErr } = await lookupQuery.maybeSingle()
   if (existingErr || !existing) return res.status(404).json({ error: 'Report not found' })
   if ((existing as any).submitted_by !== userId) {
     return res.status(403).json({ error: 'You can only edit your own reports' })
@@ -81,6 +90,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if ((existing as any).source_type !== 'user_submission') {
     return res.status(403).json({ error: 'This report is not editable' })
   }
+  var reportId = (existing as any).id // canonical id for downstream updates
 
   var body = (req.body || {}) as EditBody
 
