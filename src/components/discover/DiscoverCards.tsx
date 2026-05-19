@@ -30,6 +30,7 @@ import { classNames } from '@/lib/utils'
 import { deriveCaseProfile, nderfToCaseProfile, type CaseProfile } from '@/lib/caseProfile'
 import SourceBadge from '@/components/SourceBadge'
 import TodayCardShell from './TodayCardShell'
+import InlineVideoPlayer from '@/components/video/InlineVideoPlayer'
 
 // =========================================================================
 //  Shared types
@@ -146,6 +147,18 @@ export interface ReportItem {
   comment_count: number
   has_photo_video: boolean
   has_physical_evidence: boolean
+  // Panel-feedback (May 2026 — 3rd round): video pipeline integration.
+  // When the report has an approved user-submitted video, has_video is
+  // true and the `video` payload carries a signed playback URL +
+  // transcript segments for inline rendering.
+  has_video?: boolean | null
+  video?: {
+    video_id: string
+    playback_url: string | null
+    segments: any[] | null
+    duration_sec: number | null
+    transcript_lang: string | null
+  } | null
   content_type: string | null
   location_name: string | null
   source_type: string | null
@@ -928,6 +941,23 @@ export function TextReportCard(props: {
       }
     >
       <div role="article" aria-label={(isEditorial ? 'Editorial: ' : 'Eyewitness report: ') + (item.title || 'Untitled')} className="flex flex-col gap-3 md:gap-4 pt-1">
+        {/* Panel-feedback (May 2026 — 3rd round): when the report has
+            an approved video, render an inline lazy-loaded vertical
+            player above the badge row. The feed-v2 endpoint joins
+            report_videos for has_video=true rows and includes signed
+            playback URL + transcript segments. */}
+        {item.has_video && item.video?.playback_url && (
+          <div className="-mx-1 mb-1">
+            <InlineVideoPlayer
+              reportId={item.id}
+              videoId={item.video.video_id}
+              playbackUrl={item.video.playback_url}
+              segments={item.video.segments || null}
+              className="max-w-[300px] mx-auto"
+            />
+          </div>
+        )}
+
         {/* Element 1 — Badge row (category · year · location-trim).
             V9.0: text near-white, icon catColor (matches phenomena V8.1.3). */}
         <div className="flex items-center gap-2 flex-wrap">

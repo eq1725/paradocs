@@ -88,7 +88,7 @@ function isIosDevice(): boolean {
   return false
 }
 
-type Phase = 'idle' | 'recording' | 'review' | 'uploading' | 'error'
+type Phase = 'idle' | 'recording' | 'review' | 'uploading' | 'processing' | 'error'
 
 /**
  * Panel-feedback (May 2026): iOS Safari doesn't render the first
@@ -197,7 +197,7 @@ export default function VideoCapture(props: VideoCaptureProps) {
     }
   }
 
-  function handleNativeFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleNativeFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     var file = e.target.files && e.target.files[0]
     if (!file) return
     if (file.size > MAX_BYTES) {
@@ -220,9 +220,20 @@ export default function VideoCapture(props: VideoCaptureProps) {
         }
       }
     } catch {}
-    // Panel-feedback (May 2026): generate a poster frame so the
-    // preview shows a still rather than a black box.
-    capturePosterFromBlob(file).then(function (poster) { setPosterUrl(poster) })
+    // Panel-feedback (May 2026 — 3rd round): generate the poster
+    // BEFORE flipping to 'review' so the preview never shows a black
+    // box. Capped at 2s so a slow codec doesn't stall the UI; if it
+    // times out we still proceed and the user just sees the iOS
+    // play-button placeholder briefly.
+    try {
+      var poster = await Promise.race([
+        capturePosterFromBlob(file),
+        new Promise<string>(function (resolve) { window.setTimeout(function () { resolve('') }, 2000) }),
+      ])
+      setPosterUrl(poster)
+    } catch {
+      setPosterUrl('')
+    }
     setPhase('review')
   }
 
@@ -268,16 +279,25 @@ export default function VideoCapture(props: VideoCaptureProps) {
       rec.ondataavailable = function (e: BlobEvent) {
         if (e.data && e.data.size > 0) chunksRef.current.push(e.data)
       }
-      rec.onstop = function () {
+      rec.onstop = async function () {
         var blob = new Blob(chunksRef.current, { type: mime })
         setRecordedBlob(blob)
         var url = URL.createObjectURL(blob)
         setPreviewUrl(url)
-        // Panel-feedback (May 2026): generate poster frame so the
-        // preview shows a still rather than a black box.
-        capturePosterFromBlob(blob).then(function (poster) { setPosterUrl(poster) })
-        setPhase('review')
         if (liveVideoRef.current) liveVideoRef.current.pause()
+        // Panel-feedback (May 2026 — 3rd round): wait for poster
+        // before flipping to review, capped at 2s. Avoids the
+        // black-box flash on iOS Safari.
+        try {
+          var poster = await Promise.race([
+            capturePosterFromBlob(blob),
+            new Promise<string>(function (resolve) { window.setTimeout(function () { resolve('') }, 2000) }),
+          ])
+          setPosterUrl(poster)
+        } catch {
+          setPosterUrl('')
+        }
+        setPhase('review')
       }
       rec.start(1000)
       setPhase('recording')
@@ -370,6 +390,12 @@ export default function VideoCapture(props: VideoCaptureProps) {
       if (!urlResp.ok || !urlData.ok) throw new Error(urlData.error || 'Could not start upload')
 
       await putBlobWithProgress(urlData.signed_url, recordedBlob, mimeBase)
+
+      // Panel-feedback (May 2026 — 3rd round): /finalize now runs
+      // Whisper + Haiku synchronously, which can take 10-60s. Show
+      // a dedicated "processing" screen so the user knows we're
+      // working, not stalled.
+      setPhase('processing')
 
       var finalizeResp = await fetch('/api/reports/video/' + encodeURIComponent(urlData.report_id) + '/finalize', {
         method: 'POST',
@@ -483,8 +509,15 @@ export default function VideoCapture(props: VideoCaptureProps) {
               className="w-full h-full object-contain"
               src={previewUrl}
               poster={posterUrl || undefined}
-              preload="metadata"
+              // Panel-feedback (May 2026 — 3rd round): preload="auto"
+              // fully buffers the clip so playback is smooth instead
+              // of stuttering through chunked re-fetches. disablePIP
+              // + controlsList keep iOS Safari from grabbing the
+              // player into modes it can't cleanly exit.
+              preload="auto"
               controls
+              controlsList="nodownload nofullscreen"
+              disablePictureInPicture
               playsInline
             />
           </div>
@@ -598,6 +631,21 @@ export default function VideoCapture(props: VideoCaptureProps) {
                 />
               </div>
             )}
+          </div>
+        )}
+
+        {phase === 'processing' && (
+          <div className="space-y-3 text-center py-4">
+            <div className="inline-flex items-center justify-center gap-2 text-sm font-semibold text-purple-200">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Adding magic to your video…
+            </div>
+            <p className="text-xs text-gray-400 leading-relaxed max-w-sm mx-auto">
+              We&rsquo;re transcribing your audio, drafting a title and description, and pulling out location and date hints. This usually takes 10–60 seconds depending on the length.
+            </p>
+            <div className="h-1 w-full bg-gray-800 rounded-full overflow-hidden">
+              <div className="h-full bg-purple-500 animate-pulse" style={{ width: '60%' }} />
+            </div>
           </div>
         )}
 

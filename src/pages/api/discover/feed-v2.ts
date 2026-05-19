@@ -131,7 +131,27 @@ export default async function handler(
     var supabase = getSupabase();
     var limit = Math.min(parseInt(req.query.limit as string) || 15, 30);
     var offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
-    var seed = parseInt(req.query.seed as string) || 12345;
+    // Panel-feedback (May 2026 — 3rd round, Tier 1):
+    //   The static 12345 seed meant every visitor saw the exact same
+    //   feed order. We now derive the seed from user_id (if provided)
+    //   + day so the order varies between users and between days but
+    //   stays stable within a session. Client can still pass explicit
+    //   seed for paginated continuity.
+    var userIdSeed = (req.query.user_id as string) || ''
+    var clientSeed = parseInt(req.query.seed as string)
+    var seed: number
+    if (!isNaN(clientSeed) && clientSeed !== 0) {
+      seed = clientSeed
+    } else {
+      var dayStamp = Math.floor(Date.now() / (24 * 60 * 60 * 1000))
+      var hash = 0
+      var seedSource = userIdSeed + ':' + dayStamp
+      for (var hi = 0; hi < seedSource.length; hi++) {
+        hash = ((hash << 5) - hash) + seedSource.charCodeAt(hi)
+        hash |= 0
+      }
+      seed = Math.abs(hash) || 12345
+    }
     var category = (req.query.category as string) || '';
     var onboardingTopicsRaw = (req.query.onboarding_topics as string) || '';
     var sessionAffinityRaw = (req.query.session_affinity as string) || '';
@@ -280,17 +300,34 @@ export default async function handler(
       return scoreItem(item.id, 'phenomenon', item.category, Math.min(quality, 10), item.created_at);
     });
 
-    // Score reports — feed_hook presence is a major quality signal
-    var scoredReports: ScoredItem[] = allReports.map(function (item) {
+    // Score reports — feed_hook presence is a major quality signal.
+    // Panel-feedback (May 2026 — 3rd round, Tier 1): added boost for
+    // first-party user video submissions (has_video) and an extra
+    // freshness multiplier for very recent (< 48h) user content.
+    // Goal: the Today feed surfaces NEW content prominently rather
+    // than feeling like a static list.
+    var nowMs = Date.now()
+    var FRESH_WINDOW_MS = 48 * 60 * 60 * 1000
+    var scoredReports: ScoredItem[] = allReports.map(function (item: any) {
       var quality = 1;
       if (item.feed_hook) quality += 3; // Hook = engagement-ready card
       if (item.has_photo_video) quality += 2;
+      if (item.has_video === true) quality += 3; // Strong signal — video is the format users want
       if (item.has_physical_evidence) quality += 1;
       if (item.credibility === 'high') quality += 2;
       else if (item.credibility === 'medium') quality += 1;
       if (item.upvotes > 3) quality += 1;
       if (item.content_type === 'historical_case') quality += 1;
-      return scoreItem(item.id, 'report', item.category, Math.min(quality, 10), item.created_at);
+      // Freshness: very recent user content gets an extra bump so a
+      // newly-approved report doesn't get buried under high-engagement
+      // historical cases on its first day.
+      if (item.created_at) {
+        var ageMs = nowMs - new Date(item.created_at).getTime()
+        if (ageMs >= 0 && ageMs < FRESH_WINDOW_MS) {
+          quality += 2
+        }
+      }
+      return scoreItem(item.id, 'report', item.category, Math.min(quality, 12), item.created_at);
     });
 
     scoredAll = scoredAll.concat(scoredReports);
@@ -402,11 +439,59 @@ export default async function handler(
     if (reportIds.length > 0) {
       var { data: fullReports } = await (supabase
         .from('reports') as any)
-        .select('id, title, slug, summary, category, country, city, state_province, event_date, event_date_precision, credibility, upvotes, view_count, comment_count, has_photo_video, has_physical_evidence, content_type, location_name, source_type, source_label, created_at, phenomenon_type_id, feed_hook, paradocs_narrative, metadata, anchor_case_hook, anchor_when, anchor_where, anchor_witness, unresolved_tension')
+        .select('id, title, slug, summary, category, country, city, state_province, event_date, event_date_precision, credibility, upvotes, view_count, comment_count, has_photo_video, has_physical_evidence, has_video, content_type, location_name, source_type, source_label, created_at, phenomenon_type_id, feed_hook, paradocs_narrative, metadata, anchor_case_hook, anchor_when, anchor_where, anchor_witness, unresolved_tension')
         .in('id', reportIds);
 
       if (fullReports) {
         fullReports.forEach(function (r) { reportMap[r.id] = r; });
+      }
+
+      // Panel-feedback (May 2026 — 3rd round): join report_videos
+      // for any report with has_video=true. Returns a primary
+      // playback URL + transcript segments so the feed card can
+      // render an inline player with captions.
+      var videoReportIds = fullReports
+        ? fullReports.filter(function (r: any) { return r.has_video === true }).map(function (r: any) { return r.id })
+        : []
+      if (videoReportIds.length > 0) {
+        var { data: videoRows } = await supabase
+          .from('report_videos')
+          .select('id, report_id, storage_bucket, storage_path, mime_type, duration_sec, transcript_segments, transcript_lang')
+          .in('report_id', videoReportIds)
+          .eq('status', 'ready')
+          .order('published_at', { ascending: false, nullsFirst: false } as any)
+
+        if (videoRows && videoRows.length > 0) {
+          // Generate signed playback URLs in parallel. 4h TTL — long
+          // enough for a feed-scroll session even with browser tabs
+          // left open. Re-fetch the feed for fresher URLs after that.
+          var SIGNED_TTL_SEC = 4 * 60 * 60
+          var withUrls = await Promise.all(videoRows.map(async function (v: any) {
+            try {
+              var signed = await (supabase.storage as any)
+                .from(v.storage_bucket || 'report_videos')
+                .createSignedUrl(v.storage_path, SIGNED_TTL_SEC)
+              if (signed?.data?.signedUrl) {
+                return { ...v, playback_url: signed.data.signedUrl }
+              }
+            } catch {}
+            return v
+          }))
+
+          // Pick the most-recently-published video per report and attach.
+          withUrls.forEach(function (v: any) {
+            if (!reportMap[v.report_id]) return
+            // First write wins (already sorted by published_at desc above).
+            if (reportMap[v.report_id].video) return
+            reportMap[v.report_id].video = {
+              video_id: v.id,
+              playback_url: v.playback_url || null,
+              segments: v.transcript_segments || null,
+              duration_sec: v.duration_sec,
+              transcript_lang: v.transcript_lang || null,
+            }
+          })
+        }
       }
 
       // Resolve phenomenon type names from the phenomenon_types table (the FK target)

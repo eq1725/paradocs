@@ -1,33 +1,45 @@
 /**
  * POST /api/reports/video/[id]/finalize
  *
- * Panel-feedback (May 2026), video pipeline Phase A — direct-to-
- * Storage upload finalization.
+ * Panel-feedback (May 2026 — 3rd round). After the client PUTs the
+ * video bytes to the signed upload URL, this endpoint:
  *
- * After the client has PUT the video bytes to the signed upload URL
- * issued by /upload-url, it calls this endpoint to confirm the
- * upload landed and flip the report_videos row out of 'uploading'.
+ *   1. Verifies the upload landed in Storage.
+ *   2. Downloads the blob server-side.
+ *   3. Calls Whisper synchronously to transcribe (~5-60s).
+ *   4. Calls Haiku synchronously to extract title/description/
+ *      location/category hints from the transcript.
+ *   5. Updates the report_videos row with everything attached and
+ *      flips status to 'ready_for_review'.
+ *   6. Returns success so the client can navigate to /submit/video-
+ *      review with everything prefilled.
  *
- * Pipeline:
- *   1. Bearer auth → user id.
- *   2. Look up report_videos for this report. Must belong to user
- *      and currently be status='uploading'.
- *   3. HEAD the Storage object to confirm it exists and pick up
- *      the actual byte size (Supabase doesn't tell us at upload
- *      time when the client uploads directly).
- *   4. Flip status:
- *        - 'transcribing' if OPENAI_API_KEY is configured (cron
- *          will pick it up within 5 minutes)
- *        - 'ready_for_review' otherwise (Phase A only / no Whisper)
- *   5. Persist any client-supplied metadata (duration, dimensions).
+ * Why synchronous: users won't wait. The prior cron-based async
+ * pattern meant the review page showed a "Waiting for transcript…"
+ * banner for up to 5 minutes. Now the wait is shifted to the upload
+ * step where the user already expects a progress bar.
  *
- * Idempotent: calling twice is a no-op on the second call.
+ * Latency budget: Vercel maxDuration: 300s. Whisper for a 5-minute
+ * clip is typically ~30-60s. Haiku is ~3-5s. Total budget ~75s
+ * worst case, well within 300s.
+ *
+ * Fallback: if Whisper times out or errors, we set status to
+ * 'transcribing' (instead of 'ready_for_review') and the cron
+ * /api/cron/transcribe-videos retries on its 5-min cadence.
+ *
+ * Cost: ~$0.013/video at 2-min avg. Trivial.
  *
  * SWC: var + function() form.
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
+import { runWhisper, runHaikuExtract } from '@/lib/services/video-transcribe.service'
+
+export const config = {
+  api: { responseLimit: false },
+  maxDuration: 300,
+}
 
 interface RequestBody {
   duration_sec?: number
@@ -83,9 +95,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 
-  // Confirm the object actually landed in Storage. The `list`
-  // approach is the cheapest existence check Supabase exposes that
-  // also returns size — `download` would pull the bytes.
+  // Verify the object landed in Storage.
   var pathParts = ((video as any).storage_path || '').split('/')
   var filename = pathParts[pathParts.length - 1]
   var prefix = pathParts.slice(0, -1).join('/')
@@ -106,60 +116,113 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   var actualSize = match.metadata?.size || null
 
   var body = (req.body || {}) as RequestBody
-  var nextStatus = process.env.OPENAI_API_KEY ? 'transcribing' : 'ready_for_review'
 
-  var updates: any = {
-    status: nextStatus,
+  // Persist the client-supplied + Storage-confirmed metadata first
+  // so the row is at minimum in a sane state if Whisper later fails.
+  var baseUpdates: any = {}
+  if (actualSize) baseUpdates.size_bytes = actualSize
+  else if (body.size_bytes) baseUpdates.size_bytes = body.size_bytes
+  if (body.duration_sec) baseUpdates.duration_sec = body.duration_sec
+  if (body.width) baseUpdates.width = body.width
+  if (body.height) baseUpdates.height = body.height
+
+  // If OpenAI key isn't configured, skip transcription entirely and
+  // go straight to ready_for_review (Phase A behavior, manual fill).
+  if (!process.env.OPENAI_API_KEY) {
+    baseUpdates.status = 'ready_for_review'
+    await admin.from('report_videos').update(baseUpdates).eq('id', (video as any).id)
+    return res.status(200).json({
+      ok: true,
+      report_id: reportId,
+      video_id: (video as any).id,
+      status: 'ready_for_review',
+      transcript_ready: false,
+      size_bytes: baseUpdates.size_bytes || null,
+      review_url: '/submit/video-review/' + reportId,
+    })
   }
-  if (actualSize) updates.size_bytes = actualSize
-  else if (body.size_bytes) updates.size_bytes = body.size_bytes
-  if (body.duration_sec) updates.duration_sec = body.duration_sec
-  if (body.width) updates.width = body.width
-  if (body.height) updates.height = body.height
 
-  var { error: updateErr } = await admin
+  // Mark the row as 'transcribing' before we start the long-running
+  // calls. If our process dies mid-flight, the cron will retry.
+  await admin
     .from('report_videos')
-    .update(updates)
+    .update({ ...baseUpdates, status: 'transcribing', transcribe_attempts: 1 })
     .eq('id', (video as any).id)
 
-  if (updateErr) {
-    console.error('[video/finalize] update failed:', updateErr.message)
-    return res.status(500).json({ error: 'Could not finalize video' })
-  }
+  // ── Whisper + Haiku (synchronous, the user is waiting) ────────
+  try {
+    // Download the blob from Storage server-side. Service-role
+    // client has unrestricted access.
+    var { data: blob, error: downloadErr } = await admin.storage
+      .from((video as any).storage_bucket || 'report_videos')
+      .download((video as any).storage_path)
 
-  // Panel-feedback (May 2026): kick off transcription immediately
-  // instead of waiting up to 5 minutes for the next cron tick.
-  // Fire-and-forget: we don't await, don't block the response.
-  // The cron still runs as a backup retry mechanism in case this
-  // immediate kick fails or the lambda warm-up is slow.
-  if (nextStatus === 'transcribing' && process.env.CRON_SECRET) {
-    try {
-      var proto = (req.headers['x-forwarded-proto'] as string) || 'https'
-      var host = (req.headers['x-forwarded-host'] as string) || req.headers.host
-      if (host) {
-        var transcribeUrl = proto + '://' + host + '/api/cron/transcribe-videos'
-        // Don't await — fire and forget. The cron is idempotent and
-        // looks for rows in 'transcribing' status; if our row is the
-        // only one, it'll process just that. If multiple are queued,
-        // it processes up to MAX_PER_RUN of them.
-        fetch(transcribeUrl, {
-          method: 'POST',
-          headers: { Authorization: 'Bearer ' + process.env.CRON_SECRET },
-        }).catch(function (e: any) {
-          console.warn('[video/finalize] immediate transcribe kick failed (cron backup will retry):', e?.message)
-        })
-      }
-    } catch (e: any) {
-      console.warn('[video/finalize] could not schedule immediate transcribe:', e?.message)
+    if (downloadErr || !blob) {
+      throw new Error('Download failed: ' + (downloadErr?.message || 'no blob'))
     }
-  }
 
-  return res.status(200).json({
-    ok: true,
-    report_id: reportId,
-    video_id: (video as any).id,
-    status: nextStatus,
-    size_bytes: updates.size_bytes || null,
-    review_url: '/submit/video-review/' + reportId,
-  })
+    var whisper = await runWhisper(blob as Blob, filename)
+    var extracted = whisper.text && whisper.text.length > 30
+      ? await runHaikuExtract(whisper.text)
+      : null
+
+    var finalUpdates: any = {
+      transcript: whisper.text || '',
+      transcript_segments: whisper.segments || [],
+      transcript_provider: 'whisper-1',
+      transcript_lang: whisper.language || null,
+      transcribed_at: new Date().toISOString(),
+      transcribe_error: null,
+      status: 'ready_for_review',
+      extracted_meta: extracted || null,
+      extracted_at: extracted ? new Date().toISOString() : null,
+    }
+
+    await admin.from('report_videos').update(finalUpdates).eq('id', (video as any).id)
+
+    return res.status(200).json({
+      ok: true,
+      report_id: reportId,
+      video_id: (video as any).id,
+      status: 'ready_for_review',
+      transcript_ready: true,
+      size_bytes: baseUpdates.size_bytes || null,
+      review_url: '/submit/video-review/' + reportId,
+    })
+  } catch (e: any) {
+    console.error('[video/finalize] transcribe failed (cron backup will retry):', e?.message)
+    // Leave row in 'transcribing' status so cron retries. Client can
+    // still proceed to the review page — the form will show the
+    // "Transcribing in the background" inline hint and let them
+    // publish without it. Cron updates the row later.
+    await admin
+      .from('report_videos')
+      .update({ transcribe_error: (e?.message || String(e)).slice(0, 500) })
+      .eq('id', (video as any).id)
+
+    // Best-effort: also kick the cron immediately so it doesn't wait
+    // 5 minutes for the next tick.
+    if (process.env.CRON_SECRET) {
+      try {
+        var proto = (req.headers['x-forwarded-proto'] as string) || 'https'
+        var host = (req.headers['x-forwarded-host'] as string) || req.headers.host
+        if (host) {
+          fetch(proto + '://' + host + '/api/cron/transcribe-videos', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer ' + process.env.CRON_SECRET },
+          }).catch(function () { /* silent */ })
+        }
+      } catch {}
+    }
+
+    return res.status(200).json({
+      ok: true,
+      report_id: reportId,
+      video_id: (video as any).id,
+      status: 'transcribing',
+      transcript_ready: false,
+      size_bytes: baseUpdates.size_bytes || null,
+      review_url: '/submit/video-review/' + reportId,
+    })
+  }
 }

@@ -414,8 +414,10 @@ export default function VideoReviewPage() {
                 <video
                   src={video.playback_url}
                   controls
+                  controlsList="nodownload nofullscreen"
+                  disablePictureInPicture
                   playsInline
-                  preload="metadata"
+                  preload="auto"
                   poster={video.playback_url + '#t=0.1'}
                   className="w-full h-full object-contain bg-black"
                 />

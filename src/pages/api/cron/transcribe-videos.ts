@@ -28,7 +28,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
-import Anthropic from '@anthropic-ai/sdk'
+import { runWhisper, runHaikuExtract, type ExtractedMeta } from '@/lib/services/video-transcribe.service'
 
 export const config = {
   api: { responseLimit: false },
@@ -38,12 +38,9 @@ export const config = {
 var SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 var SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 var OPENAI_API_KEY = process.env.OPENAI_API_KEY || ''
-var ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
 
 var MAX_PER_RUN = 6
 var MAX_ATTEMPTS = 3
-
-var anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY })
 
 async function isAuthorized(req: NextApiRequest): Promise<boolean> {
   var cronSecret = process.env.CRON_SECRET
@@ -52,85 +49,6 @@ async function isAuthorized(req: NextApiRequest): Promise<boolean> {
   var adminKey = req.headers['x-admin-key']
   if (typeof adminKey === 'string' && adminKey === process.env.ADMIN_API_KEY) return true
   return false
-}
-
-interface WhisperResponse {
-  text: string
-  language?: string
-  segments?: Array<{
-    start: number
-    end: number
-    text: string
-  }>
-  words?: Array<{ start: number; end: number; word: string }>
-}
-
-async function runWhisper(blob: Blob, filename: string): Promise<WhisperResponse> {
-  var form = new FormData()
-  form.append('file', blob, filename)
-  form.append('model', 'whisper-1')
-  form.append('response_format', 'verbose_json')
-  form.append('timestamp_granularities[]', 'segment')
-
-  var resp = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + OPENAI_API_KEY },
-    body: form,
-  })
-  if (!resp.ok) {
-    var text = await resp.text()
-    throw new Error('Whisper API ' + resp.status + ': ' + text.slice(0, 200))
-  }
-  return await resp.json()
-}
-
-interface ExtractedMeta {
-  proposed_title?: string
-  proposed_description?: string
-  location_hints?: string[]
-  date_hints?: string[]
-  category_hints?: string[]
-}
-
-var EXTRACT_SYSTEM = [
-  'You analyze short first-person video transcripts about paranormal, UFO, or unexplained experiences and produce structured metadata.',
-  '',
-  'Return a JSON object with these keys (no preamble, no markdown, no code fences):',
-  '{',
-  '  "proposed_title": string,           // 4-10 words, sentence case, no quotes/emoji',
-  '  "proposed_description": string,     // a clean 2-4 sentence summary in the author\'s voice',
-  '  "location_hints": string[],         // any place names mentioned (cities, states, countries)',
-  '  "date_hints": string[],             // any dates / years / time references',
-  '  "category_hints": string[]          // canonical category slugs from this list:',
-  '                                       //   ghosts_hauntings, ufos_aliens, cryptids,',
-  '                                       //   psychic_phenomena, consciousness_practices,',
-  '                                       //   psychological_experiences, combination',
-  '}',
-  '',
-  'Rules:',
-  '- Never invent specifics that aren\'t in the transcript.',
-  '- For arrays, use [] if there\'s nothing valid to put in them.',
-  '- For category_hints, pick AT MOST 2 from the list above; do not invent new categories.',
-].join('\n')
-
-async function runHaikuExtract(transcript: string): Promise<ExtractedMeta | null> {
-  if (!ANTHROPIC_API_KEY) return null
-  try {
-    var resp = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 600,
-      temperature: 0.2,
-      system: EXTRACT_SYSTEM,
-      messages: [{ role: 'user', content: 'Transcript:\n\n' + transcript.slice(0, 4000) }],
-    })
-    var block: any = resp.content.find(function (b: any) { return b.type === 'text' })
-    var raw = block && block.type === 'text' ? String(block.text || '') : ''
-    var cleaned = raw.trim().replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim()
-    return JSON.parse(cleaned) as ExtractedMeta
-  } catch (e: any) {
-    console.warn('[transcribe-videos] haiku extract failed:', e?.message)
-    return null
-  }
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
