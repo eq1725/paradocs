@@ -559,6 +559,11 @@ export default function DiscoverPage() {
     var sessionAff = sessionCtx.getSessionAffinityParam()
     if (sessionAff) params.set('session_affinity', sessionAff)
     if (categoryFilter) params.set('category', categoryFilter)
+    // Panel-feedback (May 2026 — 4th round, Tier 2 personalization):
+    // pass authed user_id so the server can read saved_reports +
+    // thumbs_up/down feed_events to compute per-user category weights.
+    // Anonymous users fall through to the existing onboarding-only path.
+    if (user?.id) params.set('user_id', user.id)
 
     fetch('/api/discover/feed-v2?' + params.toString())
       .then(function (res) { return res.json() })

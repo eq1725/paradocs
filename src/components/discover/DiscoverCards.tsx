@@ -31,6 +31,7 @@ import { deriveCaseProfile, nderfToCaseProfile, type CaseProfile } from '@/lib/c
 import SourceBadge from '@/components/SourceBadge'
 import TodayCardShell from './TodayCardShell'
 import InlineVideoPlayer from '@/components/video/InlineVideoPlayer'
+import ThumbsFeedback from '@/components/feed/ThumbsFeedback'
 
 // =========================================================================
 //  Shared types
@@ -958,15 +959,24 @@ export function TextReportCard(props: {
           </div>
         )}
 
-        {/* Element 1 — Badge row (category · year · location-trim).
-            V9.0: text near-white, icon catColor (matches phenomena V8.1.3). */}
-        <div className="flex items-center gap-2 flex-wrap">
+        {/* Element 1 — Badge row (category · year · location-trim) +
+            Tier 2 personalization thumbs. Badge on left, thumbs on
+            right. Authed users vote → feed-personalization service
+            picks the signal up on next /feed-v2 fetch. */}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <span className="inline-flex items-center gap-1.5 text-[10px] md:text-xs font-semibold uppercase tracking-widest text-gray-100">
             <span className="inline-flex items-center" style={{ color: catColor }}>
               <CategoryIcon category={item.category as PhenomenonCategory} size={12} />
             </span>
             <span>{badgeParts.join(' · ')}</span>
           </span>
+          {props.user && (
+            <ThumbsFeedback
+              reportId={item.id}
+              category={item.category}
+              onUnauthed={function () { props.onShowSignup && props.onShowSignup(true) }}
+            />
+          )}
         </div>
 
         {/* V9.0 — Type kicker (EYEWITNESS · BFRO / ANALYSIS · PARADOCS).
@@ -1172,17 +1182,41 @@ export function MediaReportCard(props: {
       }
     >
       <div role="article" aria-label={(isEditorial ? 'Editorial: ' : 'Eyewitness report with media: ') + (item.title || 'Untitled')} className="flex flex-col gap-3 md:gap-4 pt-1">
-        {/* Element 1 — Badge row + amber Evidence pill (V9.0 styling) */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 text-[10px] md:text-xs font-semibold uppercase tracking-widest text-gray-100">
-            <span className="inline-flex items-center" style={{ color: catColor }}>
-              <CategoryIcon category={item.category as PhenomenonCategory} size={12} />
+        {/* Panel-feedback (May 2026 — 4th round): inline video player
+            when has_video=true. Same render as the TextReportCard
+            branch. */}
+        {item.has_video && item.video?.playback_url && (
+          <div className="-mx-1 mb-1">
+            <InlineVideoPlayer
+              reportId={item.id}
+              videoId={item.video.video_id}
+              playbackUrl={item.video.playback_url}
+              segments={item.video.segments || null}
+              className="max-w-[300px] mx-auto"
+            />
+          </div>
+        )}
+
+        {/* Element 1 — Badge row + amber Evidence pill + Tier 2 thumbs */}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 text-[10px] md:text-xs font-semibold uppercase tracking-widest text-gray-100">
+              <span className="inline-flex items-center" style={{ color: catColor }}>
+                <CategoryIcon category={item.category as PhenomenonCategory} size={12} />
+              </span>
+              <span>{badgeParts.join(' · ')}</span>
             </span>
-            <span>{badgeParts.join(' · ')}</span>
-          </span>
-          <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-sans font-semibold uppercase tracking-wider">
-            Evidence
-          </span>
+            <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-sans font-semibold uppercase tracking-wider">
+              Evidence
+            </span>
+          </div>
+          {props.user && (
+            <ThumbsFeedback
+              reportId={item.id}
+              category={item.category}
+              onUnauthed={function () { props.onShowSignup && props.onShowSignup(true) }}
+            />
+          )}
         </div>
 
         {/* V9.0 — Type kicker (EYEWITNESS · {source} / ANALYSIS · PARADOCS) */}

@@ -27,6 +27,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
+import { computeUserCategoryWeights, mergeWeights } from '@/lib/services/feed-personalization.service';
 
 var supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 var supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -52,6 +53,23 @@ interface ScoredItem {
   category: string
   score: number
   created_at?: string
+  // Tier 3 additions: tracked for diversity step.
+  source_type?: string | null
+}
+
+/**
+ * Haversine distance in kilometers between two lat/lng pairs.
+ * Used by Tier 3 location-proximity scoring.
+ */
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  var R = 6371
+  var dLat = (lat2 - lat1) * Math.PI / 180
+  var dLng = (lng2 - lng1) * Math.PI / 180
+  var a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
+    * Math.sin(dLng / 2) * Math.sin(dLng / 2)
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
 }
 
 interface RankingWeights {
@@ -202,7 +220,49 @@ export default async function handler(
     // ---- Parse user affinity ----
     var onboardingAffinity = parseOnboardingTopics(onboardingTopicsRaw);
     var sessionAffinity = parseSessionAffinity(sessionAffinityRaw);
-    var isColdStart = Object.keys(onboardingAffinity).length === 0 && Object.keys(sessionAffinity).length === 0;
+
+    // Panel-feedback (May 2026 — 4th round, Tier 2):
+    // Layer in per-user category weights derived from saved_reports +
+    // thumbs feedback events. The personalization signals reflect
+    // actual user behavior and dominate the onboarding intent. Empty
+    // weights map = pre-launch / cold user; we fall through to the
+    // existing onboarding-only path silently.
+    var personalizedWeights: Record<string, number> = {}
+    if (userIdSeed) {
+      try {
+        personalizedWeights = await computeUserCategoryWeights(supabase, userIdSeed)
+      } catch (e: any) {
+        console.warn('[Feed V2] personalization failed (proceeding with onboarding only):', e?.message)
+      }
+    }
+    var longTermAffinity = mergeWeights(onboardingAffinity, personalizedWeights)
+
+    var isColdStart = Object.keys(longTermAffinity).length === 0 && Object.keys(sessionAffinity).length === 0;
+
+    // ---- Tier 3: location proximity + source diversity ----
+    // Panel-feedback (May 2026 — 4th round): if the user has at least
+    // one report with lat/lng, geographically-near content gets a
+    // small bonus. Capped so it never dominates over freshness or
+    // engagement. Pulled here once per request rather than per-card.
+    var userReportLocations: Array<{ lat: number; lng: number }> = []
+    if (userIdSeed) {
+      try {
+        var { data: userReports } = await supabase
+          .from('reports')
+          .select('latitude, longitude')
+          .eq('submitted_by', userIdSeed)
+          .not('latitude', 'is', null)
+          .not('longitude', 'is', null)
+          .limit(10)
+        if (userReports && userReports.length > 0) {
+          userReportLocations = (userReports as any[])
+            .map(function (r: any) {
+              return { lat: Number(r.latitude), lng: Number(r.longitude) }
+            })
+            .filter(function (l) { return !isNaN(l.lat) && !isNaN(l.lng) })
+        }
+      } catch { /* silent */ }
+    }
 
     var rand = seededRandom(seed + offset);
 
@@ -224,9 +284,12 @@ export default async function handler(
     }
 
     // ---- Fetch report candidates ----
+    // Panel-feedback (May 2026 — 4th round, Tier 3): include latitude,
+    // longitude, source_type, has_video so the scoring loop can apply
+    // location-proximity and source-diversity bonuses.
     var reportQuery = supabase
       .from('reports')
-      .select('id, category, credibility, upvotes, view_count, has_photo_video, has_physical_evidence, content_type, feed_hook, created_at')
+      .select('id, category, credibility, upvotes, view_count, has_photo_video, has_video, has_physical_evidence, content_type, feed_hook, created_at, latitude, longitude, source_type')
       .eq('status', 'approved')
       .not('summary', 'is', null);
 
@@ -269,7 +332,7 @@ export default async function handler(
       var recency = computeRecencyBoost(createdAt, recencyBoostDays);
 
       // user_affinity
-      var affinity = computeEffectiveAffinity(onboardingAffinity, sessionAffinity, itemCategory);
+      var affinity = computeEffectiveAffinity(longTermAffinity, sessionAffinity, itemCategory);
 
       // random_explore (0-30)
       var explore = rand() * 30;
@@ -301,33 +364,53 @@ export default async function handler(
     });
 
     // Score reports — feed_hook presence is a major quality signal.
-    // Panel-feedback (May 2026 — 3rd round, Tier 1): added boost for
-    // first-party user video submissions (has_video) and an extra
-    // freshness multiplier for very recent (< 48h) user content.
-    // Goal: the Today feed surfaces NEW content prominently rather
-    // than feeling like a static list.
+    // Panel-feedback (May 2026 — 3rd round, Tier 1 + Tier 3): added
+    // boost for first-party user video submissions (has_video), a
+    // freshness multiplier for very recent (< 48h) user content,
+    // and a location-proximity bonus for users whose own reports
+    // have lat/lng (Tier 3). Source type is tracked on the
+    // ScoredItem for the diversity-constraint step.
     var nowMs = Date.now()
     var FRESH_WINDOW_MS = 48 * 60 * 60 * 1000
+    var PROXIMITY_NEAR_KM = 80     // within 80km = strong proximity bonus
+    var PROXIMITY_REGION_KM = 500  // within 500km = light bonus
     var scoredReports: ScoredItem[] = allReports.map(function (item: any) {
       var quality = 1;
-      if (item.feed_hook) quality += 3; // Hook = engagement-ready card
+      if (item.feed_hook) quality += 3;
       if (item.has_photo_video) quality += 2;
-      if (item.has_video === true) quality += 3; // Strong signal — video is the format users want
+      if (item.has_video === true) quality += 3;
       if (item.has_physical_evidence) quality += 1;
       if (item.credibility === 'high') quality += 2;
       else if (item.credibility === 'medium') quality += 1;
       if (item.upvotes > 3) quality += 1;
       if (item.content_type === 'historical_case') quality += 1;
-      // Freshness: very recent user content gets an extra bump so a
-      // newly-approved report doesn't get buried under high-engagement
-      // historical cases on its first day.
       if (item.created_at) {
         var ageMs = nowMs - new Date(item.created_at).getTime()
         if (ageMs >= 0 && ageMs < FRESH_WINDOW_MS) {
           quality += 2
         }
       }
-      return scoreItem(item.id, 'report', item.category, Math.min(quality, 12), item.created_at);
+      // Tier 3: location proximity bonus. If the user has at least
+      // one report with coordinates, find the closest user-location
+      // and bump quality based on distance. We use the closest
+      // distance across all user reports — if any one of their
+      // reports is nearby, the candidate "feels local."
+      if (userReportLocations.length > 0 && item.latitude != null && item.longitude != null) {
+        var lat = Number(item.latitude)
+        var lng = Number(item.longitude)
+        if (!isNaN(lat) && !isNaN(lng)) {
+          var minDistKm = Infinity
+          for (var li = 0; li < userReportLocations.length; li++) {
+            var d = haversineKm(lat, lng, userReportLocations[li].lat, userReportLocations[li].lng)
+            if (d < minDistKm) minDistKm = d
+          }
+          if (minDistKm < PROXIMITY_NEAR_KM) quality += 2
+          else if (minDistKm < PROXIMITY_REGION_KM) quality += 1
+        }
+      }
+      var scored = scoreItem(item.id, 'report', item.category, Math.min(quality, 14), item.created_at);
+      scored.source_type = item.source_type || null
+      return scored
     });
 
     scoredAll = scoredAll.concat(scoredReports);
@@ -344,6 +427,12 @@ export default async function handler(
     var catStreak = 0;
     var lastType = '';
     var typeStreak = 0;
+    // Tier 3: track recent source_types so the feed doesn't run a
+    // long string of e.g. NUFORC reports back-to-back. Soft cap at
+    // 3 consecutive same-source.
+    var lastSource = '';
+    var sourceStreak = 0;
+    var MAX_CONSECUTIVE_SOURCE = 3;
 
     while (pool.length > 0) {
       var pickIdx = -1;
@@ -352,7 +441,10 @@ export default async function handler(
         var candidate = pool[ci];
         var catOk = catStreak < maxConsecutiveCat || candidate.category !== lastCat;
         var typeOk = typeStreak < 3 || candidate.item_type !== lastType;
-        if (catOk && typeOk) { pickIdx = ci; break; }
+        var srcOk = sourceStreak < MAX_CONSECUTIVE_SOURCE
+                    || !candidate.source_type
+                    || candidate.source_type !== lastSource;
+        if (catOk && typeOk && srcOk) { pickIdx = ci; break; }
       }
 
       if (pickIdx < 0) {
@@ -371,6 +463,16 @@ export default async function handler(
 
       if (pick.item_type === lastType) typeStreak++;
       else { typeStreak = 1; lastType = pick.item_type; }
+
+      // Source diversity tracking. Empty source_type (e.g. phenomena
+      // items) doesn't count toward the streak.
+      if (pick.source_type) {
+        if (pick.source_type === lastSource) sourceStreak++
+        else { sourceStreak = 1; lastSource = pick.source_type }
+      } else {
+        sourceStreak = 0
+        lastSource = ''
+      }
     }
 
     // ---- V9.2 — Pin Today's Lead to position 0 ----
