@@ -230,11 +230,52 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: 'Could not finalize video status' })
   }
 
+  // V10.7.E.3 (May 2026, QA round 5) — kick off the Paradocs analysis
+  // pass for this report. The Sonnet generation takes ~30–60s end to
+  // end (claim-check + retry), too long to block the publish response.
+  // We POST to the existing admin analysis endpoint and DON'T await
+  // it; the downstream serverless worker processes the analysis
+  // independently and writes paradocs_assessment + paradocs_narrative
+  // + feed_hook back to the row. Failure is non-fatal — the report is
+  // already published and visible; the analysis just won't render
+  // until the next attempt (cron sweep or manual retry).
+  //
+  // Only fires when moderation passed. Pending-review reports get
+  // their analysis after admin approval.
+  if (!modOutcome.flagged) {
+    try {
+      var siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+        || (process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : null)
+        || 'http://localhost:3000'
+      var serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+      // Fire-and-forget. We initiate the request and let the response
+      // come back to a separate function context. .catch() prevents
+      // unhandled rejection logs if the function terminates first.
+      void fetch(siteUrl + '/api/admin/ai/generate-analysis', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + serviceKey,
+        },
+        body: JSON.stringify({
+          action: 'single',
+          id: (video as any).report_id,
+        }),
+      }).catch(function (e: any) {
+        console.warn('[video/publish] analysis enqueue failed:', e?.message || e)
+      })
+      console.log('[video/publish] paradocs analysis enqueued for', (video as any).report_id)
+    } catch (e: any) {
+      console.warn('[video/publish] analysis enqueue threw:', e?.message || e)
+    }
+  }
+
   return res.status(200).json({
     ok: true,
     report_id: (video as any).report_id,
     video_status: videoUpdate.status,
     report_status: reportUpdate.status,
     needs_admin_review: !!modOutcome.flagged,
+    paradocs_analysis_enqueued: !modOutcome.flagged,
   })
 }

@@ -96,6 +96,14 @@ export interface ReportBelowFoldProps {
   alternativeExplanations?: AlternativeExplanation[]
   /** Deprecated — kept in props for caller compat but no longer rendered. */
   relatedReports?: RelatedReport[]
+  /**
+   * V10.7.E.3 — when true, the analysis section renders a small
+   * placeholder ("Paradocs is analyzing this report…") instead of
+   * being hidden. Used for freshly published user submissions while
+   * the Sonnet pass runs in the background after /publish. Once the
+   * job lands, frames + openQuestions populate and this falls away.
+   */
+  analysisPending?: boolean
   className?: string
 }
 
@@ -104,8 +112,9 @@ export default function ReportBelowFold(props: ReportBelowFoldProps) {
   const hasQuestions = (props.openQuestions || []).length > 0
   const hasLegacyAlt = !hasFrames && !hasQuestions && (props.alternativeExplanations || []).length > 0
   const hasAnalysis = hasFrames || hasQuestions || hasLegacyAlt
+  const showPendingPlaceholder = !hasAnalysis && !!props.analysisPending
 
-  if (!hasAnalysis && !ReportComments) return null
+  if (!hasAnalysis && !showPendingPlaceholder && !ReportComments) return null
 
   return (
     <section className={'space-y-3 ' + (props.className || '')}>
@@ -134,6 +143,33 @@ export default function ReportBelowFold(props: ReportBelowFoldProps) {
             openQuestions={props.openQuestions || []}
             legacyExplanations={hasLegacyAlt ? (props.alternativeExplanations || []) : []}
           />
+        </section>
+      )}
+
+      {/* V10.7.E.3 — placeholder for fresh user submissions whose
+          Sonnet analysis pass hasn't landed yet. The analysis is
+          kicked off from /publish as a fire-and-forget HTTP call and
+          takes ~30–60s to complete. Without this card the report
+          page just goes silent on what should be its most distinctive
+          section. */}
+      {showPendingPlaceholder && (
+        <section className={'rounded-xl border border-purple-700/30 bg-gradient-to-br from-purple-950/30 via-gray-900/50 to-gray-900/30 overflow-hidden ring-1 ring-purple-500/5 p-4 sm:p-5'}>
+          <header className="flex items-center gap-2.5 mb-3">
+            <span className="inline-flex items-center justify-center w-7 h-7 rounded-md flex-shrink-0 bg-purple-600/15 border border-purple-500/30">
+              <Sparkles className="w-3.5 h-3.5 text-purple-300/80 animate-pulse" />
+            </span>
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-white leading-tight">Paradocs is analyzing this account…</h3>
+              <p className="text-[11px] text-gray-500 leading-tight">
+                Lenses, open questions, and pattern matches usually appear within a minute. Refresh to check.
+              </p>
+            </div>
+          </header>
+          <div className="space-y-2 pl-9">
+            <div className="h-3 rounded bg-purple-500/10 animate-pulse" style={{ width: '78%' }} />
+            <div className="h-3 rounded bg-purple-500/10 animate-pulse" style={{ width: '64%' }} />
+            <div className="h-3 rounded bg-purple-500/10 animate-pulse" style={{ width: '46%' }} />
+          </div>
         </section>
       )}
 

@@ -393,7 +393,16 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
         {!reducedMotion && (mode === 'idle' || revealStage >= 3) && (
           <g
             ref={sweepGroupRef}
-            className="radar-sweep-group"
+            // V10.7.E.2 — restore the inline transformOrigin: '0 0'
+            // form. In our viewBox `-halfSize -halfSize size size` the
+            // user-space origin (0, 0) IS the radar center, so this
+            // pivots the rotation at the center across browsers
+            // (including iOS Safari). The earlier CSS-class form using
+            // transform-box: view-box + 50%/50% rendered correctly in
+            // Chrome but caused Safari iOS to draw the wedge from a
+            // different pivot, producing the over-wide / misplaced
+            // wedge Chase reported.
+            style={{ transformOrigin: '0 0', animation: 'radar-sweep 4s linear infinite' }}
           >
             {/* Trailing phosphor wedge — sweeps clockwise (the wedge
                 sits BEHIND the leading edge, so it trails as the arm
@@ -557,16 +566,6 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
             - radar-dot-flash on .radar-dot-core (brightens fill)
             - radar-ping-out on .radar-ping-ring (expanding ring) */}
       <style>{`
-        /* V10.7.E — anchor the sweep's pivot at the group's own (0,0)
-           in user space (which is the radar center, since our viewBox
-           is centered). Using transform-box: view-box + 50%/50% in a
-           viewBox that's centered on (0,0) yields the same point, but
-           making it explicit avoids Safari/Chrome differences. */
-        .radar-sweep-group {
-          transform-box: view-box;
-          transform-origin: 50% 50%;
-          animation: radar-sweep 4s linear infinite;
-        }
         @keyframes radar-sweep {
           from { transform: rotate(0deg); }
           to   { transform: rotate(360deg); }

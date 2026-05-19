@@ -733,6 +733,17 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               frames={sanitized.frames}
               openQuestions={sanitized.openQuestions}
               alternativeExplanations={sanitized.alternativeExplanations}
+              // V10.7.E.3 — user submissions get their Paradocs
+              // analysis async via /publish's fire-and-forget worker.
+              // While that's pending, render a "Paradocs is analyzing
+              // this account…" placeholder instead of letting the
+              // section silently vanish.
+              analysisPending={
+                report?.source_type === 'user_submission'
+                && sanitized.frames.length === 0
+                && sanitized.openQuestions.length === 0
+                && !sanitized.pullQuote
+              }
               className="mt-2 mb-6"
             />
 

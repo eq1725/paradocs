@@ -159,6 +159,12 @@ export default function VideoReportCard(props: VideoReportCardProps) {
           preload="auto"
           controlsList="nodownload nofullscreen"
           disablePictureInPicture
+          // V10.7.E.3 — tap the video surface to toggle mute. iOS
+          // doesn't let web pages intercept hardware volume buttons,
+          // and most first-time users won't notice the small corner
+          // toggle. TikTok / Reels both use tap-anywhere-on-video as
+          // the canonical unmute affordance.
+          onClick={toggleMute}
         >
           {vttUrl && (
             <track kind="captions" src={vttUrl} srcLang="en" label="Auto-generated" default />
@@ -224,8 +230,25 @@ export default function VideoReportCard(props: VideoReportCardProps) {
         />
       </div>
 
-      {/* Bottom overlay — title, meta, CTA */}
-      <div className="absolute inset-x-0 bottom-0 p-4 pr-16">
+      {/* Bottom overlay — title, meta, CTA.
+          V10.7.E.3 — three changes vs. the panel-feedback v7 version:
+            (a) the entire overlay is wrapped in a Link, so a tap
+                anywhere in the title/hook/meta region opens the
+                report. Previously only the tiny "Read full account →"
+                link was tappable, which fell under the bottom nav on
+                mobile and the user couldn't reach it without swiping
+                to the next card.
+            (b) pb-24 (rather than p-4) reserves ~96px of bottom
+                padding so the title/hook/CTA clears the bottom tab
+                bar even on iOS Safari with its dynamic toolbars.
+            (c) The "Read full account →" affordance stays as a visual
+                hint, but it's no longer the only tap target. */}
+      <Link
+        href={'/report/' + item.slug}
+        onClick={function (e) { e.stopPropagation() }}
+        className="absolute inset-x-0 bottom-0 block p-4 pr-16 pb-24 group"
+        aria-label={'Read full report: ' + (item.title || 'Untitled')}
+      >
         <h3 className="text-white text-lg sm:text-xl font-display font-bold leading-tight drop-shadow-lg">
           {item.title || 'Untitled'}
         </h3>
@@ -248,15 +271,11 @@ export default function VideoReportCard(props: VideoReportCardProps) {
             </span>
           )}
         </div>
-        <Link
-          href={'/report/' + item.slug}
-          onClick={function (e) { e.stopPropagation() }}
-          className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-white/95 hover:text-white"
-        >
+        <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-white/95 group-hover:text-white">
           <FileText className="w-3.5 h-3.5" />
           Read full account →
-        </Link>
-      </div>
+        </span>
+      </Link>
     </article>
   )
 }
