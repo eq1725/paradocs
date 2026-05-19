@@ -51,17 +51,68 @@ async function main() {
   var argLimit = parseInt(process.argv[3] || '5', 10) || 5
 
   if (!argSource || argSource === 'list') {
-    var { data: sources } = await supabase
+    // data_sources schema varies — select everything and pick what
+    // we know exists across versions.
+    var { data: sources, error: listErr } = await supabase
       .from('data_sources')
-      .select('id, name, source_type, is_active, last_ingested_at')
-      .order('source_type', { ascending: true })
+      .select('*')
+      .order('adapter_type', { ascending: true })
+    if (listErr) {
+      console.error('data_sources select failed:', listErr.message)
+      process.exit(1)
+    }
+    if (!sources || sources.length === 0) {
+      console.log('No rows in data_sources table.')
+      return
+    }
     console.log('Available data sources:')
-    ;(sources || []).forEach(function (s: any) {
-      console.log('  ' + (s.is_active ? '●' : '○') + ' ' + s.id + ' — ' + s.name + ' (' + (s.source_type || '?') + ')'
-        + (s.last_ingested_at ? ' last=' + s.last_ingested_at : ''))
+    sources.forEach(function (s: any) {
+      var name = s.name || s.label || s.adapter_type || '(unnamed)'
+      var active = (s.is_active === true) ? '●' : '○'
+      console.log('  ' + active + ' ' + (s.id || '(no-id)') + '  ' + name
+        + '  [adapter=' + (s.adapter_type || '?') + ']'
+        + (s.last_synced_at ? '  last=' + s.last_synced_at : ''))
     })
-    console.log('\nUsage: tsx scripts/b15-smoke-test.ts <source_id> [limit]')
+    console.log('\nUsage: tsx scripts/b15-smoke-test.ts <uuid or name-substring> [limit]')
     return
+  }
+
+  // V10.7.E.11.b — argSource may be a UUID or a name/adapter
+  // substring. runIngestion expects the row's UUID. If the input
+  // doesn't look like a UUID, do a fuzzy lookup against
+  // data_sources.name / .adapter_type and resolve.
+  var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!UUID_RE.test(argSource)) {
+    console.log('Resolving "' + argSource + '" against data_sources…')
+    var { data: rows, error: lookupErr } = await supabase
+      .from('data_sources')
+      .select('*')
+    if (lookupErr) {
+      console.error('Lookup failed:', lookupErr.message)
+      process.exit(1)
+    }
+    var lower = argSource.toLowerCase()
+    var matches: any[] = (rows || []).filter(function (s: any) {
+      var n = (s.name || '').toString().toLowerCase()
+      var a = (s.adapter_type || '').toString().toLowerCase()
+      var l = (s.label || '').toString().toLowerCase()
+      return n.indexOf(lower) !== -1 || a.indexOf(lower) !== -1 || l.indexOf(lower) !== -1
+    })
+    if (matches.length === 0) {
+      console.error('No data_sources row matched "' + argSource + '". Run `list` to see options.')
+      process.exit(1)
+    }
+    if (matches.length > 1) {
+      console.error('Ambiguous match — ' + matches.length + ' rows:')
+      matches.forEach(function (m: any) {
+        console.error('  ' + m.id + '  ' + (m.name || m.adapter_type))
+      })
+      console.error('Re-run with the exact UUID or a more specific substring.')
+      process.exit(1)
+    }
+    var match: any = matches[0]
+    console.log('Resolved → ' + match.id + ' (' + (match.name || match.adapter_type) + ')')
+    argSource = match.id
   }
 
   console.log('=== B1.5 smoke test ===')
@@ -91,17 +142,24 @@ async function main() {
     })
   }
 
-  // Fetch the inserted rows to eyeball
+  // Fetch the inserted rows to eyeball.
+  // V10.7.E.11.b — pull by created_at >= when we started rather than
+  // filtering on source_type, since argSource is now a data_sources
+  // UUID and reports.source_type is the adapter's text label ('oberf',
+  // 'nuforc', etc.). Anything created in the last few minutes after
+  // we kicked off the job is from this run.
   if (result.recordsInserted > 0) {
     console.log('')
     console.log('=== Sample of inserted reports ===')
-    var { data: rows } = await supabase
+    var sinceIso = new Date(startedAt - 2000).toISOString() // 2s buffer
+    var sampleResp = await supabase
       .from('reports')
       .select('id, slug, title, summary, description, category, country, state_province, city, event_date, event_date_precision, source_type, source_label, created_at, latitude, longitude')
-      .eq('source_type', argSource)
+      .gte('created_at', sinceIso)
       .order('created_at', { ascending: false })
       .limit(argLimit)
-    ;(rows || []).forEach(function (r: any, i: number) {
+    var sampleRows: any[] = sampleResp.data || []
+    sampleRows.forEach(function (r: any, i: number) {
       console.log('')
       console.log('[' + (i + 1) + '] ' + (r.title || '(no title)'))
       console.log('    slug:        ' + r.slug)
