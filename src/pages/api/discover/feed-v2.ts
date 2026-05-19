@@ -433,6 +433,12 @@ export default async function handler(
     var lastSource = '';
     var sourceStreak = 0;
     var MAX_CONSECUTIVE_SOURCE = 3;
+    // Panel-feedback (May 2026 — 7th round): cap phenomenon
+    // spotlights so they're occasional inserts (every 4-6 cards)
+    // rather than batched. Reports (text + video) are the spine of
+    // the feed; phenomena are punctuation.
+    var phenomenaSinceLast = Infinity
+    var MIN_GAP_BETWEEN_PHENOMENA = 4
 
     while (pool.length > 0) {
       var pickIdx = -1;
@@ -444,7 +450,10 @@ export default async function handler(
         var srcOk = sourceStreak < MAX_CONSECUTIVE_SOURCE
                     || !candidate.source_type
                     || candidate.source_type !== lastSource;
-        if (catOk && typeOk && srcOk) { pickIdx = ci; break; }
+        // Phenomenon-card pacing: skip if it would land within the
+        // min-gap window after the previous phenomenon card.
+        var phenOk = candidate.item_type !== 'phenomenon' || phenomenaSinceLast >= MIN_GAP_BETWEEN_PHENOMENA;
+        if (catOk && typeOk && srcOk && phenOk) { pickIdx = ci; break; }
       }
 
       if (pickIdx < 0) {
@@ -472,6 +481,13 @@ export default async function handler(
       } else {
         sourceStreak = 0
         lastSource = ''
+      }
+
+      // Phenomenon pacing tracker.
+      if (pick.item_type === 'phenomenon') {
+        phenomenaSinceLast = 0
+      } else {
+        phenomenaSinceLast++
       }
     }
 

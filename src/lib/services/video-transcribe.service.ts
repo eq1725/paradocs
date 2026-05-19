@@ -188,7 +188,7 @@ var HAIKU_EXTRACT_SYSTEM = [
   'Return a JSON object with these keys (no preamble, no markdown, no code fences):',
   '{',
   '  "proposed_title": string,           // 4-10 words, sentence case, no quotes/emoji',
-  '  "proposed_description": string,     // a clean 2-4 sentence summary in the author\'s voice',
+  '  "proposed_description": string,     // a 2-4 sentence FIRST-PERSON summary',
   '  "location_hints": string[],         // any place names mentioned (cities, states, countries)',
   '  "date_hints": string[],             // any dates / years / time references',
   '  "category_hints": string[]          // canonical category slugs from this list:',
@@ -201,6 +201,12 @@ var HAIKU_EXTRACT_SYSTEM = [
   '- Never invent specifics that aren\'t in the transcript.',
   '- For arrays, use [] if there\'s nothing valid to put in them.',
   '- For category_hints, pick AT MOST 2 from the list above; do not invent new categories.',
+  '',
+  'CRITICAL — proposed_description voice rules:',
+  '- Write in FIRST PERSON throughout: use "I", "me", "my", "we", "us", "our".',
+  '- NEVER use "the author", "the witness", "the speaker", "the narrator", "they", "the person", or any other third-person framing for the storyteller.',
+  '- If the transcript says "I was 10 and my mom and I were driving", write "I was 10 and my mom and I were driving" — preserve the storyteller\'s direct voice.',
+  '- Title can be third-person headline style ("Triangular UFO Over Bridge") — only the description must be first-person.',
 ].join('\n')
 
 /**

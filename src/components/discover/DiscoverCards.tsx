@@ -284,6 +284,37 @@ function StatsRow(props: { items: { value: string | number, label: string }[], c
 //  Shared: Read Case button
 // =========================================================================
 
+/**
+ * Panel-feedback (May 2026 — 7th round): phenomenon cards are
+ * category indexes, not case studies. New CTA leads to the filtered
+ * /explore view rather than expanding an in-place "case". Used by
+ * PhenomenonCard. Includes the live report_count so the card feels
+ * like a portal to a living archive, not a static entry.
+ */
+export function ExplorePhenomenonButton(props: {
+  slug: string
+  category: string
+  count: number
+  label?: string
+}) {
+  var href = '/explore?category=' + encodeURIComponent(props.category)
+  if (props.slug) href += '&phenomenon=' + encodeURIComponent(props.slug)
+  var count = props.count || 0
+  var label = props.label || (count > 0
+    ? 'Explore ' + count.toLocaleString() + ' ' + (count === 1 ? 'case' : 'cases')
+    : 'Explore cases')
+  return (
+    <Link
+      href={href}
+      onClick={function (e) { e.stopPropagation() }}
+      className="inline-flex items-center justify-center gap-2 w-full px-5 py-3.5 rounded-full bg-primary-600 hover:bg-primary-500 text-white text-sm font-semibold transition-colors"
+    >
+      <Pen className="w-4 h-4" />
+      {label} →
+    </Link>
+  )
+}
+
 export function ReadCaseButton(props: { onExpand: () => void; label?: string }) {
   // V9.0: optional `label` prop lets each card type provide its own
   // verb (e.g. 'Read the Account' for reports, 'Read the Analysis'
@@ -644,20 +675,29 @@ export function PhenomenonCard(props: {
       onSignInNudgeDismiss={props.onSignInNudgeDismiss}
       whyReason={props.whyReason || null}
       cta={
-        !props.expanded ? (
-          <ReadCaseButton onExpand={props.onExpand} />
-        ) : (
-          <CollapseButton onCollapse={props.onCollapse || function () {}} />
-        )
+        // Panel-feedback (May 2026 — 7th round): phenomenon cards
+        // are category indexes, not case studies. CTA leads to the
+        // filtered explore view with the live report count baked in
+        // so it feels like a portal to a living archive.
+        <ExplorePhenomenonButton
+          slug={item.slug}
+          category={item.category}
+          count={item.report_count}
+        />
       }
     >
-      <div role="article" aria-label={'Encyclopedia entry: ' + (item.name || 'Phenomenon')} className="flex flex-col gap-3 md:gap-4 pt-1">
-        {/* Element 1 — Badge row (category + year + region, optional trending).
-            V8.1.3: badge text now near-white for legibility; only the
-            category icon carries catColor. Pale category colors like
-            religion_mythology (#fff176) read as "faded" against any
-            background; separating the color signal (icon) from the
-            label (text) keeps the badge readable at all times. */}
+      <div role="article" aria-label={'Phenomenon spotlight: ' + (item.name || 'Phenomenon')} className="flex flex-col gap-3 md:gap-4 pt-1">
+        {/* Panel-feedback (May 2026 — 7th round): kicker that signals
+            "this is a category portal, not a single case." Reduces
+            misreads where users tap expecting a story and find a
+            taxonomy entry. */}
+        <div className="inline-flex items-center gap-2 self-start px-2.5 py-1 rounded-full bg-primary-500/15 border border-primary-500/30 text-primary-300">
+          <span className="text-[9px] font-semibold uppercase tracking-widest">
+            Phenomenon spotlight
+          </span>
+        </div>
+
+        {/* Element 1 — Badge row (category + year + region, optional trending). */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="inline-flex items-center gap-1.5 text-[10px] md:text-xs font-semibold uppercase tracking-widest text-gray-100">
             <span className="inline-flex items-center" style={{ color: catColor }}>
@@ -668,6 +708,11 @@ export function PhenomenonCard(props: {
           {item.report_count > 20 && (
             <span className="text-[9px] bg-primary-500/15 text-primary-400 px-2 py-0.5 rounded-full font-medium uppercase tracking-wider">
               trending
+            </span>
+          )}
+          {item.report_count > 0 && (
+            <span className="text-[10px] text-gray-400 ml-auto">
+              {item.report_count.toLocaleString()} {item.report_count === 1 ? 'case' : 'cases'} archived
             </span>
           )}
         </div>

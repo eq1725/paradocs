@@ -45,6 +45,7 @@ import {
   TextReportCard,
   MediaReportCard,
 } from '@/components/discover/DiscoverCards'
+import VideoReportCard from '@/components/discover/VideoReportCard'
 import type { FeedItemV2, PhenomenonItem, ReportItem } from '@/components/discover/DiscoverCards'
 import { ClusteringCard } from '@/components/discover/ClusteringCard'
 import type { ClusterCardData } from '@/components/discover/ClusteringCard'
@@ -1235,6 +1236,22 @@ export default function DiscoverPage() {
     }
 
     var report = card as ReportItem
+    // Panel-feedback (May 2026 — 7th round): when the report has an
+    // approved user-submitted video (has_video + signed playback URL
+    // joined by feed-v2), render the TikTok-style VideoReportCard
+    // instead of the inline-embed treatment. Falls through to the
+    // standard text/media branches when no video is attached.
+    if (report.has_video && report.video?.playback_url) {
+      return (
+        <VideoReportCard
+          item={report} index={idx} isActive={true}
+          expanded={expanded} onExpand={handleExpand}
+          onCollapse={handleCollapse}
+          user={user} onShowSignup={setShowSignupPromptCb}
+          isSaved={savedNow} onSave={saveCb} onShare={shareCb}
+        />
+      )
+    }
     if (report.has_photo_video) {
       return (
         <MediaReportCard
