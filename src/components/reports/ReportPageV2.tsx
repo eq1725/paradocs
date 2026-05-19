@@ -50,6 +50,7 @@ import ReportPullQuote from './ReportPullQuote'
 import ReportRelatedReports from './ReportRelatedReports'
 // V10.7.B.2 — ReportPhenomenaChips usage absorbed into SourceAndWitnessBlock; import retained removed.
 import SourceBlock from './SourceBlock'
+import InlineVideoPlayer from '@/components/video/InlineVideoPlayer'
 import ReportBelowFold, { type RelatedReport, type AlternativeExplanation } from './ReportBelowFold'
 import ResonanceButton from './ResonanceButton'
 // V10.7.B.2 — WitnessProfilePill standalone usage replaced by SourceAndWitnessBlock; component file kept for backward-compat.
@@ -661,6 +662,28 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                 have real body content (narrative OR excerpt). The
                 Paradocs Analysis lens cards below the source block
                 serve as the main content for excerpt-less reports. */}
+
+            {/* V10.7.E.8 — embedded video player for user video
+                submissions. The same first-person account that
+                appears as a full-bleed video card on Today belongs
+                ABOVE the body on the report page — the video IS the
+                primary artifact, the transcript-derived narrative
+                supports it. Reuses InlineVideoPlayer (9:16 aspect,
+                lazy-load, captions). Only renders when the report
+                has an approved video and feed-v2 / getStaticProps
+                successfully signed a playback URL. */}
+            {report?.has_video && report?.video?.playback_url && (
+              <div className="mb-6 max-w-md mx-auto">
+                <InlineVideoPlayer
+                  reportId={report.id}
+                  videoId={report.video.video_id}
+                  playbackUrl={report.video.playback_url}
+                  thumbnailUrl={report.video.poster_url || null}
+                  segments={report.video.segments || null}
+                />
+              </div>
+            )}
+
             {narrativeParagraphs.length > 0 ? (
               <div className="mb-6">
                 <p className="text-[10px] uppercase tracking-widest font-semibold text-gray-500 mb-3">

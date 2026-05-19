@@ -205,6 +205,61 @@ export async function getStaticProps({ params }: { params: { slug: string } }) {
       .eq('report_id', (reportData as any).id)
       .order('is_primary', { ascending: false })
 
+    // V10.7.E.8 — video data for user video submissions. Mirrors the
+    // join feed-v2 does: pull the latest report_videos row that's
+    // 'ready', sign both the playback URL and the sibling poster JPEG,
+    // and attach the result to safeReport.video. Uses the service-role
+    // key so private storage buckets are accessible. Signed URLs live
+    // 4h, matching feed-v2's TTL.
+    if ((reportData as any).has_video) {
+      try {
+        const { createClient: makeAdmin } = await import('@supabase/supabase-js')
+        const admin = makeAdmin(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        )
+        const { data: videoRow } = await (admin
+          .from('report_videos') as any)
+          .select('id, storage_bucket, storage_path, transcript_segments, transcript_lang, duration_sec')
+          .eq('report_id', (reportData as any).id)
+          .eq('status', 'ready')
+          .order('published_at', { ascending: false, nullsFirst: false } as any)
+          .limit(1)
+          .maybeSingle()
+        if (videoRow && (videoRow as any).storage_path) {
+          var SIGNED_TTL_SEC = 4 * 60 * 60
+          var v: any = videoRow
+          var bucket: string = v.storage_bucket || 'report_videos'
+          var posterPath: string | null = null
+          try {
+            var p: string = v.storage_path
+            var dot = p.lastIndexOf('.')
+            if (dot > 0) posterPath = p.substring(0, dot) + '.jpg'
+          } catch (_) { /* leave poster null */ }
+          const signResults = await Promise.all([
+            (admin.storage as any).from(bucket).createSignedUrl(v.storage_path, SIGNED_TTL_SEC),
+            posterPath
+              ? (admin.storage as any).from(bucket).createSignedUrl(posterPath, SIGNED_TTL_SEC).catch(function () { return null })
+              : Promise.resolve(null),
+          ])
+          var signed: any = signResults[0]
+          var posterSigned: any = signResults[1]
+          if (signed?.data?.signedUrl) {
+            ;(safeReport as any).video = {
+              video_id: v.id,
+              playback_url: signed.data.signedUrl,
+              poster_url: posterSigned?.data?.signedUrl || null,
+              segments: v.transcript_segments || null,
+              duration_sec: v.duration_sec || null,
+              transcript_lang: v.transcript_lang || null,
+            }
+          }
+        }
+      } catch (e: any) {
+        console.warn('[getStaticProps] video signed-URL fetch failed:', e?.message || e)
+      }
+    }
+
     // V10.7.B.0 — fetch nearby reports for the map cluster overlay.
     // Calls the haversine RPC (single source of truth for "X km of Y")
     // so this and the /api/reports/[slug]/nearby endpoint produce
