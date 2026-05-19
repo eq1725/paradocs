@@ -12,25 +12,26 @@ export const CATEGORY_CONFIG: Record<PhenomenonCategory, {
   icon: string
   description: string
 }> = {
+  // Panel-feedback (May 2026 — 5th round): labels use the
+  // straightforward branded form ("UFOs & Aliens", "Ghosts &
+  // Hauntings", etc.) rather than the dual-label experiments from
+  // T1.7. Keeps copy consistent with the rest of the site.
   ufos_aliens: {
-    // T1.7 — dual-label for mass-market accessibility (acronym + plain-language gloss)
-    label: 'UAP (UFOs & aliens)',
+    label: 'UFOs & Aliens',
     color: 'text-green-400',
     bgColor: 'bg-green-400/20',
     icon: '🛸',
     description: 'UAP sightings, close encounters, abductions, and unidentified submerged objects.'
   },
   cryptids: {
-    // T1.7 — dual-label
-    label: 'Cryptid (Bigfoot, Mothman, etc.)',
+    label: 'Cryptids',
     color: 'text-amber-400',
     bgColor: 'bg-amber-400/20',
     icon: '🦶',
-    description: 'Encounters with creatures that don\'t fit any known species.'
+    description: 'Encounters with creatures that don\'t fit any known species — Bigfoot, Mothman, lake monsters, and more.'
   },
   ghosts_hauntings: {
-    // T1.7 — dual-label
-    label: 'Ghost (apparitions & hauntings)',
+    label: 'Ghosts & Hauntings',
     color: 'text-purple-400',
     bgColor: 'bg-purple-400/20',
     icon: '👻',
@@ -44,12 +45,11 @@ export const CATEGORY_CONFIG: Record<PhenomenonCategory, {
     description: 'Telepathy, precognition, channeling, synchronicity, and after-death communication.'
   },
   consciousness_practices: {
-    // T1.7 — dual-label (plain-language gloss for the consciousness category)
-    label: 'OBE / NDE / Meditation',
+    label: 'Consciousness Practices',
     color: 'text-indigo-400',
     bgColor: 'bg-indigo-400/20',
     icon: '🧘',
-    description: 'Astral projection, lucid dreaming, kundalini awakening, and meditation visions.'
+    description: 'Astral projection, lucid dreaming, kundalini awakening, meditation visions, OBEs.'
   },
   psychological_experiences: {
     label: 'Psychological Experiences',

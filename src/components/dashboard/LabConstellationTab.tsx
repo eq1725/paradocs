@@ -347,6 +347,32 @@ export default function LabConstellationTab() {
           focusedIdx={focusedIdx}
           onFocus={setFocusedIdx}
           onDeleted={handleSubmissionDeleted}
+          onEdited={function () {
+            // Panel-feedback (May 2026 — 5th round): refetch user's
+            // reports after an edit from the Manage panel so any
+            // pill labels / focused-report fields reflect the new
+            // values immediately.
+            supabase.auth.getSession().then(function (s) {
+              var session = s.data.session
+              if (!session) return
+              supabase
+                .from('reports')
+                .select(`
+                  id, title, slug, category, description, summary,
+                  location_description, city, state_province, country,
+                  latitude, longitude, event_date, event_date_raw, event_date_precision, created_at,
+                  phenomenon_type:phenomenon_types(name)
+                `)
+                .eq('submitted_by', session.user.id)
+                .eq('source_type', 'user_submission')
+                .neq('status', 'deleted')
+                .order('created_at', { ascending: false })
+                .limit(50)
+                .then(function (r: any) {
+                  if (r.data && r.data.length > 0) setAllReports(r.data)
+                })
+            })
+          }}
         />
         <PolishedRadarView
           userExperience={userExperience}
@@ -428,6 +454,7 @@ function SubmissionSwitcher(props: {
   focusedIdx: number
   onFocus: (idx: number) => void
   onDeleted: (deletedId: string) => void
+  onEdited?: () => void
 }) {
   var [manageOpen, setManageOpen] = useState(false)
   function pillLabel(r: any): string {
@@ -484,11 +511,10 @@ function SubmissionSwitcher(props: {
           onClose={function () { setManageOpen(false) }}
           onDeleted={function (id: string) {
             props.onDeleted(id)
-            // If the user just deleted their last submission, close
-            // the panel automatically — the parent flips back to
-            // the onboarding state and the panel would render over
-            // an empty Story.
             if (props.reports.length <= 1) setManageOpen(false)
+          }}
+          onEdited={function () {
+            if (props.onEdited) props.onEdited()
           }}
         />
       )}
@@ -514,6 +540,7 @@ function ManageSubmissionsPanel(props: {
   reports: any[]
   onClose: () => void
   onDeleted: (id: string) => void
+  onEdited?: () => void
 }) {
   useEffect(function () {
     function onKey(e: KeyboardEvent) {
@@ -552,7 +579,12 @@ function ManageSubmissionsPanel(props: {
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
           {props.reports.map(function (r: any) {
             return (
-              <ManageSubmissionRow key={r.id} report={r} onDeleted={props.onDeleted} />
+              <ManageSubmissionRow
+                key={r.id}
+                report={r}
+                onDeleted={props.onDeleted}
+                onEdited={props.onEdited}
+              />
             )
           })}
         </div>
@@ -579,11 +611,13 @@ function ManageSubmissionsPanel(props: {
  * submissions; pending submissions stay non-navigating (status pill
  * communicates why).
  */
-function ManageSubmissionRow(props: { report: any; onDeleted: (id: string) => void }) {
+function ManageSubmissionRow(props: { report: any; onDeleted: (id: string) => void; onEdited?: () => void }) {
   var r = props.report
   var [confirming, setConfirming] = useState(false)
   var [busy, setBusy] = useState(false)
   var [errMsg, setErrMsg] = useState<string | null>(null)
+  // Panel-feedback (May 2026 — 5th round): edit affordance per row.
+  var [editOpen, setEditOpen] = useState(false)
   useEffect(function () {
     if (!confirming) return
     var t = setTimeout(function () { setConfirming(false) }, 4000)
@@ -648,6 +682,17 @@ function ManageSubmissionRow(props: { report: any; onDeleted: (id: string) => vo
               : 'bg-amber-500/10 border-amber-500/40 text-amber-300')}>
           {statusLabel}
         </span>
+        {/* Panel-feedback (May 2026 — 5th round): inline Edit per
+            row in the Manage panel. Same EditReportModal as the
+            Your Report card uses. */}
+        <button
+          type="button"
+          onClick={function (e) { e.preventDefault(); e.stopPropagation(); setEditOpen(true) }}
+          aria-label="Edit this submission"
+          className="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-500 hover:text-purple-300 hover:bg-purple-500/10"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
         <button
           type="button"
           onClick={handleDelete}
@@ -663,6 +708,12 @@ function ManageSubmissionRow(props: { report: any; onDeleted: (id: string) => vo
           {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : confirming ? (<><Trash2 className="w-3 h-3" /> Confirm</>) : <Trash2 className="w-3.5 h-3.5" />}
         </button>
       </div>
+      <EditReportModal
+        open={editOpen}
+        onClose={function () { setEditOpen(false) }}
+        onSaved={function () { if (props.onEdited) props.onEdited() }}
+        report={r}
+      />
     </div>
   )
 }
