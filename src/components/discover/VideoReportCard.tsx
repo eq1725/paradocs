@@ -31,7 +31,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { Volume2, VolumeX, FileText, MapPin, Calendar } from 'lucide-react'
+import { Volume2, VolumeX, FileText, MapPin, Calendar, Captions, CaptionsOff } from 'lucide-react'
 import { CATEGORY_CONFIG } from '@/lib/constants'
 import { formatLocationLabel } from '@/lib/format/location-label'
 import CategoryIcon from '@/components/ui/CategoryIcon'
@@ -80,6 +80,18 @@ export default function VideoReportCard(props: VideoReportCardProps) {
   var [muted, setMuted] = useState(true)
   var [hasPlayed, setHasPlayed] = useState(false)
   var [captionText, setCaptionText] = useState('')
+  // V10.7.E.6 — CC toggle. Persisted to localStorage so the choice
+  // sticks across cards and sessions. Defaults to ON because the
+  // feed autoplays muted and captions are the only way the viewer
+  // can follow the witness's account until they tap to unmute.
+  var [ccEnabled, setCcEnabled] = useState<boolean>(function () {
+    if (typeof window === 'undefined') return true
+    try {
+      var stored = window.localStorage.getItem('paradocs.cc_enabled')
+      if (stored === '0') return false
+      return true
+    } catch (_) { return true }
+  })
 
   // Lazy-load when scrolled into view.
   useEffect(function () {
@@ -152,6 +164,18 @@ export default function VideoReportCard(props: VideoReportCardProps) {
     setMuted(v.muted)
   }
 
+  function toggleCc(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    var next = !ccEnabled
+    setCcEnabled(next)
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('paradocs.cc_enabled', next ? '1' : '0')
+      }
+    } catch (_) { /* localStorage unavailable — fine */ }
+  }
+
   var locationStr = formatLocationLabel(item, { maxParts: 2 }) || ''
   var yearMatch = item.event_date ? item.event_date.match(/\d{4}/) : null
   var year = yearMatch ? yearMatch[0] : ''
@@ -211,16 +235,31 @@ export default function VideoReportCard(props: VideoReportCardProps) {
         </span>
       </div>
 
-      {/* Top-right: sound toggle */}
+      {/* Top-right: sound + CC toggles */}
       {hasPlayed && (
-        <button
-          type="button"
-          onClick={toggleMute}
-          aria-label={muted ? 'Unmute' : 'Mute'}
-          className="absolute top-3 right-3 inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 transition-colors"
-        >
-          {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-        </button>
+        <div className="absolute top-3 right-3 flex items-center gap-2">
+          {/* CC toggle — only shown when we actually have a transcript
+              to display. localStorage-backed so the choice persists. */}
+          {video.segments && (video.segments as any).length > 0 && (
+            <button
+              type="button"
+              onClick={toggleCc}
+              aria-label={ccEnabled ? 'Hide captions' : 'Show captions'}
+              aria-pressed={ccEnabled}
+              className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 transition-colors"
+            >
+              {ccEnabled ? <Captions className="w-4 h-4" /> : <CaptionsOff className="w-4 h-4" />}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={toggleMute}
+            aria-label={muted ? 'Unmute' : 'Mute'}
+            className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 transition-colors"
+          >
+            {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+          </button>
+        </div>
       )}
 
       {/* Right-edge action strip — TikTok pattern */}
@@ -273,7 +312,7 @@ export default function VideoReportCard(props: VideoReportCardProps) {
             title regardless of viewport size, the title block pushes
             down naturally when caption text is present, and the
             existing gradient scrim already provides legibility. */}
-        {captionText && (
+        {ccEnabled && captionText && (
           <div aria-live="polite" className="mb-3 flex justify-start">
             <span
               className="inline-block max-w-full text-white text-[15px] sm:text-base font-medium leading-snug px-3 py-1.5 rounded-md"
