@@ -44,7 +44,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ ok: true, hit: null })
   }
 
-  var token = process.env.MAPBOX_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+  // Accept either env var name. Different parts of the codebase use
+  // different conventions and the launch infra already has
+  // MAPBOX_ACCESS_TOKEN populated; this avoids requiring a second
+  // copy under a different key.
+  var token = process.env.MAPBOX_ACCESS_TOKEN
+    || process.env.MAPBOX_TOKEN
+    || process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+    || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
   if (!token) {
     // Silent no-op — caller can decide whether to surface this.
     return res.status(200).json({ ok: true, hit: null, reason: 'no_mapbox_token' })
