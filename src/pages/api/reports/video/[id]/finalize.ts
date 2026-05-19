@@ -191,6 +191,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     await admin.from('report_videos').update(finalUpdates).eq('id', (video as any).id)
 
+    // Panel-feedback (May 2026 — 6th round, 2nd fix): also sync the
+    // transcript + Haiku-suggested description into reports.description
+    // so the Lab story card and any pre-publish surfaces show real
+    // content instead of the "(Video uploading; transcript and details
+    // pending.)" placeholder. Only overwrite when the description still
+    // matches the placeholder — never trample user-typed content.
+    try {
+      var PLACEHOLDER_RE = /\(Video uploading[^)]*pending\.?\)/i
+      var { data: reportNow } = await admin
+        .from('reports')
+        .select('description, title')
+        .eq('id', (video as any).report_id)
+        .maybeSingle()
+
+      if (reportNow) {
+        var reportUpdate: any = {}
+        var currentDesc = String((reportNow as any).description || '')
+        var currentTitle = String((reportNow as any).title || '')
+        var proposedDesc = (extracted && extracted.proposed_description) || whisper.text || ''
+        var proposedTitle = (extracted && extracted.proposed_title) || ''
+        if (PLACEHOLDER_RE.test(currentDesc) && proposedDesc.trim().length > 0) {
+          reportUpdate.description = proposedDesc.trim().slice(0, 4000)
+          reportUpdate.summary = reportUpdate.description.slice(0, 200) + (reportUpdate.description.length > 200 ? '…' : '')
+        }
+        if (/^Video report/.test(currentTitle) && proposedTitle.trim().length > 0) {
+          reportUpdate.title = proposedTitle.trim().slice(0, 140)
+        }
+        if (Object.keys(reportUpdate).length > 0) {
+          reportUpdate.updated_at = new Date().toISOString()
+          await (admin.from('reports') as any).update(reportUpdate).eq('id', (video as any).report_id)
+        }
+      }
+    } catch (e: any) {
+      console.warn('[video/finalize] report description sync failed (non-fatal):', e?.message)
+    }
+
     return res.status(200).json({
       ok: true,
       report_id: reportId,

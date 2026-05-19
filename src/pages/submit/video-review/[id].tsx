@@ -176,9 +176,19 @@ export default function VideoReviewPage() {
       setForm(function (current) {
         var em = (data.video && data.video.extracted_meta) || {}
         var touched = userTouchedRef.current
+        // Panel-feedback (May 2026 — 6th round): the upload-url
+        // endpoint seeds the draft report with placeholder copy
+        // until Whisper finishes. Normalize those placeholders to
+        // empty so the Haiku-suggested values win during prefill.
+        var rawDesc = String(data.report?.description || '')
+        var rawTitle = String(data.report?.title || '')
+        var PLACEHOLDER_DESC_RE = /\(Video uploading[^)]*pending\.?\)/i
+        var PLACEHOLDER_TITLE_RE = /^Video report/i
+        var cleanDesc = PLACEHOLDER_DESC_RE.test(rawDesc) ? '' : rawDesc
+        var cleanTitle = PLACEHOLDER_TITLE_RE.test(rawTitle) ? '' : rawTitle
         var defaults: FormState = {
-          title: data.report?.title || em.proposed_title || '',
-          description: data.report?.description || em.proposed_description || data.video?.transcript || '',
+          title: cleanTitle || em.proposed_title || '',
+          description: cleanDesc || em.proposed_description || data.video?.transcript || '',
           category: data.report?.category || (em.category_hints && em.category_hints[0]) || '',
           city: data.report?.city || '',
           state_province: data.report?.state_province || '',
