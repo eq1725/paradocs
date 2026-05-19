@@ -35,6 +35,17 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
+import { generateAndSaveDirect } from '@/lib/services/paradocs-analysis.service'
+
+// V10.7.E.4 — let the Sonnet analysis pass finish synchronously
+// inside this endpoint. Whisper + Haiku already ran in /finalize, so
+// the user's "Publish" click here triggers moderation + analysis. The
+// analysis takes 30-60s end to end (claim-check + retry); without
+// the extended duration Vercel kills the function at the default
+// 10-15s ceiling.
+export const config = {
+  maxDuration: 180,
+}
 
 interface PublishBody {
   title?: string
@@ -230,43 +241,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: 'Could not finalize video status' })
   }
 
-  // V10.7.E.3 (May 2026, QA round 5) — kick off the Paradocs analysis
-  // pass for this report. The Sonnet generation takes ~30–60s end to
-  // end (claim-check + retry), too long to block the publish response.
-  // We POST to the existing admin analysis endpoint and DON'T await
-  // it; the downstream serverless worker processes the analysis
-  // independently and writes paradocs_assessment + paradocs_narrative
-  // + feed_hook back to the row. Failure is non-fatal — the report is
-  // already published and visible; the analysis just won't render
-  // until the next attempt (cron sweep or manual retry).
+  // V10.7.E.4 (May 2026, QA round 6) — run the Paradocs analysis pass
+  // synchronously while the user waits on the publish button. The
+  // earlier fire-and-forget HTTP variant (round 5) was unreliable on
+  // Vercel: the parent function returned before fetch had even
+  // initiated TCP, so the downstream worker often never ran and
+  // users saw the "Paradocs is analyzing this account…" placeholder
+  // indefinitely.
   //
-  // Only fires when moderation passed. Pending-review reports get
-  // their analysis after admin approval.
+  // Trade-off: publish now takes 30-60s instead of 2-3s, but the
+  // user lands on a fully-populated report page (frames + open
+  // questions + pull quote + feed_hook + paradocs_narrative). That's
+  // a meaningful UX upgrade over "look at our analysis later".
+  // Failure is non-fatal — the report stays published; only the
+  // analysis section will be missing until a manual retry.
+  //
+  // Only runs when moderation passed. Flagged reports stay in
+  // pending review and get their analysis after admin approval.
+  var analysisOk = false
   if (!modOutcome.flagged) {
     try {
-      var siteUrl = process.env.NEXT_PUBLIC_SITE_URL
-        || (process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : null)
-        || 'http://localhost:3000'
-      var serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-      // Fire-and-forget. We initiate the request and let the response
-      // come back to a separate function context. .catch() prevents
-      // unhandled rejection logs if the function terminates first.
-      void fetch(siteUrl + '/api/admin/ai/generate-analysis', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + serviceKey,
-        },
-        body: JSON.stringify({
-          action: 'single',
-          id: (video as any).report_id,
-        }),
-      }).catch(function (e: any) {
-        console.warn('[video/publish] analysis enqueue failed:', e?.message || e)
-      })
-      console.log('[video/publish] paradocs analysis enqueued for', (video as any).report_id)
+      console.log('[video/publish] starting paradocs analysis for', (video as any).report_id)
+      var aResult = await generateAndSaveDirect((video as any).report_id)
+      analysisOk = !!aResult.success
+      if (!aResult.success) {
+        console.warn('[video/publish] analysis failed:', aResult.error)
+      } else {
+        console.log('[video/publish] paradocs analysis saved for', (video as any).report_id)
+      }
     } catch (e: any) {
-      console.warn('[video/publish] analysis enqueue threw:', e?.message || e)
+      console.warn('[video/publish] analysis threw:', e?.message || e)
     }
   }
 
@@ -276,6 +280,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     video_status: videoUpdate.status,
     report_status: reportUpdate.status,
     needs_admin_review: !!modOutcome.flagged,
-    paradocs_analysis_enqueued: !modOutcome.flagged,
+    paradocs_analysis_saved: analysisOk,
   })
 }

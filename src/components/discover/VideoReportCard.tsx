@@ -59,26 +59,13 @@ interface TranscriptSegment {
   text: string
 }
 
-function segmentsToVttDataUrl(segments: TranscriptSegment[] | null | undefined): string | null {
-  if (!segments || segments.length === 0) return null
-  function formatTs(sec: number): string {
-    var h = Math.floor(sec / 3600)
-    var m = Math.floor((sec % 3600) / 60)
-    var s = Math.floor(sec % 60)
-    var ms = Math.floor((sec - Math.floor(sec)) * 1000)
-    var pad = function (n: number, w: number) { return String(n).padStart(w, '0') }
-    return pad(h, 2) + ':' + pad(m, 2) + ':' + pad(s, 2) + '.' + pad(ms, 3)
-  }
-  var lines: string[] = ['WEBVTT', '']
-  for (var i = 0; i < segments.length; i++) {
-    var seg = segments[i]
-    lines.push(String(i + 1))
-    lines.push(formatTs(seg.start) + ' --> ' + formatTs(seg.end))
-    lines.push((seg.text || '').replace(/-->/g, '→').trim())
-    lines.push('')
-  }
-  return 'data:text/vtt;charset=utf-8,' + encodeURIComponent(lines.join('\n'))
-}
+// V10.7.E.4 — dropped the WebVTT data-URL helper. Native browser
+// captions rendered at the bottom of the <video> element, which on
+// mobile sits right where the bottom tab bar sits — the second line
+// got eaten by the nav. We now render our own caption overlay div
+// positioned above the title block (see findCurrentSegment + the
+// JSX below). Custom rendering also gives us font/contrast control
+// the native cue rendering doesn't.
 
 export default function VideoReportCard(props: VideoReportCardProps) {
   var router = useRouter()
@@ -92,6 +79,7 @@ export default function VideoReportCard(props: VideoReportCardProps) {
   var [shouldLoad, setShouldLoad] = useState(false)
   var [muted, setMuted] = useState(true)
   var [hasPlayed, setHasPlayed] = useState(false)
+  var [captionText, setCaptionText] = useState('')
 
   // Lazy-load when scrolled into view.
   useEffect(function () {
@@ -123,6 +111,38 @@ export default function VideoReportCard(props: VideoReportCardProps) {
     v.play().then(function () { setHasPlayed(true) }).catch(function () {})
   }, [shouldLoad])
 
+  // V10.7.E.4 — drive captions ourselves so we can position them
+  // safely above the title overlay (and the mobile bottom nav).
+  // Track the current segment via the video's timeupdate event and
+  // expose it as state for the overlay JSX. Cleared when the video
+  // pauses or there's no matching segment.
+  useEffect(function () {
+    if (!shouldLoad) return
+    var el = videoRef.current
+    if (!el) return
+    var segs: TranscriptSegment[] = (video?.segments as any) || []
+    if (!segs || segs.length === 0) return
+    var vEl = el
+    function onTime() {
+      var t = vEl.currentTime
+      // Linear scan is fine — typical transcript has <100 segments.
+      for (var i = 0; i < segs.length; i++) {
+        if (t >= segs[i].start && t < segs[i].end) {
+          var txt = (segs[i].text || '').trim()
+          setCaptionText(txt)
+          return
+        }
+      }
+      setCaptionText('')
+    }
+    vEl.addEventListener('timeupdate', onTime)
+    vEl.addEventListener('seeked', onTime)
+    return function () {
+      vEl.removeEventListener('timeupdate', onTime)
+      vEl.removeEventListener('seeked', onTime)
+    }
+  }, [shouldLoad, video])
+
   function toggleMute(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
@@ -135,8 +155,6 @@ export default function VideoReportCard(props: VideoReportCardProps) {
   var locationStr = formatLocationLabel(item, { maxParts: 2 }) || ''
   var yearMatch = item.event_date ? item.event_date.match(/\d{4}/) : null
   var year = yearMatch ? yearMatch[0] : ''
-
-  var vttUrl = segmentsToVttDataUrl(video?.segments as any || null)
 
   if (!video || !video.playback_url) return null
 
@@ -165,11 +183,8 @@ export default function VideoReportCard(props: VideoReportCardProps) {
           // toggle. TikTok / Reels both use tap-anywhere-on-video as
           // the canonical unmute affordance.
           onClick={toggleMute}
-        >
-          {vttUrl && (
-            <track kind="captions" src={vttUrl} srcLang="en" label="Auto-generated" default />
-          )}
-        </video>
+        />
+
       ) : (
         <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs">
           Loading…
@@ -229,6 +244,27 @@ export default function VideoReportCard(props: VideoReportCardProps) {
           variant="overlay"
         />
       </div>
+
+      {/* V10.7.E.4 — custom caption overlay. Sits ABOVE the title
+          block (bottom-32) so it clears the mobile bottom nav and the
+          title scrim, where native browser captions used to get
+          truncated. Pointer-events-none so the underlying tap-to-mute
+          surface still works. Sound is unmuted before captions are
+          most useful, but we render them in both states so the user
+          can read along while muted as well. */}
+      {captionText && (
+        <div
+          aria-live="polite"
+          className="absolute inset-x-0 bottom-32 px-6 flex justify-center pointer-events-none z-[5]"
+        >
+          <span
+            className="inline-block max-w-[90%] text-center text-white text-[15px] sm:text-base font-medium leading-snug px-3 py-1.5 rounded-md"
+            style={{ background: 'rgba(0,0,0,0.62)', textShadow: '0 1px 2px rgba(0,0,0,0.85)' }}
+          >
+            {captionText}
+          </span>
+        </div>
+      )}
 
       {/* Bottom overlay — title, meta, CTA.
           V10.7.E.3 — three changes vs. the panel-feedback v7 version:
