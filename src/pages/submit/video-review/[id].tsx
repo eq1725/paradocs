@@ -44,6 +44,12 @@ interface VideoData {
     category_hints?: string[]
   } | null
   playback_url: string
+  // Panel-feedback (May 2026 — 5th round): surface transcribe state
+  // so the user (and we) can see when Whisper failed vs succeeded.
+  transcribe_attempts?: number
+  transcribe_error?: string | null
+  transcribed_at?: string | null
+  size_bytes?: number | null
 }
 
 interface ReportData {
@@ -387,6 +393,26 @@ export default function VideoReviewPage() {
                 <p className="text-xs font-semibold text-purple-200">Transcribing your video…</p>
                 <p className="text-xs text-purple-200/80 mt-0.5">
                   We&rsquo;ll auto-suggest a title and description once it&rsquo;s ready. You can keep filling in the form below in the meantime.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Panel-feedback (May 2026 — 5th round): surface transcribe
+              failures visibly. If status is ready_for_review but
+              transcribe_error is set, the cron fell through or the
+              env var isn't configured. Show what we know so the
+              user can manually fill the form without confusion. */}
+          {video && video.status !== 'transcribing' && (video.transcribe_error || (video.transcribe_attempts && video.transcribe_attempts > 0 && !video.transcript)) && (
+            <div className="rounded-lg border border-amber-900/40 bg-amber-950/30 p-3 mb-6 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-300 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-amber-200">Auto-transcript wasn&rsquo;t available.</p>
+                <p className="text-xs text-amber-200/80 mt-0.5 leading-relaxed">
+                  No problem — fill in the title and description manually below. We&rsquo;ll still attach the video to your report.
+                  {video.transcribe_error && (
+                    <span className="block mt-1 text-[10px] text-amber-200/50">Reason: {video.transcribe_error.slice(0, 120)}</span>
+                  )}
                 </p>
               </div>
             </div>

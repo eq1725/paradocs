@@ -95,6 +95,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 
+  // Panel-feedback (May 2026 — 5th round): explicit log so Vercel
+  // function output makes it obvious which branch is firing. If
+  // OPENAI_API_KEY isn't set in Production env, transcription
+  // silently falls through to "manual fill" and the user sees an
+  // empty review form. The log here lets you grep Vercel logs to
+  // confirm presence.
+  console.log('[video/finalize]',
+    'report_id=' + reportId,
+    'has_openai_key=' + (!!process.env.OPENAI_API_KEY),
+    'video_status=' + (video as any).status)
+
   // Verify the object landed in Storage.
   var pathParts = ((video as any).storage_path || '').split('/')
   var filename = pathParts[pathParts.length - 1]

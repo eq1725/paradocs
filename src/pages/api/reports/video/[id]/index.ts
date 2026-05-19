@@ -42,7 +42,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   var { data: video, error: videoErr } = await admin
     .from('report_videos')
-    .select('id, report_id, user_id, status, storage_bucket, storage_path, mime_type, size_bytes, duration_sec, transcript, transcript_segments, transcript_lang, extracted_meta, uploaded_at')
+    .select('id, report_id, user_id, status, storage_bucket, storage_path, mime_type, size_bytes, duration_sec, transcript, transcript_segments, transcript_lang, extracted_meta, uploaded_at, transcribe_attempts, transcribe_error, transcribed_at')
     .eq('report_id', reportId)
     .order('uploaded_at', { ascending: false })
     .limit(1)
@@ -78,6 +78,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       mime_type: (video as any).mime_type,
       size_bytes: (video as any).size_bytes,
       duration_sec: (video as any).duration_sec,
+      transcribe_attempts: (video as any).transcribe_attempts || 0,
+      transcribe_error: (video as any).transcribe_error || null,
+      transcribed_at: (video as any).transcribed_at || null,
       transcript: (video as any).transcript,
       transcript_segments: (video as any).transcript_segments,
       transcript_lang: (video as any).transcript_lang,
