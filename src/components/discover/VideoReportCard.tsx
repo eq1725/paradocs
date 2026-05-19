@@ -245,27 +245,6 @@ export default function VideoReportCard(props: VideoReportCardProps) {
         />
       </div>
 
-      {/* V10.7.E.4 — custom caption overlay. Sits ABOVE the title
-          block (bottom-32) so it clears the mobile bottom nav and the
-          title scrim, where native browser captions used to get
-          truncated. Pointer-events-none so the underlying tap-to-mute
-          surface still works. Sound is unmuted before captions are
-          most useful, but we render them in both states so the user
-          can read along while muted as well. */}
-      {captionText && (
-        <div
-          aria-live="polite"
-          className="absolute inset-x-0 bottom-32 px-6 flex justify-center pointer-events-none z-[5]"
-        >
-          <span
-            className="inline-block max-w-[90%] text-center text-white text-[15px] sm:text-base font-medium leading-snug px-3 py-1.5 rounded-md"
-            style={{ background: 'rgba(0,0,0,0.62)', textShadow: '0 1px 2px rgba(0,0,0,0.85)' }}
-          >
-            {captionText}
-          </span>
-        </div>
-      )}
-
       {/* Bottom overlay — title, meta, CTA.
           V10.7.E.3 — three changes vs. the panel-feedback v7 version:
             (a) the entire overlay is wrapped in a Link, so a tap
@@ -285,6 +264,25 @@ export default function VideoReportCard(props: VideoReportCardProps) {
         className="absolute inset-x-0 bottom-0 block p-4 pr-16 pb-24 group"
         aria-label={'Read full report: ' + (item.title || 'Untitled')}
       >
+        {/* V10.7.E.5 — captions live INSIDE the bottom overlay, just
+            above the title block. Round 6's bottom-32 absolute
+            position landed in the middle of the title (Chase saw the
+            caption text superimposed over "Black Triangular UFO Over
+            Childhood Home"). Keeping the caption inside the Link's
+            content flow means it ALWAYS sits cleanly above the
+            title regardless of viewport size, the title block pushes
+            down naturally when caption text is present, and the
+            existing gradient scrim already provides legibility. */}
+        {captionText && (
+          <div aria-live="polite" className="mb-3 flex justify-start">
+            <span
+              className="inline-block max-w-full text-white text-[15px] sm:text-base font-medium leading-snug px-3 py-1.5 rounded-md"
+              style={{ background: 'rgba(0,0,0,0.62)', textShadow: '0 1px 2px rgba(0,0,0,0.85)' }}
+            >
+              {captionText}
+            </span>
+          </div>
+        )}
         <h3 className="text-white text-lg sm:text-xl font-display font-bold leading-tight drop-shadow-lg">
           {item.title || 'Untitled'}
         </h3>
