@@ -267,12 +267,30 @@ export async function normalizeLocation(
       }
     }
     if (coord && isValidCoord(coord.lat, coord.lng)) {
-      latitude = coord.lat
-      longitude = coord.lng
-      precision = coord.accuracy === 'point' || coord.accuracy === 'address' || coord.accuracy === 'street'
-        ? 'exact'
-        : 'city'
-      coordsSynthetic = false
+      // V11 — translate geocoder accuracy into our precision enum.
+      // Previously this branched only between 'exact' and 'city', which
+      // meant Nominatim/MapTiler returning a country-level match (e.g.
+      // "United States" → 39.78/-100.45) was labeled precision='city'
+      // AND coords were retained. Three reports stacked on the same
+      // US-center coord made a visible map clump.
+      const acc = coord.accuracy
+      if (acc === 'point' || acc === 'address' || acc === 'street') {
+        latitude = coord.lat
+        longitude = coord.lng
+        precision = 'exact'
+        coordsSynthetic = false
+      } else if (acc === 'country') {
+        // Country-precision match — keep country info but drop coords
+        // (same policy as the dedicated 3d step below).
+        precision = 'country'
+        coordsSynthetic = false
+        // latitude/longitude remain null
+      } else {
+        latitude = coord.lat
+        longitude = coord.lng
+        precision = 'city'
+        coordsSynthetic = false
+      }
     }
   }
 

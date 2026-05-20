@@ -980,7 +980,22 @@ export const redditAdapter: SourceAdapter = {
     try {
       console.log('[Reddit/ArcticShift] Starting scrape via Arctic Shift archive...');
 
-      const reportsPerSubreddit = Math.ceil(limit / subreddits.length);
+      // V11 — over-fetch per subreddit. The previous Math.ceil(limit/N)
+      // gives 1 per sub when N ≥ limit (we have 53+ subs and run smokes
+      // at limit=25), which means we only sample 1 post per sub and most
+      // fail the META/NON_EXPERIENCE/QUESTION pattern filters. Result:
+      // limit=25 only produced 5 inserts in smoke 2.
+      //
+      // New math: pull at least MIN_PER_SUB posts, plus over-fetch by
+      // TARGET_OVERFETCH×limit total to absorb the ~80-90% filter rate.
+      // Capped at MAX_PER_SUB so a single very-active sub can't dominate.
+      const MIN_PER_SUB = 3;
+      const MAX_PER_SUB = 25;
+      const TARGET_OVERFETCH = 3;
+      const reportsPerSubreddit = Math.max(
+        MIN_PER_SUB,
+        Math.min(MAX_PER_SUB, Math.ceil((limit * TARGET_OVERFETCH) / subreddits.length))
+      );
 
       for (const subreddit of subreddits) {
         if (allReports.length >= limit) break;

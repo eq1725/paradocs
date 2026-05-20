@@ -304,7 +304,7 @@ function formatDateForTitle(date: Date | string | null | undefined): string | nu
 
 // Third-person framing prefixes that the title-improver historically prepended
 // to phenomenon descriptors. Stripped when the underlying body is first-person.
-const THIRD_PERSON_FRAMING_PREFIX = /^(?:witness(?:es)?\s+(?:reports?|describes?|recounts?|sees?|saw|claims?|shares?|details?)|local\s+reports?|resident\s+reports?|user\s+reports?|(?:man|woman|teen|teenager|girl|boy|child|family|hiker|driver|trucker|camper|hunter|officer)\s+(?:reports?|describes?|recounts?|sees?|saw|seeks?|encounters?|claims?|shares?))\s+/i;
+const THIRD_PERSON_FRAMING_PREFIX = /^(?:witness(?:es)?\s+(?:reports?|describes?|recounts?|sees?|saw|claims?|shares?|details?|struggles?)|(?:local|resident|user|reader|listener|viewer|practitioner|researcher|investigator|skeptic|believer|experiencer|patient|subject|student|tourist|traveler|visitor)\s+(?:reports?|describes?|recounts?|sees?|saw|seeks?|encounters?|claims?|shares?|struggles?|wonders?)|(?:man|woman|teen|teenager|girl|boy|child|family|hiker|driver|trucker|camper|hunter|officer|soldier|sailor|pilot|nurse|doctor|teacher|farmer|fisherman)\s+(?:reports?|describes?|recounts?|sees?|saw|seeks?|encounters?|claims?|shares?|struggles?|wonders?))\s+/i;
 
 // Subset of NAME_ONLY_TITLE_PATTERNS (quality-filter.ts) that the improver might
 // otherwise emit. Kept in sync intentionally — when the improver would return

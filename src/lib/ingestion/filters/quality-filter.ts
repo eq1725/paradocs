@@ -23,12 +23,17 @@ export const META_POST_PATTERNS = [
   /\b(challenge|contest|giveaway)\b/i,
   // Questions seeking multiple responses
   /\bwhat (paranormal|supernatural|strange|weird|creepy) (experience|thing|event)s? (have you|did you)\b/i,
-  // Discussion prompts
+  // Discussion prompts + recurring community threads
   /\b(discussion|megathread|weekly thread)\b/i,
   /\btalk about (anything|whatever|something)\b/i,
   /\b(let's|lets) (discuss|talk about|hear)\b/i,
   /\b(open )?discussion\s*(thread|post|prompt)?\b/i,
   /\b(sound off|chime in|weigh in)\b/i,
+  // V11 — recurring "Weekly/Monthly/Daily <topic> Thread/Request/Post"
+  // patterns. Caught "Weekly Divination Request Thread Open for Readings"
+  // that slipped through smoke 2.
+  /\b(weekly|monthly|daily|bi[\s-]?weekly|nightly)\s+\w+\s+(thread|request|post|chat|check[\s-]?in|stickied|sticky)\b/i,
+  /\b(weekly|monthly|daily)\s+(open|free|request|reading|divination|q[\s-]?and[\s-]?a|qna|qa|introductions?|check[\s-]?in)\b/i,
   // Poll/hypothetical questions - NOT real experiences
   /\b(which (one )?would you|would you rather|if you could|would you want to be)\b/i,
   /\b(vote|poll|survey|choose one|pick one)\b/i,
@@ -97,6 +102,13 @@ export const NON_EXPERIENCE_PATTERNS = [
   /\b(cosplay|costume|dressed as|dressed up as)\b/i,
   // News/articles (not personal experiences)
   /\b(according to|scientists|researchers found|study shows|report says)\b/i,
+  // V11 — help/advice-request posts. "Woman Seeks Exorcism Help for
+  // Mother in Phoenix" type — a real person genuinely needs help, but
+  // it isn't an experience report we can archive editorially.
+  /\b(seeks?|seeking|looking for|need|needs|in need of)\s+(help|advice|guidance|assistance|recommendation|practitioner|exorcist|exorcism|cleanse|cleansing|reading|healer|medium|psychic|priest|exorcism|protection)\b/i,
+  /\b(can|could)\s+(anyone|someone|you)\s+(help|recommend|tell me|please)\b/i,
+  /\b(does anyone (know|live|practice))\b/i,
+  /\b(if anybody|if anyone)\s+(knows|can|practices)\b/i,
 ];
 
 // Fiction markers - stories that are explicitly fictional
