@@ -246,6 +246,17 @@ export default function VideoReportCard(props: VideoReportCardProps) {
 
   if (!video || !video.playback_url) return null
 
+  // V10.7.E.16 — even with `poster` set on the <video> element, some
+  // browsers (notably Safari iOS) paint the video element's black
+  // background BEFORE fetching the poster image, producing a flash
+  // of black on first paint. Render the poster as a sibling absolute-
+  // positioned <img> behind the video so the browser starts the
+  // image fetch immediately on mount and the poster paints as soon
+  // as the bytes arrive — regardless of when the video element
+  // decides to render its own native poster. The <video>'s object-
+  // cover overlay obscures the <img> once playback begins.
+  var posterUrl: string | null = (video as any).poster_url || null
+
   return (
     <article
       ref={wrapperRef}
@@ -254,6 +265,16 @@ export default function VideoReportCard(props: VideoReportCardProps) {
       className="relative w-full overflow-hidden rounded-2xl bg-black shadow-lg"
       style={{ aspectRatio: '9 / 16', maxHeight: '85vh' }}
     >
+      {posterUrl && (
+        <img
+          src={posterUrl}
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+          loading="eager"
+          decoding="async"
+        />
+      )}
       {shouldLoad ? (
         <video
           ref={videoRef}
@@ -289,25 +310,15 @@ export default function VideoReportCard(props: VideoReportCardProps) {
           onClick={toggleMute}
         />
 
-      ) : (video as any).poster_url ? (
-        // V10.7.E.12 — when the video hasn't been lazy-loaded yet but
-        // we already have a poster URL, render the poster as an <img>
-        // so the card never looks empty. Replaces the previous "gray
-        // 'Loading…' box" placeholder. The browser caches this image
-        // so the swap to <video poster=...> is seamless.
-        <img
-          src={(video as any).poster_url}
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover"
-          loading="eager"
-          decoding="async"
-        />
-      ) : (
+      ) : !posterUrl ? (
+        // No poster, no video loaded yet — show a quiet loading state.
+        // (The poster-as-background <img> above already handles the
+        // "we have a poster" case, painting INSTANTLY before this
+        // branch could ever fire.)
         <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs">
           Loading…
         </div>
-      )}
+      ) : null}
 
       {/* Bottom gradient scrim for text legibility */}
       <div
