@@ -74,6 +74,14 @@ interface PlatformHandler {
   platformLabel: string
   matches: (host: string, pathname: string) => boolean
   embed: (parsed: URL) => Omit<OembedResult, 'tier' | 'url' | 'platform' | 'platformLabel'> | null
+  /**
+   * When true, the resolver skips both Tier 1 (iframe embed) AND Tier 2
+   * (OG thumbnail card) for matched hosts and returns Tier 3 — just the
+   * attribution-chrome one-liner. Used when we explicitly never want to
+   * render a preview of the source (e.g. ingested Reddit posts, where the
+   * embed duplicates content the user already sees in our own narrative).
+   */
+  forceTier3?: boolean
 }
 
 const HANDLERS: PlatformHandler[] = [
@@ -128,27 +136,18 @@ const HANDLERS: PlatformHandler[] = [
   },
 
   // ── Reddit ──────────────────────────────────────────────
+  // Reddit is `forceTier3` — we don't render a preview of the source
+  // post at all. The redditmedia.com iframe embed duplicates the
+  // narrative our own page already shows (paradocs_narrative,
+  // feed_hook, transcript, etc.) and adds visual clutter without
+  // adding information. Users who want the original can click the
+  // "Read original" button in the attribution chrome.
   {
     platform: 'reddit',
     platformLabel: 'Reddit',
     matches: (host) => host === 'reddit.com' || host === 'old.reddit.com' || host === 'new.reddit.com',
-    embed: (u) => {
-      // Reddit's embed iframe URL pattern requires the canonical post path.
-      // We don't include the comment id even if present — comment-level embeds
-      // aren't reliable across mobile/desktop.
-      const m = u.pathname.match(/\/r\/([^\/]+)\/comments\/([^\/]+)/i)
-      if (!m) return null
-      const sub = m[1]
-      const post = m[2]
-      return {
-        embedUrl: 'https://www.redditmedia.com/r/' + sub + '/comments/' + post + '/?ref_source=embed&ref=share&embed=true&theme=dark',
-        // Reddit threads vary widely — let the renderer use min-height
-        // instead of a fixed aspect ratio.
-        minHeight: 480,
-        iframeAllow: 'fullscreen',
-        iframeSandbox: 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox',
-      }
-    },
+    embed: () => null,
+    forceTier3: true,
   },
 
   // ── Twitter / X ─────────────────────────────────────────
@@ -253,6 +252,11 @@ export function resolveMediaTier(rawUrl: string): OembedResult {
 
   for (const h of HANDLERS) {
     if (h.matches(host, parsed.pathname)) {
+      // forceTier3 platforms skip both the iframe (Tier 1) and the OG
+      // thumbnail card (Tier 2). Just the attribution-chrome one-liner.
+      if (h.forceTier3) {
+        return { tier: 3, url: rawUrl, platform: h.platform, platformLabel: h.platformLabel }
+      }
       const embed = h.embed(parsed)
       if (embed && embed.embedUrl) {
         return {
