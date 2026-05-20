@@ -1394,8 +1394,20 @@ export default function DiscoverPage() {
           onToggleGrid={function () { setGridOpen(function (v) { return !v }) }}
         />
 
-        {/* Main content */}
-        <div className="flex-1 flex">
+        {/* Main content
+            V10.7.E.23 — explicit max-height on the row so the
+            Connected Cases sidebar (whose stacked cards can total
+            ~800px) doesn't force the row to grow taller than the
+            available viewport. Without this cap, the row stretches
+            to fit the sidebar content, the card pane's auto-margin
+            centering pushes the card downward (off-screen on
+            shorter laptop windows), and the in-card CTA disappears
+            below the fold. The sidebar's inner div already has
+            overflow-y-auto so capping the row doesn't lose content;
+            it just lets the sidebar scroll internally when needed.
+            On mobile (<lg) the sidebar is hidden so the cap is
+            a no-op; we gate it lg+ to be safe regardless. */}
+        <div className="flex-1 flex lg:max-h-[calc(100vh-6.5rem)]">
           {/* Card pane — V5-next: height-capped at md+ via today-card-pane-cap. */}
           <div
             className="flex-1 relative overflow-hidden cursor-grab lg:max-w-2xl lg:mx-auto xl:mx-auto xl:max-w-3xl today-card-pane-cap"
