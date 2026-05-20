@@ -41,7 +41,7 @@ interface ReportCardProps {
 }
 
 export default function ReportCard({ report, variant = 'default' }: ReportCardProps) {
-  const categoryConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
+  const categoryConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.psychological_experiences
   // NOTE: Low/Medium/High credibility labels are intentionally NOT surfaced
   // in the UI anymore. The score is retained in the database for internal
   // ranking / filtering only — users find the coarse bucket too blunt and

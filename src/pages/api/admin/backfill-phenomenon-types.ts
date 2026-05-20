@@ -97,11 +97,9 @@ var CATEGORY_DEFAULTS: Record<string, string> = {
   psychic_phenomena: 'precognition',
   consciousness_practices: 'meditation-experience',
   psychological_experiences: 'nde',
-  biological_factors: 'psychophysiological',
   perception_sensory: 'anomalous-perception',
   religion_mythology: 'mystical-experience',
   esoteric_practices: 'occult-phenomenon',
-  combination: 'multi-phenomena',
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

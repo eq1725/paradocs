@@ -50,7 +50,7 @@ export interface ScrapedReport {
   title: string;
   summary: string;
   description: string;
-  category: string;
+  category: string | null;
   location_name?: string;
   country?: string;
   state_province?: string;

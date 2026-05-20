@@ -6,6 +6,11 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+// V11 — `biological_factors` and `combination` were removed in
+// migration 20260520_drop_biological_and_combination.sql. The
+// "biological" bucket was a skeptical-explanation pile (TLE, infrasound,
+// hypnagogic states) that didn't fit the experiencer-centric mission.
+// "combination" was a catch-all that masked classification gaps.
 export type PhenomenonCategory =
   | 'ufos_aliens'              // UFOs and Aliens/NHIs
   | 'cryptids'                 // Cryptids
@@ -13,11 +18,9 @@ export type PhenomenonCategory =
   | 'psychic_phenomena'        // Psychic Phenomena (ESP)
   | 'consciousness_practices'  // Consciousness Altering Practices
   | 'psychological_experiences' // Psychological Experiences
-  | 'biological_factors'       // Biological Factors Influencing Experience
   | 'perception_sensory'       // Perception and Sensory Processes
   | 'religion_mythology'       // Comparative Religion and Mythology
   | 'esoteric_practices'       // Esoteric Practices and Beliefs
-  | 'combination'              // Multiple categories apply
 
 export type CredibilityLevel =
   | 'unverified'

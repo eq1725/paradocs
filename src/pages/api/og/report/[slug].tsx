@@ -95,11 +95,9 @@ const CATEGORY_DISPLAY: Record<string, string> = {
   psychic_phenomena:         'Psychic Phenomena',
   consciousness_practices:   'Consciousness',
   psychological_experiences: 'Psychological',
-  biological_factors:        'Biological',
   perception_sensory:        'Perception',
   religion_mythology:        'Religion & Mythology',
   esoteric_practices:        'Esoteric Practices',
-  combination:               'Other',
 }
 
 const CATEGORY_COLOR: Record<string, string> = {
@@ -109,11 +107,9 @@ const CATEGORY_COLOR: Record<string, string> = {
   psychic_phenomena:         '#60a5fa',
   consciousness_practices:   '#818cf8',
   psychological_experiences: '#f472b6',
-  biological_factors:        '#a78bfa',
   perception_sensory:        '#22d3ee',
   religion_mythology:        '#fb923c',
   esoteric_practices:        '#a3e635',
-  combination:               '#94a3b8',
 }
 
 // ── Card geometry (1200×630, all positions absolute) ─────────────
@@ -225,7 +221,7 @@ export default async function handler(req: NextRequest) {
     //   60pt heavy bold → ~33 chars/line
     //   52pt heavy bold → ~39 chars/line
 
-    const cat = r.category || 'combination'
+    const cat = r.category || 'psychological_experiences'
     const catLabel = CATEGORY_DISPLAY[cat] || 'Paranormal'
     const catColor = CATEGORY_COLOR[cat] || '#94a3b8'
 

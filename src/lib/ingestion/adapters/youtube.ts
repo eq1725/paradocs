@@ -11,13 +11,14 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Default paranormal channels mapping — expanded from original 4
-const DEFAULT_CHANNELS = [
+// Default paranormal channels mapping — expanded from original 4.
+// Channels that mix categories use null and let Sonnet classify per-video.
+const DEFAULT_CHANNELS: Array<{ id: string; name: string; category: string | null }> = [
   { id: 'UC4FEXKLbg6mGCkPEtEKKkFA', name: 'Nukes Top 5', category: 'ghosts_hauntings' },
-  { id: 'UCYUKGBpn93pX2dBF0EmeLPg', name: 'MrBallen', category: 'combination' },
-  { id: 'UCnM5iMGiKsZg-iOlIO2ZkdQ', name: 'Bedtime Stories', category: 'combination' },
-  { id: 'UC7lOx1MReQ0_WIQtbo_zDdw', name: 'The Why Files', category: 'combination' },
-  { id: 'UCsvhSap9PYhblkW7GyP0K8A', name: 'Nexpo', category: 'combination' },
+  { id: 'UCYUKGBpn93pX2dBF0EmeLPg', name: 'MrBallen', category: null },
+  { id: 'UCnM5iMGiKsZg-iOlIO2ZkdQ', name: 'Bedtime Stories', category: null },
+  { id: 'UC7lOx1MReQ0_WIQtbo_zDdw', name: 'The Why Files', category: null },
+  { id: 'UCsvhSap9PYhblkW7GyP0K8A', name: 'Nexpo', category: null },
   { id: 'UC-2YHgc363EdcusLIBbgxzg', name: 'Joe Rogan - UFO Clips', category: 'ufos_aliens' },
   { id: 'UCBSCOzV8_jDgRqRi5aVJNYg', name: 'MUFON', category: 'ufos_aliens' },
   { id: 'UCrUrxK4JnBBPcS4VRQ1_wFg', name: 'Bob Gymlan', category: 'cryptids' },
@@ -179,29 +180,34 @@ function isExperiencerComment(text: string): boolean {
   return narrativeCount >= 2;
 }
 
-// Determine category from video title/description and comment content
+// Determine category from video title/description and comment content.
+// Returns null when no keyword hits and no channel-level category is set;
+// Sonnet does per-record classification downstream.
 function inferCategoryFromContext(
   videoTitle: string,
-  videoCategory: string,
+  videoCategory: string | null,
   commentText: string
-): string {
+): string | null {
   const combined = (videoTitle + ' ' + commentText).toLowerCase();
 
   if (/\b(ufo|uap|flying saucer|alien|abduct|craft|spaceship)\b/.test(combined)) return 'ufos_aliens';
   if (/\b(nde|near.death|died and came back|flatlined|afterlife|tunnel of light)\b/.test(combined)) return 'psychological_experiences';
   if (/\b(ghost|haunt|spirit|appari|poltergeist|shadow figure|shadow person)\b/.test(combined)) return 'ghosts_hauntings';
   if (/\b(bigfoot|sasquatch|cryptid|creature|wendigo|skinwalker|dogman)\b/.test(combined)) return 'cryptids';
-  if (/\b(astral|out of body|obe|lucid dream|sleep paralysis)\b/.test(combined)) return 'consciousness_practices';
-  if (/\b(psychic|telepathy|premonition|precognition|remote viewing)\b/.test(combined)) return 'psychic_phenomena';
+  if (/\b(witch|wicca|occult|ritual|magick|divination|tarot|sigil)\b/.test(combined)) return 'esoteric_practices';
+  if (/\b(demon|possession|exorcis|seraph|angel|prophe)\b/.test(combined)) return 'religion_mythology';
+  if (/\b(astral|out of body|obe|lucid dream|tulpa|remote viewing)\b/.test(combined)) return 'consciousness_practices';
+  if (/\b(sleep paralysis|deja vu|hypnagog|infrasound)\b/.test(combined)) return 'perception_sensory';
+  if (/\b(psychic|telepathy|premonition|precognition|medium|empath)\b/.test(combined)) return 'psychic_phenomena';
 
-  return videoCategory || 'combination';
+  return videoCategory || null;
 }
 
 // Convert video data to ScrapedReport
 function convertVideoToReport(
   video: YouTubeVideoItem,
   channelName: string,
-  category: string
+  category: string | null
 ): ScrapedReport | null {
   if (!video || !video.snippet) return null;
 
@@ -569,7 +575,7 @@ export const youtubeAdapter: SourceAdapter = {
 
             for (const video of videoData.items) {
               if (allReports.length >= limit) break;
-              const report = convertVideoToReport(video, 'YouTube Search', 'combination');
+              const report = convertVideoToReport(video, 'YouTube Search', null);
               if (report) allReports.push(report);
             }
           } catch {

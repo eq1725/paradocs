@@ -135,7 +135,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Top categories by entry count
     const categoryCounts: Record<string, number> = {}
     entries.forEach((e: any) => {
-      const cat = e.report?.category || 'combination'
+      const cat = e.report?.category || 'psychological_experiences'
       categoryCounts[cat] = (categoryCounts[cat] || 0) + 1
     })
     const topCategories = Object.entries(categoryCounts)
@@ -149,7 +149,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       reportId: entry.report_id,
       name: entry.report?.title || 'Unknown',
       slug: entry.report?.slug || '',
-      category: entry.report?.category || 'combination',
+      category: entry.report?.category || 'psychological_experiences',
       imageUrl: entry.report?.primary_image_url || null,
       verdict: entry.verdict,
       tags: entry.tags || [],

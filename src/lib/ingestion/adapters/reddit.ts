@@ -18,37 +18,77 @@ const ARCTIC_SHIFT_ENDPOINTS = [
   'https://api.arcticshift.app/v1',
 ];
 
-// Map subreddits to categories
+// Map subreddits to categories.
+// Lookup is case-insensitive at use-site (see categoryForSubreddit() below)
+// so capitalization variants don't have to be duplicated here. Keys are
+// stored lowercase to keep this table tidy.
 const SUBREDDIT_CATEGORIES: Record<string, string> = {
   // UFOs & Aliens
-  'UFOs': 'ufos_aliens',
+  'ufos': 'ufos_aliens',
   'ufo': 'ufos_aliens',
   'aliens': 'ufos_aliens',
-  'UAP': 'ufos_aliens',
+  'uap': 'ufos_aliens',
+  'ufob': 'ufos_aliens',
+  'experiencers': 'ufos_aliens',
+  'humanoidencounters': 'ufos_aliens',
+  'alienabduction': 'ufos_aliens',
   // Ghosts & Hauntings
-  'Ghosts': 'ghosts_hauntings',
   'ghosts': 'ghosts_hauntings',
-  'Paranormal': 'ghosts_hauntings',
-  'Thetruthishere': 'ghosts_hauntings',
-  'Haunted': 'ghosts_hauntings',
+  'paranormal': 'ghosts_hauntings',
+  'thetruthishere': 'ghosts_hauntings',
+  'haunted': 'ghosts_hauntings',
+  'hauntings': 'ghosts_hauntings',
+  'shadowpeople': 'ghosts_hauntings',
   // Cryptids
   'bigfoot': 'cryptids',
   'cryptids': 'cryptids',
   'cryptozoology': 'cryptids',
   'skinwalkers': 'cryptids',
-  // Psychological Experiences
-  'Glitch_in_the_Matrix': 'psychological_experiences',
-  'NDE': 'psychological_experiences',
-  'Tulpas': 'psychological_experiences',
+  'dogmanencounters': 'cryptids',
+  'mothman': 'cryptids',
+  'crawlersightings': 'cryptids',
+  // Psychological Experiences (NDE, derealization-style "glitch" reports)
+  'glitch_in_the_matrix': 'psychological_experiences',
+  'nde': 'psychological_experiences',
+  // Perception / Sensory (sleep paralysis is a perception phenomenon,
+  // not a psychological category in our taxonomy)
+  'sleepparalysis': 'perception_sensory',
   // Consciousness Practices
-  'AstralProjection': 'consciousness_practices',
-  'LucidDreaming': 'consciousness_practices',
-  'Psychonaut': 'consciousness_practices',
+  'astralprojection': 'consciousness_practices',
+  'obe': 'consciousness_practices',
+  'tulpas': 'consciousness_practices',
+  'luciddreaming': 'consciousness_practices',
+  'psychonaut': 'consciousness_practices',
+  'remote_viewing': 'consciousness_practices',
+  // Esoteric Practices (witchcraft, ritual, divination, occult)
+  'witch': 'esoteric_practices',
+  'wicca': 'esoteric_practices',
+  'occult': 'esoteric_practices',
+  'magick': 'esoteric_practices',
+  'askawitch': 'esoteric_practices',
+  // Religion / Mythology (entity-possession, demonology, religious mysticism)
+  'demons': 'religion_mythology',
   // Psychic Phenomena
-  'Psychic': 'psychic_phenomena',
-  // Multi-category
-  'HighStrangeness': 'combination'
+  'psychic': 'psychic_phenomena',
+  'mediums': 'psychic_phenomena',
+  'premonitions': 'psychic_phenomena',
+  'askpsychics': 'psychic_phenomena',
+  'empath': 'psychic_phenomena',
+  // Cross-category subs (HighStrangeness, MandelaEffect, Experiencers when
+  // mixed) are intentionally omitted from this map so categoryForSubreddit()
+  // returns null and Sonnet does the per-record classification from content
+  // instead of forcing an inaccurate bucket.
 };
+
+// Case-insensitive category lookup. Returns null for unmapped subs so the
+// downstream Sonnet pass does the real classification instead of forcing
+// an inaccurate `combination` fallback.
+function categoryForSubreddit(sub: string): string | null {
+  if (!sub) return null;
+  const hit = SUBREDDIT_CATEGORIES[sub.toLowerCase()];
+  if (!hit) return null;
+  return hit;
+}
 
 // Arctic Shift post interface (matches Reddit's data structure)
 interface ArcticShiftPost {
@@ -510,8 +550,8 @@ async function fetchPostComments(
 
     console.log(`[Reddit/ArcticShift] Found ${comments.length} comments for post ${postId}`);
 
-    // Get category from subreddit
-    const category = SUBREDDIT_CATEGORIES[subreddit] || 'combination';
+    // Get category from subreddit (case-insensitive)
+    const category = categoryForSubreddit(subreddit);
 
     for (const comment of comments) {
       // Skip short comments, deleted, or low quality
@@ -614,8 +654,8 @@ function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
     return null;
   }
 
-  // Get category from subreddit
-  const category = SUBREDDIT_CATEGORIES[post.subreddit] || 'combination';
+  // Get category from subreddit (case-insensitive)
+  const category = categoryForSubreddit(post.subreddit);
 
   // Clean the text (Reddit uses markdown)
   const description = textContent

@@ -294,7 +294,7 @@ export default function VideoReviewPage() {
         body: JSON.stringify({
           title: form.title || null,
           description: form.description,
-          category: form.category || 'combination',
+          category: form.category || 'psychological_experiences',
           event_date: form.event_date,
           event_date_precision: form.event_date_precision,
           city: form.city || null,

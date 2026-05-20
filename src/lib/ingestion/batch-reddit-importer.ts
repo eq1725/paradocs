@@ -40,7 +40,6 @@ const SUBREDDIT_CATEGORIES: Record<string, string> = {
   'LucidDreaming': 'consciousness_practices',
   'Psychonaut': 'consciousness_practices',
   'Psychic': 'psychic_phenomena',
-  'HighStrangeness': 'combination'
 };
 
 // Target subreddits for paranormal content
@@ -330,7 +329,7 @@ function parseRedditDumpPost(post: RedditPost): ScrapedReport | null {
   // Get category from subreddit
   const category = SUBREDDIT_CATEGORIES[post.subreddit] ||
                    SUBREDDIT_CATEGORIES[post.subreddit.toLowerCase()] ||
-                   'combination';
+                   'ufos_aliens';
 
   // Clean the text
   const description = effectiveTextContent

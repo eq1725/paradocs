@@ -37,11 +37,9 @@ const CATEGORY_TINT: Record<string, { from: string; to: string; ring: string }> 
   psychic_phenomena:         { from: 'from-sky-900/40',      to: 'to-gray-950', ring: 'ring-sky-500/30' },
   consciousness_practices:   { from: 'from-indigo-900/40',   to: 'to-gray-950', ring: 'ring-indigo-500/30' },
   psychological_experiences: { from: 'from-pink-900/40',     to: 'to-gray-950', ring: 'ring-pink-500/30' },
-  biological_factors:        { from: 'from-violet-900/40',   to: 'to-gray-950', ring: 'ring-violet-500/30' },
   perception_sensory:        { from: 'from-cyan-900/40',     to: 'to-gray-950', ring: 'ring-cyan-500/30' },
   religion_mythology:        { from: 'from-orange-900/40',   to: 'to-gray-950', ring: 'ring-orange-500/30' },
   esoteric_practices:        { from: 'from-lime-900/40',     to: 'to-gray-950', ring: 'ring-lime-500/30' },
-  combination:               { from: 'from-slate-900/40',    to: 'to-gray-950', ring: 'ring-slate-500/30' },
   other:                     { from: 'from-slate-900/40',    to: 'to-gray-950', ring: 'ring-slate-500/30' },
 }
 
@@ -113,13 +111,13 @@ export default function ReportRelatedReports({ items, className }: ReportRelated
 // ── Subcomponents ───────────────────────────────────────────
 
 function RelatedCard({ report }: { report: RelatedReport }) {
-  const tint = CATEGORY_TINT[report.category || 'combination'] || CATEGORY_TINT.combination
+  const tint = CATEGORY_TINT[report.category || 'ufos_aliens'] || CATEGORY_TINT.other
 
   // V10.6.1 — richer card sub-line. Was previously a slug-style
   // join ("psychic_phenomena · United Kingdom") which looked
   // technical. New shape uses friendly category label as a kicker
   // and a separate meta line with location + date icons.
-  const categoryConfig = (CATEGORY_CONFIG as any)[report.category || 'combination']
+  const categoryConfig = (CATEGORY_CONFIG as any)[report.category || 'ufos_aliens']
   const categoryLabel = (categoryConfig && categoryConfig.label) || ''
   const dateStr = formatEventDate(report.event_date)
   const locationStr = report.location_name && report.location_name.trim() ? report.location_name.trim() : null
@@ -147,7 +145,7 @@ function RelatedCard({ report }: { report: RelatedReport }) {
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center opacity-60">
-            <CategoryIcon category={(report.category || 'combination') as PhenomenonCategory} size={28} />
+            <CategoryIcon category={(report.category || 'ufos_aliens') as PhenomenonCategory} size={28} />
           </div>
         )}
       </div>

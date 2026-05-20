@@ -20,7 +20,6 @@ interface WelcomeOnboardingProps {
 }
 
 const INTEREST_CATEGORIES = Object.entries(CATEGORY_CONFIG)
-  .filter(([key]) => key !== 'combination')
   .map(([key, val]) => ({
     key: key as PhenomenonCategory,
     label: val.label,

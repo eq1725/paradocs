@@ -89,12 +89,10 @@ const CATEGORIES = [
   'psychic_phenomena',
   'consciousness_practices',
   'psychological_experiences',
-  'biological_factors',
   'perception_sensory',
   'religion_mythology',
   'esoteric_practices',
   'multi_disciplinary',
-  'combination'
 ]
 
 export interface AnalysisResult {
@@ -686,12 +684,10 @@ function getCategoryName(category: string): string {
     'psychic_phenomena': 'Psychic Phenomena',
     'consciousness_practices': 'Consciousness Practices',
     'psychological_experiences': 'Psychological Experiences',
-    'biological_factors': 'Biological Factors',
     'perception_sensory': 'Perception & Sensory',
     'religion_mythology': 'Religion & Mythology',
     'esoteric_practices': 'Esoteric Practices',
     'multi_disciplinary': 'Multi-Disciplinary',
-    'combination': 'Combination'
   }
   return names[category] || category.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }

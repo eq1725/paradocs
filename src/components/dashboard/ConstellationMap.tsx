@@ -344,7 +344,7 @@ export default function ConstellationMap({
       // Group entries by category and position around parent node
       const entriesByCat = new Map<string, EntryNode[]>()
       for (const entry of userMapData.entryNodes) {
-        const cat = entry.category || 'combination'
+        const cat = entry.category || 'ufos_aliens'
         if (!entriesByCat.has(cat)) entriesByCat.set(cat, [])
         entriesByCat.get(cat)!.push(entry)
       }

@@ -22,7 +22,7 @@ const SUBREDDIT_CATEGORIES: Record<string, string> = {
   'cryptozoology': 'cryptids',
   'skinwalkers': 'cryptids',
   'glitch_in_the_matrix': 'psychological_experiences',
-  'highstrangeness': 'combination',
+  'highstrangeness': 'psychological_experiences',
   'nde': 'psychological_experiences',
   'astralprojection': 'consciousness_practices',
   'luciddreaming': 'consciousness_practices',
@@ -120,7 +120,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Get category
         const subredditLower = post.subreddit.toLowerCase()
-        const category = SUBREDDIT_CATEGORIES[subredditLower] || 'combination'
+        const category = SUBREDDIT_CATEGORIES[subredditLower] || 'psychological_experiences'
 
         // Create summary
         const summary = description.length > 200 ? description.substring(0, 197) + '...' : description

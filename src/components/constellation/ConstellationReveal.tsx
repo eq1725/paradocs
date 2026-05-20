@@ -127,11 +127,9 @@ var TYPE_COLORS: Record<string, string> = {
   'psychic_phenomena':        '#3b82f6',
   'consciousness_practices':  '#ec4899',
   'psychological_experiences':'#f87171',
-  'biological_factors':       '#14b8a6',
   'perception_sensory':       '#6366f1',
   'religion_mythology':       '#fb923c',
   'esoteric_practices':       '#a78bfa',
-  'combination':              '#9000F0',
 }
 
 // ── Layout engine: position reports in a radial pattern ───────────────────────

@@ -71,8 +71,6 @@ var CATEGORY_KEYS: PhenomenonCategory[] = [
   'religion_mythology',
   'esoteric_practices',
   'perception_sensory',
-  'biological_factors',
-  'combination',
 ]
 
 export function TodayHeader(props: {

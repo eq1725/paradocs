@@ -183,7 +183,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     title: (p.title || '').toString().trim() || 'Video report',
     description: description,
     summary: description.slice(0, 200) + (description.length > 200 ? '…' : ''),
-    category: p.category || 'combination',
+    category: p.category || 'psychological_experiences',
     visibility: p.visibility || 'public',
     anonymous_submission: !!p.share_anonymously,
     location_precision: p.location_precision || derivedPrecision,

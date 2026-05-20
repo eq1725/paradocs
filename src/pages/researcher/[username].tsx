@@ -192,7 +192,7 @@ export default function ResearcherProfile() {
 
   // Build category stats
   entryNodes.forEach((e: any) => {
-    const cat = e.category || 'combination'
+    const cat = e.category || 'psychological_experiences'
     if (!userMapData.categoryStats[cat]) {
       userMapData.categoryStats[cat] = { entries: 0, verdicts: {} }
     }

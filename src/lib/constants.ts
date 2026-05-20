@@ -58,13 +58,6 @@ export const CATEGORY_CONFIG: Record<PhenomenonCategory, {
     icon: '🧠',
     description: 'Near-death experiences, shared death experiences, deathbed visions, and OBEs.'
   },
-  biological_factors: {
-    label: 'Biological Factors',
-    color: 'text-emerald-400',
-    bgColor: 'bg-emerald-400/20',
-    icon: '🧬',
-    description: 'Unexplained healings, radiation marks, implants, and physical effects tied to encounters.'
-  },
   perception_sensory: {
     label: 'Perception & Sensory',
     color: 'text-cyan-400',
@@ -87,13 +80,6 @@ export const CATEGORY_CONFIG: Record<PhenomenonCategory, {
     icon: '✨',
     description: 'Occult traditions, ritual practices, and reported experiences beyond material explanation.'
   },
-  combination: {
-    label: 'Multi-Disciplinary',
-    color: 'text-gray-400',
-    bgColor: 'bg-gray-400/20',
-    icon: '🔄',
-    description: 'Cases that span multiple categories and resist simple classification.'
-  }
 }
 
 export const CREDIBILITY_CONFIG: Record<CredibilityLevel, {

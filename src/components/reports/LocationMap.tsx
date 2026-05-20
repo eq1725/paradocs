@@ -197,7 +197,6 @@ export default function LocationMap({
     'psychic_phenomena', '#3b82f6',
     'consciousness_practices', '#6366f1',
     'psychological_experiences', '#ec4899',
-    'biological_factors', '#10b981',
     'perception_sensory', '#06b6d4',
     'religion_mythology', '#eab308',
     'esoteric_practices', '#8b5cf6',
@@ -375,7 +374,7 @@ export default function LocationMap({
           </div>
           <div className="space-y-2 max-h-32 overflow-y-auto overflow-x-hidden">
             {nearbyReports.slice(0, 5).map((report) => {
-              const config = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
+              const config = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.psychological_experiences
               return (
                 <Link
                   key={report.id}

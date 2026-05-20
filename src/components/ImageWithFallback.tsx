@@ -39,7 +39,7 @@ export default function ImageWithFallback({
         }}
       >
         <span className={`text-3xl opacity-60 ${config?.color || 'text-gray-400'}`}>
-          <CategoryIcon category={(category || 'combination') as PhenomenonCategory} size={32} />
+          <CategoryIcon category={(category || 'ufos_aliens') as PhenomenonCategory} size={32} />
         </span>
       </div>
     )

@@ -32,11 +32,9 @@ const CATEGORY_COLORS: Record<PhenomenonCategory, string> = {
   psychic_phenomena: '#3b82f6',
   consciousness_practices: '#6366f1',
   psychological_experiences: '#ec4899',
-  biological_factors: '#10b981',
   perception_sensory: '#06b6d4',
   religion_mythology: '#eab308',
   esoteric_practices: '#8b5cf6',
-  combination: '#6b7280',
 }
 
 interface RecentReport {

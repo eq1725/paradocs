@@ -242,14 +242,12 @@ function mapCategory(category: string): string {
     'unexplained_event': 'psychological_experiences',
     'consciousness_practices': 'consciousness_practices',
     'psychological_experiences': 'psychological_experiences',
-    'biological_factors': 'biological_factors',
     'perception_sensory': 'perception_sensory',
     'religion_mythology': 'religion_mythology',
     'esoteric_practices': 'esoteric_practices',
-    'combination': 'combination',
   };
 
-  return mapping[category.toLowerCase()] || 'combination';
+  return mapping[category.toLowerCase()] || 'psychological_experiences';
 }
 
 // Increase body size limit for large seed data

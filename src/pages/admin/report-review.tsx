@@ -83,11 +83,9 @@ var CATEGORY_LABELS: Record<string, string> = {
   psychic_phenomena: 'Psychic Phenomena',
   consciousness_practices: 'Consciousness',
   psychological_experiences: 'Psychological',
-  biological_factors: 'Biological',
   perception_sensory: 'Perception',
   religion_mythology: 'Religion & Mythology',
-  esoteric_practices: 'Esoteric',
-  combination: 'Multi-Disciplinary'
+  esoteric_practices: 'Esoteric'
 }
 
 // Source-specific quality thresholds (mirrors quality-filter.ts)

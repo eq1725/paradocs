@@ -105,16 +105,6 @@ export const CONSTELLATION_NODES: ConstellationNode[] = [
     y: 0.08,
   },
   {
-    id: 'biological_factors',
-    label: 'Biological',
-    icon: '🧬',
-    color: 'emerald',
-    glowColor: '#10b981',
-    description: 'Physiological influences, electromagnetic sensitivity, and body anomalies',
-    x: 0.85,
-    y: 0.55,
-  },
-  {
     id: 'perception_sensory',
     label: 'Perception',
     icon: '👁️',
@@ -143,16 +133,6 @@ export const CONSTELLATION_NODES: ConstellationNode[] = [
     description: 'Occult practices, ritual magic, divination, and hermetic traditions',
     x: 0.55,
     y: 0.88,
-  },
-  {
-    id: 'combination',
-    label: 'Multi-Disciplinary',
-    icon: '🔄',
-    color: 'gray',
-    glowColor: '#9ca3af',
-    description: 'Cases spanning multiple phenomenon categories',
-    x: 0.5,
-    y: 0.5,
   },
 ]
 
@@ -260,27 +240,6 @@ export const CONSTELLATION_EDGES: ConstellationEdge[] = [
     description: 'Sensory anomalies and psychological experiences share neurological pathways and often co-occur',
     bidirectional: true,
   },
-  {
-    source: 'perception_sensory',
-    target: 'biological_factors',
-    strength: 0.75,
-    description: 'Electromagnetic sensitivity, infrasound effects, and neurological conditions directly affect perception',
-    bidirectional: true,
-  },
-  {
-    source: 'biological_factors',
-    target: 'psychological_experiences',
-    strength: 0.7,
-    description: 'Brain chemistry, DMT release during NDEs, and physiological stress responses trigger anomalous experiences',
-    bidirectional: true,
-  },
-  {
-    source: 'biological_factors',
-    target: 'consciousness_practices',
-    strength: 0.5,
-    description: 'Meditation measurably alters brain structure and chemistry; biological factors influence consciousness expansion',
-    bidirectional: true,
-  },
 
   // Cryptid connections
   {
@@ -288,13 +247,6 @@ export const CONSTELLATION_EDGES: ConstellationEdge[] = [
     target: 'perception_sensory',
     strength: 0.5,
     description: 'Cryptid sightings often involve ambiguous visual conditions and pattern recognition in natural environments',
-    bidirectional: true,
-  },
-  {
-    source: 'cryptids',
-    target: 'biological_factors',
-    strength: 0.4,
-    description: 'Some cryptids may represent undiscovered species, while others correlate with environmental conditions',
     bidirectional: true,
   },
   {
@@ -314,28 +266,6 @@ export const CONSTELLATION_EDGES: ConstellationEdge[] = [
     bidirectional: true,
   },
 
-  // Combination node connects to major clusters
-  {
-    source: 'combination',
-    target: 'ufos_aliens',
-    strength: 0.4,
-    description: 'Multi-phenomenon cases frequently involve UFO components alongside other anomalies',
-    bidirectional: true,
-  },
-  {
-    source: 'combination',
-    target: 'psychic_phenomena',
-    strength: 0.4,
-    description: 'Cross-disciplinary cases often include psychic elements connecting different phenomenon types',
-    bidirectional: true,
-  },
-  {
-    source: 'combination',
-    target: 'consciousness_practices',
-    strength: 0.4,
-    description: 'Consciousness research bridges multiple phenomenon categories through shared experiential features',
-    bidirectional: true,
-  },
 ]
 
 // ── Helper Functions ──
@@ -408,7 +338,7 @@ export function getSuggestedExplorations(
 // ── Keyword → Category Inference ──
 // Used to place external artifacts (YouTube videos, Reddit posts, etc.) into
 // the appropriate ring segment when the user hasn't manually picked a category.
-// Tuned conservatively: ambiguous tags fall through to 'combination' instead
+// Tuned conservatively: ambiguous tags fall through to 'ufos_aliens' instead
 // of forcing a bad fit.
 
 const CATEGORY_KEYWORDS: Record<PhenomenonCategory, string[]> = {
@@ -442,10 +372,6 @@ const CATEGORY_KEYWORDS: Record<PhenomenonCategory, string[]> = {
     'derealization', 'jamais-vu', 'depersonalization', 'hypnagogic',
     'hypnopompic',
   ],
-  biological_factors: [
-    'electromagnetic', 'emf', 'infrasound', 'bioelectric', 'neurology',
-    'brain-chemistry', 'dmt', 'pineal', 'electrosensitivity',
-  ],
   perception_sensory: [
     'synesthesia', 'visual-anomaly', 'auditory-anomaly', 'perception',
     'sensory', 'hallucination', 'illusion',
@@ -459,21 +385,20 @@ const CATEGORY_KEYWORDS: Record<PhenomenonCategory, string[]> = {
     'occult', 'ritual', 'magick', 'magic', 'divination', 'hermetic', 'tarot',
     'scrying', 'ouija', 'sigil', 'chaos-magic', 'thelema', 'kabbalah',
   ],
-  combination: [], // fallback category — matches nothing explicitly
 }
 
 /**
  * Infer the most likely phenomena category for an artifact based on its tags.
- * Returns 'combination' if no strong match is found.
+ * Returns 'ufos_aliens' if no strong match is found.
  *
  * Matching rules:
  * - Tags are normalized to lowercase with spaces → hyphens for lookup.
  * - A match in any CATEGORY_KEYWORDS list scores that category by 1.
  * - Category with the highest score wins. Ties → earliest in CATEGORY_KEYWORDS.
- * - No matches → 'combination'.
+ * - No matches → 'ufos_aliens'.
  */
 export function inferCategoryFromTags(tags: string[]): PhenomenonCategory {
-  if (!tags || tags.length === 0) return 'combination'
+  if (!tags || tags.length === 0) return 'ufos_aliens'
 
   const normalized = tags.map(t => t.toLowerCase().trim().replace(/\s+/g, '-'))
   const scores: Partial<Record<PhenomenonCategory, number>> = {}
@@ -491,7 +416,7 @@ export function inferCategoryFromTags(tags: string[]): PhenomenonCategory {
     }
   }
 
-  let bestCat: PhenomenonCategory = 'combination'
+  let bestCat: PhenomenonCategory = 'ufos_aliens'
   let bestScore = 0
   for (const [cat, score] of Object.entries(scores) as Array<
     [PhenomenonCategory, number]

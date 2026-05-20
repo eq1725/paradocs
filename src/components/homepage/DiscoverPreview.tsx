@@ -73,11 +73,9 @@ var CATEGORY_COLORS: Record<string, string> = {
   psychic_phenomena: '#b39ddb',
   consciousness_practices: '#ffb74d',
   psychological_experiences: '#80deea',
-  biological_factors: '#ef9a9a',
   perception_sensory: '#ffcc80',
   religion_mythology: '#fff176',
   esoteric_practices: '#f48fb1',
-  combination: '#80cbc4',
 }
 
 /** Category-tinted background gradients for card distinction */
@@ -88,11 +86,9 @@ var CATEGORY_GRADIENTS: Record<string, string> = {
   psychic_phenomena: 'linear-gradient(135deg, rgba(179,157,219,0.06) 0%, rgba(179,157,219,0.02) 40%, transparent 70%)',
   consciousness_practices: 'linear-gradient(135deg, rgba(255,183,77,0.06) 0%, rgba(255,183,77,0.02) 40%, transparent 70%)',
   psychological_experiences: 'linear-gradient(135deg, rgba(128,222,234,0.06) 0%, rgba(128,222,234,0.02) 40%, transparent 70%)',
-  biological_factors: 'linear-gradient(135deg, rgba(239,154,154,0.06) 0%, rgba(239,154,154,0.02) 40%, transparent 70%)',
   perception_sensory: 'linear-gradient(135deg, rgba(255,204,128,0.06) 0%, rgba(255,204,128,0.02) 40%, transparent 70%)',
   religion_mythology: 'linear-gradient(135deg, rgba(255,241,118,0.06) 0%, rgba(255,241,118,0.02) 40%, transparent 70%)',
   esoteric_practices: 'linear-gradient(135deg, rgba(244,143,177,0.06) 0%, rgba(244,143,177,0.02) 40%, transparent 70%)',
-  combination: 'linear-gradient(135deg, rgba(128,203,196,0.06) 0%, rgba(128,203,196,0.02) 40%, transparent 70%)',
 }
 
 var CARD_HEIGHT = 'h-[300px] sm:h-[320px]'
@@ -178,9 +174,9 @@ function buildLocation(item: PreviewReport): string {
 
 function EncyclopediaCard(props: { item: PreviewPhenomenon }) {
   var item = props.item
-  var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
+  var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.psychological_experiences
   var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
-  var gradient = CATEGORY_GRADIENTS[item.category] || CATEGORY_GRADIENTS.combination
+  var gradient = CATEGORY_GRADIENTS[item.category] || CATEGORY_GRADIENTS.psychological_experiences
 
   var hookText = truncateHook(item.feed_hook || item.ai_summary || '', 180)
   var href = '/phenomena/' + item.slug
@@ -239,9 +235,9 @@ function EncyclopediaCard(props: { item: PreviewPhenomenon }) {
 
 function ReportCard(props: { item: PreviewReport }) {
   var item = props.item
-  var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
+  var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.psychological_experiences
   var catColor = CATEGORY_COLORS[item.category] || '#b39ddb'
-  var gradient = CATEGORY_GRADIENTS[item.category] || CATEGORY_GRADIENTS.combination
+  var gradient = CATEGORY_GRADIENTS[item.category] || CATEGORY_GRADIENTS.psychological_experiences
 
   var hookText = truncateHook(item.feed_hook || item.summary || '', 140)
   var href = '/report/' + item.slug
@@ -399,7 +395,7 @@ export default function DiscoverPreview() {
             id: item.id,
             name: item.name || '',
             slug: item.slug || item.id,
-            category: item.category || 'combination',
+            category: item.category || 'ufos_aliens',
             feed_hook: item.feed_hook || null,
             ai_summary: item.ai_summary || null,
             ai_quick_facts: item.ai_quick_facts || null,
@@ -413,7 +409,7 @@ export default function DiscoverPreview() {
             id: item.id,
             title: item.title || '',
             slug: item.slug || item.id,
-            category: item.category || 'combination',
+            category: item.category || 'ufos_aliens',
             feed_hook: item.feed_hook || null,
             summary: item.summary || null,
             credibility: item.credibility || null,

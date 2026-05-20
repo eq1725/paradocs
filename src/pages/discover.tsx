@@ -92,11 +92,9 @@ var CATEGORY_COLORS: Record<string, string> = {
   psychic_phenomena: '#b39ddb',
   consciousness_practices: '#ffb74d',
   psychological_experiences: '#80deea',
-  biological_factors: '#ef9a9a',
   perception_sensory: '#ffcc80',
   religion_mythology: '#fff176',
   esoteric_practices: '#f48fb1',
-  combination: '#80cbc4',
 }
 
 // Promo dismissal tracking — panel review #15 (tier-aware promo)
@@ -1784,7 +1782,7 @@ export default function DiscoverPage() {
             return {
               id: it.id,
               item_type: it.item_type,
-              category: (it as any).category || 'combination',
+              category: (it as any).category || 'psychological_experiences',
               headline: headline,
               hero: hero,
             }

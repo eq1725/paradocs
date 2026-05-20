@@ -49,42 +49,44 @@ function hashUrl(url: string): string {
 }
 
 /**
- * Detect category based on article content and title keywords
+ * Detect category based on article content and title keywords.
+ * Returns null when no keyword family hits — Sonnet classifies downstream.
  */
-function detectCategory(title: string, description: string): string {
+function detectCategory(title: string, description: string): string | null {
   const content = `${title} ${description}`.toLowerCase();
 
   const ufoKeywords = ['ufo', 'uap', 'alien', 'extraterrestrial', 'spacecraft', 'unidentified flying object'];
   const ghostKeywords = ['ghost', 'haunting', 'spirit', 'apparition', 'poltergeist', 'supernatural'];
   const cryptidKeywords = ['cryptid', 'bigfoot', 'sasquatch', 'yeti', 'loch ness', 'creature', 'beast'];
   const ndeKeywords = ['near-death', 'nde', 'afterlife', 'consciousness', 'near death experience', 'tunnel of light'];
+  const esotericKeywords = ['witch', 'wicca', 'occult', 'ritual', 'magick', 'divination', 'tarot'];
+  const religionKeywords = ['demon', 'possession', 'exorcism', 'miracle', 'mystic', 'prophecy'];
 
-  if (ufoKeywords.some(kw => content.includes(kw))) {
-    return 'ufos_aliens';
-  }
-  if (ghostKeywords.some(kw => content.includes(kw))) {
-    return 'ghosts_hauntings';
-  }
-  if (cryptidKeywords.some(kw => content.includes(kw))) {
-    return 'cryptids';
-  }
-  if (ndeKeywords.some(kw => content.includes(kw))) {
-    return 'psychological_experiences';
-  }
+  if (ufoKeywords.some(kw => content.includes(kw))) return 'ufos_aliens';
+  if (ghostKeywords.some(kw => content.includes(kw))) return 'ghosts_hauntings';
+  if (cryptidKeywords.some(kw => content.includes(kw))) return 'cryptids';
+  if (ndeKeywords.some(kw => content.includes(kw))) return 'psychological_experiences';
+  if (esotericKeywords.some(kw => content.includes(kw))) return 'esoteric_practices';
+  if (religionKeywords.some(kw => content.includes(kw))) return 'religion_mythology';
 
-  return 'combination';
+  return null;
 }
 
 /**
  * Extract category keywords for tags
  */
-function getCategoryKeywords(category: string): string[] {
+function getCategoryKeywords(category: string | null): string[] {
+  if (!category) return ['paranormal'];
   const keywordMap: Record<string, string[]> = {
     'ufos_aliens': ['ufo', 'alien', 'uap'],
     'ghosts_hauntings': ['ghost', 'haunting', 'spirit'],
     'cryptids': ['cryptid', 'creature', 'bigfoot'],
     'psychological_experiences': ['nde', 'consciousness', 'afterlife'],
-    'combination': ['paranormal', 'unexplained'],
+    'esoteric_practices': ['witchcraft', 'occult', 'ritual'],
+    'religion_mythology': ['religion', 'mythology', 'mystic'],
+    'psychic_phenomena': ['psychic', 'esp', 'telepathy'],
+    'consciousness_practices': ['astral', 'lucid dream', 'obe'],
+    'perception_sensory': ['perception', 'sensory', 'hallucination'],
   };
   return keywordMap[category] || ['paranormal'];
 }

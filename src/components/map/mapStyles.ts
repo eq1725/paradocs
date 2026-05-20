@@ -37,11 +37,9 @@ export const CATEGORY_COLORS: Record<PhenomenonCategory, string> = {
   psychic_phenomena: '#3b82f6', // blue-500
   consciousness_practices: '#6366f1', // indigo-500
   psychological_experiences: '#ec4899', // pink-500
-  biological_factors: '#10b981', // emerald-500
   perception_sensory: '#06b6d4', // cyan-500
   religion_mythology: '#eab308', // yellow-500
   esoteric_practices: '#8b5cf6', // violet-500
-  combination: '#9ca3af',       // gray-400
 }
 
 /**
@@ -55,11 +53,9 @@ export const CATEGORY_ICONS: Record<PhenomenonCategory, string> = {
   psychic_phenomena: '🔮',
   consciousness_practices: '🧘',
   psychological_experiences: '🧠',
-  biological_factors: '🧬',
   perception_sensory: '👁️',
   religion_mythology: '⚡',
   esoteric_practices: '✨',
-  combination: '🔄',
 }
 
 // ─── Cluster Styling ───────────────────────────────────────

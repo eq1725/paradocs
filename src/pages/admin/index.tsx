@@ -108,11 +108,9 @@ const CATEGORY_COLORS: Record<string, string> = {
   psychic_phenomena: '#ec4899',
   consciousness_practices: '#6366f1',
   psychological_experiences: '#f43f5e',
-  biological_factors: '#14b8a6',
   perception_sensory: '#06b6d4',
   religion_mythology: '#eab308',
   esoteric_practices: '#8b5cf6',
-  combination: '#64748b',
 }
 
 const STATUS_COLORS: Record<string, string> = {

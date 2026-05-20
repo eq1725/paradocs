@@ -152,16 +152,14 @@ export default function RelatedReports({
   function getRelatedCategories(cat: PhenomenonCategory): PhenomenonCategory[] {
     const relationships: Record<PhenomenonCategory, PhenomenonCategory[]> = {
       ufos_aliens: ['consciousness_practices', 'psychic_phenomena', 'psychological_experiences'],
-      cryptids: ['perception_sensory', 'biological_factors', 'religion_mythology'],
+      cryptids: ['perception_sensory', 'religion_mythology'],
       ghosts_hauntings: ['psychic_phenomena', 'perception_sensory', 'psychological_experiences'],
       psychic_phenomena: ['consciousness_practices', 'ghosts_hauntings', 'ufos_aliens'],
       consciousness_practices: ['psychic_phenomena', 'psychological_experiences', 'esoteric_practices'],
-      psychological_experiences: ['consciousness_practices', 'perception_sensory', 'biological_factors'],
-      biological_factors: ['psychological_experiences', 'perception_sensory', 'consciousness_practices'],
-      perception_sensory: ['psychological_experiences', 'ghosts_hauntings', 'biological_factors'],
+      psychological_experiences: ['consciousness_practices', 'perception_sensory'],
+      perception_sensory: ['psychological_experiences', 'ghosts_hauntings'],
       religion_mythology: ['esoteric_practices', 'ghosts_hauntings', 'psychic_phenomena'],
       esoteric_practices: ['consciousness_practices', 'religion_mythology', 'psychic_phenomena'],
-      combination: ['ufos_aliens', 'psychic_phenomena', 'consciousness_practices']
     }
     return relationships[cat] || []
   }
@@ -263,7 +261,7 @@ export default function RelatedReports({
       {/* Report cards */}
       <div className="space-y-1.5">
         {visibleReports.map((report) => {
-          const config = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
+          const config = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.psychological_experiences
           return (
             <Link
               key={report.id}

@@ -40,11 +40,9 @@ const CATEGORY_LABELS: Record<string, string> = {
   psychic_phenomena: 'Psychic',
   consciousness_practices: 'Consciousness',
   psychological_experiences: 'Psychological',
-  biological_factors: 'Biological',
   perception_sensory: 'Perception',
   religion_mythology: 'Religion',
   esoteric_practices: 'Esoteric',
-  combination: 'Multi',
 }
 
 /**
@@ -223,7 +221,7 @@ interface EntryCardProps {
 
 function EntryCard({ entry, viewMode, isSelected, patternCount, wikilinkMap, onSelect }: EntryCardProps) {
   const verdict = VERDICT_CONFIG[entry.verdict] || VERDICT_CONFIG.needs_info
-  const catLabel = CATEGORY_LABELS[entry.category] || CATEGORY_LABELS.combination
+  const catLabel = CATEGORY_LABELS[entry.category] || CATEGORY_LABELS.psychological_experiences
   const isExternal = !!entry.sourceType && entry.sourceType !== 'paradocs_report'
   const communityCount = typeof entry.communitySaveCount === 'number' ? entry.communitySaveCount : 0
 

@@ -136,11 +136,9 @@ function getCategoryHex(cat: string): string {
     psychic_phenomena: '#b39ddb',
     consciousness_practices: '#ffb74d',
     psychological_experiences: '#80deea',
-    biological_factors: '#ef9a9a',
     perception_sensory: '#ffcc80',
     religion_mythology: '#fff176',
     esoteric_practices: '#f48fb1',
-    combination: '#80cbc4',
   }
   return map[cat] || '#b39ddb'
 }

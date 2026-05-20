@@ -125,7 +125,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     'consciousness_practices',
     'religion_mythology',
     'esoteric_practices',
-    'combination',
   ]
   var examples: Example[] = []
   for (var cat of preferred) {

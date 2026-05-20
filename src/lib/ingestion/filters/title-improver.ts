@@ -111,8 +111,6 @@ const FALLBACK_DESCRIPTORS: Record<string, string> = {
   'psychological_experiences': 'Strange Experience',
   'consciousness_practices': 'Consciousness Experience',
   'psychic_phenomena': 'Psychic Experience',
-  'combination': 'Unexplained Event',
-  'biological_factors': 'Biological Anomaly',
   'perception_sensory': 'Sensory Experience',
   'religion_mythology': 'Spiritual Experience',
   'esoteric_practices': 'Esoteric Experience',
@@ -206,7 +204,7 @@ function extractPhenomenon(description: string, category: string): string {
   }
 
   // Return fallback descriptor for category
-  return FALLBACK_DESCRIPTORS[category] || FALLBACK_DESCRIPTORS['combination'];
+  return FALLBACK_DESCRIPTORS[category] || FALLBACK_DESCRIPTORS['psychological_experiences'];
 }
 
 /**
@@ -311,11 +309,11 @@ function formatDateForTitle(date: Date | string | null | undefined): string | nu
 export function generateImprovedTitle(
   originalTitle: string,
   description: string,
-  category: string,
+  category: string | null | undefined,
   location?: string,
   eventDate?: Date | string | null
 ): string {
-  const details = extractKeyDetails(description, category);
+  const details = extractKeyDetails(description, category || '');
 
   // The phenomenon is our primary descriptor (always present)
   let newTitle = details.phenomenon;
@@ -395,7 +393,7 @@ export function generateImprovedTitle(
 export function improveTitle(
   originalTitle: string,
   description: string,
-  category: string,
+  category: string | null | undefined,
   location?: string,
   eventDate?: Date | string | null
 ): { title: string; wasImproved: boolean; originalTitle?: string } {
@@ -429,7 +427,7 @@ export function improveTitle(
  */
 export function forceGenerateTitle(
   description: string,
-  category: string,
+  category: string | null | undefined,
   location?: string,
   eventDate?: Date | string | null
 ): string {
@@ -478,7 +476,7 @@ export function isGenericFallbackTitle(title: string): boolean {
  * Get the fallback descriptor for a category
  */
 export function getFallbackDescriptor(category: string): string {
-  return FALLBACK_DESCRIPTORS[category] || FALLBACK_DESCRIPTORS['combination'];
+  return FALLBACK_DESCRIPTORS[category] || FALLBACK_DESCRIPTORS['psychological_experiences'];
 }
 
 /**
@@ -496,7 +494,7 @@ export async function generateImprovedTitleWithAI(
   const details = extractKeyDetails(description, category);
 
   // Check if we got a specific phenomenon or just a fallback
-  const fallbackTitle = FALLBACK_DESCRIPTORS[category] || FALLBACK_DESCRIPTORS['combination'];
+  const fallbackTitle = FALLBACK_DESCRIPTORS[category] || FALLBACK_DESCRIPTORS['psychological_experiences'];
   const isUsingFallback = details.phenomenon === fallbackTitle;
 
   // If we have a specific phenomenon match, use the regular flow

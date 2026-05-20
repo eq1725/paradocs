@@ -253,7 +253,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Build entry nodes for the constellation
     const entryNodes = entries.map((entry: any) => {
       const report = unwrapReport(entry.report)
-      const cat = report?.category || 'combination'
+      const cat = report?.category || 'psychological_experiences'
 
       // Category tracking
       if (!categoryMap[cat]) {
@@ -305,7 +305,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .filter((s: any) => s.report_id && !constellationReportIds.has(s.report_id))
       .map(function(s: any) {
         const report = unwrapReport(s.report)
-        const cat = report?.category || 'combination'
+        const cat = report?.category || 'psychological_experiences'
         if (!categoryMap[cat]) categoryMap[cat] = { entries: 0, verdicts: {}, reportIds: [] }
         categoryMap[cat].entries++
         categoryMap[cat].verdicts['needs_info'] = (categoryMap[cat].verdicts['needs_info'] || 0) + 1
@@ -346,7 +346,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .filter(function (s: any) { return s.phenomenon_id })
       .map(function (s: any) {
         const ph = unwrapReport(s.phenomenon) // unwrapReport handles either array or scalar embed
-        const cat = ph?.category || 'combination'
+        const cat = ph?.category || 'psychological_experiences'
         if (!categoryMap[cat]) categoryMap[cat] = { entries: 0, verdicts: {}, reportIds: [] }
         categoryMap[cat].entries++
         categoryMap[cat].verdicts['needs_info'] = (categoryMap[cat].verdicts['needs_info'] || 0) + 1
@@ -428,7 +428,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .map((entry: any) => ({
         entryId: entry.id,
         reportId: entry.report_id,
-        category: entry.report?.category || 'combination',
+        category: entry.report?.category || 'psychological_experiences',
         timestamp: entry.created_at,
       }))
 

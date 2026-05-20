@@ -308,11 +308,9 @@ function isCategoryMatch(reportCategory: string, phenomenonCategory: string): bo
     'psychic_phenomena': ['psychic', 'esp', 'telepathy', 'precognition', 'psychic_phenomena', 'psychic_paranormal'],
     'psychological_experiences': ['psychological', 'nde', 'sleep_paralysis', 'psychological_experiences', 'unexplained', 'strange'],
     'consciousness_practices': ['consciousness', 'meditation', 'astral', 'lucid_dream', 'consciousness_practices', 'nde_consciousness'],
-    'biological_factors': ['biological', 'physiological', 'biological_factors', 'biology'],
     'perception_sensory': ['perception', 'sensory', 'visual', 'auditory', 'perception_sensory'],
     'religion_mythology': ['religion', 'mythology', 'spiritual', 'divine', 'angel', 'demon', 'religion_mythology'],
     'esoteric_practices': ['esoteric', 'occult', 'ritual', 'magic', 'esoteric_practices', 'mystery_location'],
-    'combination': ['combination', 'multi', 'other', 'high_strangeness'],
   };
 
   const phenomenonKeys = mapping[phenomenonCategory] || [];

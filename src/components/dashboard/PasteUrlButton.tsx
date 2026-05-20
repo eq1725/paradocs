@@ -96,7 +96,7 @@ function PasteUrlModal({ onClose, onSaved }: PasteUrlModalProps) {
 
   // Editable form fields (seeded from extract, then user can override)
   const [title, setTitle] = useState('')
-  const [category, setCategory] = useState<string>('combination')
+  const [category, setCategory] = useState<string>('ufos_aliens')
   const [verdict, setVerdict] = useState<string>('needs_info')
   const [note, setNote] = useState('')
   const [tagsInput, setTagsInput] = useState('')

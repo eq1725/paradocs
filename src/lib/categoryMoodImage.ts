@@ -22,7 +22,6 @@ var IMAGE_COUNTS: Record<string, number> = {
   psychic_phenomena: 4,
   consciousness_practices: 4,
   psychological_experiences: 5,
-  biological_factors: 5,
   perception_sensory: 6,
   religion_mythology: 5,
   esoteric_practices: 5,
@@ -30,7 +29,6 @@ var IMAGE_COUNTS: Record<string, number> = {
   earth_mysteries: 5,
   time_anomalies: 3,
   other: 2,
-  combination: 2,
   folklore_mythology: 5,
   conspiracies: 3,
   technology_ai: 3
@@ -40,7 +38,6 @@ var IMAGE_COUNTS: Record<string, number> = {
  * Map category keys that don't have their own image folder to a fallback.
  */
 var CATEGORY_FOLDER_MAP: Record<string, string> = {
-  combination: 'other',
   folklore_mythology: 'religion_mythology',
   conspiracies: 'high_strangeness',
   technology_ai: 'high_strangeness'

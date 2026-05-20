@@ -316,7 +316,7 @@ export default function SubcategoryFilter({
         ) : (
           <div className="space-y-1">
             {filteredCategoryData.map(({ category, category_label, types }) => {
-              const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
+              const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.psychological_experiences
               const isExpanded = expandedCategories.has(category)
               const checkState = getCategoryCheckState(category)
               const selectedTypesInCategory = types.filter((t: Phenomenon) => selectedTypes.includes(t.id)).length

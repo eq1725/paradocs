@@ -294,7 +294,7 @@ export default function LabGeoMap({
         id: p.id as string,
         title: (p.title as string) || 'Untitled report',
         locationName: (p.location_name as string) || null,
-        category: (p.category as string) || 'combination',
+        category: (p.category as string) || 'ufos_aliens',
         year: year && !isNaN(year) ? year : null,
         slug: (p.slug as string) || null,
       })

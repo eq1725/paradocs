@@ -437,10 +437,6 @@ const CATEGORY_DEFAULTS: Record<string, { url: string; credit: string }> = {
   'consciousness_practices': {
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/Hieronymus_Bosch_-_Ascent_of_the_Blessed_%28detail%29.jpg/440px-Hieronymus_Bosch_-_Ascent_of_the_Blessed_%28detail%29.jpg',
     credit: 'Consciousness icon - CC BY 3.0'
-  },
-  'biological_factors': {
-    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/Hieronymus_Bosch_-_Ascent_of_the_Blessed_%28detail%29.jpg/440px-Hieronymus_Bosch_-_Ascent_of_the_Blessed_%28detail%29.jpg',
-    credit: 'Brain/biology icon - CC BY 3.0'
   }
 };
 

@@ -458,11 +458,9 @@ const CATEGORY_PRETTY: Record<string, string> = {
   psychic_phenomena: 'Psychic Phenomena',
   consciousness_practices: 'Consciousness',
   psychological_experiences: 'Psychological',
-  biological_factors: 'Biological',
   perception_sensory: 'Perception',
   religion_mythology: 'Religion & Mythology',
   esoteric_practices: 'Esoteric Practices',
-  combination: 'Other',
 }
 
 function prettyCategory(slug: string): string {

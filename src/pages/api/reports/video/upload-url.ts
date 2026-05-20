@@ -100,7 +100,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     slug: placeholderSlug,
     summary: placeholderDescription,
     description: placeholderDescription,
-    category: 'combination',
+    category: 'psychological_experiences',
     status: 'pending',
     visibility: 'private',
     submitted_by: userId,

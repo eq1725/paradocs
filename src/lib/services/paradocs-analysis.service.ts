@@ -1114,7 +1114,7 @@ function parseAnalysisJson(text: string): ParadocsAnalysisResult | null {
     // Validate suggested_category
     var validCategories = [
       'ufos_aliens', 'cryptids', 'ghosts_hauntings', 'psychic_phenomena',
-      'consciousness_practices', 'psychological_experiences', 'biological_factors',
+      'consciousness_practices', 'psychological_experiences',
       'high_strangeness', 'earth_mysteries', 'time_anomalies', 'technology_ai',
       'folklore_mythology', 'conspiracies', 'other'
     ]

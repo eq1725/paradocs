@@ -180,9 +180,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
   var summary = description.slice(0, 200) + (description.length > 200 ? '…' : '')
-  // V9.11.1 — default to canonical 'combination' (catch-all category) instead
-  // of the legacy 'unexplained_event' string the prerelease used.
-  var category = (p.category || 'combination').toString()
+  // V11 — 'combination' was removed in migration 20260520; fall back to
+  // 'psychological_experiences' as the broadest experiencer-content bucket.
+  var category = (p.category || 'psychological_experiences').toString()
   var slug = makeSlug(title, userId.replace(/-/g, ''))
 
   // Pending mod → status='pending' so admin sees it before public render.

@@ -45,11 +45,9 @@ const CATEGORY_CONFIG: Record<string, { label: string; color: string }> = {
   psychic_phenomena: { label: 'Psychic Phenomena', color: 'text-blue-400' },
   consciousness_practices: { label: 'Consciousness', color: 'text-violet-400' },
   psychological_experiences: { label: 'Psychological', color: 'text-pink-400' },
-  biological_factors: { label: 'Biological', color: 'text-teal-400' },
   perception_sensory: { label: 'Perception', color: 'text-cyan-400' },
   religion_mythology: { label: 'Religion & Mythology', color: 'text-orange-400' },
   esoteric_practices: { label: 'Esoteric', color: 'text-indigo-400' },
-  combination: { label: 'Multi-Category', color: 'text-gray-400' },
 }
 
 const VERDICT_CONFIG: Record<string, { label: string; icon: string; color: string; bgColor: string }> = {
@@ -95,7 +93,7 @@ export default function NodeDetailPanel({
   const [readerMode, setReaderMode] = useState<'preview' | 'reader'>('preview')
   if (!entry) return null
 
-  const cat = CATEGORY_CONFIG[entry.category] || CATEGORY_CONFIG.combination
+  const cat = CATEGORY_CONFIG[entry.category] || CATEGORY_CONFIG.psychological_experiences
   const verdict = VERDICT_CONFIG[entry.verdict] || VERDICT_CONFIG.needs_info
   const isExternal = !!entry.sourceType && entry.sourceType !== 'paradocs_report'
 
@@ -411,7 +409,7 @@ export default function NodeDetailPanel({
             </div>
             <div className="space-y-1.5">
               {connectedEntries.slice(0, 6).map(({ entry: conn, type, label }) => {
-                const connCat = CATEGORY_CONFIG[conn.category] || CATEGORY_CONFIG.combination
+                const connCat = CATEGORY_CONFIG[conn.category] || CATEGORY_CONFIG.psychological_experiences
                 return (
                   <button
                     key={conn.id}
@@ -458,7 +456,7 @@ export default function NodeDetailPanel({
                   const otherId = conn.source === entry.id ? conn.target : conn.source
                   const other = userMapData?.entryNodes.find(n => n.id === otherId)
                   if (!other) return null
-                  const otherCat = CATEGORY_CONFIG[other.category] || CATEGORY_CONFIG.combination
+                  const otherCat = CATEGORY_CONFIG[other.category] || CATEGORY_CONFIG.psychological_experiences
                   return (
                     <button
                       key={otherId}
@@ -498,7 +496,7 @@ export default function NodeDetailPanel({
             </div>
             <div className="space-y-1.5">
               {backlinks.slice(0, 6).map(bl => {
-                const blCat = CATEGORY_CONFIG[bl.category] || CATEGORY_CONFIG.combination
+                const blCat = CATEGORY_CONFIG[bl.category] || CATEGORY_CONFIG.psychological_experiences
                 return (
                   <button
                     key={bl.id}

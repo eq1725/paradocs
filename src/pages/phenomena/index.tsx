@@ -44,11 +44,9 @@ const CATEGORY_GRADIENTS: Record<string, string> = {
   psychic_phenomena: 'from-violet-950 via-gray-900 to-gray-950',
   consciousness_practices: 'from-amber-950/80 via-gray-900 to-gray-950',
   psychological_experiences: 'from-cyan-950 via-gray-900 to-gray-950',
-  biological_factors: 'from-rose-950 via-gray-900 to-gray-950',
   perception_sensory: 'from-orange-950 via-gray-900 to-gray-950',
   religion_mythology: 'from-yellow-950/80 via-gray-900 to-gray-950',
   esoteric_practices: 'from-fuchsia-950 via-gray-900 to-gray-950',
-  combination: 'from-teal-950 via-gray-900 to-gray-950',
 }
 
 const DANGER_COLORS: Record<string, { bg: string; text: string }> = {
@@ -91,11 +89,9 @@ const CATEGORY_ORDER = [
   'psychic_phenomena',
   'consciousness_practices',
   'psychological_experiences',
-  'biological_factors',
   'perception_sensory',
   'religion_mythology',
   'esoteric_practices',
-  'combination',
 ]
 
 function sortPhenomena(items: Phenomenon[], sortBy: SortBy): Phenomenon[] {

@@ -185,11 +185,9 @@ var CATEGORY_GRADIENTS: Record<string, string> = {
   psychic_phenomena: 'from-blue-950 via-gray-900 to-gray-950',
   consciousness_practices: 'from-indigo-950 via-gray-900 to-gray-950',
   psychological_experiences: 'from-pink-950 via-gray-900 to-gray-950',
-  biological_factors: 'from-emerald-950 via-gray-900 to-gray-950',
   perception_sensory: 'from-cyan-950 via-gray-900 to-gray-950',
   religion_mythology: 'from-yellow-950/80 via-gray-900 to-gray-950',
   esoteric_practices: 'from-violet-950 via-gray-900 to-gray-950',
-  combination: 'from-gray-900 via-gray-900 to-gray-950',
 }
 
 // Lucide icons per category (replacing emojis for Apple HIG consistency)
@@ -202,11 +200,9 @@ var CATEGORY_ACCENT: Record<string, { icon: string; border: string; glow: string
   psychic_phenomena: { icon: 'text-blue-400', border: 'border-blue-500/30', glow: 'group-hover:shadow-blue-500/10' },
   consciousness_practices: { icon: 'text-indigo-400', border: 'border-indigo-500/30', glow: 'group-hover:shadow-indigo-500/10' },
   psychological_experiences: { icon: 'text-pink-400', border: 'border-pink-500/30', glow: 'group-hover:shadow-pink-500/10' },
-  biological_factors: { icon: 'text-emerald-400', border: 'border-emerald-500/30', glow: 'group-hover:shadow-emerald-500/10' },
   perception_sensory: { icon: 'text-cyan-400', border: 'border-cyan-500/30', glow: 'group-hover:shadow-cyan-500/10' },
   religion_mythology: { icon: 'text-yellow-400', border: 'border-yellow-500/30', glow: 'group-hover:shadow-yellow-500/10' },
   esoteric_practices: { icon: 'text-violet-400', border: 'border-violet-500/30', glow: 'group-hover:shadow-violet-500/10' },
-  combination: { icon: 'text-gray-400', border: 'border-gray-500/30', glow: 'group-hover:shadow-gray-500/10' },
 }
 
 // ─── MODE TABS ──────────────────────────────────────────────
@@ -1018,8 +1014,8 @@ function ExploreBrowseMode() {
               <div className="relative">
                 <div id="latest-reports-scroll" className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory pr-8">
                   {latestReports.map(function(report) {
-                    var catConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
-                    var accent = CATEGORY_ACCENT[report.category] || CATEGORY_ACCENT.combination
+                    var catConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.psychological_experiences
+                    var accent = CATEGORY_ACCENT[report.category] || CATEGORY_ACCENT.psychological_experiences
                     // V10.8.J — canonical location label (handles dedup
                     // and city-vs-location_name fallback so we don't
                     // emit "Kansas, Kansas" when city=null + location_name=
@@ -1077,7 +1073,7 @@ function ExploreBrowseMode() {
               {Object.entries(CATEGORY_CONFIG).map(function(entry) {
                 var key = entry[0]
                 var config = entry[1]
-                var accent = CATEGORY_ACCENT[key] || CATEGORY_ACCENT.combination
+                var accent = CATEGORY_ACCENT[key] || CATEGORY_ACCENT.psychological_experiences
                 var count = categoryCounts[key] || 0
                 return (
                   <button
@@ -1159,7 +1155,7 @@ function ExploreBrowseMode() {
                         <div className="relative">
                           <div id={'feed-' + section.id} className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory pr-8">
                             {section.phenomena.map(function(item) {
-                              var config2 = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
+                              var config2 = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.psychological_experiences
                               var hasImage = item.primary_image_url && item.primary_image_url.indexOf('default-cryptid') === -1
                               return (
                                 <Link key={item.id} href={'/phenomena/' + item.slug} className="min-w-[75vw] sm:min-w-[260px] max-w-[80vw] sm:max-w-[280px] flex-shrink-0 snap-start group/card relative overflow-hidden rounded-xl border border-white/10 hover:border-primary-500/30 transition-all">
@@ -1200,7 +1196,7 @@ function ExploreBrowseMode() {
                         <div className="relative">
                           <div id={'feed-' + section.id} className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory pr-8">
                             {section.reports.map(function(report) {
-                              var catConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
+                              var catConfig = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.psychological_experiences
                               // Credibility badge intentionally omitted (QA/QC Apr 14 2026)
                               var locationStr = formatLocationLabel(report, { maxParts: 2 })
                               return (
@@ -1369,7 +1365,7 @@ function ExploreBrowseMode() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {sorted.map(function(item) {
-                var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
+                var config = CATEGORY_CONFIG[item.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.psychological_experiences
                 var hasImage = item.primary_image_url && item.primary_image_url.indexOf('default-cryptid') === -1
                 return (
                   <Link key={item.id} href={'/phenomena/' + item.slug} className="group/card flex overflow-hidden rounded-xl border border-white/10 hover:border-primary-500/30 bg-white/[0.02] hover:bg-white/[0.04] transition-all">
@@ -1823,7 +1819,7 @@ function ExploreSearchMode() {
 
           {/* Fulltext results */}
           {results.length > 0 && results.map(function(report) {
-            var config = (CATEGORY_CONFIG as any)[report.category] || CATEGORY_CONFIG.combination
+            var config = (CATEGORY_CONFIG as any)[report.category] || CATEGORY_CONFIG.psychological_experiences
             var locationStr = formatLocationLabel(report, { maxParts: 3 })
             return (
               <Link key={report.id} href={'/report/' + report.slug} className="block glass-card p-4 hover:border-primary-500/30 transition-all group">

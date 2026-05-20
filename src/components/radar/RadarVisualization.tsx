@@ -81,11 +81,9 @@ const CATEGORY_ANGLES: Record<string, number> = {
   psychic_phenomena:          90,   // 6 o'clock (bottom, south)
   consciousness_practices:   -45,   // 1-2 o'clock (top-right)
   psychological_experiences:  45,   // 4-5 o'clock (bottom-right)
-  biological_factors:        135,   // 7-8 o'clock (bottom-left)
   perception_sensory:       -135,   // 10-11 o'clock (top-left)
   religion_mythology:       -120,   // 11 o'clock-ish
   esoteric_practices:        120,   // 7 o'clock-ish
-  combination:                90,   // bottom default
 }
 
 // ── Category → color (matches CATEGORY_CONFIG) ────────────────────────────────
@@ -98,11 +96,9 @@ export const CATEGORY_COLORS: Record<string, string> = {
   psychic_phenomena:         '#60a5fa',   // blue
   consciousness_practices:   '#818cf8',   // indigo
   psychological_experiences: '#f472b6',   // pink
-  biological_factors:        '#a78bfa',   // light purple
   perception_sensory:        '#22d3ee',   // cyan
   religion_mythology:        '#fb923c',   // orange
   esoteric_practices:        '#a3e635',   // lime
-  combination:               '#94a3b8',   // slate
 }
 
 // V10.2.1 — short display labels for the legend that appears below
@@ -114,11 +110,9 @@ export const CATEGORY_LABELS: Record<string, string> = {
   psychic_phenomena:         'Psychic',
   consciousness_practices:   'Consciousness',
   psychological_experiences: 'Psychological',
-  biological_factors:        'Biological',
   perception_sensory:        'Perception',
   religion_mythology:        'Religion',
   esoteric_practices:        'Esoteric',
-  combination:               'Other',
 }
 
 const RING_COUNT = 4 // 4 concentric scoring bands
@@ -149,7 +143,7 @@ function pulseDurationForRecency(createdAt?: string | null): number {
 function positionForMatch(m: RadarMatch, radius: number, jitterSeed: number): { x: number; y: number } {
   // Base angle from category, jittered ±15° so dots in the same category
   // don't pile on top of each other.
-  const baseAngle = CATEGORY_ANGLES[m.category] ?? CATEGORY_ANGLES.combination
+  const baseAngle = CATEGORY_ANGLES[m.category] ?? CATEGORY_ANGLES.psychological_experiences
   // Deterministic per-match jitter via simple hash on the id.
   let h = 0
   for (let i = 0; i < m.id.length; i++) h = (h * 31 + m.id.charCodeAt(i)) | 0
@@ -440,7 +434,7 @@ export default function RadarVisualization(props: RadarVisualizationProps) {
         >
           {filtered.map((m, idx) => {
             const pos = positionForMatch(m, radius, idx)
-            const color = CATEGORY_COLORS[m.category] || CATEGORY_COLORS.combination
+            const color = CATEGORY_COLORS[m.category] || CATEGORY_COLORS.psychological_experiences
             const dotSize = 4 + Math.max(0, Math.min(1, m.match_score)) * 6
             return (
               <g

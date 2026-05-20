@@ -17,17 +17,17 @@ const ARCTIC_SHIFT_ENDPOINTS = [
   'https://api.arcticshift.app/v1',
 ];
 
-// Expanded subreddit mapping with categories
+// Expanded subreddit mapping with categories.
+// Cross-category subs (HighStrangeness, Experiencers) are intentionally
+// omitted so the lookup returns null and Sonnet classifies per-record.
 const SUBREDDIT_CATEGORIES: Record<string, string> = {
   'Paranormal': 'ghosts_hauntings',
   'Glitch_in_the_Matrix': 'psychological_experiences',
   'Thetruthishere': 'ghosts_hauntings',
   'UFOs': 'ufos_aliens',
-  'HighStrangeness': 'combination',
   'Ghosts': 'ghosts_hauntings',
   'Cryptids': 'cryptids',
   'NDE': 'psychological_experiences',
-  'Experiencers': 'combination',
   'AstralProjection': 'consciousness_practices',
   'Humanoidencounters': 'ufos_aliens',
   'Missing411': 'psychological_experiences',
@@ -266,7 +266,9 @@ function extractTags(post: ArcticShiftPost, subreddit: string): string[] {
 // Convert post to ScrapedReport
 function postToReport(post: ArcticShiftPost): ScrapedReport {
   const subreddit = post.subreddit;
-  const category = SUBREDDIT_CATEGORIES[subreddit] || 'combination';
+  // Case-insensitive lookup; unmapped subs return null and Sonnet does the
+  // per-record classification downstream.
+  const category = SUBREDDIT_CATEGORIES[subreddit] || SUBREDDIT_CATEGORIES[subreddit.toLowerCase()] || null;
   const credibility = getCredibilityFromScore(post.score);
   const summary = post.selftext.substring(0, 200);
   // V10.8.B.2 — post created_utc is the Reddit submission timestamp, not the

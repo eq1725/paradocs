@@ -645,7 +645,7 @@ export default function SearchPage() {
                         .map(function(entry) {
                           var cat = entry[0]
                           var count = entry[1]
-                          var config = CATEGORY_CONFIG[cat as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
+                          var config = CATEGORY_CONFIG[cat as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.psychological_experiences
                           var isSelected = filters.categories.includes(cat as PhenomenonCategory)
                           return (
                             <button
@@ -671,7 +671,7 @@ export default function SearchPage() {
                   {results.length > 0 && (
                     <div className="space-y-3">
                       {results.map(function(report) {
-                        var config = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.combination
+                        var config = CATEGORY_CONFIG[report.category as keyof typeof CATEGORY_CONFIG] || CATEGORY_CONFIG.psychological_experiences
                         return (
                           <Link
                             key={report.id}

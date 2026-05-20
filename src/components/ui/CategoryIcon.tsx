@@ -55,11 +55,9 @@ export const CATEGORY_EMOJI: Record<PhenomenonCategory, string> = {
   psychic_phenomena: '🔮',
   consciousness_practices: '🧘',
   psychological_experiences: '🧠',
-  biological_factors: '🧬',
   perception_sensory: '👁️',
   religion_mythology: '⚡',
   esoteric_practices: '✨',
-  combination: '🔄',
 }
 
 // ─── SVG Icon Components ──────────────────────────────────────────
@@ -282,11 +280,9 @@ const CATEGORY_SVG_MAP: Record<
   psychic_phenomena: PsychicIcon,
   consciousness_practices: ConsciousnessIcon,
   psychological_experiences: PsychologicalIcon,
-  biological_factors: BiologicalIcon,
   perception_sensory: PerceptionIcon,
   religion_mythology: ReligionIcon,
   esoteric_practices: EsotericIcon,
-  combination: CombinationIcon,
 }
 
 export default CategoryIcon

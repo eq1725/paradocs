@@ -315,7 +315,6 @@ function buildReportPrompt(report: Report & { phenomenon_type?: { name: string }
     time_anomaly: 'Time Anomaly',
     men_in_black: 'Men in Black Encounter',
     portal: 'Portal/Dimensional Anomaly',
-    combination: 'Multiple Phenomena'
   }
 
   let prompt = `Analyze this paranormal report submission:\n\n`
@@ -559,7 +558,6 @@ function generateFallbackInsight(report: Report): InsightGenerationResult {
     time_anomaly: 'temporal anomaly',
     men_in_black: 'Men in Black',
     portal: 'dimensional',
-    combination: 'multi-phenomenon'
   }
 
   const categoryType = categoryLabels[report.category] || 'paranormal'

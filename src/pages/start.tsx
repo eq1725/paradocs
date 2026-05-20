@@ -1156,10 +1156,10 @@ export default function StartPage() {
           body: JSON.stringify({
             title: draft.title || null,
             description: draft.description,
-            // Default to 'combination' when uncategorised — that's the
-            // catch-all PhenomenonCategory, replaces the deprecated
-            // 'unexplained_event' string used in V9.11 prerelease.
-            category: draft.category || 'combination',
+            // Default to 'psychological_experiences' when uncategorised —
+            // 'combination' was removed in V11 (migration 20260520) so
+            // the broadest experiencer-content bucket is the safest fallback.
+            category: draft.category || 'psychological_experiences',
             phenomenon_type_id: draft.phenomenon_type_id || null,
             additional_type_ids: draft.additional_type_ids,
             // V9.11.3 — deep details. The API normalises empty strings
@@ -1275,7 +1275,7 @@ export default function StartPage() {
         // Now request matches.
         try {
           var matchUrl = '/api/constellation/match?report_id=' + encodeURIComponent(result.report_id) +
-                         '&category=' + encodeURIComponent(draft.category || 'combination') +
+                         '&category=' + encodeURIComponent(draft.category || 'psychological_experiences') +
                          '&description=' + encodeURIComponent(draft.description.slice(0, 500)) +
                          '&limit=8'
           var mResp = await fetch(matchUrl, {

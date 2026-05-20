@@ -41,7 +41,6 @@ function getBorderColor(category: string): string {
     psychic_phenomena: 'border-l-blue-400',
     consciousness_practices: 'border-l-indigo-400',
     psychological_experiences: 'border-l-pink-400',
-    biological_factors: 'border-l-emerald-400',
     high_strangeness: 'border-l-red-400',
     earth_mysteries: 'border-l-teal-400',
     time_anomalies: 'border-l-cyan-400',

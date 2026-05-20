@@ -893,7 +893,7 @@ function PolishedRadarView(props: {
         return (
           <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 mb-5 px-2">
             {presentCategories.map(function (cat) {
-              var color = CATEGORY_COLORS[cat] || CATEGORY_COLORS.combination
+              var color = CATEGORY_COLORS[cat] || CATEGORY_COLORS.psychological_experiences
               var label = CATEGORY_LABELS[cat] || cat
               return (
                 <span key={cat} className="inline-flex items-center gap-1.5 text-[10px] text-gray-400">
