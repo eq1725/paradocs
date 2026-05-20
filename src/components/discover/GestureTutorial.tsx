@@ -7,9 +7,9 @@
  *
  * Steps:
  *   1. Swipe up   → next case
- *   2. Swipe right → save
- *   3. Swipe left  → dismiss
- *   4. Swipe down  → rabbit hole (related cases)
+ *   2. Swipe down → previous case (TikTok-style undo)
+ *   3. Swipe right → save
+ *   4. Swipe left  → dismiss
  *
  * The tutorial advances automatically via 1500ms-tick or on tap "Got it".
  * Persists completion to localStorage so it only shows once.
@@ -22,7 +22,11 @@
 
 import React, { useEffect, useState } from 'react'
 
-var STORAGE_KEY = 'today_gesture_tutorial_complete_v1'
+// V10.7.E.18 — bumped to v2 because the gesture model changed: swipe
+// down used to open the rabbit-hole and now goes to the previous
+// card. Re-showing the tutorial once forces existing users to see
+// the new grammar instead of guessing it from old muscle memory.
+var STORAGE_KEY = 'today_gesture_tutorial_complete_v2'
 
 export function isGestureTutorialComplete(): boolean {
   if (typeof window === 'undefined') return true
@@ -57,10 +61,10 @@ interface Step {
 }
 
 var STEPS: Step[] = [
-  { id: 'up',    arrow: '↑', axis: 'up',    title: 'Swipe up',    detail: 'Next case in your feed.',          color: '#9000F0' },
-  { id: 'right', arrow: '→', axis: 'right', title: 'Swipe right', detail: 'Save — we keep it in your library.', color: '#FFD166' },
-  { id: 'left',  arrow: '←', axis: 'left',  title: 'Swipe left',  detail: 'Dismiss — we’ll show fewer like it.', color: '#94A3B8' },
-  { id: 'down',  arrow: '↓', axis: 'down',  title: 'Swipe down',  detail: 'Open the rabbit hole — related cases.', color: '#4FC3F7' },
+  { id: 'up',    arrow: '↑', axis: 'up',    title: 'Swipe up',    detail: 'Next case in your feed.',                color: '#9000F0' },
+  { id: 'down',  arrow: '↓', axis: 'down',  title: 'Swipe down',  detail: 'Previous case — undo a swipe.',          color: '#4FC3F7' },
+  { id: 'right', arrow: '→', axis: 'right', title: 'Swipe right', detail: 'Save — we keep it in your library.',     color: '#FFD166' },
+  { id: 'left',  arrow: '←', axis: 'left',  title: 'Swipe left',  detail: 'Dismiss — we’ll show fewer like it.',    color: '#94A3B8' },
 ]
 
 function arrowOffset(axis: Step['axis']): { dx: string, dy: string } {

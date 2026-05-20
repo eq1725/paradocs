@@ -1015,8 +1015,16 @@ export default function DiscoverPage() {
 
     var SWIPE_THRESHOLD = 35  // was 50 — more forgiving for short flicks
     if (Math.abs(dy) > Math.abs(dx)) {
+      // V10.7.E.18 — TikTok-style vertical nav. Swipe down used to
+      // open the rabbit-hole panel, which buried backward navigation
+      // entirely — users who accidentally swiped past a card couldn't
+      // recover. New model matches every short-form video feed users
+      // already have muscle memory for: up = next, down = previous.
+      // Rabbit-hole panel now opens via the dedicated button next to
+      // the card action strip (and remains visible as the desktop
+      // right-rail at lg+).
       if (dy < -SWIPE_THRESHOLD) nextCard()
-      else if (dy > SWIPE_THRESHOLD) setRabbitOpen(true)
+      else if (dy > SWIPE_THRESHOLD) prevCard()
     } else {
       if (Math.abs(dx) < SWIPE_THRESHOLD) return
       var item = displayItems[idx]

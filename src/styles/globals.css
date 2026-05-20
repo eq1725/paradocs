@@ -223,9 +223,15 @@ body {
 }
 
 /* Card pane height cap on desktop (V5 #D1) — prevents the feeling of a
-   small card lonely in a tall pane on 1440px+ monitors. */
+   small card lonely in a tall pane on 1440px+ monitors.
+   V10.7.E.18 — use `height` (not just `max-height`) so the pane has an
+   intrinsic dimension. The inner card area is `position: absolute;
+   inset: 0;` and needs a sized parent to fill; without an explicit
+   height the auto margins make the flex item collapse to 0 height
+   and the entire feed silently disappears on desktop. */
 @media (min-width: 768px) {
   .today-card-pane-cap {
+    height: min(720px, calc(100vh - 9rem));
     max-height: min(720px, calc(100vh - 9rem));
     margin-top: auto;
     margin-bottom: auto;
