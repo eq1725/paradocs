@@ -77,7 +77,20 @@ export default function VideoReportCard(props: VideoReportCardProps) {
   var wrapperRef = useRef<HTMLDivElement | null>(null)
   var videoRef = useRef<HTMLVideoElement | null>(null)
   var [shouldLoad, setShouldLoad] = useState(false)
-  var [muted, setMuted] = useState(true)
+  // V10.7.E.14 — initial mute state is persisted across cards. Once
+  // the user unmutes ANY card (via tap-to-mute toggle or the corner
+  // button) we set localStorage 'paradocs.feed_sound_on'=1 and all
+  // future cards mount with muted=false. First card is forced muted
+  // because browser autoplay policy blocks audio without a prior
+  // user gesture; the .play().catch() fallback below also flips back
+  // to muted if the browser blocks an unmuted autoplay.
+  var [muted, setMuted] = useState<boolean>(function () {
+    if (typeof window === 'undefined') return true
+    try {
+      var stored = window.localStorage.getItem('paradocs.feed_sound_on')
+      return stored === '1' ? false : true
+    } catch (_) { return true }
+  })
   var [hasPlayed, setHasPlayed] = useState(false)
   var [captionText, setCaptionText] = useState('')
   // V10.7.E.6 — CC toggle. Persisted to localStorage so the choice
@@ -139,12 +152,30 @@ export default function VideoReportCard(props: VideoReportCardProps) {
     return function () { io.disconnect() }
   }, [shouldLoad, props.isActive, props.index])
 
-  // Autoplay muted on load.
+  // V10.7.E.14 — autoplay with sound-when-possible.
+  //   - If muted=false (the user previously unmuted and we persisted
+  //     the preference), TRY unmuted autoplay first. If the browser
+  //     blocks it (no prior user gesture this session), .play()
+  //     rejects; we fall back to muted autoplay so playback still
+  //     starts, and surface the muted state so the corner toggle
+  //     shows "unmute" again.
+  //   - If muted=true, normal muted autoplay (Stories convention).
   useEffect(function () {
     if (!shouldLoad) return
-    var v = videoRef.current
-    if (!v) return
-    v.play().then(function () { setHasPlayed(true) }).catch(function () {})
+    var el = videoRef.current
+    if (!el) return
+    var vEl = el
+    vEl.muted = muted
+    vEl.play().then(function () { setHasPlayed(true) }).catch(function () {
+      // Autoplay blocked — most common cause is muted=false with no
+      // user gesture yet. Force-mute and retry; the corner toggle
+      // will show 🔇 so the user can re-enable sound with a tap.
+      if (!vEl.muted) {
+        vEl.muted = true
+        setMuted(true)
+        vEl.play().then(function () { setHasPlayed(true) }).catch(function () { /* give up */ })
+      }
+    })
   }, [shouldLoad])
 
   // V10.7.E.4 — drive captions ourselves so we can position them
@@ -186,6 +217,15 @@ export default function VideoReportCard(props: VideoReportCardProps) {
     if (!v) return
     v.muted = !v.muted
     setMuted(v.muted)
+    // V10.7.E.14 — persist the choice so the NEXT card the user
+    // scrolls to mounts with the same audio state. Without this
+    // every new card defaults back to muted and the user has to
+    // tap-unmute over and over.
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('paradocs.feed_sound_on', v.muted ? '0' : '1')
+      }
+    } catch (_) { /* localStorage unavailable — non-fatal */ }
   }
 
   function toggleCc(e: React.MouseEvent) {
