@@ -35,6 +35,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { runWhisper, runHaikuExtract } from '@/lib/services/video-transcribe.service'
+import { remuxMovToMp4Faststart, shouldRemux } from '@/lib/services/video-remux.service'
 
 export const config = {
   api: { responseLimit: false },
@@ -172,7 +173,67 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new Error('Download failed: ' + (downloadErr?.message || 'no blob'))
     }
 
-    var whisper = await runWhisper(blob as Blob, filename)
+    // V10.7.E.13 — .mov → MP4 faststart remux for instant playback.
+    // iPhone .mov files put the moov atom at the end; browsers
+    // can't start playback until the whole file downloads. Stream-
+    // copy remux (no re-encode) into MP4 with -movflags +faststart
+    // moves the index to the start, so the first frame appears as
+    // soon as the first segment arrives — TikTok-grade instant
+    // feel. Takes ~1-2s for short videos.
+    //
+    // Non-fatal: if ffmpeg isn't available (some dev sandboxes,
+    // pre-deploy) or the remux fails, we keep the original .mov,
+    // log it, and let Whisper proceed on the original blob. Browser
+    // playback is just slower; everything else works.
+    var workingBlob: Blob = blob as Blob
+    var workingFilename: string = filename
+    var workingBucket: string = (video as any).storage_bucket || 'report_videos'
+    if (shouldRemux(filename, (video as any).mime_type)) {
+      try {
+        var remuxStart = Date.now()
+        var remuxed = await remuxMovToMp4Faststart(blob as Blob, filename)
+        if (remuxed.ok && remuxed.blob) {
+          // Compose a sibling .mp4 storage path: same prefix, swap ext.
+          var dotIdx = ((video as any).storage_path as string).lastIndexOf('.')
+          var newPath = dotIdx > 0
+            ? (((video as any).storage_path as string).substring(0, dotIdx) + '.mp4')
+            : (((video as any).storage_path as string) + '.mp4')
+          // Upload the remuxed MP4 to the sibling path. Using upsert
+          // so a retry on the same row doesn't fail on existing object.
+          var uploadResult = await admin.storage
+            .from(workingBucket)
+            .upload(newPath, remuxed.blob, {
+              contentType: 'video/mp4',
+              upsert: true,
+            })
+          if (uploadResult.error) {
+            console.warn('[video/finalize] remux upload failed (non-fatal):', uploadResult.error.message)
+          } else {
+            // Point the row + downstream Whisper at the remuxed file.
+            // Keep the .mov around in Storage in case we need to
+            // reprocess; cleanup can come later as a separate cron.
+            await admin.from('report_videos').update({
+              storage_path: newPath,
+              mime_type: 'video/mp4',
+            }).eq('id', (video as any).id)
+            workingBlob = remuxed.blob
+            workingFilename = newPath.split('/').pop() || 'out.mp4'
+            console.log(
+              '[video/finalize] remux OK in_path=' + (video as any).storage_path +
+              ' out_path=' + newPath +
+              ' ms=' + (Date.now() - remuxStart) +
+              ' out_bytes=' + (remuxed.sizeBytes || 0)
+            )
+          }
+        } else {
+          console.warn('[video/finalize] remux failed (non-fatal):', remuxed.error || 'unknown')
+        }
+      } catch (remuxErr: any) {
+        console.warn('[video/finalize] remux threw (non-fatal):', remuxErr?.message || remuxErr)
+      }
+    }
+
+    var whisper = await runWhisper(workingBlob, workingFilename)
     var extracted = whisper.text && whisper.text.length > 30
       ? await runHaikuExtract(whisper.text)
       : null

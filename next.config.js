@@ -25,6 +25,20 @@ const IS_CAPACITOR_BUILD = process.env.PARADOCS_CAPACITOR === '1'
 
 const nextConfig = {
   reactStrictMode: true,
+  // V10.7.E.13 — Vercel output file tracing for ffmpeg binary.
+  // The video pipeline calls @ffmpeg-installer/ffmpeg from
+  // /api/reports/video/[id]/finalize to remux .mov → MP4 faststart.
+  // Next.js auto-traces require() chains but binary packages can
+  // slip through; this glob is the belt-and-suspenders to make
+  // sure the binary actually gets bundled into the serverless
+  // function on Vercel deploy.
+  ...(IS_CAPACITOR_BUILD ? {} : {
+    outputFileTracingIncludes: {
+      '/api/reports/video/[id]/finalize': [
+        './node_modules/@ffmpeg-installer/**',
+      ],
+    },
+  }),
   // C1.2 — static export gated on Capacitor build env flag
   ...(IS_CAPACITOR_BUILD ? { output: 'export', trailingSlash: true } : {}),
   async redirects() {
