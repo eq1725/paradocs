@@ -30,8 +30,12 @@
  *                                       precision='city', synthetic=false
  *        c. state + country          → state centroid (synthetic)
  *                                       precision='region', synthetic=true
- *        d. country only             → country centroid (synthetic)
- *                                       precision='country', synthetic=true
+ *        d. country only             → precision='country', coords=null
+ *                                       (we explicitly do NOT synthesize a
+ *                                       country centroid — three reports
+ *                                       at the same point creates a clump.
+ *                                       Country-precision reports surface
+ *                                       via the country-list rail.)
  *        e. nothing usable           → precision='unknown'
  *   4. Range validation. Reject (lat,lng) outside [-90,90]×[-180,180].
  *      Reject (0,0) when no country was supplied (parsing-bug signal —
@@ -282,13 +286,16 @@ export async function normalizeLocation(
     coordsSynthetic = true
   }
 
-  // 3d. Country centroid fallback.
+  // 3d. Country-only resolution. We INTENTIONALLY do not synthesize a
+  // country-centroid lat/lng here — three reports rendering at the
+  // same point (e.g. 39.78 / -100.45 for "United States") creates a
+  // visible clump on the map. Country-precision reports surface via
+  // the country-list rail instead, so we keep country/country_code/
+  // location_name populated but leave coords null. (Prior behavior
+  // wrote synthetic centroid coords + coords_synthetic=true.)
   if (latitude === null && countryCode && COUNTRY_BY_CODE[countryCode]) {
-    const c = COUNTRY_BY_CODE[countryCode]
-    latitude = c.lat
-    longitude = c.lng
     precision = 'country'
-    coordsSynthetic = true
+    coordsSynthetic = false
   }
 
   // ── 4. Range / sanity gates ──────────────────────────────────────

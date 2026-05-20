@@ -81,7 +81,7 @@ export interface ScrapedReport {
   // the unified extractDate utility (V10.8.A). Adapters that still
   // use legacy per-source parsers leave these undefined; engine.ts
   // passes through whatever the adapter provides.
-  event_date_extracted_from?: 'structured' | 'prose-monthname' | 'prose-numeric' | 'prose-year' | 'haiku' | 'none';
+  event_date_extracted_from?: 'structured' | 'prose-monthname' | 'prose-numeric' | 'prose-relative' | 'prose-year' | 'haiku' | 'none';
   // V10.8.B — publication date of the source (news articles, blog
   // posts, podcast episodes). Distinct from event_date. The news
   // adapter previously stored pub_date in event_date with

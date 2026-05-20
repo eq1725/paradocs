@@ -302,6 +302,41 @@ function formatDateForTitle(date: Date | string | null | undefined): string | nu
   }
 }
 
+// Third-person framing prefixes that the title-improver historically prepended
+// to phenomenon descriptors. Stripped when the underlying body is first-person.
+const THIRD_PERSON_FRAMING_PREFIX = /^(?:witness(?:es)?\s+(?:reports?|describes?|recounts?|sees?|saw|claims?|shares?|details?)|local\s+reports?|resident\s+reports?|user\s+reports?|(?:man|woman|teen|teenager|girl|boy|child|family|hiker|driver|trucker|camper|hunter|officer)\s+(?:reports?|describes?|recounts?|sees?|saw|seeks?|encounters?|claims?|shares?))\s+/i;
+
+// Subset of NAME_ONLY_TITLE_PATTERNS (quality-filter.ts) that the improver might
+// otherwise emit. Kept in sync intentionally — when the improver would return
+// one of these as-is, we extend the title rather than ship a title we'll then
+// reject downstream. (V10.8.F — pipeline self-collision fix.)
+const IMPROVER_NAME_ONLY_GUARD = [
+  /^(bigfoot|sasquatch|yeti|mothman|chupacabra|jackalope|wendigo|skinwalker|dogman|goatman)$/i,
+  /^(thunderbird|jersey devil|loch ness|nessie|ogopogo|champ|mokele-mbembe)$/i,
+  /^(grey|gray|nordic|reptilian|mantis)s?\s*(alien)?$/i,
+  /^(ufo|uap|orb|triangle|tic tac|cigar)s?$/i,
+  /^(ghost|apparition|poltergeist|shadow person|hat man|demon)s?$/i,
+  /^(tulpa|nde|obe|astral projection|sleep paralysis)$/i,
+  /^[A-Z][a-z]+(\s+[A-Z][a-z]+)?$/,  // "Bigfoot" or "Bigfoot Sighting"
+  /^[A-Za-z]+\s+(photo|pic|image|video|footage|evidence|proof|sighting)s?$/i,
+];
+
+/**
+ * Returns true if the first 1000 chars of the description read as a first-person
+ * account — i.e. the writer is the witness. Counts standalone "I ", "my ",
+ * "me ", "we ", "our " tokens (case-insensitive) and requires ≥3 hits.
+ */
+function isFirstPersonBody(description: string): boolean {
+  if (!description) return false;
+  const head = description.slice(0, 1000);
+  // Word-boundary matches so we don't fire on "spaIn " or "armywide".
+  const pronouns = /\b(I|my|me|we|our|us|i'?ve|i'?m|i'?d|i'?ll)\b/gi;
+  let count = 0;
+  const matches = head.match(pronouns);
+  if (matches) count = matches.length;
+  return count >= 3;
+}
+
 /**
  * Generate an improved title from description and metadata
  * Uses hybrid approach: Key Feature + Location + Date fallback
@@ -311,7 +346,8 @@ export function generateImprovedTitle(
   description: string,
   category: string | null | undefined,
   location?: string,
-  eventDate?: Date | string | null
+  eventDate?: Date | string | null,
+  sourceLabel?: string
 ): string {
   const details = extractKeyDetails(description, category || '');
 
@@ -352,6 +388,23 @@ export function generateImprovedTitle(
     }
   }
 
+  // V10.8.F — First-person preservation. If the body reads as a personal
+  // account, strip any third-person framing prefix ("Witness Reports",
+  // "Resident Reports", etc.) that the patterns above may have introduced
+  // through the phenomenon descriptor. Phenomenon strings in this file
+  // don't currently carry those prefixes, but downstream callers
+  // (forceGenerateTitle, AI flows) sometimes prepend them — handling it
+  // here keeps the rule in one place.
+  const firstPerson = isFirstPersonBody(description);
+  if (firstPerson) {
+    newTitle = newTitle.replace(THIRD_PERSON_FRAMING_PREFIX, '').trim();
+    // If stripping left us with a too-generic stub (e.g. just the bare
+    // phenomenon below ~30 chars), prepend a personal-account marker.
+    if (newTitle.length > 0 && newTitle.length < 30 && !/^Personal Account/i.test(newTitle)) {
+      newTitle = `Personal Account: ${newTitle}`;
+    }
+  }
+
   // Ensure proper capitalization (title case)
   // Preserve known acronyms and abbreviations
   const PRESERVE_CASE = ['UFO', 'NDE', 'EVP', 'OBE', 'UAP', 'CE5', 'CE-5', 'NHI', 'EMF', 'MUFON', 'NUFORC', 'ON', 'BC', 'AB', 'QC', 'UK', 'US', 'USA', 'NASA', 'FAA', 'NORAD'];
@@ -378,6 +431,38 @@ export function generateImprovedTitle(
     })
     .join(' ');
 
+  // V10.8.F — Collision guard. If we would otherwise emit a title that's
+  // too short OR matches a quality-filter NAME_ONLY rejection, extend it
+  // with the most useful suffix we can muster. Don't fight quality-filter
+  // downstream — produce a title it'll accept on the first pass.
+  const looksNameOnly =
+    newTitle.length < 25 ||
+    IMPROVER_NAME_ONLY_GUARD.some(p => p.test(newTitle.trim()));
+  if (looksNameOnly) {
+    const dateStr = formatDateForTitle(eventDate);
+    const cleanSource = sourceLabel ? sourceLabel.trim() : '';
+    const haveLocation = !!(location || details.location);
+
+    // Build a suffix using whatever distinguishing context we have.
+    // Priority: source label > location > date > generic "First-Hand Account"
+    let suffix: string | null = null;
+    if (cleanSource && !newTitle.toLowerCase().includes(cleanSource.toLowerCase())) {
+      suffix = `in ${cleanSource}${dateStr ? ', ' + dateStr : ', Year Unknown'}`;
+    } else if (!haveLocation && dateStr) {
+      suffix = dateStr;
+    } else if (firstPerson) {
+      suffix = 'First-Person Report';
+    } else {
+      suffix = 'Anonymous First-Hand Account';
+    }
+    if (suffix) {
+      // Use em-dash separator when we're appending a qualifier, " in " when
+      // it's a place-style suffix (handled in the branch above).
+      const sep = suffix.startsWith('in ') ? ' ' : ' — ';
+      newTitle = `${newTitle}${sep}${suffix}`;
+    }
+  }
+
   // Truncate if too long
   if (newTitle.length > 80) {
     newTitle = newTitle.substring(0, 77) + '...';
@@ -395,7 +480,8 @@ export function improveTitle(
   description: string,
   category: string | null | undefined,
   location?: string,
-  eventDate?: Date | string | null
+  eventDate?: Date | string | null,
+  sourceLabel?: string
 ): { title: string; wasImproved: boolean; originalTitle?: string } {
   const issues = analyzeTitleQuality(originalTitle);
 
@@ -405,7 +491,7 @@ export function improveTitle(
   }
 
   // Generate improved title
-  const improvedTitle = generateImprovedTitle(originalTitle, description, category, location, eventDate);
+  const improvedTitle = generateImprovedTitle(originalTitle, description, category, location, eventDate, sourceLabel);
 
   // Only use improved title if it's actually better
   const improvedIssues = analyzeTitleQuality(improvedTitle);
@@ -429,9 +515,10 @@ export function forceGenerateTitle(
   description: string,
   category: string | null | undefined,
   location?: string,
-  eventDate?: Date | string | null
+  eventDate?: Date | string | null,
+  sourceLabel?: string
 ): string {
-  return generateImprovedTitle('', description, category, location, eventDate);
+  return generateImprovedTitle('', description, category, location, eventDate, sourceLabel);
 }
 
 /**

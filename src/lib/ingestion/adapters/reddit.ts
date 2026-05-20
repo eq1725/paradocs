@@ -53,27 +53,44 @@ const SUBREDDIT_CATEGORIES: Record<string, string> = {
   // Perception / Sensory (sleep paralysis is a perception phenomenon,
   // not a psychological category in our taxonomy)
   'sleepparalysis': 'perception_sensory',
-  // Consciousness Practices
+  // Consciousness Practices (incl. plant-medicine / psychedelic experience
+  // — maps to the `plant-medicine-experience` phenomenon_type slug)
   'astralprojection': 'consciousness_practices',
   'obe': 'consciousness_practices',
   'tulpas': 'consciousness_practices',
   'luciddreaming': 'consciousness_practices',
   'psychonaut': 'consciousness_practices',
   'remote_viewing': 'consciousness_practices',
+  'shamanism': 'consciousness_practices',
+  'meditation': 'consciousness_practices',
+  // Plant medicine / psychedelic experiencer subs — high signal for entity
+  // encounters, ego death, mystical-type experiences. Quality filter rejects
+  // pure trip-report-without-phenomena posts; Sonnet classifies survivors.
+  'dmt': 'consciousness_practices',
+  'ayahuasca': 'consciousness_practices',
+  'shrooms': 'consciousness_practices',
+  'psychedelics': 'consciousness_practices',
   // Esoteric Practices (witchcraft, ritual, divination, occult)
   'witch': 'esoteric_practices',
   'wicca': 'esoteric_practices',
   'occult': 'esoteric_practices',
   'magick': 'esoteric_practices',
   'askawitch': 'esoteric_practices',
+  'tarot': 'esoteric_practices',
+  'ouija': 'esoteric_practices',
   // Religion / Mythology (entity-possession, demonology, religious mysticism)
   'demons': 'religion_mythology',
+  'angelencounters': 'religion_mythology',
+  'possession': 'religion_mythology',
+  'exorcism': 'religion_mythology',
+  'christianmysticism': 'religion_mythology',
   // Psychic Phenomena
   'psychic': 'psychic_phenomena',
   'mediums': 'psychic_phenomena',
   'premonitions': 'psychic_phenomena',
   'askpsychics': 'psychic_phenomena',
   'empath': 'psychic_phenomena',
+  'synchronicity': 'psychic_phenomena',
   // Cross-category subs (HighStrangeness, MandelaEffect, Experiencers when
   // mixed) are intentionally omitted from this map so categoryForSubreddit()
   // returns null and Sonnet does the per-record classification from content
@@ -576,14 +593,14 @@ async function fetchPostComments(
       // the event date. Move it to source_published_at and run extractDate over
       // the comment body to attempt a real event-date capture.
       const sourcePublishedAt = new Date(comment.created_utc * 1000).toISOString();
-      const extracted = extractDate({ prose: description });
+      const extracted = extractDate({ prose: description, referenceDate: sourcePublishedAt });
       const eventDate = extracted.date || undefined;
       const eventDatePrecision = extracted.precision;
 
       // Generate a descriptive title from the comment content
       // Use forceGenerateTitle to create phenomenon-aware titles like "Shadow Figure Encounter — r/Paranormal"
       // instead of just using the first sentence which is often generic
-      const generatedTitle = forceGenerateTitle(description, category, undefined, eventDate);
+      const generatedTitle = forceGenerateTitle(description, category, undefined, eventDate, `r/${subreddit}`);
       const title = `${generatedTitle} — r/${subreddit}`;
       const originalTitle = description.length > 100
         ? description.substring(0, 97) + '...'
@@ -698,7 +715,7 @@ function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
   // event date. Move it to source_published_at and run extractDate over the
   // post body to attempt a real event-date capture.
   const sourcePublishedAt = new Date(post.created_utc * 1000).toISOString();
-  const extracted = extractDate({ prose: description });
+  const extracted = extractDate({ prose: description, referenceDate: sourcePublishedAt });
   const eventDate = extracted.date || undefined;
   const eventDatePrecision = extracted.precision;
 
@@ -748,7 +765,7 @@ function parseRedditPost(post: ArcticShiftPost): ScrapedReport | null {
 
   // Improve title using pattern-based title improver (free, no AI cost)
   const rawTitle = post.title.length > 150 ? post.title.substring(0, 147) + '...' : post.title;
-  const titleResult = improveTitle(rawTitle, description, category, locationName, eventDate);
+  const titleResult = improveTitle(rawTitle, description, category, locationName, eventDate, `r/${post.subreddit}`);
   const finalTitle = titleResult.title;
   const originalTitle = titleResult.wasImproved ? rawTitle : undefined;
 

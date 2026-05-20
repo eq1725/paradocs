@@ -24,13 +24,55 @@ const DEFAULT_CHANNELS: Array<{ id: string; name: string; category: string | nul
   { id: 'UCrUrxK4JnBBPcS4VRQ1_wFg', name: 'Bob Gymlan', category: 'cryptids' },
 ];
 
-// Search queries for finding relevant videos beyond specific channels
+// Search queries for finding relevant videos beyond specific channels.
+//
+// Strategy (Chase, May 2026): we deliberately rely on search-driven
+// discovery instead of pre-curating channels. The richest first-hand
+// experiencer comments live under the *highest-view* videos for each
+// query — the YouTube adapter then harvests comments ≥300 chars with
+// ≥5 likes from those threads. This produces dramatically higher
+// signal-per-API-quota than adding more channels would.
+//
+// Queries are tuned to land on:
+//   - Personal-experience narration ("X true scary stories")
+//   - Witness compilations ("best UFO sightings ever")
+//   - Subject-matter explainers with experiencer comment ecosystems
+//
+// Coverage map (every encyclopedia category gets ≥1 query):
+//   ufos_aliens: 3, ghosts_hauntings: 3, cryptids: 2,
+//   psychic_phenomena: 2, consciousness_practices: 3 (incl. psychedelics),
+//   psychological_experiences: 2, perception_sensory: 1,
+//   religion_mythology: 2, esoteric_practices: 2
 const DEFAULT_SEARCH_QUERIES = [
+  // UFOs / aliens
   'UFO sighting personal experience',
-  'near death experience story',
+  'best UFO sightings caught on camera',
+  'alien abduction real story',
+  // Ghosts / hauntings
   'ghost encounter real experience',
-  'bigfoot sighting eyewitness',
+  'true scary haunted house story',
   'paranormal experience true story',
+  // Cryptids
+  'bigfoot sighting eyewitness account',
+  'dogman skinwalker encounter story',
+  // Psychic phenomena
+  'psychic medium real reading experience',
+  'precognition premonition true story',
+  // Consciousness practices (incl. plant medicine)
+  'astral projection out of body experience',
+  'DMT entity encounter real experience',
+  'ayahuasca spirit vision experience',
+  // Psychological experiences (NDE-heavy)
+  'near death experience story',
+  'shared death experience real',
+  // Perception / sensory
+  'shadow person sleep paralysis story',
+  // Religion / mythology
+  'demonic possession real story',
+  'angel encounter real experience',
+  // Esoteric / occult
+  'witchcraft real experience story',
+  'ouija board scary real story',
 ];
 
 // Minimum comment length to be considered an experiencer report

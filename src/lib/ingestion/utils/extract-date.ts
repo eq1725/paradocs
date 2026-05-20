@@ -12,7 +12,11 @@
  *      2007") orders.
  *   3. prose numeric date — MM/DD/YYYY and YYYY-MM-DD embedded in
  *      narrative text.
- *   4. prose year-only — `(18|19|20)\d\d` with date-like context
+ *   4. prose relative — "yesterday", "last night", "three days ago",
+ *      "last month", etc. Requires a `referenceDate` option (typically
+ *      the post's publication timestamp) to anchor the resolution.
+ *      Skipped when no referenceDate is supplied.
+ *   5. prose year-only — `(18|19|20)\d\d` with date-like context
  *      (preceded by "in"/"around"/"during"/"since" or followed by
  *      punctuation) so it doesn't hit "1,200 reports".
  *
@@ -35,6 +39,7 @@ export type DateExtractionSource =
   | 'structured'         // parsed from the source's structured date field
   | 'prose-monthname'    // "April 28, 2007" / "28 April 2007" / "April 2007"
   | 'prose-numeric'      // MM/DD/YYYY or YYYY-MM-DD embedded in prose
+  | 'prose-relative'     // "yesterday", "last night", "three days ago" — needs referenceDate
   | 'prose-year'         // bare year with date-like context
   | 'haiku'              // V10.8.E — Haiku-assisted upgrade of a year-only result
   | 'none'
@@ -63,6 +68,12 @@ export interface ExtractDateOptions {
   maxYear?: number
   /** Floor the year — defaults to 1800. */
   minYear?: number
+  /**
+   * Anchor for relative date phrases ("yesterday", "last night", "3 days
+   * ago"). Typically the source post's publication timestamp. Without
+   * this, the prose-relative layer is skipped entirely.
+   */
+  referenceDate?: Date | string
 }
 
 // ── Month name tables ──────────────────────────────────────────────
@@ -136,7 +147,23 @@ export function extractDate(opts: ExtractDateOptions): ExtractedDate {
       return numeric
     }
 
-    // 4. Year-only with date-like context (or from "early 2000s")
+    // 4. Relative date in prose ("yesterday", "last night", "3 days ago").
+    // Only fires when a referenceDate was supplied (otherwise we have
+    // nothing to anchor against).
+    if (opts.referenceDate) {
+      const ref = opts.referenceDate instanceof Date
+        ? opts.referenceDate
+        : new Date(opts.referenceDate)
+      if (Number.isFinite(ref.getTime())) {
+        const relative = extractProseRelative(prose, ref, minYear, maxYear)
+        if (relative) {
+          if (approxResult) relative.approximate = true
+          return relative
+        }
+      }
+    }
+
+    // 5. Year-only with date-like context (or from "early 2000s")
     if (approxResult) return approxResult
     const year = extractProseYear(prose, minYear, maxYear)
     if (year) return year
@@ -291,6 +318,131 @@ function extractProseNumeric(text: string, minYear: number, maxYear: number): Ex
   }
 
   return null
+}
+
+// ── Prose relative-date extractor (anchored to referenceDate) ────
+
+const WORD_NUMBERS: Record<string, number> = {
+  a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5,
+  six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+}
+
+function extractProseRelative(
+  text: string,
+  ref: Date,
+  minYear: number,
+  maxYear: number,
+): ExtractedDate | null {
+  // Use only the first 1500 chars of prose — relative phrases are
+  // overwhelmingly opening-paragraph framing, and scanning the entire
+  // body invites false positives (e.g. "last week" elsewhere).
+  const scan = text.slice(0, 1500)
+
+  // 1. "yesterday" → ref - 1 day, exact precision
+  if (/\byesterday\b/i.test(scan)) {
+    return relativeResult(ref, -1, 'day', 'yesterday', minYear, maxYear, 'exact')
+  }
+
+  // 2. "last night" → ref - 1 day, exact precision (same calendar day as yesterday)
+  const lastNight = scan.match(/\blast\s+night\b/i)
+  if (lastNight) {
+    return relativeResult(ref, -1, 'day', lastNight[0], minYear, maxYear, 'exact')
+  }
+
+  // 3. "today" / "this morning" / "this afternoon" / "this evening" → ref, exact
+  const today = scan.match(/\b(today|this\s+(?:morning|afternoon|evening))\b/i)
+  if (today) {
+    return relativeResult(ref, 0, 'day', today[0], minYear, maxYear, 'exact')
+  }
+
+  // 4. "tonight" → ref, exact
+  if (/\btonight\b/i.test(scan)) {
+    return relativeResult(ref, 0, 'day', 'tonight', minYear, maxYear, 'exact')
+  }
+
+  // 5. "last week" → ref - 7 days, exact precision
+  const lastWeek = scan.match(/\blast\s+week\b/i)
+  if (lastWeek) {
+    return relativeResult(ref, -7, 'day', lastWeek[0], minYear, maxYear, 'exact')
+  }
+
+  // 6. "last month" → ref - 1 month, month precision
+  const lastMonth = scan.match(/\blast\s+month\b/i)
+  if (lastMonth) {
+    return relativeResult(ref, -1, 'month', lastMonth[0], minYear, maxYear, 'month')
+  }
+
+  // 7. "last year" → ref - 1 year, year precision
+  const lastYear = scan.match(/\blast\s+year\b/i)
+  if (lastYear) {
+    return relativeResult(ref, -1, 'year', lastYear[0], minYear, maxYear, 'year')
+  }
+
+  // 8. "<n> <unit>s ago" — supports word numbers ("three days ago") and digits ("3 days ago").
+  // "a few days ago" → 3 days. "a couple <unit>s ago" → 2.
+  const fewMatch = scan.match(/\ba\s+few\s+(days?|weeks?|months?|years?)\s+ago\b/i)
+  if (fewMatch) {
+    const unit = unitToCanonical(fewMatch[1])
+    const precision: DatePrecision = unit === 'day' ? 'exact' : unit === 'month' ? 'month' : unit === 'year' ? 'year' : 'exact'
+    return relativeResult(ref, -3, unit, fewMatch[0], minYear, maxYear, precision)
+  }
+  const coupleMatch = scan.match(/\ba\s+couple\s+(?:of\s+)?(days?|weeks?|months?|years?)\s+ago\b/i)
+  if (coupleMatch) {
+    const unit = unitToCanonical(coupleMatch[1])
+    const precision: DatePrecision = unit === 'day' ? 'exact' : unit === 'month' ? 'month' : unit === 'year' ? 'year' : 'exact'
+    return relativeResult(ref, -2, unit, coupleMatch[0], minYear, maxYear, precision)
+  }
+  const nAgo = scan.match(/\b(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s+(days?|weeks?|months?|years?)\s+ago\b/i)
+  if (nAgo) {
+    const raw = nAgo[1].toLowerCase()
+    const n = /^\d+$/.test(raw) ? parseInt(raw, 10) : (WORD_NUMBERS[raw] ?? null)
+    if (n !== null && n > 0 && n < 200) {
+      const unit = unitToCanonical(nAgo[2])
+      const precision: DatePrecision = unit === 'day' ? 'exact' : unit === 'week' ? 'exact' : unit === 'month' ? 'month' : 'year'
+      return relativeResult(ref, -n, unit, nAgo[0], minYear, maxYear, precision)
+    }
+  }
+
+  return null
+}
+
+type RelUnit = 'day' | 'week' | 'month' | 'year'
+
+function unitToCanonical(raw: string): RelUnit {
+  const lower = raw.toLowerCase()
+  if (lower.startsWith('day')) return 'day'
+  if (lower.startsWith('week')) return 'week'
+  if (lower.startsWith('month')) return 'month'
+  return 'year'
+}
+
+function relativeResult(
+  ref: Date,
+  delta: number,
+  unit: RelUnit,
+  matched: string,
+  minYear: number,
+  maxYear: number,
+  precision: DatePrecision,
+): ExtractedDate | null {
+  // Operate on a UTC-anchored copy so DST / local-zone drift doesn't
+  // shift "yesterday" by a day.
+  const d = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), ref.getUTCDate()))
+  if (unit === 'day') d.setUTCDate(d.getUTCDate() + delta)
+  else if (unit === 'week') d.setUTCDate(d.getUTCDate() + delta * 7)
+  else if (unit === 'month') d.setUTCMonth(d.getUTCMonth() + delta)
+  else if (unit === 'year') d.setUTCFullYear(d.getUTCFullYear() + delta)
+
+  const year = d.getUTCFullYear()
+  if (year < minYear || year > maxYear) return null
+
+  let month = d.getUTCMonth() + 1
+  let day = d.getUTCDate()
+  if (precision === 'month') day = 1
+  else if (precision === 'year') { month = 1; day = 1 }
+
+  const iso = year + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0')
+  return { date: iso, precision, source: 'prose-relative', matchedText: matched }
 }
 
 // ── Prose year-only extractor ────────────────────────────────────
