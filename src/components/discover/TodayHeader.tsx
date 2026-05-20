@@ -173,6 +173,45 @@ export function TodayHeader(props: {
           chips remain inline for quick access since they're rarely
           changed. */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+        {/* V10.7.E.20 — search REPLACES the chip+utility row inline
+            when open, instead of stacking on top of it as an absolute
+            overlay. Eliminates the 'two rows are visible simultaneously
+            and the second is half-superimposed' look Chase flagged. */}
+        {searchOpen ? (
+          <div className="flex items-center gap-2 py-2">
+            <Search className="w-4 h-4 text-gray-500 flex-shrink-0" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              inputMode="search"
+              placeholder="Search today’s feed..."
+              value={props.searchQuery || ''}
+              onChange={function (e) {
+                if (props.onSearchQueryChange) props.onSearchQueryChange(e.target.value)
+              }}
+              onKeyDown={function (e) {
+                if (e.key === 'Escape') closeSearch()
+              }}
+              className="flex-1 bg-transparent text-[14px] text-white placeholder-gray-500 font-sans outline-none border-none"
+            />
+            {(props.searchQuery && props.searchQuery.length > 0) && (
+              <button
+                onClick={function () { if (props.onSearchQueryChange) props.onSearchQueryChange('') }}
+                aria-label="Clear search"
+                className="text-gray-400 hover:text-white transition-colors flex-shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              onClick={closeSearch}
+              className="text-[12px] font-sans text-gray-400 hover:text-white transition-colors flex-shrink-0 px-1"
+              aria-label="Close search"
+            >
+              {'Cancel'}
+            </button>
+          </div>
+        ) : (
         <div className="flex items-center gap-2 py-1.5">
           {/* Topics pill — tappable, opens bottom sheet */}
           <button
@@ -242,135 +281,89 @@ export function TodayHeader(props: {
               )
             })}
           </div>
-        </div>
-      </div>
 
-      {/* V7.4 — Utility row is now md+ only. On mobile the streak
-          chip moves into the card chrome (TodayCardShell), search
-          lives in the global app bar, and view-as-list / ? are
-          desktop conveniences. This saves ~28px of mobile chrome
-          and matches the Apple-News chrome budget the panel
-          recommended.
-
-          Desktop still gets the full utility row with feedback flash,
-          streak link, search, view-as-list, grid mode, and shortcut
-          hint. */}
-      <div className="hidden md:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-2 pt-1">
-        <div className="flex items-center justify-end gap-3 min-h-[20px]">
-          {/* Feedback flash zone — aria-live polite for screen readers */}
-          <span
-            aria-live="polite"
-            aria-atomic="true"
-            className={
-              'text-[11px] font-medium font-sans truncate transition-opacity duration-200 mr-auto ' +
-              (props.feedbackLabel ? 'opacity-100 max-w-[180px]' : 'opacity-0 max-w-0 overflow-hidden')
-            }
-            style={{
-              color: props.feedbackLabel && props.feedbackLabel.indexOf('✦') >= 0
-                ? '#FFD166'
-                : props.feedbackLabel && props.feedbackLabel.indexOf('♡') >= 0
-                  ? '#FF6B9D'
-                  : '#D1D5DB',
-            }}
-          >
-            {props.feedbackLabel || ''}
-          </span>
-          {/* Streak chip — desktop only. Mobile reads it from card chrome. */}
-          {(typeof props.streakDays === 'number' && props.streakDays >= 2) ? (
-            <Link
-              href="/lab?tab=streak"
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-400/30 text-[10px] font-sans font-semibold text-amber-300 hover:bg-amber-500/25 transition-colors flex-shrink-0"
-              title={props.streakDays + ' day streak — view streak history'}
-            >
-              <span aria-hidden="true">{'🔥'}</span>
-              {props.streakDays}
-            </Link>
-          ) : null}
-          {/* Inline search button — opens overlay; doesn't navigate away */}
-          {props.onSearchQueryChange ? (
-            <button
-              onClick={function () { setSearchOpen(true) }}
-              className="inline-flex w-6 h-6 items-center justify-center rounded-full border border-white/10 text-[10px] text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0"
-              aria-label="Search Today"
-              title="Search Today"
-            >
-              <Search className="w-3 h-3" />
-            </button>
-          ) : null}
-          <Link
-            href={browseHref}
-            className="inline-flex text-[10px] font-sans font-medium text-gray-500 hover:text-primary-300 transition-colors flex-shrink-0"
-          >
-            {'View as list →'}
-          </Link>
-          {/* Grid mode toggle — desktop / lg+ only (V5 #D8) */}
-          {props.onToggleGrid ? (
-            <button
-              onClick={props.onToggleGrid}
-              className="hidden lg:inline-flex w-6 h-6 items-center justify-center rounded-full border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0"
-              aria-label="Open grid view"
-              title="Open grid view"
-            >
-              <LayoutGrid className="w-3 h-3" />
-            </button>
-          ) : null}
-          {props.showShortcutsToggle ? (
-            <button
-              onClick={props.onToggleShortcuts}
+          {/* V10.7.E.20 — utility controls inlined here on md+ instead
+              of living on a separate row below. Collapses two rows
+              into one on desktop, eliminating the dead horizontal
+              band Chase flagged AND saving ~28-32px of vertical chrome
+              (which was pushing the in-card 'Explore cases' CTA off
+              the bottom of the visible viewport). Mobile (< md) hides
+              all of these; streak goes into card chrome, search lives
+              in the global app bar, view-as-list / grid / ? are
+              desktop-only conveniences. */}
+          <div className="hidden md:flex items-center gap-2 flex-shrink-0 ml-2 pl-2 border-l border-white/10">
+            <span
+              aria-live="polite"
+              aria-atomic="true"
               className={
-                'inline-flex w-5 h-5 items-center justify-center rounded-full border text-[10px] hover:text-white hover:bg-white/5 transition-colors flex-shrink-0 ' +
-                (shortcutsPulsed
-                  ? 'border-primary-400/60 text-primary-300 today-shortcut-pulse'
-                  : 'border-white/10 text-gray-500')
+                'text-[11px] font-medium font-sans truncate transition-opacity duration-200 ' +
+                (props.feedbackLabel ? 'opacity-100 max-w-[180px]' : 'opacity-0 max-w-0 overflow-hidden')
               }
-              aria-label="Show keyboard shortcuts"
-              title="Keyboard shortcuts"
+              style={{
+                color: props.feedbackLabel && props.feedbackLabel.indexOf('✦') >= 0
+                  ? '#FFD166'
+                  : props.feedbackLabel && props.feedbackLabel.indexOf('♡') >= 0
+                    ? '#FF6B9D'
+                    : '#D1D5DB',
+              }}
             >
-              {'?'}
-            </button>
-          ) : null}
-        </div>
-      </div>
-
-      {/* Native search overlay — V2 panel review #13. Filters Today in place
-          via the searchQuery prop instead of routing out to /explore. */}
-      {searchOpen && (
-        <div className="absolute inset-x-0 top-0 z-40 bg-gray-950/97 backdrop-blur-md border-b border-white/10">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-2">
-            <Search className="w-4 h-4 text-gray-500 flex-shrink-0" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              inputMode="search"
-              placeholder="Search today’s feed..."
-              value={props.searchQuery || ''}
-              onChange={function (e) {
-                if (props.onSearchQueryChange) props.onSearchQueryChange(e.target.value)
-              }}
-              onKeyDown={function (e) {
-                if (e.key === 'Escape') closeSearch()
-              }}
-              className="flex-1 bg-transparent text-[14px] text-white placeholder-gray-500 font-sans outline-none border-none"
-            />
-            {(props.searchQuery && props.searchQuery.length > 0) && (
-              <button
-                onClick={function () { if (props.onSearchQueryChange) props.onSearchQueryChange('') }}
-                aria-label="Clear search"
-                className="text-gray-400 hover:text-white transition-colors flex-shrink-0"
+              {props.feedbackLabel || ''}
+            </span>
+            {(typeof props.streakDays === 'number' && props.streakDays >= 2) ? (
+              <Link
+                href="/lab?tab=streak"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-400/30 text-[10px] font-sans font-semibold text-amber-300 hover:bg-amber-500/25 transition-colors flex-shrink-0"
+                title={props.streakDays + ' day streak — view streak history'}
               >
-                <X className="w-4 h-4" />
+                <span aria-hidden="true">{'🔥'}</span>
+                {props.streakDays}
+              </Link>
+            ) : null}
+            {props.onSearchQueryChange ? (
+              <button
+                onClick={function () { setSearchOpen(true) }}
+                className="inline-flex w-6 h-6 items-center justify-center rounded-full border border-white/10 text-[10px] text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0"
+                aria-label="Search Today"
+                title="Search Today"
+              >
+                <Search className="w-3 h-3" />
               </button>
-            )}
-            <button
-              onClick={closeSearch}
-              className="text-[12px] font-sans text-gray-400 hover:text-white transition-colors flex-shrink-0 px-1"
-              aria-label="Close search"
+            ) : null}
+            <Link
+              href={browseHref}
+              className="inline-flex text-[10px] font-sans font-medium text-gray-500 hover:text-primary-300 transition-colors flex-shrink-0"
             >
-              {'Cancel'}
-            </button>
+              {'View as list →'}
+            </Link>
+            {props.onToggleGrid ? (
+              <button
+                onClick={props.onToggleGrid}
+                className="hidden lg:inline-flex w-6 h-6 items-center justify-center rounded-full border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0"
+                aria-label="Open grid view"
+                title="Open grid view"
+              >
+                <LayoutGrid className="w-3 h-3" />
+              </button>
+            ) : null}
+            {props.showShortcutsToggle ? (
+              <button
+                onClick={props.onToggleShortcuts}
+                className={
+                  'inline-flex w-5 h-5 items-center justify-center rounded-full border text-[10px] hover:text-white hover:bg-white/5 transition-colors flex-shrink-0 ' +
+                  (shortcutsPulsed
+                    ? 'border-primary-400/60 text-primary-300 today-shortcut-pulse'
+                    : 'border-white/10 text-gray-500')
+                }
+                aria-label="Show keyboard shortcuts"
+                title="Keyboard shortcuts"
+              >
+                {'?'}
+              </button>
+            ) : null}
           </div>
         </div>
-      )}
+        )}
+      </div>
     </div>
 
     {/* V8.1.1 — Topics bottom-sheet picker rendered OUTSIDE the

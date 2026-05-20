@@ -234,11 +234,17 @@ body {
    small bottom buffer is ~150-180px; 9rem = 144px was undershooting
    on laptop-sized windows, pushing the in-card 'Explore cases' CTA
    below the fold). Cap raised 720 → 880 so on tall monitors the
-   pane uses the headroom rather than leaving a gap. */
+   pane uses the headroom rather than leaving a gap.
+   V10.7.E.20 — collapsed TodayHeader from two rows down to one on
+   md+ (utility controls now inline with filter chips). That trimmed
+   ~32px of vertical chrome. Net chrome budget on desktop:
+     top nav (64) + filter+utility row (40) + buffer (16) = 120px
+   Subtractor set to 9rem (144px), with a small safety margin. Cap
+   stays at 880px. */
 @media (min-width: 768px) {
   .today-card-pane-cap {
-    height: min(880px, calc(100vh - 11rem));
-    max-height: min(880px, calc(100vh - 11rem));
+    height: min(880px, calc(100vh - 9rem));
+    max-height: min(880px, calc(100vh - 9rem));
     margin-top: auto;
     margin-bottom: auto;
     border-radius: 1.25rem;
