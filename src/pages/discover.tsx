@@ -1499,20 +1499,26 @@ export default function DiscoverPage() {
                   <span className="today-edge-chevron-label text-[11px] font-sans font-medium uppercase tracking-wider">Save</span>
                   <span className="text-xl leading-none">{'›'}</span>
                 </button>
-                {/* V10.7.E.18 — Connected button. The previous version had
-                    a ↓ arrow implying "swipe down to open", which became
-                    misleading once we adopted TikTok-style gestures (down
-                    = previous card now). The new version is more discoverable:
-                    a category-tinted chip with the related-cases count, only
-                    rendered when there ARE related cases to show. Hidden on
-                    lg+ because the desktop right-rail Connected Cases sidebar
-                    already serves the same purpose. */}
-                {rabbitHoleCards.length > 0 && (
+                {/* V10.7.E.18 — Connected button. Floating chip on mobile/
+                    tablet so the rabbit-hole panel has a discoverable entry
+                    point now that we've adopted TikTok-style gestures (down
+                    = previous card instead of opening the panel).
+                    Gating rules:
+                      - lg:hidden — desktop has the right-rail Connected Cases
+                        sidebar already
+                      - only when rabbitHoleCards.length > 0
+                      - skip when the active card is a PhenomenonCard, since
+                        those already have an in-card "Explore cases →" CTA at
+                        the same approximate location — two CTAs in the same
+                        slot are duplicative
+                    Position: bottom-20 (80px from card pane bottom) so the
+                    fixed mobile bottom nav (~64-72px tall) doesn't cover it. */}
+                {rabbitHoleCards.length > 0 && card && card.item_type !== 'phenomenon' && (
                   <button
                     type="button"
                     onClick={function () { setRabbitOpen(true) }}
                     aria-label={'Open ' + rabbitHoleCards.length + ' connected case' + (rabbitHoleCards.length === 1 ? '' : 's')}
-                    className="lg:hidden absolute bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 pl-3 pr-3.5 py-1.5 rounded-full bg-gray-950/85 backdrop-blur-sm text-white text-xs font-sans font-medium shadow-lg hover:bg-gray-900/85 transition-colors border"
+                    className="lg:hidden absolute bottom-20 left-1/2 -translate-x-1/2 z-20 inline-flex items-center gap-1.5 pl-3 pr-3.5 py-1.5 rounded-full bg-gray-950/85 backdrop-blur-sm text-white text-xs font-sans font-medium shadow-lg hover:bg-gray-900/85 transition-colors border"
                     style={{ borderColor: catColor + 'AA' }}
                   >
                     <span className="w-1.5 h-1.5 rounded-full" style={{ background: catColor }} />
