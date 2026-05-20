@@ -1,33 +1,49 @@
 /**
- * oEmbed adapter library — V10.4 Phase 2
+ * oEmbed adapter library — universal Tier-3 policy (May 2026)
  *
- * Detects whether a source URL can be safely embedded under the
- * source platform's own ToS, and returns the iframe HTML the
- * platform sanctions. Three tiers:
+ * Editorial / panel-reviewed decision: third-party source embeds
+ * (YouTube, Vimeo, Reddit, Imgur, TikTok, Archive.org, etc.) are
+ * no longer rendered on Paradocs report pages. The attribution
+ * chrome ("Originally published at YouTube · Read original") is
+ * shown above ALL ingested reports; users who want the source
+ * material click the "Read original" link.
  *
- *   Tier 1 — oEmbed-permitted platforms (full embed):
- *     YouTube, Reddit, Vimeo, Twitter/X, Imgur, TikTok,
- *     Instagram, Substack, Wikipedia, Archive.org.
- *     We construct the iframe URL using their published
- *     embed-URL patterns (NOT scraping their HTML). This is
- *     identical to what every Slack/Discord/iMessage preview
- *     does for the same links.
+ * Reasons we landed here:
+ *   - Editorial voice consistency. Embedded YouTube videos bring
+ *     in narration / music / sponsor reads / thumbnail aesthetics
+ *     that compete with our paradocs_narrative for attention and
+ *     bleed sensationalism into our archival page tone.
+ *   - Comprehension over engagement. Visitors who hit "play" stop
+ *     reading the editorial framing — feed_hook, answer_line,
+ *     paradocs_narrative, lens cards, similar cases — which is
+ *     the value Paradocs adds.
+ *   - Confusion. For comment-harvest reports (e.g. an experiencer
+ *     comment under a popular UFO video), embedding the video
+ *     makes it look like the video IS the report rather than the
+ *     comment underneath it.
+ *   - Trust/safety. Tying our reputation to creator-side ToS
+ *     changes, takedowns, or content pivots is unnecessary risk.
  *
- *   Tier 2 — OG thumbnail + first-paragraph excerpt (fair use):
- *     For news sites, BFRO, MUFON, NUFORC, paywalled or
- *     unrecognized sources. Attribution-card render handled
- *     by the MediaTierRenderer component, not here — this lib
- *     just identifies the tier.
+ * Three tiers still exist in code, but the runtime policy is:
  *
- *   Tier 3 — Text-only attribution:
- *     For sources that have sent past takedowns or are very
- *     hostile to embedding. Currently the empty bucket; pre-
- *     wired so we can move a domain into it if needed.
+ *   Tier 1 — iframe embed (currently UNUSED — all explicit
+ *            handlers below set `forceTier3: true`).
+ *   Tier 2 — OG thumbnail + excerpt card (currently UNREACHABLE —
+ *            fallthrough now returns Tier 3).
+ *   Tier 3 — Attribution chrome only ("Originally published at
+ *            <platform> · Read original"). The current default for
+ *            every ingested source.
  *
- * Privacy note: we never proxy or cache the source content.
- * The user's browser fetches the iframe directly from the
- * source, so the source platform sees normal embed traffic and
- * we don't store anything they own.
+ * Carve-out: Paradocs-native user-submitted videos render through
+ * the `InlineVideoPlayer` component, NOT through this library —
+ * those still play inline because the experiencer IS the source.
+ *
+ * To re-enable an embed for a specific platform: drop the
+ * `forceTier3: true` flag from that handler.
+ *
+ * Privacy note: we never proxy or cache the source content. Even
+ * in Tier 1, the user's browser fetches the iframe directly from
+ * the source.
  */
 
 export type MediaTier = 1 | 2 | 3
@@ -86,29 +102,13 @@ interface PlatformHandler {
 
 const HANDLERS: PlatformHandler[] = [
   // ── YouTube ─────────────────────────────────────────────
+  // Tier 3 — attribution-only. See policy block at top of file.
   {
     platform: 'youtube',
     platformLabel: 'YouTube',
     matches: (host) => host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtu.be',
-    embed: (u) => {
-      let videoId: string | null = null
-      if (u.hostname.endsWith('youtu.be')) {
-        videoId = u.pathname.replace(/^\/+/, '').split('/')[0] || null
-      } else if (u.pathname === '/watch') {
-        videoId = u.searchParams.get('v')
-      } else if (u.pathname.startsWith('/embed/')) {
-        videoId = u.pathname.replace('/embed/', '').split('/')[0] || null
-      } else if (u.pathname.startsWith('/shorts/')) {
-        videoId = u.pathname.replace('/shorts/', '').split('/')[0] || null
-      }
-      if (!videoId || !/^[A-Za-z0-9_-]{6,16}$/.test(videoId)) return null
-      return {
-        embedUrl: 'https://www.youtube.com/embed/' + videoId,
-        aspectRatio: '16/9',
-        iframeAllow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share',
-        iframeSandbox: 'allow-scripts allow-same-origin allow-presentation allow-popups',
-      }
-    },
+    embed: () => null,
+    forceTier3: true,
   },
 
   // ── Vimeo ───────────────────────────────────────────────
@@ -116,23 +116,8 @@ const HANDLERS: PlatformHandler[] = [
     platform: 'vimeo',
     platformLabel: 'Vimeo',
     matches: (host) => host === 'vimeo.com' || host === 'player.vimeo.com',
-    embed: (u) => {
-      let videoId: string | null = null
-      if (u.hostname === 'player.vimeo.com' && u.pathname.startsWith('/video/')) {
-        videoId = u.pathname.replace('/video/', '').split('/')[0] || null
-      } else {
-        // vimeo.com/123456789 or vimeo.com/123456789/abcdef
-        const parts = u.pathname.split('/').filter(Boolean)
-        if (parts[0] && /^\d{6,12}$/.test(parts[0])) videoId = parts[0]
-      }
-      if (!videoId) return null
-      return {
-        embedUrl: 'https://player.vimeo.com/video/' + videoId,
-        aspectRatio: '16/9',
-        iframeAllow: 'autoplay; fullscreen; picture-in-picture; clipboard-write',
-        iframeSandbox: 'allow-scripts allow-same-origin allow-presentation allow-popups',
-      }
-    },
+    embed: () => null,
+    forceTier3: true,
   },
 
   // ── Reddit ──────────────────────────────────────────────
@@ -162,24 +147,8 @@ const HANDLERS: PlatformHandler[] = [
     platform: 'imgur',
     platformLabel: 'Imgur',
     matches: (host) => host === 'imgur.com' || host === 'i.imgur.com',
-    embed: (u) => {
-      let id: string | null = null
-      const parts = u.pathname.split('/').filter(Boolean)
-      if (u.hostname === 'i.imgur.com') {
-        id = (parts[0] || '').replace(/\.(jpg|jpeg|png|gif|mp4|webp)$/i, '')
-      } else if (parts[0] === 'gallery' || parts[0] === 'a') {
-        id = parts[1] || null
-      } else {
-        id = parts[0] || null
-      }
-      if (!id || !/^[A-Za-z0-9]{5,12}$/.test(id)) return null
-      return {
-        embedUrl: 'https://imgur.com/' + id + '/embed?pub=true&ref=&w=540',
-        minHeight: 540,
-        iframeAllow: '',
-        iframeSandbox: 'allow-scripts allow-same-origin allow-popups',
-      }
-    },
+    embed: () => null,
+    forceTier3: true,
   },
 
   // ── TikTok ──────────────────────────────────────────────
@@ -187,16 +156,44 @@ const HANDLERS: PlatformHandler[] = [
     platform: 'tiktok',
     platformLabel: 'TikTok',
     matches: (host) => host === 'tiktok.com',
-    embed: (u) => {
-      const m = u.pathname.match(/\/@[^/]+\/video\/(\d+)/)
-      if (!m) return null
-      return {
-        embedUrl: 'https://www.tiktok.com/embed/v2/' + m[1],
-        aspectRatio: '9/16',
-        iframeAllow: 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture',
-        iframeSandbox: 'allow-scripts allow-same-origin allow-popups',
-      }
-    },
+    embed: () => null,
+    forceTier3: true,
+  },
+
+  // ── Instagram ───────────────────────────────────────────
+  {
+    platform: 'instagram',
+    platformLabel: 'Instagram',
+    matches: (host) => host === 'instagram.com',
+    embed: () => null,
+    forceTier3: true,
+  },
+
+  // ── Substack ────────────────────────────────────────────
+  {
+    platform: 'substack',
+    platformLabel: 'Substack',
+    matches: (host) => host.endsWith('.substack.com') || host === 'substack.com',
+    embed: () => null,
+    forceTier3: true,
+  },
+
+  // ── Wikipedia ───────────────────────────────────────────
+  {
+    platform: 'wikipedia',
+    platformLabel: 'Wikipedia',
+    matches: (host) => host.endsWith('.wikipedia.org'),
+    embed: () => null,
+    forceTier3: true,
+  },
+
+  // ── Twitter / X ─────────────────────────────────────────
+  {
+    platform: 'twitter',
+    platformLabel: 'X (Twitter)',
+    matches: (host) => host === 'twitter.com' || host === 'x.com' || host === 'mobile.twitter.com',
+    embed: () => null,
+    forceTier3: true,
   },
 
   // ── Substack ────────────────────────────────────────────
@@ -217,16 +214,8 @@ const HANDLERS: PlatformHandler[] = [
     platform: 'archive_org',
     platformLabel: 'Archive.org',
     matches: (host) => host === 'archive.org',
-    embed: (u) => {
-      const m = u.pathname.match(/\/(details|embed)\/([^\/]+)/)
-      if (!m) return null
-      return {
-        embedUrl: 'https://archive.org/embed/' + m[2],
-        aspectRatio: '16/9',
-        iframeAllow: 'fullscreen',
-        iframeSandbox: 'allow-scripts allow-same-origin allow-popups',
-      }
-    },
+    embed: () => null,
+    forceTier3: true,
   },
 ]
 
@@ -268,12 +257,17 @@ export function resolveMediaTier(rawUrl: string): OembedResult {
         }
       }
       // Handler matched the host but the URL didn't yield a valid
-      // embed (wrong path, e.g. youtube.com/feed). Fall to Tier 2.
-      return { tier: 2, url: rawUrl, platform: h.platform, platformLabel: h.platformLabel }
+      // embed (wrong path, e.g. youtube.com/feed). Fall to Tier 3
+      // under the universal-Tier-3 policy.
+      return { tier: 3, url: rawUrl, platform: h.platform, platformLabel: h.platformLabel }
     }
   }
 
-  return { tier: 2, url: rawUrl, platform: 'web', platformLabel: hostDisplayLabel(host) }
+  // No handler matched. Default to Tier 3 — attribution chrome only.
+  // Was previously Tier 2 (OG card); changed to Tier 3 in May 2026
+  // under the universal-attribution-only policy. See top-of-file
+  // JSDoc for rationale.
+  return { tier: 3, url: rawUrl, platform: 'web', platformLabel: hostDisplayLabel(host) }
 }
 
 /**
