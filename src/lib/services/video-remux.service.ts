@@ -40,7 +40,10 @@ import crypto from 'crypto'
 // code paths.
 function resolveFfmpegPath(): string | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // require() instead of `import` so the binary package is resolved
+    // at call time, not at build time. Lets us handle the "installer
+    // not present" path gracefully in environments where the package
+    // didn't install (e.g. some dev sandboxes).
     var installer = require('@ffmpeg-installer/ffmpeg')
     if (installer && installer.path && typeof installer.path === 'string') {
       return installer.path

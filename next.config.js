@@ -32,11 +32,16 @@ const nextConfig = {
   // slip through; this glob is the belt-and-suspenders to make
   // sure the binary actually gets bundled into the serverless
   // function on Vercel deploy.
+  //
+  // V10.7.E.13.b — moved under experimental.outputFileTracingIncludes
+  // for Next 14.2 compatibility. The top-level form is Next 15+.
   ...(IS_CAPACITOR_BUILD ? {} : {
-    outputFileTracingIncludes: {
-      '/api/reports/video/[id]/finalize': [
-        './node_modules/@ffmpeg-installer/**',
-      ],
+    experimental: {
+      outputFileTracingIncludes: {
+        '/api/reports/video/[id]/finalize': [
+          './node_modules/@ffmpeg-installer/**',
+        ],
+      },
     },
   }),
   // C1.2 — static export gated on Capacitor build env flag
