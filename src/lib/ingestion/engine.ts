@@ -11,6 +11,7 @@ import {
   isObviouslyLowQuality,
   smartReEvaluate,
 } from './filters';
+import { stripThirdPersonFraming } from './filters/title-improver';
 import { generateAndSaveFeedHook } from '../services/feed-hook.service';
 import { generateAndSaveParadocsAnalysis } from '../services/paradocs-analysis.service';
 import { generateAndSaveAnswerLine } from '../services/answer-line.service';
@@ -661,8 +662,11 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
             eventDate: report.event_date as any,
           });
           if (compelling.title) {
-            finalTitle = compelling.title;
-            if (compelling.title !== report.title) originalTitle = report.title;
+            // Defense-in-depth: even though the Haiku prompt forbids
+            // "Witness Reports X" / "Researcher Struggles With X" style
+            // third-person framing, strip any that leaks through.
+            finalTitle = stripThirdPersonFraming(compelling.title);
+            if (finalTitle !== report.title) originalTitle = report.title;
           } else {
             const titleResult = await improveTitleWithAI(
               report.title,

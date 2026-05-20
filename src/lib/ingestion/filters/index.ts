@@ -40,6 +40,10 @@ export {
   analyzeTitleQuality,
   generateImprovedTitle,
   fixBasicTitleIssues,
+  // Defense-in-depth: strip third-person framing prefixes from any title
+  // (e.g., "Witness Reports X", "Researcher Struggles With X"). Used on
+  // Haiku-generated titles in case the prompt rule doesn't hold.
+  stripThirdPersonFraming,
   // AI-enhanced title functions (async)
   generateImprovedTitleWithAI,
   improveTitleWithAI,

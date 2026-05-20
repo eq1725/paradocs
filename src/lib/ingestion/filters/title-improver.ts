@@ -304,7 +304,25 @@ function formatDateForTitle(date: Date | string | null | undefined): string | nu
 
 // Third-person framing prefixes that the title-improver historically prepended
 // to phenomenon descriptors. Stripped when the underlying body is first-person.
-const THIRD_PERSON_FRAMING_PREFIX = /^(?:witness(?:es)?\s+(?:reports?|describes?|recounts?|sees?|saw|claims?|shares?|details?|struggles?)|(?:local|resident|user|reader|listener|viewer|practitioner|researcher|investigator|skeptic|believer|experiencer|patient|subject|student|tourist|traveler|visitor)\s+(?:reports?|describes?|recounts?|sees?|saw|seeks?|encounters?|claims?|shares?|struggles?|wonders?)|(?:man|woman|teen|teenager|girl|boy|child|family|hiker|driver|trucker|camper|hunter|officer|soldier|sailor|pilot|nurse|doctor|teacher|farmer|fisherman)\s+(?:reports?|describes?|recounts?|sees?|saw|seeks?|encounters?|claims?|shares?|struggles?|wonders?))\s+/i;
+const THIRD_PERSON_FRAMING_PREFIX = /^(?:witness(?:es)?\s+(?:reports?|describes?|recounts?|sees?|saw|claims?|shares?|details?|struggles?)|(?:local|resident|user|reader|listener|viewer|practitioner|researcher|investigator|skeptic|believer|experiencer|patient|subject|student|tourist|traveler|visitor|medium|meditator|seeker|poster|anonymous)\s+(?:reports?|describes?|recounts?|sees?|saw|seeks?|encounters?|claims?|shares?|struggles?|wonders?|pursues?|finds?|gets?|receives?)|(?:man|woman|teen|teenager|girl|boy|child|family|hiker|driver|trucker|camper|hunter|officer|soldier|sailor|pilot|nurse|doctor|teacher|farmer|fisherman)\s+(?:reports?|describes?|recounts?|sees?|saw|seeks?|encounters?|claims?|shares?|struggles?|wonders?|pursues?|finds?|gets?|receives?))\s+/i;
+
+/**
+ * Strip leading "Witness Reports X" / "Researcher Struggles With X" style
+ * third-person framing from a headline. The Haiku title prompt now forbids
+ * these lead-ins (see compelling-title.service.ts SYSTEM_PROMPT), but this
+ * is a defense-in-depth pass — sometimes the model still produces them, or
+ * an upstream caller prepends one. Runs twice to handle stacked framing
+ * like "Witness Reports: Researcher Struggles With..." Returns the original
+ * title if stripping would leave an empty string.
+ */
+export function stripThirdPersonFraming(title: string): string {
+  if (!title) return title;
+  // Run two passes — sometimes the title has stacked framing like
+  // "Witness Reports: Researcher Struggles With..."
+  var s = title.replace(THIRD_PERSON_FRAMING_PREFIX, '').trim();
+  s = s.replace(THIRD_PERSON_FRAMING_PREFIX, '').trim();
+  return s.length > 0 ? s : title;  // never return empty
+}
 
 // Subset of NAME_ONLY_TITLE_PATTERNS (quality-filter.ts) that the improver might
 // otherwise emit. Kept in sync intentionally — when the improver would return

@@ -45,6 +45,18 @@ export const META_POST_PATTERNS = [
   /\b(favorite|best|worst|scariest|creepiest) (cryptid|creature|ghost|ufo|alien)\?/i,
   /\b(what do you think|what would you do|how would you)\b/i,
   /\b(unpopular opinion|hot take|change my mind)\b/i,
+  // V11 — seeker / process / self-learning posts. Not experience reports.
+  // Caught a DMT post "I have been experimenting with dmt for months now but
+  // havent got the courage to breaktrough yet. Im wondering how hard it is
+  // to let go" that slipped through smoke 3.
+  /\b(i'?m\s+wondering|i\s+wonder)\s+(how|if|what|whether|when)\b/i,
+  /\b(haven'?t\s+got\s+(the\s+)?courage|don'?t\s+have\s+(the\s+)?courage)\b/i,
+  /\b(any\s+(tips?|advice|recommendations?|pointers?|suggestions?))\b/i,
+  /\b(how\s+do\s+(you|i|y'?all|u(?:\s+guys)?|you\s+guys|anyone))\b/i,
+  /\b(i\s+(want\s+to|hope\s+to|need\s+to)\s+(learn|figure\s+out|understand|start|try|begin))\b/i,
+  /\b(how\s+can\s+i\s+(learn|start|begin|practice|develop|find))\b/i,
+  /\b(im\s+trying\s+to|i\s+am\s+trying\s+to)\s+(learn|start|figure\s+out|master)\b/i,
+  /\b(having\s+a\s+hard\s+time|having\s+trouble)\s+(with|figuring|learning|understanding)\b/i,
 ];
 
 // Art, merchandise, and promotional content
@@ -109,6 +121,19 @@ export const NON_EXPERIENCE_PATTERNS = [
   /\b(can|could)\s+(anyone|someone|you)\s+(help|recommend|tell me|please)\b/i,
   /\b(does anyone (know|live|practice))\b/i,
   /\b(if anybody|if anyone)\s+(knows|can|practices)\b/i,
+  // V11 — declarative theorizing. "Shadow people are X" is a theory, not
+  // an experience report. Distinguishes from "I saw shadow people" type.
+  /^shadow\s+people\s+are\b/i,
+  /^(cryptids?|ufos?|aliens?|ghosts?|spirits?|demons?)\s+are\b/i,
+  /\b(my\s+theory\s+is|i\s+think\s+(they'?re|they\s+are|its|it'?s))\b/i,
+  /\b(explanation\s+for|theory\s+(about|of)\s+|theories\s+(about|on))\b/i,
+  /\b(are\s+(just|simply|merely|nothing\s+more\s+than|basically))\s+\w+/i,
+  /\b(let\s+me\s+(explain|tell\s+you\s+about))\b/i,
+  // V11 — body begins with a URL or markdown link, or is >40% URL content.
+  // Caught a r/Synchronicity post whose body started with
+  // "[http://51.81.253.114:9000/...]" and was mostly external linking.
+  /^\s*\[?\s*https?:\/\//i,
+  /^\s*\[[^\]]{0,80}\]\s*\(https?:\/\//i,
 ];
 
 // Fiction markers - stories that are explicitly fictional
