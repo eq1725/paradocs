@@ -1499,14 +1499,28 @@ export default function DiscoverPage() {
                   <span className="today-edge-chevron-label text-[11px] font-sans font-medium uppercase tracking-wider">Save</span>
                   <span className="text-xl leading-none">{'›'}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={function () { setRabbitOpen(true) }}
-                  aria-label="Open rabbit hole (related cases)"
-                  className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-sans font-medium text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors"
-                >
-                  {'↓ Connected cases'}
-                </button>
+                {/* V10.7.E.18 — Connected button. The previous version had
+                    a ↓ arrow implying "swipe down to open", which became
+                    misleading once we adopted TikTok-style gestures (down
+                    = previous card now). The new version is more discoverable:
+                    a category-tinted chip with the related-cases count, only
+                    rendered when there ARE related cases to show. Hidden on
+                    lg+ because the desktop right-rail Connected Cases sidebar
+                    already serves the same purpose. */}
+                {rabbitHoleCards.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={function () { setRabbitOpen(true) }}
+                    aria-label={'Open ' + rabbitHoleCards.length + ' connected case' + (rabbitHoleCards.length === 1 ? '' : 's')}
+                    className="lg:hidden absolute bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 pl-3 pr-3.5 py-1.5 rounded-full bg-gray-950/85 backdrop-blur-sm text-white text-xs font-sans font-medium shadow-lg hover:bg-gray-900/85 transition-colors border"
+                    style={{ borderColor: catColor + 'AA' }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: catColor }} />
+                    <span>Connected</span>
+                    <span className="text-white/55">·</span>
+                    <span className="text-white/80">{rabbitHoleCards.length}</span>
+                  </button>
+                )}
               </>
             )}
 
