@@ -237,22 +237,23 @@ body {
    pane uses the headroom rather than leaving a gap.
    V10.7.E.20 — collapsed TodayHeader from two rows down to one on
    md+ (utility controls now inline with filter chips).
-   V10.7.E.21 — fix off-by-one chrome math. Total page chrome is:
-     Paradocs top nav (64px = 4rem, set via outer minHeight)
-     + TodayHeader filter+utility row (~96px = 6rem)
-     = 160px minimum just to LIVE on the page.
-   For the pane to fit within the available row (and have any margin
-   below for the in-card CTA), the subtractor must exceed 10rem.
-   12rem (192px) gives ~32px of breathing room (~16px split above
-   and below the pane via the auto margins) which keeps the CTA
-   visibly above the viewport bottom on every common laptop window.
-   Earlier 9rem and 11rem values were off-by-one against the real
-   chrome — the pane was literally taller than the row, overflowing
-   by 16-32px which clipped the CTA. */
+   V10.7.E.22 — actual chrome math, measured from the rendered page:
+     Paradocs top nav   : 64px  (4rem, via outer minHeight)
+     TodayHeader (1 row): 37px  (py-1.5 + chip height + 1px border)
+     ----------------------:
+     Total real chrome  : 101px (~6.3rem)
+   The earlier 12rem subtractor was over-correcting (I'd been
+   estimating the header at 96px when it's really 37px) which gave
+   the card a ~45px gap above AND below the pane. Setting the
+   subtractor to 8rem (128px) leaves ~13px each side via the auto
+   margins — small but present visual breathing room. Cap raised
+   880 → 1100 so tall monitors (1080p+) actually use the available
+   headroom rather than leaving a small card stranded in vertical
+   space. */
 @media (min-width: 768px) {
   .today-card-pane-cap {
-    height: min(880px, calc(100vh - 12rem));
-    max-height: min(880px, calc(100vh - 12rem));
+    height: min(1100px, calc(100vh - 8rem));
+    max-height: min(1100px, calc(100vh - 8rem));
     margin-top: auto;
     margin-bottom: auto;
     border-radius: 1.25rem;
