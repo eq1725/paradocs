@@ -273,6 +273,45 @@ export default function DiscoverPage() {
     })
   })()
 
+  // V10.7.E.17 — pre-fetch every visible video card's poster JPEG
+  // via <link rel="preload" as="image"> so the browser fetches them
+  // in parallel as soon as the feed data lands. By the time the user
+  // swipes to any video card, the <img> in VideoReportCard resolves
+  // from the HTTP cache and paints instantly — no more black gap
+  // between the card appearing and the first frame.
+  //
+  // We tag each link with data-paradocs-preload so we can clean up
+  // links from prior feed pages on the next data refresh without
+  // touching unrelated <link> tags Next.js / PostHog inject.
+  useEffect(function () {
+    if (typeof document === 'undefined') return
+    // Clean up any preload tags we added previously.
+    var prior = document.querySelectorAll('link[data-paradocs-preload="poster"]')
+    for (var i = 0; i < prior.length; i++) {
+      var node = prior[i]
+      if (node.parentNode) node.parentNode.removeChild(node)
+    }
+    // Add a preload for each video card's poster URL.
+    var added = 0
+    for (var j = 0; j < displayItems.length; j++) {
+      var it: any = displayItems[j]
+      if (it.item_type !== 'report') continue
+      var purl = it.video && it.video.poster_url
+      if (!purl) continue
+      var link = document.createElement('link')
+      link.rel = 'preload'
+      link.as = 'image'
+      link.href = purl
+      link.setAttribute('data-paradocs-preload', 'poster')
+      // High priority for the first 3 video posters (the user's most
+      // likely next few swipes). Lower priority for the rest so we
+      // don't saturate the connection on slow networks.
+      if (added < 3) link.setAttribute('fetchpriority', 'high')
+      document.head.appendChild(link)
+      added++
+    }
+  }, [displayItems])
+
   // --- Card index + gesture state ---
   var [idx, setIdx] = useState(0)
   var [expanded, setExpanded] = useState(false)
