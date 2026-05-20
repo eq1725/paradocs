@@ -616,11 +616,27 @@ var SOURCE_THRESHOLDS: Record<string, { approve: number; review: number; minDesc
   // News — editorial oversight, moderate-high bar
   'news':   { approve: 65, review: 45, minDescLength: 200 },
 
-  // Community / user-submitted — needs higher bar
-  'reddit':           { approve: 70, review: 45, minDescLength: 300 },
-  'reddit-v2':        { approve: 70, review: 45, minDescLength: 300 },
-  'youtube':          { approve: 70, review: 45, minDescLength: 200 },
-  'youtube-comments': { approve: 70, review: 45, minDescLength: 150 },
+  // Community / user-submitted — parity with NDE-form sources (55/35)
+  // after May 2026 panel review.
+  //
+  // The thresholds were originally set 15 points higher than NDERF/IANDS
+  // because Reddit/YouTube are uncurated at the source. But our adapter
+  // pipeline runs extensive pre-scoring filters (META_POST_PATTERNS,
+  // NON_EXPERIENCE_PATTERNS, QUESTION_TITLE_PATTERNS, LINK_HEAVY_PATTERNS,
+  // FICTION_PATTERNS, LOW_EFFORT_PATTERNS, NAME_ONLY_TITLE_PATTERNS,
+  // first-person body detection) — by the time content reaches scoring
+  // it's functionally a first-person account, the same shape as NDERF.
+  // Stricter threshold here was double-counting the "uncurated source"
+  // penalty and tanking auto-approval rate.
+  //
+  // Goal: ~95% auto-approval at this score range, ~5% borderline →
+  // admin queue. Admin-approval path now also fires Sonnet analysis
+  // (report-review.ts), so pending reports get full AI copy as soon
+  // as they're cleared.
+  'reddit':           { approve: 55, review: 35, minDescLength: 300 },
+  'reddit-v2':        { approve: 55, review: 35, minDescLength: 300 },
+  'youtube':          { approve: 55, review: 35, minDescLength: 200 },
+  'youtube-comments': { approve: 55, review: 35, minDescLength: 150 },
 
   // Ghost databases — typically short entries, lower bar
   'shadowlands':    { approve: 50, review: 30, minDescLength: 80 },
