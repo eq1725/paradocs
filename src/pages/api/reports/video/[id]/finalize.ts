@@ -35,7 +35,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { runWhisper, runHaikuExtract } from '@/lib/services/video-transcribe.service'
-import { remuxMovToMp4Faststart, shouldRemux } from '@/lib/services/video-remux.service'
+import { remuxMovToMp4Faststart, shouldRemux, extractPosterFrame } from '@/lib/services/video-remux.service'
 
 export const config = {
   api: { responseLimit: false },
@@ -231,6 +231,49 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } catch (remuxErr: any) {
         console.warn('[video/finalize] remux threw (non-fatal):', remuxErr?.message || remuxErr)
       }
+    }
+
+    // V10.7.E.15 — server-side poster extraction. Even after we ship
+    // client-side first-frame capture, some browsers (older Android
+    // Chrome, certain codecs) silently produce a black image OR fail
+    // entirely, leaving feed-v2 with no poster_url to sign. Run
+    // ffmpeg here as the belt-and-braces: extract a 720px-wide JPEG
+    // from t=0.5s, upload to the sibling .jpg path, and now every
+    // approved video has a guaranteed poster for instant-paint on
+    // Today + report-page surfaces. Non-fatal on failure (we just
+    // fall through to whatever the client uploaded, if anything).
+    try {
+      var posterResult = await extractPosterFrame(workingBlob, workingFilename)
+      if (posterResult.ok && posterResult.blob) {
+        var posterDotIdx = ((video as any).storage_path as string).lastIndexOf('.')
+        // Note: at this point storage_path may already have been swapped
+        // to .mp4 above (workingBlob/workingFilename). Re-derive from
+        // the row directly because we updated the row earlier on remux.
+        var freshPath: string
+        var freshRow = await admin
+          .from('report_videos')
+          .select('storage_path')
+          .eq('id', (video as any).id)
+          .single()
+        freshPath = ((freshRow.data as any)?.storage_path) || (video as any).storage_path
+        var fdot = freshPath.lastIndexOf('.')
+        var posterPath = fdot > 0 ? (freshPath.substring(0, fdot) + '.jpg') : (freshPath + '.jpg')
+        var posterUpload = await admin.storage
+          .from(workingBucket)
+          .upload(posterPath, posterResult.blob, {
+            contentType: 'image/jpeg',
+            upsert: true,
+          })
+        if (posterUpload.error) {
+          console.warn('[video/finalize] poster upload non-OK:', posterUpload.error.message)
+        } else {
+          console.log('[video/finalize] poster OK path=' + posterPath + ' bytes=' + (posterResult.sizeBytes || 0))
+        }
+      } else {
+        console.warn('[video/finalize] poster extract failed (non-fatal):', posterResult.error)
+      }
+    } catch (posterErr: any) {
+      console.warn('[video/finalize] poster pipeline threw (non-fatal):', posterErr?.message || posterErr)
     }
 
     var whisper = await runWhisper(workingBlob, workingFilename)

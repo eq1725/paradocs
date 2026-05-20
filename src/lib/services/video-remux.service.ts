@@ -183,3 +183,96 @@ export function shouldRemux(filename: string, mime: string | null | undefined): 
   if (m.indexOf('quicktime') !== -1) return true
   return false
 }
+
+export interface PosterResult {
+  ok: boolean
+  blob?: Blob
+  sizeBytes?: number
+  error?: string
+}
+
+/**
+ * Extract a poster frame from the video as JPEG. Seeks ~0.5s into
+ * the file (skips any black-frame intro common with iPhone
+ * recordings) and captures one frame at 720px width — enough for a
+ * 9:16 feed card poster, small enough that the .jpg lands well
+ * under 200KB.
+ *
+ * Used by /finalize as a server-side belt for the client-side
+ * poster capture (which sometimes silently produces a black image
+ * on certain codecs / Android browsers), and by a one-off backfill
+ * script for existing report_videos rows that lack a poster.
+ */
+export async function extractPosterFrame(
+  inputBlob: Blob,
+  inputFilename: string
+): Promise<PosterResult> {
+  var ffmpegPath = resolveFfmpegPath()
+  if (!ffmpegPath) {
+    return { ok: false, error: 'ffmpeg not available' }
+  }
+
+  var tmpDir = path.join(os.tmpdir(), 'paradocs-poster-' + crypto.randomUUID())
+  await fs.mkdir(tmpDir, { recursive: true })
+  var inExt = (inputFilename.split('.').pop() || 'mp4').toLowerCase()
+  var inPath = path.join(tmpDir, 'in.' + inExt)
+  var outPath = path.join(tmpDir, 'poster.jpg')
+
+  try {
+    var inBuf = Buffer.from(await inputBlob.arrayBuffer())
+    await fs.writeFile(inPath, inBuf)
+
+    // -ss 0.5     seek 0.5s in (past potential black-frame intro)
+    // -i <in>     input
+    // -frames:v 1 grab one frame
+    // -vf scale=720:-2  scale to 720px wide (preserve aspect, even height)
+    // -q:v 4      JPEG quality (1=best, 31=worst) — 4 is a good
+    //             tradeoff for ~50-150KB output
+    // -y          overwrite output without prompting
+    var args = [
+      '-ss', '0.5',
+      '-i', inPath,
+      '-frames:v', '1',
+      '-vf', 'scale=720:-2',
+      '-q:v', '4',
+      '-y',
+      outPath,
+    ]
+
+    var exitCode: number = await new Promise(function (resolve) {
+      var proc = spawn(ffmpegPath as string, args, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+      var stderrChunks: Buffer[] = []
+      proc.stderr.on('data', function (d: Buffer) { stderrChunks.push(d) })
+      proc.on('error', function (e: any) {
+        console.warn('[video-remux] poster ffmpeg spawn error:', e?.message || e)
+        resolve(1)
+      })
+      proc.on('close', function (code: number | null) {
+        if (code !== 0 && stderrChunks.length > 0) {
+          var stderr = Buffer.concat(stderrChunks).toString('utf8')
+          var tail = stderr.length > 2000 ? stderr.slice(-2000) : stderr
+          console.warn('[video-remux] poster ffmpeg exit ' + code + ' stderr tail:', tail)
+        }
+        resolve(typeof code === 'number' ? code : 1)
+      })
+    })
+
+    if (exitCode !== 0) {
+      return { ok: false, error: 'ffmpeg poster exit ' + exitCode }
+    }
+
+    var outBuf = await fs.readFile(outPath)
+    console.log('[video-remux] poster OK input=' + inputFilename + ' out_bytes=' + outBuf.length)
+    return {
+      ok: true,
+      blob: new Blob([new Uint8Array(outBuf)], { type: 'image/jpeg' }),
+      sizeBytes: outBuf.length,
+    }
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) }
+  } finally {
+    try { await fs.rm(tmpDir, { recursive: true, force: true }) } catch (_) { /* ignore */ }
+  }
+}
