@@ -228,11 +228,17 @@ body {
    intrinsic dimension. The inner card area is `position: absolute;
    inset: 0;` and needs a sized parent to fill; without an explicit
    height the auto margins make the flex item collapse to 0 height
-   and the entire feed silently disappears on desktop. */
+   and the entire feed silently disappears on desktop.
+   V10.7.E.19 — bumped subtractor 9rem → 11rem so the pane reliably
+   fits within the visible viewport (top header + filter chips + a
+   small bottom buffer is ~150-180px; 9rem = 144px was undershooting
+   on laptop-sized windows, pushing the in-card 'Explore cases' CTA
+   below the fold). Cap raised 720 → 880 so on tall monitors the
+   pane uses the headroom rather than leaving a gap. */
 @media (min-width: 768px) {
   .today-card-pane-cap {
-    height: min(720px, calc(100vh - 9rem));
-    max-height: min(720px, calc(100vh - 9rem));
+    height: min(880px, calc(100vh - 11rem));
+    max-height: min(880px, calc(100vh - 11rem));
     margin-top: auto;
     margin-bottom: auto;
     border-radius: 1.25rem;
