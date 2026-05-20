@@ -690,17 +690,14 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
                 lazy-load, captions). Only renders when the report
                 has an approved video and feed-v2 / getStaticProps
                 successfully signed a playback URL. */}
-            {/* V10.7.E.11 — two-column desktop layout for user video
-                reports. On mobile the block stays centered max-w-md.
-                On lg+ it floats left at w-80 (320px), so the narrative
-                + analysis content flows around the video to the right
-                instead of leaving the desktop column half-empty under
-                a centered portrait video. Margin-bottom on the float
-                container clears after the content extends below the
-                video (typically the analysis block is taller than the
-                video so this is a non-issue). */}
+            {/* V10.7.E.12 — mobile video block. On desktop the player
+                renders inside the right-side <aside> below (sticky),
+                which avoids the empty-column whitespace the previous
+                lg:float-left approach produced. The aside copy keeps
+                the action row + transcript with it; this mobile copy
+                renders the same JSX inline above the narrative. */}
             {report?.has_video && report?.video?.playback_url && (
-              <div className="mb-6 max-w-md mx-auto lg:float-left lg:max-w-none lg:w-80 lg:mx-0 lg:mr-6 lg:mt-1">
+              <div className="mb-6 max-w-md mx-auto lg:hidden">
                 <InlineVideoPlayer
                   reportId={report.id}
                   videoId={report.video.video_id}
@@ -894,7 +891,7 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
             {relatedReports && relatedReports.length > 0 && (
               <ReportRelatedReports
                 items={relatedReports}
-                className="my-6 lg:clear-left"
+                className="my-6"
               />
             )}
             </main>
@@ -919,6 +916,64 @@ export default function ReportPageV2({ report, media, relatedReports, patterns, 
               optional curated-badge row when present. */}
           <aside className="hidden lg:block lg:sticky lg:top-24 lg:self-start lg:pt-12">
             <div className="space-y-5">
+              {/* V10.7.E.12 — desktop video block lives in the
+                  sticky aside so the player stays in view as the user
+                  scrolls the narrative + analysis in the main column.
+                  Mobile renders the same block inline in main (gated
+                  lg:hidden). Action row + transcript live alongside
+                  the player here so the watch-cluster is one unit. */}
+              {report?.has_video && report?.video?.playback_url && (
+                <div>
+                  <InlineVideoPlayer
+                    reportId={report.id}
+                    videoId={report.video.video_id}
+                    playbackUrl={report.video.playback_url}
+                    thumbnailUrl={report.video.poster_url || null}
+                    segments={report.video.segments || null}
+                    mode="watch"
+                  />
+                  <div className="mt-3 flex justify-center">
+                    <CardActionStrip
+                      reportId={report.id}
+                      isSaved={isSaved}
+                      onSave={function (e) {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleSave()
+                      }}
+                      onShare={function (e) {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleShare()
+                      }}
+                      onUnauthed={function () { setAuthPromptOpen(true) }}
+                      category={report.category}
+                      variant="embedded"
+                      direction="row"
+                    />
+                  </div>
+                  {Array.isArray((report.video as any).segments) && (report.video as any).segments.length > 0 && (
+                    <details className="mt-3 rounded-lg border border-gray-800 bg-gray-900/40 p-3 text-sm">
+                      <summary className="cursor-pointer text-gray-300 font-medium select-none">
+                        Read transcript
+                      </summary>
+                      <div className="mt-3 space-y-2 text-gray-300 leading-relaxed max-h-72 overflow-y-auto pr-1">
+                        {((report.video as any).segments as Array<{ start: number; end: number; text: string }>).map(function (seg, i: number) {
+                          var mm = Math.floor((seg.start || 0) / 60)
+                          var ss = Math.floor((seg.start || 0) % 60)
+                          var ts = mm + ':' + (ss < 10 ? '0' + ss : ss)
+                          return (
+                            <p key={i} className="text-[12px]">
+                              <span className="text-gray-500 font-mono mr-2">{ts}</span>
+                              {(seg.text || '').trim()}
+                            </p>
+                          )
+                        })}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              )}
               <ReportMeta
                 anonymizeSubmitter={anonymize}
                 submitterDisplayName={submitterDisplayName}

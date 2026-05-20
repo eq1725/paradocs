@@ -93,9 +93,33 @@ export default function VideoReportCard(props: VideoReportCardProps) {
     } catch (_) { return true }
   })
 
-  // Lazy-load when scrolled into view.
+  // V10.7.E.12 — pre-warm load policy for instant-feel playback.
+  //
+  // TikTok-quality "tap → frame in the first paint" depends on the
+  // first segment of video bytes ALREADY being in the browser cache
+  // by the time the user lands on the card. The previous gate
+  // (IntersectionObserver, rootMargin 300px) waited until the card
+  // was 300px from the viewport before even setting <video src>;
+  // that means the user sees the poster then waits 1-3s while the
+  // browser does DNS → TLS → range request → first segment download
+  // before playback can start.
+  //
+  // New policy:
+  //   - The ACTIVE card (props.isActive) gets shouldLoad=true
+  //     IMMEDIATELY on mount — no IntersectionObserver gate.
+  //     The first card the user sees on /discover starts downloading
+  //     its first segment as the page mounts.
+  //   - The first card in the feed (index === 0) ditto, even if it
+  //     hasn't been marked active yet by the scroll snap logic.
+  //   - All other cards keep the lazy gate with a wider 600px
+  //     rootMargin so cards 1 ahead in the scroll direction pre-
+  //     warm before the user reaches them.
   useEffect(function () {
     if (shouldLoad) return
+    if (props.isActive || props.index === 0) {
+      setShouldLoad(true)
+      return
+    }
     if (typeof IntersectionObserver === 'undefined') {
       setShouldLoad(true)
       return
@@ -110,10 +134,10 @@ export default function VideoReportCard(props: VideoReportCardProps) {
           return
         }
       }
-    }, { rootMargin: '300px' })
+    }, { rootMargin: '600px' })
     io.observe(el)
     return function () { io.disconnect() }
-  }, [shouldLoad])
+  }, [shouldLoad, props.isActive, props.index])
 
   // Autoplay muted on load.
   useEffect(function () {
@@ -225,6 +249,20 @@ export default function VideoReportCard(props: VideoReportCardProps) {
           onClick={toggleMute}
         />
 
+      ) : (video as any).poster_url ? (
+        // V10.7.E.12 — when the video hasn't been lazy-loaded yet but
+        // we already have a poster URL, render the poster as an <img>
+        // so the card never looks empty. Replaces the previous "gray
+        // 'Loading…' box" placeholder. The browser caches this image
+        // so the swap to <video poster=...> is seamless.
+        <img
+          src={(video as any).poster_url}
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover"
+          loading="eager"
+          decoding="async"
+        />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs">
           Loading…

@@ -213,11 +213,19 @@ export default function ReportLocationMap({
     countryCode,
     stateKey,
   })
+  // V10.7.E.12 — pulled back the precision-default zoom so the map
+  // shows REGIONAL CONTEXT, not just an unlabeled dot in a sea of
+  // terrain. Previous values (11 / 10 / 6 / 4) zoomed so tight that
+  // only the state label was visible — no neighboring cities or
+  // county lines for the viewer to orient against. New values show
+  // 1-2 administrative levels of context above the precision level
+  // so a Moss Hill, Texas dot also reveals Houston, Beaumont, the
+  // gulf coast.
   const precisionDefaultZoom =
-    precision === 'exact'   ? 11 :
-    precision === 'city'    ? 10 :
-    precision === 'region'  ? 6  :
-    precision === 'country' ? 4  : 2
+    precision === 'exact'   ? 9   :
+    precision === 'city'    ? 8   :
+    precision === 'region'  ? 5   :
+    precision === 'country' ? 3.5 : 2
   const targetZoom = syntheticZoom !== null
     ? syntheticZoom
     : (effectiveNearby.length > 0 ? Math.max(7, precisionDefaultZoom - 2) : precisionDefaultZoom)
