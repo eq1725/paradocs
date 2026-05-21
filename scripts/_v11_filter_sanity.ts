@@ -6,6 +6,7 @@
 
 import { filterContent, isLikelyNonEnglish } from '../src/lib/ingestion/filters/quality-filter';
 import { stripThirdPersonFraming } from '../src/lib/ingestion/filters/title-improver';
+import { redactPii } from '../src/lib/ingestion/utils/redact-pii';
 
 type Case = { name: string; title: string; description: string; shouldReject: boolean };
 
@@ -116,5 +117,132 @@ for (const c of samples) {
   console.log('');
 }
 
-console.log(`=== ${pass}/${pass+fail} passed ===`);
-process.exit(fail > 0 ? 1 : 0);
+console.log(`=== Filter check: ${pass}/${pass+fail} passed ===\n`);
+
+// =========================================================================
+// V11.9 — PII redactor sanity
+// =========================================================================
+console.log('=== V11.9 PII redactor check ===\n');
+
+type RedactCase = {
+  name: string;
+  input: string;
+  expectContains?: string[];      // redaction tokens that MUST appear in output
+  expectAbsent?: string[];        // strings that MUST NOT appear in output (the PII itself)
+  expectUnchanged?: boolean;      // when true, output must equal input (no redactions)
+};
+
+const redactCases: RedactCase[] = [
+  {
+    name: 'Smoke #8 leak: 1721 Fern Avenue',
+    input: 'I was 12½, living at the small ranch-style house at 1721 Fern Avenue. It was owned by my aunt and uncle.',
+    expectContains: ['[address redacted]'],
+    expectAbsent: ['1721 Fern Avenue'],
+  },
+  {
+    name: 'Abbreviated street suffix: 123 Main St.',
+    input: 'My grandmother lived at 123 Main St. her whole life.',
+    expectContains: ['[address redacted]'],
+    expectAbsent: ['123 Main St'],
+  },
+  {
+    name: 'Multi-word street name: 1234 South Oak Park Boulevard',
+    input: 'The encounter happened at 1234 South Oak Park Boulevard around midnight.',
+    expectContains: ['[address redacted]'],
+    expectAbsent: ['1234 South Oak Park Boulevard'],
+  },
+  {
+    name: 'US phone number with parens',
+    input: 'Call me at (555) 123-4567 if you want to hear the recording.',
+    expectContains: ['[phone redacted]'],
+    expectAbsent: ['(555) 123-4567', '555-123-4567'],
+  },
+  {
+    name: 'US phone number dotted',
+    input: 'Reach the investigator at 555.987.6543 for a witness statement.',
+    expectContains: ['[phone redacted]'],
+    expectAbsent: ['555.987.6543'],
+  },
+  {
+    name: 'Email address',
+    input: 'Email me at witness@example.org with any questions about the event.',
+    expectContains: ['[email redacted]'],
+    expectAbsent: ['witness@example.org'],
+  },
+  {
+    name: 'SSN-like sequence',
+    input: 'The case file references SSN 123-45-6789 on the report.',
+    expectContains: ['[ssn redacted]'],
+    expectAbsent: ['123-45-6789'],
+  },
+  // ---- Negative controls — should NOT be redacted ----
+  {
+    name: 'CTRL: age "I was 12" should NOT redact',
+    input: 'I was 12 years old when I first saw the shadow figure in my room.',
+    expectUnchanged: true,
+  },
+  {
+    name: 'CTRL: year "in 1971" should NOT redact',
+    input: 'In 1971 we moved to a new house and the activity stopped completely.',
+    expectUnchanged: true,
+  },
+  {
+    name: 'CTRL: count "1234 cases" should NOT redact',
+    input: 'The database now contains 1234 cases of sleep paralysis from 2020 to 2025.',
+    expectUnchanged: true,
+  },
+  {
+    name: 'CTRL: time "10:30 PM" should NOT redact',
+    input: 'At 10:30 PM I heard the knocking again, three times exactly.',
+    expectUnchanged: true,
+  },
+];
+
+let redactPassCount = 0, redactFailCount = 0;
+for (const c of redactCases) {
+  const result = redactPii(c.input);
+  let ok = true;
+  const reasons: string[] = [];
+
+  if (c.expectUnchanged) {
+    if (result.text !== c.input) {
+      ok = false;
+      reasons.push(`text changed unexpectedly: "${result.text}"`);
+    }
+    if (result.redactedCount > 0) {
+      ok = false;
+      reasons.push(`redactedCount=${result.redactedCount} but expected 0`);
+    }
+  } else {
+    for (const token of (c.expectContains || [])) {
+      if (!result.text.includes(token)) {
+        ok = false;
+        reasons.push(`output missing expected token "${token}"`);
+      }
+    }
+    for (const leak of (c.expectAbsent || [])) {
+      if (result.text.includes(leak)) {
+        ok = false;
+        reasons.push(`PII still present: "${leak}"`);
+      }
+    }
+  }
+
+  const mark = ok ? '✓' : '✗';
+  console.log(`${mark} ${c.name}`);
+  console.log(`   in:  ${c.input.substring(0, 90)}${c.input.length > 90 ? '…' : ''}`);
+  console.log(`   out: ${result.text.substring(0, 90)}${result.text.length > 90 ? '…' : ''}`);
+  if (result.redactedCount > 0) console.log(`   redacted ${result.redactedCount}× [${result.types.join(', ')}]`);
+  if (!ok) {
+    reasons.forEach(function(r){ console.log(`   *** ${r} ***`); });
+    redactFailCount++;
+  } else {
+    redactPassCount++;
+  }
+  console.log('');
+}
+
+console.log(`=== PII redactor: ${redactPassCount}/${redactPassCount+redactFailCount} passed ===`);
+
+const totalFail = fail + redactFailCount;
+process.exit(totalFail > 0 ? 1 : 0);

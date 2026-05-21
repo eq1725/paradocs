@@ -26,6 +26,7 @@ import {
   validateReportBeforeInsert,
   ValidationFlag,
 } from './utils/validate-report';
+import { redactReportPii } from './utils/redact-pii';
 import {
   normalizeLocation,
   geocodeWithFallback,
@@ -555,6 +556,27 @@ export async function runIngestion(sourceId: string, limit: number = 100): Promi
 
     for (const report of result.reports) {
       try {
+        // V11.9 — PII redaction. Runs FIRST in the per-report pipeline
+        // so every downstream consumer (quality filter, scorer,
+        // enricher, Haiku, Sonnet, DB insert) sees redacted text. A
+        // single source of truth — the redacted body — flows through
+        // the entire system. Smoke #8 surfaced the leak: a Reddit
+        // body contained the witness's childhood address ("1721 Fern
+        // Avenue") and it surfaced verbatim on the live report page.
+        // Categories scrubbed: US street addresses, phone numbers,
+        // emails, SSN-like sequences. Name redaction is handled
+        // separately by stripExperiencerNames in paradocs-analysis
+        // because it needs source-metadata context.
+        var piiResult = redactReportPii(report);
+        if (piiResult.redactedCount > 0) {
+          console.log(
+            '[Ingestion] PII redacted from "' + (report.title || '').substring(0, 40) +
+            '...": ' + piiResult.redactedCount + ' instance(s) ' +
+            '[' + piiResult.types.join(', ') + '] in fields [' +
+            piiResult.fields.join(', ') + ']'
+          );
+        }
+
         // Quick rejection for obviously low quality content
         if (isObviouslyLowQuality(report.title, report.description)) {
           console.log(`[Ingestion] Quick reject: "${report.title.substring(0, 40)}..." (obviously low quality)`);
