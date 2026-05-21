@@ -304,6 +304,22 @@ export function parseLocation(text: string): ParsedLocation {
     strippedLowerText = strippedLowerText.replace(pat, '___strip___')
   }
 
+  // V11.14.6 — Strip ETHNIC IDENTITY phrases. The Lakewood case
+  // surfaced "im half mexican" — the body describes the witness's
+  // ethnic identity, not their current location. Same for "I'm French"
+  // / "we're half Italian" / "his Korean grandfather". These should not
+  // contribute to country matching.
+  const ETHNIC_IDENTITY = /\b(?:i(?:'m|m| am)|we(?:'re|re| are)|he(?:'s|s| is)|she(?:'s|s| is)|they(?:'re|re| are)|his|her|their|my|our|the)\s+(?:half|part|quarter|fully|three[\s-]quarter|one[\s-]quarter|fully\s+ethnic|ethnically)?\s*(?:mexican|italian|french|german|spanish|portuguese|chinese|japanese|korean|vietnamese|filipino|filipina|indian|pakistani|iranian|iraqi|israeli|lebanese|jordanian|turkish|brazilian|argentine|chilean|peruvian|cuban|jamaican|haitian|russian|polish|czech|romanian|hungarian|greek|english|scottish|welsh|irish|british|australian|canadian|kiwi|nigerian|kenyan|ethiopian|moroccan|egyptian|swiss|austrian|dutch|belgian|swedish|norwegian|danish|finnish|icelandic|colombian|venezuelan|ecuadorian|bolivian|paraguayan|uruguayan|salvadoran|guatemalan|honduran|nicaraguan|panamanian|costa\s+rican|dominican|burmese|cambodian|laotian|mongolian|nepalese|tibetan|bhutanese|bangladeshi|sri\s+lankan|afghan|saudi|yemeni|omani|emirati|qatari|kuwaiti|bahraini|south\s+african)\b/gi
+  strippedLowerText = strippedLowerText.replace(ETHNIC_IDENTITY, '___strip___')
+
+  // V11.14.6 — Strip PAST-TRIP NARRATIVE CONTEXTS. The Lakewood body
+  // also had "his stories from visiting mexico". The "visiting <Country>"
+  // pattern correctly catches present trips but false-positives on
+  // story preambles ("stories from", "tales of", "memories of").
+  // Generic preamble + travel verb + country becomes a strip target.
+  const PAST_TRIP_NARRATIVE = /\b(?:stories?|tales?|memories|legends?|folklore|myths?|accounts?|songs?|movies?|films?|books?|games?|games\s+like|culture|cultures|traditions?)\s+(?:from|of|about|featuring|set\s+in|told\s+by)\s+(?:visiting|the\s+|a\s+|an\s+)?\w+/gi
+  strippedLowerText = strippedLowerText.replace(PAST_TRIP_NARRATIVE, '___strip___')
+
   // Aliases that are heavily polluted by ordinary English usage in
   // non-location contexts. For these, we require an explicit
   // preposition match — skip the multi-mention fallback entirely.
@@ -360,9 +376,15 @@ export function parseLocation(text: string): ParsedLocation {
     // country only in a hypothetical or negated context. Specific
     // verb+to combinations ("trip to", "moved to", "traveled to")
     // are positive enough to keep.
+    // V11.14.6 — Dropped bare "visiting" from preposition list (too
+    // permissive in narrative contexts; PAST_TRIP_NARRATIVE handles
+    // most of the harm but the preposition itself is still noisy).
+    // Kept "while visiting" / "during my visit to" as specific
+    // positives — those unambiguously indicate the witness's location.
     const countryContextRegex = new RegExp(
-      `\\b(?:in|from|into|across|throughout|around|near|visiting|toured?|traveling|travelled|outside|leaving|hitting)\\s+${countryKey}\\b`
+      `\\b(?:in|from|into|across|throughout|around|near|toured?|traveling|travelled|outside|leaving|hitting)\\s+${countryKey}\\b`
       + `|\\b(?:trip\\s+to|traveled\\s+to|travelled\\s+to|moved\\s+to|flew\\s+to|drove\\s+to|sailed\\s+to|return(?:ed|ing)?\\s+to|came\\s+to|back\\s+to|relocated\\s+to|emigrated\\s+to|immigrated\\s+to)\\s+${countryKey}\\b`
+      + `|\\b(?:while\\s+visiting|(?:i|we|they|she|he)\\s+(?:was|were|am|are)\\s+visiting|during\\s+(?:my|our|their|his|her|a)\\s+(?:visit|trip|stay)\\s+to|on\\s+(?:my|our|their|his|her|a)\\s+(?:visit|trip)\\s+to)\\s+${countryKey}\\b`
       + `|\\b(?:study(?:ing)?\\s+in|studied\\s+in|live(?:d|s)?\\s+in|living\\s+in|stationed\\s+in|grew\\s+up\\s+in|raised\\s+in|born\\s+in|stayed\\s+in|staying\\s+in)\\s+${countryKey}\\b`
       + `|\\b(?:northern|southern|eastern|western|central|rural|coastal|interior|mountainous|countryside\\s+of|all\\s+over|throughout|outskirts\\s+of)\\s+${countryKey}\\b`
       + `|\\b${countryKey}\\s+(?:was|is|has|had|during\\s+the)\\b`,

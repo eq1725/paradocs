@@ -61,6 +61,21 @@ const CASES: Case[] = [
     text: 'I grew up in New Mexico, near the Sandia mountains. My family had stories about strange lights in the desert. We were in New Mexico for over thirty years before we moved away.',
     expected: { international: false },
   },
+  {
+    label: 'V11.14.6: "half mexican" + "stories from visiting mexico" must NOT match Mexico (Lakewood case)',
+    text: 'So im half mexican and some people in there area are into the occult or whatever. I mean people do that stuff anywhere and im too young to care/give a shit. I used to play outside and leave my shoes outside a lot something my mom would get mad at me about. Of course I have more stories as I seem to attract weird shit happening to me but If anything else/new happens at this new house ill be sure to share it here, I have a lot more stories from my dads childhood and some of his stories from visiting mexico.',
+    expected: { international: false },
+  },
+  {
+    label: 'V11.14.6: "while visiting Italy" still matches (positive preserved)',
+    text: 'While visiting Italy last summer, my partner and I noticed something strange in the hotel room near Rome. The wardrobe blocked a small door that we never found a key for.',
+    expected: { country: 'Italy', international: true },
+  },
+  {
+    label: 'V11.14.6: "I am French" alone must NOT match France (no other context)',
+    text: 'I am French but I grew up in California. The haunting happened after I moved to a new apartment in Los Angeles. The shadow figure appeared three nights in a row.',
+    expected: { international: false },
+  },
 ]
 
 let passed = 0, failed = 0
