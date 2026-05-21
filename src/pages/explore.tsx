@@ -694,6 +694,21 @@ function ExploreBrowseMode() {
   var [contentType, setContentType] = useState<ContentType | 'all' | 'primary'>('primary')
   var [showFilters, setShowFilters] = useState(false)
 
+  // V11.12 — Witness-profile + state filters. Linked from report-page
+  // "X cases while sleeping" / "X cases in California" / etc. The report
+  // page emits hrefs like /explore?witness_state=sleeping but until
+  // this revision the explore page ignored them and just showed the
+  // default browse view. Each filter:
+  //   - hydrates from the URL on mount
+  //   - applies an .eq() clause in loadReports
+  //   - renders an active-filter chip the user can dismiss
+  var [witnessState, setWitnessState] = useState<string | null>(null)
+  var [witnessAge, setWitnessAge] = useState<string | null>(null)
+  var [witnessGender, setWitnessGender] = useState<string | null>(null)
+  var [witnessOccupation, setWitnessOccupation] = useState<string | null>(null)
+  var [stateFilter, setStateFilter] = useState<string | null>(null)
+  var [phenomenonSlug, setPhenomenonSlug] = useState<string | null>(null)
+
   // Restore filter state from URL on mount.
   // Also honors ?lens= from /discover's "View as list →" link (panel review #22)
   useEffect(function() {
@@ -705,6 +720,34 @@ function ExploreBrowseMode() {
     }
     if (q.q && typeof q.q === 'string') setSearchQuery(q.q)
     if (q.view === 'reports') setBrowseView('reports')
+
+    // V11.12 — Witness-profile + state-filter param handling. Each
+    // param flips the view to 'reports' so the user immediately sees
+    // the filtered list, not the categories grid.
+    if (q.witness_state && typeof q.witness_state === 'string') {
+      setWitnessState(q.witness_state)
+      setBrowseView('reports')
+    }
+    if (q.witness_age && typeof q.witness_age === 'string') {
+      setWitnessAge(q.witness_age)
+      setBrowseView('reports')
+    }
+    if (q.witness_gender && typeof q.witness_gender === 'string') {
+      setWitnessGender(q.witness_gender)
+      setBrowseView('reports')
+    }
+    if (q.witness_occupation && typeof q.witness_occupation === 'string') {
+      setWitnessOccupation(q.witness_occupation)
+      setBrowseView('reports')
+    }
+    if (q.state && typeof q.state === 'string') {
+      setStateFilter(q.state)
+      setBrowseView('reports')
+    }
+    if (q.phenomenon && typeof q.phenomenon === 'string') {
+      setPhenomenonSlug(q.phenomenon)
+      setBrowseView('reports')
+    }
 
     // Map /discover lens → /explore filter equivalents
     if (q.lens && typeof q.lens === 'string') {
@@ -796,6 +839,15 @@ function ExploreBrowseMode() {
         if (dateTo) query = query.lte('event_date', dateTo)
         if (hasEvidence) query = query.or('has_physical_evidence.eq.true,has_photo_video.eq.true')
         if (featured) query = query.eq('featured', true)
+        // V11.12 — witness-profile filters wired from URL params.
+        // state_at_event and age_range are top-level generated columns
+        // (V10.7.A.0); gender and occupation_category live inside the
+        // witness_profile JSONB so they need ->> scalar text access.
+        if (witnessState) query = query.eq('witness_state_at_event', witnessState)
+        if (witnessAge) query = query.eq('witness_age_range', witnessAge)
+        if (witnessGender) query = query.eq('witness_profile->>gender', witnessGender)
+        if (witnessOccupation) query = query.eq('witness_profile->>occupation_category', witnessOccupation)
+        if (stateFilter) query = query.eq('state_province', stateFilter)
         if (contentType === 'primary') {
           query = query.or('content_type.in.(experiencer_report,historical_case,research_analysis),content_type.is.null')
         } else if (contentType !== 'all') {
@@ -831,6 +883,12 @@ function ExploreBrowseMode() {
         if (dateTo) q2 = q2.lte('event_date', dateTo)
         if (hasEvidence) q2 = q2.or('has_physical_evidence.eq.true,has_photo_video.eq.true')
         if (featured) q2 = q2.eq('featured', true)
+        // V11.12 — witness-profile + state filters from URL params
+        if (witnessState) q2 = q2.eq('witness_state_at_event', witnessState)
+        if (witnessAge) q2 = q2.eq('witness_age_range', witnessAge)
+        if (witnessGender) q2 = q2.eq('witness_gender', witnessGender)
+        if (witnessOccupation) q2 = q2.eq('witness_occupation_category', witnessOccupation)
+        if (stateFilter) q2 = q2.eq('state_province', stateFilter)
         if (contentType === 'primary') {
           q2 = q2.or('content_type.in.(experiencer_report,historical_case,research_analysis),content_type.is.null')
         } else if (contentType !== 'all') {
@@ -886,7 +944,7 @@ function ExploreBrowseMode() {
     } finally {
       setLoading(false)
     }
-  }, [category, selectedCategories, selectedTypes, searchQuery, country, credibility, dateFrom, dateTo, sort, hasEvidence, hasMedia, featured, contentType, page, baselineCount])
+  }, [category, selectedCategories, selectedTypes, searchQuery, country, credibility, dateFrom, dateTo, sort, hasEvidence, hasMedia, featured, contentType, page, baselineCount, witnessState, witnessAge, witnessGender, witnessOccupation, stateFilter])
 
   useEffect(function() {
     if (browseView === 'reports') loadReports()
@@ -1411,6 +1469,41 @@ function ExploreBrowseMode() {
           <button onClick={function() { setBrowseView('categories'); setCategory('all'); setPage(1) }} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white mb-4 transition-colors">
             <ChevronLeft className="w-4 h-4" /> Back to Categories
           </button>
+
+          {/* V11.12 — Active URL-driven filter chips. Renders when a
+              witness-profile or state-level filter is active so the
+              user knows the list is filtered + can clear it. */}
+          {(witnessState || witnessAge || witnessGender || witnessOccupation || stateFilter) && (
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-gray-400 mr-1">Filtered by:</span>
+              {(function() {
+                var STATE_LABELS: Record<string, string> = {
+                  awake_alert: 'while awake', meditation: 'during meditation',
+                  drowsy_falling_asleep: 'while drowsy', sleeping: 'while sleeping',
+                  driving: 'while driving', physical_activity: 'during physical activity',
+                  intoxicated: 'while intoxicated',
+                }
+                var chips: Array<{ label: string; clear: () => void }> = []
+                if (witnessState) chips.push({ label: STATE_LABELS[witnessState] || witnessState, clear: function() { setWitnessState(null) } })
+                if (witnessAge) chips.push({ label: 'age: ' + witnessAge.replace(/_/g, ' '), clear: function() { setWitnessAge(null) } })
+                if (witnessGender) chips.push({ label: witnessGender, clear: function() { setWitnessGender(null) } })
+                if (witnessOccupation) chips.push({ label: witnessOccupation.replace(/_/g, ' '), clear: function() { setWitnessOccupation(null) } })
+                if (stateFilter) chips.push({ label: stateFilter, clear: function() { setStateFilter(null) } })
+                return chips.map(function(c, i) {
+                  return (
+                    <button
+                      key={i}
+                      onClick={function() { c.clear(); setPage(1) }}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-purple-900/30 border border-purple-500/40 text-purple-200 hover:bg-purple-900/50 transition-colors"
+                    >
+                      {c.label}
+                      <span className="text-purple-300/70" aria-hidden="true">×</span>
+                    </button>
+                  )
+                })
+              })()}
+            </div>
+          )}
 
           <div className="flex items-center justify-between mb-4">
             <div>

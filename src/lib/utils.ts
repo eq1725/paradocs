@@ -19,6 +19,54 @@ export function formatDate(date: string | Date, formatStr: string = 'MMM d, yyyy
   return format(d, formatStr)
 }
 
+/**
+ * V11.12 — Precision-aware event date formatter.
+ *
+ * Ingested reports store event_date as a YYYY-MM-DD ISO string padded
+ * with placeholders for unknown components: year-only precision stores
+ * "1945-01-01", month-only stores "2016-04-01". The default formatDate
+ * blindly prints "Jan 1, 1945" / "Apr 1, 2016" — misleading because
+ * the day (and possibly month) are placeholders, not source data.
+ *
+ * This helper respects event_date_precision and prints only the
+ * components we actually know:
+ *   - exact:     "Jan 15, 2024"  (full source-stated date)
+ *   - month:     "April 2016"    (source stated month + year)
+ *   - year:      "1945"          (source stated year only)
+ *   - decade:    "1940s"         (rough decade only)
+ *   - estimated: "around 2010"   (best-guess from prose)
+ *   - unknown:   ""              (no usable signal)
+ *
+ * Callers should prefer this over formatDate() whenever they have
+ * access to event_date_precision (which every ingested report does).
+ */
+export function formatEventDate(
+  date: string | Date | null | undefined,
+  precision: 'exact' | 'month' | 'year' | 'decade' | 'estimated' | 'unknown' | null | undefined,
+): string {
+  if (!date) return ''
+  const d = typeof date === 'string' ? parseISO(date) : date
+  if (!d || isNaN(d.getTime())) return ''
+  const p = precision || 'exact'
+  switch (p) {
+    case 'exact':
+      return format(d, 'MMM d, yyyy')
+    case 'month':
+      return format(d, 'MMMM yyyy')
+    case 'year':
+      return format(d, 'yyyy')
+    case 'decade': {
+      const decade = Math.floor(d.getFullYear() / 10) * 10
+      return decade + 's'
+    }
+    case 'estimated':
+      return 'around ' + format(d, 'yyyy')
+    case 'unknown':
+    default:
+      return ''
+  }
+}
+
 export function slugify(text: string): string {
   return text
     .toLowerCase()

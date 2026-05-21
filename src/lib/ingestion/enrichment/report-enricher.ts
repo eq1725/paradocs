@@ -191,16 +191,29 @@ var STATE_ABBREVS = new Set(['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','
 
 // Patterns that indicate location in text
 var LOCATION_PATTERNS: Array<{ pattern: RegExp; extract: (match: RegExpMatchArray) => { city?: string; state?: string; location_name?: string } | null }> = [
-  // "in [City], [State]" — e.g., "in Portland, Oregon"
+  // "in [City], [State]" — e.g., "in Portland, Oregon", "in St. Paul,
+  // Minnesota", "in the San Jose area, California"
+  //
+  // V11.12 — Updated to handle:
+  //   (a) Optional article "the" between the trigger and the city
+  //       ("in the San Jose, …").
+  //   (b) Abbreviated prefixes "St.", "Mt.", "Ft.", "Pt." with optional
+  //       period plus the full "Saint", "Mount", "Fort", "Port" forms.
+  //       Smoke #11 surface: "Hyatt Place in St. Paul, Minnesota"
+  //       wasn't matching because the period broke the [A-Z][a-z]+
+  //       second-word capture.
+  //   (c) Two-word cities like "New York", "Los Angeles", "Las Vegas"
+  //       still match via the second \s+[A-Z][a-z]+ group.
   {
-    pattern: /\b(?:in|near|outside|from|around)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),\s*(Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New\s+Hampshire|New\s+Jersey|New\s+Mexico|New\s+York|North\s+Carolina|North\s+Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode\s+Island|South\s+Carolina|South\s+Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West\s+Virginia|Wisconsin|Wyoming)\b/i,
+    pattern: /\b(?:in|near|outside|from|around)\s+(?:the\s+)?((?:(?:St|Mt|Ft|Pt|Saint|Mount|Fort|Port)\.?\s+)?[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),\s*(Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New\s+Hampshire|New\s+Jersey|New\s+Mexico|New\s+York|North\s+Carolina|North\s+Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode\s+Island|South\s+Carolina|South\s+Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West\s+Virginia|Wisconsin|Wyoming)\b/i,
     extract: function(m) {
       return { city: m[1].trim(), state: m[2].trim(), location_name: m[1].trim() + ', ' + m[2].trim() };
     }
   },
-  // "in [City], [ST]" — e.g., "in Portland, OR"
+  // "in [City], [ST]" — e.g., "in Portland, OR" (same V11.12 prefix
+  // + article fixes as the full-state variant above).
   {
-    pattern: /\b(?:in|near|outside|from|around)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),\s*([A-Z]{2})\b/,
+    pattern: /\b(?:in|near|outside|from|around)\s+(?:the\s+)?((?:(?:St|Mt|Ft|Pt|Saint|Mount|Fort|Port)\.?\s+)?[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),\s*([A-Z]{2})\b/,
     extract: function(m) {
       if (!STATE_ABBREVS.has(m[2])) return null;
       return { city: m[1].trim(), state: m[2].trim(), location_name: m[1].trim() + ', ' + m[2].trim() };

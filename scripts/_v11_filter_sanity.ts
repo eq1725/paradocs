@@ -7,6 +7,9 @@
 import { filterContent, isLikelyNonEnglish } from '../src/lib/ingestion/filters/quality-filter';
 import { stripThirdPersonFraming } from '../src/lib/ingestion/filters/title-improver';
 import { redactPii } from '../src/lib/ingestion/utils/redact-pii';
+import { extractLocationFromText } from '../src/lib/ingestion/enrichment/report-enricher';
+import { parseLocation } from '../src/lib/ingestion/utils/location-parser';
+import { formatEventDate } from '../src/lib/utils';
 
 type Case = { name: string; title: string; description: string; shouldReject: boolean };
 
@@ -297,7 +300,148 @@ for (const c of redactCases) {
   console.log('');
 }
 
-console.log(`=== PII redactor: ${redactPassCount}/${redactPassCount+redactFailCount} passed ===`);
+console.log(`=== PII redactor: ${redactPassCount}/${redactPassCount+redactFailCount} passed ===\n`);
 
-const totalFail = fail + redactFailCount;
+// =========================================================================
+// V11.12 — Location extraction (US-state pattern + parseLocation intl)
+// =========================================================================
+console.log('=== V11.12 location extraction ===\n');
+
+type LocCase = {
+  name: string;
+  input: string;
+  expectCity?: string;
+  expectState?: string;
+  expectCountry?: string;
+  expectNull?: boolean;  // strict regex returns null (intl path takes over)
+  useInternational?: boolean;  // also run parseLocation
+};
+
+const locCases: LocCase[] = [
+  // ---- US-state pattern fixes for "St."/"Mt." prefixes + optional "the"
+  {
+    name: 'St. Paul, Minnesota (V11.12 abbreviation prefix)',
+    input: 'Stayed at the Hyatt Place in St. Paul, Minnesota with my son',
+    expectCity: 'St. Paul', expectState: 'Minnesota',
+  },
+  {
+    name: 'Mt. Hood, Oregon',
+    input: 'Hiked near Mt. Hood, Oregon last summer',
+    expectCity: 'Mt. Hood', expectState: 'Oregon',
+  },
+  {
+    name: 'Saint Louis, Missouri (full prefix)',
+    input: 'Originally from Saint Louis, Missouri',
+    expectCity: 'Saint Louis', expectState: 'Missouri',
+  },
+  {
+    name: 'Two-word city + state abbrev',
+    input: 'lived in Las Vegas, NV for years',
+    expectCity: 'Las Vegas', expectState: 'NV',
+  },
+  {
+    name: 'Standard one-word city + full state',
+    input: 'in Portland, Oregon last week',
+    expectCity: 'Portland', expectState: 'Oregon',
+  },
+  {
+    name: 'Bare city without state → null (no false positives)',
+    input: 'I have seen a lot of things happen in the San Jose area',
+    expectNull: true,
+  },
+  // ---- parseLocation intl path
+  {
+    name: 'INTL: Ibiza → Spain',
+    input: 'I was in a club in Ibiza doing pink tusci',
+    expectCity: 'Ibiza', expectCountry: 'Spain',
+    useInternational: true,
+  },
+  {
+    name: 'INTL: in India',
+    input: 'I took mushrooms in a Temple in India',
+    expectCountry: 'India',
+    useInternational: true,
+  },
+  {
+    name: 'INTL: Auckland → New Zealand',
+    input: 'Bright orbs over west Auckland for the past 10 days',
+    expectCity: 'Auckland', expectCountry: 'New Zealand',
+    useInternational: true,
+  },
+];
+
+let locPass = 0, locFail = 0;
+for (const c of locCases) {
+  let ok = true;
+  const reasons: string[] = [];
+
+  if (c.useInternational) {
+    const r = parseLocation(c.input);
+    if (c.expectCity && r.city !== c.expectCity) {
+      ok = false; reasons.push('city expected ' + c.expectCity + ' got ' + r.city);
+    }
+    if (c.expectCountry && r.country !== c.expectCountry) {
+      ok = false; reasons.push('country expected ' + c.expectCountry + ' got ' + r.country);
+    }
+  } else {
+    const r = extractLocationFromText(c.input);
+    if (c.expectNull) {
+      if (r !== null) { ok = false; reasons.push('expected null, got ' + JSON.stringify(r)); }
+    } else {
+      if (!r) { ok = false; reasons.push('expected match, got null'); }
+      else {
+        if (c.expectCity && r.city !== c.expectCity) {
+          ok = false; reasons.push('city expected ' + c.expectCity + ' got ' + r.city);
+        }
+        if (c.expectState && r.state !== c.expectState) {
+          ok = false; reasons.push('state expected ' + c.expectState + ' got ' + r.state);
+        }
+      }
+    }
+  }
+
+  console.log((ok ? '✓' : '✗') + ' ' + c.name);
+  if (!ok) reasons.forEach(function(rs){ console.log('   *** ' + rs + ' ***'); });
+  ok ? locPass++ : locFail++;
+}
+console.log(`\n=== Location extraction: ${locPass}/${locPass+locFail} passed ===\n`);
+
+// =========================================================================
+// V11.12 — Precision-aware date formatting
+// =========================================================================
+console.log('=== V11.12 date formatting ===\n');
+
+type DateCase = {
+  name: string;
+  date: string;
+  precision: 'exact' | 'month' | 'year' | 'decade' | 'estimated' | 'unknown';
+  expect: string | RegExp;
+};
+
+const dateCases: DateCase[] = [
+  { name: 'year-precision Jan 1 placeholder → "1945" only',
+    date: '1945-01-01', precision: 'year', expect: '1945' },
+  { name: 'month-precision April placeholder → "April 2016"',
+    date: '2016-04-01', precision: 'month', expect: 'April 2016' },
+  { name: 'exact-precision → "Jan 15, 2024"',
+    date: '2024-01-15', precision: 'exact', expect: 'Jan 15, 2024' },
+  { name: 'decade-precision → "1940s"',
+    date: '1945-01-01', precision: 'decade', expect: '1940s' },
+  { name: 'estimated-precision → "around 2010"',
+    date: '2010-01-01', precision: 'estimated', expect: 'around 2010' },
+  { name: 'unknown-precision → "" (blank)',
+    date: '2020-01-01', precision: 'unknown', expect: '' },
+];
+
+let datePass = 0, dateFail = 0;
+for (const c of dateCases) {
+  const out = formatEventDate(c.date, c.precision);
+  const ok = typeof c.expect === 'string' ? out === c.expect : c.expect.test(out);
+  console.log((ok ? '✓' : '✗') + ' ' + c.name + ' → ' + JSON.stringify(out));
+  if (!ok) console.log('   *** expected ' + JSON.stringify(c.expect) + ' ***');
+  ok ? datePass++ : dateFail++;
+}
+console.log(`\n=== Date formatting: ${datePass}/${datePass+dateFail} passed ===`);
+
+const totalFail = fail + redactFailCount + locFail + dateFail;
 process.exit(totalFail > 0 ? 1 : 0);

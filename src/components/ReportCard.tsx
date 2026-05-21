@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { MapPin, Calendar, Eye, MessageCircle, ThumbsUp, Award } from 'lucide-react'
 import { Report, PhenomenonType } from '@/lib/database.types'
 import { CATEGORY_CONFIG, CREDIBILITY_CONFIG } from '@/lib/constants'
-import { formatRelativeDate, formatDate, truncate, classNames } from '@/lib/utils'
+import { formatRelativeDate, formatDate, formatEventDate, truncate, classNames } from '@/lib/utils'
 import SourceBadge from './SourceBadge'
 import CategoryIcon from '@/components/ui/CategoryIcon'
 import IngestedBadge, { isIngested } from '@/components/IngestedBadge'
@@ -135,7 +135,7 @@ export default function ReportCard({ report, variant = 'default' }: ReportCardPr
               {report.event_date && (
                 <span className="flex items-center gap-1">
                   <Calendar className="w-4 h-4" />
-                  {formatDate(report.event_date)}
+                  {formatEventDate(report.event_date, (report as any).event_date_precision) || formatDate(report.event_date)}
                 </span>
               )}
             </div>
